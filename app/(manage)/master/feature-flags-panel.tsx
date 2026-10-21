@@ -75,7 +75,7 @@ export default function FeatureFlagsPanel({ stores }: { stores: Store[] }) {
       <h3 style={h3}>機能の公開</h3>
       <p style={sub}>
         会社の既定を決め、店舗ごとに上書きできます。OFF の機能は導線ごと表示されません（準備中表示にはなりません）。
-        切替は監査（flag_toggle）に記録されます。
+        切替は操作履歴に記録されます。
       </p>
       {loadErr && <Message kind="error" style={{ margin: "0 0 10px" }}>{loadErr}</Message>}
       <ResponsiveTable className="stickyfirst">{/* ★裁定382（GV-B W-1）: <600 は 1 行 1 カード（機能／会社の既定／店舗ごと）。★M18（裁定247・2026-09-18）: 先頭列（機能）を sticky-left */}

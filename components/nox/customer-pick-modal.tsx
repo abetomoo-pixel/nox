@@ -40,6 +40,9 @@ export function customerChipLineOf(l: { product_id?: string | null; time_auto?: 
 /** 既定タブ＝この伝票のお客様がいれば①・いなければ候補があれば②・それも 0 なら③（377） */
 export function pickDefaultTabOf(i: { onCheck: number; cand: number }): PickTab { return i.onCheck > 0 ? "check" : i.cand > 0 ? "cand" : "all"; }
 
+/** 開卓モーダルが渡す「伝票なし」の checkId（伝票が作られる前） */
+export const NIL_CHECK_ID = "00000000-0000-0000-0000-000000000000";
+
 const errJa = (m: string): string => m.includes("forbidden") ? "権限がありません（店長・顧客権限のあるスタッフから操作してください）" : m.includes("not open") ? "会計済みの伝票には付けられません" : m.includes("exists") ? "すでにこの伝票のお客様です" : m;
 
 export default function CustomerPickModal({ storeId, checkId, target, mode = "line", castIds = [], casts = [], onClose, onPicked }: {
@@ -88,7 +91,9 @@ export default function CustomerPickModal({ storeId, checkId, target, mode = "li
   const searching = q.trim() !== "";
   const hits = useMemo(() => searchCandidatesOf(candidates, q), [candidates, q]);
   const allList = useMemo(() => candidates.filter((c) => (kana === "" || kanaRowOf(c.furigana ?? c.name) === kana) && (castChip === "" || c.castId === castChip)), [candidates, kana, castChip]);
-  const curTab: PickTab = tab ?? (named === null ? "cand" : pickDefaultTabOf({ onCheck: checkList.length, cand: candList.length }));
+  // ★便 X13-G W-2: 伝票がまだ無い（開卓モーダル＝nil の checkId）／伝票のお客様が 0 人なら「この伝票のお客様」を出さない（既定は候補）
+  const showCheckTab = checkId !== NIL_CHECK_ID && checkList.length > 0;
+  const curTab: PickTab = (tab === "check" && !showCheckTab ? null : tab) ?? (named === null ? "cand" : pickDefaultTabOf({ onCheck: showCheckTab ? checkList.length : 0, cand: candList.length }));
   const currentName = target?.currentCustomerId ? (named ?? []).find((r) => r.customer_id === target.currentCustomerId)?.name ?? custs.find((c) => c.id === target.currentCustomerId)?.name ?? null : null;
   const isBottle = target?.isBottle ?? false;
 
@@ -146,7 +151,7 @@ export default function CustomerPickModal({ storeId, checkId, target, mode = "li
         </div>
         {!searching && (
           <div className="nox-segtabs" role="tablist" data-cust-tabs="1" style={{ margin: "8px 0" }}>
-            {(["check", "cand", "all", "new"] as const).map((k) => (
+            {(["check", "cand", "all", "new"] as const).filter((k) => k !== "check" || showCheckTab).map((k) => (
               <button key={k} type="button" role="tab" aria-selected={curTab === k} className={curTab === k ? "on" : ""} onClick={() => setTab(k)}>{PICK_TAB_LABEL[k]}{k === "check" && checkList.length ? ` ${checkList.length}` : ""}</button>
             ))}
           </div>

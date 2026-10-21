@@ -95,14 +95,14 @@ export default function DailyPayForm({ castId, castName, dateDefault, storeId }:
         <SegSelect value={kind} onChange={(v) => setKind(v as DailyPayKind)} disabled={busy} ariaLabel="日払いの種別"
           options={[["advance", DAILY_PAY_KIND_LABEL.advance], ["settlement", DAILY_PAY_KIND_LABEL.settlement]] as const} />
       </div>
-      <div className="nox-issue-row" style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
-        <label style={t.fieldLabel}>金額<br />
-          <MoneyInput value={amount} onChange={setAmount} placeholder="例: 10,000" width={150} style={{ marginTop: 3 }} disabled={busy} ariaLabel="日払いの金額" />
+      <div className="nox-dailypay-row" data-dailypay-row="1">{/* ★便 X13-G W-8: ≤899＝1 行目 金額｜営業日（2 列）・2 行目 発行（全幅）／≥900＝横 1 行 */}
+        <label style={t.fieldLabel} className="f">金額<br />
+          <MoneyInput value={amount} onChange={setAmount} placeholder="例: 10,000" width="100%" style={{ marginTop: 3 }} disabled={busy} ariaLabel="日払いの金額" />
         </label>
-        <label style={t.fieldLabel}>営業日<br />
+        <label style={t.fieldLabel} className="f">営業日<br />
           <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={{ ...t.input, marginTop: 3 }} disabled={busy} aria-label="日払いの営業日" />
         </label>
-        <button type="button" onClick={() => void issue()} disabled={busy || gross == null || gross <= 0} style={{ ...t.btnGold, ...t.btnSm, opacity: gross ? 1 : 0.6 }}>
+        <button type="button" onClick={() => void issue()} disabled={busy || gross == null || gross <= 0} className="go" style={{ ...t.btnGold, minHeight: 44, opacity: gross ? 1 : 0.6 }}>
           {busy ? "発行中…" : kind === "advance" ? "前払を発行" : "日払いを発行"}
         </button>
       </div>
@@ -111,7 +111,7 @@ export default function DailyPayForm({ castId, castName, dateDefault, storeId }:
         {gross != null && gross > 0 ? (
           <>源泉 <span className="num">{yen(wh ?? 0)}</span>・手取り <span className="num" style={{ color: "var(--v2-text)", fontWeight: 700 }}>{yen(gross - (wh ?? 0))}</span>（{kind === "advance" ? "前払＝控除なし・期の精算で控除" : `${mode}・計算期間 1 日＝月次と同じ式・期間精算から除外`}）</>
         ) : "金額を入れると源泉と手取りをプレビューします（月次と同じ式・日数 1）。"}
-        {mode === "雇用" && <> ※雇用キャストの日払いは源泉 0 で渡します（税理士確認中・T10）。</>}
+        {mode === "雇用" && <> ※雇用キャストの日払いは源泉 0 で渡します（税理士に確認中）。</>}
       </p>
       {overNote && <Message kind="warn">{overNote}</Message>}
       {periodNote && <Message kind={periodNote.kind}>{periodNote.text}</Message>}

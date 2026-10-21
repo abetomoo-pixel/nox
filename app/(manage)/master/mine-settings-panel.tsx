@@ -20,7 +20,7 @@ const DESC: Record<OnOffKey, string> = {
   drink_claim: "ON にすると、キャストのマイページに自己申告ドリンクのカードが出ます（承認後に給与へ合算）",
   punch_correction_request: "ON にすると、キャスト本人が出退勤の修正を申請できます（店の承認後に反映）",
   ranking: "ON にすると、マイページのナビにランキングが出ます（OFF の店は直 URL もマイページへ戻します）",
-  ranking_show_others: "ON にすると、ランキングに上位の名前も出します（top）。OFF は自分の順位のみ（self）。金額はどちらでも出しません（ランキング ON のときだけ有効・裁定346）",
+  ranking_show_others: "ON にすると、ランキングに上位の名前も出します。OFF は自分の順位のみ。金額はどちらでも出しません（ランキング ON のときだけ有効）",
   reservation_request: "ON にすると、キャストが担当客の指名予約・同伴予約を申請できます（店の承認で予約になります）",
 };
 const secTitle: React.CSSProperties = t.cardTitle;

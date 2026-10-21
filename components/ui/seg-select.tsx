@@ -14,7 +14,7 @@
 import type { CSSProperties } from "react";
 
 export default function SegSelect({
-  value, onChange, options, disabled, style, confirm, ariaLabel,
+  value, onChange, options, disabled, style, confirm, ariaLabel, wrap = false,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -25,9 +25,11 @@ export default function SegSelect({
   /** 押下前の確認文。undefined を返すと確認しない。 */
   confirm?: (nextValue: string, nextLabel: string) => string | undefined;
   ariaLabel?: string;
+  /** ★便 X13-G W-6 ③／W-12 ③: 900px 未満で 2 列に折り返す（項目が多く右で切れるセグメント） */
+  wrap?: boolean;
 }) {
   return (
-    <div className="nox-seg" style={{ flex: "0 0 auto", ...style }} role="group" aria-label={ariaLabel}>
+    <div className={wrap ? "nox-seg nox-seg--wrap" : "nox-seg"} style={{ flex: "0 0 auto", ...style }} role="group" aria-label={ariaLabel}>
       {options.map(([v, l]) => {
         const on = v === value;
         return (

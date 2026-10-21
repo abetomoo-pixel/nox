@@ -1,4 +1,5 @@
 "use client";
+import GroupedNumberInput from "@/components/ui/grouped-number-input"; // ★便 X13-G W-12 ④: 3 桁区切りの入力欄
 
 import { NORM_AXES, NORM_AXIS_LABEL, NORM_AXIS_UNIT, normAxesOf, normTargetsOf, resolveNormTargetsOf, type NormTargets } from "@/lib/nox/store/norm-axes"; // ★裁定347（0171・便 P171）: 継承値の薄濃・採用軸の列
 import type { StoreSettings } from "@/lib/nox/store-systems";
@@ -7,7 +8,7 @@ import SegSelect from "@/components/ui/seg-select";
 import { ResponsiveTable, SegmentTabs } from "@/components/ui/responsive-kit"; // ★裁定382（GV-B W-1）・373（W-3）
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
-import { normPenaltyModeOf } from "@/lib/nox/pay"; // ★裁定373
+import { normPenaltyModeOf, type NormPenaltyMode } from "@/lib/nox/pay"; // ★裁定373
 import { rpcErrJa } from "@/lib/nox/ui/rpc-err"; // ★裁定339: 一覧読取の error を和文で赤帯へ
 import { slideAtLabelOf, type SlidePeriod } from "@/lib/nox/payroll/slide"; // ★裁定338（0168）: 判定期間の単位ラベル
 import MoneyInput from "@/components/ui/money-input"; // ★便 X-12-1（起票90）: 金額欄の共通部品（数字のみ・3 桁区切り・右に「円」）
@@ -425,9 +426,9 @@ export function PlanTab({ plans, isOwner, storeId, setMsg, reload }: { plans: Pl
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end", width: "100%" }}>
               <span style={{ fontSize: 12, color: "var(--sub)" }}>商品バック 区分別（円/本・空欄＝一律 {pb.fixed ?? 0} 円）</span>
               {([["hon", "本指名"], ["jonai", "場内"], ["free", "フリー"]] as const).map(([k, label]) => (
-                <label key={k} style={{ fontSize: 12 }}>{label} <input type="number" min={0} inputMode="numeric" value={pbRegion[k]} placeholder="一律" onChange={(e) => setPbRegion((r) => ({ ...r, [k]: e.target.value }))} style={{ ...input, width: 70 }} /></label>
+                <label key={k} style={{ fontSize: 12 }}>{label} <GroupedNumberInput value={pbRegion[k]} placeholder="一律" onChange={(v) => setPbRegion((r) => ({ ...r, [k]: v }))} style={{ ...input, width: 80 }} ariaLabel={`商品バック ${label}`} /></label>
               ))}
-              <span style={{ fontSize: 11, color: "var(--v2-muted)" }}>同伴＝本指名と同額・商品の unit4 が最優先</span>
+              <span style={{ fontSize: 11, color: "var(--v2-muted)" }}>同伴＝本指名と同額・商品ごとの区分別バックが最優先</span>
             </div>
           )}
           <div style={{ display: "flex", gap: 16, width: "100%" }}>
@@ -720,7 +721,7 @@ export function AssignTab({ plans, casts, castPlans, isManagerUp, setMsg, reload
                       <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                         <input type="date" value={rowDate[c.id] ?? ""} onChange={(e) => setRowDate((m) => ({ ...m, [c.id]: e.target.value }))}
                           style={{ ...input, width: 140 }}
-                          title="空＝今すぐ（現在行の上書き）。指定＝その日から適用（履歴生成・給与は裁定97 の期間選択）" />
+                          title="空＝今すぐ（いまの設定を上書き）。指定＝その日から適用（それまでの給与は前の設定のまま）" />
                         {cp && (
                           <button type="button" onClick={() => void toggleHist(c.id)} title="適用履歴（期間つき・読み取りのみ）"
                             style={{ ...t.btnGhost, ...t.btnSm, border: histOpen === c.id ? "1px solid var(--gold)" : t.btnGhost.border }}>
@@ -764,7 +765,7 @@ export function AssignTab({ plans, casts, castPlans, isManagerUp, setMsg, reload
                         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", fontSize: 12 }}>
                           <span style={{ color: "var(--sub)" }}>商品バック 区分別（円/本・空欄＝プランの値）</span>
                           {([["pbHon", "本指名"], ["pbJonai", "場内"], ["pbFree", "フリー"]] as const).map(([k, label]) => (
-                            <label key={k}>{label} <input type="number" min={0} inputMode="numeric" value={ovd[k]} placeholder="—" onChange={(e) => { const v = e.target.value; setOvd((d) => ({ ...d, [k]: v })); }} style={{ ...input, width: 70 }} /></label>
+                            <label key={k}>{label} <GroupedNumberInput value={ovd[k]} placeholder="—" onChange={(v) => setOvd((d) => ({ ...d, [k]: v }))} style={{ ...input, width: 80 }} ariaLabel={`商品バック ${label}`} /></label>
                           ))}
                         </div>
                         <p style={{ ...note, margin: 0 }}>既定を使う＝プランの値のまま。方式と値はペアで保存されます（この行の「変更」で確定）。</p>
@@ -896,7 +897,7 @@ export function NormTab({ casts, norms, isManagerUp, setMsg, reload, plans = [],
             <p style={{ ...note, marginTop: 6 }}>空欄の項目は変えません（その人の現在値のまま）。表の行をタップして選択します。</p>
           </div>
           <p style={{ ...note, marginTop: 8 }}>
-            ※未達の減額（4 軸・定額／不足ごと）は下の「遅刻・当欠の検知（閾値）」で設定し、給与の精算調整で登録します（★便 P174 T-3＝裁定394）。
+            ※未達の減額（4 軸・定額／不足ごと）は下の「遅刻・当欠の検知（閾値）」で設定し、給与の精算調整で登録します。
             店として採用する軸と指名のカウント定義は「ノルマ設定（店）」パネルで切り替えます。
           </p>
         </>
@@ -1024,6 +1025,8 @@ export function penaltyArgsOf(storeId: string, p: Penalty): Record<string, unkno
 }
 export function PenaltyTab({ penalty, setPenalty, exists, isOwner, storeId, setMsg, reload, settings = null }: { penalty: Penalty; setPenalty: (p: Penalty) => void; exists: boolean; isOwner: boolean; storeId: string; setMsg: (m: string) => void; reload: () => Promise<void>; settings?: StoreSettings | null }) {
   const axesOn = normAxesOf(settings); // ★便 P174 T-3（裁定394）: 採用 OFF の軸は欄ごと出さない（店設定 norm_axes）
+  // ★便 X13-G W-19 ②: 金額が両方 0 のとき、選んだ方式を画面で覚える（値から方式を導くと 0 円のまま切り替えても「定額」に戻っていた）
+  const [modeSel, setModeSel] = useState<Record<string, NormPenaltyMode>>({});
   const supabase = createClient();
   // ★表示のみ日本語化（k＝state キー／RPC 引数名は英語のまま save() で明示送信）。
   // ★裁定104: 円系（円/回・円）＝7桁・時間(h)/分＝4桁。スピナー非表示・右寄せ・ホイール無効。
@@ -1053,14 +1056,14 @@ export function PenaltyTab({ penalty, setPenalty, exists, isOwner, storeId, setM
           {/* ★裁定373（GV-B W-3）: 軸（出勤日数／同伴）ごとに「定額／不足 1 件ごと」のセグメントで 1 方式・入力は 1 つ・未選択側は 0（RPC が null を拒むため＝0172 で null 許容を同乗・仮決め）。両方入っている既存店は「不足ごと」扱い */}
           {PENALTY_AXES.filter(([ax]) => axesOn[ax]).map(([ax, label, fk, pk, unit]) => {
             const flat = penalty[fk] as number, per = penalty[pk] as number;
-            const mode = normPenaltyModeOf(flat, per);
+            const mode: NormPenaltyMode = flat === 0 && per === 0 ? (modeSel[ax] ?? "flat") : normPenaltyModeOf(flat, per);
             const both = flat > 0 && per > 0;
             return (
               <div key={ax} className="nox-fieldstack" data-penalty-axis={ax} data-penalty-mode={mode} style={{ marginBottom: 0 }}>
                 <span className="l">{label}ノルマ 未達の減額</span>
                 <div className="f">
                   <SegmentTabs value={mode} ariaLabel={`${label}ノルマ 未達の減額の方式`}
-                    onChange={(m) => setPenalty(m === "per" ? { ...penalty, [fk]: 0, [pk]: per > 0 ? per : Math.max(flat, 0) } : { ...penalty, [pk]: 0, [fk]: flat > 0 ? flat : Math.max(per, 0) })}
+                    onChange={(m) => { setModeSel((x) => ({ ...x, [ax]: m })); setPenalty(m === "per" ? { ...penalty, [fk]: 0, [pk]: per > 0 ? per : Math.max(flat, 0) } : { ...penalty, [pk]: 0, [fk]: flat > 0 ? flat : Math.max(per, 0) }); }}
                     options={[["flat", "定額"], ["per", `不足 1 ${unit}ごと`]] as const} />
                   <label style={{ fontSize: 12 }}>
                     <input type="number" min={0} value={mode === "per" ? per : flat} className="nox-numfield num" inputMode="numeric" onWheel={numWheelBlur}

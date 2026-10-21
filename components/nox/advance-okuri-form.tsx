@@ -39,7 +39,7 @@ export default function AdvanceOkuriForm({ storeId, casts, castId, castName, dat
   return (
     <div style={{ display: "grid", gap: 10 }}>
       <IssueRow kind="advance" storeId={storeId} casts={casts} castId={castId} castName={castName} dateDefault={dateDefault} disabled={false}
-        hint="給与から天引きされます（手取り不足時は翌月へ繰越）。残高の管理は次の段（0156）で追加します。" onIssued={onIssued} />
+        hint="給与から天引きされます（手取りが足りないときは翌月へ繰越）。残高は給与の前借り列で確認できます。" onIssued={onIssued} />
       <IssueRow kind="transport" storeId={storeId} casts={casts} castId={castId} castName={castName} dateDefault={dateDefault} disabled={!okuriOn} defaultAmount={okuriBase}
         hint={okuriOn ? "当月精算（繰越なし）。手取り不足で引き切れない残は再回収されません。" : "※送り方式が「実費」の店のみ発行できます（控除・送りで切替）。"} onIssued={onIssued} />
     </div>

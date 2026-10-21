@@ -69,9 +69,47 @@ export function shiftRow(row: Record<string, unknown>, targetBiz: string, cutoff
   return out;
 }
 
-/** payload（表→行[]）全体を targetBiz 基準へ */
+/** ★便 X13-G W-18 ③: 今月の写し（gen-demo）の行＝$onlyBefore（日付の列名）・$dedupe（重なりを見る列）。 */
+const dayOfVal = (v: unknown, cutoffHm: string): string | null => (typeof v === "string" ? (v.length > 10 ? bizDateOf(v, cutoffHm) : v.slice(0, 10)) : null);
+function mirrorKeep(raw: Record<string, unknown>, shifted: Record<string, unknown>, targetBiz: string, cutoffHm: string): boolean {
+  const f = raw.$onlyBefore;
+  if (typeof f !== "string") return true;
+  const v = raw[f];
+  if (isRelMonth(v)) { // 月の末日に畳んだ行（その月に無い日）は落とす
+    const [y, m] = relMonthToDate({ ...v, d: 1 }, targetBiz).split("-").map(Number);
+    const dim = new Date(Date.UTC(y, m, 0)).getUTCDate();
+    if (v.d > dim) return false;
+  }
+  const day = dayOfVal(shifted[f], cutoffHm);
+  return day !== null && day < targetBiz;
+}
+const dedupeKeyOf = (row: Record<string, unknown>, cols: readonly string[], cutoffHm: string): string =>
+  cols.map((c) => (c.endsWith(":day") ? dayOfVal(row[c.slice(0, -4)], cutoffHm) : String(row[c] ?? ""))).join("|");
+
+/** payload（表→行[]）全体を targetBiz 基準へ（★W-18: 今月の写しは reset 日より前だけ・写しでない行と重なる日は写しを落とす・子の行は親が落ちたら落とす） */
 export function shiftPayload(payload: Record<string, Record<string, unknown>[]>, targetBiz: string, cutoffHm: string): Record<string, Record<string, unknown>[]> {
   const out: Record<string, Record<string, unknown>[]> = {};
-  for (const [table, rows] of Object.entries(payload)) out[table] = rows.map((r) => shiftRow(r, targetBiz, cutoffHm));
-  return out;
+  const droppedChecks = new Set<string>();
+  const strip = (r: Record<string, unknown>) => { const o = { ...r }; delete o.$onlyBefore; delete o.$dedupe; return o; };
+  const order = Object.keys(payload).sort((a, b) => Number(b === "checks") - Number(a === "checks")); // 伝票を先に（子の判定に使う）
+  for (const table of order) {
+    const rows = payload[table];
+    const kept: Record<string, unknown>[] = [];
+    const mirrors: { raw: Record<string, unknown>; sh: Record<string, unknown> }[] = [];
+    for (const r of rows) {
+      const sh = shiftRow(r, targetBiz, cutoffHm);
+      if (typeof r.$onlyBefore !== "string") { kept.push(sh); continue; }
+      const parent = typeof r.check_id === "string" ? r.check_id : null;
+      if (!mirrorKeep(r, sh, targetBiz, cutoffHm) || (parent && droppedChecks.has(parent))) { if (table === "checks" && typeof r.id === "string") droppedChecks.add(r.id); continue; }
+      mirrors.push({ raw: r, sh });
+    }
+    const cols = (rows.find((r) => Array.isArray(r.$dedupe))?.$dedupe ?? null) as string[] | null;
+    const base = cols ? new Set(kept.map((r) => dedupeKeyOf(r, cols, cutoffHm))) : null;
+    for (const m of mirrors) {
+      if (base && cols && base.has(dedupeKeyOf(m.sh, cols, cutoffHm))) { if (table === "checks" && typeof m.raw.id === "string") droppedChecks.add(m.raw.id); continue; }
+      kept.push(strip(m.sh));
+    }
+    out[table] = kept;
+  }
+  return Object.fromEntries(Object.keys(payload).map((t) => [t, out[t]]));
 }

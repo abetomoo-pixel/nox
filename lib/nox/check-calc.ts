@@ -152,3 +152,27 @@ export function groupDueFull(lines: DueLine[], s: CheckDueSettings, referralCust
   if (payFee > 0) return roundAmount(net + roundYen(((net - payFee) * s.service_rate) / 100), s.round_unit, s.round_mode); // ★0173: 手数料行はサ料なし
   return groupDue(net, s); // 内税/exempt＝従来式（1バイト同値）
 }
+
+// ── ★便 X13-G W-14／W-15（2026-10-21）: 表示用の内訳＝groupDueFull と同じ式を分解しただけ（計算は変えない・合計は必ず groupDueFull と一致） ──
+//   外税＝小計（税抜）→ サービス料（税抜）→ 消費税（外税）→ 端数調整 → 合計（税込）。内税／免税＝合計（税込）と「うち消費税」（receipt の taxOf と同式＝floor(合計×10/110)）。
+export type DueBreakdown = { excluded: boolean; net: number; service: number; tax: number; rounding: number; due: number; payFee: number };
+export function dueBreakdownOf(lines: DueLine[], s: CheckDueSettings, referralCustomer = 0): DueBreakdown {
+  const due = groupDueFull(lines, s, referralCustomer);
+  const bx = lines.filter((l) => l.kind !== "discount").reduce((a, l) => a + l.line_total, 0) + referralCustomer;
+  const disc = lines.filter((l) => l.kind === "discount").reduce((a, l) => a + l.line_total, 0);
+  const net = Math.max(0, bx - disc);
+  const payFee = lines.filter((l) => l.kind !== "discount" && l.fee_kind === "pay_fee").reduce((a, l) => a + l.line_total, 0);
+  const excluded = (s.price_display ?? "tax_included") === "tax_excluded" && (s.business_tax_status ?? "taxable") === "taxable";
+  if (net === 0) return { excluded, net: 0, service: 0, tax: 0, rounding: 0, due: 0, payFee };
+  const service = roundYen(((net - payFee) * s.service_rate) / 100);
+  if (excluded) {
+    const catOf = (l: DueLine) => l.tax_category ?? "taxable_10";
+    const bx10 = lines.filter((l) => l.kind !== "discount" && catOf(l) === "taxable_10").reduce((a, l) => a + l.line_total, 0) + referralCustomer;
+    const bx8 = lines.filter((l) => l.kind !== "discount" && catOf(l) === "taxable_8").reduce((a, l) => a + l.line_total, 0);
+    const trnd = s.tax_rounding ?? "floor";
+    const tax = taxRound(((Math.max(0, bx10 - disc) + service) * 10) / 100, trnd) + taxRound((bx8 * 8) / 100, trnd);
+    return { excluded, net, service, tax, rounding: due - (net + service + tax), due, payFee };
+  }
+  const taxIn = (s.business_tax_status ?? "taxable") === "taxable" ? Math.floor((due * 10) / 110) : 0;
+  return { excluded, net, service, tax: taxIn, rounding: due - (net + service), due, payFee };
+}

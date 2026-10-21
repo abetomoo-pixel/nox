@@ -44,6 +44,12 @@ export default function Modal({
   children: ReactNode;
 }) {
   // ★裁定253（A モーダル化・2026-09-14）: Esc で閉じる（背景タップ・× と同じ onClose を呼ぶ＝閉じない条件は呼び出し側の onClose が判定）
+  // ★便 X13-G W-1: 開いている間は背面をスクロールさせない（入れ子でも元の値へ戻す）
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, []);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", onKey);

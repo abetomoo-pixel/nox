@@ -42,7 +42,7 @@ export const SETUP_STEPS: ReadonlyArray<readonly [string, string]> = [
 /** 331-2／setup_map §8 の C／D＝本便では画面に出さない項目（suite がウィザード本文に無いことを pin） */
 // ★便 W5-2a（2026-10-13）: C 5 項目（インボイスの登録／給与の締め日と支払日／消費税の表示／お客様の支払い方法／出退勤の打刻）は 0164 の列 7 つを STEP 5「会計と運用」に結線＝一覧から外した（締め日は月末固定＝334・支払日だけ）。
 export const SETUP_HIDDEN_ITEMS: ReadonlyArray<{ label: string; cls: "C" | "D"; when: string }> = [
-  { label: "キャストのランク別", cls: "D", when: "W5-2b（0170＝ランク別スライド＋ランク別ルールの結線）" },
+  { label: "キャストのランク別", cls: "D", when: "待遇プランの詳細で設定" },
   { label: "達成ボーナスの多段", cls: "D", when: "第 2 期" },
   { label: "売上歩合のみ", cls: "D", when: "第 2 期" },
   { label: "新人保証のプラン自動切替", cls: "D", when: "第 2 期（期間満了＝現行）" },
@@ -390,7 +390,7 @@ export function buildSetupPlan(sel: SetupSelection): PlanStep[] {
   // 8) 機能スイッチ（変更分だけ・org 既定行）
   for (const f of sel.flags ?? []) steps.push({ key: `flag_${f.key}`, group: "flags", label: `機能 ${f.key} を ${f.enabled ? "ON" : "OFF"}`, rpc: "flag_set", args: { p_key: f.key, p_store_id: null, p_enabled: f.enabled, p_reason: null } });
   // 9) 最後に setup_done（★裁定285／287-4: slide_apply='next'・★0154 D4: 精算調整のひな形 既定 3 件）
-  steps.push({ key: "done", group: "done", label: "初期設定完了（setup_done・slide_apply=next・settlement_presets 既定 3 件）", rpc: "set_store_profile", args: { p_store_id: s, p_patch: { setup_done: true, slide_apply: "next", settlement_presets: DEFAULT_SETTLEMENT_PRESETS } } });
+  steps.push({ key: "done", group: "done", label: "初期設定の完了（スライドは前期の実績で判定・精算調整のひな形 3 件）", rpc: "set_store_profile", args: { p_store_id: s, p_patch: { setup_done: true, slide_apply: "next", settlement_presets: DEFAULT_SETTLEMENT_PRESETS } } });
   return steps;
 }
 

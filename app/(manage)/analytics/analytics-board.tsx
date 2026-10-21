@@ -1014,7 +1014,7 @@ export default function AnalyticsBoard({
             <div className="nox-srow"><span>売掛 当月回収</span><span className="v num">{yen(arCollected)}</span></div>
             <div className="nox-srow"><span>売掛 未回収残高（全期間）</span><span className="v num">{yen(arOpen)}</span></div>
             <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "8px 0 0" }}>
-              ※手数料は各営業日の締め時レートのスナップショット合計。回収は入金記録（当月）・残高は給与天引き分を除いた未回収の合計です。
+              ※手数料は各営業日の締めの時点の率で計算した合計。回収は入金記録（当月）・残高は給与天引き分を除いた未回収の合計です。
             </p>
           </section>
         </div>

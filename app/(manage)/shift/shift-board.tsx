@@ -25,7 +25,7 @@ import { SHIFT_VIEWS, VIEW_TABS, tabOfView, viewOfTab } from "@/lib/nox/shift/ta
 import { matchPunches, LATE_GRACE_MIN_DEFAULT } from "@/lib/nox/punch-match"; // ★裁定257 R20-a: 遅刻判定は給与側と同じ純関数
 import { buildMatchInput, type PunchRow } from "@/lib/nox/punch-io";
 // ★便 AT2（2026-09-24）: 今日タブの出退勤表示＝純関数（退勤ボタンの出し分け・時刻文字列・最初の in／最後の out）
-import { firstInLastOut, okuriButtonOf, outButtonOf, outDialogNeeded, punchTimeLabel, punchInAfterAtt, attRowModeOf, arrivedChipOf, dohanToggleOf } from "@/lib/nox/shift/today-row"; // ★裁定357（GV-5・便 N1014 A-6）: 送りは退勤後も営業日内は可・退勤ダイアログ 2 択
+import { firstInLastOut, okuriButtonOf, outButtonOf, outDialogNeeded, punchTimeLabel, punchInAfterAtt, attRowModeOf, arrivedChipOf, dohanToggleOf, todayRowViewOf, dohanUnsetStatusOf } from "@/lib/nox/shift/today-row"; // ★裁定357（GV-5・便 N1014 A-6）: 送りは退勤後も営業日内は可・退勤ダイアログ 2 択
 import { opsProfileOf } from "@/lib/nox/store/ops-profile"; // ★0164（便 W5-2b）: punch_methods.proxy
 import { PunchCorrectionForm } from "@/components/nox/punch-correction-modal"; // ★0154 D1: 出退勤の修正（owner／manager＝申請＝確定）・★裁定310: 「調整」モーダルのタブ①に埋め込む（本体のみ）
 import PunchDecideModal from "@/components/nox/punch-decide-modal"; // ★裁定297-1: cast の申請（pending）の承認／却下（理由必須）
@@ -1381,10 +1381,11 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                             const ob0 = outButtonOf({ canRecord, attStatus: att?.status, hasIn: !!io?.inHm, hasOut: !!io?.outHm });
                             const ob = proxyPunchOn ? ob0 : { ...ob0, show: false }; // ★0164（便 W5-2b）: 店設定 punch_methods.proxy が OFF なら代行の退勤ボタンを出さない（RPC は拒否しない）
                             const outOn = ob.show && ob.enabled;
+                            const view = todayRowViewOf({ attStatus: att?.status, hasIn: !!io?.inHm, hasOut: !!io?.outHm }); // ★便 X13-G W-11
                             return (
-                              <div className="nox-attrow" data-att-mode={attRowModeOf({ hasIn: !!io?.inHm, hasOut: !!io?.outHm })}>
-                                {/* ★裁定383（GV-B W-13）: 出勤前＝5 択／出勤後＝「出勤 HH:MM」（猶予超過は「遅刻 HH:MM」自動）＋同伴トグル／退勤後＝実績チップ＋同伴の結果 */}
-                                {attRowModeOf({ hasIn: !!io?.inHm, hasOut: !!io?.outHm }) !== "pre" && (() => {
+                              <div className="nox-attrow" data-att-mode={attRowModeOf({ hasIn: !!io?.inHm, hasOut: !!io?.outHm })} data-att-view={view}>
+                                {/* ★裁定383（GV-B W-13）→★便 X13-G W-11: 出勤前＝「出勤」（主ボタン）＋遅刻／当欠／同伴／休み（送り・退勤なし）／出勤後＝チップ＋同伴＋送り・退勤／当欠・休み＝チップのみ／退勤後＝チップ＋送り（退勤なし） */}
+                                {(view === "arrived" || view === "done") && (() => {
                                   const mode = attRowModeOf({ hasIn: !!io?.inHm, hasOut: !!io?.outHm });
                                   const chip = arrivedChipOf({ inHm: io?.inHm, outHm: io?.outHm, lateMin: n });
                                   const dh = dohanToggleOf(att?.status);
@@ -1392,47 +1393,59 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                                     <span className="nox-attchips" style={{ display: "inline-flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                                       <span className={`nox-stpill ${chip.late ? "warn" : "ok"}`} data-att-chip={mode}>{chip.label}</span>
                                       {dh.set && <span className="nox-stpill" data-dohan-chip="1">同伴</span>}
-                                      {!dh.set && mode === "arrived" && canRecord && (
-                                        <button type="button" style={{ ...btnLight, padding: "2px 10px", fontSize: 11.5 }} data-dohan-toggle="1" title="同伴として記録します" onClick={() => void setAtt(s.cast_id, "dohan")}>同伴</button>
+                                      {canRecord && (
+                                        <button type="button" className="nox-rowbtn" style={{ minHeight: 36 }} data-dohan-toggle={dh.set ? "off" : "on"}
+                                          title={dh.set ? "同伴を外して出勤に戻します" : "同伴として記録します"}
+                                          onClick={() => void setAtt(s.cast_id, dh.set ? dohanUnsetStatusOf(n) : "dohan")}>{dh.set ? "同伴を外す" : "同伴"}</button>
                                       )}
                                       {att?.eta ? <span className="num sub">見込み {att.eta}</span> : null}
                                     </span>
                                   );
                                 })()}
-                                {attRowModeOf({ hasIn: !!io?.inHm, hasOut: !!io?.outHm }) === "pre" && (canRecord ? (
-                                  <div className="nox-seg nox-attseg" style={{ display: "inline-flex" }} data-att-seg="1">{/* ★GV-47（便 HF-1）→★GV-62（便 P173）: カード表示（<1280）は幅に関係なく横並びチップ（globals.css .cardrows .nox-attseg）・表表示（PC）は .nox-seg のまま */}
-                                    {ATT_OPTIONS.map(([v, l]) => {
-                                      const on = (att?.status ?? "") === v;
-                                      return (
-                                        <button key={v} className={on ? "on" : ""} aria-pressed={on}
-                                          title={on ? "記録済み（取り消しはできません・選び直してください）" : `${l}として記録`}
-                                          onClick={() => { if (!on) void setAtt(s.cast_id, v); }}>{l}</button>
-                                      );
-                                    })}
+                                {view === "absent" && (
+                                  <span className="nox-stpill ng" data-att-chip="absent">{ATT_OPTIONS.find(([v]) => v === att?.status)?.[1] ?? "—"}</span>
+                                )}
+                                {view === "pre" && (canRecord ? (
+                                  <div className="nox-attpre" data-att-seg="1">
+                                    {(() => { const on = att?.status === "shukkin"; return (
+                                      <button type="button" className={`nox-attpre-main${on ? " on" : ""}`} aria-pressed={on} data-att-main="1"
+                                        title={on ? "記録済み（キオスクの打刻待ち）" : "出勤として記録"} onClick={() => { if (!on) void setAtt(s.cast_id, "shukkin"); }}>出勤</button>
+                                    ); })()}
+                                    <div className="nox-attpre-sub">
+                                      {ATT_OPTIONS.filter(([v]) => v !== "shukkin").map(([v, l]) => {
+                                        const on = (att?.status ?? "") === v;
+                                        return (
+                                          <button key={v} type="button" className={on ? "on" : ""} aria-pressed={on}
+                                            title={on ? "記録済み（取り消しはできません・選び直してください）" : `${l}として記録`}
+                                            onClick={() => { if (!on) void setAtt(s.cast_id, v); }}>{l}</button>
+                                        );
+                                      })}
+                                    </div>
                                   </div>
                                 ) : (
                                   <span style={{ color: "var(--v2-muted)" }}>
                                     {ATT_OPTIONS.find(([v]) => v === (att?.status ?? ""))?.[1] ?? "—"}
                                   </span>
                                 ))}
-                                {attRowModeOf({ hasIn: !!io?.inHm, hasOut: !!io?.outHm }) === "pre" && (label || att?.eta) && (
+                                {view === "pre" && (label || att?.eta) && (
                                   <span className="num sub">
                                     {label}{label && n !== null ? <span style={{ marginLeft: 4, opacity: 0.75 }}>(+{n} 分)</span> : null}
                                     {att?.eta ? <span style={{ marginLeft: label ? 6 : 0 }}>見込み {att.eta}</span> : null}
                                   </span>
                                 )}
-                                {canRecord && attRowModeOf({ hasIn: !!io?.inHm, hasOut: !!io?.outHm }) !== "done" && (/* ★裁定383: 退勤後は操作なし（時刻修正だけ＝操作列） */
+                                {canRecord && (view === "arrived" || view === "done") && (
                                   <span className="out">
-                                    {/* ★裁定317（便 X-9-3）: actual 店のみ「送り」→金額ダイアログ→確定で退勤＋送り実費を即時発行 */}
-                                    {/* ★裁定357（GV-5・便 N1014 A-6）: 「送り」＝okuriButtonOf（退勤後も営業日内は有効・disabled は方式と当日発行済みのみ）。退勤前＝退勤＋送り／退勤後＝送りだけ発行 */}
+                                    {/* ★裁定317／357: 「送り」＝okuriButtonOf（退勤後も営業日内は発行可＝退勤後は送りだけ）。退勤前＝退勤＋送り／退勤後＝送りだけ発行 */}
                                     {(() => { const okb = okuriButtonOf({ canRecord, okuriActual, attStatus: att?.status, hasIn: !!io?.inHm, issuedToday: okuriIssued.has(s.cast_id) }); return okb.show ? (
                                       <button type="button" style={{ ...btnLight, padding: "4px 12px", fontSize: 12, opacity: okb.enabled ? 1 : 0.5 }} data-okuri-issued={okuriIssued.has(s.cast_id) ? "1" : undefined}
                                         disabled={!okb.enabled} title={okb.title}
                                         onClick={() => void openOkuri(s.cast_id, io?.outHm ? "issueOnly" : "outAndIssue")}>送り{okuriIssued.has(s.cast_id) ? "済" : ""}</button>
                                     ) : null; })()}
+                                    {view === "arrived" && (
                                     <button type="button" style={{ ...btnDark, padding: "4px 12px", fontSize: 12, opacity: outOn ? 1 : 0.5 }}
                                       disabled={!outOn} title={ob.show ? ob.title : "出勤（出勤・遅刻・同伴）を記録すると押せます"}
                                       onClick={() => void outPressed(s.cast_id)}>退勤</button>
+                                    )}
                                   </span>
                                 )}
                               </div>
@@ -1460,7 +1473,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                               : !tgt ? "遅刻・当欠・早退が検知された行だけ登録できます" : undefined;
                             return (
                               <span className="nox-rowops" data-att-done={io?.outHm ? "1" : undefined}>
-                                <button style={{ ...btnLight, opacity: sClosed ? 0.45 : 1 }} disabled={sClosed}
+                                <button type="button" className="nox-rowbtn" data-adj-btn="1" style={{ opacity: sClosed ? 0.45 : 1 }} disabled={sClosed} /* ★便 X13-G W-11 ⑥: 枠ボタン 44px */
                                   onClick={() => { setAdjTarget(s); setAStart(s.start_hm); setAEnd(s.end_hm); }}>時刻修正</button>
                                 {!io?.outHm && penaltiesOn && (/* ★GV-3: sys_penalties OFF の店は減額の口を出さない。★裁定383: 退勤後は「時刻修正」だけ */
                                 <button style={{ ...btnLight, opacity: tgt ? 1 : 0.45 }} disabled={!tgt} title={why}

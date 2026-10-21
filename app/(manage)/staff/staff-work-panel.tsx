@@ -94,7 +94,7 @@ export default function StaffWorkPanel({ scope, stores }: { scope: "store" | "me
         <div style={{ marginTop: 12 }}>
           {/* ★便 P174 T-7（356）: 確定（staff_payroll_runs）は書込 RPC が無い＝0175＝押せないボタンは置かず状況だけ（教訓25） */}
           <p style={{ fontSize: 12.5, margin: "0 0 4px" }} data-staff-pay-run={run ? run.status : "none"}>この月の確定: <b>{run ? (run.status === "finalized" ? "確定済み" : run.status === "paid" ? "支払済み" : run.status) : "未確定（見込み）"}</b></p>
-          <p style={{ ...t.sub, margin: "6px 0 0", lineHeight: 1.6 }}>打刻は店の端末（キオスク）から・契約（区分・時給・手当）の登録と確定（staff_payroll_runs）は次のデータ更新で有効になります。委託の源泉率は税理士確認中（T11）のため 0 で見込みを出しています。</p>
+          <p style={{ ...t.sub, margin: "6px 0 0", lineHeight: 1.6 }}>打刻は店の端末（キオスク）から・契約（区分・時給・手当）の登録と確定は準備中です。委託の源泉率は税理士に確認中のため 0 で見込みを出しています。</p>
         </div>
       )}
     </section>

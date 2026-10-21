@@ -230,7 +230,7 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
             {/* ★MC2: データ管理の面には操作ログの保持（7 年固定）の注記を同じカードに */}
             {on("data") && !on("ar") && (
               <p style={{ fontSize: 12, color: "var(--sub)", margin: 0, lineHeight: 1.7, gridColumn: "1 / -1" }}>
-                操作ログの保持: <b style={{ color: "var(--v2-text)" }}>7 年（固定）</b>。7 年を過ぎた操作ログは運用者が定期的に削除し、削除した件数と期間だけが記録に残ります（裁定309-2）。
+                操作ログの保持: <b style={{ color: "var(--v2-text)" }}>7 年（固定）</b>。7 年を過ぎた操作ログは運用者が定期的に削除し、削除した件数と期間だけが記録に残ります。
               </p>
             )}
           </div>

@@ -34,7 +34,8 @@ export default function ReceiptPrintSheet({ items, storeName, invoiceRegNo }: { 
             ￥{r.amount.toLocaleString()}−
           </div>
           <div style={{ textAlign: "center", fontSize: 11 }}>
-            （内消費税10% ￥{Math.floor((r.amount * 10) / 110).toLocaleString()}）
+            {/* ★便 X13-G W-15 ③: 合計（税込）と 10% 対象（税抜）・消費税 */}
+            （税込・10% 対象 ￥{(r.amount - Math.floor((r.amount * 10) / 110)).toLocaleString()}（税抜）・消費税 ￥{Math.floor((r.amount * 10) / 110).toLocaleString()}）
           </div>
           <div style={{ marginTop: 12 }}>但し {r.note || "ご飲食代として"}</div>
           <div>上記正に領収いたしました。</div>

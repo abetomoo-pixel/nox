@@ -34,6 +34,9 @@ export default function DeductionBoard({ storeId, isManagerUp, isOwner, casts, o
           setMsg={setMsg} reload={data.reload} />
       </section>)}
 
+      {!isSectionOn(settings, "compDeductionTab") && (
+        <p style={{ fontSize: 12.5, color: "var(--sub)", margin: "0 0 12px", lineHeight: 1.7 }} data-systems-off-note="1">固定の控除ルール（寮費・制裁など）は「罰金・減額」の制度が ON のときに使えます（店舗設定 › 利用機能で ON にできます）。</p>
+      )}{/* ★便 X13-G W-13 ②: 隠した節の案内 */}
       {/* ② 送り設定・前借り・送り実費（既存パネル移設＝RPC/引数 不変） */}
       {isSectionOn(settings, "deductionPanel") && (<DeductionPanel
         storeId={storeId}

@@ -72,7 +72,7 @@ for (const store of DEMO_STORES) {
     check(`dp(2-2) ${store}: 代表伝票 ${o.order_id} total ${ex.expected_total_yen} が 1 件ある`, !!hit);
   }
   const mt = D("monthly_sales_targets").find((m) => m.store_id === storeRow.store_id)!;
-  const month = (p.tables.daily_reports ?? []).reduce((a, r) => a + Number(r.cash) + Number(r.card_gross) + Number(r.uri) + Number(r.other), 0);
+  const month = (p.tables.daily_reports ?? []).filter((r) => !(r as Record<string, unknown>).$onlyBefore /* ★便 X13-G W-18 ③: 今月の写しは先月の golden に入れない */).reduce((a, r) => a + Number(r.cash) + Number(r.card_gross) + Number(r.uri) + Number(r.other), 0);
   const pct = ((month - Number(mt.stated_monthly_gross_yen)) / Number(mt.stated_monthly_gross_yen)) * 100;
   check(`dp(2-3) ${store}: Σdaily_reports ${month.toLocaleString()}＝月次目標 ${Number(mt.stated_monthly_gross_yen).toLocaleString()} ±1%`, Math.abs(pct) <= 1, `${pct.toFixed(2)}%`);
   // (3b) 分割
@@ -81,7 +81,7 @@ for (const store of DEMO_STORES) {
   const chunkRows = chunks.reduce((a, c) => a + Object.values(c).reduce((x, r) => x + r.length, 0), 0);
   check(`dp(3-3) ${store}: payload ${bytes.toLocaleString()} B → chunk ${chunks.length}（1 MB 超なら 2 以上・先頭 chunk に stores／memberships・各 chunk ≤ 1 MB か 1 日分・行数不変）`, (bytes > PAYLOAD_MAX_BYTES ? chunks.length >= 2 : chunks.length === 1) && !!chunks[0].stores && !!chunks[0].memberships && chunkRows === rows && chunks.slice(1).every((c) => !c.stores && !c.products), `rows ${chunkRows}/${rows}`);
 }
-const total = DEMO_STORES.reduce((a, s) => a + ((JSON.parse(fs.readFileSync(`docs/demo/payload/${s}.json`, "utf8")) as Payload).tables.daily_reports ?? []).reduce((x, r) => x + Number(r.cash) + Number(r.card_gross) + Number(r.uri) + Number(r.other), 0), 0);
+const total = DEMO_STORES.reduce((a, s) => a + ((JSON.parse(fs.readFileSync(`docs/demo/payload/${s}.json`, "utf8")) as Payload).tables.daily_reports ?? []).filter((r) => !(r as Record<string, unknown>).$onlyBefore).reduce((x, r) => x + Number(r.cash) + Number(r.card_gross) + Number(r.uri) + Number(r.other), 0), 0);
 check(`dp(2-4) ★6 店の月次 Σ ${total.toLocaleString()}＝golden 43,740,000 ±1%`, Math.abs(total - 43_740_000) / 43_740_000 <= 0.01, String(total));
 
 // (3) seed

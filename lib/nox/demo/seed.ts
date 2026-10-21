@@ -144,7 +144,7 @@ export { parseDemoUsers } from "./session";
 
 // ── ★D1-2: payload の分割（1 MB 超は日付群ごとに load を分ける・器＝RPC は不変）──
 /** 伝票・日次系（日付で切れる表）。それ以外（マスタ・当日のライブ状態を含む全表）は先頭の chunk にまとめる */
-export const DATED_TABLES: readonly string[] = ["checks", "check_lines", "check_nominations", "check_cast_backs", "check_seats", "payments", "receivables", "ar_collections", "punches", "shifts", "attendance", "daily_reports", "stock_logs", "staff_punches"]; // ★便 P173（0174 ★6）: staff_punches（biz_date）
+export const DATED_TABLES: readonly string[] = ["checks", "check_lines", "check_nominations", "check_cast_backs", "check_seats", "payments", "receivables", "ar_collections", "punches", "shifts", "attendance", "daily_reports", "stock_logs", "staff_punches", "receipt_issues"]; // ★便 P173（0174 ★6）: staff_punches（biz_date）・★便 X13-G W-18 ⑤: receipt_issues は親の伝票と同じ日（先頭の塊だと伝票より先に入って FK 違反）
 export const payloadBytes = (p: Record<string, unknown[]>): number => Buffer.byteLength(JSON.stringify(p));
 /**
  * 行の「日付群キー」＝checks は id・明細系は check_id で親の日に付ける・日次系は自分の日付列。
@@ -153,7 +153,7 @@ export const payloadBytes = (p: Record<string, unknown[]>): number => Buffer.byt
 function dayKeyOf(table: string, row: Record<string, unknown>, checkDay: Map<string, string>): string {
   const d = (v: unknown): string => (v && typeof v === "object" ? JSON.stringify(v) : String(v ?? "")).slice(0, 32);
   if (table === "checks") return d(row.started_at);
-  if (["check_lines", "check_nominations", "check_cast_backs", "check_seats", "payments"].includes(table)) return checkDay.get(String(row.check_id)) ?? "";
+  if (["check_lines", "check_nominations", "check_cast_backs", "check_seats", "payments", "receipt_issues"].includes(table)) return checkDay.get(String(row.check_id)) ?? "";
   if (table === "receivables") return row.check_id ? (checkDay.get(String(row.check_id)) ?? d(row.created_at)) : d(row.created_at);
   if (table === "ar_collections" || table === "staff_punches") return d(row.biz_date); // ★便 P173: staff_punches も日付群
   if (table === "punches") return d(row.punched_at);

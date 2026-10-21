@@ -34,3 +34,10 @@ export function recentProductIdsOf(lines: readonly { product_id?: string | null;
   for (const { l } of sorted) { if (!out.includes(l.product_id!)) out.push(l.product_id!); if (out.length >= max) break; }
   return out;
 }
+
+/** ★便 X13-G W-3: 伝票上部のお客様の 1 行＝1 人「K様」／2 人以上「K様 ほか n 名」／0 人は空 */
+export function checkCustLineOf(names: readonly string[]): string {
+  if (names.length === 0) return "";
+  const head = `${names[0]}様`;
+  return names.length === 1 ? head : `${head} ほか ${names.length - 1} 名`;
+}

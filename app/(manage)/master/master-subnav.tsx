@@ -15,6 +15,7 @@ const crumbRoot: React.CSSProperties = { fontSize: 13, color: "var(--sub)" };
 const crumbSep: React.CSSProperties = { fontSize: 13, color: "var(--sub)" };
 const crumbSelect: React.CSSProperties = {
   ...t.input, width: "auto", padding: "5px 9px", fontSize: 13, fontWeight: 700,
+  flex: "0 0 auto", minWidth: 96, maxWidth: "100%", // ★便 X13-G W-13 ④: 390px でパンくずの末尾の選択が潰れて空に見えた＝縮めない（折り返しは nox-secbar）
 };
 
 export default function MasterSubnav() {

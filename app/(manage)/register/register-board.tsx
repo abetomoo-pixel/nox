@@ -7,11 +7,15 @@ import { createClient } from "@/lib/supabase/client";
 import { opsProfileOf } from "@/lib/nox/store/ops-profile"; // ★0164（便 W5-2b）: 支払い方法の出し分け
 import { groupDueFull, timeStatusOf } from "@/lib/nox/check-calc";
 import { bizDateOf } from "@/lib/nox/biz-date"; // ★B3 裁定209: attendance の営業日判定（純関数）
+import { checkCustLineOf } from "@/lib/nox/register/line-groups"; // ★便 X13-G W-3
+import { openEstimateOf, taxMarkOf, type EstimateRule, type EstimateStore } from "@/lib/nox/register/open-estimate"; // ★便 X13-G W-14／W-15
+import { dueBreakdownOf } from "@/lib/nox/check-calc"; // ★便 X13-G W-15: 合計の内訳（表示だけ）
 import ReceiptPrintSheet from "@/components/nox/receipt-print"; // ★便 GV-C C-13: 領収書の印字実体（共用）
+import GroupedNumberInput from "@/components/ui/grouped-number-input"; // ★便 X13-G W-12 ④: 3 桁区切りの入力欄
 import { renderSVG } from "uqr"; // R2-c: 領収書公開 URL の QR（依存ゼロの軽量ライブラリ・裁定 R2-13）
 import { taxOf } from "@/lib/nox/receipt";
 import Modal from "@/components/ui/modal";
-import CastPicker, { pickerDefaultChipOf } from "@/components/nox/cast-picker"; // ★裁定384（GV-B W-14）: 既定チップ
+import CastPicker, { pickerDefaultChipOf, nomKindBadgesOf } from "@/components/nox/cast-picker"; // ★裁定384（GV-B W-14）: 既定チップ
 import Picker from "@/components/nox/picker"; // ★裁定272-2 追補（紹介料の紹介者＝裁定259 の picker）
 import { useTapBatch } from "@/lib/nox/ui/use-tap-batch";
 import { groupProducts } from "@/lib/nox/ui/product-groups";
@@ -315,7 +319,8 @@ export default function RegisterBoard({
   const seenLineIds = useRef<{ checkId: string; ids: Set<string> } | null>(null);
   const loadCustNames = useCallback(async (checkId: string) => {
     const { data } = await supabase.rpc("check_customer_names", { p_check_id: checkId });
-    setCustNames(new Map(((data ?? []) as { customer_id: string; name: string }[]).map((r) => [r.customer_id, r.name])));
+    const rows = ((data ?? []) as { customer_id: string; name: string; pos?: number }[]).slice().sort((a, b) => (a.pos ?? 0) - (b.pos ?? 0)); // ★便 X13-G W-3: 並び＝pos（最初の 1 人＝来店のお客様）
+    setCustNames(new Map(rows.map((r) => [r.customer_id, r.name])));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   // B1/B2: 追加席（相席）の占有マップ seat_id→ホスト伝票 id（フロアの「同一会計」表示・タップで
@@ -339,6 +344,25 @@ export default function RegisterBoard({
   //   0〜1件の店はセレクタ非表示（現行と同じ見た目）。
   const [setRules, setSetRules] = useState<{ id: string; amount: number; duration_min: number | null; seat_kind: string | null; time_from_min: number | null; time_to_min: number | null }[]>([]);
   const [openRuleSel, setOpenRuleSel] = useState("");
+  // ★便 X13-G W-14: 開卓の見込み用＝店の料金設定と set／vip_charge のルール（表示だけ・権威は check_open）
+  const [estRules, setEstRules] = useState<EstimateRule[]>([]);
+  const [estStore, setEstStore] = useState<(EstimateStore & { cutoff: string }) | null>(null);
+  useEffect(() => {
+    if (!storeId) return;
+    let alive = true;
+    void (async () => {
+      const [{ data: rs }, { data: st }] = await Promise.all([
+        supabase.from("pricing_rules").select("id, fee_kind, amount, duration_min, seat_kind, dow_mask, time_from_min, time_to_min, category_id, billing_unit, priority, created_at, name, tax_category")
+          .eq("store_id", storeId).in("fee_kind", ["set", "vip_charge"]).eq("is_active", true),
+        supabase.from("stores").select("set_fee, set_min, time_per, service_rate, round_unit, round_mode, business_tax_status, price_display, tax_rounding, settings_json").eq("id", storeId).maybeSingle(),
+      ]);
+      if (!alive) return;
+      setEstRules((rs ?? []) as EstimateRule[]);
+      if (st) { const sj = (st.settings_json ?? {}) as Record<string, unknown>; setEstStore({ ...(st as unknown as EstimateStore), cutoff: typeof sj.biz_cutoff_hm === "string" && sj.biz_cutoff_hm ? (sj.biz_cutoff_hm as string) : "06:00" }); }
+    })();
+    return () => { alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storeId]);
   useEffect(() => {
     if (!isManagerUp) return;
     let alive = true;
@@ -1623,6 +1647,11 @@ export default function RegisterBoard({
   // 段0R 第1陣: planA .sumrow（注文タブの伝票サマリ）用の伝票全体合計。
   // ★会計タブ「会計（伝票グループ別）」が描いている groupInfo を group 横断で足すだけ＝
   //   小計 bx / 割引 disc / 請求（サ料込）due はテーブルの各列と同一値。新しい計算はしていない。
+  // ★便 X13-G W-15: 伝票の外税／内税（開卓時の凍結値）と内訳（groupDueFull と同じ式を分解＝表示だけ）
+  const exclTax = check?.price_display === "tax_excluded" && (check?.business_tax_status ?? "taxable") === "taxable";
+  const taxMk = check ? taxMarkOf(exclTax) : "";
+  const breakdownOfGroup = (g: string) => { const gl = lines.filter((l) => l.pay_group === g); const ref = g === "A" && referral?.burden === "customer" ? referral.amount : 0; return check ? dueBreakdownOf(gl, check, ref) : null; };
+  const sumBd = groups.map(breakdownOfGroup).reduce((a, b) => (b ? { net: a.net + b.net, service: a.service + b.service, tax: a.tax + b.tax, rounding: a.rounding + b.rounding, due: a.due + b.due, payFee: a.payFee + b.payFee } : a), { net: 0, service: 0, tax: 0, rounding: 0, due: 0, payFee: 0 });
   const sumBx = groupInfo.reduce((a, gi) => a + gi.bx, 0);
   const sumDisc = groupInfo.reduce((a, gi) => a + gi.disc, 0);
   const sumDue = groupInfo.reduce((a, gi) => a + gi.due, 0);
@@ -1770,7 +1799,7 @@ export default function RegisterBoard({
                 {openCats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
               <span style={{ fontSize: 13, color: "var(--v2-muted)", display: "block", marginTop: 5 }}>
-                区分は開栓時に確定します。あとから変更はできません（変更は会計取消→再開卓）。
+                区分は開卓時に確定します。あとから変更はできません（変更は会計取消→再開卓）。
               </span>
             </label>
           )}
@@ -1805,6 +1834,26 @@ export default function RegisterBoard({
               </span>
             </div>
           )}
+          {/* ★便 X13-G W-14: VIP 料金の行（VIP 席でルールがあるときだけ）と開卓時の見込み（人数・ルールの選択で即時に変わる・「自動」は今の時刻で当たるルール） */}
+          {estStore && (() => {
+            const est = openEstimateOf({ store: estStore, rules: estRules, seatKind: openSeatTarget.kind ?? null, categoryId: openCatSel || null, people: Number(openPeople) || 1, ruleId: openRuleSel || null, now: new Date(), cutoffHm: estStore.cutoff });
+            const b = est.breakdown; const mark = taxMarkOf(b.excluded);
+            const setPart = `セット ${yen(est.setUnit)}${est.setQty > 1 || est.setLabel === "人ごと" ? `×${est.setQty} 名` : ""}`;
+            const vipPart = est.vip ? `VIP ${yen(est.vip.amount)}${est.vip.per === "person" ? `×${est.vip.qty} 名` : ""}` : null;
+            return (
+              <div className="nox-inset" data-open-estimate="1" style={{ padding: "10px 14px", marginBottom: 18, fontSize: 14, lineHeight: 1.8 }}>
+                {est.vip && (
+                  <div data-open-vip="1" style={{ fontWeight: 700 }}>VIP 料金 {yen(est.vip.amount)}{mark}（{est.vip.per === "person" ? "人ごと" : "卓ごと"}・開卓時に 1 回）</div>
+                )}
+                <div className="num" data-open-est-sub="1">{setPart}{vipPart ? `＋${vipPart}` : ""}＝{yen(b.net)}{mark}</div>
+                {b.excluded ? (
+                  <div className="num" data-open-est-total="1" style={{ color: "var(--sub)" }}>サービス料 {yen(b.service)}・消費税 {yen(b.tax)}{b.rounding ? `・端数 ${b.rounding > 0 ? "+" : "−"}${yen(Math.abs(b.rounding))}` : ""}・<b style={{ color: "var(--ink)" }}>合計見込み {yen(b.due)}（税込）</b></div>
+                ) : (
+                  <div className="num" data-open-est-total="1" style={{ color: "var(--sub)" }}>サービス料 {yen(b.service)}・<b style={{ color: "var(--ink)" }}>合計見込み {yen(b.due)}（税込）</b>{b.tax ? `・うち消費税 ${yen(b.tax)}` : ""}</div>
+                )}
+              </div>
+            );
+          })()}
           {/* ★裁定352 改訂: 主ボタン「開卓（セット開始）」を中央に大きく 1 つ（幅 100%・高さ 56px）。「予約を入れる」「やめる」はその下に小さく横並び（相席・予約の導線は不変） */}
           <button style={t.btnPrimary56} disabled={openBusy} onClick={() => void confirmOpenSeat()} data-open-seat="1">
             開卓（セット開始）
@@ -1857,6 +1906,7 @@ export default function RegisterBoard({
             attendIds={attendIds} servingIds={servingIds} rankNames={rankNames} chips grouped shiftIds={shiftIds}
             defaultChip={pickerDefaultChipOf({ seated: seatedIds.size, working: attendIds.size + todayIds.size })}
             selectedIds={seatedIds.size === 1 ? seatedIds : undefined}
+            seatedBadges={nomKindBadgesOf(nomKinds, seatedIds)} /* ★便 X13-G W-4: 担当中タブ＝この伝票での区分 */
             onPick={(id) => {
               const dp = drinkPick;
               setDrinkPick(null);
@@ -2018,8 +2068,15 @@ export default function RegisterBoard({
             {/* 合計／既入金／残額 */}
             <div className="nox-inset" style={{ padding: "10px 14px", marginBottom: 12 }}>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, color: "var(--sub)", marginBottom: 3 }}>
-                <span>請求（サ料込）</span><span style={t.num}>{yen(due)}</span>
+                <span>請求（税込）</span><span style={t.num}>{yen(due)}</span>
               </div>
+              {(() => { const bd = breakdownOfGroup(g); return bd ? (
+                <div data-pay-breakdown="1" style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 12, color: "var(--sub)", marginBottom: 3, flexWrap: "wrap" }}>
+                  {bd.excluded
+                    ? <><span className="num">税抜 {yen(bd.net + bd.service)}</span><span className="num">消費税 {yen(bd.tax)}</span><span className="num">請求（税込）{yen(bd.due)}</span></>
+                    : <><span className="num">うち消費税 {yen(bd.tax)}（内税）</span></>}
+                </div>
+              ) : null; })()}{/* ★便 X13-G W-15 ②: 請求の内訳 */}
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, color: "var(--sub)", marginBottom: 3 }}>
                 <span>既入金</span><span style={t.num}>{yen(paid)}</span>
               </div>
@@ -2027,6 +2084,7 @@ export default function RegisterBoard({
                 <span style={{ fontWeight: 800 }}>残額</span>
                 <span style={{ ...t.num, fontSize: 20, fontWeight: 900, color: balance > 0 ? "var(--bad)" : "var(--ok)" }}>{yen(balance)}</span>
               </div>
+              {feeNote && <div data-pay-fee-line="1" style={{ fontSize: 13, color: "var(--gold2)", marginTop: 4, textAlign: "right" }}>{payFeeLabelJa(feeNote.key)} {feeNote.rate}%＋{yen(feeNote.fee)}（伝票に加算）</div>}{/* ★便 X13-G W-17 ④: 加算が有効な店でカード等を選んだときだけ・残額の下 */}
             </div>
             {/* 支払方法（NOX 4値・台帳#36）
                 ★DP1 P2 b#39（裁定 DP1-⑧）: モックは「現金／カード／併用」の3択だが、
@@ -2091,10 +2149,9 @@ export default function RegisterBoard({
             {/* ★便 GV-C C-1（裁定387）: 入金は 1 欄（現金＝お預かり・現金以外＝入金額）＋数字キーパッド。送る額は残額まで・お釣りは大きく */}
             <label style={{ ...t.fieldLabel, display: "block", marginBottom: 10 }} data-pay-one="1">
               {isCash ? "お預かり" : "入金額"}
-              <input type="number" min={0} step={1} value={isCash ? payTendered : payAmount}
-                placeholder={isCash ? String(balance) : undefined}
-                onChange={(e) => (isCash ? setPayTendered(e.target.value) : setPayAmount(Number(e.target.value)))}
-                style={{ ...t.input, display: "block", marginTop: 5, fontSize: 18, textAlign: "right" }} inputMode="numeric" />
+              <GroupedNumberInput value={isCash ? payTendered : payAmount} placeholder={isCash ? balance.toLocaleString("ja-JP") : undefined} ariaLabel={isCash ? "お預かり" : "入金額"}
+                onChange={(v) => (isCash ? setPayTendered(v) : setPayAmount(Number(v || 0)))}
+                style={{ display: "block", marginTop: 5, fontSize: 18, width: "100%" }} />
               {/* ★裁定375（GV-B W-5）: 数字キーパッド（0〜9・00・⌫・C）＝この 1 欄だけを編集 */}
               <div data-pay-keypad="1" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6, marginTop: 8 }}>
                 {(["7", "8", "9", "4", "5", "6", "1", "2", "3", "00", "0", "⌫"] as const).map((k) => (
@@ -2358,9 +2415,8 @@ export default function RegisterBoard({
                 )}
                 {remain > 0 && !split.open && (
                   <div data-rcpt-form="1" style={{ display: "grid", gap: 8 }}>{/* ★裁定376（GV-B W-6）: 入力 1 行 1 項目・「発行」主 中央 100% 56px・「分割して発行」「閉じる」副 */}
-                    <input type="number" min={1} value={rcptForm.amount} placeholder={`金額（空欄=残額 ${remain}）`}
-                      onChange={(e) => setRcptForm((f) => ({ ...f, amount: e.target.value }))}
-                      className="num" style={{ ...t.input, width: "100%", textAlign: "right" }} />
+                    <GroupedNumberInput value={rcptForm.amount} placeholder={`金額（空欄=残額 ${remain.toLocaleString("ja-JP")}）`} ariaLabel="領収書の金額"
+                      onChange={(v) => setRcptForm((f) => ({ ...f, amount: v }))} style={{ width: "100%" }} />
                     <input placeholder="宛名（空欄は上様）" value={rcptForm.name} maxLength={100}
                       onChange={(e) => setRcptForm((f) => ({ ...f, name: e.target.value }))}
                       style={{ ...t.input, width: "100%" }} />
@@ -2474,6 +2530,7 @@ export default function RegisterBoard({
             return kind ? <span style={{ ...t.tag, color: "var(--sub)", borderColor: "var(--line2)" }}>{kind}</span> : null;
           })()}
           {/* ★116-UI（O2）: 開栓時凍結の料金区分名（checks.category_name・区分なし開栓は null＝非表示） */}
+          {check && <span style={{ ...t.tag, color: "var(--sub)", borderColor: "var(--line2)" }} data-tax-mode={exclTax ? "excluded" : "included"}>{exclTax ? "外税" : "内税"}</span>}{/* ★便 X13-G W-15 ⑤: どちらの店か常に出す */}
           {check.category_name && (
             <span style={{ ...t.tag, color: "var(--gold2)", borderColor: "rgba(201, 162, 74, .45)" }}>
               {check.category_name}
@@ -2602,6 +2659,13 @@ export default function RegisterBoard({
           )}
           </div>
         </div>
+        {/* ★便 X13-G W-3: 伝票のお客様（卓名の帯の直下・タブより上）＝1 人「K様」／2 人以上「K様 ほか n 名」／0 人は出さない。押すと「指名・席」の顧客へ */}
+        {custNames.size > 0 && (() => { const first = [...custNames.values()][0]; return (
+          <button type="button" className="nox-checkcust" data-check-cust-line="1"
+            onClick={() => { setDtab("nom"); window.setTimeout(() => document.getElementById("check-customers")?.scrollIntoView({ behavior: "smooth", block: "start" }), 60); }}>
+            {checkCustLineOf([...custNames.values()])}
+          </button>
+        ); })()}
         {/* 段R2: 3タブ（planA .dtabs）。★キー・ラベル・切替ハンドラは不変＝収容先だけを変えた。
             ★裁定360（GV-8・便 GV-A）: 3 分割セグメント（等幅・高さ 1.5 倍・アイコン・選択中 金塗り・会計は右端で主ボタン色）＝伝票上部に sticky（裁定367 の器） */}
         <div className="nox-dtabs nox-dtabs--seg" data-dtabs-seg="1">
@@ -2889,7 +2953,7 @@ export default function RegisterBoard({
         )}
 
         {/* ★裁定305（mig0153・2026-09-25・D1）: 伝票の顧客（複数）・追加／外す・注文行の「誰の注文」・キープ出し＝共通部品（RPC が二重防御・fetch +1＝3 クエリ並列） */}
-        <CheckCustomersCard checkId={check.id} storeId={storeId} isOpen={check.status === "open"} lines={lines} products={products} onChanged={() => loadCheck(check.id)} castIds={Object.keys(nomWeights)} />
+        <CheckCustomersCard checkId={check.id} storeId={storeId} isOpen={check.status === "open"} lines={lines} products={products} onChanged={async () => { await loadCheck(check.id); await loadCustNames(check.id); /* ★便 X13-G W-3: 上部のお客様名も即反映 */ }} castIds={Object.keys(nomWeights)} />
 
         {/* ★0152（裁定280／298／299・2026-09-25）: 紹介の入口＝owner／manager のレジのみ。1 伝票 1 紹介（check_referrals）＝付与 check_referral_set・取消 check_referral_remove。
             紹介者はマスタ「紹介者」（referrers）から選ぶ。客負担（burden='customer'）は請求（A）に乗る＝表示 due は groupDueFull の第 3 引数で鏡像・印字は初回セット行に合算（298-4）。 */}
@@ -2922,7 +2986,7 @@ export default function RegisterBoard({
                 )}
                 <Picker dense items={referrers.map((r) => ({ id: r.id, label: r.kind === "staff" ? `${r.name}（スタッフ）` : r.name }))} value={refPick}
                   onPick={setRefPick} onClear={() => setRefPick(null)} placeholder="紹介者を検索" />
-                <SegSelect value={refMethod} onChange={setRefMethod} options={REF_METHODS} ariaLabel="紹介料の計算方法" />
+                <SegSelect value={refMethod} onChange={setRefMethod} options={REF_METHODS} ariaLabel="紹介料の計算方法" wrap />
                 <label style={{ fontSize: 12, display: "flex", alignItems: "center", gap: 8 }}>
                   {isRateMethod(refMethod) ? "率" : "金額"}
                   <input value={refValue} inputMode="decimal" placeholder={isRateMethod(refMethod) ? "例: 10" : "例: 3000"} onChange={(e) => setRefValue(e.target.value)}
@@ -3031,7 +3095,7 @@ export default function RegisterBoard({
               </span>
             </div>
             <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "8px 0", lineHeight: 1.7 }}>
-              セット料金は開卓時に明細へ入っています。延長はお客さま確認のうえボタンで追加してください
+              セット料金は開卓時に明細へ入っています。延長はお客様に確認のうえボタンで追加してください
               （1回押すごとに1行・取り消しは注文タブの行削除）。
             </p>
             {/* R2-a（mig0098 R2-1）: ext_menu_snap が2件以上ならメニューボタン群（開栓時凍結の label・
@@ -3117,7 +3181,7 @@ export default function RegisterBoard({
                         onClick={() => { noteRecent(p.id); if (p.back_exempt_from_split === true) setDrinkPick({ mode: "product", product: p }); else tb.tap(p.id); }}>
                         {n > 0 && <span className="nox-tile-badge">+{n}</span>}
                         <span className="nox-tile-name">{p.name}</span>
-                        <span className="nox-tile-price">{yen(p.price)}</span>
+                        <span className="nox-tile-price">{yen(p.price)}{taxMk && <small className="nox-taxmark">{exclTax ? "税抜" : "税込"}</small>}</span>
                       </button>
                     );
                   })}
@@ -3143,12 +3207,12 @@ export default function RegisterBoard({
                           else tb.tap(p.id); }}>
                         {n > 0 && <span className="nox-tile-badge">+{n}</span>}
                         <span className="nox-tile-name">{p.name}</span>
-                        <span className="nox-tile-price">{yen(p.price)}</span>
+                        <span className="nox-tile-price">{yen(p.price)}{taxMk && <small className="nox-taxmark">{exclTax ? "税抜" : "税込"}</small>}</span>
                         {/* 段R2→★B3 裁定213: 在庫を常時表示（在庫行なし＝非表示・しきい以下だけ現行の低在庫色「残N」）。
                             ★タップの挙動には一切関与しない（在庫切れでも売れる＝現物の運用を変えない）。 */}
                         {stock && (
-                          <span className="nox-tile-low num" style={stock.low ? undefined : { color: "var(--v2-muted)" }}>
-                            {stock.low ? `残${stock.n}` : `在庫${stock.n}`}
+                          <span className="nox-tile-low num" data-stock-neg={stock.n < 0 ? "1" : undefined} style={stock.n < 0 ? { color: "var(--bad)", fontWeight: 800 } : stock.low ? undefined : { color: "var(--v2-muted)" }}>
+                            {stock.n < 0 ? `在庫 −${Math.abs(stock.n)}` : stock.low ? `残${stock.n}` : `在庫${stock.n}`}{/* ★便 X13-G W-18 ⑥: マイナスは「在庫 −n」・注意色（開始在庫が無い商品を売るとマイナスになる） */}
                           </span>
                         )}
                       </button>
@@ -3174,7 +3238,7 @@ export default function RegisterBoard({
             {/* ★裁定253 R10: 金額欄に ¥／円 を添える（plan-editor の Unit と同形・値の扱いは不変） */}
             <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
               <span style={{ fontSize: 12, color: "var(--sub)" }}>¥</span>
-              <input type="number" min={0} value={cPrice} onChange={(e) => setCPrice(Number(e.target.value))} style={{ ...input, width: 90 }} aria-label="金額" />
+              <GroupedNumberInput value={cPrice} onChange={(v) => setCPrice(Number(v || 0))} style={{ ...input, width: 100 }} ariaLabel="金額" />
               <span style={{ fontSize: 12, color: "var(--sub)" }}>円</span>
             </span>
             {/* E8-1 ⑦: 英字テキスト入力 → 会計分けセグメント */}
@@ -3344,7 +3408,7 @@ export default function RegisterBoard({
                       )}
                     </td>
                     <td className="nm" style={{ padding: 6, color: isDisc ? "var(--bad)" : "var(--ink)" }}>
-                      {l.name_snapshot}
+                      {l.fee_kind === "vip_charge" ? "VIP 料金" : l.name_snapshot}{/* ★便 X13-G W-14 ④: 明細の語＝VIP 料金 */}
                       {/* R-2a-1: 指名料行は**対象キャスト名を併記**＝同じキャストに2行あるのか、
                           別々のキャストに1行ずつなのかを明細だけで判別できるようにする（表示のみ）。
                           ★同伴料行（fee_kind='dohan'）は cast_id=null で名前を出せない＝R-2b で紐づける。 */}
@@ -3382,7 +3446,7 @@ export default function RegisterBoard({
                       {isDisc ? "" : `${yen(l.unit_price_snapshot)} × ${grp.qty}${l.kind === "time" && check?.time_per === "person" ? "名" : ""}`}
                     </td>
                     <td className="am" style={{ ...t.num, padding: 6, textAlign: "right", color: isDisc ? "var(--bad)" : "var(--ink)" }}>
-                      {isDisc ? `−${yen(grp.total)}` : yen(grp.total)}
+                      {isDisc ? `−${yen(grp.total)}` : yen(grp.total)}{taxMk && <small className="nox-taxmark">{exclTax ? "税抜" : "税込"}</small>}{/* ★便 X13-G W-15 */}
                     </td>
                     {/* キャストドリンク列＝除外指定の行だけに出す（非除外は空セル＝既存行の見え方は不変） */}
                     <td className="cd" style={{ padding: 6 }}>
@@ -3460,27 +3524,32 @@ export default function RegisterBoard({
               内税は receipt.ts の taxOf（印刷レシートと同式）＝新しい計算は作らない。 */}
           {(() => {
             const twoCls = twoClassSumsOf(lines); // ★便 P173（裁定391）: 小計 2 行＝「セット・延長・指名」「商品」（日報・分析と同じ分類）
-            const svcAndRound = sumDue - Math.max(0, sumBx - sumDisc);
             return (
               <>
                 <div className="nox-sumrow" data-sum-upper="1"><span>セット・延長・指名</span><span className="num">{yen(twoCls.upper)}</span></div>
                 <div className="nox-sumrow" data-sum-products="1"><span>商品</span><span className="num">{yen(twoCls.products)}</span></div>
-                <div className="nox-sumrow"><span>小計</span><span className="num">{yen(sumBx)}</span></div>
                 <div className="nox-sumrow">
                   <span>割引</span>
                   <span className="num" style={sumDisc > 0 ? { color: "var(--bad)" } : undefined}>
                     {sumDisc > 0 ? `−${yen(sumDisc)}` : "—"}
                   </span>
                 </div>
-                <div className="nox-sumrow">
-                  <span>サービス料（{check.service_rate}%・端数調整込み）</span>
-                  <span className="num">{yen(svcAndRound)}</span>
+                {/* ★便 X13-G W-15: 外税＝小計（税抜）→サービス料（税抜）→消費税（外税 10%）→合計（税込）／内税＝サービス料→合計（税込）→うち消費税。値は dueBreakdownOf（groupDueFull の分解＝合計は従来と同じ） */}
+                {sumBd.payFee > 0 && <div className="nox-sumrow" data-sum-payfee="1"><span>うちカード手数料（伝票に加算）</span><span className="num">{yen(sumBd.payFee)}</span></div>}
+                <div className="nox-sumrow" data-sum-net="1"><span>小計{taxMk}</span><span className="num">{yen(sumBd.net)}</span></div>
+                <div className="nox-sumrow" data-sum-service="1">
+                  <span>サービス料（{check.service_rate}%）{exclTax ? "（税抜）" : ""}</span>
+                  <span className="num">{yen(sumBd.service)}</span>
                 </div>
-                <div className="nox-sumrow total"><span>合計（請求・サ料込）</span><span className="num">{yen(sumDue)}</span></div>
+                {exclTax && <div className="nox-sumrow" data-sum-tax="1"><span>消費税（外税 10%）</span><span className="num">{yen(sumBd.tax)}</span></div>}
+                {sumBd.rounding !== 0 && <div className="nox-sumrow"><span>端数調整</span><span className="num">{sumBd.rounding > 0 ? "" : "−"}{yen(Math.abs(sumBd.rounding))}</span></div>}
+                <div className="nox-sumrow total" data-sum-total="1"><span>合計（税込）</span><span className="num">{yen(sumDue)}</span></div>
+                {!exclTax && sumBd.tax > 0 && (
                 <div className="nox-sumrow" style={{ borderTop: 0 }}>
-                  <span style={{ color: "var(--sub)", fontSize: 11.5 }}>うち消費税（内税10%）</span>
-                  <span className="num" style={{ color: "var(--sub)", fontSize: 11.5 }}>{yen(taxOf(sumDue))}</span>
+                  <span style={{ color: "var(--sub)", fontSize: 11.5 }}>うち消費税（内税 10%）</span>
+                  <span className="num" style={{ color: "var(--sub)", fontSize: 11.5 }}>{yen(sumBd.tax)}</span>
                 </div>
+                )}
               </>
             );
           })()}

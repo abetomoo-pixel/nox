@@ -220,7 +220,6 @@ export default function KioskDevicePanel({ stores }: { stores: Store[] }) {
           <section className="nox-cardtop" style={card}>
             <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
               <h3 style={h3}>端末アカウントを発行</h3>
-              <span className="nox-stpill" style={{ marginLeft: "auto" }}>OWNER</span>
             </div>
             <p style={sub}>認証情報は発行時に一度だけ表示されます</p>
             <p style={{ ...t.alert, fontSize: 11.5, margin: "0 0 10px" }}>

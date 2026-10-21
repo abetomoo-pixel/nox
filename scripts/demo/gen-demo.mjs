@@ -101,10 +101,11 @@ for (const st of STORES) {
     settings_json: { biz_type: ({ MUSE: "cabaret", LUNA: "cabaret", NOIR: "lounge", ACE: "cabaret", LILY: "girlsbar", NEST: "snack" })[st.store_code] /* ★便 N1014 B-4: 業態＝store_profiles §3c（MUSE キャバクラ・NOIR ラウンジ・NEST スナック） */, norm_axes: { days: PF.normAxes.includes("days"), dohan: PF.normAxes.includes("dohan"), sales: PF.normAxes.includes("sales"), shimei: PF.normAxes.includes("shimei") } /* ★便 N1014 live 修正: 採用軸（0171 set_store_norm_axes の形）＝P171 の D-3 が payload に落ちていなかった（live は null＝全 ON） */, biz_cutoff_hm: "06:00", setup_done: true, billing_mode: "table",
       ...sysSettingsOf(code), pay_time_basis: PF.basis, shift_cast_confirm: PF.confirm, // ★X-13c: 報酬制度の ON/OFF・勤務時間の計算基準・キャスト確認＝プロファイル
       slide_apply: "current", receipt_address: "東京都新宿区歌舞伎町 1-1-1（デモ）", receipt_tel: "03-0000-0000", receipt_footer: "飲食代", okuri_base_amount: PF.okuri, /* ★X-13c: 送り（0＝なし） */ ...(PF.okuriMode ? { okuri_mode: PF.okuriMode } : {}), /* ★裁定348: 送りの方式 flat／actual（0158・無しはキー無し） */
-      payslip_visibility: "detail", reservation_request: "on", drink_claim: "on", ranking: "on", shift_request_mode: PF.wishMode ?? "shift" /* ★裁定348: NEST＝休み希望のみ */ },
+      payslip_visibility: "detail", reservation_request: "on", drink_claim: "on", ranking: "on", shift_request_mode: PF.wishMode ?? "shift" /* ★裁定348: NEST＝休み希望のみ */,
+      ...(code === "ace" ? { pay_fee_rates: { card: 10, emoney: 0, other: 0 }, contract_ack: true } : {}) /* ★便 X13-G W-18 ①: ACE はお客様へ加算＝カード 10%（Agoora 決定・加盟店契約の確認は記録済み扱い） */ },
     hon_fee: defRank?.main_charge_yen ?? 0, jonai_fee: defRank?.inhouse_charge_yen ?? 0, dohan_fee: defRank?.accompanied_charge_yen ?? 0, service_rate: tax.service_rate, card_tax_rate: 0,
     round_unit: 1, round_mode: "down", set_min: mainRule.set_minutes || 60, set_fee: mainRule.set_price_yen, ext_min: mainRule.extension_minutes || 30, ext_fee: mainRule.extension_price_yen,
-    time_mode: "manual", time_per: "person", business_tax_status: "taxable", price_display: "tax_excluded", invoice_status: "registered", invoice_reg_no: null, tax_rounding: "floor", card_surcharge_rate: null,
+    time_mode: "manual", time_per: "person", business_tax_status: "taxable", price_display: "tax_excluded", invoice_status: "unregistered" /* ★便 X13-G W-18 ②: 6 店とも未登録（架空の T 番号が実在の事業者と一致するのを避ける・Agoora 決定） */, invoice_reg_no: null, tax_rounding: "floor", card_surcharge_rate: null,
     receivable_policy: PF.receivable, /* ★X-13c: 売掛＝プロファイル（旧＝receivables_enabled_demo） */ dohan_auto_hon: true, ext_shimei_enabled: false,
   });
   const memb = (role, user, extra = {}) => push("memberships", { id: uid(`memb:${code}:${role}`), user_id: user, store_id: storeId, role, is_active: true, can_register: role !== "cast", can_crm: role !== "cast", can_shift: role !== "cast", can_view_backs: role !== "cast", can_close: role !== "cast", can_reopen: role === "owner" || role === "manager", ...extra });
@@ -159,7 +160,7 @@ for (const st of STORES) {
     const EP = EXT_PATTERNS[code]; // ★便 P174 T-7b（裁定385）: 延長パターンの店（ACE＝平日通常に 3 本・既定に印）
     if (EP && EP.group === r.display_group) for (const x of EP.rows) push("pricing_rules", { id: uid(`rule:${r.pricing_rule_id}:${x.key}`), ...base, fee_kind: "extension", amount: x.amount, duration_min: x.minutes, name: x.name, is_default_ext: x.isDefault });
     else if (r.extension_price_yen) push("pricing_rules", { id: uid(`rule:${r.pricing_rule_id}:ext`), ...base, fee_kind: "extension", amount: r.extension_price_yen, duration_min: r.extension_minutes || 30, name: `${r.display_group} 延長` });
-    if (r.vip_surcharge_yen) push("pricing_rules", { id: uid(`rule:${r.pricing_rule_id}:vip`), ...base, seat_kind: "VIP", fee_kind: "vip_charge", amount: r.vip_surcharge_yen, duration_min: null, name: "VIP 加算" });
+    if (r.vip_surcharge_yen) push("pricing_rules", { id: uid(`rule:${r.pricing_rule_id}:vip`), ...base, seat_kind: "VIP", fee_kind: "vip_charge", amount: r.vip_surcharge_yen, duration_min: null, name: "VIP 料金" }); // ★便 X13-G W-14 ④: 明細の語を「VIP 料金」に
   }
   for (const r of ranks) {
     push("pricing_rules", { id: uid(`rank:${r.rank_id}:hon`), store_id: storeId, fee_kind: "hon_shimei", seat_kind: null, dow_mask: null, time_from_min: null, time_to_min: null, rank_id: uid(`rank:${r.rank_id}`), amount: r.main_charge_yen, duration_min: null, priority: 100, is_active: true, name: `本指名（${r.rank_name === "default" ? "標準" : r.rank_name}）`, tax_category: "taxable_10", category_id: null, billing_unit: null });
@@ -358,7 +359,7 @@ for (const st of STORES) {
   let extraGuests = Math.max(0, monthly.guests_target - fixedGuests - allChecks.length);
   for (const c of allChecks) {
     const r = c.rule; c.lines.push({ kind: "set", fee_kind: "set", name: `${r.display_group}${r.set_minutes ? ` セット（${r.set_minutes}分）` : ""}`, unit: r.set_price_yen, qty: c.people, line_total: r.set_price_yen * c.people });
-    if (r.vip_surcharge_yen) c.lines.push({ kind: "charge", fee_kind: "vip_charge", name: "VIP 加算", unit: r.vip_surcharge_yen, qty: c.people, line_total: r.vip_surcharge_yen * c.people });
+    if (r.vip_surcharge_yen) c.lines.push({ kind: "charge", fee_kind: "vip_charge", name: "VIP 料金", unit: r.vip_surcharge_yen, qty: c.people, line_total: r.vip_surcharge_yen * c.people });
   }
   const dayGross = (day) => day.fixed + day.checks.reduce((a, c) => a + grossOf(c), 0);
   // 固定来店（LU-C001 の 7 件）は先に自分の gross へ（汎用商品で）＝再配分の前
@@ -541,6 +542,36 @@ for (const st of STORES) {
     for (let i = 7; i <= 13; i++) { if (i % 7 !== 0 && i % 7 !== 3) pushStaff(mStaff, i, i % 2 ? "late" : "early", "proposed"); if (mStaff) push("staff_shift_wishes", { id: uid(`ssw:${code}:${i}`), store_id: storeId, staff_id: mStaff.id, biz_date: { $rel: i }, pattern_id: i % 2 ? patLate : patEarly, available: i % 7 !== 3, note: i % 7 === 3 ? "私用で休み希望" : null, created_at: { $rel: -2, t: "13:00:00" }, updated_at: { $rel: -2, t: "13:00:00" } }); }
   }
   for (const t of Object.keys(T)) T[t] = completeRows(t, T[t], (r) => r.id ?? `${r.cast_id ?? ""}:${r.product_id ?? ""}:${r.store_id ?? ""}`);
+  // ★便 X13-G W-18 ③: 今月の勤務・伝票＝先月（{$m:-1}）の勤務と伝票を同じ日付で今月（{$m:0}）へ写す。reset した日より前の日だけ残す（dateshift の $onlyBefore）。
+  //   写すのは shifts／attendance／punches／checks と伝票の子（明細・指名・バック・入金）・日報。ID は uid("cur:"+元 ID) で決定的・入金の冪等キーも別値。
+  //   先月の行は 1 行も変えない（確定済みの先月給与＝afterResetHooks の凍結値は不変）。既存の $rel 行（当日・体入・スタッフ）と重なる日は dateshift が写しのほうを落とす。
+  {
+    const isPrev = (v) => v && typeof v === "object" && v.$m === -1;
+    const toCur = (v) => (isPrev(v) ? { ...v, $m: 0 } : v);
+    const DATE_FIELD = { shifts: "date", attendance: "date", punches: "punched_at", checks: "started_at", check_lines: "created_at", check_nominations: "created_at", check_cast_backs: "created_at", payments: "paid_at", daily_reports: "biz_date" };
+    const DEDUPE = { shifts: ["cast_id", "date"], attendance: ["cast_id", "date"], punches: ["cast_id", "type", "punched_at:day"], daily_reports: ["store_id", "biz_date"] };
+    const checkIds = new Map();
+    const mirrorRow = (tb, r) => {
+      const o = {}; for (const [k, v] of Object.entries(r)) o[k] = toCur(v);
+      o.id = uid(`cur:${r.id}`);
+      if (tb === "checks") checkIds.set(r.id, o.id);
+      if ("check_id" in o && o.check_id) o.check_id = checkIds.get(r.check_id) ?? null;
+      if (tb === "payments" && o.idem_key) o.idem_key = uid(`cur:idem:${r.idem_key}`);
+      if (tb === "shifts") o.wish_id = null;
+      if (tb === "checks") { o.customer_id = null; o.merged_into = null; }
+      if (tb === "check_lines") o.customer_id = null;
+      o.$onlyBefore = DATE_FIELD[tb];
+      if (DEDUPE[tb]) o.$dedupe = DEDUPE[tb];
+      return o;
+    };
+    let added = 0;
+    for (const tb of ["shifts", "attendance", "punches", "checks", "check_lines", "check_nominations", "check_cast_backs", "payments", "daily_reports"]) {
+      const src = (T[tb] ?? []).filter((r) => isPrev(r[DATE_FIELD[tb]]) && (!("check_id" in r) || tb === "checks" || checkIds.has(r.check_id)) && (tb !== "checks" || (r.status === "closed" && !r.merged_into)));
+      const rows = src.map((r) => mirrorRow(tb, r)).filter((o) => !("check_id" in o) || tb === "checks" || o.check_id);
+      T[tb] = [...(T[tb] ?? []), ...rows]; added += rows.length;
+    }
+    report.curMirror = { ...(report.curMirror ?? {}), [code]: added };
+  }
   const meta = { cutoff: "06:00", store: code, users, generated_at: "2026-10-02", source: "docs/demo/source/20261001/nox_demo_all.json", notes: ["先月＝{$m:-1,d}（R の前月）", "当日＝{$rel:0,t}", "payroll は投入しない（D2 の正規経路）", "X-13c: プロファイル＝scripts/demo/profiles.mjs（表＝docs/demo/store_profiles_20261009.md）・全ドリンクバック・必要人数＋14 日分シフト"] };
   // ★便 N1014 B-3 修正: 体験入店の 10 月出勤（trial 行）は元データの同日行と重複しうる（shifts／attendance＝unique(cast_id,date)・punches＝同時刻）→ unique 違反で demo_org_reset の最終 chunk が失敗（19:30 の reset で MUSE／LUNA／ACE／LILY が "reset failed"）。元データの行を正とし trial 行を落とす
   {
@@ -554,6 +585,12 @@ for (const st of STORES) {
       void isTrial;
     }
   }
+  // ★便 X13-G W-18 ④: 店の既定プラン（本採用の切替先）＝体験入店以外の最初のプラン
+  { const st = T.stores?.[0]; const plan = (T.comp_plans ?? []).find((pl) => pl.name !== "体験入店" && pl.is_active !== false); if (st && plan) st.settings_json = { ...st.settings_json, default_plan_id: plan.id, trial_guarantee_days: 3 }; }
+  // ★便 X13-G W-18 ⑤: 発行済みの領収書（先月の会計済み伝票の最初の 1 件・残額全額・番号 1）＝台帳の行操作（再発行の 2 段）を live で試せるように
+  { const ck = (T.checks ?? []).find((c) => c.status === "closed" && !c.merged_into && c.started_at && c.started_at.$m === -1 && Number(c.total) > 0);
+    if (ck) push("receipt_issues", { id: uid(`rcpt:${code}:1`), store_id: storeId, check_id: ck.id, serial: 1, amount: ck.total, recipient: "デモ商事", proviso: "ご飲食代として", store_name_snap: T.stores[0].name,
+      biz_date: { $m: -1, d: ck.started_at.d }, issued_at: { $m: -1, d: ck.started_at.d, t: "23:30:00" }, issued_by: users.owner, token: uid(`rcpt-token:${code}:1`), expires_on: { $rel: 60 }, voided: false, void_note: null, voided_at: null, voided_by: null }); }
   const payload = { meta, tables: T };
   const json = JSON.stringify(payload);
   fs.writeFileSync(path.join(OUT_DIR, `${code}.json`), JSON.stringify(payload, null, 0) + "\n");

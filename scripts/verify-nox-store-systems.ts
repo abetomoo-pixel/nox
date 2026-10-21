@@ -38,13 +38,13 @@ function pureChecks() {
   // (2) SECTION_KEYS
   const secs = Object.keys(SECTION_KEYS);
   check("ss(2-1) 出し分けの節は 17（plan-board 4・plan-editor 4・comp-sections 4・norm-config／deduction／products back／products pt／mine）", secs.length === 17, secs.join(","));
-  check("ss(2-2) 各節のキーは SYSTEM_KEYS の要素のみ・空なし", secs.every((s) => { const ks = SECTION_KEYS[s as keyof typeof SECTION_KEYS]; return ks.length > 0 && ks.every((k) => (SYSTEM_KEYS as readonly string[]).includes(k)); }));
+  check("ss(2-2) 各節のキーは SYSTEM_KEYS の要素のみ・空は deductionPanel だけ（便 X13-G W-13＝送り・前借りは常に出す）", secs.every((s) => { const ks = SECTION_KEYS[s as keyof typeof SECTION_KEYS] as readonly string[]; return (ks.length > 0 || s === "deductionPanel") && ks.every((k) => (SYSTEM_KEYS as readonly string[]).includes(k)); }));
   check("ss(2-3) 9 キーとも少なくとも 1 節に現れる（隠す口の無い制度が無い）", SYSTEM_KEYS.every((k) => secs.some((s) => (SECTION_KEYS[s as keyof typeof SECTION_KEYS] as readonly string[]).includes(k))));
   check("ss(2-4) ★歩合・バック節＝各種バック OFF でも売上歩合 ON なら描く", isSectionOn({ sys_backs: false }, "planEditorBacks") === true && isSectionOn({ sys_backs: false, sys_sales_rate: false }, "planEditorBacks") === false);
   check("ss(2-5) ★スライド節＝3 キー全 OFF で消える・1 つ ON で残る", isSectionOn({ sys_sales_slide: false, sys_point_slide: false, sys_points: false }, "planTabSlides") === false && isSectionOn({ sys_sales_slide: false, sys_point_slide: false }, "planTabSlides") === true);
   check("ss(2-6) 単キー節（mine ノルマ）＝sys_norms false で消える", isSectionOn({ sys_norms: false }, "mineNormCard") === false && isSectionOn({}, "mineNormCard") === true);
   check("ss(2-7) 全 ON（{}）で 17 節すべて描く", secs.every((s) => isSectionOn({}, s as keyof typeof SECTION_KEYS)));
-  check("ss(2-8) 9 キー全 false で 17 節すべて消える", secs.every((s) => !isSectionOn(Object.fromEntries(SYSTEM_KEYS.map((k) => [k, false])), s as keyof typeof SECTION_KEYS)));
+  check("ss(2-8) 9 キー全 false で 16 節が消える（deductionPanel だけ残る＝便 X13-G W-13）", secs.every((s) => (s === "deductionPanel") === isSectionOn(Object.fromEntries(SYSTEM_KEYS.map((k) => [k, false])), s as keyof typeof SECTION_KEYS)));
   check("ss(2-9) ラベル 9 語（STEP 3 と同一）", SYSTEM_KEYS.map((k) => SYSTEM_LABELS[k]).join("／") === "時給・最低保証／各種バック／売上歩合／ポイント制／売上スライド／ポイントスライド／ノルマ／精算調整・控除／達成ボーナス");
 
   // (3) systemUsageOf

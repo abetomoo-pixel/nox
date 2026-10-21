@@ -11,7 +11,7 @@
  *  逆テスト 2 本（手動・各 1 回）: isArrivedStatus から "late" を外す→tr(1-1)／(2-2) 赤・戻して緑／punchInAfterAtt の !hasIn を落とす→tr(6-2) 赤・戻して緑。
  */
 import fs from "node:fs";
-import { firstInLastOut, hmJstOf, isArrivedStatus, okuriButtonOf, outButtonOf, outDialogNeeded, punchInAfterAtt, punchTimeLabel, attRowModeOf, arrivedChipOf, dohanToggleOf } from "../lib/nox/shift/today-row"; // ★裁定383（GV-B W-13）: +3
+import { firstInLastOut, hmJstOf, isArrivedStatus, okuriButtonOf, outButtonOf, outDialogNeeded, punchInAfterAtt, punchTimeLabel, attRowModeOf, arrivedChipOf, dohanToggleOf, todayRowViewOf, dohanUnsetStatusOf } from "../lib/nox/shift/today-row"; // ★裁定383（GV-B W-13）: +3
 import { ackOptionsOf, correctionSummaryOf, disputedOf, hmOnBizOf, jstIsoOf, requestArgsOf, requestInitOf, termOf } from "../lib/nox/shift/punch-correction"; // ★0154 D1
 
 let pass = 0;
@@ -97,7 +97,15 @@ check("tr(7-9) 配線: shift-board＝調整モーダル タブ①の PunchCorrec
     && JSON.stringify(dohanToggleOf("dohan")) === JSON.stringify({ show: true, set: true }) && JSON.stringify(dohanToggleOf("arrived")) === JSON.stringify({ show: true, set: false }) && dohanToggleOf(null).set === false);
   check("tr(9-3) 配線: 行に data-att-mode＝attRowModeOf・pre だけ 5 択セグメント・arrived／done はチップ（data-att-chip）＋同伴トグル（data-dohan-toggle）・done は操作列も非表示（減額／確認へ／確定）",
     sb.includes("data-att-mode={attRowModeOf({ hasIn: !!io?.inHm, hasOut: !!io?.outHm })}") && sb.includes("const chip = arrivedChipOf({ inHm: io?.inHm, outHm: io?.outHm, lateMin: n });") && sb.includes("const dh = dohanToggleOf(att?.status);") && sb.includes("data-att-chip") && sb.includes("data-dohan-toggle")
-    && sb.includes('attRowModeOf({ hasIn: !!io?.inHm, hasOut: !!io?.outHm }) === "pre" && (canRecord ? (') && sb.includes('attRowModeOf({ hasIn: !!io?.inHm, hasOut: !!io?.outHm }) !== "done" && (/* ★裁定383'));
+    && sb.includes('{view === "pre" && (canRecord ? (') && sb.includes('{canRecord && (view === "arrived" || view === "done") && (') /* ★便 X13-G W-11: 出し分けは todayRowViewOf（pre／arrived／absent／done） */);
+  // ★便 X13-G W-11: 出勤前＝出勤（主）＋4 択・送り／退勤なし／当欠・休み＝チップのみ／退勤後＝送りだけ（退勤なし）・同伴は付け外し
+  check("tr(9-4) todayRowViewOf: 打刻なし＝pre（当欠・休みは absent）／in＝arrived／out＝done・同伴を外す＝猶予超過なら遅刻・それ以外は出勤",
+    todayRowViewOf({ attStatus: null, hasIn: false, hasOut: false }) === "pre" && todayRowViewOf({ attStatus: "shukkin", hasIn: false, hasOut: false }) === "pre"
+    && todayRowViewOf({ attStatus: "absent", hasIn: false, hasOut: false }) === "absent" && todayRowViewOf({ attStatus: "off", hasIn: false, hasOut: false }) === "absent"
+    && todayRowViewOf({ attStatus: "late", hasIn: true, hasOut: false }) === "arrived" && todayRowViewOf({ attStatus: "dohan", hasIn: true, hasOut: true }) === "done"
+    && dohanUnsetStatusOf(5) === "late" && dohanUnsetStatusOf(0) === "shukkin" && dohanUnsetStatusOf(null) === "shukkin");
+  check("tr(9-5) 配線: 出勤前は「出勤」主ボタン（data-att-main）＋遅刻／当欠／同伴／休み・退勤ボタンは arrived だけ・時刻修正は枠ボタン",
+    sb.includes('data-att-main="1"') && sb.includes('ATT_OPTIONS.filter(([v]) => v !== "shukkin")') && sb.includes('{view === "arrived" && (') && sb.includes('className="nox-rowbtn" data-adj-btn="1"'));
 }
 
 if (fails.length) {

@@ -25,6 +25,18 @@ const BADGE_STYLE: Record<PickerBadge["tone"], { color: string; borderColor: str
   muted: { color: "var(--sub)", borderColor: "var(--line2)" },
 };
 
+/** ★便 X13-G W-4: この伝票での指名区分（本指名／場内／フリー）→ 担当中タブのチップ（色は既存トークン 3 種） */
+export const NOM_KIND_BADGE: Record<"hon" | "jonai" | "free", PickerBadge> = {
+  hon: { label: "本指名", tone: "gold" },
+  jonai: { label: "場内", tone: "gold2" },
+  free: { label: "フリー", tone: "muted" },
+};
+export function nomKindBadgesOf(kinds: Record<string, "hon" | "jonai" | "free">, seatedIds: Iterable<string>): Map<string, PickerBadge> {
+  const m = new Map<string, PickerBadge>();
+  for (const id of seatedIds) { const k = kinds[id]; if (k) m.set(id, NOM_KIND_BADGE[k]); }
+  return m;
+}
+
 /** ★裁定384（GV-B W-14・2026-10-15）: 既定チップ＝この伝票を担当中（seated）がいれば「担当中」→いなければ「出勤中」→それも 0 なら「すべて」 */
 export function pickerDefaultChipOf(i: { seated: number; working: number }): "seated" | "working" | "" {
   return i.seated > 0 ? "seated" : i.working > 0 ? "working" : "";
@@ -32,8 +44,10 @@ export function pickerDefaultChipOf(i: { seated: number; working: number }): "se
 
 export default function CastPicker({
   casts, photoUrls, seatedIds, todayIds, attendIds, servingIds, shiftIds, rankNames, chips = false, grouped = false,
-  selectedIds, badges, onPick, size = 44, dense = false, defaultChip,
+  selectedIds, badges, seatedBadges, onPick, size = 44, dense = false, defaultChip,
 }: {
+  /** ★便 X13-G W-4: 「担当中」タブでだけ出す区分チップ（本指名／場内／フリー）＝着卓中の代わり。他のタブは状態チップのまま */
+  seatedBadges?: Map<string, PickerBadge>;
   /** ★裁定384: 既定チップ（pickerDefaultChipOf）。省略＝従来（grouped＆chips なら出勤中） */
   defaultChip?: "" | "working" | "seated";
   casts: PickerCast[];
@@ -97,8 +111,9 @@ export default function CastPicker({
     const rank = rankNames?.get(c.id) ?? null;
     const off = grouped && !c.working;
     // ★B3 裁定209/211: 状態語の優先＝着卓中（自伝票）＞接客中（他卓）＞出勤中＞打刻。★裁定322: grouped では in 打刻あり＝「出勤中」・③④＝「未出勤」
-    const stateLabel = seated ? "着卓中" : serving ? "接客中" : grouped ? (today ? "出勤中" : off ? "未出勤" : attend ? "出勤中" : null) : attend ? "出勤中" : today ? "打刻" : null;
-    const badge = badges?.get(c.id) ?? null;
+    // ★便 X13-G W-4: grouped（レジ）では「接客中」も「着卓中」に統一
+    const stateLabel = seated ? "着卓中" : serving ? (grouped ? "着卓中" : "接客中") : grouped ? (today ? "出勤中" : off ? "未出勤" : attend ? "出勤中" : null) : attend ? "出勤中" : today ? "打刻" : null;
+    const badge = badges?.get(c.id) ?? (chip === "seated" ? seatedBadges?.get(c.id) ?? null : null);
     return (
       <button
         key={c.id}

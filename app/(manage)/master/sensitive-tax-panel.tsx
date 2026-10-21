@@ -248,7 +248,6 @@ export default function SensitiveTaxPanel({ casts, stores, isOwner }: { casts: C
           <b>機密情報へのアクセスは監査ログに記録されます</b>
           <span style={{ display: "block", fontSize: 11, opacity: 0.85 }}>マイナンバーの表示・変更はオーナー権限のみ実行できます。</span>
         </span>
-        <span className="nox-stpill" style={{ marginLeft: "auto", whiteSpace: "nowrap" }}>ENCRYPTED</span>
       </div>
 
       <div className="nox-2col nox-2col--32">
@@ -298,7 +297,7 @@ export default function SensitiveTaxPanel({ casts, stores, isOwner }: { casts: C
                   <input value={mynumber} onChange={(e) => setMynumber(e.target.value)}
                     placeholder={mynumberSet ? "登録済み（変更する場合のみ入力）" : "未登録"} inputMode="numeric" style={{ ...input, width: "100%" }} />
                   <span style={{ fontSize: 10.5, color: "var(--sub)" }}>
-                    数字12桁・入力すると暗号化保存／空欄は変更なし。表示は法定調書作成の用途に限定され、閲覧は全件 audit_logs に記録されます。
+                    数字12桁・入力すると暗号化保存／空欄は変更なし。表示は法定調書作成の用途に限定され、閲覧はすべて操作履歴に記録されます。
                   </span>
                 </div>
               </div>
@@ -312,7 +311,7 @@ export default function SensitiveTaxPanel({ casts, stores, isOwner }: { casts: C
                     <button type="button" className="nox-formmodal-x" aria-label="閉じる" onClick={() => !discardBusy && setDiscardOpen(false)}>×</button>
                   </div>
                   <p style={{ fontSize: 12.5, color: "var(--sub)", margin: "4px 0 10px", lineHeight: 1.7 }}>
-                    暗号化されたマイナンバーを消去し、廃棄日時・実行者・方法（overwrite_null）を記録します。元に戻せません。理由は必須です（200 文字まで）。
+                    暗号化されたマイナンバーを消去し、廃棄日時・実行者・方法を記録します。元に戻せません。理由は必須です（200 文字まで）。
                   </p>
                   <input value={discardReason} onChange={(e) => setDiscardReason(e.target.value)} maxLength={200} disabled={discardBusy}
                     placeholder="理由（例: 退店から 7 年経過・法定保存期間満了）" style={{ ...input, width: "100%" }} aria-label="廃棄の理由" />

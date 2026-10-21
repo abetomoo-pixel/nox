@@ -82,7 +82,7 @@ export const SECTION_KEYS = {
   compPenaltyTab: ["sys_penalties", "sys_norms"],
   compBackTab: ["sys_backs", "sys_sales_rate", "sys_points"],
   normConfigPanel: ["sys_norms"],
-  deductionPanel: ["sys_penalties"],
+  deductionPanel: [], // ★便 X13-G W-13: 送り・前借り・日払いは罰金ではない＝制度に関係なく常に出す（旧 sys_penalties で隠れ、ACE の「控除・送り」タブが空だった）
   productsBack: ["sys_backs"],
   productsHonPt: ["sys_points"],
   mineNormCard: ["sys_norms"],
@@ -90,7 +90,8 @@ export const SECTION_KEYS = {
 export type SectionKey = keyof typeof SECTION_KEYS;
 
 export function isSectionOn(settings: StoreSettings, section: SectionKey): boolean {
-  return SECTION_KEYS[section].some((k) => isSystemOn(settings, k));
+  const keys = SECTION_KEYS[section] as readonly SystemKey[];
+  return keys.length === 0 || keys.some((k) => isSystemOn(settings, k)); // ★便 X13-G W-13: 要る制度が空＝常に出す
 }
 
 export type CastPlanRow = { cast_id: string; plan_id?: string | null; overrides_json: unknown };

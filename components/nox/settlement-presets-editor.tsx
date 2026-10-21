@@ -38,20 +38,20 @@ export default function SettlementPresetsEditor({ storeId, settings, readOnly, o
         雇用キャストには使いません（懲戒減給は給与画面・労基法 91 条の上限つき）。
       </p>
       <div className="nox-tablewrap plain">
-        <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 12.5 }}>
-          <thead><tr><th style={t.th}>名称</th><th style={t.th}>対象</th><th style={{ ...t.th, textAlign: "right" }}>既定額</th><th style={t.th}>契約根拠の文（明細の basis）</th>{!readOnly && <th style={t.th}></th>}</tr></thead>
+        <table className="nox-presettable" data-preset-table="1" style={{ borderCollapse: "collapse", width: "100%", fontSize: 12.5 }}>{/* ★便 X13-G W-16: 900px 未満は 1 ひな形 1 カード（名称・対象・既定額・根拠を縦積み・削除は右上） */}
+          <thead><tr><th style={t.th}>名称</th><th style={t.th}>対象</th><th style={{ ...t.th, textAlign: "right" }}>既定額</th><th style={t.th}>契約根拠の文（明細に載る）</th>{!readOnly && <th style={t.th}></th>}</tr></thead>
           <tbody>
             {list.map((p, i) => (
               <tr key={p.code + i}>
-                <td style={t.td}><input value={p.name} disabled={readOnly || busy} onChange={(e) => set(i, { name: e.target.value })} style={{ ...t.input, width: 110 }} /></td>
-                <td style={t.td}>
+                <td style={t.td} className="c-name" data-label="名称"><input value={p.name} disabled={readOnly || busy} onChange={(e) => set(i, { name: e.target.value })} style={{ ...t.input, width: 110, maxWidth: "100%" }} /></td>
+                <td style={t.td} data-label="対象">
                   <select value={p.target} disabled={readOnly || busy} onChange={(e) => set(i, { target: e.target.value as SettlementTarget })} style={{ ...t.input, width: "auto" }}>
                     {(Object.keys(TARGET_LABEL) as SettlementTarget[]).map((k) => <option key={k} value={k}>{TARGET_LABEL[k]}</option>)}
                   </select>
                 </td>
-                <td style={{ ...t.td, textAlign: "right" }}><MoneyInput value={p.amount} disabled={readOnly || busy} onChange={(v) => set(i, { amount: Number(v || 0) })} style={{ ...t.input, textAlign: "right" }} width={120} ariaLabel="既定額" /></td>
-                <td style={t.td}><input value={p.basis} disabled={readOnly || busy} maxLength={200} onChange={(e) => set(i, { basis: e.target.value })} style={{ ...t.input, width: "100%", minWidth: 220 }} /></td>
-                {!readOnly && <td style={t.td}><button type="button" className="nox-btn small ghost" disabled={busy || list.length <= 1} onClick={() => setList((l) => l.filter((_, j) => j !== i))}>削除</button></td>}
+                <td style={{ ...t.td, textAlign: "right" }} data-label="既定額"><MoneyInput value={p.amount} disabled={readOnly || busy} onChange={(v) => set(i, { amount: Number(v || 0) })} style={{ ...t.input, textAlign: "right" }} width={120} ariaLabel="既定額" /></td>
+                <td style={t.td} data-label="契約根拠の文"><input value={p.basis} disabled={readOnly || busy} maxLength={200} onChange={(e) => set(i, { basis: e.target.value })} style={{ ...t.input, width: "100%", minWidth: 0 }} className="basis" /></td>
+                {!readOnly && <td style={t.td} className="c-del"><button type="button" className="nox-btn small ghost" disabled={busy || list.length <= 1} onClick={() => setList((l) => l.filter((_, j) => j !== i))}>削除</button></td>}
               </tr>
             ))}
           </tbody>

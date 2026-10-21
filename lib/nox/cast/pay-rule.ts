@@ -48,4 +48,4 @@ export function nextPeriodStartOf(today: string): string {
 export const laborNoteNeeded = (employment: Employment | null | undefined, rule: PayRule, hasSettlement: boolean): boolean =>
   employment !== "雇用" && (rule === "per_shift" || hasSettlement);
 export const NOTE_EMPLOYMENT = "雇用／委託は契約区分であり法的判定ではありません。";
-export const NOTE_LABOR = "委託契約でも、時間や出勤の拘束・精算調整（遅刻等の減額）の運用は労働者性の判断要素になり得ます（弁護士 L3・裁定293-3）。";
+export const NOTE_LABOR = "委託契約でも、時間や出勤の拘束・精算調整（遅刻等の減額）の運用は労働者性の判断要素になり得ます（弁護士の見解）。";

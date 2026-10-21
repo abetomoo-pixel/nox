@@ -65,8 +65,8 @@ check("wm(4-3) staff-shift-panel: disabled_from を読む・effectivePatterns �
   panel.includes("effective_from, sort_order, disabled_from") && panel.includes("if (!isPatternEnabledOn(p.disabled_from, day)) continue;") && panel.includes('supabase.rpc("staff_pattern_disable", { p_pattern_id: p.id, p_from: from })') && panel.includes('supabase.rpc("staff_pattern_enable", { p_pattern_id: p.id })')
   && panel.includes('{disabledNow.map((p) => row(p, "disabled"))}') && panel.includes(">無効にする</button>") && panel.includes(">無効を取消</button>") && panel.includes("const [disMonth, setDisMonth] = useState<Record<string, string>>({});"));
 check("wm(4-4) pricing-board: contract_ack＝mineSettingsOf(store.settings_json)・set_store_mine_settings({ contract_ack })・有効化の保存で記録・ON/OFF（SegSelect）・記録済みはチェック行を出さない／rpc-err 'off wish'",
-  pb.includes("mineSettingsOf(store.settings_json).contract_ack") && pb.includes('supabase.rpc("set_store_mine_settings", { p_store_id: storeId, p_settings: { contract_ack: on } })') && pb.includes("const acked = tSurOn && taxSavedSur === null && tSurAck;")
-  && pb.includes('ariaLabel="加盟店契約の確認（記録）"') && pb.includes("{taxSavedSur === null && !ackRecorded && (") && rpcErrJa("off wish") === "休み希望はシフト案にできません（却下のみできます）" && rpcErrJa("off wish: 123").startsWith("休み希望は"));
+  pb.includes("mineSettingsOf(store.settings_json).contract_ack") && pb.includes('supabase.rpc("set_store_mine_settings", { p_store_id: storeId, p_settings: { contract_ack: on } })') && pb.includes("if (feeOn && feeSaved === 0 && feeAck && !ackRecorded) { const ok = await recordContractAck(true); if (!ok) return; }") /* ★便 X13-G W-17: 有効化の記録は「お客様への加算を保存」側 */
+  && pb.includes('ariaLabel="加盟店契約の確認（記録）"') && pb.includes("{feeOn && feeSaved === 0 && !ackRecorded && (") && rpcErrJa("off wish") === "休み希望はシフト案にできません（却下のみできます）" && rpcErrJa("off wish: 123").startsWith("休み希望は"));
 
 if (fails.length) {
   console.error(`FAIL ${fails.length} 件 / pass ${pass}`);

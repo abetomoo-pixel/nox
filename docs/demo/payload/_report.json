@@ -1,11 +1,11 @@
 {
  "stores": {
   "muse": {
-   "bytes": 1348751,
-   "rows": 2398,
-   "tables": 44,
-   "checks": 281,
-   "lines": 728,
+   "bytes": 2635384,
+   "rows": 4516,
+   "tables": 45,
+   "checks": 559,
+   "lines": 1433,
    "monthGross": 3178210,
    "monthTarget": 3180000,
    "monthDiffPct": -0.06,
@@ -120,14 +120,14 @@
      ]
     }
    ],
-   "sha256": "080bbe146461b18c546e94cc43151b11773507dca046980b961949e767335bed"
+   "sha256": "87d318a74646c2ef2f70783203b62ad2eff8c634875be98c5be70abfa521f25c"
   },
   "luna": {
-   "bytes": 1940265,
-   "rows": 3297,
-   "tables": 43,
-   "checks": 462,
-   "lines": 1322,
+   "bytes": 3802233,
+   "rows": 6234,
+   "tables": 44,
+   "checks": 919,
+   "lines": 2582,
    "monthGross": 7845799,
    "monthTarget": 7860000,
    "monthDiffPct": -0.18,
@@ -277,14 +277,14 @@
      ]
     }
    ],
-   "sha256": "3c90580a92422744945ddb7ee279d4ec981071cc68be8a4f34f94cc433ac1870"
+   "sha256": "87f578e38f7cd613b107b87d4c83fad983f97e2fa4df35403c3f18742797d603"
   },
   "noir": {
-   "bytes": 2114299,
-   "rows": 3628,
-   "tables": 41,
-   "checks": 506,
-   "lines": 1356,
+   "bytes": 4152747,
+   "rows": 6891,
+   "tables": 42,
+   "checks": 1007,
+   "lines": 2636,
    "monthGross": 13681604,
    "monthTarget": 13680000,
    "monthDiffPct": 0.01,
@@ -500,14 +500,14 @@
      ]
     }
    ],
-   "sha256": "d0d66fd2a0160aa88a895e654c9507ad02cda5528728ac01e1796f4288739332"
+   "sha256": "e4e5a37fffb548ca2efd65b85a09f11cc1abf0dee763052e1284d853f0ebef70"
   },
   "ace": {
-   "bytes": 1982813,
-   "rows": 3367,
-   "tables": 42,
-   "checks": 485,
-   "lines": 1448,
+   "bytes": 3894888,
+   "rows": 6396,
+   "tables": 43,
+   "checks": 965,
+   "lines": 2805,
    "monthGross": 9236403,
    "monthTarget": 9240000,
    "monthDiffPct": -0.04,
@@ -657,14 +657,14 @@
      ]
     }
    ],
-   "sha256": "befbf0ca592a69f939809eb043d3a9178ea5aeae8abe853978c5fa856275ecb6"
+   "sha256": "71dc69ea2323d827b18734dfd09a3435a5ac44aa3bee5bc99f5e94a1a4ca8428"
   },
   "lily": {
-   "bytes": 2892316,
-   "rows": 5067,
-   "tables": 41,
-   "checks": 594,
-   "lines": 1935,
+   "bytes": 5756425,
+   "rows": 9801,
+   "tables": 42,
+   "checks": 1181,
+   "lines": 3777,
    "monthGross": 5712067,
    "monthTarget": 5720000,
    "monthDiffPct": -0.14,
@@ -794,14 +794,14 @@
      ]
     }
    ],
-   "sha256": "643d15fb0b95c5ee3f44191da148739f269ce7c817a98f38a1378554af4e7bf7"
+   "sha256": "5468f2fced9154dc6d05d8a21ca259ae5344fb47666beb299914cff7614a8689"
   },
   "nest": {
-   "bytes": 2885540,
-   "rows": 4789,
-   "tables": 36,
-   "checks": 507,
-   "lines": 2716,
+   "bytes": 5739748,
+   "rows": 9254,
+   "tables": 38,
+   "checks": 1008,
+   "lines": 5338,
    "monthGross": 4055999,
    "monthTarget": 4060000,
    "monthDiffPct": -0.1,
@@ -921,10 +921,18 @@
      ]
     }
    ],
-   "sha256": "82fced7c865ae33128541275a07a598022a2ae0ee613191b22abf3797c987cbf"
+   "sha256": "b459a3b799b8a54892453b50480c69864f8cf7e0c4f6278d942c73109e7a6f9e"
   }
  },
  "ids": 0,
+ "curMirror": {
+  "muse": 2117,
+  "luna": 2936,
+  "noir": 3262,
+  "ace": 3028,
+  "lily": 4733,
+  "nest": 4464
+ },
  "trialDedup": {
   "muse.shifts": 1,
   "muse.attendance": 1,

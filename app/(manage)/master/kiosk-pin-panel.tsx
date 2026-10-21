@@ -223,7 +223,6 @@ export default function KioskPinPanel({ stores, isOwner }: { stores: Store[]; is
       <section className="nox-cardtop" style={{ ...card, alignSelf: "start" }}>
         <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
           <h3 style={h3}>PINポリシー</h3>
-          {isOwner && <span className="nox-stpill" style={{ marginLeft: "auto" }}>OWNER</span>}
         </div>
         <p style={sub}>レジ端末ログインのロック規則（店単位）</p>
         <div style={{ display: "grid", gap: 8, fontSize: 12 }}>

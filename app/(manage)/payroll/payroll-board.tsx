@@ -892,9 +892,9 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
                     const cell = payStatusCellOf(runInfo?.status, castPaid && cp ? cp : null);
                     const col = cell.tone === "ok" ? "var(--ok)" : cell.tone === "part" ? "var(--gold)" : cell.tone === "bad" ? "var(--bad)" : "var(--sub)";
                     const payable = runInfo?.status === "finalized" && !!cp && cell.tone !== "ok" && cell.tone !== "mute"; // ★裁定340-①: 未払／一部を押すと支払ダイアログ
-                    return <td style={{ ...t.td, fontWeight: 700, color: col, whiteSpace: "nowrap" }} title={cp ? `支払済 ¥${cp.paid.toLocaleString()}／差引支給 ¥${cp.net.toLocaleString()}` : undefined}>{payable ? <button type="button" className="nox-link" style={{ fontWeight: 700, color: col, padding: 0 }} title="押して支払を記録" onClick={(e) => { e.stopPropagation(); setPayDlg({ castId: r.castId, castName: r.castName, net: cp!.net, paid: cp!.paid }); }}>{cell.label}</button> : cell.label}
+                    return <td className="c-ops" style={{ ...t.td, fontWeight: 700, color: col, whiteSpace: "nowrap" }} title={cp ? `支払済 ¥${cp.paid.toLocaleString()}／差引支給 ¥${cp.net.toLocaleString()}` : undefined}>{payable ? <button type="button" className="nox-rowbtn" data-row-pay={r.castId} style={{ fontWeight: 700, color: col, borderColor: col }} /* ★便 X13-G W-5: 枠ボタン 44px */ title="押して支払を記録" onClick={(e) => { e.stopPropagation(); setPayDlg({ castId: r.castId, castName: r.castName, net: cp!.net, paid: cp!.paid }); }}>{cell.label}</button> : cell.label}
                       {/* ★便 GV-C C-3（裁定388）: 行の操作＝「明細 PDF」（右パネルの明細を開く＝そこから印刷／PDF）・「支払済み」は左の状態（確定済みの未払／一部で支払ダイアログ＝裁定340） */}
-                      <button type="button" className="nox-link" data-row-slip={r.castId} style={{ fontWeight: 600, padding: 0, marginLeft: 10, fontSize: 12 }}
+                      <button type="button" className="nox-rowbtn" data-row-slip={r.castId} style={{ marginLeft: 8 }} /* ★便 X13-G W-5: 枠ボタン 44px */
                         onClick={(e) => { e.stopPropagation(); setDetailCast(r.castId); setSlipPreview(true); }}>明細 PDF</button>
                     </td>;
                   })()}

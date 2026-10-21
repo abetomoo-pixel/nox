@@ -82,7 +82,7 @@ export default function CheckCustomersCard({ checkId, storeId, isOpen, lines: _l
   }
 
   return (
-    <div className="nox-cardtop" style={t.card}>
+    <div className="nox-cardtop" style={{ ...t.card, scrollMarginTop: 140 }} id="check-customers" data-check-customers="1">{/* ★便 X13-G W-3: 伝票上部のお客様名から飛ぶ先 */}
       <h3 style={t.cardTitle}>顧客</h3>
       <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "0 0 10px" }}>この伝票のお客様。最初の 1 人が来店のお客様（併存）になります。注文ごとのお客様は明細の「お客様」チップから付けます。</p>
       {named === null && <p style={{ fontSize: 12, color: "var(--sub)", margin: 0 }}>—</p>}

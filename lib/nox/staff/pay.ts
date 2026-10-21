@@ -61,7 +61,7 @@ export function staffPayOf(contract: StaffContract, days: readonly StaffDayHours
   const withholding = employment ? 0 : floorYen((gross * contract.withholding_rate) / 100);
   const withholdingNote = employment
     ? `給与所得（${contract.tax_class ?? "乙"}欄・税額表は次のデータ更新＝源泉 0）`
-    : contract.withholding_rate > 0 ? `委託（${contract.withholding_rate}%）` : "委託（源泉率は税理士確認中・T11＝0）";
+    : contract.withholding_rate > 0 ? `委託（${contract.withholding_rate}%）` : "委託（源泉率は税理士に確認中のため 0）";
   return { kind: contract.contract_kind, days: workDays, minutes, timePay, fixed, gross, withholding, net: gross - withholding, withholdingNote };
 }
 

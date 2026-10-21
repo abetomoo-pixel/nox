@@ -102,7 +102,7 @@ export function sanctionWarningsOf(
   }
   if (c.employment === "委託") {
     out.push({ castId: c.castId, castName: c.castName, kind: "sanction_contractor",
-      detail: `委託への制裁控除 ${sanction.applied}円（法定上限なし＝契約根拠の確認記録が適用条件・裁定98）` });
+      detail: `委託への制裁控除 ${sanction.applied}円（法定上限なし＝契約の根拠を確認した記録が適用条件）` });
   }
   if (c.employment === "雇用" && sanction.provisional) {
     out.push({ castId: c.castId, castName: c.castName, kind: "avg_wage_provisional",

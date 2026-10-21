@@ -77,7 +77,7 @@ export default function DeductionPanel({
 
       {/* 送り方式トグル（owner のみ操作可・manager は現在値のみ） */}
       <section className="nox-cardtop" style={card}>
-        <h3 style={h3}>送り方式（okuri_mode）</h3>
+        <h3 style={h3}>送り方式</h3>
         <p style={{ fontSize: 13, margin: "4px 0" }}>
           現在: <strong style={{ color: "var(--champ)" }}>{okuriMode === "actual" ? "実費（送り実費を給与天引き）" : "一律送り代（控除マスタで管理）"}</strong>
         </p>

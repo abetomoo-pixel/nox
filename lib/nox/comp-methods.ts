@@ -33,9 +33,9 @@ export const PREP_ITEMS: { key: string; label: string; unlock?: string }[] = [
   { key: "guarantee_period", label: "保証判定単位（半月・日）", unlock: "現行は月固定" },
   // ★便 N1013b B-3（2026-10-13）: point_rules／gross_profit_slide／slide_ratio_col の 3 チップは撤去（器なし＝起票106〜108 第 2 期・画面に「準備中」を出さない）
   { key: "ext_promote_back", label: "延長バック・場内→本指名昇格バック" },
-  { key: "rounding_axes", label: "歩合の丸め2軸", unlock: "comp_plans に列なし（C5）" },
+  { key: "rounding_axes", label: "歩合の丸め2軸", unlock: "第 2 期" },
   // ★便 N1013b B-9（2026-10-13）: penalty_basis_record／achievement_params／achievement_metrics の 3 チップは撤去（器なし＝起票109〜111 第 2 期）
-  { key: "rate_back", label: "率方式バック（同伴）", unlock: "R-2b 後（裁定86-②）" },
+  { key: "rate_back", label: "率方式バック（同伴）", unlock: "第 2 期" },
 ];
 export function prepItemOf(key: string): { key: string; label: string; unlock?: string } | null {
   return PREP_ITEMS.find((p) => p.key === key) ?? null;

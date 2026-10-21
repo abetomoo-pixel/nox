@@ -56,7 +56,7 @@ export default function NormConfigPanel({
       <section className="nox-cardtop" style={card} data-norm-axes={NORM_AXES.filter((k) => axes[k]).join(",")}>
         <h3 style={h3}>採用する軸（出勤日数・同伴・売上・指名）</h3>
         <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 8px" }}>
-          採用した軸だけが、待遇プランの既定目標・キャスト別ノルマ目標・キャスト詳細「今月のノルマ」・キャスト本人のマイページ（進捗）に出ます。未達の減額は「ノルマ・罰金」の減額設定で決めます（裁定394）。
+          採用した軸だけが、待遇プランの既定目標・キャスト別ノルマ目標・キャスト詳細「今月のノルマ」・キャスト本人のマイページ（進捗）に出ます。未達の減額は「ノルマ・罰金」の減額設定で決めます。
           目標値はプランの既定（待遇プラン）とキャスト個別（キャスト詳細）で設定します。
         </p>
         {isOwner ? (

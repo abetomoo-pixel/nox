@@ -354,7 +354,7 @@ export default function AuditBoard({ users, stores }: {
               </div>
               <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "8px 0 0", lineHeight: 1.7 }}>
                 ※モックの「操作理由」「端末」「要確認にする」は<b>準備中</b>です
-                （audit_logs に理由・端末・確認フラグの列がありません）。
+                （操作の記録に理由・端末・確認の項目がありません）。
               </p>
             </>
           );
@@ -458,7 +458,7 @@ export default function AuditBoard({ users, stores }: {
             );
           })()}
           <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "8px 0 0", lineHeight: 1.7 }}>
-            ※「承認者」「理由」は<b>準備中</b>です（audit_logs に承認者・理由の列がないため「—」）。
+            ※「承認者」「理由」は<b>準備中</b>です（操作の記録に承認者・理由の項目がないため「—」）。
             変更前後の値は「操作履歴」タブで行を開くと確認できます。
           </p>
         </section>
@@ -539,7 +539,7 @@ export default function AuditBoard({ users, stores }: {
             <span style={{ flex: 1 }}>
               編集・削除
               <span style={{ display: "block", fontSize: 10.5, color: "var(--v2-muted)" }}>
-                audit_logs に更新・削除のポリシーが無く、書き込みは内部専用関数だけに許可されています。
+                操作の記録はあとから書き換え・削除ができない仕組みで保存されています。
               </span>
             </span>
             <b>できません</b>

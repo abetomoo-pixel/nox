@@ -370,15 +370,28 @@ body {
   position: fixed;
   inset: 0;
   z-index: 50;
+  isolation: isolate;
   background: rgba(0, 0, 0, .62);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 18px;
 }
+/* ★便 X13-G W-1（2026-10-21）: ぼかしは暗幕の擬似要素へ移し、カードはその上の層に置く。
+   暗幕そのものに -webkit-backdrop-filter を当てると、iOS Safari では子（transform で動くシート）がぼかしの下に合成され、
+   見えるのに押せない（アカウントの下シート・Agoora 実機 10/19 20:53）。カードを backdrop-filter の子孫にしない＝全モーダル同じ重なり順。 */
+.nox-modal-overlay::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  pointer-events: none;
+}
 .nox-modal-card {
+  position: relative;
+  z-index: 1;
   width: 100%;
   max-width: var(--nox-modal-max, 430px);
 }
@@ -2612,4 +2625,108 @@ button:disabled, .nox-btn:disabled { opacity: .45; cursor: not-allowed; }
   .nox-todaywrap .nox-attrow > .nox-seg { flex: 0 0 auto; overflow: visible; }
   .nox-todaywrap .nox-attrow > .nox-seg > button { white-space: nowrap; }
   .nox-todaywrap .nox-attrow .out { margin-left: auto; }
+}
+
+/* ★便 X13-G W-7: 金種カウンタの行＝金種｜−｜枚数｜＋｜小計（44px・390px で 1 行） */
+.nox-denoms { display: grid; gap: 6px; }
+.nox-denomrow { display: grid; grid-template-columns: 64px 44px minmax(0, 1fr) 44px 84px; align-items: center; gap: 6px; font-size: 14px; }
+.nox-denomrow-k { text-align: right; color: var(--sub); }
+.nox-denomrow-n { width: 100%; min-width: 0; box-sizing: border-box; height: 44px; text-align: center; font-size: 16px; border: 1px solid var(--line2); border-radius: 10px; background: var(--bg); color: var(--ink); font-family: inherit; }
+.nox-denombtn { height: 44px; min-width: 44px; border: 1px solid var(--line2); border-radius: 10px; background: var(--card2); color: var(--ink); font-size: 18px; font-weight: 800; cursor: pointer; }
+.nox-denombtn:disabled { opacity: .35; cursor: default; }
+.nox-denomrow-s { text-align: right; color: var(--ink); font-size: 13px; }
+
+/* ★便 X13-G W-8: 日付・時刻の入力欄を他の入力欄と同じ扱いに（iOS Safari の固有幅で親からはみ出す・右寄せになるのを止める） */
+input[type="date"], input[type="time"], input[type="datetime-local"], input[type="month"] {
+  -webkit-appearance: none; appearance: none; box-sizing: border-box; min-width: 0; max-width: 100%;
+  min-height: 40px; border-radius: 10px; font-size: inherit; text-align: left; display: inline-block;
+}
+input[type="date"]::-webkit-date-and-time-value, input[type="time"]::-webkit-date-and-time-value, input[type="datetime-local"]::-webkit-date-and-time-value { text-align: left; }
+@media (max-width: 899px) { input[type="date"], input[type="time"], input[type="datetime-local"], input[type="month"] { font-size: 16px; } }
+.nox-dailypay-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; align-items: end; }
+.nox-dailypay-row > .f { min-width: 0; display: flex; flex-direction: column; justify-content: flex-end; }
+.nox-dailypay-row > .f input[type="date"] { width: 100%; }
+.nox-dailypay-row > .go { grid-column: 1 / -1; width: 100%; }
+@media (min-width: 900px) { .nox-dailypay-row { grid-template-columns: 170px 180px auto; justify-content: start; } .nox-dailypay-row > .go { grid-column: auto; width: auto; } }
+
+/* ★便 X13-G W-5: 行の操作＝枠ボタン（44px 以上・文言と挙動は不変） */
+.nox-rowbtn { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; min-width: 44px; padding: 0 14px; border: 1px solid var(--primary); border-radius: 10px; background: transparent; color: var(--primary); font: inherit; font-size: 13px; font-weight: 700; text-decoration: none; cursor: pointer; white-space: nowrap; }
+.nox-rowbtn:disabled { opacity: .5; cursor: default; }
+/* ★便 X13-G W-6 ①: 月次一覧の集計＝4 列（≤899 は 2×2・値は折り返して隣へはみ出さない） */
+.nox-kpi4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px 12px; }
+.nox-kpi4 b { overflow-wrap: anywhere; }
+@media (max-width: 899px) { .nox-kpi4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+/* ★便 X13-G W-6 ②: /payroll のカード（≤899）＝全員同じ並び。1 行目 名前・2 行目 時間／日数／総支給／控除／天引き・残（5 列）・3 行目 左＝差引支給・右＝未払と明細 PDF */
+@media (max-width: 899px) {
+  .nox-paytable.v365 tr { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px 8px; align-items: start; }
+  .nox-paytable.v365 td.c-name { grid-column: 1 / -1; }
+  .nox-paytable.v365 td:nth-child(3), .nox-paytable.v365 td:nth-child(4), .nox-paytable.v365 td:nth-child(5), .nox-paytable.v365 td:nth-child(6), .nox-paytable.v365 td:nth-child(8) { display: block; text-align: left !important; font-size: 12.5px; overflow-wrap: anywhere; }
+  .nox-paytable.v365 td:nth-child(3)::before { content: "時間"; }
+  .nox-paytable.v365 td:nth-child(4)::before { content: "日数"; }
+  .nox-paytable.v365 td:nth-child(5)::before { content: "総支給"; }
+  .nox-paytable.v365 td:nth-child(6)::before { content: "控除"; }
+  .nox-paytable.v365 td:nth-child(8)::before { content: "前借り"; }
+  .nox-paytable.v365 td:nth-child(3)::before, .nox-paytable.v365 td:nth-child(4)::before, .nox-paytable.v365 td:nth-child(5)::before, .nox-paytable.v365 td:nth-child(6)::before, .nox-paytable.v365 td:nth-child(8)::before { display: block; font-size: 10.5px; color: var(--sub); font-weight: 400; }
+  .nox-paytable.v365 td:nth-child(8) div { white-space: normal !important; }
+  .nox-paytable.v365 td.c-net { grid-column: 1 / 3; margin-left: 0; align-self: center; text-align: left !important; }
+  .nox-paytable.v365 td.c-ops { grid-column: 3 / -1; justify-self: end; align-self: center; display: flex !important; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+  .nox-paytable.v365 td.c-ops .nox-rowbtn { margin-left: 0 !important; }
+}
+
+/* ★便 X13-G W-6 ③／W-12: 折り返すセグメント（900px 未満は 2 列・各 44px・文字は 1 行で全部見せる） */
+@media (max-width: 899px) {
+  .nox-seg.nox-seg--wrap { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); overflow: visible; }
+  .nox-seg.nox-seg--wrap > * { min-height: 44px; white-space: nowrap; font-size: 13px; padding-left: 4px; padding-right: 4px; border-bottom: 1px solid var(--v2-line); }
+}
+
+/* ★便 X13-G W-3: 伝票上部のお客様（卓名の帯の直下・1 行・押すと顧客の節へ） */
+.nox-checkcust { display: block; width: 100%; text-align: left; background: transparent; border: 0; border-bottom: 1px solid var(--line); color: var(--champ); font: inherit; font-size: 14px; font-weight: 700; padding: 6px 2px 8px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ★便 X13-G W-10: 設定行（ラベル＋説明｜値・操作）は 900px 未満で縦積み＝見出し→説明（小さめ・全幅）→値・操作（左寄せ）。値の文字は本文と同じ大きさの太字 */
+@media (max-width: 899px) {
+  .nox-frow { flex-direction: column; align-items: stretch; gap: 6px; }
+  .nox-frow .k { font-size: 13px; }
+  .nox-frow .v { text-align: left; font-size: 14px; font-weight: 700; justify-content: flex-start; flex-wrap: wrap; }
+  .nox-listrow.nox-setrow { flex-direction: column; align-items: stretch; gap: 8px; }
+  .nox-listrow.nox-setrow > * { max-width: 100%; }
+  .nox-listrow.nox-setrow > span:first-child { flex: none !important; width: 100%; }
+  .nox-listrow.nox-setrow > b { font-size: 14px; font-weight: 700; }
+  .nox-listrow.nox-setrow > .nox-stpill, .nox-listrow.nox-setrow > a { align-self: flex-start; }
+  .nox-listrow.nox-setrow > .nox-seg { align-self: stretch; }
+}
+
+/* ★便 X13-G W-11: 今日タブの出勤前＝1 行目「出勤」（全幅・主ボタン 56px）・2 行目 遅刻／当欠／同伴／休み（4 等分・48px）。表表示（≥1280）も同じ */
+.nox-attpre { display: grid; gap: 6px; width: 100%; min-width: 0; }
+.nox-attpre-main { min-height: 56px; width: 100%; border: 0; border-radius: 12px; background: var(--primary); color: #fff; font: inherit; font-size: 17px; font-weight: 800; cursor: pointer; }
+.nox-attpre-main.on { background: var(--gold); color: #000; }
+.nox-attpre-sub { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.nox-attpre-sub > button { min-height: 48px; border: 1px solid var(--v2-line); border-radius: 10px; background: transparent; color: var(--ink); font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+.nox-attpre-sub > button.on { background: var(--gold); border-color: var(--gold); color: #000; }
+.nox-attrow[data-att-view="pre"] { flex-wrap: wrap; }
+.nox-attrow[data-att-view="pre"] > .nox-attpre { flex: 1 1 100%; }
+@media (min-width: 1280px) { .nox-attpre-main { min-height: 48px; font-size: 15px; } .nox-attpre-sub > button { min-height: 44px; } }
+
+/* ★便 X13-G W-12 ①: 6 タブ＝900px 未満は 2 列×3 段（重なり・省略なし・44px 以上）。900 以上は従来の 1 段 */
+.nox-segtabs.nox-segtabs--grid2 { display: flex; }
+@media (max-width: 899px) {
+  .nox-segtabs.nox-segtabs--grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); overflow: visible; }
+  .nox-segtabs.nox-segtabs--grid2 > button { min-height: 44px; border-right: 1px solid var(--line2); white-space: nowrap; font-size: 13px !important; padding: 6px 4px !important; }
+  .nox-segtabs.nox-segtabs--grid2 > button:nth-child(2n) { border-right: 0; }
+}
+
+/* ★便 X13-G W-15: 金額の後ろの（税抜）／（税込）の小さな印 */
+.nox-taxmark { font-size: 9.5px; color: var(--sub); margin-left: 3px; font-weight: 400; }
+
+/* ★便 X13-G W-16: 精算調整のひな形＝900px 未満は 1 ひな形 1 カード（名称・対象・既定額・根拠を縦積み・削除は右上） */
+@media (max-width: 899px) {
+  .nox-tablewrap:has(> .nox-presettable) { overflow: visible; }
+  .nox-presettable, .nox-presettable tbody { display: block; width: 100%; }
+  .nox-presettable thead { display: none; }
+  .nox-presettable tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 8px; padding: 12px; margin: 0 0 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--card2); }
+  .nox-presettable td { display: block; padding: 0 !important; border: 0 !important; text-align: left !important; min-width: 0; grid-column: 1 / -1; }
+  .nox-presettable td[data-label]::before { content: attr(data-label); display: block; font-size: 11px; color: var(--sub); margin-bottom: 3px; }
+  .nox-presettable td.c-name { grid-column: 1; grid-row: 1; }
+  .nox-presettable td.c-del { grid-column: 2; grid-row: 1; align-self: start; }
+  .nox-presettable td input, .nox-presettable td select { width: 100% !important; }
+  .nox-presettable td .nox-money { width: 100% !important; }
 }

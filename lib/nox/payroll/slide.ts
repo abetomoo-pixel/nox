@@ -125,7 +125,7 @@ export function slideDescOf(period: SlidePeriod, basis: "yen" | "pt" | "count", 
 /** 青ピルの文（判定期間） */
 export function slidePillOf(period: SlidePeriod, next: boolean): string {
   const p = SLIDE_PERIOD_LABEL[period];
-  return period === "daily" ? (next ? "判定期間: 日次（前月基準＝店設定 slide_apply）" : "判定期間: 日次（その日の売上・ポイント）") : `判定期間: ${p}（${next ? "前の期間" : "期間"}の累計・確定で段確定／プレビューは暫定）`;
+  return period === "daily" ? (next ? "判定期間: 日次（前月の実績で判定＝店の設定）" : "判定期間: 日次（その日の売上・ポイント）") : `判定期間: ${p}（${next ? "前の期間" : "期間"}の累計・確定で段確定／プレビューは暫定）`;
 }
 /** 入力欄の単位ラベル */
 export function slideAtLabelOf(period: SlidePeriod, basis: "yen" | "pt" | "count"): string {

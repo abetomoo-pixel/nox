@@ -950,7 +950,7 @@ export default function CastsBoard({
             </div>
             <div>
               <div style={{ fontSize: 18, fontWeight: 700, color: "var(--v2-text)" }}>{selCast.name}</div>
-              <div style={{ fontSize: 11.5, color: "var(--v2-muted)" }}>
+              <div style={{ fontSize: 11.5, color: "var(--v2-muted)", whiteSpace: "nowrap" }}>{/* ★便 X13-G W-10: 「在籍 / 未招待」を語の途中で折らない */}
                 {selCast.is_active ? (isTrialCast(selCast) ? "体入" : "在籍") : "退店"} / {selCast.user_id ? "ログイン済み" : "未招待"}
               </div>
               {isTrialCast(selCast) && (() => { /* ★GV-C C-14f（裁定396）: 本採用＝店の既定プランへ切替（確認なし）。既定が未設定なら候補から選ぶ */

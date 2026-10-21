@@ -86,3 +86,18 @@ export function arrivedChipOf(i: { inHm: string | null | undefined; outHm: strin
 }
 /** 出勤後に出す操作＝同伴トグルだけ（当欠・休みは非表示）。設定済み（dohan）はチップ */
 export const dohanToggleOf = (attStatus: string | null | undefined): { show: boolean; set: boolean } => ({ show: true, set: attStatus === "dohan" });
+
+/**
+ * ★便 X13-G W-11: 今日タブの行の表示＝出勤前（未着）／出勤後／当欠・休み／退勤後（列は足さない＝勤怠と打刻から導出）。
+ *   pre＝「出勤」（主ボタン）＋遅刻／当欠／同伴／休み・送り／退勤なし。arrived＝状態チップ・同伴・送り・退勤。
+ *   absent＝当欠・休み（in 打刻なし）＝状態チップのみ（時刻修正は操作列）。done＝退勤後＝退勤なし・送りは営業日内なら発行可（裁定357）。
+ */
+export type TodayRowView = "pre" | "arrived" | "absent" | "done";
+export function todayRowViewOf(i: { attStatus: string | null | undefined; hasIn: boolean; hasOut: boolean }): TodayRowView {
+  if (i.hasOut) return "done";
+  if (i.hasIn) return "arrived";
+  if (i.attStatus === "absent" || i.attStatus === "off") return "absent";
+  return "pre";
+}
+/** 同伴の付け外し（出勤の前後どちらでも）＝外すと出勤（猶予超過の遅刻は遅刻）に戻す */
+export const dohanUnsetStatusOf = (lateMin: number | null | undefined): "late" | "shukkin" => ((lateMin ?? 0) > 0 ? "late" : "shukkin");

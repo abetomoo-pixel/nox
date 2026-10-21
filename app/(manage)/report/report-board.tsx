@@ -506,7 +506,7 @@ export default function ReportBoard({
       p_counted_cash: counted === "" ? null : Number(counted),
       p_note: note || null, p_force: force, p_idem_key: crypto.randomUUID(),
     });
-    setMsg(error ? reopenErrJa(error.message) : "再締めしました（締め欄の値で再集計・凍結 cutoff/税率）");
+    setMsg(error ? reopenErrJa(error.message) : "再締めしました（締め欄の値で再集計しました）");
     await loadReports();
   }
   // ★#70: 表の「再締め」は締め欄へ誘導（行の営業日を選び、締め欄へスクロール＋諸経費にフォーカス）。値は送らない
@@ -1346,19 +1346,23 @@ export default function ReportBoard({
         return (
           <Modal onClose={() => setDenomOpen(false)} scroll>
             <h3 style={{ ...t.cardTitle, margin: "0 0 8px" }}>金種カウンタ</h3>
-            <div style={{ display: "grid", gap: 6 }}>
-              {DENOMS.map((d) => (
-                <label key={d} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
-                  <span className="num" style={{ width: 74, textAlign: "right", color: "var(--sub)" }}>{yen(d)}</span>
-                  <span style={{ color: "var(--sub)" }}>×</span>
-                  <input type="number" min={0} value={denoms[d] ?? ""} placeholder="0"
-                    onChange={(e) => setDenoms((s) => ({ ...s, [d]: e.target.value }))}
-                    className="num" style={{ ...input, width: 84, textAlign: "right" }} />
-                  <span className="num" style={{ marginLeft: "auto", fontSize: 12.5, color: "var(--ink)" }}>
-                    {yen(d * (Number(denoms[d]) || 0))}
-                  </span>
-                </label>
-              ))}
+            {/* ★便 X13-G W-7: 各行＝金種 ×［−］［枚数］［＋］小計（1 枚ずつ増減・0 で − は無効・数字入力も可・44px・390px で 1 行） */}
+            <div className="nox-denoms" data-denoms="1">
+              {DENOMS.map((d) => {
+                const n = Math.max(0, Math.floor(Number(denoms[d]) || 0));
+                const setN = (v: number) => setDenoms((s) => ({ ...s, [d]: String(Math.max(0, v)) }));
+                return (
+                  <div key={d} className="nox-denomrow" data-denom={d}>
+                    <span className="nox-denomrow-k num">{yen(d)}</span>
+                    <button type="button" className="nox-denombtn" aria-label={`${yen(d)} を 1 枚減らす`} disabled={n <= 0} onClick={() => setN(n - 1)}>−</button>
+                    <input inputMode="numeric" value={denoms[d] ?? ""} placeholder="0" aria-label={`${yen(d)} の枚数`}
+                      onChange={(e) => setDenoms((s) => ({ ...s, [d]: e.target.value.replace(/[^0-9]/g, "") }))}
+                      className="nox-denomrow-n num" />
+                    <button type="button" className="nox-denombtn" aria-label={`${yen(d)} を 1 枚増やす`} onClick={() => setN(n + 1)}>＋</button>
+                    <span className="nox-denomrow-s num">{yen(d * n)}</span>
+                  </div>
+                );
+              })}
             </div>
             <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginTop: 12 }}>
               <span style={{ fontSize: 12, color: "var(--sub)" }}>合計</span>

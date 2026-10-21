@@ -40,9 +40,10 @@ async function main() {
     const seat = (await one<{ id: string }>("select id from public.seats where store_id=$1 and name='NOX-VERIFY-CRM卓'", [A1.id]))?.id;
     check("ck(0-1) fixture: A1／B1／owner／manager／cast a1a・a1b／顧客 3／他 org 顧客／CRM 卓", !!A1 && !!B1 && !!owner && !!mgr && !!castA && !!castB && Object.keys(custs).length === 3 && !!custB1 && !!seat);
     if (!seat || !castA || !castB || Object.keys(custs).length !== 3) throw new Error("fixture 解決失敗");
-    const snapSql = `select (select count(*)::int from public.checks) ch, (select count(*)::int from public.check_lines) cl, (select count(*)::int from public.check_customers) cc, (select count(*)::int from public.customers) cu, (select count(*)::int from public.bottle_keeps) bk,
-      (select count(*)::int from public.products) pr, (select count(*)::int from public.comp_plans) cp, (select count(*)::int from public.stock_logs) sl, (select count(*)::int from public.cast_plan) cpl, (select settings_json::text from public.stores where id=$1) sj`;
-    const before = JSON.stringify(await one(snapSql, [A1.id]));
+    // ★便 X13-G W-19 ①（E-22）: 件数は検証 org（A1 の org＝$2）の範囲だけ＝f0 の最中にデモ店を操作しても赤にならない（DB 全体の件数は外乱を拾う）
+    const snapSql = `select (select count(*)::int from public.checks where org_id=$2) ch, (select count(*)::int from public.check_lines where org_id=$2) cl, (select count(*)::int from public.check_customers where org_id=$2) cc, (select count(*)::int from public.customers where org_id=$2) cu, (select count(*)::int from public.bottle_keeps where org_id=$2) bk,
+      (select count(*)::int from public.products where org_id=$2) pr, (select count(*)::int from public.comp_plans where org_id=$2) cp, (select count(*)::int from public.stock_logs where org_id=$2) sl, (select count(*)::int from public.cast_plan where org_id=$2) cpl, (select settings_json::text from public.stores where id=$1) sj`;
+    const before = JSON.stringify(await one(snapSql, [A1.id, A1.org_id]));
     const today = (await one<{ d: string }>("select public.biz_date_of($1, now())::text d", [A1.id])).d;
     await db.query("begin");
     try {
@@ -171,7 +172,7 @@ async function main() {
       await T.asPg();
       await db.query("rollback");
     }
-    const after = JSON.stringify(await one(snapSql, [A1.id]));
+    const after = JSON.stringify(await one(snapSql, [A1.id, A1.org_id]));
     check("ck(0-2) ROLLBACK 後の snapshot 一致（checks／lines／check_customers／customers／keeps／products／plans／stock_logs／cast_plan／店設定）", after === before, `${before} → ${after}`);
   } finally {
     await db.end().catch(() => undefined);

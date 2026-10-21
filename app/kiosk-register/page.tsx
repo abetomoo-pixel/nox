@@ -979,7 +979,7 @@ export default function KioskRegisterPage() {
                       </span>
                     </div>
                     <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "8px 0", lineHeight: 1.7 }}>
-                      セット料金は開卓時に明細へ入っています。延長はお客さま確認のうえボタンで追加してください
+                      セット料金は開卓時に明細へ入っています。延長はお客様に確認のうえボタンで追加してください
                       （1回押すごとに1行・取り消しは明細の削除）。
                     </p>
                     <div className="nox-actions">{/* ★裁定244: 節直下の実行＝中央 */}

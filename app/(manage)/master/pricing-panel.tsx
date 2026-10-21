@@ -1,4 +1,5 @@
 "use client";
+import GroupedNumberInput from "@/components/ui/grouped-number-input"; // ★便 X13-G W-12 ④: 3 桁区切りの入力欄
 
 // 料金設定（E1・裁定8 N1-b）。書込は set_store_pricing（mig0051）のみ＝原則7 で7値を常に明示送信。
 // 現在値は stores 列（page が select して渡す）。owner/manager のみ（RPC 側も強制＝二重）。
@@ -84,7 +85,7 @@ export default function PricingPanel({ storeId, initial, fields = "all" }: {
   const numField = (label: string, value: number, set: (n: number) => void, hint?: string) => (
     <label style={{ fontSize: 12, color: "var(--sub)" }}>
       {label}
-      <input type="number" min={0} value={value} onChange={(e) => set(Number(e.target.value))} style={{ ...input, display: "block", marginTop: 4 }} />
+      <GroupedNumberInput value={value} onChange={(v) => set(Number(v || 0))} style={{ ...input, display: "block", marginTop: 4 }} ariaLabel={label} />
       {hint && <span style={{ fontSize: 10.5, display: "block", marginTop: 2 }}>{hint}</span>}
     </label>
   );
@@ -141,7 +142,7 @@ export default function PricingPanel({ storeId, initial, fields = "all" }: {
       <h2 style={t.cardTitle}>料金設定</h2>
       <Toast msg={msg} />
       <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "0 0 12px", lineHeight: 1.7 }}>
-        次に開く伝票からスナップショットされます（開いている伝票・確定済み日報には遡及しません）。
+        次に開く伝票から反映されます（開いている伝票・確定済みの日報には反映されません）。
         指名料は明細登録の既定単価・カードTAXは日報集計に使用します。
       </p>
       {fieldsRow}

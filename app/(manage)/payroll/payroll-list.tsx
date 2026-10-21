@@ -152,9 +152,9 @@ export default function PayrollList({ stores, isOwner }: { stores: Store[]; isOw
       <section className="nox-panel nox-print">
         <h3>{view === "store" ? `${nameOf.get(storeSel) ?? "店舗"}の期間一覧` : `${periodSel} の店舗一覧`}</h3>
         {/* KPI 4 枚（B4 H18 写し）＝表示スコープの合計。値は list.ts の sum＝凍結値の再形 */}
-        <div className="nox-inset" style={{ padding: "8px 12px", marginBottom: 10, display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: "6px 12px" }}>
+        <div className="nox-inset nox-kpi4" data-kpi4="1" style={{ padding: "8px 12px", marginBottom: 10 }}>{/* ★便 X13-G W-6 ①: ≤899 は 2×2（値が隣の列へはみ出して連結して見えた） */}
           {(([["対象者", `${kpi.castCount}`, "人"], ["総支給", yen(kpi.gross), ""], ["差引支給", yen(kpi.net), ""], ["支払済み", `${kpi.paidRuns}`, "件"] /* ★#82: run.status=paid の件数（payment_records 件数ではない） */]) as const).map(([l, v, u]) => (
-            <span key={l} style={{ fontSize: 12 }}>
+            <span key={l} style={{ fontSize: 12, minWidth: 0 }}>
               <span style={{ color: "var(--sub)", fontSize: 11 }}>{l}</span><br />
               <b className="num" style={{ fontSize: 14, color: "var(--ink)" }}>{v}<small style={{ fontWeight: 400, fontSize: 10, marginLeft: 2 }}>{u}</small></b>
             </span>
@@ -221,7 +221,7 @@ export default function PayrollList({ stores, isOwner }: { stores: Store[]; isOw
                     )}
                     <td className="ops" style={{ ...t.td, whiteSpace: "nowrap" }}>
                       <span className="nox-rowops">
-                      <Link href={`/payroll?store=${encodeURIComponent(r.storeId)}&period=${r.period}`} className="nox-link">明細へ</Link>
+                      <Link href={`/payroll?store=${encodeURIComponent(r.storeId)}&period=${r.period}`} className="nox-rowbtn" data-list-detail="1">明細へ</Link>{/* ★便 X13-G W-5: 枠ボタン */}
                       <button type="button" style={btnLight} disabled={busy || !r.csvEnabled}
                         title={r.csvEnabled ? "" : "確定済みの期間のみ出力できます"} onClick={() => void csv(r)}>CSV</button>
                       {markPaidEnabled(role, r.status) && (

@@ -1,4 +1,5 @@
 "use client";
+import GroupedNumberInput from "@/components/ui/grouped-number-input"; // ★便 X13-G W-12 ④: 3 桁区切りの入力欄
 
 // U-2（裁定101 段2 ②〜⑤）: 待遇プランのセクション編集面。
 //   保存単位＝セクション（裁定101 §3・既存 RPC をそのまま呼ぶ・一括保存なし）。
@@ -68,7 +69,7 @@ function Prep({ k }: { k: string }) {
   const p = prepItemOf(k);
   if (!p) return null;
   return (
-    <span className="nox-stpill" title={p.unlock ?? "器は未実装（C5）"} style={{ opacity: 0.8 }}>
+    <span className="nox-stpill" title={p.unlock ?? "準備中（第 2 期）"} style={{ opacity: 0.8 }}>
       {p.label}: 準備中{p.unlock ? `（${p.unlock}）` : ""}
     </span>
   );
@@ -591,7 +592,7 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
           <h2 style={{ ...secTitle, margin: 0, fontSize: 16 }}>
             ノルマ（プラン既定の目標）<span style={{ fontSize: 12, fontWeight: 700, color: "var(--sub)" }}> — {pname}</span>
           </h2>
-          <p style={{ fontSize: 12, color: "var(--sub)", margin: "4px 0 0" }}>このプランのキャストに継承される月の目標。空＝既定なし。キャスト個別の目標（キャスト詳細「今月のノルマ」）があればそちらが優先されます。保存は「基本」の保存と同じボタン（set_comp_plan）。</p>
+          <p style={{ fontSize: 12, color: "var(--sub)", margin: "4px 0 0" }}>このプランのキャストに継承される月の目標。空＝既定なし。キャスト個別の目標（キャスト詳細「今月のノルマ」）があればそちらが優先されます。保存は「基本」の保存と同じボタンです。</p>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 8 }}>
           {NORM_AXES.filter((k) => normAxesOf(settings)[k]).map((k) => {
@@ -599,8 +600,8 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
             return (
               <label key={k} style={{ display: "block", minWidth: 0 }}>
                 <span style={{ fontSize: 11, color: "var(--sub)", display: "block", marginBottom: 3 }}>{NORM_AXIS_LABEL[k]}（{NORM_AXIS_UNIT[k]}）</span>
-                <input inputMode="numeric" value={draft[field]} disabled={!isOwner} placeholder="既定なし" aria-label={`プラン既定の目標 ${NORM_AXIS_LABEL[k]}`}
-                  onChange={(e) => d({ [field]: e.target.value.replace(/[^0-9]/g, "") } as Partial<Draft>)} style={{ ...t.input, width: "100%", padding: "8px 10px", fontSize: 13 }} />
+                <GroupedNumberInput value={draft[field]} disabled={!isOwner} placeholder="既定なし" ariaLabel={`プラン既定の目標 ${NORM_AXIS_LABEL[k]}`}
+                  onChange={(v) => d({ [field]: v } as Partial<Draft>)} style={{ width: "100%", padding: "8px 10px", fontSize: 13 }} />
               </label>
             );
           })}

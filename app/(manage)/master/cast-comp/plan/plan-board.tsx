@@ -44,6 +44,7 @@ export default function PlanBoard({ storeId, isManagerUp, isOwner, sim, settings
   const data = useCompData(storeId, setMsg); // ★裁定339: 一覧読取の error は赤帯（直前値は保持）
   // ★GV-63（便 P173）: 下段タブの選択を ?tab= で URL に保持（再読み込み・共有で同じタブ）。不正値・無指定は base
   const sp = useSearchParams(); const router = useRouter(); const pathname = usePathname();
+  const stickyRef = useRef<HTMLDivElement>(null), bodyRef = useRef<HTMLDivElement>(null); // ★便 X13-G W-12 ②
   const tabOfQuery = (v: string | null): TabKey => (TABS.some(([k]) => k === v) ? (v as TabKey) : "base");
   const [tab, setTabState] = useState<TabKey>(() => tabOfQuery(sp?.get("tab") ?? null));
   const setTab = (k: TabKey) => {
@@ -127,7 +128,7 @@ export default function PlanBoard({ storeId, isManagerUp, isOwner, sim, settings
       <Toast msg={msg} />
 
       {/* ── ★裁定106 B1: 固定ヘッダ（sticky）＝プラン select・プラン名・状態バッジ・適用中・操作＋6タブ ── */}
-      <div style={{ position: "sticky", top: 0, zIndex: 20, background: "var(--bg)", paddingBottom: 8, marginBottom: 12, borderBottom: "1px solid var(--line)" }}>
+      <div ref={stickyRef} style={{ position: "sticky", top: 0, zIndex: 20, background: "var(--bg)", paddingBottom: 8, marginBottom: 12, borderBottom: "1px solid var(--line)" }}>
         <section className="nox-cardtop" style={{ ...card, marginBottom: 8 }}>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
             {/* ★裁定253 R3: select 自体を見出し（.nox-plan-select）にし、右のプラン名テキストは出さない（二重表示の解消・バッジは残す） */}
@@ -170,19 +171,19 @@ export default function PlanBoard({ storeId, isManagerUp, isOwner, sim, settings
         </section>
         {/* 6タブ ★N2（規約 §8）: 折返し可＋上下の行の間に罫線（各ボタンの上罫線を -1px で重ね、1行目は容器の overflow で隠れる）
             ・選択中は青地（.on＝primary-soft）＋青の下線（inset shadow）。 */}
-        <div className="nox-seg nox-segtabs" style={{ display: "flex", width: "100%" }} data-segtabs="1">{/* ★裁定382（GV-B W-1・372②）: 6 タブ＝48px・金塗り・収まらなければ横スクロール 1 段 */}
+        <div className="nox-seg nox-segtabs nox-segtabs--grid2" style={{ width: "100%" }} data-segtabs="1">{/* ★便 X13-G W-12 ①: 900px 未満は 2 列×3 段（文字は 1 行で全部見せる・44px 以上） */}{/* ★裁定382（GV-B W-1・372②）: 6 タブ＝48px・金塗り・収まらなければ横スクロール 1 段 */}
           {TABS.filter(([k]) => tabOn(k)).map(([k, label]) => (
             <button key={k} className={tab === k ? "on" : ""}
               style={{ flex: "1 1 120px", fontWeight: 800, fontSize: 12.5, padding: "8px 6px", borderTop: "1px solid var(--line)", marginTop: -1,
                 boxShadow: tab === k ? "inset 0 -2px 0 var(--primary)" : undefined }}
-              onClick={() => setTab(k)}>{label}</button>
+              onClick={() => { setTab(k); window.setTimeout(() => { const body = bodyRef.current, head = stickyRef.current; if (!body || !head) return; const y = body.getBoundingClientRect().top + window.scrollY - head.getBoundingClientRect().height; if (window.scrollY > y) window.scrollTo({ top: Math.max(0, y), behavior: "auto" }); }, 0); /* ★便 X13-G W-12 ②: 本文の先頭をタブの直下へ */ }}>{label}</button>
           ))}
         </div>
       </div>
 
       {/* ── 本文（左）＋右パネル（プラン概要／保存状態）── */}
       <div style={{ display: "flex", gap: 12, alignItems: "flex-start", flexWrap: "wrap" }}>
-      <div style={{ flex: "3 1 560px", minWidth: 0 }}>
+      <div ref={bodyRef} style={{ flex: "3 1 560px", minWidth: 0 }}>
 
       {/* 編集4節＝PlanEditor 常時マウント（display 切替＝draft がタブ移動で消えない） */}
       <PlanEditor storeId={storeId} isOwner={isOwner} plans={data.plans} backs={data.backs}

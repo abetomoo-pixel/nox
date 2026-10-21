@@ -1,4 +1,5 @@
 "use client";
+import { payFeeRatesOf } from "@/lib/nox/register/p173"; // ★便 X13-G W-17: お客様に請求するカード手数料＝pay_fee_rates.card
 
 // 料金設定ボード（料金UIレーン C1）。
 // ★正本モック＝mock/pages-2026-08/nox-pricing-settings.html（裁定91・2026-08-28）。
@@ -340,6 +341,39 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
     return true;
   }
   const [taxSavedSur, setTaxSavedSur] = useState<number | null>(store.card_surcharge_rate); // 保存済み値（有効化の判定用）
+  // ★便 X13-G W-17: お客様に請求するカード手数料＝店設定 pay_fee_rates.card（整数 %・0＝加算しない）。税設定とは別の保存（set_store_profile の 1 キー）
+  const feeRatesSaved = payFeeRatesOf(store.settings_json);
+  const [feeSaved, setFeeSaved] = useState<number>(feeRatesSaved.card);
+  const [feeOn, setFeeOn] = useState<boolean>(feeRatesSaved.card > 0);
+  const [feeRate, setFeeRate] = useState<string>(String(feeRatesSaved.card > 0 ? feeRatesSaved.card : 10));
+  const [feeBusy, setFeeBusy] = useState(false);
+  const [feeMsg, setFeeMsg] = useState<string | null>(null);
+  const [feeAck, setFeeAck] = useState(false);
+  const feeNow = feeOn ? Number(feeRate) : 0;
+  const feeDirty = feeNow !== feeSaved;
+  async function saveCardFee() {
+    setFeeMsg(null);
+    if (feeOn && (!Number.isInteger(feeNow) || feeNow < 1 || feeNow > 100)) { setFeeMsg("率は 1〜100 の整数%で入力してください"); return; }
+    if (feeOn && feeSaved === 0 && !ackRecorded && !feeAck) { setFeeMsg("お客様への加算を有効にするには、加盟店契約の確認のチェックが必要です"); return; }
+    setFeeBusy(true);
+    const { error } = await supabase.rpc("set_store_profile", { p_store_id: storeId, p_patch: { pay_fee_rates: { ...feeRatesSaved, card: feeNow } } });
+    setFeeBusy(false);
+    if (error) { setFeeMsg(taxErrJa(error.message)); return; }
+    if (feeOn && feeSaved === 0 && feeAck && !ackRecorded) { const ok = await recordContractAck(true); if (!ok) return; }
+    setFeeSaved(feeNow); setFeeAck(false);
+    setFeeMsg(feeOn ? `お客様への加算（カード ${feeNow}%）を保存しました（次の入金から伝票に加算されます）` : "お客様への加算を無効にしました");
+  }
+  // 税設定の未保存（節の中の値だけ）
+  const taxSaved = { bts: store.business_tax_status, pd: store.price_display, inv: store.invoice_status, reg: store.invoice_reg_no ?? "", rnd: store.tax_rounding };
+  const [taxBase, setTaxBase] = useState(taxSaved);
+  const taxDirty = tBts !== taxBase.bts || tPd !== taxBase.pd || tInv !== taxBase.inv || tReg.trim() !== taxBase.reg || tRnd !== taxBase.rnd;
+  const [regErr, setRegErr] = useState<string | null>(null);
+  useEffect(() => {
+    if (!taxDirty && !feeDirty) return;
+    const h = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
+    window.addEventListener("beforeunload", h);
+    return () => window.removeEventListener("beforeunload", h);
+  }, [taxDirty, feeDirty]);
   const [taxBusy, setTaxBusy] = useState(false);
   const [taxMsg, setTaxMsg] = useState<string | null>(null);
 
@@ -354,19 +388,13 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
   }
 
   async function saveTaxConfig() {
-    setTaxMsg(null);
+    setTaxMsg(null); setRegErr(null);
     const reg = tReg.trim();
+    // ★便 X13-G W-17 ②: エラーは該当の欄の直下（regErr）と保存ボタンの近く（taxMsg）の両方
     if (tInv === "registered" && tBts !== "taxable") { setTaxMsg("インボイス登録は課税事業者のみ選択できます"); return; }
-    if (tInv === "registered" && reg === "") { setTaxMsg("インボイス登録済みの場合は登録番号が必要です"); return; }
-    if (reg !== "" && !/^T[0-9]{13}$/.test(reg)) { setTaxMsg("登録番号は T＋数字13桁で入力してください"); return; }
-    const surRate = tSurOn ? Number(tSurRate) : null;
-    if (tSurOn && (!Number.isInteger(surRate) || (surRate as number) < 1 || (surRate as number) > 100)) {
-      setTaxMsg("カード手数料は 1〜100 の整数%で入力してください"); return;
-    }
-    // ★裁定87 第2層: 「無効 → 有効」への変更時のみ契約確認を必須にする（既に有効の店の率変更は再確認不要）
-    if (tSurOn && taxSavedSur === null && !tSurAck) {
-      setTaxMsg("カード手数料の有効化には契約上の可否の確認チェックが必要です"); return;
-    }
+    if (tInv === "registered" && reg === "") { setRegErr("インボイス登録済みの場合は登録番号が必要です"); setTaxMsg("登録番号を入力するか、インボイスを「未登録」にしてください"); return; }
+    if (reg !== "" && !/^T[0-9]{13}$/.test(reg)) { setRegErr("登録番号は T＋数字13桁で入力してください"); setTaxMsg("登録番号の形を確認してください"); return; }
+    const surRate = taxSavedSur; // ★便 X13-G W-17: 旧「お客様へ加算」の器は画面から外した＝保存済みの値をそのまま送る（7 引数全値明示は不変）
     setTaxBusy(true);
     const { error } = await supabase.rpc("set_store_tax_config", {
       p_store_id: storeId,
@@ -379,10 +407,9 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
     });
     setTaxBusy(false);
     if (error) { setTaxMsg(taxErrJa(error.message)); return; }
-    const acked = tSurOn && taxSavedSur === null && tSurAck; // ★M4-4: 有効化の保存で契約確認にチェック＝記録（contract_ack true）
-    setTaxSavedSur(surRate); setTSurAck(false);
-    if (acked && !ackRecorded) { const ok = await recordContractAck(true); if (!ok) return; }
-    setTaxMsg(acked ? "税設定を保存し、契約確認を記録しました（開栓済みの伝票には影響しません）" : "税設定を保存しました（開栓済みの伝票には影響しません）");
+    setTaxSavedSur(surRate);
+    setTaxBase({ bts: tBts, pd: tPd, inv: tInv, reg, rnd: tRnd });
+    setTaxMsg("税設定を保存しました（開卓済みの伝票には影響しません）");
   }
   const [mErr, setMErr] = useState<string | null>(null);
 
@@ -903,9 +930,9 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
         title="料金設定"
         desc="時間帯・席種・曜日ごとの料金ルールと、基本料金・会計ルールを設定します。料率は伝票オープン時に確定します。"
       />
-      {/* E8-5 pricing#4: 報酬設定への分離バナー（料金＝お客さまへの請求／報酬＝キャストへの支払いの混同防止） */}
+      {/* E8-5 pricing#4: 報酬設定への分離バナー（料金＝お客様への請求／報酬＝キャストへの支払いの混同防止） */}
       <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 14px", lineHeight: 1.7 }}>
-        ここで設定するのは<strong style={{ color: "var(--v2-text)" }}>お客さまへの請求額</strong>です。
+        ここで設定するのは<strong style={{ color: "var(--v2-text)" }}>お客様への請求額</strong>です。
         キャストに支払う指名バック・時給は
         <Link href="/master/cast-comp/plan" className="nox-link">待遇プラン・報酬シミュレーター</Link>
         で管理します（ランク別指名料の「請求額」はこのページ・「バック額」は待遇プラン側）。
@@ -981,7 +1008,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
           )}
           {/* ★R10（§4-a 確定）: 時間だけのルール禁止の lead（v3 逐語） */}
           <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 12px", lineHeight: 1.7 }}>
-            「いつ・誰に・何分・いくらの料金を当てるか」の正本です。
+            「いつ・誰に・何分・いくらの料金を当てるか」を決める表です。
             <strong style={{ color: "var(--v2-text)" }}>時間だけのルールは作れません</strong>
             ——各行が時間帯・条件・金額・基準時間をひとまとめに持ちます。
           </p>
@@ -993,12 +1020,12 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
               <button type="button" style={{ ...btnDark, marginLeft: "auto" }} onClick={openNewCat}>＋ 区分を追加</button>
             </div>
             <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "0 0 10px", lineHeight: 1.7 }}>
-              「通常」「初来店」など、開栓時に選ぶ料金の区分です。一番上が開栓時の既定になります（∧∨で並び替え）。
-              区分を1つも作らない場合、開栓は現行どおり（区分なし）で動きます。
+              「通常」「初来店」など、開卓時に選ぶ料金の区分です。一番上が開卓時の既定になります（∧∨で並び替え）。
+              区分を1つも作らない場合、開卓は区分なしで動きます。
             </p>
             {cats.length === 0 ? (
               <p style={{ fontSize: 12.5, color: "var(--sub)", margin: 0 }}>
-                料金区分は未設定です（開栓時の区分セレクタは表示されません）。
+                料金区分は未設定です（開卓時に区分は選びません）。
               </p>
             ) : (
               <ResponsiveTable className="nox-ptwrap">{/* ★裁定382（GV-B W-1）: <600 は 1 行 1 カード */}
@@ -1053,7 +1080,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
             </div>
             {bands.length === 0 ? (
               <p style={{ fontSize: 12.5, color: "var(--sub)", margin: 0 }}>
-                時間帯料金は未設定です。すべての伝票に「基本料金」（会計設定タブのフォールバック値）が適用されています。
+                時間帯料金は未設定です。すべての伝票に「基本料金」（会計設定タブの、どのルールにも当たらないときの値）が適用されています。
               </p>
             ) : (
               <ResponsiveTable className="nox-ptwrap">{/* ★裁定382（GV-B W-1）: <600 は 1 行 1 カード */}
@@ -1291,7 +1318,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
       {tab === "master" && (
         <>
           <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 12px", lineHeight: 1.7 }}>
-            お客さまに「いくら請求するか」の正本です。どの時間帯・席種・区分に当たるかは「料金適用ルール」タブで決めます。
+            お客様に「いくら請求するか」を決める表です。どの時間帯・席種・区分に当たるかは「料金適用ルール」タブで決めます。
             {/* ★裁定129（v8.1 P39）: VIP 2方式の説明文はここから「VIP料金方式」カードへ移動（消さず吸収） */}
           </p>
 
@@ -1299,8 +1326,8 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
           <section className="nox-cardtop" style={{ ...card, marginBottom: 14 }}>
             <h3 style={{ margin: "0 0 6px", fontSize: 14 }}>指名・同伴料金</h3>
             <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "0 0 10px", lineHeight: 1.7 }}>
-              請求単価のみを管理します。次に開く伝票からスナップショットされます（開いている伝票には遡及しません）。
-              ここで設定するのはお客さまへの請求額です。待遇プランの「指名実績バック」とは連動しません。
+              請求単価のみを管理します。次に開く伝票から反映されます（開いている伝票には反映されません）。
+              ここで設定するのはお客様への請求額です。待遇プランの「指名実績バック」とは連動しません。
             </p>
             <PricingPanel storeId={storeId} fields="shimei" initial={{
               hon_fee: store.hon_fee, jonai_fee: store.jonai_fee, dohan_fee: store.dohan_fee,
@@ -1441,7 +1468,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
                   <strong style={{ color: "var(--v2-text)" }}>「VIPチャージ」</strong>（基本セットに追加で自動加算＝方式B）。
                   どちらも「料金適用ルール」タブで作ります（時間帯などの条件もルール側で管理）。
                 </p>
-                <div className="nox-listrow">
+                <div className="nox-listrow nox-setrow">
                   <span style={{ flex: 1, minWidth: 0 }}>
                     VIP専用料金
                     <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)" }}>
@@ -1451,7 +1478,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
                   </span>
                   {statePill(vipSet.length > 0)}
                 </div>
-                <div className="nox-listrow">
+                <div className="nox-listrow nox-setrow">
                   <span style={{ flex: 1, minWidth: 0 }}>
                     VIPチャージ
                     <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)" }}>
@@ -1536,7 +1563,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
             })()}
             <p style={{ fontSize: 11, color: "var(--sub)", margin: "10px 0 0", lineHeight: 1.7 }}>
               この表は別のマスタではありません。同じ名前を持つ料金ルールをまとめて見せているだけです。
-              どの時間帯・席種・区分に当たるかは「料金適用ルール」タブが正本です。
+              どの時間帯・席種・区分に当たるかは「料金適用ルール」タブで決めます。
             </p>
           </section>
         </>
@@ -1566,7 +1593,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
               <p style={{ fontSize: 11, color: "var(--sub)", margin: "2px 0 0" }}>伝票の日付と時間料金の基準</p>
             </div>
           </div>
-          <div className="nox-listrow">
+          <div className="nox-listrow nox-setrow">
             <span style={{ flex: 1, minWidth: 0 }}>
               営業日の切替時刻
               <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)" }}>この時刻までは前日の売上として集計します。</span>
@@ -1574,18 +1601,18 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
             <b className="num">{bizCutoffHm}</b>
             <a href="/master/business-hours" className="nox-link">営業時間で編集</a>
           </div>
-          <div className="nox-listrow">
+          <div className="nox-listrow nox-setrow">
             <span style={{ flex: 1, minWidth: 0 }}>
               時間課金の確定
               <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)" }}>
                 料率は伝票を開いた時刻の時間帯ルールで確定し、以後の設定変更・席移動・日付跨ぎでは変わりません
-                （延長も開栓時の料率で加算）。指名料のランクだけは、指名行を追加した時点のランクで決まります。
+                （延長も開卓時の料率で加算）。指名料のランクだけは、指名行を追加した時点のランクで決まります。
               </span>
             </span>
             <b>伝票オープン時</b>
             <span className="nox-stpill">固定</span>
           </div>
-          <div className="nox-listrow">
+          <div className="nox-listrow nox-setrow">
             <span style={{ flex: 1, minWidth: 0 }}>
               自動延長
               <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)" }}>
@@ -1599,13 +1626,13 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
           </div>
         </section>
 
-        {/* ★M4（対応表・裁定確定＝D5）: 基本料金（フォールバック）＝TimePricingPanel を会計設定へ移設 */}
+        {/* ★M4（対応表・裁定確定＝D5）: 基本料金（どのルールにも当たらないとき）＝TimePricingPanel を会計設定へ移設 */}
         <section className="nox-cardtop" style={card}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 6 }}>
             <div>
-              <h3 style={{ margin: 0, fontSize: 14 }}>基本料金（フォールバック）</h3>
+              <h3 style={{ margin: 0, fontSize: 14 }}>基本料金（どのルールにも当たらないとき）</h3>
               <p style={{ fontSize: 11, color: "var(--sub)", margin: "2px 0 0" }}>
-                ルールが1件も一致しないときに使われます（店単位の独立した値・席種別のフォールバックはありません）。
+                ルールが1件も一致しないときに使われます（店で 1 つの値・席種ごとの値はありません）。
               </p>
             </div>
           </div>
@@ -1613,11 +1640,11 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
             set_min: store.set_min, set_fee: store.set_fee, ext_min: store.ext_min, ext_fee: store.ext_fee,
             time_mode: store.time_mode, time_per: store.time_per,
           }} />
-          {/* ★mig0144（N4(b)）: 延長指名（stores.ext_shimei_enabled）＝基本料金（フォールバック）の隣・切替は 244 の例外 */}
+          {/* ★mig0144（N4(b)）: 延長指名（stores.ext_shimei_enabled）＝基本料金（どのルールにも当たらないとき）の隣・切替は 244 の例外 */}
           <div style={{ borderTop: "1px solid var(--line)", marginTop: 12, paddingTop: 10 }}>
             <StoreFlagToggle storeId={storeId} flagKey="ext_shimei_enabled" isOwner={isOwner} initial={flags.ext_shimei_enabled}
               label="延長指名"
-              desc="ONにすると、手動時間料金の店で延長のたびに本指名ごとの延長指名料（料金適用ルールの ext_shimei）を加算します。OFF の店は延長時に指名料を加算しません" />
+              desc="ONにすると、手動時間料金の店で延長のたびに本指名ごとの延長指名料（料金適用ルールの「延長指名料」）を加算します。OFF の店は延長時に指名料を加算しません" />
           </div>
         </section>
 
@@ -1629,7 +1656,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
               <h3 style={{ margin: 0, fontSize: 14 }}>税・サービス料</h3>
               <p style={{ fontSize: 11, color: "var(--sub)", margin: "2px 0 0" }}>伝票に加算する料率と計算順</p>
             </div>
-            <span className="nox-stpill" style={{ marginLeft: "auto" }}>TAX</span>
+            <span className="nox-stpill" data-tax-mode={taxBase.pd === "tax_excluded" ? "excluded" : "included"} style={{ marginLeft: "auto" }}>{taxBase.pd === "tax_excluded" ? "この店は外税（表示価格は税抜・会計で消費税を加算）" : "この店は内税（表示価格は税込）"}</span>{/* ★便 X13-G W-15 ⑤ */}
           </div>
           {/* ★A2（対応表・移設）: read-only ミラー→編集区画へ置換（RPC set_store_pricing 不変・
               担当外フィールドは保存直前にサーバ現在値で埋める＝PricingPanel fields 分割の仕組み） */}
@@ -1643,7 +1670,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
           {/* ★C4 §6-5（裁定90/91・T5）: 旧「内税/外税/適用しない」の同列3択を解体し2軸へ。
               価格表示（内税/外税）と事業者区分（課税/免税）は別概念＝免税は税計算方式ではなく店舗属性。
               保存は set_store_tax_config へ**7引数全値明示**（原則7）。開栓済み伝票へは非遡及（mig0113 凍結）。 */}
-          <div className="nox-listrow">
+          <div className="nox-listrow nox-setrow">
             <span style={{ flex: 1, minWidth: 0 }}>
               価格表示
               <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)" }}>料金を税込で持つか・税抜で持って会計時に消費税を加えるか。</span>
@@ -1651,7 +1678,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
             <SegSelect value={tPd} onChange={(v) => setTPd(v)}
               options={[["tax_included", "内税"], ["tax_excluded", "外税"]] as const} />
           </div>
-          <div className="nox-listrow">
+          <div className="nox-listrow nox-setrow">
             <span style={{ flex: 1, minWidth: 0 }}>
               事業者区分
               <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)" }}>免税事業者は消費税の区分記載を行いません（適格簡易請求書は発行不可）。</span>
@@ -1659,7 +1686,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
             <SegSelect value={tBts} onChange={(v) => { setTBts(v); if (v !== "taxable") setTInv("unregistered"); }}
               options={[["taxable", "課税事業者"], ["exempt", "免税事業者"]] as const} />
           </div>
-          <div className="nox-listrow">
+          <div className="nox-listrow nox-setrow">
             <span style={{ flex: 1, minWidth: 0 }}>
               インボイス
               <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)" }}>適格請求書発行事業者の登録（課税事業者のみ）。</span>
@@ -1668,16 +1695,17 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
               options={[["unregistered", "未登録"], ["registered", "登録済み"]] as const} />
           </div>
           {tInv === "registered" && (
-            <div className="nox-listrow">
+            <div className="nox-listrow nox-setrow">
               <span style={{ flex: 1, minWidth: 0 }}>
                 登録番号
                 <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)" }}>T＋数字13桁（レシートの適格簡易請求書に印字されます）。</span>
               </span>
               <input type="text" value={tReg} maxLength={14} placeholder="T1234567890123"
-                onChange={(e) => setTReg(e.target.value)} style={{ ...input, width: 180 }} />
+                onChange={(e) => { setTReg(e.target.value); setRegErr(null); }} style={{ ...input, width: 180, ...(regErr ? { borderColor: "var(--bad)" } : {}) }} />
+              {regErr && <span style={{ display: "block", width: "100%" }} data-field-err="reg"><Message kind="error">{regErr}</Message></span>}
             </div>
           )}
-          <div className="nox-listrow">
+          <div className="nox-listrow nox-setrow">
             <span style={{ flex: 1, minWidth: 0 }}>
               税額の端数
               <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)" }}>一伝票につき税率ごとに1回だけ処理します（金額側の丸めとは別）。</span>
@@ -1689,49 +1717,54 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
 
         {/* ★裁定131（v8.1 P52/P53/P54・モック「カード手数料」カード）: 2系統を1カードに同居。
             (1) 日報集計用 card_tax_rate＝PricingPanel fields="card_tax"（set_store_pricing・独自の保存ボタン）
-            (2) お客さまへ加算 card_surcharge_rate＝★C4 §6-6 の器（裁定90-⑤・裁定87 第2層・set_store_tax_config＝
+            (2) お客様へ加算 card_surcharge_rate＝★C4 §6-6 の器（裁定90-⑤・裁定87 第2層・set_store_tax_config＝
                 下の「税設定を保存」で保存）。有効/無効・率・警告文・ack は現状維持（ack はモックに無いが法務残置）。 */}
         <section className="nox-cardtop" style={card}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
             <div>
               <h3 style={{ margin: 0, fontSize: 14 }}>カード手数料</h3>
-              <p style={{ fontSize: 11, color: "var(--sub)", margin: "2px 0 0" }}>日報集計用の手数料率と、お客さまへの加算設定を分けて管理します。</p>
+              <p style={{ fontSize: 11, color: "var(--sub)", margin: "2px 0 0" }}>店の負担（日報の集計用）と、お客様に請求する手数料（伝票に加算）は別の設定です。それぞれの保存ボタンで保存します。</p>
             </div>
-            <span className="nox-stpill" style={{ marginLeft: "auto" }}>CARD</span>
           </div>
           <div style={{ padding: "8px 0", borderBottom: "1px solid var(--line)" }}>
+            <b style={{ fontSize: 13, display: "block", marginBottom: 4 }}>カード手数料（店の負担・日報の集計用）</b>{/* ★便 X13-G W-17 ③ */}
             <PricingPanel storeId={storeId} fields="card_tax" initial={{
               hon_fee: store.hon_fee, jonai_fee: store.jonai_fee, dohan_fee: store.dohan_fee,
               service_rate: store.service_rate, card_tax_rate: store.card_tax_rate,
               round_unit: store.round_unit, round_mode: store.round_mode,
             }} />
           </div>
-          <div className="nox-listrow">
+          {/* ★便 X13-G W-17 ②③: お客様に請求するカード手数料＝この節の保存ボタンだけで保存（インボイスなど無関係な欄のエラーで止めない） */}
+          <div className="nox-listrow nox-setrow" data-card-fee="1">
             <span style={{ flex: 1, minWidth: 0 }}>
-              お客さまへ加算
-              <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)" }}>客への請求項目（課税10%）。日報集計用の手数料率とは別です。保存は下の「税設定を保存」です。</span>
+              <b style={{ fontSize: 13 }}>カード手数料（お客様に請求・伝票に加算）</b>
+              <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)" }}>カードで入金するとき、入金額に率を掛けた額を「カード手数料」の行として伝票に加えます。率は整数%（既定 10%）。</span>
             </span>
-            <SegSelect value={tSurOn ? "on" : "off"} onChange={(v) => setTSurOn(v === "on")}
-              options={[["off", "無効"], ["on", "有効"]] as const} />
-            {tSurOn && (
-              <input type="number" min={1} max={100} value={tSurRate} placeholder="加算率 %"
-                onChange={(e) => setTSurRate(e.target.value)} style={{ ...input, width: 96 }} />
+            <SegSelect value={feeOn ? "on" : "off"} onChange={(v) => setFeeOn(v === "on")} options={[["off", "無効"], ["on", "有効"]] as const} ariaLabel="お客様への加算" />
+            {feeOn && (
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                <input inputMode="numeric" value={feeRate} onChange={(e) => setFeeRate(e.target.value.replace(/[^0-9]/g, ""))} style={{ ...input, width: 80, textAlign: "right" }} aria-label="お客様に請求する率（%）" />%
+              </span>
             )}
           </div>
-          {tSurOn && (
+          {feeOn && (
             <div style={{ fontSize: 11.5, color: "var(--warning)", margin: "6px 0 2px" }}>
               加盟店契約でカード手数料の転嫁が禁止・制限されている場合があります。契約上の可否を確認してください
-              {taxSavedSur === null && !ackRecorded && (
-                // ★裁定132: 未定義だった var(--fg) → --ink（本文基底色・警告帯の中でチェック行だけ通常文字色へ戻す）
-                <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6, color: "var(--ink)" }}>
-                  <input type="checkbox" checked={tSurAck} onChange={(e) => setTSurAck(e.target.checked)} />
-                  契約上の可否を確認しました（保存すると確認の記録が残ります）
-                </label>
-              )}
             </div>
+          )}{/* ★便 X13-G W-17: 有効のあいだは契約の注意を出す（文面は /mine の確認と同じ＝contract-ack.ts） */}
+          {feeOn && feeSaved === 0 && !ackRecorded && (
+            <label style={{ display: "flex", alignItems: "center", gap: 6, margin: "6px 0", fontSize: 12, color: "var(--warning)" }}>
+              <input type="checkbox" checked={feeAck} onChange={(e) => setFeeAck(e.target.checked)} />
+              加盟店契約でカード手数料の転嫁が禁止・制限されていないことを確認しました（保存すると記録が残ります）
+            </label>
           )}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", margin: "8px 0 4px" }}>
+            {feeDirty && <span className="nox-stpill warn" data-unsaved="card-fee">未保存</span>}
+            {feeMsg && <span data-card-fee-msg="1"><Message kind={feeMsg.includes("保存しました") || feeMsg.includes("無効にしました") ? "success" : "error"}>{feeMsg}</Message></span>}
+            <button type="button" style={{ ...btnDark, marginLeft: "auto" }} disabled={feeBusy} onClick={() => void saveCardFee()} data-save-card-fee="1">お客様への加算を保存</button>
+          </div>
           {/* ★0160（起票96・T6・便 M4-4）: 加盟店契約の確認の記録＝店設定 contract_ack（owner／manager・set_store_mine_settings）。記録済みなら有効化時のチェックは出さない。改定時は店が OFF→ON で再確認（仮決め） */}
-          <div className="nox-listrow" style={{ marginTop: 6 }}>
+          <div className="nox-listrow nox-setrow" style={{ marginTop: 6 }}>
             <span style={{ flex: 1, minWidth: 0 }}>
               加盟店契約の確認（記録）
               <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)" }}>{ackRecorded ? "契約上の可否を確認済みとして記録しています。契約内容が改定されたら OFF にして再確認してください" : "未記録。カード手数料を有効化して保存すると記録されます（ここで直接 ON にもできます）"}</span>
@@ -1743,8 +1776,9 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
         <section className="nox-cardtop" style={card}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
             <span style={{ fontSize: 11.5, color: "var(--sub)", flex: 1, minWidth: 0 }}>
-              税設定の保存は開栓済みの伝票に影響しません（開栓時の設定で凍結・mig0113）。
+              税設定の保存は、開卓済みの伝票に影響しません（開卓時の設定のまま）。
             </span>
+            {taxDirty && <span className="nox-stpill warn" data-unsaved="tax">未保存</span>}{/* ★便 X13-G W-17 ②: 未保存の印 */}
             {taxMsg && <Toast msg={taxMsg} />}
             <button style={btnDark} disabled={taxBusy} onClick={() => void saveTaxConfig()}>税設定を保存</button>
           </div>
@@ -1757,7 +1791,6 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
               <h3 style={{ margin: 0, fontSize: 14 }}>端数・精算</h3>
               <p style={{ fontSize: 11, color: "var(--sub)", margin: "2px 0 0" }}>最終金額の丸めと割引処理</p>
             </div>
-            <span className="nox-stpill" style={{ marginLeft: "auto" }}>ROUNDING</span>
           </div>
           {/* ★A4（対応表・移設）: 丸め2値の read-only ミラー → 編集区画へ置換（最終合計の丸め・税端数とは別） */}
           <div style={{ padding: "8px 0", borderBottom: "1px solid var(--line)" }}>
@@ -1767,7 +1800,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
               round_unit: store.round_unit, round_mode: store.round_mode,
             }} />
           </div>
-          <div className="nox-listrow" style={{ opacity: 0.55 }}>
+          <div className="nox-listrow nox-setrow" style={{ opacity: 0.55 }}>
             <span style={{ flex: 1, minWidth: 0 }}>
               値引きを税計算前に適用
               <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)" }}>切替は準備中です。</span>
@@ -1784,9 +1817,8 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
               <h3 style={{ margin: 0, fontSize: 14 }}>確認・権限</h3>
               <p style={{ fontSize: 11, color: "var(--sub)", margin: "2px 0 0" }}>誤操作を防ぐ会計フロー</p>
             </div>
-            <span className="nox-stpill" style={{ marginLeft: "auto" }}>CONTROL</span>
           </div>
-          <div className="nox-listrow">
+          <div className="nox-listrow nox-setrow">
             <span style={{ flex: 1, minWidth: 0 }}>
               会計確定前の確認
               <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)" }}>
@@ -1796,7 +1828,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
             <b>常に表示</b>
             <span className="nox-stpill">固定</span>
           </div>
-          <div className="nox-listrow" style={{ opacity: 0.55 }}>
+          <div className="nox-listrow nox-setrow" style={{ opacity: 0.55 }}>
             <span style={{ flex: 1, minWidth: 0 }}>
               締め後の伝票修正
               <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)" }}>権限の切替は準備中です。</span>
@@ -1808,7 +1840,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
             </div>
             <span className="nox-stpill">準備中</span>
           </div>
-          <div className="nox-listrow">
+          <div className="nox-listrow nox-setrow">
             <span style={{ flex: 1, minWidth: 0 }}>
               監査ログ
               <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)" }}>
@@ -1845,7 +1877,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
                 className={cActive ? "nox-switch on" : "nox-switch"} onClick={() => setCActive((v) => !v)}><i /></button>
               この区分を有効にする
             </label>
-            <span className="hint">停止中の区分は開栓時に選べません（削除はしない運用です）。</span>
+            <span className="hint">停止中の区分は開卓時に選べません（削除はしない運用です）。</span>
           </div>
           {cErr && <Message kind="error" style={{ margin: "8px 0 0" }}>{cErr}</Message>}
           <div className="nox-formmodal-foot">
@@ -1994,7 +2026,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
                 </label>
               ))}
             </div>
-            <span className="hint">開栓時に確定し、以後の変更は既存伝票に影響しません（同伴は人数分固定＝単位設定なし）。</span>
+            <span className="hint">開卓時に確定し、以後の変更は既存伝票に影響しません（同伴は人数分固定＝単位設定なし）。</span>
           </div>
 
           <div className="nox-field">
