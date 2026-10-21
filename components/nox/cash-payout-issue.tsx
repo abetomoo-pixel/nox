@@ -12,13 +12,16 @@ import DailyPayForm from "@/components/nox/daily-pay-form";
 import AdvanceOkuriForm from "@/components/nox/advance-okuri-form";
 import OkuriOutDialog from "@/components/nox/okuri-out-dialog";
 import { okuriDefaultAmountOf, type OkuriDefault } from "@/lib/nox/shift/okuri-default";
+import { okuriRecordedTextOf, type OkuriMode } from "@/lib/nox/shift/okuri-mode"; // ★裁定414（S-4）
 import { rpcErrJa } from "@/lib/nox/ui/rpc-err";
 import { createClient } from "@/lib/supabase/client";
 
 export type PayoutIssueKind = "daily" | "advance" | "okuri";
-export const PAYOUT_ISSUE_TITLE: Record<PayoutIssueKind, string> = { daily: "日払いの発行", advance: "前借りの発行", okuri: "送り実費の発行" };
+export const PAYOUT_ISSUE_TITLE: Record<PayoutIssueKind, string> = { daily: "日払いの発行", advance: "前借りの発行", okuri: "送りの記録" }; // ★裁定414: 「発行」は送りに使わない
 
-export default function CashPayoutIssue({ kind, storeId, bizDate, casts, okuriBase, onIssued, onClose }: {
+export default function CashPayoutIssue({ kind, storeId, bizDate, casts, okuriBase, okuriMode = "actual", onIssued, onClose }: {
+  /** ★裁定414（S-4）: 店の送り方式（ダイアログの 1 文） */
+  okuriMode?: OkuriMode;
   kind: PayoutIssueKind;
   storeId: string;
   /** 日報で表示中の営業日（YYYY-MM-DD） */
@@ -51,13 +54,13 @@ export default function CashPayoutIssue({ kind, storeId, bizDate, casts, okuriBa
     setBusy(true); setErr(null);
     const { error } = await supabase.rpc("transport_issue_bulk", { p_store_id: storeId, p_items: [{ cast_id: pick, amount, date: bizDate }], p_idem_key: crypto.randomUUID() });
     setBusy(false);
-    if (error) { setErr(`送りの発行に失敗: ${rpcErrJa(error.message)}`); return; }
-    await onIssued(`${nameOf(pick)} の送り ¥${amount.toLocaleString()} を発行しました`);
+    if (error) { setErr(`送りの記録に失敗: ${rpcErrJa(error.message)}`); return; }
+    await onIssued(`${nameOf(pick)}：${okuriRecordedTextOf(okuriMode, amount)}`); // ★裁定414: 「記録」＋方式の 1 文
     onClose();
   }
 
   if (kind === "okuri" && pick && okuriDef) {
-    return <OkuriOutDialog castName={nameOf(pick)} def={okuriDef} busy={busy} error={err} mode="issueOnly" lead={`${nameOf(pick)} の送り実費を発行します（営業日 ${bizDate}）。`}
+    return <OkuriOutDialog castName={nameOf(pick)} def={okuriDef} busy={busy} error={err} mode="issueOnly" okuriMode={okuriMode} /* ★裁定414: 説明文は方式の 1 文（ダイアログ側） */
       onConfirm={(a) => void issueOkuri(a)} onClose={onClose} />;
   }
   return (

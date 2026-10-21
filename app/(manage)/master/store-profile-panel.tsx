@@ -8,6 +8,7 @@
 //   保存後は同じ select で再取得して現値を表示。エラーは storeProfileErrJa で日本語へ。
 //   配置＝保存ボタンは .nox-actions で中央（裁定244）・トグルは切替＝例外。
 import { useCallback, useEffect, useState } from "react";
+import { okuriAsks, okuriModeOf } from "@/lib/nox/shift/okuri-mode"; // ★裁定414（S-4）
 import OnOffSeg from "@/components/ui/on-off"; // ★便 GV-C C-9（GV-52）
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
@@ -69,7 +70,7 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
       customer_purpose: typeof sj.customer_purpose === "string" ? sj.customer_purpose : "", // ★0153
       customer_retention_years: typeof sj.customer_retention_years === "number" ? String(sj.customer_retention_years) : "5", // ★0153: 既定 5
       okuri_base_amount: typeof sj.okuri_base_amount === "number" && sj.okuri_base_amount > 0 ? String(sj.okuri_base_amount) : "", // ★裁定317: 0／キー無し＝未設定
-      okuri_actual: sj.okuri_mode === "actual",
+      okuri_actual: okuriAsks(okuriModeOf(sj)), // ★裁定414: 基本額は 'none' 以外の 3 方式で使う（名前は従来のまま）
       ar_enabled: sj.ar_enabled === true, // ★0155（裁定309-1）: 既存店は 0155 で true・新規店はキー無し＝false（サーバの ar_policy_ok と同じ既定）
       settlement_cycle: settlementCycleOf(sj), mid_pay: midPayOf(sj), shift_auto_confirm_hours: String(autoConfirmHoursOf(sj)), // ★0172（裁定349／380）: 欠損＝既定（monthly／none／0）
       join_mode: joinModeOf(sj), // ★便 P173（裁定386）: 欠損＝join_set
@@ -188,7 +189,7 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
             </label>}
             {/* ★裁定317（0158・便 AB-6）: 送りの基本額＝退勤の「送り あり」で記録する 1 回分の金額。送りの方式が実費の店だけ入力できる */}
             {on("profile") && <label style={{ display: "block", minWidth: 0 }}>
-              <span style={label}>送りの基本額<span style={{ fontWeight: 400, marginLeft: 6 }}>{form.okuri_actual ? "0〜99,999・空欄は未設定（店が締めで金額を決めます）" : "送りの方式が「一律」の店では使いません"}</span></span>
+              <span style={label}>送りの基本額<span style={{ fontWeight: 400, marginLeft: 6 }}>{form.okuri_actual ? "0〜99,999・空欄は未設定（店が締めで金額を決めます）" : "送りの方式が「なし」の店では使いません"}</span></span>
               <MoneyInput value={form.okuri_base_amount} disabled={busy || !loaded || !form.okuri_actual} width="100%" style={{ padding: "8px 10px", fontSize: 13 }} ariaLabel="送りの基本額"
                 onChange={(v) => setForm((f) => ({ ...f, okuri_base_amount: v.slice(0, 5) }))} />
               {!form.okuri_actual && loaded && <span style={{ display: "block", fontSize: 11.5, color: "var(--sub)", marginTop: 4 }}>送りの方式は「マスタ › キャスト・報酬 › 控除・送り」で切り替えます</span>}

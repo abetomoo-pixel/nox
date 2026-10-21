@@ -50,7 +50,7 @@ const ao = fs.readFileSync("components/nox/advance-okuri-form.tsx", "utf8");
 const dp = fs.readFileSync("app/(manage)/master/deduction-panel.tsx", "utf8");
 check("pk(4-1) advance-okuri-form: 見出し→12・ラベル→6・picker→16・フォーム行→8→注記・カード下端 16（値は 4/8/12/16/24 のみ）",
   ao.includes('margin: "0 0 12px"') && ao.includes("marginBottom: 6") && ao.includes("marginBottom: 16") && ao.includes('margin: "8px 0 0"') && ao.includes("paddingBottom: 16") && !/[^0-9](2|3|5|7|9|10|11|13|14|15|18|20)px/.test(ao.replace(/fontSize: [0-9.]+|width: [0-9]+|size=\{[0-9]+\}|borderRadius: [0-9]+|padding: "[0-9]+px [0-9]+px"|minmax\([^)]*\)/g, "")));
-check("pk(4-2) deduction-panel: 節見出し「天引き（前借り・送り実費）」の上 24（外側 div marginTop 24）・下 12（h2 margin 0 0 12px）", dp.includes("<div style={{ marginTop: 24 }}>") && dp.includes('<h2 style={{ ...t.pheadH1, fontSize: 16, margin: "0 0 12px" }}>天引き（前借り・送り実費）</h2>'));
+check("pk(4-2) deduction-panel: 節見出し「天引き（前借り・送り）」の上 24（外側 div marginTop 24）・下 12（h2 margin 0 0 12px）", dp.includes("<div style={{ marginTop: 24 }}>") && dp.includes('<h2 style={{ ...t.pheadH1, fontSize: 16, margin: "0 0 12px" }}>天引き（前借り・送り）</h2>')); // ★裁定414: 見出しは「送り」（4 方式）
 
 if (fails.length) {
   console.error(`FAIL ${fails.length} 件 / pass ${pass}`);

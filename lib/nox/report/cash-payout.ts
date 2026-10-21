@@ -2,7 +2,7 @@
 //   純関数＝DB を知らない。読取（transport／advances／daily_pays／payment_records の直読・既存 RLS）と表示は report-board。
 //   合計＝既定値。手入力で変えたら「集計 ¥n と差 ¥m」の注記。保存は現行どおり daily_report_close の p_cash_payout（入力値）。
 export type CashPayoutParts = {
-  /** 送り実費（transport・当日 biz_date・actual 店の発行分・cancelled 除外） */
+  /** 送り立替（transport・当日 biz_date・mode='actual' の記録分・cancelled 除外）＝★裁定414: 定額（flat）は現金が動かない・店負担（store）は諸経費へ */
   okuri: number;
   /** 前借り（advances.advanced_on＝当日・cancelled 除外） */
   advance: number;
@@ -12,7 +12,7 @@ export type CashPayoutParts = {
   salary: number;
 };
 export const CASH_PAYOUT_LABELS: Record<keyof CashPayoutParts, string> = {
-  okuri: "送り実費", advance: "前借り", daily: "日払い", salary: "給与支払（現金）",
+  okuri: "送り立替", advance: "前借り", daily: "日払い", salary: "給与支払（現金）", // ★裁定414（S-4）: 現金支払の行名＝「送り立替」（mode='actual' の当日分だけ）
 };
 export const cashPayoutTotalOf = (p: CashPayoutParts): number => p.okuri + p.advance + p.daily + p.salary;
 export const cashPayoutRowsOf = (p: CashPayoutParts): { key: keyof CashPayoutParts; label: string; amount: number }[] =>

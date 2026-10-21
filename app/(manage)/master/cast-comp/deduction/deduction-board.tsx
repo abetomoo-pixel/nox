@@ -6,6 +6,7 @@
 //   ③ 注意事項＝モックの静的文言のみ移植（★「変更履歴」セクションは実装しない＝裁定6。
 //     履歴の実体は audit_logs（owner 限定）にあり、専用 UI は作らない）
 import { useState } from "react";
+import type { OkuriMode } from "@/lib/nox/shift/okuri-mode"; // ★裁定414（S-4）
 import * as t from "@/lib/nox/ui/theme";
 import Toast from "@/components/ui/toast";
 import DeductionPanel from "../../deduction-panel";
@@ -17,7 +18,7 @@ const card: React.CSSProperties = t.card;
 export default function DeductionBoard({ storeId, isManagerUp, isOwner, casts, okuriMode, okuriBase, settings }: {
   storeId: string; isManagerUp: boolean; isOwner: boolean;
   casts: { id: string; name: string }[];
-  okuriMode: "flat" | "actual"; okuriBase: number;
+  okuriMode: OkuriMode; okuriBase: number; // ★裁定414（S-4）: 4 方式
   settings?: StoreSettings; // ★裁定269
 }) {
   const [msg, setMsg] = useState<string | null>(null);

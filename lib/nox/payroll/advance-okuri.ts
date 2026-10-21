@@ -31,7 +31,7 @@ export function carriedBulkNoteOf(date: string, deductPeriods: readonly (string 
   return `${head}翌月（${periods.join("・")}）の給与から控除`;
 }
 export const ISSUE_ENDPOINT: Record<IssueKind, string> = { advance: "/api/advance/issue", transport: "/api/transport/issue" };
-export const ISSUE_LABEL: Record<IssueKind, string> = { advance: "前借り", transport: "送り実費" };
+export const ISSUE_LABEL: Record<IssueKind, string> = { advance: "前借り", transport: "送り" }; // ★裁定414（S-4）: 4 方式＝「送り実費」と限らない
 export const ISSUE_DATE_LABEL: Record<IssueKind, string> = { advance: "前借り日", transport: "乗車日（営業日）" };
 
 export type IssueBody = { storeId: string; castId: string; amount: number; note: string | null } & ({ advancedOn: string } | { bizDate: string });
@@ -57,16 +57,18 @@ export function issueDateDefaultOf(today: string, periodStart?: string | null, p
   return today;
 }
 
-/** 送り実費の発行可否＝店の送り方式が 'actual' のとき。未指定（読んでいない入口）は RPC の 'okuri not actual' に任せる＝有効 */
+/** 送りの記録可否＝店の送り方式が 'none' 以外（★裁定414: actual／flat／store）。未指定（読んでいない入口）は RPC に任せる＝有効。
+ *  0177 適用前の DB は 'actual' 以外を 'okuri not actual' で拒む＝文言は issueErrJa（適用後に実費以外でも記録できる） */
 export function okuriEnabledOf(okuriMode?: string | null): boolean {
-  return okuriMode == null || okuriMode === "actual";
+  return okuriMode == null || okuriMode !== "none";
 }
 
 /** route（status＋error）の和文化（握り潰さない・生の語を裸で出さない） */
 export function issueErrJa(status: number, msg: string | null | undefined): string {
   const m = msg ?? "";
   if (m.includes("paid period")) return "支払済みの期間には発行できません";
-  if (m.includes("okuri not actual")) return "送り方式が「実費」の店のみ発行できます（控除・送りで切替）";
+  if (m.includes("okuri none")) return "送りの方式が「なし」の店では記録できません（控除・送りで切替）"; // ★裁定414（0177）
+  if (m.includes("okuri not actual")) return "この店の送り方式ではまだ記録できません（0177 の適用前は「実費」の店のみ）"; // ★裁定414: 適用前の DB
   if (m.includes("forbidden") || status === 403) return "権限がありません（owner／manager 自店のみ）";
   if (m.includes("bad cast") || m.includes("inactive cast")) return "そのキャストには発行できません（在籍・自店を確認してください）";
   if (m.includes("bad amount") || m.includes("positive integer")) return "金額は正の整数で入力してください";

@@ -127,7 +127,7 @@ export default function IssueBulkForm({ storeId, casts, okuriMode, okuriBase = 0
       <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 16 }}>
         <div>
           <div style={lbl}>種別</div>
-          <SegSelect value={kind} onChange={(v) => setKind(v as IssueKind)} options={[["advance", "前借り"], ["transport", "送り実費"]]} ariaLabel="発行の種別" />
+          <SegSelect value={kind} onChange={(v) => setKind(v as IssueKind)} options={[["advance", "前借り"], ["transport", "送り"]]} ariaLabel="発行の種別" />
         </div>
         <label style={{ fontSize: 12, color: "var(--sub)", minWidth: 160 }}><span style={{ display: "block", marginBottom: 6 }}>{ISSUE_DATE_LABEL[kind]}</span>
           <input type="date" value={date} onChange={(e) => setDate(e.target.value)} disabled={disabled} style={inp} />
@@ -136,7 +136,7 @@ export default function IssueBulkForm({ storeId, casts, okuriMode, okuriBase = 0
           <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="キャスト名で絞り込み" style={inp} />
         </label>
       </div>
-      {disabled && <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 16px" }}>※送り方式が「実費」の店のみ発行できます（控除・送りで切替）。</p>}
+      {disabled && <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 16px" }}>※送り方式が「なし」の店では送りを記録できません（控除・送りで切替）。</p>}
       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 12 }}>
         <button type="button" style={smallBtn} onClick={() => setRows((rs) => checkAttended(rs))} disabled={disabled}>出勤者を全員チェック</button>
         <button type="button" style={smallBtn} onClick={() => setRows((rs) => uncheckAll(rs))} disabled={disabled}>全解除</button>

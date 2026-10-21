@@ -27,6 +27,7 @@ import type { Trial, CastLogin } from "./page";
 import AdvanceOkuriForm from "@/components/nox/advance-okuri-form"; // ★裁定300-2: 前借り／送り実費の入口（cast 固定・共通部品・既存 RPC）
 import DailyPayForm from "@/components/nox/daily-pay-form"; // ★0156（裁定309-6・便 V-4）: 日払いの発行（cast 固定・daily_pay_issue・源泉プレビュー）
 import { issueDateDefaultOf } from "@/lib/nox/payroll/advance-okuri";
+import { okuriModeOf } from "@/lib/nox/shift/okuri-mode"; // ★裁定414（S-4）
 import Picker from "@/components/nox/picker"; // ★裁定306-13: 待遇プランの候補（件数可変＝picker）
 import { isSystemOn } from "@/lib/nox/store-systems";
 import { firstInLastOut, isTodayWorking, todayStateOf, type TodayState } from "@/lib/nox/shift/today-row"; // ★裁定353（便 N1014 A-2）: 今日の状態＝今日タブと同じ純関数
@@ -702,7 +703,7 @@ export default function CastsBoard({
   // ★GV-3（便 N1013b B-8）: 店の制度「ノルマ」の ON/OFF（sys_norms・欠損＝ON）＝今月のノルマの入力口の出し分け
   const normsOnOf = (sid: string) => isSystemOn(stores.find((st) => st.id === sid)?.settings_json ?? null, "sys_norms");
   // ★裁定300-2: 店の送り方式・ベース額（stores.settings_json＝page が同じクエリで渡す）
-  const okuriOf = (sid: string) => { const sj = stores.find((st) => st.id === sid)?.settings_json ?? null; return { mode: sj?.okuri_mode === "actual" ? "actual" : "flat", base: typeof sj?.okuri_base_amount === "number" ? (sj.okuri_base_amount as number) : 0 }; };
+  const okuriOf = (sid: string) => { const sj = stores.find((st) => st.id === sid)?.settings_json ?? null; return { mode: okuriModeOf(sj as Record<string, unknown> | null) /* ★裁定414: 4 方式 */, base: typeof sj?.okuri_base_amount === "number" ? (sj.okuri_base_amount as number) : 0 }; };
   const selTrial = sel?.kind === "trial" ? trials.find((tr) => tr.id === sel.id) ?? null : null;
 
   return (

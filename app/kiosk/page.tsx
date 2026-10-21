@@ -15,6 +15,7 @@ import { Message } from "@/components/ui/toast"; // ★裁定281（便 U）: メ
 // ★裁定319／319 追補1（0158・便 AB-4）: 退勤の前に kiosk_punch_state を読み、送りの方式が実費（actual）の店だけ「送り あり／なし」を聞く。
 //   あり＝kiosk_punch(p_okuri=true)→kiosk_transport_issue(punch_id)（金額はサーバが店の基本額で決める）。基本額が未設定の店は発行せず注記のみ。一律（flat）の店は口を出さない。
 import { okuriSelfPlanOf, OKURI_PENDING_NOTE, type OkuriSelfPlan } from "@/lib/nox/shift/okuri-self";
+import { okuriOutTextOf, okuriRecordedTextOf } from "@/lib/nox/shift/okuri-mode"; // ★裁定414（S-4）: 方式の 1 文・「記録」
 import { rpcErrJa } from "@/lib/nox/ui/rpc-err"; // ★裁定327（0161・便 M1-4）: 順序検査の拒否 3 語は端末にも同じ和文
 type KRow = { cast_id: string; cast_name: string; has_pin: boolean; staff?: boolean }; // ★便 P174 T-6（355）: staff＝true は cast_id に membership_id（スタッフ群）
 type SRow = { membership_id: string; user_name: string; role: string; has_pin: boolean; last_kind: string | null; last_at: string | null }; // ★便 P174 T-6: kiosk_staff_list（0174 ★5）
@@ -125,7 +126,7 @@ export default function KioskPage() {
     if (!error && pj?.ok && type === "out" && okuri) {
       if (okuriPlan?.issue && pj.punch_id) {
         const { error: eT } = await supabase.rpc("kiosk_transport_issue", { p_punch_id: pj.punch_id });
-        note = eT ? OKURI_PENDING_NOTE : `送り ¥${(okuriPlan.amount ?? 0).toLocaleString()} を記録しました`;
+        note = eT ? OKURI_PENDING_NOTE : okuriRecordedTextOf(okuriPlan.mode, okuriPlan.amount ?? 0); // ★裁定414: 方式の 1 文
       } else note = OKURI_PENDING_NOTE;
     }
     setBusy(false);
@@ -289,8 +290,8 @@ export default function KioskPage() {
           <div style={{ maxWidth: 380, margin: "0 auto" }}>
             <p style={{ textAlign: "center", fontSize: 17, fontWeight: 800, margin: "0 0 4px" }}>{target.cast_name}</p>
             <p style={{ textAlign: "center", ...t.sub, margin: "0 0 14px" }}>送りを使いますか</p>
-            <p style={{ textAlign: "center", fontSize: 14, margin: "0 0 14px" }}>
-              {okuriPlan.amount !== null ? <>送り <b style={t.num}>¥{okuriPlan.amount.toLocaleString()}</b></> : OKURI_PENDING_NOTE}
+            <p style={{ textAlign: "center", fontSize: 14, margin: "0 0 14px" }} data-okuri-text={okuriPlan.mode}>
+              {okuriPlan.amount !== null ? okuriOutTextOf(okuriPlan.mode, okuriPlan.amount) : OKURI_PENDING_NOTE}{/* ★裁定414: 方式の 1 文 */}
             </p>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
               <button disabled={busy} onClick={() => void punch("out", true)}

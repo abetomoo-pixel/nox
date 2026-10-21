@@ -55,7 +55,7 @@ check("ms(1b-4) rpcErrJa: 写像後の文言は messageKindOf で error に倒�
 // ★0155（裁定309・便 S-2）: 'ar disabled'（店設定 ar_enabled=false の売掛）は「この店では売掛を使えません」＝二重防御の文言。廃棄・匿名化の 2 語も同便で写像
 check("ms(1b-5) rpcErrJa: 0155 の新語（ar disabled／no mynumber／already anonymized）が利用者向けの日本語に・error に倒れる", rpcErrJa("ar disabled") === "この店では売掛を使えません" && /マイナンバー/.test(rpcErrJa("no mynumber")) && /匿名化/.test(rpcErrJa("already anonymized")) && ["ar disabled", "no mynumber", "already anonymized"].every((c) => messageKindOf(rpcErrJa(c)) === "error"));
 // ★0156（裁定309-6〜9・便 V）: 日払い（paid period）・控除上書き（bad enabled／bad deduction／bad cast）・送り一括（okuri not actual／duplicate cast）
-check("ms(1b-6) rpcErrJa: 0156 の新語 6 語が利用者向けの日本語に・error に倒れる", /支払済み/.test(rpcErrJa("paid period")) && /ON／OFF/.test(rpcErrJa("bad enabled")) && /固定控除/.test(rpcErrJa("bad deduction")) && /所属/.test(rpcErrJa("bad cast")) && /定額/.test(rpcErrJa("okuri not actual")) && /2 回以上/.test(rpcErrJa("duplicate cast")) && ["paid period", "bad enabled", "bad deduction", "bad cast", "okuri not actual", "duplicate cast"].every((c) => messageKindOf(rpcErrJa(c)) === "error"));
+check("ms(1b-6) rpcErrJa: 0156 の新語 6 語が利用者向けの日本語に・error に倒れる", /支払済み/.test(rpcErrJa("paid period")) && /ON／OFF/.test(rpcErrJa("bad enabled")) && /固定控除/.test(rpcErrJa("bad deduction")) && /所属/.test(rpcErrJa("bad cast")) && /送り方式/.test(rpcErrJa("okuri not actual")) /* ★裁定414: 4 方式＝適用前の文言 */ && /「なし」/.test(rpcErrJa("okuri none")) && /2 回以上/.test(rpcErrJa("duplicate cast")) && ["paid period", "bad enabled", "bad deduction", "bad cast", "okuri not actual", "duplicate cast"].every((c) => messageKindOf(rpcErrJa(c)) === "error"));
 
 // (2) 許可列挙型 pin（素の描画 0）
 // 除外: 共通部品自身／kiosk の打刻結果画面（app/kiosk/page.tsx L233 `{result.message}`＝全画面の結果表示・裁定11 の kiosk 面＝メッセージ枠ではない）
@@ -112,7 +112,7 @@ check("ms(2-6) 裁定311: paymentMethodLabelOf／payoutDiffNoteOf の文言・pa
   paymentMethodLabelOf(null) === "その他" && paymentMethodLabelOf("other") === "その他" && paymentMethodLabelOf("cash") === "現金" && paymentMethodLabelOf("transfer") === "振込" && paymentMethodLabelOf("振込済") === "振込済"
   && payoutDiffNoteOf(1000, 1000) === null && payoutDiffNoteOf(1000, 800) === "集計 ¥1,000 と差 −¥200" && payoutDiffNoteOf(1000, 1500) === "集計 ¥1,000 と差 +¥500"
   && paySrc.includes('<select value={pmethod[l.castId] ?? "cash"}') && !paySrc.includes("方法(振込等)") && paySrc.includes("支払履歴（{period}）") && paySrc.includes("paymentMethodLabelOf(h.method)")
-  && reportSrc.includes("manualPayoutDiffLineOf(closedReport?.cash_payout, total)") && reportSrc.includes("cashPayoutRowsOf(payoutParts)") /* ★便 X13-G W-24: 手入力をやめた＝「集計と差」→「手入力との差」 */ && ["送り実費", "前借り", "日払い", "給与支払（現金）"].every((w) => Object.values(CASH_PAYOUT_LABELS).includes(w)));
+  && reportSrc.includes("manualPayoutDiffLineOf(closedReport?.cash_payout, total)") && reportSrc.includes("cashPayoutRowsOf(payoutParts)") /* ★便 X13-G W-24: 手入力をやめた＝「集計と差」→「手入力との差」 */ && ["送り立替", "前借り", "日払い", "給与支払（現金）"].every /* ★裁定414: 行名「送り立替」 */((w) => Object.values(CASH_PAYOUT_LABELS).includes(w)));
 
 // ★裁定313（2026-09-29・便 X-8-2）: 今日タブの行＝1 段。操作列は「時刻修正」「減額」・行内テキストリンク 0（精算調整を登録／を修正）・出勤記録は .nox-attrow
 check("ms(2-7) 裁定313: shift-board 今日タブ＝時刻修正／減額ボタン・行内リンク 0・nox-attrow・退勤は同段・操作列は isManagerUp のときだけ",
@@ -155,10 +155,10 @@ check("ms(2-11) 裁定317: okuriDefaultAmountOf の順・okuriAmountOf・文言�
   && JSON.stringify(okuriDefaultAmountOf(0, null)) === JSON.stringify({ amount: null, source: null }) && JSON.stringify(okuriDefaultAmountOf("1500", undefined)) === JSON.stringify({ amount: null, source: null })
   && okuriAmountOf("1500") === 1500 && okuriAmountOf(" 0 ") === null && okuriAmountOf("-5") === null && okuriAmountOf("1.5") === null && okuriAmountOf("") === null
   && /金額を入力してください/.test(okuriDefaultNoteOf({ amount: null, source: null })) && /店の送りベース額/.test(okuriDefaultNoteOf({ amount: 1, source: "store" })) && /前回の送り額/.test(okuriDefaultNoteOf({ amount: 1, source: "last" }))
-  && messageKindOf("A の退勤は記録しました。送りの発行に失敗したため、送りは未発行です（x）。日報の締めの前に発行できます") === "error" && messageKindOf("A の退勤を記録し、送り ¥1,500 を発行しました") === "success"
+  && messageKindOf("A の退勤は記録しました。送りの記録に失敗したため、送りは未記録です（x）。日報の締めの前に記録できます") === "error" && messageKindOf("A の退勤を記録しました。送り代 ¥1,500 を立て替えとして記録しました（給与から控除）") === "success" /* ★裁定414: 「記録」 */
   && shiftSrc.includes('p_type: "out", p_note: null, p_okuri: true') && shiftSrc.includes("p_idem_key: punchId as string") && shiftSrc.includes("<OkuriOutDialog") && !shiftSrc.includes("setOkuriMark")
   && shiftSrc.indexOf('p_okuri: true') < shiftSrc.lastIndexOf('rpc("transport_issue_bulk"') /* ★裁定357（便 N1014 A-6）: 退勤後の単独発行（issueOnly）は先に置かれるため最後の発行呼び出しで順を見る */
-  && okuriDlgSrc.includes("確定して退勤") && reportSrc2.includes("発行済み {okuriIssued.n} 件・合計") && reportSrc2.includes("確認して締める"));
+  && okuriDlgSrc.includes("確定して退勤") && reportSrc2.includes("記録済み {okuriIssued.n} 件・合計") /* ★裁定414: 「記録」 */ && reportSrc2.includes("確認して締める"));
 
 // ★裁定318 追補（2026-09-29・便 X-10-3）: 入力マスク（数字のみ・最大 4 桁・2 桁で ':'・5 桁目無視・貼り付けも同形・全角）と範囲外のその場判定・送信非活性
 const hmUsers = ["components/nox/punch-correction-modal.tsx", "app/mine/punch-correction-form.tsx", "app/mine/attendance-form.tsx", "app/mine/wishes/wish-form.tsx", "app/(manage)/shift/day-add-panel.tsx", "app/(manage)/shift/shift-add-form.tsx", "app/(manage)/shift/shift-board.tsx"];
@@ -258,20 +258,21 @@ check("ms(2-19) 裁定315: 注記の文言・isFinalizedDay（月で判定）・
 // ★裁定319／追補1（便 AB-4／AB-5）: 送りの本人発行・打刻端末発行
 const kioskSrc = fs.readFileSync("app/kiosk/page.tsx", "utf8");
 const minePunchSrc = fs.readFileSync("app/mine/punch-actions.tsx", "utf8");
-check("ms(2-20) 裁定319: okuriSelfPlanOf（flat／未設定は聞かない・actual＋基本額＝発行・actual＋基本額なし／0／小数＝聞くが発行しない）・文言（記録しました／送りは店が締めで確定します）",
-  JSON.stringify(okuriSelfPlanOf({ okuri_mode: "flat", okuri_base_amount: 1500 })) === JSON.stringify({ ask: false, issue: false, amount: null }) && okuriSelfPlanOf(null).ask === false
-  && JSON.stringify(okuriSelfPlanOf({ okuri_mode: "actual", okuri_base_amount: 1500 })) === JSON.stringify({ ask: true, issue: true, amount: 1500 })
-  && [null, 0, 1500.5, "1500"].every((b) => JSON.stringify(okuriSelfPlanOf({ okuri_mode: "actual", okuri_base_amount: b })) === JSON.stringify({ ask: true, issue: false, amount: null }))
-  && OKURI_PENDING_NOTE === "送りは店が締めで確定します" && okuriResultTextOf(true, "issued", 1500) === "退勤を打刻しました（送り ¥1,500 を記録しました）" && okuriResultTextOf(true, "pending", null) === "退勤を打刻しました（送りは店が締めで確定します）"
+check("ms(2-20) 裁定319→414: okuriSelfPlanOf（none／未設定は聞かない・actual／flat／store＋基本額＝記録・基本額なし／0／小数＝聞くが記録しない・mode を返す）・文言（方式の 1 文で記録しました／送りは店が締めで確定します）",
+  JSON.stringify(okuriSelfPlanOf({ okuri_mode: "none", okuri_base_amount: 1500 })) === JSON.stringify({ ask: false, issue: false, amount: null, mode: "none" }) && okuriSelfPlanOf(null).ask === false
+  && JSON.stringify(okuriSelfPlanOf({ okuri_mode: "actual", okuri_base_amount: 1500 })) === JSON.stringify({ ask: true, issue: true, amount: 1500, mode: "actual" })
+  && JSON.stringify(okuriSelfPlanOf({ okuri_mode: "flat", okuri_base_amount: 1500 })) === JSON.stringify({ ask: true, issue: true, amount: 1500, mode: "flat" }) /* ★裁定414: 定額も退勤で聞く */
+  && [null, 0, 1500.5, "1500"].every((b) => JSON.stringify(okuriSelfPlanOf({ okuri_mode: "actual", okuri_base_amount: b })) === JSON.stringify({ ask: true, issue: false, amount: null, mode: "actual" }))
+  && OKURI_PENDING_NOTE === "送りは店が締めで確定します" && okuriResultTextOf(true, "issued", 1500) === "退勤を打刻しました（送り代 ¥1,500 を立て替えとして記録しました（給与から控除））" && okuriResultTextOf(true, "pending", null) === "退勤を打刻しました（送りは店が締めで確定します）"
   && okuriResultTextOf(false, "none", null) === "退勤を打刻しました" && messageKindOf(okuriResultTextOf(true, "pending", null)) === "success" && messageKindOf(okuriResultTextOf(true, "issued", 1500)) === "success");
 check("ms(2-21) 裁定319: /kiosk は退勤の前に kiosk_punch_state→あり／なし→kiosk_punch(p_okuri)→kiosk_transport_issue(punch_id)・/mine は punch_self→transport_issue_self・金額の入力欄は無い（表示のみ）",
   kioskSrc.indexOf('rpc("kiosk_punch_state")') > 0 && kioskSrc.indexOf('rpc("kiosk_punch_state")') < kioskSrc.indexOf('rpc("kiosk_punch",') && kioskSrc.includes("p_okuri: okuri }") && kioskSrc.includes('rpc("kiosk_transport_issue", { p_punch_id: pj.punch_id })')
   && kioskSrc.includes("onClick={() => void startOut()}") && kioskSrc.includes("if (!plan.ask) { void punch(\"out\"); return; }") && !kioskSrc.includes("MoneyInput")
-  && minePunchSrc.includes('rpc("transport_issue_self", { p_punch_id: punchId })') && minePunchSrc.includes("okuriResultTextOf(okuriActual && okuri, outcome, plan.amount)") && !minePunchSrc.includes("MoneyInput") && !minePunchSrc.includes("<input"));
+  && minePunchSrc.includes('rpc("transport_issue_self", { p_punch_id: punchId })') && minePunchSrc.includes("okuriResultTextOf(okuriActual && okuri, outcome, plan.amount, plan.mode)") /* ★裁定414 */ && !minePunchSrc.includes("MoneyInput") && !minePunchSrc.includes("<input"));
 // ★裁定317（便 AB-6）・裁定314（便 AB-7）
 const spSrc = fs.readFileSync("app/(manage)/master/store-profile-panel.tsx", "utf8");
 check("ms(2-22) 裁定317／314: 店舗情報に「送りの基本額」（MoneyInput・数値で送る・空欄＝0・一律の店は非活性＋注記）・キープ済みの行＝check_line_id の一致（近似の読取を撤去）",
-  spSrc.includes("<MoneyInput value={form.okuri_base_amount}") && spSrc.includes("!form.okuri_actual}") && spSrc.includes('out.okuri_base_amount = form.okuri_base_amount === "" ? 0 : Number(form.okuri_base_amount)') && spSrc.includes("送りの方式が「一律」の店では使いません")
+  spSrc.includes("<MoneyInput value={form.okuri_base_amount}") && spSrc.includes("!form.okuri_actual}") && spSrc.includes('out.okuri_base_amount = form.okuri_base_amount === "" ? 0 : Number(form.okuri_base_amount)') && spSrc.includes("送りの方式が「なし」の店では使いません") /* ★裁定414: 4 方式 */
   && [...keptLineIdsOf(["l1", "l2", "l3"], [{ check_line_id: "l2" }, { check_line_id: null }, { check_line_id: "x" }])].join(",") === "l2" && keptLineIdsOf(["l1"], []).size === 0
   && regSrc.includes('.from("bottle_keeps").select("check_line_id").in("check_line_id", targets.map((l) => l.id))') && !regSrc.includes('.gte("opened_at", check.started_at)'));
 // ★裁定312（便 AB-8）・裁定316（便 AB-9）

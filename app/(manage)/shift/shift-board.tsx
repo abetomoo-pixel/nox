@@ -50,6 +50,7 @@ import OkuriOutDialog from "@/components/nox/okuri-out-dialog";
 import PenaltyDialog, { type PenaltyTarget } from "@/components/nox/penalty-dialog";
 import { castReportOf, castReportLineOf, keepReportArgsOf } from "@/lib/nox/shift/cast-report"; // ★便 X13-H H-17: 本人の遅刻・当欠の連絡 // ★便 X13-H H-16（裁定410）: 遅刻・当欠の罰金（委託のみ） // ★裁定317（便 X-9-3）: 退勤の「送り」金額ダイアログ
 import { okuriDefaultAmountOf, type OkuriDefault } from "@/lib/nox/shift/okuri-default";
+import { okuriAsks, okuriModeOf, okuriOutTextOf, okuriRecordedTextOf, type OkuriMode } from "@/lib/nox/shift/okuri-mode"; // ★裁定414（S-4）: 送りの 4 方式
 import StaffShiftBoard from "./staff-shift-board"; // ★C層② 面 b/c（スタッフ）
 import CastAvatar from "@/components/ui/cast-avatar";
 import DayAddPanel from "./day-add-panel";
@@ -986,7 +987,8 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storeId]);
   // ★0156（裁定309-9・便 V-5）: 店の送り方式（settings_json.okuri_mode）＝'actual' の店だけ退勤に「送り」チェックを出す（+1・RLS 越しの stores 読取）
-  const [okuriActual, setOkuriActual] = useState(false);
+  const [okuriActual, setOkuriActual] = useState(false); // ★裁定414: 名前は従来のまま＝意味は「送りの導線を出す店」（'none' 以外）
+  const [okuriMode, setOkuriMode] = useState<OkuriMode>("flat");
   const [proxyPunchOn, setProxyPunchOn] = useState(true); // ★0164（便 W5-2b）: 店設定 punch_methods.proxy（代行の退勤ボタン・出勤区分後の in 打刻の出し分け）
   // ★裁定317（便 X-9-3）: 「送り」→金額ダイアログ→確定で退勤打刻（p_okuri=true）＋transport_issue_bulk 1 件（idem＝punch id）。旧チェックボックス（okuriMark）は廃止
   const [okuriBase, setOkuriBase] = useState<unknown>(null);
@@ -1002,7 +1004,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
     void (async () => {
       const { data } = await supabase.from("stores").select("settings_json, punch_methods").eq("id", storeId).maybeSingle(); // ★0164（便 W5-2b）: punch_methods（代行の出し分け）
       const sj = (data?.settings_json ?? {}) as Record<string, unknown>;
-      if (alive) { setOkuriActual(sj.okuri_mode === "actual"); setOkuriBase(sj.okuri_base_amount ?? null); setProxyPunchOn(opsProfileOf(data as Record<string, unknown> | null).punch_methods.proxy); }
+      if (alive) { const om = okuriModeOf(sj); setOkuriMode(om); setOkuriActual(okuriAsks(om)); setOkuriBase(sj.okuri_base_amount ?? null); setProxyPunchOn(opsProfileOf(data as Record<string, unknown> | null).punch_methods.proxy); }
     })();
     return () => { alive = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1053,9 +1055,9 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
       const outRow = punchRows.filter((r) => r.cast_id === castId && r.type === "out").sort((a, b) => (a.punched_at < b.punched_at ? 1 : -1))[0];
       const { error: eI } = await supabase.rpc("transport_issue_bulk", { p_store_id: storeId, p_items: [{ cast_id: castId, amount, date: todayDate }], p_idem_key: (outRow as { id?: string } | undefined)?.id ?? crypto.randomUUID() });
       setOkuriBusy(false);
-      if (eI) { setOkuriErr(`送りの発行に失敗: ${rpcErrJa(eI.message)}`); return; }
+      if (eI) { setOkuriErr(`送りの記録に失敗: ${rpcErrJa(eI.message)}`); return; }
       setOkuriDlg(null);
-      setMsg(`${castName(castId)} の送り ¥${amount.toLocaleString()} を発行しました（退勤は記録済み）`);
+      setMsg(`${castName(castId)}：${okuriRecordedTextOf(okuriMode, amount)}（退勤は記録済み）`); // ★裁定414: 「記録」＋方式の 1 文
       setPunchTick((v) => v + 1);
       return;
     }
@@ -1071,8 +1073,8 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
     setOkuriBusy(false);
     setOkuriDlg(null);
     setMsg(eT
-      ? `${castName(castId)} の退勤は記録しました。送りの発行に失敗したため、送りは未発行です（${rpcErrJa(eT.message)}）。日報の締めの前に発行できます`
-      : `${castName(castId)} の退勤を記録し、送り ¥${amount.toLocaleString()} を発行しました`);
+      ? `${castName(castId)} の退勤は記録しました。送りの記録に失敗したため、送りは未記録です（${rpcErrJa(eT.message)}）。日報の締めの前に記録できます`
+      : `${castName(castId)} の退勤を記録しました。${okuriRecordedTextOf(okuriMode, amount)}`); // ★裁定414: 「記録」＋方式の 1 文
     setPunchTick((v) => v + 1);
   }
   // ★B4-a 裁定221（H31）: カウンタ＝二重計上なし。休み（off）はどれにも数えない。
@@ -1133,7 +1135,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
       )}
       {/* ★裁定317（便 X-9-3）: 退勤の「送り」金額ダイアログ */}
       {okuriDlg && (
-        <OkuriOutDialog castName={castName(okuriDlg.castId)} def={okuriDlg.def} busy={okuriBusy} error={okuriErr} mode={okuriDlg.mode}
+        <OkuriOutDialog castName={castName(okuriDlg.castId)} def={okuriDlg.def} busy={okuriBusy} error={okuriErr} mode={okuriDlg.mode} okuriMode={okuriMode} /* ★裁定414: 説明文＝方式の 1 文 */
           onOutOnly={okuriDlg.fromOut ? () => { const cid = okuriDlg.castId; setOkuriDlg(null); void proxyOut(cid); } : undefined} /* ★裁定357: 2 択の「退勤のみ」 */
           onConfirm={(amount) => void confirmOkuri(amount)} onClose={() => setOkuriDlg(null)} />
       )}

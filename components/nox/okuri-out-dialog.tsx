@@ -10,8 +10,11 @@ import Modal from "@/components/ui/modal";
 import { Message } from "@/components/ui/toast";
 import * as t from "@/lib/nox/ui/theme";
 import { okuriAmountOf, okuriDefaultNoteOf, type OkuriDefault } from "@/lib/nox/shift/okuri-default";
+import { OKURI_MODE_NOTE, okuriOutTextOf, type OkuriMode } from "@/lib/nox/shift/okuri-mode"; // ★裁定414（S-4）: 説明文＝方式の 1 文・「発行」→「記録」
 
-export default function OkuriOutDialog({ castName, def, busy, error, onConfirm, onClose, mode = "outAndIssue", onOutOnly, lead }: {
+export default function OkuriOutDialog({ castName, def, busy, error, onConfirm, onClose, mode = "outAndIssue", onOutOnly, lead, okuriMode = "actual" }: {
+  /** ★裁定414（S-4）: 店の送り方式（説明文の 1 文と注記を出し分ける・既定 actual＝従来） */
+  okuriMode?: OkuriMode;
   castName: string;
   /** 既定値（呼び出し側が店設定と直近の送りから決める） */
   def: OkuriDefault;
@@ -31,26 +34,27 @@ export default function OkuriOutDialog({ castName, def, busy, error, onConfirm, 
   return (
     <Modal onClose={() => { if (!busy) onClose(); }} maxWidth={430}>
       <div className="nox-formmodal-head">
-        <strong>{mode === "issueOnly" ? "送りの発行" : onOutOnly ? "退勤" : "送りの金額"}</strong>
+        <strong>{mode === "issueOnly" ? "送りの記録" : onOutOnly ? "退勤" : "送りの金額"}</strong>
         <button type="button" className="nox-formmodal-x" aria-label="閉じる" disabled={busy} onClick={onClose}>×</button>
       </div>
-      <p style={{ fontSize: 12.5, margin: "0 0 10px" }} data-okuri-mode={mode}>
-        {lead ?? (mode === "issueOnly" ? `${castName} の送り実費を発行します（退勤は記録済み）。` : onOutOnly ? `${castName} の退勤を記録します。本日の送りは未発行です＝送りを発行して退勤しますか？` : `${castName} の退勤を記録し、送り実費を発行します。`)}
+      <p style={{ fontSize: 12.5, margin: "0 0 10px" }} data-okuri-mode={mode} data-okuri-text={okuriMode}>
+        {/* ★裁定414（S-4）: 説明文＝方式の 1 文（金額は欄の値に追随）。issueOnly＝退勤は記録済み／onOutOnly＝「退勤のみ」の 2 択 */}
+        {lead ?? `${castName}：${okuriOutTextOf(okuriMode, amount)}${mode === "issueOnly" ? "（退勤は記録済み）" : onOutOnly ? "。本日の送りは未記録です＝送りを記録して退勤しますか？" : ""}`}
       </p>
       <label style={{ ...t.fieldLabel, display: "block", marginBottom: 6 }}>
         金額
         <span style={{ display: "block", marginTop: 4 }}>
-          <MoneyInput value={raw} onChange={setRaw} disabled={busy} /* ★便 GV-C C-14b（GV-61）: 既定値あり＝autofocus なし（キーボードで「送りを発行して退勤」が隠れる） */ placeholder="例: 1,500" ariaLabel="送りの金額" width="100%" />
+          <MoneyInput value={raw} onChange={setRaw} disabled={busy} /* ★便 GV-C C-14b（GV-61）: 既定値あり＝autofocus なし（キーボードで「送りを記録して退勤」が隠れる） */ placeholder="例: 1,500" ariaLabel="送りの金額" width="100%" />
         </span>
       </label>
       <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "0 0 6px", lineHeight: 1.7 }}>
-        {okuriDefaultNoteOf(def)}。送りは給与の控除（送り実費）として記録され、日報の現金支払に集計されます。
+        {okuriDefaultNoteOf(def)}。{OKURI_MODE_NOTE[okuriMode]}。{/* ★裁定414: 方式ごとの注記 */}
       </p>
       {error && <div style={{ marginTop: 8 }}><Message kind="error">{error}</Message></div>}
       <div className="nox-formmodal-foot">
         <button type="button" style={{ ...t.btnPrimary56, opacity: busy || amount === null ? 0.5 : 1 }} disabled={busy || amount === null} data-okuri-confirm="1"
-          onClick={() => { if (amount !== null) onConfirm(amount); }}>{busy ? "記録中…" : mode === "issueOnly" ? "送りを発行" : onOutOnly ? "送りを発行して退勤" : "確定して退勤"}</button>
-        {onOutOnly && (/* ★裁定357: 2 択＝「退勤のみ」（送りは発行しない・営業日内なら後から「送り」で発行できる） */
+          onClick={() => { if (amount !== null) onConfirm(amount); }}>{busy ? "記録中…" : mode === "issueOnly" ? "送りを記録" : onOutOnly ? "送りを記録して退勤" : "確定して退勤"}</button>
+        {onOutOnly && (/* ★裁定357: 2 択＝「退勤のみ」（送りは記録しない・営業日内なら後から「送り」で記録できる） */
           <button type="button" style={t.btnSecondary48} disabled={busy} onClick={onOutOnly} data-okuri-outonly="1">退勤のみ</button>
         )}
         <button type="button" style={t.btnSecondary48} disabled={busy} onClick={onClose}>キャンセル</button>

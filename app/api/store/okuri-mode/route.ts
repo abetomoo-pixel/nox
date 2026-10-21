@@ -18,7 +18,7 @@ export async function POST(req: Request) {
   }
   const { storeId, mode } = body;
   if (typeof storeId !== "string" || !storeId) return NextResponse.json({ error: "storeId required" }, { status: 400 });
-  if (mode !== "flat" && mode !== "actual") return NextResponse.json({ error: "mode must be flat|actual" }, { status: 400 });
+  if (mode !== "flat" && mode !== "actual" && mode !== "store" && mode !== "none") return NextResponse.json({ error: "mode must be flat|actual|store|none" }, { status: 400 }); // ★裁定414（0177）: 4 方式（適用前の DB は 'bad mode' で拒む）
 
   const { error } = await supabase.rpc("set_store_okuri_mode", { p_store_id: storeId, p_mode: mode });
   if (error) {

@@ -77,7 +77,7 @@ export function bulkErrJa(status: number, msg: string | null | undefined): strin
 }
 
 export function bulkSuccessTextOf(kind: IssueKind, n: number, total: number, date: string): string {
-  return `${ISSUE_LABEL[kind]}を ${n} 人・合計 ¥${total.toLocaleString("en-US")} 発行しました（${date}）`;
+  return `${ISSUE_LABEL[kind]}を ${n} 人・合計 ¥${total.toLocaleString("en-US")} ${kind === "transport" ? "記録" : "発行"}しました（${date}）`; // ★裁定414（S-4）: 「発行」は送りに使わない
 }
 
 /** 当日の発行済み一覧の 1 行（advances／transport を同じ形に） */

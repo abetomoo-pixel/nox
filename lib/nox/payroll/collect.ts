@@ -5,6 +5,7 @@
 // 対象 cast（裁定C）= get_cast_sales の cast ∪ 窓内 punches の cast（is_active 不問・稼働ゼロは除外）。
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { okuriDeductOf } from "@/lib/nox/shift/okuri-mode"; // ★裁定414（S-4 ③）: 店負担は控除しない
 import { periodCalendarDays, type PayrollWindow } from "./window";
 import { sumCastSales } from "./cast-sales"; // ★裁定346: cast 別合算の純関数（ランキング・/mine ノルマ進捗と共用）
 import { normAxesOf, normTargetsOf, resolveNormTargetsOf, shimeiScopeOf, type NormTargets, type QuotaSource } from "../store/norm-axes"; // ★裁定347 追補2（便 N1014 A-4）: 達成ボーナスの目標＝/mine と同じ純関数
@@ -69,6 +70,8 @@ export type Transport = {
   effPeriod: string; // biz_date→'YYYY-MM'（固定・繰越しない）
   bizDate: string; // 古い順ソート用（同一 period 内は日付順 FIFO）
   createdAt: string;
+  /** ★裁定414（0177）: 記録時の方式 actual／flat（store はここに来ない・列が無い間は 'actual'） */
+  mode: string;
 };
 
 export type CollectResult = {
@@ -484,11 +487,13 @@ async function loadAdvances(admin: SupabaseClient, storeId: string, win: Payroll
 async function loadTransport(admin: SupabaseClient, storeId: string, win: PayrollWindow): Promise<Map<string, Transport[]>> {
   const { data, error } = await admin
     .from("transport")
-    .select("id, cast_id, amount, deducted_amount, biz_date, created_at")
+    .select("*")   // ★裁定414（S-4 ③）: mode 列（0177）を読む＝列が無い間（適用前）も通る形
     .eq("store_id", storeId).eq("status", "open");
   if (error) throw new Error(`transport: ${error.message}`);
   const rows: Transport[] = [];
   for (const r of (data ?? []) as Record<string, unknown>[]) {
+    const mode = (r.mode as string | null | undefined) ?? "actual";
+    if (!okuriDeductOf(mode)) continue; // ★裁定414（S-4 ③）: 店負担（store）は給与から控除しない
     const bizDate = r.biz_date as string; // 'YYYY-MM-DD'（cutoff 正規化済み・繰越なし）
     const effPeriod = bizDate.slice(0, 7);
     if (effPeriod !== win.period) continue; // 当該 period 帰属のみ
@@ -496,7 +501,7 @@ async function loadTransport(admin: SupabaseClient, storeId: string, win: Payrol
     const deductedAmount = (r.deducted_amount as number) ?? 0;
     rows.push({
       id: r.id as string, castId: r.cast_id as string, amount, deductedAmount,
-      remaining: amount - deductedAmount, effPeriod, bizDate, createdAt: r.created_at as string,
+      remaining: amount - deductedAmount, effPeriod, bizDate, createdAt: r.created_at as string, mode,
     });
   }
   // 古い順（biz_date asc, created_at asc, id asc）＝送り実費の発生日 FIFO

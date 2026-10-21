@@ -7,6 +7,7 @@ import * as t from "@/lib/nox/ui/theme";
 import Toast from "@/components/ui/toast";
 import { rpcErrJa } from "@/lib/nox/ui/rpc-err";
 import { okuriSelfPlanOf, okuriResultTextOf, OKURI_PENDING_NOTE } from "@/lib/nox/shift/okuri-self";
+import { okuriOutTextOf, type OkuriMode } from "@/lib/nox/shift/okuri-mode"; // ★裁定414（S-4）: 方式の 1 文
 import { PUNCH_STATE_NOTE, punchButtonsOf, type PunchState } from "@/lib/nox/shift/punch-state";
 
 // ★裁定326 追補3（便 M1-4・2026-09-30）: 3 状態（未出勤／出勤中／退勤済み）は page.tsx が当日営業日の自分の打刻から punchStateOf で導き state を渡す（新規 fetch 0）。
@@ -18,12 +19,13 @@ import { PUNCH_STATE_NOTE, punchButtonsOf, type PunchState } from "@/lib/nox/shi
 // ★裁定317（便 X-9-3）: cast 本人は送りの発行（transport_issue_bulk＝owner／manager のみ）を呼べない＝金額ダイアログは出さず、「あり」の打刻だけ残す（締め前モーダルに未発行として出る）。器は 0158。
 // ★0156（裁定309-9＝302-5・便 V-5）: okuri_mode='actual' の店だけ、退勤に「送り あり／なし」（既定なし）→ punch_self の p_okuri。
 //   'flat'／未設定の店は出さない（p_okuri を送らない＝RPC の既定＝null）。in 打刻は従来どおり 3 引数。
-export default function PunchActions({ okuriActual = false, okuriBase = null, state = "none" }: { okuriActual?: boolean; okuriBase?: number | null; state?: PunchState }) {
+export default function PunchActions({ okuriMode = "flat", okuriBase = null, state = "none" }: { /** ★裁定414: 店の送り方式（'none' 以外で「送り あり／なし」を出す） */ okuriMode?: OkuriMode; okuriBase?: number | null; state?: PunchState }) {
   const router = useRouter();
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [okuri, setOkuri] = useState(false);
-  const plan = okuriSelfPlanOf(okuriActual ? { okuri_mode: "actual", okuri_base_amount: okuriBase } : null);
+  const plan = okuriSelfPlanOf({ okuri_mode: okuriMode, okuri_base_amount: okuriBase });
+  const okuriActual = plan.ask; // ★裁定414: 名前は従来のまま＝意味は「送りの導線を出す店」（'none' 以外）
   const btn = punchButtonsOf(state);
   const note = PUNCH_STATE_NOTE[state];
 
@@ -43,7 +45,7 @@ export default function PunchActions({ okuriActual = false, okuriBase = null, st
       }
     }
     // ★326 追補3: 拒否は和文（327＝すでに出勤打刻があります／本日は退勤済みです／出勤打刻がありません）・成功も拒否も refresh で状態を再読取
-    setMsg(error ? rpcErrJa(error.message) : type === "in" ? "出勤を打刻しました" : okuriResultTextOf(okuriActual && okuri, outcome, plan.amount));
+    setMsg(error ? rpcErrJa(error.message) : type === "in" ? "出勤を打刻しました" : okuriResultTextOf(okuriActual && okuri, outcome, plan.amount, plan.mode));
     if (!error && type === "out") setOkuri(false);
     setBusy(false);
     router.refresh();
@@ -61,7 +63,7 @@ export default function PunchActions({ okuriActual = false, okuriBase = null, st
       )}
       {okuriActual && okuri && btn.okuriEnabled && (
         <p style={{ fontSize: 12.5, color: "var(--sub)", margin: "0 0 8px" }}>
-          {plan.amount !== null ? <>送り <b className="num" style={{ color: "var(--ink)" }}>¥{plan.amount.toLocaleString()}</b>（金額は店の設定です）</> : OKURI_PENDING_NOTE}
+          {plan.amount !== null ? <span data-okuri-text={plan.mode}>{okuriOutTextOf(plan.mode, plan.amount)}（金額は店の設定です）</span> : OKURI_PENDING_NOTE}{/* ★裁定414: 方式の 1 文 */}
         </p>
       )}
       <div className="nox-punchrow">

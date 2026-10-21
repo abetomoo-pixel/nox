@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { bizDateOf, bizDateRange } from "@/lib/nox/biz-date";
 import PayslipSlip from "@/components/payslip-slip";
+import { okuriModeOf } from "@/lib/nox/shift/okuri-mode"; // ★裁定414（S-4）
 import { wageNowOf } from "@/lib/nox/cast/wage-now"; // ★便 P174 T-5（GV-55／56）
 import { mineCurrentWageOf } from "@/lib/nox/mine/wage-server"; // ★便 X13-H H-8: 今期の時給（一覧・詳細と同じ値・文言・根拠）
 import { ATTENDANCE_MONTH_NOTE, closeHmOf, hoursLabelOf, monthAttendanceRowsOf, todayInOutLabelOf } from "@/lib/nox/mine/attendance-month"; // ★裁定326-5（便 M2-1）: 勤怠時刻＋当月一覧（実働は dayWorkedHours）
@@ -108,6 +109,10 @@ export default async function MinePage() {
     .select("period, net, breakdown_json")
     .order("period", { ascending: false })
     .limit(6);
+  // ★裁定414（S-4 ④）: 凍結明細の「送り」行を方式で読み分ける＝breakdown.okuri の transport_id → transport.mode（自分の行＝RLS パターン1・0177 前は mode 列が無い＝'actual' 扱い）
+  const okuriIds = [...new Set((slips ?? []).flatMap((s) => (((s.breakdown_json as { okuri?: { transport_id?: string }[] } | null)?.okuri ?? []).map((e) => e.transport_id).filter((x): x is string => typeof x === "string"))))];
+  const { data: trModes } = okuriIds.length > 0 ? await supabase.from("transport").select("*").in("id", okuriIds) : { data: null };
+  const okuriModes: Record<string, string> = Object.fromEntries(((trModes ?? []) as { id: string; mode?: string | null }[]).map((r) => [r.id, r.mode ?? "actual"]));
   // breakdown_json の解釈と1件描画は共有 PayslipSlip へ移設（D2＝表示の移設のみ・数値ロジック非改変）。
   // ★裁定348 追補1（便 DM-1 D-2b）: 期限付き保証時給の印＝今日を含む cast_plan 行（自分の行＝RLS）の overrides_json.guarantee が true なら「保証時給（〜MM/DD）¥X」。期限切れは何も出さない（基本時給に戻る）
   const { data: guaRows } = meCast
@@ -209,7 +214,7 @@ export default async function MinePage() {
         <h3>打刻{punchHeadOf(ps.state, ps.inAt) && <span className="num" style={{ marginLeft: "auto", fontSize: 12.5, fontWeight: 700, color: "var(--ok)" }}>{punchHeadOf(ps.state, ps.inAt)}</span>}</h3>{/* ★326 追補3: 出勤中は見出し横に「出勤中 HH:MM〜」 */}
         {/* ★0164（便 W5-2b）: 店設定 punch_methods.self が OFF の店は本人打刻のボタンを出さない（RPC punch_self は拒否しない＝UI の出し分けだけ・裁定要） */}
         {opsProfileOf(myStore as Record<string, unknown> | undefined).punch_methods.self ? (
-        <PunchActions state={ps.state} okuriActual={((myStore?.settings_json ?? {}) as Record<string, unknown>).okuri_mode === "actual"}
+        <PunchActions state={ps.state} okuriMode={okuriModeOf((myStore?.settings_json ?? {}) as Record<string, unknown>)} /* ★裁定414（S-4）: 4 方式＝'none' 以外で導線 */
           okuriBase={typeof ((myStore?.settings_json ?? {}) as Record<string, unknown>).okuri_base_amount === "number" ? (((myStore?.settings_json ?? {}) as Record<string, unknown>).okuri_base_amount as number) : null} />
         ) : (
           <p className="nox-pstate" style={{ color: "var(--sub)" }}>この店はスマホからの打刻を使っていません（出退勤は店の代行か打刻端末で記録します）</p>
@@ -279,7 +284,7 @@ export default async function MinePage() {
         {(slips ?? []).length === 0 && <p style={{ ...noneP, marginTop: 11 }}>確定分なし</p>}
         <div style={{ marginTop: 11 }}>
           {(slips ?? []).map((s, i) => (
-            <PayslipSlip systems={(myStore?.settings_json ?? null) as Record<string, unknown> | null} /* ★便 GV-C C-10（GV-53） */
+            <PayslipSlip systems={(myStore?.settings_json ?? null) as Record<string, unknown> | null} /* ★便 GV-C C-10（GV-53） */ okuriModes={okuriModes} /* ★裁定414（S-4 ④） */
               key={i}
               compact={ms.payslip_visibility === "net_only"}
               slip={{ period: s.period as string, net: s.net as number, breakdown_json: s.breakdown_json }}

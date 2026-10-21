@@ -7,7 +7,8 @@ import PageHead from "@/components/ui/page-head";
 import { createClient } from "@/lib/supabase/client";
 import { bizDateOf, bizDateRange } from "@/lib/nox/biz-date";
 import { cashPayoutRowsOf, cashPayoutTotalOf, cashPayoutWithOtherOf, otherPayoutMemoMissing, noteWithOtherPayoutOf, otherPayoutFromNoteOf, manualPayoutDiffLineOf, type CashPayoutParts } from "@/lib/nox/report/cash-payout";
-import CashPayoutIssue, { type PayoutIssueKind } from "@/components/nox/cash-payout-issue"; // ★便 X13-G W-24 ②: 内訳の ＋発行 // ★裁定311-②／④（便 Y-4）: 現金支払のプレフィル集計と内訳
+import CashPayoutIssue, { type PayoutIssueKind } from "@/components/nox/cash-payout-issue";
+import { OKURI_ROW_LABEL, okuriAsks, okuriCashOf, okuriExpenseOf, okuriModeOf, type OkuriMode } from "@/lib/nox/shift/okuri-mode"; // ★裁定414（S-4）: 送りの 4 方式＝現金支払／諸経費の読み分け // ★便 X13-G W-24 ②: 内訳の ＋発行 // ★裁定311-②／④（便 Y-4）: 現金支払のプレフィル集計と内訳
 import { roundYen } from "@/lib/nox/money";
 import * as t from "@/lib/nox/ui/theme";
 import Toast from "@/components/ui/toast";
@@ -409,7 +410,9 @@ export default function ReportBoard({
   const [payoutRows, setPayoutRows] = useState<Record<keyof CashPayoutParts, PayoutRow[]> | null>(null);
   const [payoutCasts, setPayoutCasts] = useState<{ id: string; name: string }[]>([]);
   const [okuriBaseAmt, setOkuriBaseAmt] = useState<unknown>(null);
-  const [okuriActualStore, setOkuriActualStore] = useState(false);
+  const [okuriActualStore, setOkuriActualStore] = useState(false); // ★裁定414: 名前は従来のまま＝意味は「送りの導線がある店」（'none' 以外）
+  const [okuriMode, setOkuriMode] = useState<OkuriMode>("flat");
+  const [okuriStoreSum, setOkuriStoreSum] = useState(0); // ★裁定414（S-4 ②）: 諸経費の内訳「送迎費（店負担）」＝mode='store' の当日分
   const [payoutTick, setPayoutTick] = useState(0);
   const [otherPay, setOtherPay] = useState(0);
   const [otherMemo, setOtherMemo] = useState("");
@@ -421,10 +424,11 @@ export default function ReportBoard({
     void (async () => {
       const { data: st } = await supabase.from("stores").select("settings_json").eq("id", storeId).maybeSingle();
       const sj = (st?.settings_json ?? {}) as Record<string, unknown>;
-      const actual = sj.okuri_mode === "actual";
+      const om = okuriModeOf(sj); // ★裁定414: 4 方式。'none' 以外は transport を読む（select * ＝0177 前は mode 列が無い→'actual' 扱い）
+      const actual = okuriAsks(om);
       const [tr, adv, dp, pr, cs] = await Promise.all([
         actual
-          ? supabase.from("transport").select("cast_id, amount").eq("store_id", storeId).eq("biz_date", bizDate).neq("status", "cancelled")
+          ? supabase.from("transport").select("*").eq("store_id", storeId).eq("biz_date", bizDate).neq("status", "cancelled")
           : Promise.resolve({ data: [] as { cast_id: string; amount: number }[] }),
         supabase.from("advances").select("cast_id, amount").eq("store_id", storeId).eq("advanced_on", bizDate).neq("status", "cancelled"),
         supabase.from("daily_pays").select("cast_id, net").eq("store_id", storeId).eq("biz_date", bizDate),
@@ -433,13 +437,16 @@ export default function ReportBoard({
       ]);
       if (!alive) return;
       const rowsOf = (rows: unknown, k: string): PayoutRow[] => ((rows ?? []) as Record<string, unknown>[]).map((r) => ({ cast_id: (r.cast_id as string | null) ?? null, amount: Number(r[k] ?? 0) }));
-      const rows = { okuri: rowsOf(tr.data, "amount"), advance: rowsOf(adv.data, "amount"), daily: rowsOf(dp.data, "net"), salary: rowsOf(pr.data, "paid_amount") };
+      const trRows = (tr.data ?? []) as Record<string, unknown>[];
+      // ★裁定414（S-4）: 現金支払＝mode='actual'（送り立替）だけ・諸経費＝mode='store'（送迎費）・定額（flat）はどちらにも載せない（給与控除だけ）
+      const rows = { okuri: rowsOf(trRows.filter((r) => okuriCashOf(r.mode as string | null)), "amount"), advance: rowsOf(adv.data, "amount"), daily: rowsOf(dp.data, "net"), salary: rowsOf(pr.data, "paid_amount") };
+      const storeRows = rowsOf(trRows.filter((r) => okuriExpenseOf(r.mode as string | null)), "amount");
       const sum = (rs: PayoutRow[]) => rs.reduce((a, r) => a + r.amount, 0);
       const parts: CashPayoutParts = { okuri: sum(rows.okuri), advance: sum(rows.advance), daily: sum(rows.daily), salary: sum(rows.salary) };
       setPayoutRows(rows);
       setPayoutCasts(((cs.data ?? []) as { id: string; name: string; is_active?: boolean }[]).map((c) => ({ id: c.id, name: c.name, active: c.is_active !== false })).filter((c) => c.active).map(({ id, name }) => ({ id, name })));
       setPayoutNames(Object.fromEntries(((cs.data ?? []) as { id: string; name: string }[]).map((c) => [c.id, c.name])));
-      setOkuriBaseAmt(sj.okuri_base_amount ?? null); setOkuriActualStore(actual);
+      setOkuriBaseAmt(sj.okuri_base_amount ?? null); setOkuriActualStore(actual); setOkuriMode(om); setOkuriStoreSum(storeRows.reduce((a, r) => a + r.amount, 0));
       setPayoutParts(parts);
     })();
     return () => { alive = false; };
@@ -459,6 +466,11 @@ export default function ReportBoard({
     { const o = otherPayoutFromNoteOf(recloseTarget.note); setOtherPay(o.amount); setOtherMemo(o.memo); setNote(o.rest); } // ★便 X13-G W-24: メモ先頭の「その他の現金支払」を欄へ戻す
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recloseTarget?.id, recloseTarget?.reopened_at, recloseTarget?.reclosed_at]);
+  // ★裁定414（S-4 ②）: 諸経費の既定＝送迎費（店負担）の当日分（欄が 0 のときだけ・締め済みの日報と再締めは触らない）
+  useEffect(() => {
+    if (okuriStoreSum > 0 && expense === 0 && !closedReport && !recloseTarget) setExpense(okuriStoreSum);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [okuriStoreSum]);
   // ★便 X13-G W-24 ①／④: 現金支払＝内訳の合計＋その他（手入力しない）。再締めでも内訳が優先（日報の値は「手入力との差」に 1 行で出す）
   useEffect(() => {
     if (payoutParts) setPayout(cashPayoutWithOtherOf(payoutParts, otherPay));
@@ -482,7 +494,7 @@ export default function ReportBoard({
     if (otherPayoutMemoMissing(otherPay, otherMemo)) { setMsg("「その他の現金支払」のメモを入れてください（何に払ったか）"); return; } // ★便 X13-G W-24 ①
     // 送り方式が actual なら未発行の送りを確認してから締める（stores 読取 +1・0 件なら即締め）
     const { data: st } = await supabase.from("stores").select("settings_json").eq("id", storeId).maybeSingle();
-    if (((st?.settings_json ?? {}) as Record<string, unknown>).okuri_mode === "actual") {
+    if (okuriAsks(okuriModeOf((st?.settings_json ?? {}) as Record<string, unknown>))) { // ★裁定414: 'none' 以外
       const { data: rows, error: eO } = await supabase.rpc("okuri_today_summary", { p_store_id: storeId, p_biz_date: bizDate });
       if (eO) { setMsg(`送りの確認に失敗: ${rpcErrJaCommon(eO.message)}`); return; }
       const list = (rows ?? []) as OkuriRow[];
@@ -506,7 +518,7 @@ export default function ReportBoard({
       const { error } = await supabase.rpc("transport_issue_bulk", {
         p_store_id: storeId, p_items: [{ cast_id: r.cast_id, amount: Number(okuriAmt[r.punch_id]), date: bizDate }], p_idem_key: r.punch_id,
       });
-      if (error) { setOkuriBusy(false); setOkuriMsg(`${r.cast_name} の送りの発行に失敗: ${rpcErrJaCommon(error.message)}`); return; }
+      if (error) { setOkuriBusy(false); setOkuriMsg(`${r.cast_name} の送りの記録に失敗: ${rpcErrJaCommon(error.message)}`); return; }
     }
     setOkuriBusy(false);
     setOkuriRows(null);
@@ -633,14 +645,14 @@ export default function ReportBoard({
       {okuriRows && (
         <Modal onClose={() => !okuriBusy && setOkuriRows(null)} maxWidth={520} scroll>
           <div className="nox-formmodal-head">
-            <strong>今日の送り（発行済み {okuriIssued.n} 件・合計 ¥{okuriIssued.sum.toLocaleString()}／未発行 {okuriRows.length} 件）</strong>
+            <strong>今日の送り（記録済み {okuriIssued.n} 件・合計 ¥{okuriIssued.sum.toLocaleString()}／未記録 {okuriRows.length} 件）</strong>
             <button type="button" className="nox-formmodal-x" aria-label="閉じる" onClick={() => !okuriBusy && setOkuriRows(null)}>×</button>
           </div>
           <p style={{ fontSize: 12.5, color: "var(--sub)", margin: "4px 0 10px", lineHeight: 1.7 }}>
-            発行済みの送りは {okuriIssued.n} 件・合計 ¥{okuriIssued.sum.toLocaleString()} です（退勤時に発行した分を含みます）。
+            記録済みの送りは {okuriIssued.n} 件・合計 ¥{okuriIssued.sum.toLocaleString()} です（退勤時に記録した分を含みます）。
             {okuriRows.length > 0
               ? " 下は退勤時に「送り」だった打刻のうち、まだ発行していない残りです。金額を確認して発行し、そのまま締めます（再送は二重になりません）。"
-              : " 未発行の送りはありません。確認して締めます。"}
+              : " 未記録の送りはありません。確認して締めます。"}
           </p>
           <div style={{ display: "grid", gap: 8 }}>
             {okuriRows.map((r) => (
@@ -655,7 +667,7 @@ export default function ReportBoard({
           <div className="nox-formmodal-foot">
             <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} disabled={okuriBusy} onClick={() => setOkuriRows(null)}>戻る（締めない）</button>
             <button type="button" style={{ ...t.btnGold, opacity: okuriBusy ? 0.6 : 1 }} disabled={okuriBusy} onClick={() => void issueOkuriAndClose()}>
-              {okuriBusy ? "処理中…" : okuriRows.length > 0 ? "送りを発行して締める" : "確認して締める"}
+              {okuriBusy ? "処理中…" : okuriRows.length > 0 ? "送りを記録して締める" : "確認して締める"}
             </button>
           </div>
         </Modal>
@@ -1339,6 +1351,21 @@ export default function ReportBoard({
               <input type="checkbox" checked={force} onChange={(e) => setForce(e.target.checked)} /> 未会計があっても強行
             </label>
           </div>
+          {/* ★裁定414（S-4 ②）: 諸経費の内訳＝「送迎費（店負担）」（mode='store' の当日分・W-24 と同じ型・値が無ければ行を出さない）。諸経費の欄が内訳より小さければ 1 行で知らせる（締めは止めない） */}
+          {okuriStoreSum > 0 && (
+            <div className="nox-inset nox-payoutbd" data-expense-bd="1" style={{ padding: "8px 12px", marginTop: 8, fontSize: 13 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap", color: "var(--sub)", marginBottom: 4 }}>
+                <span style={{ fontWeight: 800, color: "var(--champ)" }}>諸経費の内訳（{bizDate}）</span>
+                <span>送迎費 <b className="num" data-expense-okuri="1" style={{ color: "var(--v2-text)" }}>¥{okuriStoreSum.toLocaleString()}</b></span>
+              </div>
+              <div className="nox-payoutrow" data-payout-row="okuriStore">
+                <span className="nm">{OKURI_ROW_LABEL.expense}</span>
+                <span className="num amt">¥{okuriStoreSum.toLocaleString()}</span>
+                <span className="nox-payoutrow-sp" />
+              </div>
+              {expense < okuriStoreSum && <div data-expense-diff="1" style={{ marginTop: 4, fontSize: 12, color: "var(--gold2)", fontWeight: 700 }}>諸経費 ¥{expense.toLocaleString()} に送迎費（店負担）¥{okuriStoreSum.toLocaleString()} が含まれていません</div>}
+            </div>
+          )}
           {/* ★裁定311-④（便 Y-4）→★便 X13-G W-24: 現金支払の内訳＝送り実費／前借り／日払い／給与支払（現金）＋その他の現金支払（唯一の手入力）。
                各行＝名称｜金額（押すとその日の明細）｜＋ 発行（日払い・前借り＝キャスト詳細と同じ部品／送り実費＝今日タブと同じダイアログ）。締め確定後は発行・入力なし（解除のある店は解除後に可） */}
           {payoutParts && (() => {
@@ -1358,7 +1385,7 @@ export default function ReportBoard({
                     <div key={r.key} className="nox-payoutrow" data-payout-row={r.key}>
                       <span className="nm">{r.label}</span>
                       <button type="button" className="nox-link num amt" data-payout-amt={r.key} onClick={() => setPayoutDetail(r.key)} style={{ color: r.amount ? undefined : "var(--sub)" }}>¥{r.amount.toLocaleString()}</button>
-                      {!locked && ik ? <button type="button" className="nox-rowbtn" data-payout-issue={r.key} onClick={() => setIssueKind(ik)}>＋ 発行</button> : <span className="nox-payoutrow-sp" />}
+                      {!locked && ik ? <button type="button" className="nox-rowbtn" data-payout-issue={r.key} onClick={() => setIssueKind(ik)}>{r.key === "okuri" ? "＋ 記録" /* ★裁定414: 送りは「記録」 */ : "＋ 発行"}</button> : <span className="nox-payoutrow-sp" />}
                     </div>
                   );
                 })}
@@ -1387,7 +1414,7 @@ export default function ReportBoard({
 
       {/* ★便 X13-G W-24 ②: 内訳の ＋発行（発行の後に内訳を読み直す＝合計と予定額が同時に変わる） */}
       {issueKind && storeId && (
-        <CashPayoutIssue kind={issueKind} storeId={storeId} bizDate={bizDate} casts={payoutCasts} okuriBase={okuriBaseAmt}
+        <CashPayoutIssue kind={issueKind} storeId={storeId} bizDate={bizDate} casts={payoutCasts} okuriBase={okuriBaseAmt} okuriMode={okuriMode} /* ★裁定414 */
           onIssued={(text) => { setPayoutTick((v) => v + 1); if (text) setMsg(text); }} onClose={() => { setIssueKind(null); setPayoutTick((v) => v + 1); }} />
       )}
       {/* ★便 X13-G W-24 ②: 金額を押す＝その日の明細（誰に幾ら） */}

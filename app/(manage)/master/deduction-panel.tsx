@@ -7,7 +7,9 @@ import IssueBulkForm from "@/components/nox/issue-bulk-form"; // ★裁定302-1�
 
 import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 type Cast = { id: string; name: string };
-type OkuriMode = "flat" | "actual";
+import { OKURI_MODES, OKURI_MODE_LABEL, OKURI_MODE_NOTE, OKURI_MODE_PENDING_NOTE, okuriAsks, okuriModeSelectableOf, type OkuriMode } from "@/lib/nox/shift/okuri-mode"; // ★裁定414（S-4）: 4 方式
+// ★裁定414: 'store'／'none' は 0177 の適用（P）後に有効化＝それまでは「適用後に選べます」で無効（P 後の便で true に）
+const OKURI_4WAY_APPLIED = false;
 
 // F2e-2 天引き運用パネル: 送り方式(okuri_mode)トグル(owner のみ)＋前借り/送り実費 発行フォーム(manager+)。
 // 排他は okuri_mode で構造的に担保（flat 店では送り実費発行を RPC が弾く＝ここでも actual のときだけ有効化）。
@@ -63,7 +65,7 @@ export default function DeductionPanel({
       const j = await res.json();
       if (!res.ok) { setModeMsg(`エラー(${res.status}): ${j.error ?? ""}`); return; }
       setOkuriMode(next);
-      setModeMsg(`送り方式を「${next === "actual" ? "実費" : "一律送り代"}」に変更しました`);
+      setModeMsg(`送り方式を「${OKURI_MODE_LABEL[next]}」に変更しました`); // ★裁定414
     } catch (e) {
       setModeMsg(`通信エラー: ${(e as Error).message}`);
     } finally {
@@ -73,27 +75,29 @@ export default function DeductionPanel({
 
   return (
     <div style={{ marginTop: 24 }}>
-      <h2 style={{ ...t.pheadH1, fontSize: 16, margin: "0 0 12px" }}>天引き（前借り・送り実費）</h2>{/* ★301-4: 上 24（外側 div）・下 12 */}
+      <h2 style={{ ...t.pheadH1, fontSize: 16, margin: "0 0 12px" }}>天引き（前借り・送り）</h2>{/* ★301-4: 上 24（外側 div）・下 12 */}
 
       {/* 送り方式トグル（owner のみ操作可・manager は現在値のみ） */}
       <section className="nox-cardtop" style={card}>
         <h3 style={h3}>送り方式</h3>
         <p style={{ fontSize: 13, margin: "4px 0" }}>
-          現在: <strong style={{ color: "var(--champ)" }}>{okuriMode === "actual" ? "実費（送り実費を給与天引き）" : "一律送り代（控除マスタで管理）"}</strong>
+          現在: <strong style={{ color: "var(--champ)" }} data-okuri-mode-now={okuriMode}>{OKURI_MODE_LABEL[okuriMode]}</strong>　<span style={{ fontSize: 12, color: "var(--sub)" }}>{OKURI_MODE_NOTE[okuriMode]}</span>{/* ★裁定414: 4 方式 */}
         </p>
         {isOwner ? (
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <button onClick={() => switchMode("flat")} disabled={modeBusy || okuriMode === "flat"} style={okuriMode === "flat" ? btnOn : btn}>一律送り代</button>
-            <button onClick={() => switchMode("actual")} disabled={modeBusy || okuriMode === "actual"} style={okuriMode === "actual" ? btnOn : btn}>実費</button>
-            <span style={{ fontSize: 12, color: "var(--sub)" }}>※「実費」にすると送り実費の発行が有効になります（一律送り代との二重取り防止）。</span>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }} data-okuri-4way="1">{/* ★裁定414（S-4 ⑤）: 4 択＝実費／定額／店負担／なし（'store'／'none' は P 前は無効＝「適用後に選べます」） */}
+            {OKURI_MODES.map((m) => { const selectable = okuriModeSelectableOf(m, OKURI_4WAY_APPLIED); return (
+              <button key={m} onClick={() => switchMode(m)} disabled={modeBusy || okuriMode === m || !selectable} style={okuriMode === m ? btnOn : { ...btn, opacity: selectable ? 1 : 0.5 }}
+                title={selectable ? OKURI_MODE_NOTE[m] : OKURI_MODE_PENDING_NOTE} data-okuri-mode-btn={m} data-okuri-pending={selectable ? undefined : "1"}>{OKURI_MODE_LABEL[m]}{selectable ? "" : "（適用後）"}</button>
+            ); })}
+            <span style={{ fontSize: 12, color: "var(--sub)" }}>※定額の月額固定控除（控除マスタ）は別物のまま。送りの記録は方式を刻み、実費＝現金支払＋控除／定額＝控除のみ／店負担＝諸経費。</span>
           </div>
         ) : (
           <p style={{ fontSize: 12, color: "var(--sub)", margin: 0 }}>※送り方式の変更は owner のみ可能です。</p>
         )}
         {modeMsg && <Toast msg={modeMsg} style={{ margin: "6px 0 0" }} />}
 
-        {/* 送りベース額（actual 時のみ表示・owner のみ操作可＝発行金額のプリフィル専用） */}
-        {okuriMode === "actual" && (
+        {/* 送りベース額（'none' 以外で表示・owner のみ操作可＝記録金額のプリフィル専用）★裁定414 */}
+        {okuriAsks(okuriMode) && (
           <div style={{ marginTop: 12, paddingTop: 10, borderTop: "1px solid var(--line2)" }}>
             <p style={{ fontSize: 13, margin: "0 0 6px" }}>
               送りベース額: <strong style={{ color: "var(--champ)" }}>{okuriBase > 0 ? `${okuriBase.toLocaleString()} 円` : "未設定"}</strong>

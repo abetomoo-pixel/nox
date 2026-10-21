@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { okuriModeOf } from "@/lib/nox/shift/okuri-mode"; // ★裁定414（S-4）
 import { createClient } from "@/lib/supabase/server";
 import { getSessionRole } from "@/lib/nox/auth";
 import DeductionBoard from "./deduction-board";
@@ -16,7 +17,7 @@ export default async function CastCompDeductionPage() {
   const storeId = (store?.id as string | undefined) ?? "";
   if (!storeId) redirect("/master");
   const sj = store?.settings_json as Record<string, unknown> | null;
-  const okuriMode: "flat" | "actual" = sj?.okuri_mode === "actual" ? "actual" : "flat";
+  const okuriMode = okuriModeOf(sj as Record<string, unknown> | null); // ★裁定414（S-4）: 4 方式
   const okuriBase = typeof sj?.okuri_base_amount === "number" && sj.okuri_base_amount > 0 ? (sj.okuri_base_amount as number) : 0;
   const { data: casts } = await supabase.from("casts").select("id, name")
     .eq("store_id", storeId).eq("is_active", true).order("name");

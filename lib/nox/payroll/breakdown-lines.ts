@@ -41,6 +41,8 @@ export type BreakdownInput = {
   adjustments?: { before: FrozenAdjustment[]; after: FrozenAdjustment[] };
   /** payslip 用: 渡されたら breakdown の ar／adv／okuri（deducted 合計）を優先（旧 slip と同じ出所・pa(7-6) の fixture は pay.arDeduct 0 で ar 400）。無ければ pay の arDeduct 等（給与右パネル） */
   deducted?: { ar?: number; adv?: number; okuri?: number };
+  /** ★裁定414（S-4 ④）: 送りの控除を方式で分けた額（分かるときだけ）。渡されたら「送り立替」「送り（定額）」の 2 行・無ければ従来の「送り」1 行 */
+  okuriModes?: { actual: number; flat: number };
   employment?: "委託" | "雇用" | null;
   /** ★便 GV-C C-10（GV-53）: 店の利用機能（settings_json の sys_*）。渡すと OFF の制度の行は金額 0 なら省き・0 でなければ「（OFF の制度）」を付けて残す。未指定＝従来どおり */
   systems?: Record<string, unknown> | null;
@@ -160,7 +162,8 @@ export function breakdownLinesOf(input: BreakdownInput): Breakdown {
   dpush("normPenalty", "ノルマ未達", z(p.normPenalty));
   dpush("ar", "売掛", input.deducted?.ar != null ? z(input.deducted.ar) : z(p.arDeduct));
   dpush("adv", "前借り", input.deducted?.adv != null ? z(input.deducted.adv) : z(p.advanceDeduct));
-  dpush("okuri", "送り", input.deducted?.okuri != null ? z(input.deducted.okuri) : z(p.okuriDeduct));
+  if (input.okuriModes) { dpush("okuriActual", "送り立替", z(input.okuriModes.actual)); dpush("okuriFlat", "送り（定額）", z(input.okuriModes.flat)); } // ★裁定414（S-4 ④）
+  else dpush("okuri", "送り", input.deducted?.okuri != null ? z(input.deducted.okuri) : z(p.okuriDeduct));
   dpush("dailyPaid", "日払い済み", z(p.dailyPaidGross)); // ★0156（裁定309-6）: 支給後控除（無ければ 0＝行は出ない）
 
   const earnTotal = earn.filter((l) => !l.sub && !l.info).reduce((s, l) => s + l.amount, 0);

@@ -39,7 +39,7 @@ async function main() {
   const n5 = issueBodyOf({ kind: "advance", storeId: "", castId: "c", amount: 1, date: "2026-09-25", note: "" });
   check("ao(1-2) issueBodyOf の拒否: キャストなし／0／小数／日付形／店なし", !n1.ok && !n2.ok && !n3.ok && !n4.ok && !n5.ok);
   check("ao(1-3) issueDateDefaultOf: 期の中は今日・前は期初・後は期末・期なしは今日", issueDateDefaultOf("2026-09-25", "2026-09-01", "2026-09-30") === "2026-09-25" && issueDateDefaultOf("2026-10-02", "2026-09-01", "2026-09-30") === "2026-09-30" && issueDateDefaultOf("2026-08-30", "2026-09-01", "2026-09-30") === "2026-09-01" && issueDateDefaultOf("2026-09-25") === "2026-09-25");
-  check("ao(1-4) okuriEnabledOf: actual／未指定＝true・flat＝false", okuriEnabledOf("actual") && okuriEnabledOf(undefined) && okuriEnabledOf(null) && !okuriEnabledOf("flat"));
+  check("ao(1-4) okuriEnabledOf: actual／flat／store／未指定＝true・none＝false（★裁定414: 4 方式・none 以外で記録できる）", okuriEnabledOf("actual") && okuriEnabledOf("flat") && okuriEnabledOf("store") && okuriEnabledOf(undefined) && okuriEnabledOf(null) && !okuriEnabledOf("none"));
   check("ao(1-5) issueErrJa: paid period／okuri not actual／forbidden／bad cast／不明は「処理できませんでした（コード: …）」", issueErrJa(409, "paid period").includes("支払済み") && issueErrJa(409, "okuri not actual").includes("実費") && issueErrJa(403, "forbidden").includes("権限") && issueErrJa(400, "bad cast").includes("キャスト") && issueErrJa(500, "xyz").includes("コード: xyz"));
 
   // (2) 配線
@@ -73,7 +73,7 @@ async function main() {
   check("ao(4-3) bulkBodyOf: チェック行だけ items（castId／amount）・endpoint は kind・メモ空→null・idemKey 同梱／重複 cast＝「同じキャストが重複しています」／0 人・金額 0・キー不正は拒否",
     okB.ok && okB.endpoint === BULK_ENDPOINT.advance && okB.body.items.length === 2 && okB.body.items.every((it) => it.amount === 1500) && okB.body.note === null && okB.body.idemKey === K
     && !dupB.ok && dupB.err === "同じキャストが重複しています" && !noneB.ok && !badAmt.ok && badAmt.err.includes("正の整数") && !badKey.ok);
-  check("ao(4-4) bulkErrJa／bulkSuccessTextOf: 'duplicate cast'→和文・'bad items'／'bad idem'・単発の写像（paid period）を継承・成功文言に人数と合計", bulkErrJa(409, "duplicate cast") === "同じキャストが重複しています" && bulkErrJa(400, "bad items").includes("チェック") && bulkErrJa(400, "bad idem").includes("再送キー") && bulkErrJa(409, "paid period").includes("支払済み") && bulkSuccessTextOf("transport", 3, 4500, "2026-09-25") === "送り実費を 3 人・合計 ¥4,500 発行しました（2026-09-25）");
+  check("ao(4-4) bulkErrJa／bulkSuccessTextOf: 'duplicate cast'→和文・'bad items'／'bad idem'・単発の写像（paid period）を継承・成功文言に人数と合計", bulkErrJa(409, "duplicate cast") === "同じキャストが重複しています" && bulkErrJa(400, "bad items").includes("チェック") && bulkErrJa(400, "bad idem").includes("再送キー") && bulkErrJa(409, "paid period").includes("支払済み") && bulkSuccessTextOf("transport", 3, 4500, "2026-09-25") === "送りを 3 人・合計 ¥4,500 記録しました（2026-09-25）" /* ★裁定414: 送りは「記録」 */ && bulkSuccessTextOf("advance", 1, 500, "2026-09-25") === "前借りを 1 人・合計 ¥500 発行しました（2026-09-25）");
   check("ao(4-5) issuedRowsOf: advances→kind advance・transport→kind transport（id／cast／額／メモ／status を写す）", JSON.stringify(issuedRowsOf([{ id: "1", cast_id: "a", amount: 100, note: null, status: "open" }], [{ id: "2", cast_id: "b", amount: 200, note: "x", status: "cancelled" }]).map((r) => `${r.kind}:${r.id}:${r.castId}:${r.amount}:${r.status}`)) === JSON.stringify(["advance:1:a:100:open", "transport:2:b:200:cancelled"]));
   const bulk = fs.readFileSync("components/nox/issue-bulk-form.tsx", "utf8");
   const advB = fs.readFileSync("app/api/advance/issue-bulk/route.ts", "utf8"), trB = fs.readFileSync("app/api/transport/issue-bulk/route.ts", "utf8");

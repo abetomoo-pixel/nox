@@ -62,11 +62,11 @@ export function todayStateOf(input: { shift: { start_hm: string; end_hm: string;
 }
 /** ★裁定357（GV-5・便 N1014 A-6）: 今日タブの「送り」＝送り実費の店で、出勤区分の行かつ in 打刻あり・**退勤後も営業日の終了まで有効**。disabled は「方式が実費でない」「当日発行済み」のみ（out 済みでは止めない） */
 export function okuriButtonOf(input: { canRecord: boolean; okuriActual: boolean; attStatus: string | null | undefined; hasIn: boolean; issuedToday: boolean }): { show: boolean; enabled: boolean; title: string } {
-  if (!input.canRecord || !input.okuriActual) return { show: false, enabled: false, title: "送りの方式が実費の店だけ発行できます" };
+  if (!input.canRecord || !input.okuriActual) return { show: false, enabled: false, title: "送りの方式が「なし」の店では記録できません" }; // ★裁定414: okuriActual＝「導線を出す店」（'none' 以外）
   if (!isArrivedStatus(input.attStatus)) return { show: true, enabled: false, title: "出勤（出勤・遅刻・同伴）を記録すると押せます" };
-  if (input.issuedToday) return { show: true, enabled: false, title: "本日の送りは発行済みです（訂正は時刻修正と同じ扱い＝理由必須）" };
+  if (input.issuedToday) return { show: true, enabled: false, title: "本日の送りは記録済みです（訂正は時刻修正と同じ扱い＝理由必須）" };
   if (!input.hasIn) return { show: true, enabled: false, title: "出勤（in）の打刻がありません" };
-  return { show: true, enabled: true, title: "送り実費を発行します（退勤後でも営業日内は発行できます）" };
+  return { show: true, enabled: true, title: "送りを記録します（退勤後でも営業日内は記録できます）" };
 }
 /** ★裁定357: 「退勤」を押したときにダイアログ（送りを発行して退勤／退勤のみ）を出すか＝実費の店で当日未発行のときだけ。実費以外の店はダイアログなし */
 export const outDialogNeeded = (input: { okuriActual: boolean; issuedToday: boolean }): boolean => input.okuriActual && !input.issuedToday;
