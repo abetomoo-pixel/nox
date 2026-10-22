@@ -5,6 +5,7 @@
 // 対象 cast（裁定C）= get_cast_sales の cast ∪ 窓内 punches の cast（is_active 不問・稼働ゼロは除外）。
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { wageCutRuleOf } from "@/lib/nox/store-systems"; // ★便 SH-UI-a A-1
 import { okuriDeductOf } from "@/lib/nox/shift/okuri-mode"; // ★裁定414（S-4 ③）: 店負担は控除しない
 import { periodCalendarDays, type PayrollWindow } from "./window";
 import { sumCastSales } from "./cast-sales"; // ★裁定346: cast 別合算の純関数（ランキング・/mine ノルマ進捗と共用）
@@ -202,7 +203,7 @@ async function loadMasters(admin: SupabaseClient, storeId: string, period: strin
         days: { flat: Number(pen?.norm_days_flat ?? 0), per: Number(pen?.norm_days_per ?? 0) }, dohan: { flat: Number(pen?.norm_dohan_flat ?? 0), per: Number(pen?.norm_dohan_per ?? 0) },
         shimei: { flat: Number(pen?.norm_shimei_flat ?? 0), per: Number(pen?.norm_shimei_per ?? 0) }, sales: { flat: Number(pen?.norm_sales_flat ?? 0), per: Number(pen?.norm_sales_per ?? 0), unit: Number(pen?.norm_sales_unit ?? 10000) } },
       axes: normAxesOf(stR.data?.settings_json ?? null), shimeiScope: shimeiScopeOf(stR.data?.settings_json ?? null),
-      hasWorkRule: ((stR.data?.settings_json ?? {}) as Record<string, unknown>).sanction_work_rule === true,
+      hasWorkRule: wageCutRuleOf((stR.data?.settings_json ?? null) as Record<string, unknown> | null), // ★便 SH-UI-a A-1: 店設定 sys_wage_cut_rule（旧 sanction_work_rule＝保存先が無かった）
     },
     normConfig: {
       on: (pen?.norm_on as boolean) ?? false,

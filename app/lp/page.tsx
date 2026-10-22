@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import BrandLogo from "@/components/ui/brand-logo"; // ★便 SH-UI-a A-2: ロゴ（Concept 2 改）
 import Link from "next/link";
 import fs from "node:fs";
 import path from "node:path";
@@ -34,7 +35,7 @@ export default function LpPage() {
       <div style={{ ...t.wrap, maxWidth: 960, margin: "0 auto", padding: "28px 16px 40px" }}>
         {/* ヒーロー */}
         <header style={{ marginBottom: 26 }}>
-          <span style={t.brand}>NOX</span>
+          <BrandLogo height={40} />{/* ★便 SH-UI-a A-2: ロゴ */}
           <h1 style={{ ...t.pheadH1, marginTop: 10, fontSize: 26, lineHeight: 1.35 }}>会計・シフト・報酬を 1 つに。<br />夜の店の運営を、数字で。</h1>
           <p style={{ ...t.pheadP, maxWidth: 640 }}>
             レジ・日報・シフト・給与（報酬）・顧客・分析を 1 つの画面で。店ごとの報酬制度（時給・バック・ポイント・スライド・ノルマ）を設定のとおりに計算します。

@@ -3,6 +3,7 @@
 // ★便 GV-C C-13（GV-59）: 正式領収書の印字実体（画面非表示・印刷時のみ＝.nox-print-only）。レジの会計完了モーダルと
 //   /receipts の台帳（行ごとの印刷）で共用。1 枚＝1 ページ・R-番号・発行日＋取引日・登録番号・公開 URL の QR。
 import { renderSVG } from "uqr";
+import BrandLogo from "@/components/ui/brand-logo"; // ★便 SH-UI-a A-2: ロゴ（Concept 2 改）
 
 export type ReceiptPrintItem = {
   id: string; serial: number; amount: number; name: string; note: string;
@@ -25,6 +26,7 @@ export default function ReceiptPrintSheet({ items, storeName, invoiceRegNo }: { 
           padding: "24mm 18mm", fontSize: 14, lineHeight: 1.9,
           pageBreakAfter: i < items.length - 1 ? "always" : "auto",
         }}>
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: 10 }}><BrandLogo height={34} variant="light" /></div>{/* ★便 SH-UI-a A-2: 領収書（白地＝light） */}
           <div style={{ textAlign: "center", fontSize: 22, fontWeight: 800, letterSpacing: 6, marginBottom: 6 }}>領　収　書</div>
           <div style={{ textAlign: "right", fontSize: 12 }}>No. R-{String(r.serial).padStart(6, "0")}</div>
           <div style={{ fontSize: 16, borderBottom: "1px solid #000", paddingBottom: 4, margin: "10px 0 14px" }}>

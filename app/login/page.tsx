@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import BrandLogo from "@/components/ui/brand-logo"; // ★便 SH-UI-a A-2: ロゴ（Concept 2 改）
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
@@ -34,10 +35,7 @@ export default function LoginPage() {
   return (
     <main className="nox-dark" style={t.loginBg}>
       <div className="nox-lcardtop" style={t.lcard}>
-        <div style={t.logo}>
-          <span style={{ fontFamily: t.font.brand, fontWeight: 700, fontSize: 24, color: "var(--champ)", lineHeight: 1 }}>N</span>
-        </div>
-        <h1 style={{ ...t.brand, fontSize: 30, textAlign: "center", margin: 0 }}>NOX</h1>
+        <h1 style={{ margin: "0 0 4px", display: "flex", justifyContent: "center" }} aria-label="NOX"><BrandLogo height={56} /></h1>{/* ★便 SH-UI-a A-2: 「N」の箱＋文字→横組みロゴ */}
         <p style={{ textAlign: "center", color: "var(--sub)", fontSize: 12, margin: "6px 0 2px" }}>ナイトワーク経営 管理</p>
 
         <form onSubmit={onSubmit}>

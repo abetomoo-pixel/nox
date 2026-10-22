@@ -49,11 +49,12 @@ export const metadata: Metadata = {
   manifest: "/manifest.json",
   applicationName: "NOX",
   icons: {
-    icon: [
+    icon: [ // ★便 SH-UI-a A-2（Concept 2 改・2026-10-22）: public/brand の新ロゴ一式（16〜32＝枠なし N・48 以上＝枠付きマーク）
       { url: "/favicon.ico" },
-      { url: "/favicon-32.png", sizes: "32x32", type: "image/png" },
-      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
-      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/brand/favicon_32.png", sizes: "32x32", type: "image/png" },
+      { url: "/brand/favicon_192.png", sizes: "192x192", type: "image/png" },
+      { url: "/brand/favicon_512.png", sizes: "512x512", type: "image/png" },
     ],
     apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
   },

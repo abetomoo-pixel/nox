@@ -1,4 +1,5 @@
 import * as t from "@/lib/nox/ui/theme";
+import BrandLogo from "@/components/ui/brand-logo"; // ★便 SH-UI-a A-2: ロゴ（Concept 2 改）
 import { readFrozenAdjustments } from "@/lib/nox/payroll/adjust"; // 裁定264-2: 調整控除の並び（before＝源泉の直前・after＝直後・同群は入力順）
 import { breakdownLinesOf, type BreakdownPayLike } from "@/lib/nox/payroll/breakdown-lines"; // ★裁定303: 支給／控除の行は給与右パネルと同じ単一関数
 
@@ -57,7 +58,7 @@ export default function PayslipSlip({ slip, castName, compact = false, systems =
     return (
       <div className="nox-payslip nox-payslip-compact" style={{ marginBottom: 24 }}>
         <div className="ps-hd" style={t.slipHd}>{/* ★裁定366（GV-14・便 GV-A）: 名前 22px 左・月と契約区分チップ 右 */}
-        <span className="ps-name" style={t.slipName}>{castName ?? slip.period}</span>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 10, minWidth: 0 }}><BrandLogo height={22} print /><span className="ps-name" style={t.slipName}>{castName ?? slip.period}</span></span>{/* ★便 SH-UI-a A-2: 明細 PDF にロゴ（画面 dark・印刷 light） */}
         <span className="ps-meta" style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 12.5, color: "var(--sub)" }}>
           {castName ? <span className="num">{slip.period}</span> : null}
           {taxMode && (<span className="ps-tax" style={{ fontSize: 10.5, fontWeight: 800, borderRadius: 999, padding: "2px 9px", border: "1px solid var(--line2)", color: "var(--champ)" }}>{taxMode}</span>)}
@@ -75,7 +76,7 @@ export default function PayslipSlip({ slip, castName, compact = false, systems =
   return (
     <div className="nox-payslip" style={{ marginBottom: 24 }}>{/* ★裁定366: 1 人 1 カード（外周 1px 枠＝globals.css .nox-payslip・カード間 24px・印刷は 1 人 1 ページ＝.nox-print-page） */}
       <div className="ps-hd" style={t.slipHd}>{/* ★裁定366（GV-14・便 GV-A）: 名前 22px 左・月と契約区分チップ 右 */}
-        <span className="ps-name" style={t.slipName}>{castName ?? slip.period}</span>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 10, minWidth: 0 }}><BrandLogo height={22} print /><span className="ps-name" style={t.slipName}>{castName ?? slip.period}</span></span>{/* ★便 SH-UI-a A-2: 明細 PDF にロゴ（画面 dark・印刷 light） */}
         <span className="ps-meta" style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 12.5, color: "var(--sub)" }}>
           {castName ? <span className="num">{slip.period}</span> : null}
           {taxMode && (<span className="ps-tax" style={{ fontSize: 10.5, fontWeight: 800, borderRadius: 999, padding: "2px 9px", border: "1px solid var(--line2)", color: "var(--champ)" }}>{taxMode}</span>)}

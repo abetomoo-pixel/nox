@@ -24,7 +24,7 @@ export const PROFILES = {
     slideApply: "next", /* ★便 P173（裁定395 追補1）: ACE のプランは前期の実績で当期の時給（ひなの 10 月＝¥3,500）。他 5 店は null＝店設定（current） */
     showcase: "月次売上スライド（前期の実績で判定・ひなの 10 月＝時給 ¥3,500）・指名・商品バック・売上・指名ノルマ・送り実費",
     shift: { base: 4, fri_sat: 5, fill: "short", pattern: [3, 4, 4, 2, 5, 3, 4] } },
-  lily: { template: "girlsbar", attributeServing: true, scale: "中（キャスト 6・月 594 伝票・客単価 1.0 万）", sys: { hourly: true, backs: true, norms: true, bonus: true, points: false, sales_slide: false }, // ★裁定348: 雇用・確定シフト基準＋達成ボーナス＋日払い＋日数ノルマ＋送り店負担
+  lily: { template: "girlsbar", attributeServing: true, scale: "中（キャスト 6・月 594 伝票・客単価 1.0 万）", sys: { hourly: true, backs: true, norms: true, bonus: true, points: false, sales_slide: false, wage_cut_rule: true /* ★便 SH-UI-a A-1: 雇用の店＝就業規則に減給の定めあり（I-5 ④の提案が出る） */ }, // ★裁定348: 雇用・確定シフト基準＋達成ボーナス＋日払い＋日数ノルマ＋送り店負担
     back: "rate", rate: { cast: 25, champ: 20, bottle: 15, glass: 15, soft: 10, food: 0 }, price: "低（チャージ 3,300〜3,850・指名なし・シャンパン 8,800〜22,000）",
     basis: "shift", okuri: 0, okuriMode: null, receivable: "disabled", reopen: false, confirm: false, normAxes: ["days", "sales"], /* ★348 追補2（B-2）: 達成ボーナスの目標＝売上（cast_norms.sales_target）のため sales も採用 */ employment: "雇用", dailyPay: true, wishMode: "shift",
     showcase: "雇用（源泉 0・確定シフト基準）・達成ボーナス 10,000・日払い 2 件（先月）＝明細で天引き・日数ノルマ・送り店負担（控除なし）",
@@ -71,7 +71,7 @@ export const EXTRA_PLANS = {
 /** sys_* 9 キー（stores.settings_json）＝PROFILES.sys から。penalties は全店 false（裁定348: sales_rate は MUSE・point_slide は NOIR／MUSE） */
 export function sysSettingsOf(code) {
   const s = PROFILES[code].sys;
-  return { sys_hourly: !!s.hourly, sys_backs: !!s.backs, sys_sales_rate: !!s.sales_rate, sys_points: !!s.points, sys_sales_slide: !!s.sales_slide, sys_point_slide: !!s.point_slide, sys_norms: !!s.norms, sys_penalties: s.penalties !== false /* ★便 X13-G W-18 ⑦: 6 店とも送り・前借りを使う＝精算調整・控除は ON（旧 false 固定＝控除・送りタブが空） */, sys_bonus: !!s.bonus }; // ★裁定348: sales_rate もプロファイル（MUSE）
+  return { sys_wage_cut_rule: !!s.wage_cut_rule, /* ★便 SH-UI-a A-1: 就業規則に減給の定めがある（LILY だけ ON・保存先の白名単は 0175） */ sys_hourly: !!s.hourly, sys_backs: !!s.backs, sys_sales_rate: !!s.sales_rate, sys_points: !!s.points, sys_sales_slide: !!s.sales_slide, sys_point_slide: !!s.point_slide, sys_norms: !!s.norms, sys_penalties: s.penalties !== false /* ★便 X13-G W-18 ⑦: 6 店とも送り・前借りを使う＝精算調整・控除は ON（旧 false 固定＝控除・送りタブが空） */, sys_bonus: !!s.bonus }; // ★裁定348: sales_rate もプロファイル（MUSE）
 }
 /** 商品の分類（gen-demo の行＝type／category）→ バック表の鍵 */
 export function backKeyOf(row) {

@@ -8,6 +8,7 @@
 //   ★最長一致で active を1つに絞る規則は components/ui/nav.tsx の TabBar と同一
 //     （/master と /master/products の二重点灯を防ぐ）。TabBar 側は1文字も触っていない。
 import Link from "next/link";
+import BrandLogo from "@/components/ui/brand-logo"; // ★便 SH-UI-a A-2: ロゴ（Concept 2 改）
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { OPEN_MENU_EVENT } from "@/lib/nox/ui/nav-tabs"; // ★裁定361（GV-9・便 GV-A）: ≡ ドロワー＝TabBar のシートを drawer 節で開く
@@ -53,12 +54,9 @@ export default function SideNav({ groups, storeLabel }: {
     )}
     <aside className={`nox-side${mode === "rail" ? " is-rail" : mode === "hidden" ? " is-hidden" : ""}`} data-side-mode={mode}>
       {/* E2: モック .brand（brandmark＋NOX＋店名）。リンクではない＝遷移を増やさない。 */}
-      <div className="brand">
-        <div className="brandmark" aria-hidden="true">N</div>
-        <div>
-          <b>NOX</b>
-          {storeLabel && <small>{storeLabel}</small>}
-        </div>
+      <div className="brand">{/* ★便 SH-UI-a A-2: 「N／NOX」の文字ロゴ→横組みロゴ（暗地）。店名は従来のまま小字 */}
+        <BrandLogo height={34} />
+        {storeLabel && <div><small>{storeLabel}</small></div>}
       </div>
       {groups.map((g, gi) => (
         // 群ごとに包む＝見出しの無い群（項目1つの「顧客」「分析」）でも切れ目が線で分かる

@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import BrandLogo from "@/components/ui/brand-logo"; // ★便 SH-UI-a A-2: ロゴ（Concept 2 改）
 import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { getSessionRole } from "@/lib/nox/auth";
@@ -147,7 +148,7 @@ export default async function ManageLayout({ children }: { children: React.React
                   topbar には出さない＝同じ情報を2箇所に出さない。
                 右は従来どおりロール表示＋ログアウト＝モックの管理者チップ位置と一致。 */}
             {/* ★裁定275 追補2-2（N4）: ヘッダー左＝ロゴ（ホームへ）＋店舗名。900+ はサイドバーに同じ brand があるため CSS で隠す（同じ情報を 2 箇所に出さない＝仮決め） */}
-            <Link href="/dashboard" className="crumb nox-tb-brand" aria-label="ホームへ"><span className="brandmark" aria-hidden="true">N</span><b>NOX</b><small>{storeLabel}</small></Link>
+            <Link href="/dashboard" className="crumb nox-tb-brand" aria-label="ホームへ"><BrandLogo height={22} /><small>{storeLabel}</small></Link>{/* ★便 SH-UI-a A-2: ロゴ */}
             <div className="acts">
               {/* ★裁定275 追補2-2（N4）: 右＝歯車（マスタ・監査・ご契約＝gear 群・cast／staff は項目 0＝描かない）＋「登録名｜役割」（自分の情報＋ログアウト）。POST /auth/signout は不変 */}
               <HeaderGear groups={splitNav(groups, ["/dashboard", "/register", "/report", "/shift"]).gearGroups} />

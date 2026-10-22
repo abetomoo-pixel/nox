@@ -43,7 +43,7 @@ export function normProposalOf(input: {
   /** 雇用: 平均賃金（直近 3 確定期・null＝算定不能） */ avgDailyWage?: number | null;
   /** 雇用: 当期の賃金総額（支給合計） */ gross?: number;
   /** 雇用: 当期に既に記録した懲戒減給の合計 */ sanctionSoFar?: number;
-  /** 雇用: 就業規則に減給の定めがある（店設定・保存先は 0176） */ hasWorkRule?: boolean;
+  /** 雇用: 就業規則に減給の定めがある（店設定 sys_wage_cut_rule＝便 SH-UI-a A-1・白名単は 0175） */ hasWorkRule?: boolean;
 }): NormProposal | null {
   if (!input.cfg.on || !input.employment) return null;
   const items = (["days", "dohan", "shimei", "sales"] as NormAxis4[])

@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import BrandLogo from "@/components/ui/brand-logo"; // ★便 SH-UI-a A-2: ロゴ（Concept 2 改）
 import { getSessionRole } from "@/lib/nox/auth";
 import { TabBar, type NavGroup } from "@/components/ui/nav";
 import * as t from "@/lib/nox/ui/theme";
@@ -54,7 +55,7 @@ export default async function MineLayout({ children }: { children: React.ReactNo
     <div className="nox-dark" style={t.appBg}>
       <div style={t.wrap}>
         <header className="nox-topbar">
-          <span style={t.brand}>NOX</span>
+          <BrandLogo height={26} />{/* ★便 SH-UI-a A-2: ロゴ */}
           <span style={{ marginLeft: "auto" }}>
             <UserChip name={(meRow?.name as string | null) ?? null} email={null} roleJa={t.roleLabelJa(role as string)} storeLabel={(storeRow?.name as string | undefined) ?? undefined} isDemo={isDemo} />
           </span>

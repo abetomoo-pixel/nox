@@ -90,6 +90,37 @@ check("s4(8) 設定画面＝4 択（実費／定額／店負担／なし）・'s
   JSON.stringify(Object.values(OKURI_MODE_LABEL)) === JSON.stringify(["実費", "定額", "店負担", "なし"]) && okuriModeSelectableOf("store", false) === false && okuriModeSelectableOf("none", false) === false && okuriModeSelectableOf("flat", false) && okuriModeSelectableOf("store", true)
   && src("app/(manage)/master/deduction-panel.tsx").includes("const OKURI_4WAY_APPLIED = false;") && src("app/api/store/okuri-mode/route.ts").includes('mode !== "store" && mode !== "none"'));
 console.log("s4(DB) transport.mode／set_store_okuri_mode の 4 値／RPC の 'okuri none'＝0177 適用後に有効（今は skip）");
+// ── 便 SH-UI-a（2026-10-22）A-1 就業規則キー・A-2 ロゴ ──
+{
+  const { WAGE_CUT_RULE_KEY, wageCutRuleOf, SYSTEM_KEYS } = require("../lib/nox/store-systems") as typeof import("../lib/nox/store-systems");
+  const { normProposalOf } = require("../lib/nox/payroll/norm-proposal") as typeof import("../lib/nox/payroll/norm-proposal");
+  const { sysSettingsOf } = require("../scripts/demo/profiles.mjs") as { sysSettingsOf: (c: string) => Record<string, boolean> };
+  const cfg = { on: true, days: { flat: 0, per: 0 }, dohan: { flat: 0, per: 0 }, shimei: { flat: 0, per: 1000 }, sales: { flat: 0, per: 0, unit: 100000 } };
+  const base = { cfg, axes: { days: false, dohan: false, shimei: true, sales: false }, targets: { shimei: 34 }, actual: { days: 0, dohan: 0, shimei: 4, sales: 0 }, employment: "雇用" as const, avgDailyWage: 20000, gross: 300000, sanctionSoFar: 0 };
+  const on = normProposalOf({ ...base, hasWorkRule: true }); const off = normProposalOf({ ...base, hasWorkRule: false });
+  check("sh(1) A-1 就業規則キー sys_wage_cut_rule＝ON で雇用の提案（91 条キャップ・proposed>0）・OFF は no_rule（案内だけ）・SYSTEM_KEYS 9 には入れない（白名単 pin を崩さない）",
+    WAGE_CUT_RULE_KEY === "sys_wage_cut_rule" && wageCutRuleOf({ sys_wage_cut_rule: true }) && !wageCutRuleOf({ sys_wage_cut_rule: "true" }) && !wageCutRuleOf(null)
+    && !!on && on.proposed > 0 && on.status !== "no_rule" && off?.status === "no_rule" && off.proposed === 0 && !(SYSTEM_KEYS as readonly string[]).includes("sys_wage_cut_rule"));
+  check("sh(2) A-1 読み書き＝collect は wageCutRuleOf（旧 sanction_work_rule を読まない）・利用機能の行は set_store_profile の 1 キー patch（白名単は 0175＝適用前は切替を無効・LILY は payload で ON）",
+    src("lib/nox/payroll/collect.ts").includes("hasWorkRule: wageCutRuleOf(") && !/.sanction_work_rule ===/.test(src("lib/nox/payroll/collect.ts"))
+    && src("app/(manage)/master/cast-comp/systems/systems-board.tsx").includes("p_patch: { [WAGE_CUT_RULE_KEY]: next }") && src("app/(manage)/master/cast-comp/systems/systems-board.tsx").includes("const WAGE_CUT_RULE_APPLIED = false;"));
+  const lily = JSON.parse(src("docs/demo/payload/lily.json")) as { tables: { stores: Record<string, unknown>[] } }; const ace = JSON.parse(src("docs/demo/payload/ace.json")) as { tables: { stores: Record<string, unknown>[] } };
+  check("sh(3) A-1 デモ payload＝LILY（雇用の店）ON・ACE OFF（他 4 店も OFF）", sysSettingsOf("lily").sys_wage_cut_rule === true && sysSettingsOf("ace").sys_wage_cut_rule === false
+    && (lily.tables.stores[0].settings_json as Record<string, unknown>).sys_wage_cut_rule === true && (ace.tables.stores[0].settings_json as Record<string, unknown>).sys_wage_cut_rule === false
+    && ["muse", "luna", "noir", "nest"].every((c) => sysSettingsOf(c).sys_wage_cut_rule === false));
+  const brand = src("components/ui/brand-logo.tsx");
+  check("sh(4) A-2 ロゴ＝public/brand の横組み（dark／light）・favicon.ico／favicon.svg／apple-touch-icon・manifest 192／512 は brand へ・旧 icon-192／icon-512／favicon-32 は無い",
+    fs.existsSync("public/brand/nox_logo_horizontal_dark.svg") && fs.existsSync("public/brand/nox_logo_horizontal_light.svg") && fs.existsSync("public/favicon.svg") && fs.existsSync("public/apple-touch-icon.png") && fs.existsSync("public/brand/favicon_192.png") && fs.existsSync("public/brand/favicon_512.png")
+    && !fs.existsSync("public/icon-192.png") && !fs.existsSync("public/icon-512.png") && !fs.existsSync("public/favicon-32.png")
+    && src("public/manifest.json").includes("/brand/favicon_192.png") && src("public/manifest.json").includes("/brand/favicon_512.png") && !src("public/manifest.json").includes("/icon-192.png")
+    && src("app/layout.tsx").includes('{ url: "/favicon.svg", type: "image/svg+xml" }') && src("app/layout.tsx").includes("/brand/favicon_512.png") && brand.includes('dark: "/brand/nox_logo_horizontal_dark.svg"'));
+  const sites = ["components/ui/side-nav.tsx", "app/(manage)/layout.tsx", "app/login/page.tsx", "app/demo/page.tsx", "app/lp/page.tsx", "app/mine/layout.tsx", "components/nox/receipt-print.tsx", "components/payslip-slip.tsx"];
+  check("sh(5) A-2 ロゴの差し替え先＝サイドバー・上部バー・ログイン・/demo・/lp・mine・領収書（light）・報酬明細（画面 dark／印刷 light）＝全部 BrandLogo・旧「N」brandmark と文字ロゴは無い・印刷は .nox-logo-print 切替",
+    sites.every((f) => src(f).includes("<BrandLogo")) && !src("components/ui/side-nav.tsx").includes('className="brandmark"') && !src("app/(manage)/layout.tsx").includes('className="brandmark"') && !src("app/login/page.tsx").includes("<h1 style={{ ...t.brand, fontSize: 30")
+    && src("components/nox/receipt-print.tsx").includes('<BrandLogo height={34} variant="light" />') && src("components/payslip-slip.tsx").includes("<BrandLogo height={22} print />")
+    && /@media print { .nox-logo-screen { display: none !important; } .nox-logo-print { display: block !important; } }/.test(css) && !css.includes(".nox-side .brandmark {"));
+}
+
 
 if (fails.length) { console.error(`verify:nox-s-lane FAIL (${fails.length})\n- ${fails.join("\n- ")}`); process.exit(1); }
 console.log(`verify:nox-s-lane OK (${pass} checks)\n便 S: S-5 上段の顧客名・S-6 一覧常時表示とフリーの席・S-4 送りの 4 方式（純関数＋静的 pin・DB 段は 0177 後）`);

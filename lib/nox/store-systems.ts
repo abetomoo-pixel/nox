@@ -32,6 +32,15 @@ export const SYSTEM_KEYS = [
   "sys_bonus",
 ] as const;
 export type SystemKey = (typeof SYSTEM_KEYS)[number];
+/** ★便 SH-UI-a A-1（2026-10-22）: 「就業規則に減給の定めがある（雇用の懲戒減給を使う）」＝stores.settings_json の新キー（sys_* と同じ boolean・set_store_profile の 1 キー patch・audit）。
+ *  SYSTEM_KEYS（9＝live の白名単と順序込みで一致＝suite ss(4)）には入れない＝別キー。ON で I-5 ④の雇用向け提案（91 条キャップ）が出る。
+ *  ★保存先の白名単は 0175 行き（set_store_profile の v_keys に 'sys_wage_cut_rule' を足す）＝適用前は RPC が 'bad key' で拒む＝画面は適用後まで切替を無効（デモ LILY は payload で ON）。 */
+export const WAGE_CUT_RULE_KEY = "sys_wage_cut_rule" as const;
+export const WAGE_CUT_RULE_LABEL = "就業規則に減給の定めがある（雇用の懲戒減給を使う）";
+export const WAGE_CUT_RULE_DESC = "ON のとき、雇用のキャストのノルマ未達に懲戒減給の提案（労基法 91 条の上限内）を出します。OFF＝提案は出さず案内だけ";
+export const WAGE_CUT_RULE_PENDING_NOTE = "0175 の適用後に切り替えられます（デモの LILY は ON）";
+/** 読み取り（settings_json・既定 OFF＝未設定は定めなし） */
+export const wageCutRuleOf = (settings: Record<string, unknown> | null | undefined): boolean => settings?.[WAGE_CUT_RULE_KEY] === true;
 
 // ★便 X13-H H-7（裁定412・2026-10-21）: 報酬の軸＝店で 1 つ。既存フラグからの導出＝ポイント制 or ポイントスライドが ON なら pt・それ以外は売上。
 //   保存＝軸に合わせて sys_* を書く（売上→sys_points／sys_point_slide を false・pt→sys_sales_slide を false）。各種バック（sys_backs）とスライドの ON／OFF は軸の下の 2 行で別に持つ。
