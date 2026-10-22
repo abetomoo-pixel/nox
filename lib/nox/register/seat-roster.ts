@@ -48,6 +48,18 @@ export const servingLabelOf = (seat: string | null | undefined): string => (seat
 /** 他卓から移す確認（1 回） */
 export const moveConfirmTextOf = (name: string, fromSeat: string | null | undefined, toSeat: string | null | undefined): string =>
   `${name} は${fromSeat ? ` ${fromSeat} に` : "別の卓に"}着卓中です。${fromSeat ? `${fromSeat} から` : "その卓から"}離席して${toSeat ? `この卓（${toSeat}）` : "この卓"}に着けますか？`;
+/** ★裁定415（便 SH-UI-c S-7）: 指名かぶりの文言＝「るな は A3 に着卓中です（指名かぶり）。この卓の指名料は入ります。A3 の伝票は変わりません。席はどうしますか？」
+ *  ボタン＝「指名だけ入れる（席は A3 のまま）」「指名して A3 から付け回す」。卓名が無ければ「他の卓」 */
+export function nomConflictTextOf(name: string, fromSeat: string | null | undefined, toSeat: string | null | undefined): { lead: string; only: string; move: string } {
+  const f = fromSeat ?? "他の卓";
+  return {
+    lead: `${name} は ${f} に着卓中です（指名かぶり）。この卓${toSeat ? `（${toSeat}）` : ""}の指名料は入ります。${f} の伝票は変わりません。席はどうしますか？`,
+    only: `指名だけ入れる（席は ${f} のまま）`,
+    move: `指名して ${f} から付け回す`,
+  };
+}
+/** 分配率の節の行の小さな印＝他卓に着卓中（「A3 着卓中」）・無ければ null */
+export const servingMarkOf = (seat: string | null | undefined): string | null => (seat ? `${seat} 着卓中` : null);
 /** 他卓の名簿（cast_id → 主席の卓名）＝openNoms（checkId → cast_id[]・着席中のみ）と primaryOf（checkId → seat_id）・seats から */
 export function servingSeatMapOf(openNoms: Record<string, readonly string[]>, primaryOf: Record<string, string>, seatNameOf: (seatId: string) => string | null, selfCheckId: string | null): Map<string, string> {
   const m = new Map<string, string>();

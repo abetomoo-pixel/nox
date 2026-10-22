@@ -128,7 +128,7 @@ check("x13g(20) W-19 ① customers-keep の snapshot は検証 org の範囲・�
 // W-22
 {
   const mp = src("app/mine/page.tsx");
-  const order = ["<h3>打刻{", "<h3>遅刻・当欠の連絡</h3>", "<ScheduleCard tabs={scheduleTabs} />", "<NormCard />", "確定給与明細", "<DrinkClaimForm month={month} />", "<h3>今月の出勤ボーナス", "<h3>売上ランキング（{month}）</h3>", "<ReservationRequestCard storeId", "<h3>指名予約（今日以降）</h3>", "<h3>今月の勤怠</h3>"].map((k) => mp.indexOf(k));
+  const order = ["<h3>打刻{", "<h3>遅刻・当欠の連絡</h3>", "<ScheduleCard tabs={scheduleTabs} />", "<NormCard />", "確定給与明細", "<DrinkClaimForm month={month} />", "<h3>今月の出勤ボーナス", "<h3>売上ランキング（{month}）</h3>", "<ReservationRequestCard storeId", "<h3>指名予約（今日以降）</h3>", "<h3>今月の勤怠<span"] /* ★便 SH-UI-c C-2 ④: 見出しに合計の小字 */.map((k) => mp.indexOf(k));
   check("x13g(21) W-22 ① /mine の節の順（打刻→遅刻・当欠→出勤予定→ノルマ→明細→ドリンク→ボーナス→ランキング→予約申請→指名予約→勤怠）", order.every((v, i) => v > 0 && (i === 0 || v > order[i - 1])), JSON.stringify(order));
   const sc = scheduleOf({ shifts: [{ id: "a", date: "2026-10-22", start_hm: "20:00", end_hm: "26:00", status: "confirmed" }, { id: "b", date: "2026-10-23", start_hm: "20:00", end_hm: "25:00", status: "proposed" }, { id: "c", date: "2026-10-20", start_hm: "20:00", end_hm: "25:00", status: "confirmed" }, { id: "n", date: "2026-11-02", start_hm: "20:00", end_hm: "25:00", status: "confirmed" }],
     wishes: [{ id: "w1", date: "2026-10-24", start_hm: "20:00", end_hm: "24:00", status: "pending", kind: "work" }, { id: "w2", date: "2026-10-22", start_hm: "20:00", end_hm: "24:00", status: "pending", kind: "work" }, { id: "w3", date: "2026-10-25", start_hm: null, end_hm: null, status: "pending", kind: "off" }], month: "2026-10", today: "2026-10-21" });

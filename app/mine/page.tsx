@@ -1,4 +1,7 @@
 import Link from "next/link";
+import KintaiRow, { KintaiHead } from "@/components/nox/kintai-row"; // ★便 SH-UI-c C-2 ④
+import { attendanceDayRowsOf, attendanceSummaryOf } from "@/lib/nox/payroll/attendance-sheet";
+import { payTimeBasisOf } from "@/lib/nox/payroll/time-basis";
 import { createClient } from "@/lib/supabase/server";
 import { bizDateOf, bizDateRange } from "@/lib/nox/biz-date";
 import PayslipSlip from "@/components/payslip-slip";
@@ -88,10 +91,10 @@ export default async function MinePage() {
   // 今月の勤怠
   const { data: att } = await supabase
     .from("attendance")
-    .select("date, status, eta, source") // ★便 X13-H H-17 ③: 連絡の状態（本人＝self／店が記録）
+    .select("date, status, eta, source, reason, updated_at") // ★便 X13-H H-17 ③: 連絡の状態（本人＝self／店が記録）★便 SH-UI-c C-2 ④: 勤怠表の連絡時刻・備考
     .gte("date", `${month}-01`)
     .order("date", { ascending: false })
-    .limit(10);
+    .limit(62);
 
   // 今月の出勤ボーナス（attendance_incentives＝パターン3・店の published を可視）。
   // 受給は当日の確定シフト出勤（final∈{ok,late}）が条件・確定額は給与確定時。pooled は受給者数で変動＝暫定表示。
@@ -131,6 +134,17 @@ export default async function MinePage() {
   const { data: ackNeeded } = ms.contract_ack ? await supabase.rpc("cast_contract_ack_needed") : { data: null };
   const showContractAck = contractAckGateOf(ms.contract_ack, typeof ackNeeded === "boolean" ? ackNeeded : null);
   const ps = punchStateOf((todayPunches ?? []) as { type: string; punched_at: string }[]); // ★326 追補3: 当日営業日の自分の打刻 → 未出勤／出勤中／退勤済み
+  // ★便 SH-UI-c C-2 ④: 「今月の勤怠」＝給与と同じ計算の表（lib/nox/payroll/attendance-sheet・自分の行＝RLS）。送りは transport の自分の行（mode は 0177 後）
+  const { data: mineTransport } = await supabase.from("transport").select("*").gte("biz_date", `${month}-01`);
+  const kintaiRows = attendanceDayRowsOf({
+    punches: ((monthPunches ?? []) as { id: string; type: string; punched_at: string }[]).map((p) => ({ id: p.id, punched_at: p.punched_at, type: p.type as "in" | "out" })),
+    shifts: monthConfirmedShifts.map((s) => ({ date: s.date, start_hm: s.start_hm, end_hm: s.end_hm })),
+    attendance: ((att ?? []) as { date: string; status: string; eta: string | null; source: string | null; reason?: string | null; updated_at?: string | null }[]).map((a) => ({ date: a.date, status: a.status as "shukkin" | "dohan" | "late" | "off" | "absent", eta: a.eta, source: a.source, reason: a.reason ?? null, updated_at: a.updated_at ?? null })),
+    corrections: ((corrRows ?? []) as { punch_id: string | null; biz_date: string; kind: "in" | "out"; before_at: string | null; after_at: string | null; reason: string; decision: string; decided_at: string | null }[]).map((c) => ({ ...c, decided_by_name: null })),
+    transports: ((mineTransport ?? []) as Record<string, unknown>[]).map((tr) => ({ biz_date: tr.biz_date as string, amount: tr.amount as number, mode: (tr.mode as string | null | undefined) ?? null, status: tr.status as string })),
+    cutoffHm: cutoff, closeHm: closeHmOf(myStore?.settings_json), payTimeBasis: payTimeBasisOf((myStore?.settings_json ?? null) as Record<string, unknown> | null, `${month}-01`), todayBiz: bizToday,
+  }).filter((r) => !r.future && (r.inHm || r.shift || r.absent || r.corrections.length > 0 || r.okuri.n > 0)).reverse();
+  const kintaiSum = attendanceSummaryOf(kintaiRows, bizToday);
   // ★326-5: 当月の勤怠一覧（日付・出勤・退勤・実働＝dayWorkedHours・確定シフトのある日だけ時間が出る）と当日の出勤・退勤時刻
   const attRows = monthAttendanceRowsOf({
     punches: ((monthPunches ?? []) as { type: string; punched_at: string }[]).map((p) => ({ punched_at: p.punched_at, type: p.type as "in" | "out" })),
@@ -371,17 +385,17 @@ export default async function MinePage() {
         <p style={{ ...noteP, marginTop: 6 }}>※予約の変更・取消は店舗にご連絡ください。</p>
       </section>
 
-      <section className="nox-panel">
-        <h3>今月の勤怠</h3>
-        {(att ?? []).length === 0 && <p style={noneP}>記録なし</p>}
-        <ul style={{ paddingLeft: 18, fontSize: 13, margin: 0 }}>
-          {(att ?? []).map((a, i) => (
-            <li key={i} style={{ padding: "3px 0" }}>
-              {a.date} {ATT_LABEL[a.status as string] ?? a.status}
-              {a.eta ? `（出勤見込み ${a.eta}）` : ""}
-            </li>
-          ))}
-        </ul>
+      <section className="nox-panel nox-kintai" data-mine-kintai="1">{/* ★便 SH-UI-c C-2 ④: 店長の勤怠表（②）と同じ部品・本人分・修正者名と金額は出さない */}
+        <h3>今月の勤怠<span className="num" style={{ marginLeft: "auto", fontSize: 12, fontWeight: 700, color: "var(--sub)" }}>出勤 {kintaiSum.days} 日・実働 {kintaiSum.hours}h{kintaiSum.lateN ? `・遅刻 ${kintaiSum.lateN}` : ""}{kintaiSum.absentN ? `・当欠 ${kintaiSum.absentN}` : ""}</span></h3>
+        {kintaiRows.length === 0 ? <p style={noneP}>記録なし</p> : (
+          <div style={{ overflowX: "auto" }}>
+            <table className="nox-table nox-kintai-table" style={{ width: "100%", fontSize: 12.5 }}>
+              <KintaiHead />
+              <tbody>{kintaiRows.map((r) => <KintaiRow key={r.bizDate} r={r} withBy={false} link={false} />)}</tbody>
+            </table>
+          </div>
+        )}
+        <p style={{ ...noteP, marginTop: 6 }}>{ATTENDANCE_MONTH_NOTE}</p>
       </section>
       {/* ★0154 D1（裁定294-2／294-4／295-1）: 出退勤の修正申請（本人）＝店の承認後に punches へ反映・承認分は本人が確認／異議あり */}
       {ms.punch_correction_request && meCast?.id && (/* ★326-8: punch_correction_request OFF＝修正申請カード非表示 */

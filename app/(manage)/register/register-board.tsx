@@ -21,7 +21,8 @@ import { useTapBatch } from "@/lib/nox/ui/use-tap-batch";
 import { groupProducts } from "@/lib/nox/ui/product-groups";
 import * as t from "@/lib/nox/ui/theme";
 import { defaultWeights, redistribute, renormalizeKeepZeros } from "@/lib/nox/nom-shares";
-import { activeIdsOf, endedPayloadOf, moveConfirmTextOf, seatRowsOf, seatRowTextOf, servingSeatMapOf, shareCardIdsOf } from "@/lib/nox/register/seat-roster"; // ★便 S（S-6）: 一覧常時表示・フリーの席の節・他卓からの付け回し
+import { activeIdsOf, endedPayloadOf, moveConfirmTextOf, seatRowsOf, seatRowTextOf, servingMarkOf, servingSeatMapOf, shareCardIdsOf } from "@/lib/nox/register/seat-roster";
+import NomConflictDialog from "@/components/nox/nom-conflict-dialog"; // ★裁定415（S-7）: 指名かぶり＝指名は必ず入れ、席だけ聞く // ★便 S（S-6）: 一覧常時表示・フリーの席の節・他卓からの付け回し
 import CastAvatar from "@/components/ui/cast-avatar";
 import { resolveOrgId, signCastPhotos } from "@/lib/nox/cast-photo";
 import { fetchStockTotals } from "@/lib/nox/master/queries";
@@ -299,6 +300,7 @@ export default function RegisterBoard({
   const [openTotal, setOpenTotal] = useState<Record<string, number>>({});
   const [openNoms, setOpenNoms] = useState<Record<string, string[]>>({});
   const [openCusts, setOpenCusts] = useState<Record<string, string[]>>({}); // ★便 S（S-5）: checkId → お客様名[]（position 順・卓タイルの 1 行）
+  const [nomConflict, setNomConflict] = useState<string | null>(null); // ★裁定415（S-7）: 他卓に着卓中のキャストをタップ→ダイアログ（cast id）
   const [stockOf, setStockOf] = useState<Record<string, number>>({});
   // ★B3 裁定217（R28）: この端末で直近にタップした商品 id（localStorage・店ごと・最大 8・金額や顧客は保存しない）
   const recentKey = `nox.register.recent.${storeId}`;
@@ -1206,10 +1208,10 @@ export default function RegisterBoard({
     return false;
   }
 
-  // ★便 S（S-6 ①）: 名簿へ追加＝既定分配を適用（本 100% 等分→場内→フリー・手動値はここでリセット＝裁定110 A2-(1)(3)）→即時保存
-  function addToRoster(id: string) {
+  // ★便 S（S-6 ①）: 名簿へ追加＝既定分配を適用（本 100% 等分→場内→フリー・手動値はここでリセット＝裁定110 A2-(1)(3)）→即時保存。★裁定415: kind を渡せば本指名で入れる（指名かぶり）
+  function addToRoster(id: string, kind?: "hon" | "jonai" | "free") {
     const members = [...Object.keys(nomWeights), id];
-    const kinds = { ...nomKinds, [id]: nomKinds[id] ?? ("free" as const) };
+    const kinds = { ...nomKinds, [id]: kind ?? nomKinds[id] ?? ("free" as const) };
     const weights = defaultWeights(members, kinds);
     setNomKinds(kinds);
     setNomWeights(weights);
@@ -1228,11 +1230,11 @@ export default function RegisterBoard({
     await loadOpenMap();
   }
   // ★便 S（S-6 ①）: 他卓に着いている人を押す＝確認 1 回→その卓の名簿で当該 cast だけ ended（着席ログは残る・他の行は既存値保持）→この卓の名簿へ追加
-  async function moveFromOtherSeat(castId: string) {
+  async function moveFromOtherSeat(castId: string, kind?: "hon" | "jonai" | "free") {
     if (!check || feeBusy) return;
     const fromSeat = servingSeat.get(castId) ?? null;
     const toSeat = seats.find((s) => s.id === check.seat_id)?.name ?? null;
-    if (!window.confirm(moveConfirmTextOf(castName(castId), fromSeat, toSeat))) return;
+    if (!kind && !window.confirm(moveConfirmTextOf(castName(castId), fromSeat, toSeat))) return; // ★裁定415: ダイアログ経由（kind あり）は確認済み
     if (dayBlocked()) return;
     const otherId = Object.entries(openNoms).find(([cid, ids]) => cid !== check.id && ids.includes(castId))?.[0];
     if (otherId) {
@@ -1243,9 +1245,12 @@ export default function RegisterBoard({
       setFeeBusy(false);
       if (error) { setMsg({ to: MSG_DETAIL, text: `${fromSeat ?? "他卓"} からの離席に失敗: ${chargeErrJa(error.message)}`, kind: "bad" }); return; }
     }
-    await addToRoster(castId); // 保存を待ってから他卓の名簿を読み直す（待たないと「着卓中（A3）」が古いまま＝live で発覚）
+    await addToRoster(castId, kind); // 保存を待ってから他卓の名簿を読み直す（待たないと「着卓中（A3）」が古いまま＝live で発覚）
     await loadOpenMap();
   }
+  // ★裁定415（S-7）: 指名かぶり＝①指名だけ入れる（本指名・席は他卓のまま＝他卓の名簿は触らない）②指名して付け回す（本指名＋S-6 の付け回し＝他卓で ended）。どちらも他卓の指名料・分配率は不変
+  async function nomConflictOnly(castId: string) { setNomConflict(null); await addToRoster(castId, "hon"); await loadOpenMap(); }
+  async function nomConflictMove(castId: string) { setNomConflict(null); await moveFromOtherSeat(castId, "hon"); }
 
   // R-2a-2（分配率カードの × ボタン）: 名簿からキャストを1人外す＝上と同じ全置換経路。
   //   DB に居ない（＝選択しただけの未保存）キャストはローカル state を畳むだけで RPC は呼ばない。
@@ -2318,6 +2323,11 @@ export default function RegisterBoard({
           </Modal>
         );
       })()}
+      {/* ★裁定415（S-7）: 指名かぶりのダイアログ＝指名は必ず入れ、席だけ聞く */}
+      {nomConflict && check && (
+        <NomConflictDialog castName={castName(nomConflict)} fromSeat={servingSeat.get(nomConflict) ?? null} toSeat={seats.find((s) => s.id === check.seat_id)?.name ?? null} busy={feeBusy}
+          onNomOnly={() => void nomConflictOnly(nomConflict)} onNomAndMove={() => void nomConflictMove(nomConflict)} onClose={() => setNomConflict(null)} />
+      )}
       {/* ── E8-1b F5（mig0091）: 明細グループ付け替えモーダル ── */}
       {groupPick && check && (
         <Modal onClose={() => setGroupPick(null)}>
@@ -2800,8 +2810,8 @@ export default function RegisterBoard({
               const on = nomWeights[id] !== undefined; // ★裁定110: 名簿＝キー存在
               // ★便 S（S-6 ②）: 離席済み（着席ログが閉じている）人を押す＝再着席（ended false）
               if (on && noms.some((n) => n.cast_id === id && n.ended_at)) { void setSeatEnded(id, false); return; }
-              // ★便 S（S-6 ①）: 他卓に着いている人を押す＝確認 1 回→その卓で離席→この卓へ
-              if (!on && servingIds.has(id)) { void moveFromOtherSeat(id); return; }
+              // ★裁定415（S-7）: 他卓に着いている人を押す＝指名かぶりのダイアログ（指名は必ず本指名で入れ・席だけ聞く）
+              if (!on && servingIds.has(id)) { setNomConflict(id); return; }
               // ★0121（裁定107 段1-(3)）: 再タップ（選択解除）も課金行が残るキャストは拒否＝× と同じ関所
               if (on && castFeeLines(id).length > 0) {
                 setFeeMsg({ to: FEE_SHIMEI, kind: "bad", text: "先に指名料を取り消してください" });
@@ -2903,6 +2913,8 @@ export default function RegisterBoard({
                   <b>{ca.name}</b>
                   {/* ★B3 裁定210（#64 指名カード）: ランク名＝読めた id だけ（モック 163 行「あべ｜エース」） */}
                   {rankNames.get(ca.id) && <span className="rk">{rankNames.get(ca.id)}</span>}
+                  {/* ★裁定415（S-7）: 他卓に着卓中の小さな印（指名かぶり＝着卓情報は消さない） */}
+                  {servingMarkOf(servingSeat.get(ca.id)) && <span className="rk" data-nom-serving={ca.id} style={{ color: "var(--gold2)" }}>{servingMarkOf(servingSeat.get(ca.id))}</span>}
                   {/* ★裁定110 A2-(5): 0% 行＝按分なし（本数は種別どおり計上・金額の取り分だけ 0） */}
                   {(nomWeights[ca.id] ?? 0) === 0 && <span className="rk">按分なし</span>}
                 </div>

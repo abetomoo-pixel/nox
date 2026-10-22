@@ -140,12 +140,16 @@ export default function CastPicker({
         <span style={{ fontSize: 12, fontWeight: 700, lineHeight: 1.2 }}>{c.name}</span>
         {/* ★B3 裁定210: ランク名＝読めた id だけ（要素ごと非表示・空チップは出さない） */}
         {rank && <span style={{ fontSize: 10, color: "var(--sub)", lineHeight: 1.1 }}>{rank}</span>}
-        {badge ? (
-          // E8-1d: 種別付きバッジ（呼び出し側判定・「着卓中」より優先）
+        {badge && (
+          // E8-1d: 種別付きバッジ（呼び出し側判定・「着卓中」より優先）。★裁定415（S-7）: 他卓に着卓中なら「着卓中（A3）」も並べて出す（指名を入れても着卓情報を消さない）
           <span style={{ ...t.tag, fontSize: 9.5, padding: "1px 7px", ...BADGE_STYLE[badge.tone] }}>
             {badge.label}
           </span>
-        ) : stateLabel && (
+        )}
+        {badge && serving && grouped && !seated && (
+          <span style={{ ...t.tag, fontSize: 9.5, padding: "1px 7px", color: "var(--gold2)", borderColor: "rgba(201, 162, 74, .45)" }} data-serving-badge={c.id}>{servingLabelOf(servingSeat?.get(c.id))}</span>
+        )}
+        {!badge && stateLabel && (
           <span style={{
             ...t.tag, fontSize: 9.5, padding: "1px 7px",
             // 着卓中／接客中＝gold2 系・出勤中／打刻＝ok 系・未出勤＝muted（既存の色の範囲内・新色なし）

@@ -2521,6 +2521,11 @@ body {
 .nox-castgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(94px, 1fr)); gap: 8px; }
 .nox-castgrid[data-dense] { grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); }
 @media (max-width: 430px) { .nox-castgrid, .nox-castgrid[data-dense] { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+/* ★便 SH-UI-c C-2 ⑥（2026-10-22）: 勤怠表＝390px（≤430）は 日付・出／退・実働の 3 列（.opt を隠す）＋行を開いて残り。印刷は 1 人 1 枚（.nox-print）＝@page は A4 横（attendance-board の style） */
+.nox-kintai-table th, .nox-kintai-table td { white-space: nowrap; }
+.nox-kintai-table td.opt, .nox-kintai-table th.opt { white-space: normal; }
+@media (max-width: 430px) { .nox-kintai .nox-kintai-table .opt { display: none; } .nox-kintai .nox-kintai-table { font-size: 12px; } }
+@media print { .nox-kintai .nox-kintai-table { font-size: 10.5px; } .nox-kintai .nox-kintai-more { display: none !important; } .nox-kintai .nox-print { page-break-after: always; } }
 /* ★便 S（S-6 ②）: 席の節＝フリーの着席ログの行（着卓中は太字・離席済みは薄く） */
 .nox-seatrow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 12.5px; }
 .nox-seatrow:last-child { border-bottom: 0; }

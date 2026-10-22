@@ -580,6 +580,20 @@ for (const st of STORES) {
     }
     report.curMirror = { ...(report.curMirror ?? {}), [code]: added };
   }
+  // ★便 SH-UI-c C-3: ACE のひなの＝当月（{$m:0} の写し）の 1 日を遅刻（本人の連絡あり 18:42・見込み 20:00・理由）にし、in 打刻を 30 分遅らせる（勤怠表の「遅刻（連絡あり）」の見本）。
+  //   店の時刻修正（punch_corrections）は demo_org_reset の c_load に表が無く payload に入れられない＝0175 行き（live では店長が申請を承認して作る）
+  if (code === "ace") {
+    const hin = CAST[repCast.person_id];
+    const atts = (T.attendance ?? []).filter((a) => a.cast_id === hin.id && a.date && a.date.$m === 0 && typeof a.date.d === "number" && a.date.d <= 12).sort((a, b) => b.date.d - a.date.d);
+    const target = atts[0];
+    if (target) {
+      const d = target.date.d;
+      Object.assign(target, { status: "late", eta: "20:00", reason: "電車の遅延で 30 分ほど遅れます", source: "self", updated_at: { $m: 0, d, t: "18:42:00" } });
+      const inP = (T.punches ?? []).find((p) => p.cast_id === hin.id && p.type === "in" && p.punched_at && p.punched_at.$m === 0 && p.punched_at.d === d);
+      if (inP && typeof inP.punched_at.t === "string") { const [hh, mm, ss] = inP.punched_at.t.split(":").map(Number); const tot = hh * 60 + mm + 30; inP.punched_at = { ...inP.punched_at, t: `${String(Math.floor(tot / 60)).padStart(2, "0")}:${String(tot % 60).padStart(2, "0")}:${String(ss ?? 0).padStart(2, "0")}` }; }
+      report.hinanoLate = { ...(report.hinanoLate ?? {}), [code]: { d, in: inP?.punched_at ?? null } };
+    }
+  }
   const meta = { cutoff: "06:00", store: code, users, generated_at: "2026-10-02", source: "docs/demo/source/20261001/nox_demo_all.json", notes: ["先月＝{$m:-1,d}（R の前月）", "当日＝{$rel:0,t}", "payroll は投入しない（D2 の正規経路）", "X-13c: プロファイル＝scripts/demo/profiles.mjs（表＝docs/demo/store_profiles_20261009.md）・全ドリンクバック・必要人数＋14 日分シフト"] };
   // ★便 N1014 B-3 修正: 体験入店の 10 月出勤（trial 行）は元データの同日行と重複しうる（shifts／attendance＝unique(cast_id,date)・punches＝同時刻）→ unique 違反で demo_org_reset の最終 chunk が失敗（19:30 の reset で MUSE／LUNA／ACE／LILY が "reset failed"）。元データの行を正とし trial 行を落とす
   {

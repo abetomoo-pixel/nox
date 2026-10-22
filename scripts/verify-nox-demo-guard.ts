@@ -50,6 +50,7 @@ const ALLOW = new Set<string>([
   "mine/norm-progress", "store/okuri-mode", // ★便 M2-1（裁定326-3）: mine/norm-set は削除（set_cast_norm_self は 0160 で drop＝cast の自己設定は廃止）
   "demo/enter", "demo/reset",
   "kiosk/punch-methods", // ★便 X13-G W-23: 端末の店の打刻設定を読むだけ（書込なし・デモ org も可）
+  "attendance/sheet", // ★便 SH-UI-c C-2: 勤怠一覧（guardPayroll・読取のみ＝給与 preview と同じ・デモ org も可）
 ]);
 
 function walk(dir: string, out: string[]) {

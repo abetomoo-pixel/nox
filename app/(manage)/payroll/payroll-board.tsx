@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link"; // ★便 SH-UI-c C-2 ③
 import MoneyInput from "@/components/ui/money-input"; // ★便 X-11-6: 金額欄の共通部品（数字のみ・3 桁区切り・右に「円」）
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
@@ -884,7 +885,7 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
                   </td>
                   <td className="fold" style={t.td}>{r.taxMode}</td>
                   {/* ★裁定303-3／303 追補1: 0h かつ日数>0 は「打刻なし／不完全」を薄字で（値は変えない） */}
-                  <td className="fold" style={{ ...t.td, ...t.num, textAlign: "right" }}>{(() => { const hc = hoursCellOf(pay?.wHours, Array.isArray(pay?.wdays) ? pay.wdays.length : 0); return <>{hc.text}{hc.note && <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)", fontWeight: 400 }}>{hc.note}</span>}</>; })()}</td>
+                  <td className="fold" style={{ ...t.td, ...t.num, textAlign: "right" }}>{(() => { const hc = hoursCellOf(pay?.wHours, Array.isArray(pay?.wdays) ? pay.wdays.length : 0); return <><Link href={`/payroll?tab=attendance&store=${storeId}&period=${period}&cast=${r.castId}`} className="nox-link num" data-kintai-link={r.castId} title="勤怠表を開く">{hc.text}</Link>{hc.note && <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)", fontWeight: 400 }}>{hc.note}</span>}</>; })()}</td>{/* ★便 SH-UI-c C-2 ③: 時間セル→勤怠表 */}
                   {/* ★裁定176（W23）: 日数＝PayResult.wdays の件数（サーバ計算の日次内訳をそのまま数えるだけ） */}
                   <td className="fold c-days" style={{ ...t.td, ...t.num, textAlign: "right" }}>{Array.isArray(pay?.wdays) ? `${pay.wdays.length}日` : "-"}</td>
                   <td className="fold" style={{ ...t.td, ...t.num, textAlign: "right" }}>{gross != null ? gross.toLocaleString() : "-"}</td>
@@ -962,7 +963,7 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
                 const adjLabel = (a: AdjRow) => a.mode === "fixed" ? `定額 ¥${(a.amount ?? 0).toLocaleString()}` : `率 ${bpToPct(a.rate_bp ?? 0)}%`;
                 const earnTotal = bd.earnTotal; // ★裁定303-1: 行の Σ＝gross（extras 内在・裁定26）
                 const dedTotal = bd.dedTotal;   // 裁定264-3: 集約関数と同値（bd.ded の Σ）
-                const line = (l: string, v: number, neg = false, key = l, muted = false) => (
+                const line = (l: React.ReactNode, v: number, neg = false, key = typeof l === "string" ? l : "node", muted = false) => ( // ★便 SH-UI-c C-2 ③: 時給行の「× 74.9h」を勤怠表への link に
                   <div key={key} style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: 12.5, padding: "2px 0", opacity: muted ? 0.75 : 1 }}>
                     <span style={{ color: "var(--sub)" }}>{l}</span>
                     <span className="num" style={neg ? { color: "var(--bad)" } : undefined}>{neg ? "−" : ""}¥{v.toLocaleString()}</span>
@@ -1000,7 +1001,7 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
                         : null; })()}
                     </div>
                     <p style={{ fontSize: 11.5, fontWeight: 800, color: "var(--champ)", margin: "8px 0 2px" }}>支給</p>
-                    {bd.earn.map((ln) => line(ln.label, ln.amount, false, ln.key, !!(ln.sub || ln.info)))}{/* ★303-2: 時間行は 0 でも出る（関数が決める） */}
+                    {bd.earn.map((ln) => line(ln.key === "timePay" ? <Link href={`/payroll?tab=attendance&store=${storeId}&period=${period}&cast=${r.castId}`} className="nox-link" data-kintai-link-line={r.castId} title="勤怠表を開く">{ln.label}</Link> : ln.label, ln.amount, false, ln.key, !!(ln.sub || ln.info)))}{/* ★303-2: 時間行は 0 でも出る（関数が決める） */}
                     <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, fontWeight: 800, borderTop: "1px solid var(--line2)", marginTop: 4, paddingTop: 4 }}>
                       <span>支給合計</span><span className="num">¥{earnTotal.toLocaleString()}</span>
                     </div>

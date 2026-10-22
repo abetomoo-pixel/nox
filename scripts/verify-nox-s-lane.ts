@@ -54,7 +54,7 @@ const other = [{ cast_id: "sena", ratio_weight: 1 }, { cast_id: "runa", ratio_we
 check("s6(4) 同じキャストを B2 から A1 に移す＝B2 の名簿を全置換（weight そのまま・せなだけ ended:true・他は ended キー無し＝既存値保持）・確認文は 1 回・「着卓中（B2）」",
   JSON.stringify(endedPayloadOf(other, "sena", true)) === JSON.stringify([{ cast_id: "sena", weight: 1, ended: true }, { cast_id: "runa", weight: 1 }])
   && moveConfirmTextOf("せな", "B2", "A1") === "せな は B2 に着卓中です。B2 から離席してこの卓（A1）に着けますか？" && servingLabelOf("B2") === "着卓中（B2）" && servingLabelOf(null) === "着卓中"
-  && reg.includes("if (!on && servingIds.has(id)) { void moveFromOtherSeat(id); return; }") && reg.includes("await addToRoster(castId);") && reg.includes("if (r.ended_at) continue;"));
+  && reg.includes("if (!on && servingIds.has(id)) { setNomConflict(id); return; }") /* ★裁定415（S-7）: 他卓タップはダイアログ経由 */ && reg.includes("await addToRoster(castId, kind);") && reg.includes("if (r.ended_at) continue;"));
 const sm = servingSeatMapOf({ c1: ["sena", "runa"], c2: ["mei"] }, { c1: "s1", c2: "s2" }, (sid) => ({ s1: "B2", s2: "A3" } as Record<string, string>)[sid] ?? null, "c2");
 check("s6(5) 他卓の卓名＝自伝票を除く open 伝票の名簿から（cast → 主席の卓名）", sm.get("sena") === "B2" && sm.get("runa") === "B2" && !sm.has("mei"));
 check("s6(6) 390px＝一覧は横スクロールでなく 3 列の格子（.nox-castgrid・≤430px repeat(3)）", picker.includes('className="nox-castgrid" data-dense={dense ? "1" : undefined}') && /@media \(max-width: 430px\) \{ \.nox-castgrid, \.nox-castgrid\[data-dense\] \{ grid-template-columns: repeat\(3, minmax\(0, 1fr\)\); \} \}/.test(css));
@@ -121,6 +121,52 @@ console.log("s4(DB) transport.mode／set_store_okuri_mode の 4 値／RPC の 'o
     && /@media print { .nox-logo-screen { display: none !important; } .nox-logo-print { display: block !important; } }/.test(css) && !css.includes(".nox-side .brandmark {"));
 }
 
+
+
+// ── 便 SH-UI-c（2026-10-22）C-1／C-2 勤怠一覧・S-7 指名かぶり・W-10・C-3 ──
+{
+  const { attendanceDayRowsOf, attendanceSummaryOf, attendanceCsvOf, hm47Ja, sheetRowCellsOf } = require("../lib/nox/payroll/attendance-sheet") as typeof import("../lib/nox/payroll/attendance-sheet");
+  const { wageDetail } = require("../lib/nox/pay") as typeof import("../lib/nox/pay");
+  const { nomConflictTextOf, servingMarkOf } = require("../lib/nox/register/seat-roster") as typeof import("../lib/nox/register/seat-roster");
+  // fixture: 10/01 シフト 20:00–25:00・in 19:50 out 翌01:10／10/02 in 20:25（遅刻・連絡あり）out 翌00:20（早退＝閉店 25:00 の 40 分前・猶予 30）／10/03 シフトあり打刻なし（当欠）／10/04 in のみ（退勤記録なし）／10/05 未来
+  const P = (d: string, hm: string) => ({ punched_at: d + "T" + hm + ":00+09:00", type: "in" as const });
+  const O = (d: string, hm: string) => ({ punched_at: d + "T" + hm + ":00+09:00", type: "out" as const });
+  const shifts = ["2026-10-01", "2026-10-02", "2026-10-03", "2026-10-04", "2026-10-05"].map((date) => ({ date, start_hm: "20:00", end_hm: "25:00" }));
+  const punches = [P("2026-10-01", "19:50"), O("2026-10-02", "01:10"), P("2026-10-02", "20:25"), O("2026-10-03", "00:20"), P("2026-10-04", "20:00")];
+  const attendance = [{ date: "2026-10-02", status: "late" as const, eta: "20:30", reason: "電車遅延", source: "self", updated_at: "2026-10-02T15:42:00+09:00" }, { date: "2026-10-03", status: "absent" as const, source: "staff" }];
+  const corrections = [{ biz_date: "2026-10-01", kind: "out" as const, before_at: "2026-10-02T00:40:00+09:00", after_at: "2026-10-02T01:10:00+09:00", reason: "退勤打刻の忘れ", decision: "approved", decided_at: "2026-10-02T12:00:00+09:00", decided_by_name: "デモ 店長" }];
+  const transports = [{ biz_date: "2026-10-01", amount: 1000, mode: "actual", status: "open" }, { biz_date: "2026-10-01", amount: 500, mode: null, status: "cancelled" }];
+  const rows = attendanceDayRowsOf({ punches, shifts, attendance, corrections, transports, cutoffHm: "06:00", closeHm: "25:00", grace: { lateGrace: 10, earlyGrace: 30, overGrace: 30 }, payTimeBasis: "punch", todayBiz: "2026-10-04", periodStart: "2026-10-01", periodEnd: "2026-10-05" });
+  const byD = Object.fromEntries(rows.map((r) => [r.bizDate, r]));
+  check("shc(1) C-1 行＝実働は dayWorkedHours（10/01 19:50→翌01:10＝5.3h・10/02 20:25→翌00:20＝3.9h）・遅刻（連絡あり 15:42）・早退・当欠・退勤記録なし（10/04）・未来日（10/05）・翌表記・送り 実費 1（cancelled 除外）・修正者",
+    byD["2026-10-01"].hours === 5.3 && byD["2026-10-02"].hours === 3.9 && byD["2026-10-02"].late && byD["2026-10-02"].contactAt === "15:42" && byD["2026-10-02"].early && byD["2026-10-03"].absent && byD["2026-10-04"].missingOut && byD["2026-10-04"].hours === 0 && byD["2026-10-05"].future
+    && hm47Ja(byD["2026-10-01"].outHm) === "翌01:10" && byD["2026-10-01"].okuri.n === 1 && byD["2026-10-01"].okuri.modes[0] === "実費" && byD["2026-10-01"].corrections[0].by === "デモ 店長" && byD["2026-10-02"].note === "電車遅延", JSON.stringify(rows.map((r) => [r.bizDate, r.hours, r.final, r.late, r.absent, r.early, r.missingOut, r.contactAt])));
+  const sum = attendanceSummaryOf(rows, "2026-10-04");
+  const wd = wageDetail(rows.filter((r) => !r.future && r.hours > 0).map((r) => ({ d: Number(r.bizDate.slice(8)), hours: r.hours, sales: 0 })), { base: 2000 } as never, 0, 0);
+  check("shc(2) C-2 ① 合計＝日数 3（ok 2＝退勤記録なしの日も in があれば数える＝給与と同じ・late 1・当欠は数えない・未来日は数えない）・実働＝給与の wHours と同じ丸め・遅刻 1・当欠 1・早退 1・送り 1・退勤記録なし 1",
+    sum.days === 3 && sum.hours === wd.wHours && sum.hours === 9.2 && sum.lateN === 1 && sum.absentN === 1 && sum.earlyN === 1 && sum.okuriN === 1 && sum.missingOutN === 1, JSON.stringify(sum) + " wHours=" + wd.wHours);
+  const rowsS = attendanceDayRowsOf({ punches, shifts, attendance, cutoffHm: "06:00", closeHm: "25:00", payTimeBasis: "shift", todayBiz: "2026-10-04", periodStart: "2026-10-01", periodEnd: "2026-10-04" });
+  check("shc(3) C-1 計算基準 確定シフト＝実打刻 h>0 の日だけシフトの 5h に置換（pay.ts 613 と同じ）・印は「確定シフト」・打刻なしの日は 0 のまま",
+    rowsS.find((r) => r.bizDate === "2026-10-01")!.hours === 5 && rowsS.find((r) => r.bizDate === "2026-10-01")!.basis === "shift" && rowsS.find((r) => r.bizDate === "2026-10-04")!.hours === 0);
+  const csv = attendanceCsvOf({ storeName: "CLUB ACE", period: "2026-10", castName: "ひなの", exportedAt: "2026/10/22 16:00" }, rows.filter((r) => !r.future));
+  check("shc(4) C-2 ⑤ CSV＝UTF-8 BOM・CRLF・見出し行＋②の列 10＋4 行・退勤記録なしは文字で・修正の列に修正者",
+    csv.startsWith("﻿# CLUB ACE 勤怠 2026-10 ひなの") && csv.split("\r\n").length === 7 && sheetRowCellsOf(byD["2026-10-04"])[3] === "退勤記録なし" && csv.includes("退勤 00:40→01:10・デモ 店長"), String(csv.split("\r\n").length));
+  const reg = src("app/(manage)/register/register-board.tsx"), pb = src("app/(manage)/payroll/payroll-board.tsx"), pg = src("app/(manage)/payroll/page.tsx"), mine = src("app/mine/page.tsx"), rt = src("app/api/attendance/sheet/route.ts"), ab = src("app/(manage)/payroll/attendance-board.tsx");
+  check("shc(5) C-2 配線＝勤怠タブ（?tab=attendance・スタッフは StaffWorkPanel）・route は computePayrollDraft の wHours／wdays／lateN／absentN を合計表に（別計算なし）・時間セルと時給行が勤怠表へ・/mine は同じ部品（withBy false・link なし）・390px は .opt を隠す・印刷 A4 横・CSV",
+    pg.includes('["attendance", "勤怠", "/payroll?tab=attendance"]') && pg.includes("<AttendanceBoard stores={storeList}") && rt.includes("computePayrollDraft(g.admin, g.supabase, g.storeId, g.period, { previewDefaults: true })") && rt.includes("hours: d.pay.wHours, days: Array.isArray(d.pay.wdays) ? d.pay.wdays.length : 0, lateN: d.pay.lateN ?? 0")
+    && pb.includes("data-kintai-link={r.castId}") && pb.includes("data-kintai-link-line={r.castId}") && mine.includes("<KintaiRow key={r.bizDate} r={r} withBy={false} link={false} />") && /@media \(max-width: 430px\) \{ \.nox-kintai \.nox-kintai-table \.opt \{ display: none; \}/.test(css)
+    && ab.includes("@page { size: A4 landscape") && ab.includes('data-kintai-csv="1"'));
+  const tx = nomConflictTextOf("るな", "A3", "VIP-1");
+  check("shc(6) S-7 裁定415＝文言・2 ボタン・他卓タップ＝ダイアログ・指名だけ＝本指名で追加（他卓の名簿は触らない）・付け回す＝本指名＋S-6・バッジは本指名と着卓中（A3）の両方・分配率の行に「A3 着卓中」",
+    tx.lead === "るな は A3 に着卓中です（指名かぶり）。この卓（VIP-1）の指名料は入ります。A3 の伝票は変わりません。席はどうしますか？" && tx.only === "指名だけ入れる（席は A3 のまま）" && tx.move === "指名して A3 から付け回す" && servingMarkOf("A3") === "A3 着卓中" && servingMarkOf(null) === null
+    && reg.includes("if (!on && servingIds.has(id)) { setNomConflict(id); return; }") && reg.includes('await addToRoster(castId, "hon"); await loadOpenMap(); }') && reg.includes('await moveFromOtherSeat(castId, "hon"); }') && reg.includes("<NomConflictDialog castName=") && reg.includes("data-nom-serving={ca.id}")
+    && src("components/nox/cast-picker.tsx").includes("{badge && serving && grouped && !seated && (") && src("components/nox/nom-conflict-dialog.tsx").includes('data-nom-conflict-move="1"'));
+  const ace = JSON.parse(src("docs/demo/payload/ace.json")) as { tables: Record<string, Record<string, unknown>[]> & { casts: { id: string; name: string }[] } };
+  const hin = ace.tables.casts.find((c) => c.name === "ひなの"); const late = (ace.tables.attendance ?? []).find((a) => a.cast_id === hin?.id && a.status === "late");
+  check("shc(7) C-3 payload＝ACE ひなの 当月（$m:0）に遅刻 1 件（連絡あり 18:42・見込み 20:00・理由）・店の時刻修正は c_load に表が無く payload に入れられない（0175 行き）",
+    !!hin && !!late && (late.date as { $m: number }).$m === 0 && late.eta === "20:00" && late.source === "self" && ((late.updated_at as { t: string }).t === "18:42:00") && !("punch_corrections" in ace.tables));
+  check("shc(8) W-10＝docs/demo/w10_junbichu.md（表 25 行・作る／消す の相談役案・事後承認待ち）", fs.existsSync("docs/demo/w10_junbichu.md") && (src("docs/demo/w10_junbichu.md").match(/^\| \d+ \|/gm) || []).length === 25 && src("docs/demo/w10_junbichu.md").includes("【事後承認待ち】"));
+}
 
 if (fails.length) { console.error(`verify:nox-s-lane FAIL (${fails.length})\n- ${fails.join("\n- ")}`); process.exit(1); }
 console.log(`verify:nox-s-lane OK (${pass} checks)\n便 S: S-5 上段の顧客名・S-6 一覧常時表示とフリーの席・S-4 送りの 4 方式（純関数＋静的 pin・DB 段は 0177 後）`);

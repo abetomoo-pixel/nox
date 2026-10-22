@@ -503,7 +503,7 @@
    "sha256": "11f86e13bb1787ac14a088d7fb85fbf0bdb1bf3d68587aeaa650708c45641266"
   },
   "ace": {
-   "bytes": 3911173,
+   "bytes": 3911214,
    "rows": 6438,
    "tables": 47,
    "checks": 965,
@@ -657,7 +657,7 @@
      ]
     }
    ],
-   "sha256": "778ee0d2b94e0bf02c3888a432d684e53ba7e914ff77ded65ec3836582397829"
+   "sha256": "9bff01616d50d6f721ff2de7d977802a2b746c3b72a3abf5645ba2ab8dd7605f"
   },
   "lily": {
    "bytes": 5770932,
@@ -940,5 +940,15 @@
   "luna.attendance": 1,
   "ace.shifts": 1,
   "lily.shifts": 1
+ },
+ "hinanoLate": {
+  "ace": {
+   "d": 12,
+   "in": {
+    "$m": 0,
+    "d": 12,
+    "t": "20:16:00"
+   }
+  }
  }
 }
