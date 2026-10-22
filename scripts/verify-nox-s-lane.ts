@@ -13,6 +13,8 @@ import { okuriButtonOf } from "../lib/nox/shift/today-row";
 import { okuriEnabledOf, issueErrJa } from "../lib/nox/payroll/advance-okuri";
 import { CASH_PAYOUT_LABELS } from "../lib/nox/report/cash-payout";
 import { breakdownLinesOf } from "../lib/nox/payroll/breakdown-lines";
+import { effectiveStageOf, periodStageOf } from "../lib/nox/shift/period-stage"; // ★便 SH-UI-b
+import { SHIFT_VIEWS, VIEW_TABS, searchOfTab, stepOfTab, tabFromSearch } from "../lib/nox/shift/tabs";
 
 let pass = 0; const fails: string[] = [];
 function check(label: string, ok: boolean, detail?: string) { if (ok) pass++; else fails.push(`${label}${detail ? `: ${detail}` : ""}`); }
@@ -168,5 +170,31 @@ console.log("s4(DB) transport.mode／set_store_okuri_mode の 4 値／RPC の 'o
   check("shc(8) W-10＝docs/demo/w10_junbichu.md（表 25 行・作る／消す の相談役案・事後承認待ち）", fs.existsSync("docs/demo/w10_junbichu.md") && (src("docs/demo/w10_junbichu.md").match(/^\| \d+ \|/gm) || []).length === 25 && src("docs/demo/w10_junbichu.md").includes("【事後承認待ち】"));
 }
 
+// ★便 SH-UI-b（2026-10-22・裁定406）: シフト画面の再構成＝上段 3 タブ＋手順 4 段・実効段（締切後は配置中）・②提出一覧／④公開シフト／確定シフトの期間切替・URL
+{
+  check("shb(1) 状態名＝作成中→募集中→配置中→公開済み（closed＝配置中・★裁定406）", periodStageOf("draft") === "作成中" && periodStageOf("open") === "募集中" && periodStageOf("closed") === "配置中" && periodStageOf("published") === "公開済み");
+  check("shb(2) 実効段＝募集中で締切を過ぎた期間は「配置中」（表示のみ・締切当日はまだ募集中・締切なし／draft／published は据え置き・未知は draft）",
+    effectiveStageOf({ status: "open", wish_deadline: "2026-10-20" }, "2026-10-22") === "closed" && effectiveStageOf({ status: "open", wish_deadline: "2026-10-22" }, "2026-10-22") === "open"
+    && effectiveStageOf({ status: "open", wish_deadline: null }, "2026-10-22") === "open" && effectiveStageOf({ status: "draft", wish_deadline: "2026-10-01" }, "2026-10-22") === "draft"
+    && effectiveStageOf({ status: "published", wish_deadline: "2026-10-01" }, "2026-10-22") === "published" && effectiveStageOf({ status: "zzz", wish_deadline: null }, "2026-10-22") === "draft");
+  check("shb(3) 上段 3 タブ＋手順 4 段＝今日／シフト作成（①期間を作る ②提出一覧 ③シフト配置 ④公開シフト）／確定シフト・URL ?tab=make&step=3&period=p の往復",
+    SHIFT_VIEWS.map(([, l]) => l).join("/") === "今日/シフト作成/確定シフト" && VIEW_TABS.make.map(([, l]) => l).join("/") === "期間を作る/提出一覧/シフト配置/公開シフト"
+    && tabFromSearch("?tab=make&step=3&period=p") === "queue" && searchOfTab("?period=p", "queue", "p") === "?period=p&tab=make&step=3" && stepOfTab("publish") === 4);
+  const sb = src("app/(manage)/shift/shift-board.tsx"), css = src("app/globals.css");
+  check("shb(4) shift-board＝手順 ol（data-shift-steps）・②提出一覧（募集中の期間切替・締切まで／提出済み／未提出・未提出の名前・提出済みの表・「今すぐ締め切って ③ シフト配置へ」＝shift_period_set closed）",
+    sb.includes('data-shift-steps="1"') && sb.includes('data-shift-submit="1"') && sb.includes('data-period-tabs={to}') && sb.includes("<div className=\"l\">締切まで</div>") && sb.includes('data-shift-not-submitted="1"') && sb.includes("data-shift-submitted={c.id}")
+    && sb.includes('data-shift-close-recruit="1"') && sb.includes('await setPeriodStatus(p, "closed"); openPeriodInStep(p, "queue");'));
+  check("shb(5) ③ シフト配置＝配置中の期間切替＋「④ 公開シフトへ」・承認リスト（queue）と月カレンダー（旧 calendar）は ③ の中・④ 公開シフト＝「キャストに公開する」（published→確定シフトへ）＋不足日（dayStat の required>assigned・「③ で配置する」）",
+    sb.includes('data-shift-place-head="1"') && sb.includes('data-shift-go-publish="1"') && sb.includes('(tab === "calendar" || tab === "queue" || tab === "publish") && (') && sb.includes('data-shift-publish-btn="1"')
+    && sb.includes('{p.status === "published" ? "公開済み" : "キャストに公開する"}') && sb.includes('data-shift-short-days="1"') && sb.includes("st.required > 0 && st.assigned < st.required") && sb.includes(">③ で配置する</button>"));
+  check("shb(6) 確定シフト＝公開済みの期間を選んでカレンダー（data-shift-fixed-periods）・① の公開ボタンは「④ 公開シフトへ」に（① から published にしない）・実効段＝effectiveStageOf(p, bizToday)",
+    sb.includes('data-shift-fixed-periods="1"') && sb.includes('const publishedPeriods = periodsAll.filter((p) => p.status === "published");') && sb.includes(">④ 公開シフトへ</button>") && !sb.includes(">スタッフに公開する</button>") && sb.includes("const stageOfP = (p: Period) => effectiveStageOf(p, bizToday);"));
+  check("shb(7) CSS＝.nox-steps（PC 4 列・≤899 2 列・≤600 縦 1 列）・.nox-cta 中央・.nox-ptabs・.nox-kpis3（≤600 1 列）",
+    css.includes(".nox-steps { list-style: none; margin: 0 0 10px; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }") && css.includes("@media (max-width: 899px) { .nox-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); } }")
+    && css.includes("@media (max-width: 600px) { .nox-steps { grid-template-columns: 1fr; } }") && css.includes(".nox-cta { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }") && css.includes(".nox-ptabs { display: flex; gap: 8px; flex-wrap: wrap; }") && css.includes("@media (max-width: 600px) { .nox-kpis3 { grid-template-columns: 1fr; }"));
+  const mine = src("app/mine/wishes/wish-form.tsx");
+  check("shb(8) U-3 /mine＝凡例（GV-60 の 7 状態・data-day-legend）据え置き・承諾＝shift-confirm-button（shift_cast_confirm）・辞退 RPC は無い（0176 行き）", mine.includes('data-day-legend="1"') && src("app/mine/shift-confirm-button.tsx").includes('supabase.rpc("shift_cast_confirm", { p_shift_id: shiftId })') && !fs.existsSync("app/mine/shift-decline-button.tsx"));
+}
+
 if (fails.length) { console.error(`verify:nox-s-lane FAIL (${fails.length})\n- ${fails.join("\n- ")}`); process.exit(1); }
-console.log(`verify:nox-s-lane OK (${pass} checks)\n便 S: S-5 上段の顧客名・S-6 一覧常時表示とフリーの席・S-4 送りの 4 方式（純関数＋静的 pin・DB 段は 0177 後）`);
+console.log(`verify:nox-s-lane OK (${pass} checks)\n便 S: S-5 上段の顧客名・S-6 一覧常時表示とフリーの席・S-4 送りの 4 方式（純関数＋静的 pin・DB 段は 0177 後）／SH-UI-c 勤怠・指名かぶり／SH-UI-b シフト再構成（裁定406）`);

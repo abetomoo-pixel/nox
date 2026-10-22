@@ -1,11 +1,16 @@
 // ★便 AU2（2026-09-24・週末バックログ 2）: 計画期間（shift_periods.status）の進行段＝純関数（DB を知らない）。
 //   status の実値＝draft／open／closed／published（0101 の CHECK・遷移は shift_period_set の p_status＝自由・planbar は draft⇄published の 2 ボタン）。
-//   語は 4 語固定（裁定274 の 3 タブ語「今日／作る／確定」と衝突しない）: 作成中／募集中／仮シフト調整／公開済み。
+//   語は 4 語固定（裁定274 の 3 タブ語「今日／作る／確定」と衝突しない）: 作成中／募集中／配置中／公開済み（★裁定406 で closed＝「仮シフト調整」→「配置中」）。
 import { mdOf } from "./period";
 
 export const PERIOD_STAGES = ["draft", "open", "closed", "published"] as const;
 export type PeriodStatus = (typeof PERIOD_STAGES)[number];
-export const PERIOD_STAGE_LABEL: Record<PeriodStatus, string> = { draft: "作成中", open: "募集中", closed: "仮シフト調整", published: "公開済み" };
+export const PERIOD_STAGE_LABEL: Record<PeriodStatus, string> = { draft: "作成中", open: "募集中", closed: "配置中", published: "公開済み" }; // ★裁定406（便 SH-UI-b）: closed＝「配置中」
+/** ★裁定406: 実効の段＝募集中でも希望の締切を過ぎていれば「配置中」として扱う（表示の自動移行・DB の status は変えない＝締切での遷移 RPC／cron は 0176 行き） */
+export function effectiveStageOf(p: { status: string; wish_deadline: string | null }, today: string): PeriodStatus {
+  if (p.status === "open" && p.wish_deadline && p.wish_deadline < today) return "closed";
+  return (PERIOD_STAGES as readonly string[]).includes(p.status) ? (p.status as PeriodStatus) : "draft";
+}
 
 /** status → 進行段の語（未知の値は「作成中」＝最初の段に倒す） */
 export function periodStageOf(status: string | null | undefined): string {

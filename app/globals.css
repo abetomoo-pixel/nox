@@ -2521,6 +2521,26 @@ body {
 .nox-castgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(94px, 1fr)); gap: 8px; }
 .nox-castgrid[data-dense] { grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); }
 @media (max-width: 430px) { .nox-castgrid, .nox-castgrid[data-dense] { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+/* ★裁定406（便 SH-UI-b・2026-10-22）: シフト作成の手順 4 段（PC 4 列・≤899 2 列・≤600 縦 1 列）・主ボタン中央（.nox-cta）・期間の切替（.nox-ptabs）・不足日・段のピル */
+.nox-steps { list-style: none; margin: 0 0 10px; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.nox-steps button { width: 100%; display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--sub); text-align: left; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; min-height: 48px; }
+.nox-steps button .num { flex: none; width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--line2); display: inline-flex; align-items: center; justify-content: center; font-size: 13px; }
+.nox-steps button.on { background: var(--gold); border-color: var(--gold); color: #141210; }
+.nox-steps button.on .num { background: #141210; border-color: #141210; color: var(--gold); }
+.nox-steps .nox-tabcnt { margin-left: auto; }
+@media (max-width: 899px) { .nox-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 600px) { .nox-steps { grid-template-columns: 1fr; } }
+.nox-cta { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+.nox-cta > button { max-width: 420px; }
+.nox-periodform .pf-acts.nox-cta { justify-content: center; }
+.nox-ptabs { display: flex; gap: 8px; flex-wrap: wrap; }
+.nox-ptabs button { background: var(--card); border: 1px solid var(--line); color: var(--sub); border-radius: 10px; padding: 8px 12px; font: inherit; font-size: 13px; text-align: left; cursor: pointer; display: flex; flex-direction: column; gap: 2px; min-height: 48px; }
+.nox-ptabs button.on { border-color: var(--gold); color: var(--ink); background: var(--goldface2); }
+.nox-ptabs button small { font-size: 11px; color: var(--sub); display: inline-flex; align-items: center; gap: 6px; }
+.nox-kpis3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+@media (max-width: 600px) { .nox-kpis3 { grid-template-columns: 1fr; } .nox-ptabs button { width: 100%; } }
+.nox-shortday { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--card2); font-size: 13px; }
+.nox-stage-open { color: var(--primary); } .nox-stage-closed { color: var(--gold2); } .nox-stage-published { color: var(--ok); }
 /* ★便 SH-UI-c C-2 ⑥（2026-10-22）: 勤怠表＝390px（≤430）は 日付・出／退・実働の 3 列（.opt を隠す）＋行を開いて残り。印刷は 1 人 1 枚（.nox-print）＝@page は A4 横（attendance-board の style） */
 .nox-kintai-table th, .nox-kintai-table td { white-space: nowrap; }
 .nox-kintai-table td.opt, .nox-kintai-table th.opt { white-space: normal; }

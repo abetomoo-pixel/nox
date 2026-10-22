@@ -60,7 +60,7 @@ const src = (p: string) => fs.readFileSync(p, "utf8");
     sb.includes("const SHIFT_ST_LABEL: Record<string, string> = { planned: WISH_STATE_LABEL.accepted_wait, proposed: WISH_STATE_LABEL.accepted_wait, confirmed: WISH_STATE_LABEL.accepted_fixed };")
     && sb.includes('stage: wishStateTextOf("accepted", x.status as "planned" | "proposed", castConfirm)') && sb.includes("stage: `${WISH_STATE_LABEL.pending}（キャスト希望）`") && !sb.includes('"承認済み（未確定）"'));
   check("ws(4-3) shift-board: 希望どおり採用＝即確定（shift_wish_decide の戻り id を shift_confirm_bulk 1 件へ・★裁定380: 店設定に依らない＝castConfirm は常に true）", sb.includes('const { data: sid, error } = await supabase.rpc("shift_wish_decide", { p_wish_id: wishId, p_accept: accept });') && sb.includes("if (!error && accept && typeof sid === \"string\") { // ★裁定380") && sb.includes('await supabase.rpc("shift_confirm_bulk", { p_shift_ids: [sid] });') && sb.includes("const castConfirm = true; // ★裁定380"));
-  check("ws(4-4) タブ名「承認待ち」は不変（裁定274）", JSON.stringify(VIEW_TABS.confirm) === JSON.stringify([["queue", "承認待ち"], ["roster", "確定シフト"]]));
+  check("ws(4-4) ③ シフト配置（queue）は「シフト作成」の中・確定シフト＝roster（★裁定406 で「承認待ち」の語は手順名「シフト配置」へ）", VIEW_TABS.make.some(([k, l]) => k === "queue" && l === "シフト配置") && JSON.stringify(VIEW_TABS.fixed) === JSON.stringify([["roster", "確定シフト"]]));
   const af = src("app/(manage)/shift/shift-add-form.tsx");
   check("ws(4-5) shift-add-form: 状態の語＝採用・確認待ち（管理者確認／キャスト確認）／採用・確定・取込の文言＝採用", af.includes('options={[["planned", "採用・確認待ち（管理者確認）"], ["proposed", "採用・確認待ち（キャスト確認）"], ["confirmed", "採用・確定"]] as const}') && af.includes("希望日は採用（管理者確認）として取り込み") && af.includes("希望の採用に失敗"));
 }

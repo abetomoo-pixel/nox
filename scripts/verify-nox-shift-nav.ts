@@ -9,7 +9,7 @@
  *      「＋ キャスト別にまとめて追加」は表示月に追従（306-2）・旧 shiftMonth なし・/mine は outOfPeriodNoteOf と ?ym 優先（306-4）
  *  (3) 崩れ（逐語 grep＋CSS）: 306-3／306-8 .nox-plantools（≤899 は column・seg は width 100%）・306-5 未確定＝.nox-cald--unpub（≤899 は border-top 3px・バッジは非表示）＋凡例「帯＝未確定」・
  *      絶対配置のバッジ 0・306-7 期間カード .nox-periodcard（pc-acts の button は writing-mode horizontal・nowrap）・フォーム .nox-periodform（pf-row 2＋pf-acts）・状態は SegSelect（PERIOD_ST_OPTIONS・Picker 0）・
- *      「作成」は pf-acts の最後・306-10 staff-shift-manage は staffCellCompactOf（.nox-sscell-narrow は ≤899 のみ・nowrap）
+ *      「作成」は pf-acts の最後（★裁定406: 文言「作成して募集を始める」・中央 .nox-cta）・306-10 staff-shift-manage は staffCellCompactOf（.nox-sscell-narrow は ≤899 のみ・nowrap）
  *  逆テスト（手動・各 1 回）: ymLabelOf の「年」を外す→sn(1-1) 赤／shift-board の nox-plantools を外す→sn(3-1) 赤／308: MonthNav を planbar 上へ戻す→sn(2-6) 赤・戻して緑。
  */
 import fs from "node:fs";
@@ -58,9 +58,9 @@ check("sn(3-2) 306-5: 未確定＝.nox-cald--unpub（≤899 は border-top 3px�
   && css.includes(".nox-cald.nox-cald--unpub { border-top: 3px solid var(--gold2); }") && css.includes(".nox-cald .nox-cald-unpub { display: none; }") && css.includes(".nox-unpub-legend { display: block; }"));
 check("sn(3-3) 306-7: 期間カード .nox-periodcard（pc-main 縦 2 段＝pc-sub・pc-acts の 編集／削除は横書き nowrap）・縦書き 0",
   sb.includes('className="nox-periodcard"') && sb.includes('className="pc-sub"') && sb.includes('className="pc-acts"') && css.includes(".nox-periodcard .pc-acts button { writing-mode: horizontal-tb; white-space: nowrap; }") && !/writing-mode:\s*vertical/.test(sb) && !/writing-mode: vertical/.test(css));
-check("sn(3-4) 306-7: 新規フォーム .nox-periodform＝pf-row 2 行（開始／終了・希望締切／状態）＋pf-acts（作成は最後＝右端）・状態は SegSelect（PERIOD_ST_OPTIONS）・shift-board に <Picker 0",
-  sb.includes('className="nox-periodform"') && (sb.match(/className="pf-row"/g) || []).length === 2 && sb.includes('className="pf-acts"') && sb.includes("<SegSelect value={pStatus} onChange={(v) => setPStatus(v)} options={PERIOD_ST_OPTIONS}") && !sb.includes("<Picker")
-  && /className="pf-acts">[\s\S]*?やめる<\/button>[\s\S]*?\{pEditId \? "更新" : "作成"\}<\/button>\s*<\/div>/.test(sb) && css.includes(".nox-periodform .pf-acts { display: flex; justify-content: flex-end; gap: 8px; }"));
+check("sn(3-4) 306-7: 新規フォーム .nox-periodform＝pf-row 2 行（開始／終了・希望締切／状態）＋pf-acts（作成は最後・★裁定406 で中央 nox-cta）・状態は SegSelect（PERIOD_ST_OPTIONS）・shift-board に <Picker 0",
+  sb.includes('className="nox-periodform"') && (sb.match(/className="pf-row"/g) || []).length === 2 && sb.includes('className="pf-acts nox-cta"') && sb.includes("<SegSelect value={pStatus} onChange={(v) => setPStatus(v)} options={PERIOD_ST_OPTIONS}") && !sb.includes("<Picker")
+  && /className="pf-acts nox-cta">[\s\S]*?やめる<\/button>[\s\S]*?\{pEditId \? "変更を保存" : pStatus === "open" \? "作成して募集を始める" : "作成"\}<\/button>/.test(sb) && css.includes(".nox-periodform .pf-acts { display: flex; justify-content: flex-end; gap: 8px; }") && css.includes(".nox-periodform .pf-acts.nox-cta { justify-content: center; }"));
 check("sn(2-6) ★308-2: 「配置を組む」の MonthNav は曜日行（.nox-calgrid）の直前の兄弟＝planView 分岐の直前（タブ切替・幅で消えない）・planbar 上には無い", /<MonthNav [^\n]*note=\{recruitNoteOf\(periodsAll, month\)\} \/>\n\s*\{planView === "cal" \? \(\s*<>\s*<div className="nox-calgrid">/.test(sb) && !/suffix=" キャストシフト計画"/.test(sb) && (sb.match(/<MonthNav /g) || []).length === 3);
 check("sn(3-6) ★308-1: 期間フォームの「作成」は ≤899px で幅いっぱいの 1 行（.pf-acts は column・button width 100%）", /@media \(max-width: 899px\) \{ \.nox-periodform \.pf-acts \{ flex-direction: column; \} \.nox-periodform \.pf-acts > button \{ width: 100%; \} \}/.test(css));
 check("sn(3-5) 306-10: staff-shift-manage は staffCellCompactOf（.nox-sscell-narrow＝≤899 のみ・nowrap・wide は ≤899 で非表示）",
