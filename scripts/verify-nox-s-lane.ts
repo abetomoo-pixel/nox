@@ -160,7 +160,7 @@ console.log("s4(DB) transport.mode／set_store_okuri_mode の 4 値／RPC の 'o
   check("shc(6) S-7 裁定415＝文言・2 ボタン・他卓タップ＝ダイアログ・指名だけ＝本指名で追加（他卓の名簿は触らない）・付け回す＝本指名＋S-6・バッジは本指名と着卓中（A3）の両方・分配率の行に「A3 着卓中」",
     tx.lead === "るな は A3 に着卓中です（指名かぶり）。この卓（VIP-1）の指名料は入ります。A3 の伝票は変わりません。席はどうしますか？" && tx.only === "指名だけ入れる（席は A3 のまま）" && tx.move === "指名して A3 から付け回す" && servingMarkOf("A3") === "A3 着卓中" && servingMarkOf(null) === null
     && reg.includes("if (!on && servingIds.has(id)) { setNomConflict(id); return; }") && reg.includes('await addToRoster(castId, "hon"); await loadOpenMap(); }') && reg.includes('await moveFromOtherSeat(castId, "hon"); }') && reg.includes("<NomConflictDialog castName=") && reg.includes("data-nom-serving={ca.id}")
-    && src("components/nox/cast-picker.tsx").includes("{badge && serving && grouped && !seated && (") && src("components/nox/nom-conflict-dialog.tsx").includes('data-nom-conflict-move="1"'));
+    && src("components/nox/cast-picker.tsx").includes("{badge && serving && grouped && (") /* live 修正: この卓に入れた後も「着卓中（A2）」を並べる＝seated を条件にしない */ && src("components/nox/nom-conflict-dialog.tsx").includes('data-nom-conflict-move="1"'));
   const ace = JSON.parse(src("docs/demo/payload/ace.json")) as { tables: Record<string, Record<string, unknown>[]> & { casts: { id: string; name: string }[] } };
   const hin = ace.tables.casts.find((c) => c.name === "ひなの"); const late = (ace.tables.attendance ?? []).find((a) => a.cast_id === hin?.id && a.status === "late");
   check("shc(7) C-3 payload＝ACE ひなの 当月（$m:0）に遅刻 1 件（連絡あり 18:42・見込み 20:00・理由）・店の時刻修正は c_load に表が無く payload に入れられない（0175 行き）",

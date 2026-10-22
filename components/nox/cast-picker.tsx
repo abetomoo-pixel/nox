@@ -146,7 +146,7 @@ export default function CastPicker({
             {badge.label}
           </span>
         )}
-        {badge && serving && grouped && !seated && (
+        {badge && serving && grouped && (
           <span style={{ ...t.tag, fontSize: 9.5, padding: "1px 7px", color: "var(--gold2)", borderColor: "rgba(201, 162, 74, .45)" }} data-serving-badge={c.id}>{servingLabelOf(servingSeat?.get(c.id))}</span>
         )}
         {!badge && stateLabel && (

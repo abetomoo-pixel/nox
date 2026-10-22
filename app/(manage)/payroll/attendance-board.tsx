@@ -52,11 +52,14 @@ export default function AttendanceBoard({ stores, initialStoreId, initialPeriod,
   const sel = sheet?.casts.find((c) => c.castId === castId) ?? null;
   const storeName = stores.find((s) => s.id === storeId)?.name ?? sheet?.storeName ?? "";
 
+  // ②の表に出す行＝未来日を除き、打刻・確定シフト・当欠・店の修正・送りのどれかがある日（CSV も同じ行＝行数が表と同じ）
+  const visibleRows = (c: CastSheet) => c.rows.filter((r) => !r.future && (r.inHm || r.shift || r.absent || r.corrections.length > 0 || r.okuri.n > 0));
   function downloadCsv(c: CastSheet) {
-    const csv = attendanceCsvOf({ storeName, period, castName: c.castName, exportedAt: jstNow() }, c.rows.filter((r) => !r.future));
+    const rows = visibleRows(c);
+    const csv = attendanceCsvOf({ storeName, period, castName: c.castName, exportedAt: jstNow() }, rows);
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = attendanceCsvFileNameOf(storeName, period, c.castName); a.click(); URL.revokeObjectURL(a.href);
-    setMsg(`${c.castName} の勤怠 CSV（${c.rows.filter((r) => !r.future).length} 行）を出力しました`);
+    setMsg(`${c.castName} の勤怠 CSV（${rows.length} 行）を出力しました`);
   }
 
   const total = useMemo(() => {
@@ -125,7 +128,7 @@ export default function AttendanceBoard({ stores, initialStoreId, initialPeriod,
             <table className="nox-table nox-kintai-table" style={{ width: "100%" }}>
               <KintaiHead />
               <tbody>
-                {sel.rows.filter((r) => !r.future && (r.inHm || r.shift || r.absent || r.corrections.length > 0 || r.okuri.n > 0)).map((r) => (
+                {visibleRows(sel).map((r) => (
                   <KintaiRow key={r.bizDate} r={r} storeId={storeId} withBy />
                 ))}
               </tbody>
