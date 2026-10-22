@@ -142,7 +142,8 @@
     "verify:nox-x13g": "tsx scripts/verify-nox-x13g.ts",
     "verify:nox-x13h": "tsx scripts/verify-nox-x13h.ts",
     "verify:nox-x13i": "tsx scripts/verify-nox-x13i.ts",
-    "verify:nox-s-lane": "tsx scripts/verify-nox-s-lane.ts"
+    "verify:nox-s-lane": "tsx scripts/verify-nox-s-lane.ts",
+    "verify:nox-0175-0176": "tsx scripts/verify-nox-0175-0176.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.6.1",
