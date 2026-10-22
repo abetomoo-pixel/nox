@@ -660,9 +660,9 @@
    "sha256": "778ee0d2b94e0bf02c3888a432d684e53ba7e914ff77ded65ec3836582397829"
   },
   "lily": {
-   "bytes": 5770371,
-   "rows": 9838,
-   "tables": 45,
+   "bytes": 5770932,
+   "rows": 9839,
+   "tables": 46,
    "checks": 1181,
    "lines": 3777,
    "monthGross": 5712067,
@@ -794,7 +794,7 @@
      ]
     }
    ],
-   "sha256": "1af0ef3b5a8b6fac3ca15a663b5895c255139ef1be4369506ac9927a4a25d177"
+   "sha256": "1231166ae9342ac5c9eba62c384e2816e3eed87244d3b2a2c000df254625df48"
   },
   "nest": {
    "bytes": 5754312,
