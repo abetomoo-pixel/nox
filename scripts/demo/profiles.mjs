@@ -118,9 +118,9 @@ export const BONUS_TIERS = [{ pct: 100, amount: 10000 }];
 /** ★便 P174 T-7b（裁定385 のデモ）: 延長パターン（1 料金ルールに複数・既定に印）。group＝料金ルールの display_group。
  *  ACE＝平日の通常（メイン）に 3 本（30 分 ¥7,000〈既定〉／60 分 ¥13,000／VIP 延長 30 分 ¥9,000＝席種は限定しない＝レジの延長ボタンで 3 択）。他店は従来どおり 1 本。 */
 export const EXT_PATTERNS = {
+  // ★便 SH-UI-c2 C2-14 ①（相談役案）: ACE は 3 本（上限 3）＝平日通常 60 分 ¥13,000（既定）／週末通常 30 分 ¥4,000（元データの行＝EXT_PATTERNS の外）／VIP 30 分 ¥9,000。平日 30 分 ¥7,000 は外した（4 本目＝上限超え）
   ace: { group: "平日通常", rows: [
-    { key: "ext", name: "平日通常 延長", minutes: 30, amount: 7000, isDefault: true },
-    { key: "ext60", name: "平日通常 延長 60 分", minutes: 60, amount: 13000, isDefault: false },
+    { key: "ext60", name: "平日通常 延長 60 分", minutes: 60, amount: 13000, isDefault: true },
     { key: "extvip", name: "VIP 延長", minutes: 30, amount: 9000, isDefault: false },
   ] },
 };

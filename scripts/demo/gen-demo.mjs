@@ -112,6 +112,15 @@ for (const st of STORES) {
     time_mode: "manual", time_per: "person", business_tax_status: "taxable", price_display: "tax_excluded", invoice_status: "unregistered" /* ★便 X13-G W-18 ②: 6 店とも未登録（架空の T 番号が実在の事業者と一致するのを避ける・Agoora 決定） */, invoice_reg_no: null, tax_rounding: "floor", card_surcharge_rate: null,
     receivable_policy: PF.receivable, /* ★X-13c: 売掛＝プロファイル（旧＝receivables_enabled_demo） */ dohan_auto_hon: true, ext_shimei_enabled: false,
   });
+  // ★便 SH-UI-c2 C2-14 ②: 伝票の延長単価＝開卓時に当たる延長パターン（EXT_PATTERNS の店＝既定の行・VIP 卓は VIP 延長・パターンの群でない料金群（週末）は元データの延長）＝「いま開卓したら」のレジの延長ボタンと一致
+  const extOf = (rule, vip) => {
+    const EPx = EXT_PATTERNS[code];
+    if (EPx && EPx.group === rule.display_group) {
+      const row = (vip && EPx.rows.find((x) => /VIP/.test(x.name))) || EPx.rows.find((x) => x.isDefault) || EPx.rows[0];
+      return { fee: row.amount, min: row.minutes };
+    }
+    return { fee: rule.extension_price_yen, min: rule.extension_minutes || 30 };
+  };
   const memb = (role, user, extra = {}) => push("memberships", { id: uid(`memb:${code}:${role}`), user_id: user, store_id: storeId, role, is_active: true, can_register: role !== "cast", can_crm: role !== "cast", can_shift: role !== "cast", can_view_backs: role !== "cast", can_close: role !== "cast", can_reopen: role === "owner" || role === "manager", ...extra });
   // memberships は org_id 列なし（demo_org_reset の例外）＝org_id を外す
   memb("owner", users.owner); memb("manager", users.manager); memb("staff", users.staff); memb("cast", users.cast);
@@ -265,7 +274,7 @@ for (const st of STORES) {
   const exp = D("expected_results");
   const checksByDay = {}; // 'd' → [check ids]（日次集計用）
   let seq = 0;
-  function emitCheck({ key, seatId, people, nomType, customerId, dayNum, startMin, lines, noms, payments, status = "closed", openToday = false, backsByCast = {} }) {
+  function emitCheck({ key, seatId, people, nomType, customerId, dayNum, startMin, lines, noms, payments, status = "closed", openToday = false, backsByCast = {}, rule = null, vip = false }) { /* ★C2-14 ②: rule／vip＝延長単価の決定 */
     const id = uid(`check:${key}`); seq++;
     const total = due(lines);
     const t0 = hms(startMin); const closeMin2 = startMin + 60 + Math.floor(rand() * 90);
@@ -273,7 +282,7 @@ for (const st of STORES) {
     const closed_at = status === "closed" ? (openToday ? TODAY(hms(closeMin2)) : M(dayNum, hms(closeMin2))) : null;
     push("checks", { id, store_id: storeId, seat_id: seatId, status, started_at, people, nom_type: nomType, customer_id: customerId, merged_into: null, total, service_rate: tax.service_rate, round_unit: 1, round_mode: "down",
       close_idem_key: status === "closed" ? uid(`idem:${key}`) : null, closed_at, voided_at: null, voided_by: null, void_reason: null, created_by: users.staff, created_at: started_at, updated_at: closed_at ?? started_at,
-      set_min: st.store_code === "MUSE" ? 90 : 60, set_fee: mainRule.set_price_yen, ext_min: 30, ext_fee: mainRule.extension_price_yen, time_per: "person", dohan_fee: defRank?.accompanied_charge_yen ?? null, ext_menu_snap: null,
+      set_min: st.store_code === "MUSE" ? 90 : 60, set_fee: mainRule.set_price_yen, ext_min: extOf(rule ?? mainRule, vip).min, ext_fee: extOf(rule ?? mainRule, vip).fee, time_per: "person", /* ★C2-14 ② */ dohan_fee: defRank?.accompanied_charge_yen ?? null, ext_menu_snap: null,
       business_tax_status: "taxable", price_display: "tax_excluded", tax_rounding: "floor", category_id: null, category_name: null, set_rule_id: null, set_rule_name: mainRule.display_group, set_unit: "person", ext_unit: "person", vip_charge_fee: null, vip_charge_unit: null, merge_idem_key: null });
     lines.forEach((l, i) => push("check_lines", { id: uid(`line:${key}:${i}`), store_id: storeId, check_id: id, product_id: l.product_id ?? null, kind: l.kind, pay_group: "A", name_snapshot: l.name, unit_price_snapshot: l.unit, qty: l.qty, line_total: l.line_total, back_snapshot: l.back ?? null, sort_order: i + 1, created_at: started_at, time_auto: l.kind === "set", fee_kind: l.fee_kind ?? null, cast_id: l.cast_id ?? null, block_no: null, tax_category: "taxable_10", idem_key: null, customer_id: null }));
     const nomsU = []; for (const n of noms ?? []) if (!nomsU.some((x) => x.cast_id === n.cast_id)) nomsU.push(n); // 同一伝票・同一キャストは 1 行（unique）
@@ -413,7 +422,8 @@ for (const st of STORES) {
   for (const cid of drinkQueue) { const p = castDrinks[Math.floor(rand() * castDrinks.length)]; if (!p) { left.drinks++; continue; } if (!tryAdd((c) => { addProd(c, PRODUCT[p.product_id], cid, 1); return true; }, (c) => c.noms.length === 0 || c.noms.some((x) => x.cast_id === cid) || rand() < 0.3)) left.drinks++; }
   left.champ = champQueue.length;
   // 延長（35%・VIP 50%）＝予算の範囲で
-  for (const c of shuffle(allChecks.slice())) { if (rand() < (c.vip ? 0.5 : 0.35)) { const r = c.rule; if (!r.extension_price_yen) continue; const line = { kind: "time", fee_kind: "extension", name: `延長${r.extension_minutes || 30}分`, unit: r.extension_price_yen, qty: c.people, line_total: r.extension_price_yen * c.people }; const before = grossOf(c); c.lines.push(line); if (grossOf(c) - before > remain(c.day)) { c.lines.pop(); left.ext++; } } }
+  // ★C2-14 ②（相談役案）: 延長パターンの店（EXT_PATTERNS＝ACE）は単価が大きく日予算に収まらない＝確率を 3%（VIP 5%）に落として予算の外に置く（月の売上は +数 % だけ上振れ＝report の monthDiffPct で見える）。他店は従来どおり予算内
+  for (const c of shuffle(allChecks.slice())) { const patterned = !!EXT_PATTERNS[code] && EXT_PATTERNS[code].group === c.rule.display_group; if (rand() < (patterned ? (c.vip ? 0.05 : 0.03) : (c.vip ? 0.5 : 0.35))) { const r = c.rule; if (!r.extension_price_yen) continue; const ex = extOf(r, !!c.vip); /* ★C2-14 ②: 延長行の単価＝開卓時のパターン */ const line = { kind: "time", fee_kind: "extension", name: `延長${ex.min}分`, unit: ex.fee, qty: c.people, line_total: ex.fee * c.people }; const before = grossOf(c); c.lines.push(line); if (!patterned && grossOf(c) - before > remain(c.day)) { c.lines.pop(); left.ext++; } } }
   // ⑥ 人数の上積み（guests_target まで・予算に収まる伝票から・セット（と VIP 加算）の qty を増やす）
   { const order = shuffle(allChecks.slice()); for (let k = 0; extraGuests > 0 && k < order.length * 4; k++) { const c = order[k % order.length]; if (c.people >= 4) continue; const sl = c.lines.find((l) => l.fee_kind === "set"); const vl = c.lines.find((l) => l.fee_kind === "vip_charge"); const before = grossOf(c);
     c.people++; sl.qty = c.people; sl.line_total = sl.unit * c.people; if (vl) { vl.qty = c.people; vl.line_total = vl.unit * c.people; }
@@ -457,7 +467,7 @@ for (const st of STORES) {
       const r = (pi * 37 + day.dNum * 11) % 100;
       const pays = st.receivables_enabled_demo && cust && r >= 95 ? [{ method: "card", amount: Math.floor(total * 0.6) }, { method: "ar", amount: total - Math.floor(total * 0.6) }] : r >= 60 ? [{ method: "card", amount: total }] : [{ method: "cash", amount: total }];
       if (PF.attributeServing && c.noms.length === 0 && c.serving) c.noms.push({ cast_id: c.serving, kind: "free", dohan: false }); // ★便 N1014 B-1／B-2 修正: 在席（フリー・料金なし）で売上を按分（MUSE さおり の売上段・LILY の達成ボーナス）
-      emitCheck({ key: c.key, seatId: c.seatId, people: c.people, nomType: c.nomType, customerId: custId(cust), dayNum: day.dNum, startMin: c.startMin, lines: c.lines, noms: c.noms, payments: pays, backsByCast: c.backs });
+      emitCheck({ key: c.key, seatId: c.seatId, people: c.people, nomType: c.nomType, customerId: custId(cust), dayNum: day.dNum, startMin: c.startMin, lines: c.lines, noms: c.noms, payments: pays, backsByCast: c.backs, rule: c.rule, vip: c.vip }); /* ★C2-14 ② */
     }
     const dayRows = checksByDay[day.dNum] ?? [];
     const sum = (m) => dayRows.reduce((a, c) => a + c.payments.filter((p) => p.method === m).reduce((x, p) => x + p.amount, 0), 0);

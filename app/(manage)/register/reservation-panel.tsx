@@ -18,7 +18,9 @@ import SegSelect from "@/components/ui/seg-select";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import { SegmentTabs } from "@/components/ui/responsive-kit"; // ★裁定378（GV-B W-8）
-import CastPicker from "@/components/nox/cast-picker";
+import CastPicker, { type PickerBadge } from "@/components/nox/cast-picker";
+import { useNarrow } from "@/components/ui/bottom-sheet"; // ★便 SH-UI-c2 C2-20 ①: 1,024px の出し分け
+import { castBadgesOf } from "@/lib/nox/register/reservation-badges"; // ★便 SH-UI-c2 C2-20 ③
 import { businessHoursStatus, fmtHoursLabel, type BusinessHourRow } from "@/lib/nox/business-hours";
 import Picker from "@/components/nox/picker";
 
@@ -138,6 +140,9 @@ export default function ReservationPanel({
   const [statusFilter, setStatusFilter] = useState(""); // ''=取消以外すべて
   // B-5: 営業時間マスタ（register の店）＋cutoff（store settings・既定 06:00）
   const [bhRows, setBhRows] = useState<BusinessHourRow[]>([]);
+  // ★便 SH-UI-c2 C2-20 ③: 担当のバッジ＝「打刻」をやめ、その日の予定（出勤予定 HH:MM／休み／着卓中（A3））＝shifts（確定）・attendance（off／absent）・open 伝票の名簿（純関数 castBadgesOf）
+  const [castBadges, setCastBadges] = useState<Map<string, PickerBadge>>(new Map());
+  const wide = !useNarrow(1024); // ★便 SH-UI-c2 C2-20 ①
   const [cutoffHm, setCutoffHm] = useState("06:00");
 
   // 新規予約フォーム
@@ -388,6 +393,28 @@ export default function ReservationPanel({
 
   // 来店処理の卓候補: 予約と同じ店・空き卓のみ（使用中は seat occupied で拒否される＝UI でも先に絞る）
   const seatOptions = (r: Reservation) => seats.filter((s) => s.store_id === r.store_id && !openSeats[s.id]);
+  // ★便 SH-UI-c2 C2-20 ③: フォームの日付（編集中はその予約の日）のシフト・休み・着卓中を読んでバッジに
+  const badgeDate = editId ? eDate || fDate : fDate;
+  useEffect(() => {
+    if (!storeId || !badgeDate) return;
+    let alive = true;
+    void (async () => {
+      const [{ data: sh }, { data: at }, { data: nm }] = await Promise.all([
+        supabase.from("shifts").select("cast_id, start_hm").eq("store_id", storeId).eq("date", badgeDate).eq("status", "confirmed"),
+        supabase.from("attendance").select("cast_id, status").eq("store_id", storeId).eq("date", badgeDate),
+        supabase.from("check_nominations").select("cast_id, ended_at, checks!inner(status, seat_id, store_id)").eq("checks.status", "open").eq("checks.store_id", storeId).is("ended_at", null),
+      ]);
+      if (!alive) return;
+      const seatNameOf = (id: string | null | undefined) => (id ? seats.find((x) => x.id === id)?.name ?? null : null);
+      setCastBadges(castBadgesOf({
+        shifts: ((sh ?? []) as { cast_id: string; start_hm: string }[]),
+        attendance: ((at ?? []) as { cast_id: string; status: string }[]),
+        seated: ((nm ?? []) as { cast_id: string; checks: { seat_id: string | null } | { seat_id: string | null }[] | null }[]).map((x) => ({ castId: x.cast_id, seatName: seatNameOf((Array.isArray(x.checks) ? x.checks[0] : x.checks)?.seat_id) })),
+      }));
+    })();
+    return () => { alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storeId, badgeDate, rows.length]);
 
   // B-5: フォーム日時の営業時間判定（date+time のローカル解釈は既存 createReservation と同一）
   const hoursStatusOf = (date: string, time: string) => {
@@ -408,8 +435,100 @@ export default function ReservationPanel({
     return null;
   };
 
+  // ★便 SH-UI-c2 C2-20 ①: 予約の編集フォーム（狭い幅＝一覧の行内／1,024px 以上＝右のフォーム）。「やめる」で新規に戻る
+  const editBlockOf = (r: Reservation) => (
+                <div className="nox-inset" style={{ display: "grid", gap: 8, marginTop: 8, padding: 10 }}>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                    <span style={t.fieldLabel}>日付</span>
+                    <input type="date" value={eDate} onChange={(ev) => setEDate(ev.target.value)} style={{ ...input, maxWidth: 156 }} />
+                    <span style={t.fieldLabel}>時刻</span>
+                    <input type="time" value={eTime} onChange={(ev) => setETime(ev.target.value)} style={{ ...input, maxWidth: 110 }} />
+                    <span style={t.fieldLabel}>人数</span>
+                    <input type="number" min={0} value={ePeople} onChange={(ev) => setEPeople(Number(ev.target.value))} style={{ ...input, width: 60 }} />
+                    {r.store_id === storeId && hoursNote(hoursStatusOf(eDate, eTime))}
+                  </div>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                    <span style={t.fieldLabel}>客</span>
+                    <label style={{ fontSize: 12.5, display: "flex", gap: 4, alignItems: "center" }}>
+                      <input type="radio" checked={!eUseCustomer} onChange={() => setEUseCustomer(false)} /> フリー入力
+                    </label>
+                    <label style={{ fontSize: 12.5, display: "flex", gap: 4, alignItems: "center" }}>
+                      <input type="radio" checked={eUseCustomer} onChange={() => setEUseCustomer(true)} /> 既存客から
+                    </label>
+                    {eUseCustomer ? (
+                      <div style={{ flex: "1 1 220px", maxWidth: 320 }}>{/* ★裁定259／259-a（2026-09-17）: 顧客 select→Picker（tel を副表示・未選択は onClear） */}
+                        <Picker dense items={customers.map((c) => ({ id: c.id, label: c.name, sublabel: c.tel ?? undefined }))} value={eCustomer || null}
+                          onPick={setECustomer} onClear={() => setECustomer("")} placeholder="顧客を検索" />
+                      </div>
+                    ) : (
+                      <input placeholder="名前（空ならフリー）" value={eGuest} onChange={(ev) => setEGuest(ev.target.value)} style={{ ...input, width: 170 }} />
+                    )}
+                    <span style={t.fieldLabel}>指名種別</span>
+                    <NomSeg value={eNom} onChange={setENom} emptyLabel="未指定" />
+                    <input placeholder="備考" value={eMemo} onChange={(ev) => setEMemo(ev.target.value)} style={{ ...input, width: 220 }} />
+                  </div>
+                  {/* E8-1 ⑤/⑥: 担当＝CastPicker（未定＝選択なし・タップで選択/解除） */}
+                  <div>
+                    <span style={{ ...t.fieldLabel, display: "block", marginBottom: 5 }}>
+                      担当（{eCast ? castName(eCast) ?? "" : "未定"}）
+                    </span>
+                    <CastPicker
+                      casts={casts} photoUrls={photoUrls} todayIds={todayIds} badges={castBadges}
+                      selectedIds={new Set(eCast ? [eCast] : [])} dense
+                      onPick={(id) => setECast((cur) => (cur === id ? "" : id))}
+                    />
+                  </div>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                    <label style={{ fontSize: 12.5, display: "flex", gap: 5, alignItems: "center", fontWeight: 700 }}>
+                      <input type="checkbox" checked={eSeatOn}
+                        onChange={(ev) => { setESeatOn(ev.target.checked); if (!ev.target.checked) setESeat(""); }} />
+                      席を確保する
+                    </label>
+                    {eSeatOn ? (
+                      <>
+                        <span style={t.fieldLabel}>卓</span>
+                        <select value={eSeat} onChange={(ev) => setESeat(ev.target.value)} style={{ ...input, maxWidth: 180 }}>
+                          <option value="">卓を選択</option>
+                          {storeSeats.filter((s) => s.store_id === r.store_id).map((s) => (
+                            <option key={s.id} value={s.id}>{s.name}{s.kind ? `（${s.kind}）` : ""}</option>
+                          ))}
+                        </select>
+                        <span style={t.fieldLabel}>滞在</span>
+                        <select value={eStay} onChange={(ev) => setEStay(Number(ev.target.value))} style={input}>
+                          {STAY_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                        </select>
+                      </>
+                    ) : (
+                      r.seat_id && <span style={{ fontSize: 11.5, color: "var(--sub)" }}>OFF で保存すると卓の確保を解除します（卓なし予約になります）</span>
+                    )}
+                  </div>
+                  {eSeatOn && eSeat && (
+                    <div style={{ fontSize: 12, color: "var(--sub)" }}>
+                      {seatName(eSeat)} {eDate} の予約枠:{" "}
+                      {slotsFor(eSeat, eDate, r.id).length === 0
+                        ? "なし（空き）"
+                        : slotsFor(eSeat, eDate, r.id).map((s) => `${fmtStayRange(s.stay)}（${dispName(s)}）`).join("・")}
+                      ・被る時間帯は保存時に弾かれます
+                    </div>
+                  )}
+                  <div className="nox-actions" style={{ display: "flex", gap: 8 }}>
+                    {/* ★裁定244: 補助 左・実行 右（閉じる→保存の順へ入替）・行は中央 */}
+                    <button style={btnLight} onClick={() => setEditId(null)}>やめる</button>
+                    {(() => {
+                      const eClosed = r.store_id === storeId && hoursStatusOf(eDate, eTime)?.status === "closed";
+                      return (
+                        <button style={{ ...btnDark, opacity: busy || eClosed ? 0.6 : 1 }} disabled={busy || eClosed}
+                          onClick={() => void updateReservation(r)}>保存</button>
+                      );
+                    })()}
+                  </div>
+                </div>
+  );
+
+  const editRow = editId ? rows.find((r) => r.id === editId && r.status === "booked") ?? null : null;
   return (
-    <div style={{ maxWidth: 720 }}>
+    <div className={wide ? "nox-rsv-2col" : undefined} style={wide ? undefined : { maxWidth: 720 }} data-rsv-layout={wide ? "2col" : "1col"}>{/* ★便 SH-UI-c2 C2-20 ①: 1,024px 以上＝左 55%（日付タブ・集計・来店見込み・一覧）／右 45%（新規予約フォーム＝sticky） */}
+      <div className="nox-rsv-left">
       {/* ── E8-1 ⑥: 日付バー（7日）＋KPI 4枚＋当日の状況 ── */}
       <section className="nox-cardtop" style={card}>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
@@ -427,7 +546,7 @@ export default function ReservationPanel({
           <div className="nox-rs"><div className="l">予約（{kpiDate === todayLocal() ? "本日" : kpiDate.slice(5)}）</div><div className="v num">{kpiBooked.length}件</div></div>
           <div className="nox-rs"><div className="l">予約人数</div><div className="v num">{kpiPeople}名</div></div>
           <div className="nox-rs"><div className="l">VIP希望</div><div className="v num">{kpiVip}件</div></div>
-          <div className="nox-rs"><div className="l">未来店（時刻超過）</div><div className="v num" style={kpiOverdue > 0 ? { color: "var(--bad)" } : undefined}>{kpiOverdue}件</div></div>
+          <div className="nox-rs" style={kpiOverdue > 0 ? undefined : { opacity: 0.5 }} data-rsv-overdue={kpiOverdue}><div className="l">未来店（時刻超過）</div><div className="v num" style={kpiOverdue > 0 ? { color: "var(--bad)" } : undefined}>{kpiOverdue}件</div></div>
         </div>
         {/* 当日の状況（キャパ分母＝seats.length 代用＝E8 裁定 gap#5 の注記どおり） */}
         <div className="nox-inset" style={{ marginTop: 10, padding: 10, fontSize: 12 }}>
@@ -563,102 +682,23 @@ export default function ReservationPanel({
                   <div style={t.btnRow48}><button type="button" style={t.btnSecondary48} onClick={() => setVisitId(null)}>閉じる</button></div>
                 </div>
               )}
-              {/* 予約編集（F3b-B 新設・booked のみ・全フィールド明示送信＝規約7） */}
-              {editId === r.id && r.status === "booked" && (
-                <div className="nox-inset" style={{ display: "grid", gap: 8, marginTop: 8, padding: 10 }}>
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                    <span style={t.fieldLabel}>日付</span>
-                    <input type="date" value={eDate} onChange={(ev) => setEDate(ev.target.value)} style={{ ...input, maxWidth: 156 }} />
-                    <span style={t.fieldLabel}>時刻</span>
-                    <input type="time" value={eTime} onChange={(ev) => setETime(ev.target.value)} style={{ ...input, maxWidth: 110 }} />
-                    <span style={t.fieldLabel}>人数</span>
-                    <input type="number" min={0} value={ePeople} onChange={(ev) => setEPeople(Number(ev.target.value))} style={{ ...input, width: 60 }} />
-                    {r.store_id === storeId && hoursNote(hoursStatusOf(eDate, eTime))}
-                  </div>
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                    <span style={t.fieldLabel}>客</span>
-                    <label style={{ fontSize: 12.5, display: "flex", gap: 4, alignItems: "center" }}>
-                      <input type="radio" checked={!eUseCustomer} onChange={() => setEUseCustomer(false)} /> フリー入力
-                    </label>
-                    <label style={{ fontSize: 12.5, display: "flex", gap: 4, alignItems: "center" }}>
-                      <input type="radio" checked={eUseCustomer} onChange={() => setEUseCustomer(true)} /> 既存客から
-                    </label>
-                    {eUseCustomer ? (
-                      <div style={{ flex: "1 1 220px", maxWidth: 320 }}>{/* ★裁定259／259-a（2026-09-17）: 顧客 select→Picker（tel を副表示・未選択は onClear） */}
-                        <Picker dense items={customers.map((c) => ({ id: c.id, label: c.name, sublabel: c.tel ?? undefined }))} value={eCustomer || null}
-                          onPick={setECustomer} onClear={() => setECustomer("")} placeholder="顧客を検索" />
-                      </div>
-                    ) : (
-                      <input placeholder="名前（空ならフリー）" value={eGuest} onChange={(ev) => setEGuest(ev.target.value)} style={{ ...input, width: 170 }} />
-                    )}
-                    <span style={t.fieldLabel}>指名種別</span>
-                    <NomSeg value={eNom} onChange={setENom} emptyLabel="未指定" />
-                    <input placeholder="備考" value={eMemo} onChange={(ev) => setEMemo(ev.target.value)} style={{ ...input, width: 220 }} />
-                  </div>
-                  {/* E8-1 ⑤/⑥: 担当＝CastPicker（未定＝選択なし・タップで選択/解除） */}
-                  <div>
-                    <span style={{ ...t.fieldLabel, display: "block", marginBottom: 5 }}>
-                      担当（{eCast ? castName(eCast) ?? "" : "未定"}）
-                    </span>
-                    <CastPicker
-                      casts={casts} photoUrls={photoUrls} todayIds={todayIds}
-                      selectedIds={new Set(eCast ? [eCast] : [])} dense
-                      onPick={(id) => setECast((cur) => (cur === id ? "" : id))}
-                    />
-                  </div>
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                    <label style={{ fontSize: 12.5, display: "flex", gap: 5, alignItems: "center", fontWeight: 700 }}>
-                      <input type="checkbox" checked={eSeatOn}
-                        onChange={(ev) => { setESeatOn(ev.target.checked); if (!ev.target.checked) setESeat(""); }} />
-                      席を確保する
-                    </label>
-                    {eSeatOn ? (
-                      <>
-                        <span style={t.fieldLabel}>卓</span>
-                        <select value={eSeat} onChange={(ev) => setESeat(ev.target.value)} style={{ ...input, maxWidth: 180 }}>
-                          <option value="">卓を選択</option>
-                          {storeSeats.filter((s) => s.store_id === r.store_id).map((s) => (
-                            <option key={s.id} value={s.id}>{s.name}{s.kind ? `（${s.kind}）` : ""}</option>
-                          ))}
-                        </select>
-                        <span style={t.fieldLabel}>滞在</span>
-                        <select value={eStay} onChange={(ev) => setEStay(Number(ev.target.value))} style={input}>
-                          {STAY_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-                        </select>
-                      </>
-                    ) : (
-                      r.seat_id && <span style={{ fontSize: 11.5, color: "var(--sub)" }}>OFF で保存すると卓の確保を解除します（卓なし予約になります）</span>
-                    )}
-                  </div>
-                  {eSeatOn && eSeat && (
-                    <div style={{ fontSize: 12, color: "var(--sub)" }}>
-                      {seatName(eSeat)} {eDate} の予約枠:{" "}
-                      {slotsFor(eSeat, eDate, r.id).length === 0
-                        ? "なし（空き）"
-                        : slotsFor(eSeat, eDate, r.id).map((s) => `${fmtStayRange(s.stay)}（${dispName(s)}）`).join("・")}
-                      ・被る時間帯は保存時に弾かれます
-                    </div>
-                  )}
-                  <div className="nox-actions" style={{ display: "flex", gap: 8 }}>
-                    {/* ★裁定244: 補助 左・実行 右（閉じる→保存の順へ入替）・行は中央 */}
-                    <button style={btnLight} onClick={() => setEditId(null)}>閉じる</button>
-                    {(() => {
-                      const eClosed = r.store_id === storeId && hoursStatusOf(eDate, eTime)?.status === "closed";
-                      return (
-                        <button style={{ ...btnDark, opacity: busy || eClosed ? 0.6 : 1 }} disabled={busy || eClosed}
-                          onClick={() => void updateReservation(r)}>保存</button>
-                      );
-                    })()}
-                  </div>
-                </div>
-              )}
+              {/* 予約編集（F3b-B 新設・booked のみ・全フィールド明示送信＝規約7）。★便 SH-UI-c2 C2-20 ①: 1,024px 以上は右のフォームに切り替わる（editBlockOf） */}
+              {editId === r.id && r.status === "booked" && !wide && editBlockOf(r)}
             </div>
           ))
         )}
         {msg && <Toast msg={msg} style={{ margin: "8px 0 0" }} />}
       </section>
+      </div>
 
-      <section className="nox-cardtop" style={card}>
+      <div className="nox-rsv-right">
+      {wide && editRow && (
+        <section className="nox-cardtop" style={card} data-rsv-edit-form={editRow.id}>{/* ★便 SH-UI-c2 C2-20 ①: 一覧の「編集」→右のフォームがその予約の編集に */}
+          <h2 style={secTitle}>予約の編集 <span className="num" style={{ fontSize: 12, color: "var(--sub)", fontWeight: 400 }}>{fmtWhen(editRow.reserved_at)}・{dispName(editRow)}</span></h2>
+          {editBlockOf(editRow)}
+        </section>
+      )}
+      <section className="nox-cardtop" style={{ ...card, ...(wide && editRow ? { display: "none" } : {}) }} data-rsv-new-form="1">
         <h2 style={secTitle}>新規予約</h2>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
           <span style={t.fieldLabel}>日付</span>
@@ -721,10 +761,10 @@ export default function ReservationPanel({
             担当（{fCast ? castName(fCast) ?? "" : "未定"}）
           </span>
           <CastPicker
-            casts={casts} photoUrls={photoUrls} todayIds={todayIds}
+            casts={casts} photoUrls={photoUrls} todayIds={todayIds} badges={castBadges}
             selectedIds={new Set(fCast ? [fCast] : [])} dense
             onPick={(id) => setFCast((cur) => (cur === id ? "" : id))}
-          />
+          />{/* ★便 SH-UI-c2 C2-20 ③: バッジ＝その日の予定（castBadges） */}
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
           <span style={t.fieldLabel}>指名種別</span>
@@ -738,6 +778,7 @@ export default function ReservationPanel({
           来店時は「来店済」から卓を選んで伝票を開きます。不可なら「取消」。担当は同伴予約にも使えます。
         </p>
       </section>
+      </div>
     </div>
   );
 }

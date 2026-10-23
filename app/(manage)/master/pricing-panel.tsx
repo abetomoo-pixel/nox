@@ -33,8 +33,12 @@ function errJa(msg: string | undefined): string {
  *   RPC は set_store_pricing 7値一括のまま（原則7）＝分割マウント時は**保存直前に stores を
  *   再読し、担当外フィールドをサーバ現在値で埋めて**全値明示送信する（他区画で保存済みの
  *   値を stale な initial で巻き戻さないための必須補正）。 */
-export default function PricingPanel({ storeId, initial, fields = "all" }: {
+export default function PricingPanel({ storeId, initial, fields = "all", hideSave = false, saveRef }: {
   storeId: string; initial: Pricing; fields?: "all" | "shimei" | "service" | "card_tax" | "round";
+  /** ★便 SH-UI-c2 C2-15: 親カードの 1 ボタンでまとめて保存するとき＝自前の保存ボタンを出さない */
+  hideSave?: boolean;
+  /** ★便 SH-UI-c2 C2-15: 親から save() を呼ぶ口（成功＝true・失敗＝false） */
+  saveRef?: React.MutableRefObject<(() => Promise<boolean>) | null>;
 }) {
   const supabase = createClient();
   const { msg, setMsg } = useToast();
@@ -47,7 +51,7 @@ export default function PricingPanel({ storeId, initial, fields = "all" }: {
   const [mode, setMode] = useState(initial.round_mode);
   const [busy, setBusy] = useState(false);
 
-  async function save() {
+  async function save(): Promise<boolean> {
     setMsg(null);
     setBusy(true);
     // 原則7: 全値を明示送信（null を送らない＝coalesce リセットの余地を作らない）
@@ -80,7 +84,9 @@ export default function PricingPanel({ storeId, initial, fields = "all" }: {
     });
     setBusy(false);
     setMsg(error ? `保存に失敗: ${errJa(error.message)}` : "料金設定を保存しました");
+    return !error;
   }
+  if (saveRef) saveRef.current = save; // ★便 SH-UI-c2 C2-15: 親の「税・サービス料を保存」から呼ぶ
 
   const numField = (label: string, value: number, set: (n: number) => void, hint?: string) => (
     <label style={{ fontSize: 12, color: "var(--sub)" }}>
@@ -125,14 +131,14 @@ export default function PricingPanel({ storeId, initial, fields = "all" }: {
       <div>
         <Toast msg={msg} />
         {fieldsRow}
-        <div className="nox-actions" style={{ marginTop: 12 }}>{/* ★裁定244: フォーム直下の保存＝中央 */}
-          <button style={{ ...t.btnGold, ...t.btnSm }} disabled={busy} onClick={save}>
+        {!hideSave && <div className="nox-actions" style={{ marginTop: 12 }}>{/* ★裁定244: フォーム直下の保存＝中央 */}
+          <button style={{ ...t.btnGold, ...t.btnSm }} disabled={busy} onClick={() => void save()}>
             {fields === "shimei" ? "指名・同伴料金を保存"
               : fields === "service" ? "サービス料を保存"
               : fields === "card_tax" ? "カード手数料を保存"
               : "丸め設定を保存"}
           </button>
-        </div>
+        </div>}
       </div>
     );
   }

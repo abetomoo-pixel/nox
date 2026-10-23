@@ -1438,6 +1438,17 @@ body {
    印刷（領収書・報酬明細）は .nox-logo-screen（dark）を隠し .nox-logo-print（light）を出す。rail（細い）サイドバーでは高さを詰める */
 .nox-side .brand img { height: 34px; width: auto; max-width: 100%; flex-shrink: 1; min-width: 0; }
 .nox-side.is-rail .brand img { height: 26px; }
+.nox-logo-screen { display: block; }
+/* ★便 SH-UI-c2 C2-13（2026-10-23）: HOME の要承認カード＝行は 1 行目（種別と相手）＋2 行目（額と操作）。広い幅は 1 行に並べ、≤430px は 2 行（操作は中央） */
+/* ★便 SH-UI-c2 C2-20 ①（2026-10-23）: レジ「予約」タブ＝1,024px 以上は 2 列（左 55%／右 45%＝sticky）。未満は従来の縦 1 列（.nox-rsv-2col を付けない） */
+.nox-rsv-2col { display: grid; grid-template-columns: minmax(0, 55fr) minmax(0, 45fr); gap: 14px; align-items: start; }
+.nox-rsv-2col > .nox-rsv-right { position: sticky; top: 72px; }
+.nox-pending-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 7px 0; border-top: 1px solid var(--line); font-size: 12.5px; }
+.nox-pending-row:first-child { border-top: 0; }
+.nox-pending-l1 { flex: 1 1 240px; min-width: 0; font-weight: 700; }
+.nox-pending-l2 { display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.nox-pending-acts { display: inline-flex; gap: 6px; }
+@media (max-width: 430px) { .nox-pending-row { display: block; } .nox-pending-l2 { display: flex; justify-content: center; margin-top: 4px; } } /* ★便 SH-UI-c2 C2-21: print 版の 2 枚は display を CSS だけで決める（inline に display を持たせない） */
 .nox-logo-print { display: none; }
 @media print { .nox-logo-screen { display: none !important; } .nox-logo-print { display: block !important; } }
 .nox-side .brand small { display: block; color: var(--sub); font-size: 9px; letter-spacing: .18em; }
@@ -2522,6 +2533,39 @@ body {
 .nox-castgrid[data-dense] { grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); }
 @media (max-width: 430px) { .nox-castgrid, .nox-castgrid[data-dense] { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 /* ★便 SH-UI-b2（2026-10-23）: B2-1 日セルの地色＝期間の状態（募集中 青／配置中 黄／公開済み 緑／期間なし 灰＋字）・境目 1px・凡例 4 つ／B2-2 ロゴのリンク／B2-3 提出一覧の希望行 */
+/* ★便 SH-UI-c2 C2-19（2026-10-23・B2-1 を上書き）: 日セル＝地色は充足（暗めの地に明るい字＝コントラスト 3 以上）・右上バッジは進行（濃い地に白／明るい地に黒）・凡例 2 列（390px は 2 段）。色は変数だけで決める */
+:root {
+  --cal-ok-bg: #1e4d33; --cal-ok-fg: #d9f5e3; --cal-warn-bg: #5a4716; --cal-warn-fg: #ffe9a8; --cal-ng-bg: #5c2320; --cal-ng-fg: #ffd6d3; --cal-none-bg: #2a2a33; --cal-none-fg: #c9c9d1;
+  --stg-draft-bg: #1f8f85; --stg-draft-fg: #ffffff; --stg-open-bg: #2f7fe7; --stg-open-fg: #ffffff; --stg-closed-bg: #22b8cf; --stg-closed-fg: #0b1a1e; --stg-published-bg: #7fe0a0; --stg-published-fg: #0b2a16; --stg-none-bg: #6b7280; --stg-none-fg: #ffffff;
+}
+.nox-cald.nox-cald2 { position: relative; justify-content: flex-start; padding: 18px 4px 5px; border-color: transparent; }
+.nox-cald.nox-cald2.fill-ok { background: var(--cal-ok-bg); color: var(--cal-ok-fg); }
+.nox-cald.nox-cald2.fill-warn { background: var(--cal-warn-bg); color: var(--cal-warn-fg); }
+.nox-cald.nox-cald2.fill-ng { background: var(--cal-ng-bg); color: var(--cal-ng-fg); }
+.nox-cald.nox-cald2.fill-none { background: var(--cal-none-bg); color: var(--cal-none-fg); }
+.nox-cald.nox-cald2 .nox-cald-n { position: absolute; left: 6px; top: 3px; color: inherit; }
+.nox-cald.nox-cald2.today .nox-cald-n { color: var(--champ); }
+.nox-cald.nox-cald2.sel { outline: 2px solid var(--gold); outline-offset: -2px; background-color: inherit; }
+.nox-cald.nox-cald2.past { opacity: .7; filter: none; }
+.nox-cald.nox-cald2.past.sel, .nox-cald.nox-cald2.past.today { opacity: 1; }
+.nox-cald-bd { position: absolute; right: 3px; top: 3px; font-size: 8.5px; font-weight: 800; line-height: 1.3; padding: 1px 4px; border-radius: 4px; white-space: nowrap; }
+.nox-cald-bd.stg-draft { background: var(--stg-draft-bg); color: var(--stg-draft-fg); }
+.nox-cald-bd.stg-open { background: var(--stg-open-bg); color: var(--stg-open-fg); }
+.nox-cald-bd.stg-closed { background: var(--stg-closed-bg); color: var(--stg-closed-fg); }
+.nox-cald-bd.stg-published { background: var(--stg-published-bg); color: var(--stg-published-fg); }
+.nox-cald-bd.stg-none { background: var(--stg-none-bg); color: var(--stg-none-fg); }
+.nox-cald2 .nox-cald-ctr { font-size: 12.5px; font-weight: 800; color: inherit; line-height: 1.2; }
+.nox-cald2 .nox-cald-pd { font-size: 8.5px; font-weight: 600; margin-left: 1px; }
+.nox-cald2 .nox-cald-sub { font-size: 9.5px; font-weight: 700; color: inherit; }
+.nox-cald2 .nox-cald-y { color: inherit; opacity: .8; }
+.nox-callegend { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; font-size: 10.5px; color: var(--sub); }
+.nox-callegend-col { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.nox-callegend-h { font-weight: 800; margin-right: 4px; }
+.nox-callegend-it { display: inline-flex; align-items: center; gap: 4px; }
+.nox-callegend .nox-cald-bd { position: static; font-style: normal; }
+.nox-callegend-sw { width: 14px; height: 14px; border-radius: 3px; display: inline-block; }
+.nox-callegend-sw.fill-ok { background: var(--cal-ok-bg); } .nox-callegend-sw.fill-warn { background: var(--cal-warn-bg); } .nox-callegend-sw.fill-ng { background: var(--cal-ng-bg); } .nox-callegend-sw.fill-none { background: var(--cal-none-bg); }
+@media (max-width: 430px) { .nox-callegend { grid-template-columns: 1fr; } .nox-cald.nox-cald2 { min-height: 58px; } .nox-cald2 .nox-cald-ctr { font-size: 11px; } .nox-cald-bd { font-size: 7.5px; padding: 1px 3px; } }
 .nox-cald.pst-open { background: var(--primary-soft); }
 .nox-cald.pst-closed { background: var(--warning-soft); }
 .nox-cald.pst-published { background: rgba(77,195,125,.14); }

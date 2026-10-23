@@ -24,10 +24,13 @@ export default function BrandLogo({ height = 32, variant = "dark", print = false
 }) {
   const base: CSSProperties = { height, width: "auto", maxWidth: "100%", display: "block", ...style };
   if (print) {
+    // ★便 SH-UI-c2 C2-21（2026-10-23）: 2 枚の img の display は CSS（.nox-logo-screen＝block／.nox-logo-print＝none・印刷で反転）に任せる。
+    //   旧＝inline の display:block が .nox-logo-print の display:none に勝ち、画面にも白地用（黒い NOX が暗地で消えて N の印だけ）が出て二重に見えた。
+    const printBase: CSSProperties = { ...base }; delete printBase.display;
     return (
       <span className={className} style={{ display: "inline-block", lineHeight: 0 }} data-brand-logo="print">
-        <img src={BRAND_LOGO.dark} alt="NOX" className="nox-logo-screen" style={base} />
-        <img src={BRAND_LOGO.light} alt="" aria-hidden="true" className="nox-logo-print" style={base} />
+        <img src={BRAND_LOGO.dark} alt="NOX" className="nox-logo-screen" style={printBase} />
+        <img src={BRAND_LOGO.light} alt="" aria-hidden="true" className="nox-logo-print" style={printBase} />
       </span>
     );
   }

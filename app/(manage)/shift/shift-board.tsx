@@ -36,7 +36,9 @@ import { KIND_LABEL, correctionSummaryOf, disputedOf, pendingOf, requestedLabelO
 import { mdDowOf } from "@/lib/nox/shift/staff-place";
 // ★便 AU2／AU3（2026-09-24・週末バックログ 2／3）: 計画期間の進行段・期間ごとの帯と地色・確定シフトの「未確定」印・月セルの名前合成（純関数）
 import { PERIOD_STAGES, effectiveStageOf, isUnpublishedDay, periodBandText, periodStageOf, stageIndexOf } from "@/lib/nox/shift/period-stage";
-import { PERIOD_LEGEND, periodBoundaryClassOf, periodBoundaryOf, periodCellClassOf, periodCellStageOf, unprocessedWishIdsOf, wishRowsOf } from "@/lib/nox/shift/period-cell"; // ★便 SH-UI-b2 B2-1／B2-3: 日セルの地色＝期間の状態・提出一覧の行から希望を処理
+import { PERIOD_LEGEND, periodCellClassOf, periodCellStageOf, unprocessedWishIdsOf, wishRowsOf } from "@/lib/nox/shift/period-cell"; // ★便 SH-UI-b2 B2-1（★便 SH-UI-c2 C2-19: セルの class は CalCell へ）
+import { CalCell, CalLegend } from "@/components/nox/shift-cal-cell"; // ★便 SH-UI-c2 C2-19: 日セルと凡例（③④・確定シフトタブで共通）
+import { fillOf as calFillOf, noPlacingTextOf, periodMonthLabelOf, queueHeadTextOf, queueTotalTextOf, shortDaysInPeriodsOf } from "@/lib/nox/shift/cal-cell"; // ★便 SH-UI-c2 C2-17／C2-18／C2-19／B2-3: 日セルの地色＝期間の状態・提出一覧の行から希望を処理
 import { cellNamesOf } from "@/lib/nox/shift/cell-names";
 // ★0125（裁定112-A）: 自動配置 UI は撤去（autoAssign import ごと）。RPC/器（shift_auto_apply 等）は残置。
 import { shiftHoursStatus, fmtHoursLabel, type BusinessHourRow } from "@/lib/nox/business-hours";
@@ -235,6 +237,10 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   const [auditRows, setAuditRows] = useState<AuditRow[]>([]);
   // ★B4-b 裁定219（H20）: 承認待ち表の並び＝日付順（既定・現行）／人ごと（モック 119-127 行）
   const [queueGroup, setQueueGroup] = useState<"date" | "cast">("cast"); // ★裁定380: 既定＝キャスト別
+  // ★便 SH-UI-c2 C2-17 ①: 「承認待ちシフト」は既定で畳む（1 行の見出し）。開閉は端末に記憶（localStorage nox.shift.queueOpen）
+  const [queueOpen, setQueueOpen] = useState(false);
+  useEffect(() => { try { setQueueOpen(localStorage.getItem("nox.shift.queueOpen") === "1"); } catch { /* 記憶なし＝畳む */ } }, []);
+  const toggleQueue = () => setQueueOpen((v) => { const nv = !v; try { localStorage.setItem("nox.shift.queueOpen", nv ? "1" : "0"); } catch { /* 記憶できない端末 */ } return nv; });
   const [qClosed, setQClosed] = useState<Set<string>>(new Set()); // ★裁定380: 折りたたんだキャスト
   // ★裁定380: 希望の調整モーダル（採用→shift_set で時間→確定 or 送り返し＝shift_propose。RPC は既存 3 本・新設 0）
   const [adjWish, setAdjWish] = useState<Wish | null>(null);
@@ -914,7 +920,6 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   // ★便 AU2-2（2026-09-24）: 「作る」タブ上部＝計画期間の進行の帯（4 段・現在段を強調・期間と締切を併記）。月内に複数期間があれば期間ごとの帯（地色＝既存トークン 4 色の循環）と凡例。
   //   セルの地色＝その日が属する期間（選択中の日は .sel の地色を優先＝表示を変えない側）。RPC なし・取得済み periods の再形。
   // ★便 SH-UI-b2 B2-1（裁定406）: 日セルの地色＝その日が属する期間の状態（募集中＝青／配置中＝黄／公開済み＝緑／期間なし＝灰＋「期間なし」の字）・境目は左右 1px（.pb-l／.pb-r）
-  const periodCellClsOf = (ymd: string) => `${periodCellClassOf(periodCellStageOf(periodsAll, ymd, bizToday))} ${periodBoundaryClassOf(periodBoundaryOf(periodsAll, ymd))}`.trim();
   const periodNoneOf = (ymd: string) => periodCellStageOf(periodsAll, ymd, bizToday) === "none";
   // 期間なしの日を押す＝①の新規作成フォームへ開始日を入れて遷移
   const openNewPeriodAt = (ymd: string) => { resetPeriodForm(); setPStart(ymd); setPTouched(true); setPMsg(null); setDayModal(""); setTab("build"); };
@@ -947,7 +952,9 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
           <b className="num">{periodBandText(p)}</b><small>{stageChip(p)}{to === "queue" || to === "publish" ? ` 不足 ${shortDaysOf(p).length} 日` : to === "submit" ? ` 提出 ${submissionOf(p).done.length}/${casts.length}` : ""}</small>
         </button>
       ))}
-      {list.length === 0 && <p style={{ fontSize: 12.5, color: "var(--sub)", margin: 0 }}>該当する期間はありません。</p>}
+      {list.length === 0 && (to === "queue" && noPlacingTextOf(recruitingPeriods)
+        ? <p style={{ fontSize: 12.5, color: "var(--sub)", margin: 0 }} data-shift-no-placing="1">{noPlacingTextOf(recruitingPeriods)}<button type="button" className="nox-link" style={{ marginLeft: 8, fontSize: 12.5 }} onClick={() => { setDayModal(""); setTab("submit"); }}>②提出一覧で今すぐ締め切る ›</button></p> /* ★便 SH-UI-c2 C2-17 ⑤ */
+        : <p style={{ fontSize: 12.5, color: "var(--sub)", margin: 0 }}>該当する期間はありません。</p>)}
     </div>
   );
   const periodBandsJsx = periods.length > 0 ? (
@@ -1168,6 +1175,46 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   // ★裁定253 R12（2026-09-14）: 「未確定 n 件 → 確定する」導線。n＝表示月の proposed（castConfirm=false）または planned＋proposed（true）。
   //   押すと承認待ちタブへ切り替えるだけ（直接の一括確定はしない＝確認の場を経由させる）。0 件なら出さない。manager 以上のみ。
   const unconfirmedN = shifts.filter((x) => x.date.slice(0, 7) === month && (x.status === "proposed" || (castConfirm && x.status === "planned"))).length;
+  // ★便 SH-UI-c2 C2-18 ⑤／C2-19 ④: スタッフ別マトリクス（① から ③ へ移設）。セル＝開始時刻（状態の色）・記号と出所（自動／手）の表示は出さない
+  const staffMatrixJsx = (() => {
+    const days = calCells.filter((d): d is string => d !== null);
+    const rows = casts.filter((c) => shifts.some((x) => x.cast_id === c.id && x.date.startsWith(month)));
+    if (rows.length === 0) return <p style={{ fontSize: 13, color: "var(--sub)" }}>この月のシフトはありません</p>;
+    const cellTd: React.CSSProperties = { border: "1px solid var(--line)", padding: "3px 4px", textAlign: "center", minWidth: 22 };
+    return (
+      <div style={{ overflowX: "auto" }} data-shift-staff-matrix="1">
+        <table style={{ borderCollapse: "collapse", fontSize: 11 }}>
+          <thead>
+            <tr>
+              <th style={{ ...cellTd, textAlign: "left", minWidth: 90, color: "var(--sub)" }}>キャスト</th>
+              {days.map((d) => <th key={d} className="num" style={{ ...cellTd, color: dowOf(d) === 0 ? "var(--bad)" : dowOf(d) === 6 ? "var(--champ)" : "var(--sub)" }}>{Number(d.slice(8))}</th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((c) => (
+              <tr key={c.id}>
+                <td style={{ ...cellTd, textAlign: "left", whiteSpace: "nowrap" }}>{c.name}
+                  {c.shift_request_mode && <span className="nox-stpill" style={{ marginLeft: 6, fontSize: 10, padding: "0 6px" }} title="このキャストだけの方式（キャスト詳細で設定）">{SHIFT_REQUEST_MODE_LABEL[c.shift_request_mode]}</span>}
+                </td>
+                {days.map((d) => {
+                  const mine = shifts.filter((x) => x.cast_id === c.id && x.date === d);
+                  const top = mine.some((x) => x.status === "confirmed") ? "confirmed" : mine.some((x) => x.status === "proposed") ? "proposed" : mine.length > 0 ? "planned" : null;
+                  const first = mine.slice().sort((a, b) => a.start_hm.localeCompare(b.start_hm))[0];
+                  return (
+                    <td key={d} className="num" style={{ ...cellTd, color: top ? shiftStColor(top) : undefined, fontWeight: top === "confirmed" ? 800 : 500 }}
+                      title={mine.length > 0 ? `${d} ${mine.map((x) => `${fmtWin(x.start_hm, x.end_hm)}（${SHIFT_ST_LABEL[x.status]}）`).join("・")}` : undefined}>
+                      {first ? first.start_hm : ""}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "8px 0 0" }}>セルは開始時刻（確定＝太字・確認待ち／予定＝状態の色）。カーソルを合わせると時間帯と状態が出ます。</p>
+      </div>
+    );
+  })();
   const confirmCta = isManagerUp && unconfirmedN > 0 ? (
     <div className="nox-actions nox-noprint" style={{ marginTop: 10, marginBottom: 10 }}>
       <button type="button" style={btnDark} title={`承認待ちで内容を確認してから${PROXY_CONFIRM_LABEL}します`}
@@ -1706,95 +1753,76 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
         {(() => {
           const planned = shifts.filter((x) => x.status === "planned");
           const proposed = shifts.filter((x) => x.status === "proposed");
-          // ★裁定133（v4.1 H5）: 4段のまま語彙をモック「申請→承認→…→仮シフト→確定」へ寄せる
-          //   （「作成・公開」は period 側の状態＝この帯には載せない）。括弧内は従来の段名＝意味を残す。
-          // ★裁定245-1: キャスト確認 OFF（settings_json.shift_cast_confirm≠true）は 3 段＝申請→承認→確定（proposed は承認済み（未確定）として段 2 に合算）
-          // ★裁定345: 語＝審査中／採用・確認待ち／採用・確定（4 段の純関数と同じ）。OFF の店は採用＝確定（段 2 は残存の planned／proposed）
-          // ★裁定380（GV-B W-9）: 3 本道＝①審査中（キャスト希望）→②採用・確認待ち（調整中＝planned／送り返し＝キャスト確認待ち proposed）→③採用・確定。店設定 shift_cast_confirm は廃止
+          // ★便 SH-UI-c2 C2-17 ④（相談役案）: 集計の「希望どおり」＝未処理の希望のうち定休日でない件数（＝一括採用の対象＝N が同じ数になる）・「要調整」＝定休日の希望（そのままでは採用できない）。
+          //   旧＝planned／proposed の時刻一致（採用後の調整の有無）を数えていたため、一括採用の N（未処理の希望）と食い違っていた（8≠7）。
+          const ids = wishes.filter((w) => !closedOf(w.date, w.start_hm, w.end_hm)).map((w) => w.id);
+          const adjustN = wishes.length - ids.length;
+          const applicants = new Set(wishes.map((w) => w.cast_id)).size;
+          const waiting = planned.length + proposed.length; // 確認待ち（調整中＋送り返し）
+          const head = queueHeadTextOf({ pending: wishes.length, asIs: ids.length, adjust: adjustN, waiting });
+          const any = wishes.length + waiting > 0;
+          // ★裁定345／380: 3 段＝審査中（キャスト希望）→採用・確認待ち（調整中＝planned／送り返し＝proposed）→採用・確定
           const steps: Array<[string, string, number]> = [
             ["1", `${WISH_STATE_LABEL.pending}（キャスト希望）`, wishes.length],
-            ["2", `${WISH_STATE_LABEL.accepted_wait}（調整中 ${planned.length}・送り返し ${proposed.length}）`, planned.length + proposed.length],
+            ["2", `${WISH_STATE_LABEL.accepted_wait}（調整中 ${planned.length}・送り返し ${proposed.length}）`, waiting],
             ["3", WISH_STATE_LABEL.accepted_fixed, shifts.filter((x) => x.status === "confirmed").length],
           ];
           return (
             <>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 9 }}>
-                <div>
-                  <h2 style={{ ...secTitle, margin: 0 }}>承認待ちシフト</h2>
-                  <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "2px 0 0" }}>
-                    希望どおり採用＝即確定。時間を変えるときは「調整」から、確定するか、キャストへ送り返して確認を待つかを選びます（送り返したまま放置された分だけ「{PROXY_CONFIRM_LABEL}」）{/* ★裁定380 */}
-                  </p>
-                </div>
-                <span className="nox-bulkops">{/* ★X-8-11: 一括ボタン群は折り返し可（≤899px は全幅） */}
-                  {/* ★N4（H19）: 段1（キャスト希望）の一括承認＝定休日の希望は除外して1件ずつ shift_wish_decide */}
-                  {isManagerUp && (() => {
-                    const ids = wishes.filter((w) => !closedOf(w.date, w.start_hm, w.end_hm)).map((w) => w.id);
-                    return ids.length > 0 ? (
-                      <button style={btnDark} title="表示中の希望（定休日を除く）をまとめて希望どおり採用し、その場で確定します" data-wish-bulk="1"
-                        onClick={() => void approveAllWishes(ids)}>
-                        希望どおり一括採用（{ids.length}件）
-                      </button>
-                    ) : null; // ★裁定380: 希望どおり一括採用
-                  })()}
-                  {/* V2-2 の一括 propose はこの面へ移設（行の「キャスト確認へ」と同じ操作の一括版）。
-                      モックには無いが、実装済みの機能を構造追随のために落とさない。 */}
-                  {isManagerUp && planned.length > 0 && (
-                    <button style={btnLight} title="調整中（planned）の全件をキャストへ送り返します（確認待ち）"
-                      onClick={() => void proposeShifts(planned.map((x) => x.id))}>
-                      {planned.length}件まとめて送り返す
-                    </button>
-                  )}{/* ★裁定380 */}
-                  {/* ★0126（裁定114）: 表示中の planned+proposed をまとめて confirmed へ（0件は disabled） */}
-                  {isManagerUp && (
-                    <button style={{ ...btnLight, opacity: proposed.length === 0 ? 0.45 : 1 }}
-                      disabled={proposed.length === 0}
-                      title={`送り返したまま放置された分をまとめて${PROXY_CONFIRM_LABEL}します（62件ずつ順に送ります）`}
-                      onClick={() => void confirmBulkShifts(proposed.map((x) => x.id))}>
-                      {proposed.length}件を一括{PROXY_CONFIRM_LABEL}
-                    </button>
-                  )}{/* ★裁定380: 代行確定は送り返し放置分のみ */}
-                  <span className="nox-stpill">{wishes.length + planned.length + proposed.length}件</span>
-                </span>
+              {/* ★便 SH-UI-c2 C2-17 ①②④: 1 行の見出し（押すと開く・端末に記憶）・説明は「？」・右端は合計 */}
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                <button type="button" data-queue-toggle="1" aria-expanded={queueOpen && any} disabled={!any} onClick={toggleQueue}
+                  style={{ all: "unset", cursor: any ? "pointer" : "default", display: "inline-flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 800, color: "var(--ink)" }}>
+                  <span data-queue-head-text="1">{head}</span>{any && <span aria-hidden style={{ color: "var(--sub)" }}>{queueOpen ? "▾" : "▸"}</span>}
+                </button>
+                <details className="nox-help" style={{ fontSize: 11, color: "var(--sub)" }} data-queue-help="1">
+                  <summary style={{ cursor: "pointer", display: "inline-block", width: 20, height: 20, lineHeight: "20px", textAlign: "center", borderRadius: 999, border: "1px solid var(--line2)", fontWeight: 800 }} aria-label="承認待ちの説明">？</summary>
+                  <p style={{ margin: "6px 0 0", lineHeight: 1.7 }}>希望どおり採用＝即確定。時間を変えるときは「調整」から、確定するか、キャストへ送り返して確認を待つかを選びます（送り返したまま放置された分だけ「{PROXY_CONFIRM_LABEL}」の対象）。</p>
+                </details>
+                {any && <span className="nox-stpill" style={{ marginLeft: "auto" }} data-queue-total="1">{queueTotalTextOf(wishes.length, waiting)}</span>}
               </div>
-              {/* ★B4-b 裁定218（H18）: KPI 4 枚（モック 116 行「未処理／申請者／希望どおり／要調整」）＝取得済み state の再形・新規読取 0。
-                  希望どおり／要調整＝wish_id を持つ planned・proposed の時刻が wish と一致するか（承認表の対比と同式）。 */}
-              {(() => {
-                const withWish = shifts.filter((x) => (x.status === "planned" || x.status === "proposed") && x.wish_id)
-                  .map((x) => ({ x, w: wishAll.find((y) => y.id === x.wish_id) })).filter((p) => !!p.w);
-                const match = withWish.filter(({ x, w }) => w!.start_hm === x.start_hm && w!.end_hm === x.end_hm).length;
-                const adjust = withWish.length - match;
-                const applicants = new Set(wishes.map((w) => w.cast_id)).size;
-                return (
-                  <div className="nox-inset" style={{ padding: "8px 12px", marginBottom: 10, display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: "6px 12px" }}>
-                    {([["未処理", wishes.length, "件"], ["申請者", applicants, "人"], ["希望どおり", match, "件"], ["要調整", adjust, "件"]] as const).map(([l, v, u]) => (
-                      <span key={l} style={{ fontSize: 12 }}>
+              {queueOpen && any && (
+                <>
+                  {/* ★便 SH-UI-c2 C2-17 ③: 開いたときの並び＝集計 4 つ → 主ボタン（中央・1 本）→ 副ボタン（0 件は非表示）→ 3 段 → 日付順／人ごと → 一覧 */}
+                  <div className="nox-inset" style={{ padding: "8px 12px", margin: "10px 0", display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: "6px 12px" }} data-queue-kpi="1">
+                    {([["未処理", wishes.length, "件"], ["申請者", applicants, "人"], ["希望どおり", ids.length, "件"], ["要調整", adjustN, "件"]] as const).map(([l, v, u]) => (
+                      <span key={l} style={{ fontSize: 12 }} data-queue-kpi-item={l}>
                         <span style={{ color: "var(--sub)", fontSize: 11 }}>{l}</span><br />
-                        <b className="num" style={{ fontSize: 14, color: l === "要調整" && v > 0 ? "var(--gold2)" : "var(--ink)" }}>{v}<small style={{ fontWeight: 400, fontSize: 10, marginLeft: 2 }}>{u}</small></b>
+                        <b className="num" style={{ fontSize: 14, color: l === "要調整" && v > 0 ? "var(--gold2)" : "var(--ink)" }} data-queue-kpi-value={v}>{v}<small style={{ fontWeight: 400, fontSize: 10, marginLeft: 2 }}>{u}</small></b>
                       </span>
                     ))}
                   </div>
-                );
-              })()}
-              {/* 4段フロー（モック .workflow / .flowstep / .flowarrow）＝件数は取得済み state の再形 */}
-              <div style={{ display: "flex", alignItems: "center", gap: 7, overflowX: "auto", flexWrap: "wrap", marginBottom: 12 }}>
-                {steps.map(([n, label, cnt], idx) => (
-                  <span key={n} style={{ display: "inline-flex", alignItems: "center", gap: 7 }}>
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, whiteSpace: "nowrap",
-                      fontSize: 10.5, color: cnt > 0 ? "var(--v2-text)" : "var(--v2-muted)" }}>
-                      <i style={{ width: 20, height: 20, borderRadius: "50%", display: "grid", placeItems: "center",
-                        fontStyle: "normal", fontSize: 9, border: "1px solid var(--line)",
-                        color: cnt > 0 ? "var(--champ)" : "var(--v2-muted)" }}>{n}</i>
-                      {label}
-                      <span className="num" style={{ fontWeight: 800 }}>{cnt}</span>
-                    </span>
-                    {idx < steps.length - 1 && <span style={{ color: "var(--v2-muted)" }}>→</span>}
-                  </span>
-                ))}
-              </div>
+                  {isManagerUp && ids.length > 0 && (
+                    <div className="nox-cta" style={{ margin: "0 0 8px" }}>
+                      <button type="button" style={t.btnPrimary56} title="表示中の希望（定休日を除く）をまとめて希望どおり採用し、その場で確定します" data-wish-bulk="1" onClick={() => void approveAllWishes(ids)}>
+                        希望どおり一括採用（{ids.length}件）
+                      </button>
+                    </div>
+                  )}
+                  {isManagerUp && (planned.length > 0 || proposed.length > 0) && (
+                    <div className="nox-actions" style={{ display: "flex", justifyContent: "center", gap: 8, flexWrap: "wrap", marginBottom: 10 }} data-queue-sub="1">
+                      {planned.length > 0 && <button style={btnLight} title="調整中（planned）の全件をキャストへ送り返します（確認待ち）" data-queue-sendback={planned.length} onClick={() => void proposeShifts(planned.map((x) => x.id))}>調整中を送り返す（{planned.length}）</button>}
+                      {proposed.length > 0 && <button style={btnLight} title={`送り返したまま放置された分をまとめて${PROXY_CONFIRM_LABEL}します（62件ずつ順に送ります）`} data-queue-proxy={proposed.length} onClick={() => void confirmBulkShifts(proposed.map((x) => x.id))}>放置分を{PROXY_CONFIRM_LABEL}（{proposed.length}）</button>}
+                    </div>
+                  )}
+                  <div style={{ display: "flex", alignItems: "center", gap: 7, overflowX: "auto", flexWrap: "wrap", marginBottom: 12 }}>
+                    {steps.map(([n, label, cnt], idx) => (
+                      <span key={n} style={{ display: "inline-flex", alignItems: "center", gap: 7 }}>
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 6, whiteSpace: "nowrap", fontSize: 10.5, color: cnt > 0 ? "var(--v2-text)" : "var(--v2-muted)" }}>
+                          <i style={{ width: 20, height: 20, borderRadius: "50%", display: "grid", placeItems: "center", fontStyle: "normal", fontSize: 9, border: "1px solid var(--line)", color: cnt > 0 ? "var(--champ)" : "var(--v2-muted)" }}>{n}</i>
+                          {label}
+                          <span className="num" style={{ fontWeight: 800 }}>{cnt}</span>
+                        </span>
+                        {idx < steps.length - 1 && <span style={{ color: "var(--v2-muted)" }}>→</span>}
+                      </span>
+                    ))}
+                  </div>
+                </>
+              )}
             </>
           );
         })()}
-        {(() => {
+        {queueOpen && (() => {
           type Row = { key: string; castId: string; date: string; wishHm: string | null; nowHm: string | null;
             stage: string; kind: "wish" | "planned" | "proposed"; wish?: Wish; shift?: Shift };
           const rows: Row[] = [
@@ -1920,7 +1948,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
             S8 レイアウトは**2カラム**（モック .planner-grid = minmax(570px,1.25fr) minmax(300px,.75fr)
                ≒ 既存 .nox-2col）。左=配置を組む／右=必要人数＋配置ルール。
             S9 「配置を組む」に**月カレンダー ⇄ スタッフ別**の表示切替（モック .plan-tools > .seg）。
-               自動/手修正の色分けは shifts.source（auto / manual）を実データで塗る。
+               （旧）出所（auto／manual）の色分けは ★便 SH-UI-c2 C2-19 ④ で撤去。
             S13 必要人数は右カラム（従来はタブ最下部）。
           ★モックに在るが実体が無いものは描かない（教訓25）: ポジション軸（裁定③・SD-6）／
             配置ルールの「優先順位」seg（shift_rules は max_consec_days・min_month_min の2列のみ）／
@@ -1928,7 +1956,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
       {/* ★裁定406（便 SH-UI-b）④ 公開シフト＝配置中の期間の切替・「キャストに公開する」（shift_period_set published）・不足日の一覧（③ で配置する）。下に月カレンダー */}
       {tab === "publish" && isManagerUp && (() => { const p = focusOf(placingPeriods.length ? placingPeriods : publishedPeriods); const sh = p ? shortDaysOf(p) : []; return (
         <section className="nox-cardtop" style={card} data-shift-publish="1">
-          <h2 style={{ ...secTitle, margin: "0 0 4px" }}>④ 公開シフト</h2>
+          <h2 style={{ ...secTitle, margin: "0 0 4px" }}>④ 公開シフト{p && <span className="num" style={{ marginLeft: 8, fontSize: 13, fontWeight: 700, color: "var(--sub)" }} data-shift-publish-month="1">{periodMonthLabelOf(p.start_date, p.end_date)}</span>}</h2>{/* ★便 SH-UI-c2 C2-18 ④: 月名は期間の実日付から */}
           <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 10px" }}>公開するとキャストのマイページに確定シフトが出ます。不足のままでも公開できます。公開後の追加・外しは「確定シフト」から。</p>
           {periodTabs(placingPeriods.length ? placingPeriods : publishedPeriods, "publish", placingPeriods.length ? "配置中の期間" : "公開済みの期間")}
           {!placingPeriods.length && publishedPeriods.length > 0 && <p style={{ fontSize: 12, color: "var(--sub)", margin: "6px 0 0" }}>配置中の期間はありません（公開済みの期間を表示しています）。</p>}
@@ -1936,6 +1964,10 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
             <div className="nox-cta" style={{ margin: "10px 0" }}>
               <button type="button" style={{ ...t.btnPrimary56, opacity: p.status === "published" ? 0.5 : 1 }} disabled={p.status === "published"} data-shift-publish-btn="1"
                 onClick={async () => { await setPeriodStatus(p, "published"); openPeriodInStep(p, "roster"); }}>{p.status === "published" ? "公開済み" : "キャストに公開する"}</button>
+            </div>
+            {/* ★便 SH-UI-c2 C2-18 ②: 「作成中に戻す」は ④ に（① の見出しカードから移設・公開ボタンは ④ だけ） */}
+            <div className="nox-actions" style={{ display: "flex", justifyContent: "center", margin: "0 0 8px" }}>
+              <button type="button" style={btnLight} data-shift-to-draft="1" title="この期間を作成中に戻します（募集・配置をやり直すとき）" onClick={() => void setPeriodStatus(p, "draft")}>作成中に戻す</button>
             </div>
             <h3 style={{ fontSize: 13, margin: "8px 0 6px" }}>不足日 <span className="num" style={{ color: sh.length ? "var(--bad)" : "var(--sub)" }}>{sh.length} 日</span><span style={{ fontSize: 11, color: "var(--sub)", marginLeft: 6 }}>（表示月 {month} の範囲）</span></h3>
             <div style={{ display: "grid", gap: 6 }} data-shift-short-days="1">
@@ -1950,9 +1982,25 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
       ); })()}
       {(tab === "calendar" || tab === "queue" || tab === "publish") && (
         <div>
-          <section className="nox-cardtop" style={card}>
+          <section className="nox-cardtop" style={card} data-shift-place-cal="1">
+            {/* ★便 SH-UI-c2 C2-18 ⑤: 「配置を組む」（月カレンダー ⇄ スタッフ別・＋ キャスト別にまとめて追加）は ① から ③ へ */}
+            {isManagerUp && (
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 8 }} data-shift-plantools="1">
+                <div>
+                  <h3 style={{ ...secTitle, margin: 0, fontSize: 14 }}>配置を組む</h3>
+                  <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "2px 0 0" }}>日のセルを押すとその日の配置。キャストからまとめて足すときは「＋ キャスト別にまとめて追加」。</p>
+                </div>
+                <span className="nox-plantools">
+                  <div className="nox-seg">
+                    <button className={planView === "cal" ? "on" : ""} onClick={() => setPlanView("cal")}>月カレンダー</button>
+                    <button className={planView === "staff" ? "on" : ""} onClick={() => setPlanView("staff")}>スタッフ別</button>
+                  </div>
+                  <button style={btnDark} onClick={() => { setAddDate(month === bizToday.slice(0, 7) ? bizToday : `${month}-01`); setAddStatus("planned"); setAddCast(null); setAddModal(true); }}>＋ キャスト別にまとめて追加</button>
+                </span>
+              </div>
+            )}
             {/* ★306-6: 年月見出し・‹ ›・今月＝共用部品 MonthNav（見出しは sticky＝306-1） */}
-            <MonthNav ym={month} today={bizToday} heading="h2" sticky onChange={setMonth} onToday={() => { setMonth(bizToday.slice(0, 7)); setSelDate(bizToday); }} />
+            <MonthNav ym={month} today={bizToday} heading="h2" sticky onChange={setMonth} onToday={() => { setMonth(bizToday.slice(0, 7)); setSelDate(bizToday); }} note={recruitNoteOf(periodsAll, month)} />{/* ★便 SH-UI-c2 C2-18 ⑤: 募集期間の注記（① から移設） */}
             {/* ★DP-R S5: モックの month-summary 帯（確定人時／予想人件費／人員不足日／未処理希望）。
                 すべて**取得済み state の再形**＝新規クエリなし。予想人件費は既存 fcByDate の月合算
                 （E8-4 #4 と同値）で manager 以上のみ。時給未設定が混じる月は「概算」と併記する。 */}
@@ -1962,9 +2010,8 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                 .reduce((acc, x) => acc + spanMinutes(x.start_hm, x.end_hm), 0);
               // ★SC-7（裁定53'）: 今日以降だけを数える（過ぎた日の不足は手遅れ＝打つ手がない）。
               //   ラベルも「人員不足日（今後）」に変え、何を数えた数字なのかを名前で示す。
-              const shortDays = calCells.filter((ymd): ymd is string => !!ymd)
-                .filter((ymd) => !isPast(ymd))
-                .filter((ymd) => { const st = dayStat(ymd); return st.required > 0 && st.assigned < st.required; }).length;
+              // ★便 SH-UI-c2 C2-19 ⑥: 不足日＝期間のある日だけ数える（期間なしは除外）
+              const shortDays = shortDaysInPeriodsOf(calCells.filter((ymd): ymd is string => !!ymd), (ymd) => periodCellStageOf(periodsAll, ymd, bizToday), dayStat, isPast);
               const pend = wishAll.filter((w) => w.status === "pending").length;
               return (
                 <div className="nox-repsum" style={{ marginTop: 10 }}>
@@ -1973,45 +2020,38 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                     <div className="l">予想人件費</div>
                     <div className="v num">{isManagerUp ? yen(monthFcTotal) : "—"}</div>
                   </div>
-                  <div className="nox-rs"><div className="l">不足日</div><div className="v num">{shortDays}<small>日</small></div></div>
+                  <div className="nox-rs" data-shift-short-days-kpi={shortDays}><div className="l">不足日 <small style={{ fontWeight: 400 }}>期間のある日のうち</small></div><div className="v num">{shortDays}<small>日</small></div></div>
                   <div className="nox-rs"><div className="l">未処理希望</div><div className="v num">{pend}<small>件</small></div></div>
                 </div>
               );
             })()}
             {confirmCta}{/* ★裁定253 R12: 仮シフト＝KPI 4 枚の下 */}
             {periodBandsJsx}{/* ★AU2-2 仮シフト */}
+            {/* ★便 SH-UI-c2 C2-19（B2-1 を上書き）: 凡例＝カレンダー上部に 2 列（進行状況 5／充足状況 4・390px は 2 段）・セル＝地色は充足・右上バッジは進行・中央「確定/必要」「あと N 名」（CalCell） */}
+            {planView === "cal" ? (<>
+            <CalLegend style={{ margin: "8px 0" }} />
             <div className="nox-calgrid">
               {DOW.map((d) => <div key={d} className="nox-calh">{d}</div>)}
               {calCells.map((ymd, i) => {
                 if (!ymd) return <div key={`b${i}`} />;
                 const st = dayStat(ymd);
                 const fc = fcOf(ymd);
-                const cls = ["nox-cald", st.fill, isPast(ymd) ? "past" : "", ymd === selDate ? "sel" : "", ymd === bizToday ? "today" : "", periodCellClsOf(ymd)].filter(Boolean).join(" ");   // ★B2-1: 地色＝期間の状態
+                const stage = periodCellStageOf(periodsAll, ymd, bizToday);
                 return (
-                  <button key={ymd} className={cls} data-period-stage={periodCellStageOf(periodsAll, ymd, bizToday)}
-                    onClick={() => { if (periodNoneOf(ymd) && isManagerUp) { openNewPeriodAt(ymd); return; } setSelDate(ymd); setDayModal("calendar"); }} /* ★B2-1: 期間なしの日＝①の新規作成へ */
-                    title={`${ymd}・${FILL_LABEL[st.fill]}（確定${st.confirmed}/確認待ち${st.proposed}/予定${st.planned}）${st.over > 0 ? `・余剰${st.over}` : ""}`}>
-                    <span className="nox-cald-n num">{Number(ymd.slice(8))}</span>
-                    {periodNoneOf(ymd) && <span className="nox-cald-pn">期間なし</span>}
-                    {/* 段0R その3: 状態バッジ文字（モック .st ok/warn/ng/none 逐語）。色だけでなく語で伝える。 */}
-                    <span className={`nox-caldst ${st.fill}`}>{FILL_LABEL[st.fill]}</span>
-                    {st.required > 0 && <span className="nox-cald-c num">{st.assigned}/{st.required}</span>}
-                    {/* ★SC-2（裁定B）: 余剰は**灰**で出す。赤（不足）・緑（充足）と並べて第3の強い色を
-                        置くと3色すべてが注意色になり、本当に見るべき赤が埋もれるため。 */}
-                    {st.over > 0 && (
-                      <span className="num" style={{ fontSize: 8.5, color: "var(--v2-muted)" }}>余剰+{st.over}</span>
-                    )}
-                    {/* 段S-2: 日別の予想人件費（manager 以上・割当のある日のみ）。
-                        ★≤641 は CSS で非表示＝スマホは色＋コマ数のみ・詳細は日をタップして日詳細で見る。
-                        title は付けない（≤641 で見えない情報を tooltip で復活させない）。 */}
-                    {isManagerUp && fc && fc.total > 0 && (
-                      <span className="nox-cald-y num">{yen(fc.total)}</span>
-                    )}
-                  </button>
+                  <CalCell key={ymd} ymd={ymd} stat={st} stage={stage} past={isPast(ymd)} sel={ymd === selDate} today={ymd === bizToday}
+                    onClick={() => { if (periodNoneOf(ymd) && isManagerUp) { openNewPeriodAt(ymd); return; } setSelDate(ymd); setDayModal("calendar"); }} /* ★B2-1: 期間なしの日＝①の新規作成へ・★C2-19 ⑦: その日の配置ダイアログはそのまま */
+                    title={`${ymd}・${FILL_LABEL[st.fill]}（確定${st.confirmed}/確認待ち${st.proposed}/予定${st.planned}）${st.over > 0 ? `・余剰${st.over}` : ""}`}
+                    yen={isManagerUp && fc && fc.total > 0 ? yen(fc.total) : null}
+                    extra={st.over > 0 ? <span className="num" style={{ fontSize: 8.5, opacity: 0.8 }}>余剰+{st.over}</span> : null} />
                 );
               })}
             </div>
-            {/* 段0R その3: 凡例＝色ドット（モック .legend/.dot 逐語）。枠線ではなく塗りで示す。 */}
+            </>) : staffMatrixJsx}
+            <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "8px 0 0" }}>
+              セル＝地色は必要人数の充足・右上は期間の進行・中央は確定/必要人数（時間帯バンドのピーク値）。必要人数は下の「必要人数（曜日・時間帯別）」設定を参照します。
+              {/* ★SC-8（裁定57）: 日詳細をモーダルへ統一＝押したその場で開く。 */}
+              <b>日を押すとその日の割当が開きます。</b>
+            </p>            {/* 段0R その3: 凡例＝色ドット（モック .legend/.dot 逐語）。枠線ではなく塗りで示す。 */}
             <div className="nox-legend" style={{ marginTop: 10 }}>
               <span><span className="nox-dot ok" />充足</span>
               <span><span className="nox-dot warn" />やや不足(-1)</span>
@@ -2128,53 +2168,19 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
           .filter((ymd) => !isPast(ymd))
           .filter((ymd) => { const st = dayStat(ymd); return st.required > 0 && st.assigned < st.required; }).length;
         return (
-          <section className="nox-cardtop" style={card}>
-            {/* planbar（★308-2: 年月見出し MonthNav は下の「配置を組む」カード＝曜日行の直上へ移設） */}
+          <section className="nox-cardtop" style={card} data-shift-period-card="1">
+            {/* ★便 SH-UI-c2 C2-18 ①②（裁定406 の役割分担に戻す）: ① に残すのは期間の一覧（状態バッジ・編集・削除）・新規作成／編集フォーム・「必要人数を設定」・凡例。
+                上段の見出しカード（月名・公開済み・確定シフトへ・作成中に戻す・④公開シフトへ）・代行確定・集計 4 つは外した＝代行確定と集計は ③、公開／作成中に戻すは ④。 */}
             <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 10 }}>
               <div>
-                {/* ★v4.1 H6: 見出しをモック逐語「〜年〜月 キャストシフト計画」へ */}
-                <h2 style={{ ...secTitle, margin: 0 }}>{my}年{mm}月 キャストシフト計画</h2>{/* ★308-2: 年月見出し MonthNav は「配置を組む」の曜日行の直上 */}
-                <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "2px 0 0" }}>
-                  {cur
-                    ? <>計画期間 <span className="num">{cur.start_date}〜{cur.end_date}</span> ・ 希望締切 <span className="num">{cur.wish_deadline ?? "—"}</span></>
-                    : "計画期間はまだありません（下のフォームで作成できます）"}
-                </p>
+                <h2 style={{ ...secTitle, margin: 0 }}>① 期間を作る</h2>
+                <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "2px 0 0" }}>{cur ? <>計画期間 <span className="num">{cur.start_date}〜{cur.end_date}</span> ・ 希望締切 <span className="num">{cur.wish_deadline ?? "—"}</span></> : "計画期間はまだありません（下のフォームで作成できます）"}</p>
               </div>
-              {cur && <span className={`nox-stpill ${cur.status === "published" ? "ok" : ""}`}>{PERIOD_ST_LABEL[cur.status] ?? cur.status}</span>}
-              {/* ★裁定138（v4.1 H29）: 公開状態の横に「確定シフトへ」＝確定シフトタブへの導線（RPC なし・表示切替のみ） */}
-              {cur && (
-                <button style={btnLight} title="確定シフトタブへ移動します"
-                  onClick={() => { setDayModal(""); setTab("roster"); }}>確定シフトへ</button>
-              )}
-              <span className="nox-planops">{/* ★X-8-12: ≤899px は縦積み全幅（PC は右寄せ 1 行＝従来） */}
-                {/* ★裁定136（v4.1 H7）: 「必要人数を設定」はモーダル化せず、同タブ内の常設カード（#shift-needs）へスクロール
-                    ＝裁定112-A「見る場所と設定する場所の一致」を維持。既存 gotoNeeds（日詳細からの導線）を共用。 */}
-                <button style={btnLight} title="この下の「必要人数（曜日・時間帯別）」へ移動します"
-                  onClick={() => gotoNeeds()}>必要人数を設定</button>
-                <button style={{ ...btnLight, opacity: cur ? 1 : 0.45 }} disabled={!cur}
-                  title={cur ? "この計画を作成中に戻します" : "先に計画期間を作成してください"}
-                  onClick={() => cur && void setPeriodStatus(cur, "draft")}>作成中に戻す</button>
-                <button style={{ ...btnDark, opacity: cur ? 1 : 0.45 }} disabled={!cur}
-                  title={cur ? "④ 公開シフトへ（公開はそこで）" : "先に計画期間を作成してください"}
-                  onClick={() => cur && openPeriodInStep(cur, "publish")}>④ 公開シフトへ</button>{/* ★裁定406: 公開は ④ で */}{/* ★裁定253 R12: 公開は計画期間の公開であってシフトの確定ではない＝ラベルのみ変更 */}
+              <span className="nox-planops">
+                <button style={btnLight} title="この下の「必要人数（曜日・時間帯別）」へ移動します" onClick={() => gotoNeeds()}>必要人数を設定</button>
               </span>
             </div>
-            {confirmCta}{/* ★裁定253 R12: シフト作成＝計画ヘッダ（planbar）の下 */}
-            {/* warnbanner（未処理の希望がある月だけ出す） */}
-            {wishes.length > 0 && (
-              <div className="nox-alert" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
-                <span>未処理の希望が <b className="num">{wishes.length}件</b> あります。先に希望を確認してからシフトを作成できます。</span>
-                <button className="nox-alert-act" style={btnLight} onClick={() => { setDayModal(""); setTab("queue"); }}>希望を処理</button>{/* ★X-8-12: ≤899px は全幅センター（PC は右寄せ） */}
-              </div>
-            )}
-            {/* plan-kpis 4枚（モック逐語の4項目・すべて取得済み state の再形） */}
-            <div className="nox-repsum">
-              <div className="nox-rs"><div className="l">配置済み</div><div className="v num">{inMonth.length}<small>件</small></div></div>
-              <div className="nox-rs"><div className="l">予定勤務時間</div><div className="v num">{Math.round(planMin / 60)}<small>h</small></div></div>
-              <div className="nox-rs"><div className="l">予想人件費</div><div className="v num">{yen(monthFcTotal)}</div></div>
-              <div className="nox-rs"><div className="l">不足日</div><div className="v num">{shortDays}<small>日</small></div></div>
-            </div>
-
+            {void planMin}{void shortDays}
         {periodBandsJsx}{/* ★AU2-2 */}
         {periods.length === 0 && (
           <p style={{ fontSize: 12.5, color: "var(--sub)", margin: "0 0 8px" }}>この月の計画はまだありません。下のフォームで作成できます。</p>
@@ -2190,6 +2196,10 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
               </span>
             </div>
             <div className="pc-acts">
+              {/* ★便 SH-UI-c2 C2-18 ③: 状態ごとの小さな導線（募集中→②提出一覧・配置中→③で配置・公開済み→④で見る） */}
+              {stageOfP(p) === "open" && <button type="button" className="nox-link" style={{ fontSize: 12 }} data-period-link="submit" onClick={() => openPeriodInStep(p, "submit")}>②提出一覧で見る ›</button>}
+              {stageOfP(p) === "closed" && <button type="button" className="nox-link" style={{ fontSize: 12 }} data-period-link="queue" onClick={() => openPeriodInStep(p, "queue")}>③で配置 ›</button>}
+              {p.status === "published" && <button type="button" className="nox-link" style={{ fontSize: 12 }} data-period-link="publish" onClick={() => openPeriodInStep(p, "publish")}>④で見る ›</button>}
               <button style={btnLight}
                 onClick={() => { setPMsg(null); setPTouched(true); setPEditId(p.id); setPStart(p.start_date); setPEnd(p.end_date); setPDeadline(p.wish_deadline ?? ""); setPStatus(p.status); }}>編集</button>
               <button style={btnLight} title="シフトから参照されている期間は削除できません"
@@ -2224,120 +2234,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
         );
       })()}
 
-      {/* ★0125（裁定112-B）: 2カラム→単列（右カラム撤去）。配置を組む＝登録済みの確認＋モーダル起点。 */}
-        <section className="nox-cardtop" style={card}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
-            <div>
-              <h2 style={{ ...secTitle, margin: 0 }}>配置を組む</h2>
-              {/* ★0125（裁定112）: 作成はモーダル（キャスト単位）へ＝この面は登録済みの確認とモーダル起点 */}
-              <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "2px 0 0" }}>
-                月カレンダーまたはキャスト別に登録済みシフトを確認します（日付から足すときは日のセル、キャストからまとめて足すときは「＋ キャスト別にまとめて追加」）
-              </p>
-            </div>
-            <span className="nox-plantools">{/* ★306-3: ≤899px はセグメント「月カレンダー／スタッフ別」を幅いっぱいの 1 行・その下に「＋ キャスト別にまとめて追加」を幅いっぱいの 1 行（CSS） */}
-              <div className="nox-seg">
-                <button className={planView === "cal" ? "on" : ""} onClick={() => setPlanView("cal")}>月カレンダー</button>
-                <button className={planView === "staff" ? "on" : ""} onClick={() => setPlanView("staff")}>スタッフ別</button>
-              </div>
-              {/* 現行維持: シフト作成タブからは planned で開く（計画を組む面ゆえ） */}
-              {/* ★裁定121-2: キャスト起点ウィザードの名称のみ変更（挙動・RPC は不変） */}
-              <button style={btnDark} onClick={() => { setAddDate(month === bizToday.slice(0, 7) ? bizToday : `${month}-01`); setAddStatus("planned"); setAddCast(null); setAddModal(true); }}>＋ キャスト別にまとめて追加</button>{/* ★306-2: 対象月＝表示月 */}
-            </span>
-          </div>
-
-          {/* ★306-1／306-2／308-2: 「配置を組む」の年月見出し＋前月／翌月／今月（sticky）＝曜日行（.nox-calgrid）の直前の兄弟・タブ切替（planView）や幅で消えない位置。募集中の期間と表示月が違うときは薄字「募集期間: M月」 */}
-          <MonthNav ym={month} today={bizToday} heading="h2" sticky onChange={setMonth} onToday={() => { setMonth(bizToday.slice(0, 7)); setSelDate(bizToday); }} note={recruitNoteOf(periodsAll, month)} />
-          {planView === "cal" ? (
-            <>
-              <div className="nox-calgrid">
-                {DOW.map((d) => <div key={d} className="nox-calh">{d}</div>)}
-                {calCells.map((ymd, i) => {
-                  if (!ymd) return <div key={`pb${i}`} />;
-                  const st = dayStat(ymd);
-                  const day = shifts.filter((x) => x.date === ymd);
-                  const auto = day.filter((x) => x.source === "auto").length;
-                  const man = day.length - auto;
-                  const cls = ["nox-cald", st.fill, isPast(ymd) ? "past" : "", ymd === selDate ? "sel" : "", ymd === bizToday ? "today" : "", periodCellClsOf(ymd)].filter(Boolean).join(" ");   // ★B2-1
-                  return (
-                    <button key={ymd} className={cls} data-period-stage={periodCellStageOf(periodsAll, ymd, bizToday)} /* ★B2-1: 地色＝期間の状態 */
-                      onClick={() => { setSelDate(ymd); setDayModal("build"); }}
-                      title={`${ymd}・自動${auto}件 / 手修正${man}件`}>
-                      <span className="nox-cald-n num">{Number(ymd.slice(8))}</span>
-                      {st.required > 0 && <span className="nox-cald-c num">{st.assigned}/{st.required}</span>}
-                      {day.length > 0 && (
-                        <span className="num" style={{ fontSize: 8.5 }}>
-                          {auto > 0 && <span style={{ color: "var(--blue)" }}>自{auto}</span>}
-                          {auto > 0 && man > 0 && " "}
-                          {man > 0 && <span style={{ color: "var(--gold2)" }}>手{man}</span>}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-              {/* ★SC-8 ③: 選択日の内訳はここから日詳細モーダル（面3）へ移設した。
-                  カードの中に置いていた頃は、日を押しても下スクロールしないと見えなかった
-                  （面1・面2 と同じ理由＝C-11）。器も面1・面2 と同じものに揃えている。 */}
-            </>
-          ) : (
-            /* スタッフ別マトリクス（E8-4 #9・DP-R S9 で確定シフトタブからここへ移設） */
-            (() => {
-              const days = calCells.filter((d): d is string => d !== null);
-              const rows = casts.filter((c) => shifts.some((x) => x.cast_id === c.id && x.date.startsWith(month)));
-              if (rows.length === 0) return <p style={{ fontSize: 13, color: "var(--sub)" }}>この月のシフトはありません</p>;
-              const cellTd: React.CSSProperties = {
-                border: "1px solid var(--line)", padding: "3px 4px", textAlign: "center", minWidth: 22,
-              };
-              return (
-                <div style={{ overflowX: "auto" }}>
-                  <table style={{ borderCollapse: "collapse", fontSize: 11 }}>
-                    <thead>
-                      <tr>
-                        <th style={{ ...cellTd, textAlign: "left", minWidth: 90, color: "var(--sub)" }}>キャスト</th>
-                        {days.map((d) => (
-                          <th key={d} className="num" style={{ ...cellTd, color: dowOf(d) === 0 ? "var(--bad)" : dowOf(d) === 6 ? "var(--champ)" : "var(--sub)" }}>
-                            {Number(d.slice(8))}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {rows.map((c) => (
-                        <tr key={c.id}>
-                          <td style={{ ...cellTd, textAlign: "left", whiteSpace: "nowrap" }}>{c.name}
-                            {/* ★裁定337（0167・便 X-13d-2b）: キャスト個別のシフト希望の方式の印（店の既定に従う人は印なし） */}
-                            {c.shift_request_mode && <span className="nox-stpill" style={{ marginLeft: 6, fontSize: 10, padding: "0 6px" }} title="このキャストだけの方式（キャスト詳細 › 待遇で変更）">{SHIFT_REQUEST_MODE_LABEL[c.shift_request_mode]}</span>}
-                          </td>
-                          {days.map((d) => {
-                            const mine = shifts.filter((x) => x.cast_id === c.id && x.date === d);
-                            const top = mine.some((x) => x.status === "confirmed") ? "confirmed"
-                              : mine.some((x) => x.status === "proposed") ? "proposed"
-                              : mine.length > 0 ? "planned" : null;
-                            const isAuto = mine.length > 0 && mine.every((x) => x.source === "auto");
-                            return (
-                              <td key={d} className="num"
-                                style={{ ...cellTd, color: top ? shiftStColor(top) : undefined,
-                                  borderColor: mine.length === 0 ? undefined : isAuto ? "rgba(116,166,216,.35)" : "rgba(201,162,74,.4)" }}
-                                title={mine.length > 0 ? `${d} ${mine.map((x) => `${fmtWin(x.start_hm, x.end_hm)}(${SHIFT_ST_LABEL[x.status]}・${x.source === "auto" ? "自動" : "手修正"})`).join(" / ")}` : undefined}>
-                                {top === "confirmed" ? "●" : top === "proposed" ? "◐" : top === "planned" ? "○" : ""}
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              );
-            })()
-          )}
-          <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "10px 0 0", lineHeight: 1.7 }}>
-            ●=確定 ◐=確認待ち ○=予定。枠色は <span style={{ color: "var(--blue)" }}>自動</span> /{" "}
-            <span style={{ color: "var(--gold2)" }}>手修正</span>。セルにカーソルを合わせると時間帯が出ます。
-          </p>
-
-        </section>
-
+      {/* ★便 SH-UI-c2 C2-18 ⑤: 「配置を組む」カレンダー（月カレンダー／スタッフ別・＋ キャスト別にまとめて追加）は ③ シフト配置へ移設＝① は期間の一覧とフォームに集中 */}
       {/* ★0125（裁定112-A/B）: 右カラム（必要人数＋配置ルール）は撤去＝単列化。
           必要人数カードは仮シフト（calendar）タブへ移設（見る場所と設定する場所の一致）。
           配置ルールカードは UI 撤去（shift_rules 器と shift_rules_set は残置）。 */}
@@ -2399,14 +2296,14 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                   const list = confirmedOn(ymd);
                   const cell = cellNamesOf(list.map((x) => castName(x.cast_id)));
                   const unpublished = isUnpublishedDay(periodsAll, ymd); // ★AU2-3: 期間が未公開の日は「未確定」（期間の無い日は印なし）
-                  const cls = ["nox-cald", list.length > 0 ? "ok" : "", isPast(ymd) ? "past" : "", ymd === selDate ? "sel" : "", ymd === bizToday ? "today" : "", unpublished ? "nox-cald--unpub" : ""].filter(Boolean).join(" "); // ★306-5: 未確定＝帯（≤899）
+                  const rst = dayStat(ymd); const cls = ["nox-cald", "nox-cald2", `fill-${calFillOf(rst.assigned, rst.required)}`, isPast(ymd) ? "past" : "", ymd === selDate ? "sel" : "", ymd === bizToday ? "today" : "", unpublished ? "nox-cald--unpub" : ""].filter(Boolean).join(" "); /* ★便 SH-UI-c2 C2-19: 確定シフトタブも同じ地色（充足） */ // ★306-5: 未確定＝帯（≤899）
                   return (
                     <button key={ymd} className={cls} style={{ minHeight: 92, alignItems: "stretch", position: "relative" }}
                       data-day-state={list.length > 0 ? "fixed" : undefined} /* ★便 GV-C C-14（GV-60）: /mine と同じ色規則（確定＝緑塗り） */
                       onClick={() => { setSelDate(ymd); setDayModal("roster"); }}
                       title={`${ymd}${unpublished ? "・未確定（期間が未公開）" : ""}・${list.length === 0 ? "確定なし" : list.map((x) => `${castName(x.cast_id)} ${fmtWin(x.start_hm, x.end_hm)}`).join(" / ")}`}>
                       <span className="nox-cald-n num">{Number(ymd.slice(8))}</span>
-                      {unpublished && <span className="nox-cald-unpub">未確定</span>}{/* ★306-5: 日付と重ねない（≥900 は番号の下の行・≤899 は非表示＝上辺の帯） */}
+                      {unpublished && <span className="nox-cald-unpub">未確定</span>}<span className={`nox-cald-bd stg-${periodCellStageOf(periodsAll, ymd, bizToday)}`} data-cal-badge={periodCellStageOf(periodsAll, ymd, bizToday)}>{({ draft: "作成中", open: "募集中", closed: "配置中", published: "公開済み", none: "期間なし" } as Record<string, string>)[periodCellStageOf(periodsAll, ymd, bizToday)]}</span>{/* ★306-5: 日付と重ねない（≥900 は番号の下の行・≤899 は非表示＝上辺の帯） */}
                       {list.slice(0, cell.shown.length).map((x, k) => (
                         <span key={x.id} style={{
                           display: "block", fontSize: 9.5, lineHeight: 1.5, textAlign: "left",
@@ -2732,7 +2629,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
 
       {/* ★SC-8 ③: 配置ビュー（シフト作成タブ）の日詳細モーダル＝面3。
           ★「配置を組む」カードの中（カレンダー直下・borderTop 区切り）に置いていたものを移設した。
-            中身は移設前の逐語（キャスト名／時刻／自動・手修正／状態ピル／調整）。項目も順序も語彙も不変。
+            中身は移設前の逐語（キャスト名／時刻／状態ピル／調整）。出所（自動・手）の表示は ★便 SH-UI-c2 C2-19 ④ で撤去。
           ★見出し「<日付> の配置」は面1・面2 と同じく nox-modalhead の h3 へ移した（器を揃えるため）。
           ★月外の空状態は出さない＝表示条件の selInMonth が月外を弾く（面1・面2 と同じ方式）。
           ★SC-8 ③-1: planView === "cal" を条件に持つ（面1 の rosterView === "cal" と同じ形）。
@@ -2763,9 +2660,6 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
               <div key={x.id} className="nox-listrow" style={{ fontSize: 12.5 }}>
                 <span style={{ flex: 1, minWidth: 0 }}>{castName(x.cast_id)}</span>
                 <span className="num">{fmtWin(x.start_hm, x.end_hm)}</span>
-                <span style={{ fontSize: 10, color: x.source === "auto" ? "var(--blue)" : "var(--gold2)" }}>
-                  {x.source === "auto" ? "自動" : "手修正"}
-                </span>
                 <span className={`nox-stpill ${x.status === "confirmed" ? "ok" : ""}`}
                   style={x.status === "proposed" ? { color: "var(--gold2)", borderColor: "var(--gold-bd)" } : undefined}>
                   {SHIFT_ST_LABEL[x.status] ?? x.status}

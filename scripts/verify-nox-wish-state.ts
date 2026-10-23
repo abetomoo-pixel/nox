@@ -55,7 +55,7 @@ const src = (p: string) => fs.readFileSync(p, "utf8");
   const sb = src("app/(manage)/shift/shift-board.tsx");
   // 「承認」の語が残るのは cast の打刻修正申請の決裁ボタン（裁定297-1・別機能）だけ＝シフトの確定ボタンには残らない
   const approveButtons = (sb.match(/confirm(Shift\(s\)|One\(r\.shift!\.id\))\}>承認<\/button>/g) ?? []).length;
-  check("ws(4-1) shift-board: シフトの「承認」ボタン 0・代行確定＝PROXY_CONFIRM_LABEL（行 2 箇所＝今日タブ＋proposed 行（★裁定380: planned 行は「調整して確定」へ）＋一括＋今日タブ CTA）", approveButtons === 0 && (sb.match(/\{PROXY_CONFIRM_LABEL\}<\/button>/g) ?? []).length === 2 && sb.includes("件を一括{PROXY_CONFIRM_LABEL}") && sb.includes("{PROXY_CONFIRM_LABEL}する（{unconfirmedN} 件）"), `承認 ${approveButtons}`);
+  check("ws(4-1) shift-board: シフトの「承認」ボタン 0・代行確定＝PROXY_CONFIRM_LABEL（行 2 箇所＝今日タブ＋proposed 行（★裁定380: planned 行は「調整して確定」へ）＋一括＋今日タブ CTA）", approveButtons === 0 && (sb.match(/\{PROXY_CONFIRM_LABEL\}<\/button>/g) ?? []).length === 2 && sb.includes("放置分を{PROXY_CONFIRM_LABEL}（{proposed.length}）") /* ★便 SH-UI-c2 C2-17: 副ボタン「放置分を代行確定（N）」 */ && sb.includes("{PROXY_CONFIRM_LABEL}する（{unconfirmedN} 件）"), `承認 ${approveButtons}`);
   check("ws(4-2) shift-board: SHIFT_ST_LABEL＝4 段の語・queue の段＝wishStateTextOf・キャスト希望は審査中・旧「承認済み（未確定）」なし",
     sb.includes("const SHIFT_ST_LABEL: Record<string, string> = { planned: WISH_STATE_LABEL.accepted_wait, proposed: WISH_STATE_LABEL.accepted_wait, confirmed: WISH_STATE_LABEL.accepted_fixed };")
     && sb.includes('stage: wishStateTextOf("accepted", x.status as "planned" | "proposed", castConfirm)') && sb.includes("stage: `${WISH_STATE_LABEL.pending}（キャスト希望）`") && !sb.includes('"承認済み（未確定）"'));

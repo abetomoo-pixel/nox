@@ -1,4 +1,5 @@
 "use client";
+import { rules0175On } from "@/lib/nox/rules-0175/flag"; // ★便 SH-UI-c2 C2-16 ③
 import { payFeeRatesOf } from "@/lib/nox/register/p173"; // ★便 X13-G W-17: お客様に請求するカード手数料＝pay_fee_rates.card
 
 // 料金設定ボード（料金UIレーン C1）。
@@ -23,7 +24,7 @@ import { payFeeRatesOf } from "@/lib/nox/register/p173"; // ★便 X13-G W-17: �
 // ★モックから意図的に落としたもの: 「料金単位 卓/名」列
 //   （stores.time_per＝店単位の設定でルール軸ではない＝基本料金タブで設定）。
 // ★書込は全て RPC 専任。エラーは fn_set_pricing_rule の bad 系トークン対応表で日本語化。
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation"; // ★裁定330（便 MC1／MC2）: 入口「料金・会計」のタブ＝?tab=（内側ピルは MC2 で撤去）
 import SegSelect from "@/components/ui/seg-select";
 import { ResponsiveTable } from "@/components/ui/responsive-kit"; // ★裁定382（GV-B W-1）
@@ -411,6 +412,13 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
     setTaxSavedSur(surRate);
     setTaxBase({ bts: tBts, pd: tPd, inv: tInv, reg, rnd: tRnd });
     setTaxMsg("税設定を保存しました（開卓済みの伝票には影響しません）");
+  }
+  // ★便 SH-UI-c2 C2-15 ③: 「税・サービス料を保存」＝サ料率（PricingPanel の save＝set_store_pricing）→税設定（set_store_tax_config）の順に 1 ボタンで
+  const serviceSaveRef = useRef<(() => Promise<boolean>) | null>(null);
+  async function saveTaxAndService() {
+    const ok = serviceSaveRef.current ? await serviceSaveRef.current() : true;
+    if (!ok) { setTaxMsg("サービス料率の保存に失敗したため、税設定は保存していません"); return; }
+    await saveTaxConfig();
   }
   const [mErr, setMErr] = useState<string | null>(null);
 
@@ -1664,11 +1672,11 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
           {/* ★A2（対応表・移設）: read-only ミラー→編集区画へ置換（RPC set_store_pricing 不変・
               担当外フィールドは保存直前にサーバ現在値で埋める＝PricingPanel fields 分割の仕組み） */}
           <div style={{ padding: "8px 0", borderBottom: "1px solid var(--line)" }}>
-            <PricingPanel storeId={storeId} fields="service" initial={{
+            <PricingPanel storeId={storeId} fields="service" hideSave saveRef={serviceSaveRef} initial={{
               hon_fee: store.hon_fee, jonai_fee: store.jonai_fee, dohan_fee: store.dohan_fee,
               service_rate: store.service_rate, card_tax_rate: store.card_tax_rate,
               round_unit: store.round_unit, round_mode: store.round_mode,
-            }} />
+            }} />{/* ★便 SH-UI-c2 C2-15 ③: サ料率の保存は下の「税・サービス料を保存」にまとめる */}
           </div>
           {/* ★C4 §6-5（裁定90/91・T5）: 旧「内税/外税/適用しない」の同列3択を解体し2軸へ。
               価格表示（内税/外税）と事業者区分（課税/免税）は別概念＝免税は税計算方式ではなく店舗属性。
@@ -1694,8 +1702,8 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
               インボイス
               <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)" }}>適格請求書発行事業者の登録（課税事業者のみ）。</span>
             </span>
-            <SegSelect value={tInv} onChange={(v) => setTInv(v)}
-              options={[["unregistered", "未登録"], ["registered", "登録済み"]] as const} />
+            <SegSelect value={tInv} onChange={(v) => setTInv(v)} disabled={tBts !== "taxable"} ariaLabel="インボイス"
+              options={[["unregistered", "未登録"], ["registered", "登録済み"]] as const} />{/* ★便 SH-UI-c2 C2-15 ④: 免税事業者＝「未登録」に固定（登録済みは無効） */}
           </div>
           {tInv === "registered" && (
             <div className="nox-listrow nox-setrow">
@@ -1715,6 +1723,16 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
             </span>
             <SegSelect value={tRnd} onChange={(v) => setTRnd(v)}
               options={[["floor", "切り捨て"], ["round", "四捨五入"], ["ceil", "切り上げ"]] as const} />
+          </div>
+          {/* ★便 SH-UI-c2 C2-15 ③（Agoora 10/23 目視「内税が保存されない」）: 保存ボタンはこのブロックの直下に 1 つ＝サービス料率・価格表示・事業者区分・インボイス・端数をまとめて保存。
+              旧＝価格表示の切替はここ、保存ボタンは 2 枚下の別カード（カード手数料の下）＝サ料の「保存」を押しても価格表示は送られず「保存されない」に見えた。保存後は右上バッジが即時に変わる（taxBase）。 */}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", margin: "10px 0 2px" }} data-tax-save-row="1">
+            <span style={{ fontSize: 11.5, color: "var(--sub)", flex: 1, minWidth: 0 }}>
+              税設定の保存は、開卓済みの伝票に影響しません（開卓時の設定のまま）。{rules0175On() ? "（丸め設定は開卓済みの伝票にも次の会計から適用）" : ""}{/* ★便 SH-UI-c2 C2-16 ③（裁定424 候補）: 丸めは凍結しない＝フラグ true */}
+            </span>
+            {taxDirty && <span className="nox-stpill warn" data-unsaved="tax">未保存</span>}{/* ★便 X13-G W-17 ②: 未保存の印 */}
+            {taxMsg && <Toast msg={taxMsg} />}
+            <button style={btnDark} disabled={taxBusy} onClick={() => void saveTaxAndService()} data-tax-save="1">税・サービス料を保存</button>
           </div>
         </section>
 
@@ -1776,16 +1794,6 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
           </div>
         </section>
 
-        <section className="nox-cardtop" style={card}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 11.5, color: "var(--sub)", flex: 1, minWidth: 0 }}>
-              税設定の保存は、開卓済みの伝票に影響しません（開卓時の設定のまま）。
-            </span>
-            {taxDirty && <span className="nox-stpill warn" data-unsaved="tax">未保存</span>}{/* ★便 X13-G W-17 ②: 未保存の印 */}
-            {taxMsg && <Toast msg={taxMsg} />}
-            <button style={btnDark} disabled={taxBusy} onClick={() => void saveTaxConfig()}>税設定を保存</button>
-          </div>
-        </section>
 
         {/* ③ 端数・精算（読み取り専用ミラー） */}
         <section className="nox-cardtop" style={card}>

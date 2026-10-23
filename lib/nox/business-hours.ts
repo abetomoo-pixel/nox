@@ -38,7 +38,7 @@ export function businessHoursStatus(
   if (row.is_closed) return { status: "closed", row, dow };
   const open = hm2min(row.open_hm ?? "00:00");
   const close = hm2min(row.close_hm ?? "00:00");
-  return { status: open <= minutes && minutes < close ? "inside" : "outside", row, dow };
+  return { status: open <= minutes && minutes <= close ? "inside" : "outside", row, dow }; // ★便 SH-UI-c2 C2-20 ②: 終了時刻ちょうど（01:00）は営業内・01:01 で時間外
 }
 
 // 営業時間の表示（24h超表記は「翌HH:MM」へ・例 20:00-30:00 → 「20:00-翌06:00」）

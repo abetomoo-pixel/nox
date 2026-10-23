@@ -37,6 +37,7 @@ import CheckCustomersCard from "@/components/nox/check-customers-card"; // ★�
 import { BILLING_LOCKED_MSG, isBillingLocked } from "@/lib/billing/messages";
 import { orderLines, twoClassSumsOf, payFeeRatesOf, payFeeNoteOf, payFeeKeyOf, setFrozenNoteOf, cardGrossSplitOf, cardGrossDefaultOf, type PayFeeKey } from "@/lib/nox/register/p173"; // ★便 P173（0173 の client＝裁定385／386／389／391／393）
 import { payFeeOf } from "@/lib/nox/register/p173"; // ★連続便 3 追補 P-8
+import { dueSettingsOf } from "@/lib/nox/rules-0175/rounding"; // ★便 SH-UI-c2 C2-16（裁定424 候補）: 丸めは凍結しない（フラグ true）
 import { rules0175On } from "@/lib/nox/rules-0175/flag"; // ★連続便 3 追補 P-8／P-10
 import { PAY_FEE_MODE_LABEL, feeAmountArgOf, noteModeOf, payFeeModesFor, payFeeNoteWithModeOf, payFeeRowTextOf, type PayFeeMode } from "@/lib/nox/rules-0175/pay-fee"; // ★連続便 3 追補 P-8（裁定393 追補4）
 import { extCurrentOf } from "@/lib/nox/rules-0175/ext-pattern"; // ★連続便 3 追補 P-10（裁定408 系）
@@ -1721,7 +1722,7 @@ export default function RegisterBoard({
     const net = Math.max(0, bx - disc);
     // ★C4 §6-6: 外税店でも表示 due が DB check_group_due と一致するよう完全鏡像へ
     //   （内税/exempt は groupDueFull 内で従来式 groupDue へ委譲＝1バイト同値・権威はサーバ）。
-    const due = check ? groupDueFull(gl, check, refCustomer) : 0; // ★0152: 第 3 引数＝客負担の紹介料（A のみ）
+    const due = check ? groupDueFull(gl, dueSettingsOf(check, estStore, rules0175On()), refCustomer) : 0; // ★0152: 第 3 引数＝客負担の紹介料（A のみ）。★便 SH-UI-c2 C2-16（裁定424 候補）: 丸めは店設定の現在値（開いている伝票・フラグ true）
     const paid = payments.filter((p) => p.pay_group === g).reduce((a, p) => a + p.amount, 0);
     return { g, bx, disc, net, due, paid, remaining: Math.max(0, due - paid) };
   });
@@ -1732,7 +1733,7 @@ export default function RegisterBoard({
   // ★便 X13-G W-15: 伝票の外税／内税（開卓時の凍結値）と内訳（groupDueFull と同じ式を分解＝表示だけ）
   const exclTax = check?.price_display === "tax_excluded" && (check?.business_tax_status ?? "taxable") === "taxable";
   const taxMk = check ? taxMarkOf(exclTax) : "";
-  const breakdownOfGroup = (g: string) => { const gl = lines.filter((l) => l.pay_group === g); const ref = g === "A" && referral?.burden === "customer" ? referral.amount : 0; return check ? dueBreakdownOf(gl, check, ref) : null; };
+  const breakdownOfGroup = (g: string) => { const gl = lines.filter((l) => l.pay_group === g); const ref = g === "A" && referral?.burden === "customer" ? referral.amount : 0; return check ? dueBreakdownOf(gl, dueSettingsOf(check, estStore, rules0175On()), ref) : null; };
   const sumBd = groups.map(breakdownOfGroup).reduce((a, b) => (b ? { net: a.net + b.net, service: a.service + b.service, tax: a.tax + b.tax, rounding: a.rounding + b.rounding, due: a.due + b.due, payFee: a.payFee + b.payFee } : a), { net: 0, service: 0, tax: 0, rounding: 0, due: 0, payFee: 0 });
   const sumBx = groupInfo.reduce((a, gi) => a + gi.bx, 0);
   const sumDisc = groupInfo.reduce((a, gi) => a + gi.disc, 0);

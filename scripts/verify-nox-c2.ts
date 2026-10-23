@@ -4,6 +4,7 @@
  *  (1) C2-3 日別の算定給与＝時給分（wdays の hourly×hours）・バック（per_count／rate）・罰金（target_shift_id／biz_date）・日計＝時給分＋バック−罰金・
  *      月のまとめ＝Σ日計＋月で決まる支給−控除＝差引支給額（玲奈 golden 5170／5931・源泉 117241／125802 の payOf 結果で検算）
  *  (2) C2-2 行の編集＝時刻修正→実働 h と日計が同じ関数で変わる・日を追加→行が増え日数 +1・取消→日計から消え行は取消済み・punch id／shift id・編集の送信内容・翌表記の入力
+ *  (8) C2-13 HOME 要承認 (9) C2-14 payload (10) C2-15 税・サ料の保存 (11) C2-16 丸め（★29）(12)(13)(14) C2-17／18／19 シフト (15) C2-20 予約タブ (16) C2-21 ロゴ
  *  (4) C2-8 棚卸し（分類の群・既定値＝現在庫・±1・差分ありだけ送る）(5) C2-9 スライド行（段なし「—」／段あり上乗せ／保証中／確定済み／2 行）(6) C2-10 売上バック（率）＝sys_backs (7) C2-12 請求（税・サ込）
  *  (3) C2-1／C2-4／C2-6／C2-7 配線＝日付リンク（→今日タブ）なし・「この月のシフトを開く」1 本・確定済みは編集ボタンなし・390px の列・合計表の 4 列・狭い幅はシート・/mine は読取専用
  */
@@ -15,6 +16,12 @@ import { addShiftSpanOf, kintaiErrJa } from "../components/nox/kintai-edit";
 import { actualValueOf, deltaOf, stepActualOf, stocktakeGroupsOf, stocktakePlanOf, stocktakeRowsOf } from "../lib/nox/stock/stocktake"; // ★C2-8
 import { breakdownLinesOf, slideLinesOf, systemOfLineKey } from "../lib/nox/payroll/breakdown-lines"; // ★C2-9／C2-10
 import { periodLabelOf } from "../lib/nox/payroll/slide";
+import { approvalLineOf, bellLabelOf, missingOutOf, pendingTotalOf, rejectReasonOkOf, wishGroupsOf } from "../lib/nox/home/pending"; // ★C2-13
+import { dueBreakdownOf, groupDueFull } from "../lib/nox/check-calc"; // ★C2-15／C2-16
+import { dueSettingsOf, roundingRowShownOf } from "../lib/nox/rules-0175/rounding"; // ★C2-16
+import { cellTextOf, fillOf, LEGEND_FILL, LEGEND_STAGE, noPlacingTextOf, periodMonthLabelOf, queueHeadTextOf, queueTotalTextOf, shortDaysInPeriodsOf } from "../lib/nox/shift/cal-cell"; // ★C2-17〜19
+import { businessHoursStatus } from "../lib/nox/business-hours"; // ★C2-20
+import { castBadgesOf } from "../lib/nox/register/reservation-badges"; // ★C2-20
 
 let pass = 0; const fails: string[] = [];
 const check = (label: string, ok: boolean, detail?: string) => { if (ok) pass++; else fails.push(`${label}${detail ? `: ${detail}` : ""}`); };
@@ -128,14 +135,14 @@ check("c2(2-8) CSV・印刷用にも同じ列＝従来の 10 列＋時給分｜�
   const none = slideLinesOf({ ...base, slideBasis: { apply: "monthly", months: [{ month: "2026-10", prevMonth: "2026-09", sales: 211_604, pts: 0, salesWage: 1800, ptsWage: 0 }] } });
   check("c2(5-1) C2-9 ①段に届いていない＝「スライド 10月（暫定・期首〜今日）」＋「売上 ¥211,604 → 段なし・基本時給 ¥1,800 のまま」・金額欄「—」・情報行", none.length === 1 && none[0].label === `スライド ${periodLabelOf("2026-10")}（暫定・期首〜今日）` && none[0].label2 === "売上 ¥211,604 → 段なし・基本時給 ¥1,800 のまま" && none[0].amountText === "—" && none[0].amount === 0 && none[0].info === true, J(none));
   const hit = slideLinesOf({ ...base, wdays: [{ d: 1, hours: 5, hourly: 2000, basis: "売上" }, { d: 2, hours: 3, hourly: 1800, basis: "保証" }], slideBasis: { apply: "monthly", months: [{ month: "2026-10", prevMonth: "2026-09", sales: 350_000, pts: 0, salesWage: 2000, ptsWage: 0 }] } });
-  check("c2(5-2) C2-9 ②届いた＝「→ 段 1（時給 ¥2,000・+¥200/h）」・金額欄＝上乗せの合計（+¥200 × 段の日の実働 5h＝¥1,000）", hit[0].label2 === "売上 ¥350,000 → 段 1（時給 ¥2,000・+¥200/h）" && hit[0].amount === 1000 && hit[0].amountText === undefined, J(hit));
+  check("c2(5-2) C2-9 ②届いた＝「→ 段 1（時給 ¥2,000・+¥200/h）」・金額欄＝上乗せの合計（+¥200 × 段の日の実働 5h＝¥1,000）", hit[0]!.label2 === "売上 ¥350,000 → 段 1（時給 ¥2,000・+¥200/h）" && hit[0]!.amount === 1000 && hit[0]!.amountText === undefined, J(hit));
   const gua = slideLinesOf({ ...base, guarantee: { spans: [{ from: "2026-10-01", to: "2026-10-24", base: 3200 }], baseHours: 0, basePay: 0, guaHours: 10, guaPay: 32_000 }, slideBasis: { apply: "monthly", months: [{ month: "2026-10", prevMonth: "2026-09", sales: 350_000, pts: 0, salesWage: 2000, ptsWage: 0 }] } });
-  check("c2(5-3) C2-9 ③保証中＝「…→ 段 1（時給 ¥2,000・+¥200/h）・保証 ¥3,200（10/24 まで）が優先」", gua[0].label2.endsWith("・保証 ¥3,200（10/24 まで）が優先") && gua[0].label2.includes("→ 段 1（時給 ¥2,000・+¥200/h）"), gua[0].label2);
+  check("c2(5-3) C2-9 ③保証中＝「…→ 段 1（時給 ¥2,000・+¥200/h）・保証 ¥3,200（10/24 まで）が優先」", !!gua[0]!.label2 && gua[0]!.label2!.endsWith("・保証 ¥3,200（10/24 まで）が優先") && gua[0]!.label2!.includes("→ 段 1（時給 ¥2,000・+¥200/h）"), gua[0]!.label2);
   const frozen = slideLinesOf({ ...base, slideBasis: { apply: "monthly", months: [{ month: "2026-10", prevMonth: "2026-09", sales: 211_604, pts: 0, salesWage: 1800, ptsWage: 0 }] } }, { frozen: true });
   const next = slideLinesOf({ ...base, slideBasis: { apply: "next", months: [{ month: "2026-10", prevMonth: "2026-09", sales: 211_604, pts: 0, salesWage: 1800, ptsWage: 0 }] } });
   const half = slideLinesOf({ ...base, slideBasis: { apply: "half", months: [{ month: "2026-10", prevMonth: "2026-10", sales: 100_000, pts: 0, salesWage: 1800, ptsWage: 0 }] } }, { frozen: true });
   check("c2(5-4) C2-9 ④確定済み＝「暫定」を外し判定基準を 1 語（月の累計／前月の累計／半月の累計）", frozen[0].label === `スライド ${periodLabelOf("2026-10")}（月の累計）` && next[0].label === `スライド ${periodLabelOf("2026-10")}（前月の累計）` && half[0].label.endsWith("（半月の累計）") && !frozen[0].label.includes("暫定"), J([frozen[0].label, next[0].label, half[0].label]));
-  const bd = breakdownLinesOf({ pay: { wage: 1800, wHours: 8, timePay: 14_400, ...base, slideBasis: { apply: "monthly", months: [{ month: "2026-10", prevMonth: "2026-09", sales: 211_604, pts: 0, salesWage: 1800, ptsWage: 0 }] }, gross: 14_400, net: 14_400 }, period: "2026-10" });
+  const bd = breakdownLinesOf({ pay: { wage: 1800, timePay: 14_400, ...base, slideBasis: { apply: "monthly", months: [{ month: "2026-10", prevMonth: "2026-09", sales: 211_604, pts: 0, salesWage: 1800, ptsWage: 0 }] }, gross: 14_400, net: 14_400 }, period: "2026-10" });
   const sl = bd.earn.find((l) => l.key === "slide-2026-10");
   check("c2(5-5) C2-9 breakdownLinesOf（右パネル・/mine・明細 PDF が同じ関数）＝スライド行は情報行（合計に足さない）・label2 と「—」・段なしでも出る（スライド ON）・日次は従来どおり", !!sl && sl.info === true && sl.label2 === "売上 ¥211,604 → 段なし・基本時給 ¥1,800 のまま" && sl.amountText === "—" && bd.earnTotal === 14_400 && slideLinesOf({ ...base, slideBasis: { apply: "daily", months: [{ month: "2026-10", prevMonth: "2026-09", sales: 1, pts: 0, salesWage: 0, ptsWage: 0 }] } }).length === 0, J(sl));
   const pb = src("app/(manage)/payroll/payroll-board.tsx"), ps = src("components/payslip-slip.tsx"), css = src("app/globals.css");
@@ -154,6 +161,87 @@ check("c2(2-8) CSV・印刷用にも同じ列＝従来の 10 列＋時給分｜�
 {
   const rb = src("app/(manage)/register/register-board.tsx"), kr = src("app/kiosk-register/page.tsx");
   check("c2(7-1) C2-12 見出し＝外税の店「請求（税・サ込）」・内税の店「請求（サ込・内税）」（伝票の凍結値 price_display で判定）・値は明細の「合計（税込）」と同じ due（gi.due）・キオスクも同じ", rb.includes('data-due-head="1">{check?.price_display === "tax_excluded" && (check?.business_tax_status ?? "taxable") === "taxable" ? "請求（税・サ込）" : "請求（サ込・内税）"}') && rb.includes('<div className="nox-sumrow total" data-sum-total="1"><span>合計（税込）</span>') && rb.includes("{yen(gi.due)}") && kr.includes('"請求（税・サ込）" : "請求（サ込・内税）"') && !rb.includes("請求（サ料込）</th>") && !kr.includes("請求（サ料込）</th>"));
+}
+
+// ── (8) C2-13 HOME の要承認 ──
+{
+  const ap = { id: "a1", checkId: "c1", seatName: "A3", payGroup: "A", type: "discount", amount: 10_000, reason: "常連", requestedBy: "林", createdAt: new Date(Date.now() - 12 * 60_000).toISOString() };
+  const l = approvalLineOf(ap);
+  check("c2(8-1) C2-13 申請の行＝「割引 ¥10,000・A3（伝票 A）」＋理由・申請者・経過分・ベルの数＝カードの見出し（申請＋希望＋退勤記録なし・提案は数えない）・0 は「要承認なし」", l.head === "割引 ¥10,000・A3（伝票 A）" && l.sub === "常連・申請 林・12 分前" && pendingTotalOf({ approvals: [ap], wishes: [{ key: "p", label: "x", n: 3, href: "", periodId: null }], missingOut: [{ castId: "c", castName: "n", bizDate: "2026-10-22" }] }) === 5 && bellLabelOf(5) === "要承認 5 件" && bellLabelOf(0) === "要承認なし", J(l));
+  const wg = wishGroupsOf([{ date: "2026-11-02" }, { date: "2026-11-03" }, { date: "2026-12-01" }], [{ id: "p1", start_date: "2026-10-30", end_date: "2026-11-05" }], "st");
+  check("c2(8-2) C2-13 シフト希望の未処理＝期間ごとの件数（10/30〜11/5 に 2・期間なしは月）・退勤記録なし＝in あり out なしの営業日（今日より前だけ）・却下の理由は 1〜200 字", wg.length === 2 && wg[0].label === "10/30〜11/5" && wg[0].n === 2 && wg[0].href === "/shift?store=st&date=2026-10-30&tab=queue" && wg[1].label === "12月（期間なし）"
+    && J(missingOutOf([{ cast_id: "c1", type: "in", punched_at: "2026-10-22T20:00:00+09:00" }, { cast_id: "c2", type: "in", punched_at: "2026-10-22T20:00:00+09:00" }, { cast_id: "c2", type: "out", punched_at: "2026-10-23T01:00:00+09:00" }, { cast_id: "c1", type: "in", punched_at: "2026-10-23T20:00:00+09:00" }], "06:00", "2026-10-23", (id) => id).map((m) => [m.castId, m.bizDate])) === J([["c1", "2026-10-22"]]) && rejectReasonOkOf("理由") && !rejectReasonOkOf(" ") && !rejectReasonOkOf("x".repeat(201)), J(wg));
+  const lay = src("app/(manage)/layout.tsx"), db = src("app/(manage)/dashboard/dashboard-board.tsx"), pc = src("components/nox/pending-card.tsx"), api = src("app/api/home/pending/route.ts"), css = src("app/globals.css");
+  check("c2(8-3) C2-13 配線＝HOME 最上段に PendingCard（店長・オーナー＝種別ごとの行・承認／却下は approval_decide・却下は理由必須／スタッフ＝自分の申請）・上部バーのベル（cast 以外・同じ API）・行は 390px で 2 行・API は full=1 で提案", db.includes('<PendingCard storeId={curStoreId} role={isManagerUp ? "manager" : "staff"} />') && lay.includes('{role !== "cast" && <PendingBell storeId={null} />}') && pc.includes('supabase.rpc("approval_decide", { p_approval_id: id, p_approve: approve })') && pc.includes("rejectReasonOkOf(reason)") && pc.includes('data-pending-card="staff"') && pc.includes('data-pending-none="1"') && api.includes('url.searchParams.get("full") === "1"') && api.includes('.eq("status", "pending")') && css.includes("@media (max-width: 430px) { .nox-pending-row { display: block; }"));
+}
+
+// ── (9) C2-14 デモ payload（ACE 延長 3 本・伝票の延長単価＝開卓時のパターン） ──
+{
+  const ace = JSON.parse(src("docs/demo/payload/ace.json")) as { tables: Record<string, Record<string, unknown>[]> };
+  const ext = ace.tables.pricing_rules.filter((r) => r.fee_kind === "extension");
+  const fees = new Set(ace.tables.checks.map((c) => `${c.ext_min}/${c.ext_fee}`));
+  const lines = ace.tables.check_lines.filter((l) => l.fee_kind === "extension");
+  check("c2(9-1) C2-14 ACE の延長パターン＝3 本（平日通常 60 分 ¥13,000／VIP 30 分 ¥9,000／週末通常 30 分 ¥4,000）・伝票の ext_min／ext_fee＝その伝票の開卓時のパターン（60/13000・30/9000・30/4000 の 3 種だけ）・延長行の単価も同じ値", ext.length === 3 && ext.some((r) => r.duration_min === 60 && r.amount === 13000) && ext.some((r) => r.duration_min === 30 && r.amount === 9000) && ext.some((r) => r.duration_min === 30 && r.amount === 4000) && [...fees].sort().join(",") === "30/4000,30/9000,60/13000" && lines.length > 0 && lines.every((l) => [13000, 9000, 4000].includes(Number(l.unit_price_snapshot))), J({ ext: ext.map((r) => [r.name, r.duration_min, r.amount]), fees: [...fees], lines: lines.length }));
+}
+
+// ── (10) C2-15 店設定「税・サービス料」の保存 ──
+{
+  const pb = src("app/(manage)/master/pricing/pricing-board.tsx"), pp = src("app/(manage)/master/pricing-panel.tsx");
+  check("c2(10-1) C2-15 保存ボタンはブロックの直下に 1 つ「税・サービス料を保存」（サ料率＝PricingPanel の save→税設定＝set_store_tax_config の順）・旧「税設定を保存」の別カードは無い・免税＝インボイスの SegSelect を無効・注記はボタンの横・バッジは taxBase.pd", pb.includes('data-tax-save="1"') && pb.includes(">税・サービス料を保存</button>") && !pb.includes(">税設定を保存</button>") && pb.includes("const ok = serviceSaveRef.current ? await serviceSaveRef.current() : true;") && pb.includes('disabled={tBts !== "taxable"} ariaLabel="インボイス"') && pb.includes("税設定の保存は、開卓済みの伝票に影響しません") && pb.includes('data-tax-mode={taxBase.pd === "tax_excluded" ? "excluded" : "included"}') && pb.includes("p_price_display: tPd,") && pp.includes("if (saveRef) saveRef.current = save;") && pp.includes("{!hideSave && <div"));
+  const inc = groupDueFull([{ line_total: 10_000, kind: "charge" }], { service_rate: 10, round_unit: 1, round_mode: "down", price_display: "tax_included" });
+  const exc = groupDueFull([{ line_total: 10_000, kind: "charge" }], { service_rate: 10, round_unit: 1, round_mode: "down", price_display: "tax_excluded", business_tax_status: "taxable" });
+  check("c2(10-2) C2-15 新規開卓の伝票＝price_display の凍結値で計算が変わる（内税 11,000／外税 12,100＝税 1,100）・既存の伝票は凍結値のまま（別の行）", inc === 11_000 && exc === 12_100, J([inc, exc]));
+}
+
+// ── (11) C2-16 丸め設定は凍結しない（裁定424 候補・0175 v2 ★29） ──
+{
+  const lines = [{ line_total: 34_944, kind: "charge" }];
+  const frozen = { service_rate: 10, round_unit: 1, round_mode: "down", price_display: "tax_included", status: "open" };
+  const store = { round_unit: 100, round_mode: "up" };
+  const sOn = dueSettingsOf(frozen, store, true), sOff = dueSettingsOf(frozen, store, false), sClosed = dueSettingsOf({ ...frozen, status: "closed" }, store, true);
+  const bd = dueBreakdownOf(lines, sOn);
+  check("c2(11-1) C2-16 丸め 100・切り上げ＝既存伝票の合計 ¥38,500・端数調整 ¥62 の行・丸め 1 なら行なし・入金ダイアログの請求額＝明細の合計（同じ due）・フラグ false と closed は凍結値のまま", groupDueFull(lines, sOn) === 38_500 && bd.rounding === 62 && roundingRowShownOf(bd.rounding) && !roundingRowShownOf(dueBreakdownOf(lines, sOff).rounding) && groupDueFull(lines, sOff) === 38_438 && sOff === frozen && sClosed.round_unit === 1, J({ on: groupDueFull(lines, sOn), bd, off: groupDueFull(lines, sOff) }));
+  const rb = src("app/(manage)/register/register-board.tsx"), sql = src("docs/tmp/0175_rules_bundle_v2_draft.sql");
+  check("c2(11-2) C2-16 配線＝レジの due と内訳は dueSettingsOf(check, estStore, rules0175On())・0175 v2 ★29＝check_group_due が開いている伝票で stores の丸めを読む（closed は凍結値）", rb.includes("groupDueFull(gl, dueSettingsOf(check, estStore, rules0175On()), refCustomer)") && rb.includes("dueBreakdownOf(gl, dueSettingsOf(check, estStore, rules0175On()), ref)") && sql.includes("from public.checks c join public.stores s on s.id = c.store_id\n   where c.id = p_check_id and c.status = 'open';") && sql.includes("★29 0175 v2（裁定424 候補"));
+}
+
+// ── (12)(13)(14) C2-17／C2-18／C2-19 シフト ──
+{
+  check("c2(12-1) C2-17 見出し＝「承認待ち 13 件（希望どおり 7・要調整 0・確認待ち 14）」・未処理 0 は「承認待ちなし」・右端「合計 27 件（未処理 13＋確認待ち 14）」・締切前の案内", queueHeadTextOf({ pending: 13, asIs: 7, adjust: 0, waiting: 14 }) === "承認待ち 13 件（希望どおり 7・要調整 0・確認待ち 14）" && queueHeadTextOf({ pending: 0, asIs: 0, adjust: 0, waiting: 14 }) === "承認待ちなし" && queueTotalTextOf(13, 14) === "合計 27 件（未処理 13＋確認待ち 14）" && noPlacingTextOf([{ start_date: "2026-10-30", end_date: "2026-11-05", wish_deadline: "2026-10-26" }]) === "締切前の期間が 1 つ（10/30〜11/5・締切 10/26）。締め切ると配置に移ります" && noPlacingTextOf([]) === null);
+  const sb = src("app/(manage)/shift/shift-board.tsx");
+  check("c2(12-2) C2-17 配線＝既定は畳む（queueOpen false・localStorage nox.shift.queueOpen）・押すと開く・一括採用の N＝集計「希望どおり」と同じ ids.length・「調整中を送り返す（N）」「放置分を代行確定（N）」は 0 で非表示・説明は「？」・一覧は開いたときだけ", sb.includes("const [queueOpen, setQueueOpen] = useState(false);") && sb.includes('localStorage.getItem("nox.shift.queueOpen") === "1"') && sb.includes('data-queue-toggle="1"') && sb.includes("希望どおり一括採用（{ids.length}件）") && sb.includes('["希望どおり", ids.length, "件"]') && sb.includes("調整中を送り返す（{planned.length}）") && sb.includes("放置分を{PROXY_CONFIRM_LABEL}（{proposed.length}）") && sb.includes("{isManagerUp && (planned.length > 0 || proposed.length > 0) && (") && sb.includes('data-queue-help="1"') && sb.includes("{queueOpen && (() => {\n          type Row = {") && sb.includes('data-shift-no-placing="1"'));
+  check("c2(13-1) C2-18 ①＝期間の一覧とフォーム・「必要人数を設定」・凡例（進行の帯）だけ＝公開／作成中に戻す／④公開シフトへ／代行確定／集計 4／配置を組む は ① に無い・④にだけ「作成中に戻す」と公開ボタン・③に配置を組む（月カレンダー／スタッフ別・＋追加）と代行確定と集計・期間の行の導線・④の月名は期間の実日付", sb.includes('data-shift-period-card="1"') && !sb.includes("キャストシフト計画</h2>") && (sb.match(/>④ 公開シフトへ<\/button>/g) ?? []).length === 1 /* ③ の頭の CTA だけ */ && !sb.includes(">確定シフトへ</button>") && (sb.match(/>作成中に戻す<\/button>/g) ?? []).length === 1 && sb.includes('data-shift-to-draft="1"') && (sb.match(/data-shift-publish-btn="1"/g) ?? []).length === 1 && sb.includes('data-shift-plantools="1"') && sb.includes('data-shift-place-cal="1"') && sb.includes("{confirmCta}{/* ★裁定253 R12: 仮シフト＝KPI 4 枚の下 */}") && !sb.includes("{confirmCta}{/* ★裁定253 R12: シフト作成＝計画ヘッダ") && !sb.includes('<div className="l">配置済み</div>') && sb.includes('data-period-link="submit"') && sb.includes('data-period-link="queue"') && sb.includes('data-period-link="publish"') && sb.includes('data-shift-publish-month="1"') && periodMonthLabelOf("2026-10-23", "2026-10-29") === "2026年10月" && periodMonthLabelOf("2026-10-30", "2026-11-05") === "10/30〜11/5");
+  const tx = cellTextOf({ assigned: 3, confirmed: 3, proposed: 1, planned: 0, required: 4 });
+  const ok = cellTextOf({ assigned: 4, confirmed: 4, proposed: 0, planned: 0, required: 4 });
+  const none = cellTextOf({ assigned: 0, confirmed: 0, proposed: 0, planned: 0, required: 0 });
+  check("c2(14-1) C2-19 セルの文字＝地色クラス（充足／やや不足／不足／未設定）・中央「3/4（確認待ち 1）」＋「あと 1 名」・充足は「充足」・未設定は「未設定」のみ・不足日の集計は期間内のみ", tx.fill === "warn" && tx.center === "3/4" && tx.pending === "確認待ち 1" && tx.sub === "あと 1 名" && ok.fill === "ok" && ok.sub === "充足" && none.fill === "none" && none.center === "未設定" && none.sub === null && fillOf(2, 4) === "ng"
+    && shortDaysInPeriodsOf(["2026-11-02", "2026-11-09"], (d) => (d === "2026-11-02" ? "open" : "none"), () => ({ assigned: 3, confirmed: 3, proposed: 0, planned: 0, required: 4 }), () => false) === 1 && LEGEND_STAGE.length === 5 && LEGEND_FILL.length === 4, J(tx));
+  const cc = src("components/nox/shift-cal-cell.tsx"), css = src("app/globals.css");
+  check("c2(14-2) C2-19 配線＝③のセルは CalCell（地色 fill-*・右上バッジ stg-*・中央 data-cal-center）・凡例 2 列（data-cal-legend・390px は 1 列）・確定シフトタブも同じ地色とバッジ・「手修正」「●=確定」「枠色は自動」の文字列がコードに残らない・色は CSS 変数（--cal-*／--stg-*）", sb.includes("<CalCell key={ymd} ymd={ymd} stat={st} stage={stage}") && sb.includes("<CalLegend style={{ margin: \"8px 0\" }} />") && sb.includes("nox-cald-bd stg-${periodCellStageOf(periodsAll, ymd, bizToday)}") && !sb.includes("手修正") && !sb.includes("●=確定") && !sb.includes("枠色は") && !sb.includes("自{auto}") && cc.includes('data-cal-badge={stage}') && cc.includes('data-cal-legend="1"') && css.includes("--cal-ok-bg: #1e4d33;") && css.includes(".nox-cald-bd.stg-open { background: var(--stg-open-bg); color: var(--stg-open-fg); }") && css.includes("@media (max-width: 430px) { .nox-callegend { grid-template-columns: 1fr; }"));
+  // E-23 追補1: コントラスト 3 以上（地色×文字・バッジ×文字）
+  const lum = (hex: string) => { const c = hex.replace("#", ""); const f = (i: number) => { const v = parseInt(c.slice(i, i + 2), 16) / 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }; return 0.2126 * f(0) + 0.7152 * f(2) + 0.0722 * f(4); };
+  const cr = (a: string, b: string) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+  const pairs: [string, string][] = [["#1e4d33", "#d9f5e3"], ["#5a4716", "#ffe9a8"], ["#5c2320", "#ffd6d3"], ["#2a2a33", "#c9c9d1"], ["#1f8f85", "#ffffff"], ["#2f7fe7", "#ffffff"], ["#22b8cf", "#0b1a1e"], ["#7fe0a0", "#0b2a16"], ["#6b7280", "#ffffff"]];
+  check("c2(14-3) C2-19 ⑧ コントラスト 3 以上＝地色 4×文字・バッジ 5×文字の全組合せ（E-23 追補1）", pairs.every(([a, b]) => cr(a, b) >= 3), J(pairs.map(([a, b]) => [a, b, Math.round(cr(a, b) * 10) / 10])));
+}
+
+// ── (15) C2-20 レジ「予約」タブ ──
+{
+  const rows = [{ dow: 5, is_closed: false, open_hm: "20:00", close_hm: "25:00" }];
+  const st = (iso: string) => businessHoursStatus(new Date(iso), rows, "06:00").status;
+  check("c2(15-1) C2-20 ② 営業時間＝20:00 ちょうどは営業内・01:00（翌・終了ちょうど）は営業内・01:01 は時間外・19:59 は時間外（深夜またぎ＝営業日の曜日で判定）", st("2026-10-23T20:00:00+09:00") === "inside" && st("2026-10-24T01:00:00+09:00") === "inside" && st("2026-10-24T01:01:00+09:00") === "outside" && st("2026-10-23T19:59:00+09:00") === "outside", J([st("2026-10-23T20:00:00+09:00"), st("2026-10-24T01:00:00+09:00"), st("2026-10-24T01:01:00+09:00")]));
+  const bd = castBadgesOf({ shifts: [{ cast_id: "a", start_hm: "20:00" }, { cast_id: "c", start_hm: "21:00" }], attendance: [{ cast_id: "b", status: "off" }, { cast_id: "c", status: "shukkin" }], seated: [{ castId: "c", seatName: "A3" }] });
+  check("c2(15-2) C2-20 ③ 担当のバッジ＝出勤予定 20:00／休み（薄く）／着卓中（A3）が優先・無い人はバッジなし", bd.get("a")?.label === "出勤予定 20:00" && bd.get("b")?.label === "休み" && bd.get("b")?.tone === "muted" && bd.get("c")?.label === "着卓中（A3）" && !bd.has("d"), J([...bd.entries()]));
+  const rp = src("app/(manage)/register/reservation-panel.tsx"), css = src("app/globals.css");
+  check("c2(15-3) C2-20 ①④ 配線＝1,024px 以上は 2 列（.nox-rsv-2col＝左 55／右 45・右は sticky）・1,024px 未満は縦 1 列・一覧の「編集」で右のフォームがその予約の編集（data-rsv-edit-form・「やめる」で新規に戻る）・未来店 0 は薄く・バッジは castBadges", rp.includes('data-rsv-layout={wide ? "2col" : "1col"}') && rp.includes("const wide = !useNarrow(1024);") && rp.includes("data-rsv-edit-form={editRow.id}") && rp.includes("{editId === r.id && r.status === \"booked\" && !wide && editBlockOf(r)}") && rp.includes(">やめる</button>") && rp.includes("data-rsv-overdue={kpiOverdue}") && rp.includes("badges={castBadges}") && css.includes(".nox-rsv-2col { display: grid; grid-template-columns: minmax(0, 55fr) minmax(0, 45fr);") && css.includes(".nox-rsv-2col > .nox-rsv-right { position: sticky; top: 72px; }"));
+}
+
+// ── (16) C2-21 明細の見出しロゴ ──
+{
+  const bl = src("components/ui/brand-logo.tsx"), ps = src("components/payslip-slip.tsx"), rc = src("components/nox/receipt-print.tsx"), css = src("app/globals.css");
+  const sites = ["components/ui/side-nav.tsx", "app/(manage)/layout.tsx", "app/login/page.tsx", "app/demo/page.tsx", "app/lp/page.tsx", "app/mine/layout.tsx", "components/nox/receipt-print.tsx", "components/payslip-slip.tsx"];
+  const singles = sites.filter((f) => f !== "components/payslip-slip.tsx").every((f) => !/<BrandLogo[^>]*\bprint\b/.test(src(f)));
+  check("c2(16-1) C2-21 明細の見出し＝BrandLogo（print）の 2 枚は inline に display を持たない（CSS .nox-logo-screen＝block／.nox-logo-print＝none・印刷で反転）＝画面に 1 枚だけ・明細は 1 か所（height 22・左寄せ）・領収書は light 1 枚・A-2 の 8 か所のうち print は明細だけ", bl.includes("const printBase: CSSProperties = { ...base }; delete printBase.display;") && bl.includes('className="nox-logo-screen" style={printBase}') && css.includes(".nox-logo-screen { display: block; }") && css.includes(".nox-logo-print { display: none; }") && (ps.match(/<BrandLogo height=\{22\} print \/>/g) ?? []).length === 2 && rc.includes('<BrandLogo height={34} variant="light" />') && singles);
 }
 
 if (fails.length) { console.error(`verify:nox-c2 FAIL ${fails.length}（pass ${pass}）\n` + fails.map((f) => ` - ${f}`).join("\n")); process.exit(1); }

@@ -7,7 +7,7 @@ with pins(name, md5) as (
   values
       ('pt_rules_check','cc622435'),
       ('check_pay','798b9b99'),
-      ('check_group_due','22428eed'),
+      ('check_group_due','ea7754a9'),
       ('receipt_issue','8f036095'),
       ('set_store_profile','23cd5573'),
       ('set_comp_plan','e9143f01'),
@@ -112,6 +112,7 @@ with pins(name, md5) as (
   union all select '0175', '旧署名の残り（overload）', (select count(*) from pg_proc where pronamespace='public'::regnamespace and proname in ('check_pay','receipt_issue','set_comp_plan','payroll_adjustment_add','punch_self','daily_pay_issue'))::text, '6'
   union all select '0175', '新設 RPC 21', (select count(*) from pg_proc where pronamespace='public'::regnamespace and proname in ('pt_rules_check','payroll_adjustment_cancel','norm_shortfall_decide','daily_pay_cancel','set_cast_kind','set_pricing_rule_vip','staff_payroll_run_set_status','store_wifi_add','store_wifi_remove','availability_set','availability_list','set_my_contact','set_store_invoice_profile','kiosk_unlock','kiosk_lock','my_qr_secret','kiosk_unlock_qr','totp_code_of','auth_role_raw','set_membership_role','owner_transfer'))::text, '21'
   union all select '0175', '★28 role CHECK に admin／org_billing_select は auth_role_raw／auth_role は admin→owner', (select count(*) from pg_constraint where conname='memberships_role_check' and pg_get_constraintdef(oid) like '%admin%')::text || '/' || (select count(*) from pg_policies where schemaname='public' and tablename='org_billing' and qual like '%auth_role_raw%')::text || '/' || (select count(*) from pg_proc where pronamespace='public'::regnamespace and proname='auth_role' and prosrc like '%''admin'' then ''owner''%')::text, '1/1/1'
+  union all select '0175', '★29 check_group_due が開いている伝票で stores の丸めを読む', (select count(*) from pg_proc where pronamespace='public'::regnamespace and proname='check_group_due' and prosrc like '%join public.stores s on s.id = c.store_id%')::text, '1'
   union all select '0175', '内部専用 pt_rules_check に authenticated なし', (select count(*) from pg_proc where pronamespace='public'::regnamespace and proname='pt_rules_check' and coalesce(proacl::text, '') not like '%authenticated%')::text, '1'
   union all select '0175', 'authenticated は SELECT のみ（新表 8）', (select coalesce(string_agg(distinct privilege_type, ','), '') from information_schema.role_table_grants where grantee='authenticated' and table_schema='public' and table_name in ('punch_round_consents','availability','availability_terms','plan_rate_bands','plan_norm_tiers','plan_event_bonuses','slide_decisions','cast_rate_history')), 'SELECT'
   union all select '0175', 'anon の付与 0（新表 3）', (select count(*) from information_schema.role_table_grants where grantee='anon' and table_schema='public' and table_name in ('punch_round_consents','availability','availability_terms'))::text, '0'

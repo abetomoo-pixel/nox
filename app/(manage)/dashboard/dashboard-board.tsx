@@ -32,6 +32,7 @@ import { Message } from "@/components/ui/toast";
 import SegSelect from "@/components/ui/seg-select"; // ★裁定363（GV-11・便 GV-A）: ランキングの軸切替
 import { castSalesRankingOf, RANK_AXIS_LABEL, type CastSalesRank, type CastSalesRow, type RankAxis } from "@/lib/nox/payroll/cast-sales"; // ★裁定363: 既定＝売上（按分＝給与の collect と同じ純関数）
 import { monthLastDayOf } from "@/lib/nox/month"; // ★便 X13-H H-9: 暦月の日付は 1 か所で（「-31」固定・翌月 0 日を撤去）
+import PendingCard from "@/components/nox/pending-card"; // ★便 SH-UI-c2 C2-13: HOME の最上段「要承認 N 件」
 
 type Cast = { id: string; name: string; photo_updated_at: string | null; store_id?: string };
 type Att = { cast_id: string; status: string; eta: string | null };
@@ -197,6 +198,8 @@ export default function DashboardBoard({ storeId, storeName, cutoff, casts, shor
 
   return (
     <div className="nox-mv1 nox-mv1-sm">
+      {/* ★便 SH-UI-c2 C2-13: 最上段（デモ帯の直下）＝要承認カード（店長・オーナー＝種別ごとの行と承認／却下・スタッフ＝自分の申請の状態） */}
+      <PendingCard storeId={curStoreId} role={isManagerUp ? "manager" : "staff"} />
       {/* 段0R 第1陣: モック .head を新シェルの nox-hero へ（ページ名＋店名＋営業日） */}
       <PageHead eyebrow="STORE OVERVIEW" title="ホーム"
         desc="本日の売上と出勤、やることの状況をひと目で確認します。"

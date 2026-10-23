@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { getSessionRole } from "@/lib/nox/auth";
 import { rules0175On } from "@/lib/nox/rules-0175/flag"; // ★追補 3 R-8
+import PendingBell from "@/components/nox/pending-bell"; // ★便 SH-UI-c2 C2-13 ④
 import { roleLabelOf } from "@/lib/nox/rules-0175/roles"; // ★追補 3 R-8（裁定425 候補）: 「管理者」
 import Link from "next/link";
 import { TabBar, type NavGroup } from "@/components/ui/nav";
@@ -156,6 +157,7 @@ export default async function ManageLayout({ children }: { children: React.React
             <Link href="/" className="crumb nox-tb-brand" aria-label="ホームへ" data-brand-home="/"><BrandLogo height={22} /><small>{storeLabel}</small></Link>{/* ★便 SH-UI-b2 B2-2: ロゴ＝ホーム（/＝role で振り分け） */}{/* ★便 SH-UI-a A-2: ロゴ */}
             <div className="acts">
               {/* ★裁定275 追補2-2（N4）: 右＝歯車（マスタ・監査・ご契約＝gear 群・cast／staff は項目 0＝描かない）＋「登録名｜役割」（自分の情報＋ログアウト）。POST /auth/signout は不変 */}
+              {role !== "cast" && <PendingBell storeId={null} />}{/* ★便 SH-UI-c2 C2-13 ④: ベル＝未処理の合計（/api/home/pending＝HOME のカードと同じ数）・押すと HOME の要承認カードへ */}
               <HeaderGear groups={splitNav(groups, ["/dashboard", "/register", "/report", "/shift"]).gearGroups} />
               <UserChip name={meName} email={meEmail} isOwner={role === "owner"} roleJa={roleJa} storeLabel={storeLabel} meId={(meRow?.id as string | null) ?? null} mePhotoAt={(meRow?.photo_updated_at as string | null) ?? null} canPhoto={role !== "cast"} isDemo={isDemo} />{/* ★0162（便 M5-1）: 本人の写真＝owner／manager／staff（cast は /mine）・デモは隠す */}
             </div>

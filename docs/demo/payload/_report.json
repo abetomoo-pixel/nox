@@ -277,7 +277,7 @@
      ]
     }
    ],
-   "sha256": "4322a82d889ffb1aea845b0eadc73e790a82e3219e4dd36c0322753a3648075c"
+   "sha256": "bc19c3ae3b9d40e20d691325709844ebd3f011bafa99f639c439df1e1505e314"
   },
   "noir": {
    "bytes": 4168707,
@@ -500,25 +500,25 @@
      ]
     }
    ],
-   "sha256": "11f86e13bb1787ac14a088d7fb85fbf0bdb1bf3d68587aeaa650708c45641266"
+   "sha256": "8f205edfbdcd559a35f97b73b328b0269b6461ab8f5a452663a5cbefc170b306"
   },
   "ace": {
-   "bytes": 3911297,
-   "rows": 6438,
+   "bytes": 3897532,
+   "rows": 6414,
    "tables": 47,
    "checks": 965,
-   "lines": 2805,
-   "monthGross": 9236403,
+   "lines": 2782,
+   "monthGross": 9252220,
    "monthTarget": 9240000,
-   "monthDiffPct": -0.04,
-   "worstDayPct": 0.59,
+   "monthDiffPct": 0.13,
+   "worstDayPct": 2.71,
    "headerDiffYen": 0,
    "leftover": {
     "noms": 5,
     "bottles": 67,
     "drinks": 0,
     "champ": 0,
-    "ext": 137,
+    "ext": 29,
     "custVisits": 0,
     "guestsShort": 289
    },
@@ -657,7 +657,7 @@
      ]
     }
    ],
-   "sha256": "ca273dba56115cb6e6543e97ca195c53de225e2d1c60f2ff984be049a8c201b8"
+   "sha256": "16ac840742e12c656740ebb7ccd065f64baec420498b38bcd09c6cca4167588a"
   },
   "lily": {
    "bytes": 5770977,
@@ -794,7 +794,7 @@
      ]
     }
    ],
-   "sha256": "38a175440b00742c626c491d35bc6474d5801572b2b3da4410edffac53172ba8"
+   "sha256": "ebd51db4a5226bc8d816f41d92f0d94e87d36fa515c14e18c1f79e65463574c6"
   },
   "nest": {
    "bytes": 5754312,
@@ -929,7 +929,7 @@
   "muse": 2117,
   "luna": 2936,
   "noir": 3262,
-  "ace": 3028,
+  "ace": 3014,
   "lily": 4733,
   "nest": 4464
  },
@@ -947,7 +947,7 @@
    "in": {
     "$m": 0,
     "d": 12,
-    "t": "20:16:00"
+    "t": "20:11:00"
    }
   }
  }

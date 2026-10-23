@@ -60,15 +60,15 @@ const J = (v: unknown) => JSON.stringify(v);
 // sb(4) breakdown-lines
 {
   const base = { wage: 2000, wHours: 0, timePay: 0 };
-  const textOf = (p: unknown) => breakdownLinesOf({ pay: p as Parameters<typeof breakdownLinesOf>[0]["pay"] }).earn.map((l) => l.label).join("|");
+  const textOf = (p: unknown) => breakdownLinesOf({ pay: p as Parameters<typeof breakdownLinesOf>[0]["pay"] }).earn.map((l) => l.label + (l.label2 ? " " + l.label2 : "")).join("|"); // ★便 SH-UI-c2 C2-9: 見出し＋結果（label2）
   const cnt = textOf({ ...base, slideBasis: { apply: "monthly", provisional: false, basis: "hon_count", months: [{ month: "2026-10", prevMonth: "2026-10", sales: 6, pts: 0, salesWage: 4000, ptsWage: 0 }] } });
-  check("sb(4-1) monthly＋件数: 「本指名 6 件→時給 ¥4,000」", cnt.includes("スライド 10月＝月の累計 本指名 6 件→時給"), cnt);
+  check("sb(4-1) monthly＋件数: 「本指名 6 件 → 時給 ¥4,000」（★便 SH-UI-c2 C2-9: 段の表が無い凍結形＝段番号なし・見出し「（暫定・期首〜今日）」）", cnt.includes("スライド 10月（暫定・期首〜今日） 本指名 6 件 → 時給 ¥4,000（+¥4,000/h）"), cnt);
   const dl = textOf({ ...base, slideBasis: { apply: "daily", provisional: false, basis: "dohan_count", months: [{ month: "2026-10-01", prevMonth: "2026-10-01", sales: 1, pts: 0, salesWage: 0, ptsWage: 0 }, { month: "2026-10-20", prevMonth: "2026-10-20", sales: 3, pts: 0, salesWage: 3000, ptsWage: 0 }] } });
   check("sb(4-2) daily＋件数: 営業日ごとの行を 1 行に畳む（2 日・1 日で段あり）", dl.includes("スライド 日次＝その日の同伴の件数で段（2 日・1 日で段あり）") && !dl.includes("10/1") , dl);
   const ex = textOf({ ...base, slideBasis: { apply: "monthly", provisional: false, months: [], scope: { rankIds: ["r1"], castRankId: null, excluded: true } } });
   check("sb(4-3) 対象外: 「スライド＝対象外」1 行", ex.includes("スライド＝対象外（このキャストのランクは対象ランクに含まれない＝基本率のまま）"), ex);
   const old = textOf({ ...base, slideBasis: { apply: "monthly", provisional: true, months: [{ month: "2026-10", prevMonth: "2026-10", sales: 1295563, pts: 0, salesWage: 3500, ptsWage: 0 }] } });
-  check("sb(4-4) sales・全員（既存の凍結形）: 従来の文言「売上 ¥1,295,563→時給 ¥3,500」・暫定の印", old.includes("スライド 10月＝月の累計・暫定（期首〜今日） 売上 ¥1,295,563→時給 ¥3,500") && !old.includes("対象ランク"), old);
+  check("sb(4-4) sales・全員（既存の凍結形）: 「売上 ¥1,295,563 → 時給 ¥3,500（+¥3,500/h）」・暫定の印（★便 SH-UI-c2 C2-9 の文言）", old.includes("スライド 10月（暫定・期首〜今日） 売上 ¥1,295,563 → 時給 ¥3,500（+¥3,500/h）") && !old.includes("対象ランク"), old);
 }
 // sb(5) 配線
 {

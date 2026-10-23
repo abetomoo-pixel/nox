@@ -89,10 +89,10 @@ check("p174(6-1) 給与画面: キャスト／スタッフ切替（?who=staff＝
 {
   const pl = (c: string) => JSON.parse(src(`docs/demo/payload/${c}.json`)).tables as Record<string, Record<string, unknown>[]>;
   const ext = (c: string) => pl(c).pricing_rules.filter((r) => r.fee_kind === "extension");
-  const wd = ext("ace").filter((r) => r.dow_mask === ext("ace").find((x) => x.name === "平日通常 延長")?.dow_mask);
-  check("p174(7-1) ACE: 平日通常に延長 3 本（30 分 ¥7,000〈既定〉／60 分 ¥13,000／VIP 延長 30 分 ¥9,000・席種は限定しない）・既定は 1 本・週末は 1 本のまま",
-    wd.length === 3 && wd.filter((r) => r.is_default_ext === true).length === 1 && wd.find((r) => r.is_default_ext)?.amount === 7000 && wd.some((r) => r.amount === 13000 && r.duration_min === 60) && wd.some((r) => r.name === "VIP 延長" && r.amount === 9000 && r.seat_kind === null)
-    && ext("ace").length === 4 && EXT_PATTERNS.ace.rows.length === 3, JSON.stringify(ext("ace").map((r) => [r.name, r.amount, r.is_default_ext])));
+  const wd = ext("ace").filter((r) => r.dow_mask === ext("ace").find((x) => x.name === "平日通常 延長 60 分")?.dow_mask); // ★便 SH-UI-c2 C2-14: 既定＝60 分
+  check("p174(7-1) ACE: 延長 3 本（★便 SH-UI-c2 C2-14 ①＝上限 3）＝平日通常 60 分 ¥13,000〈既定〉／VIP 延長 30 分 ¥9,000（席種は限定しない）／週末通常 30 分 ¥4,000（元データの行）・既定は 1 本・平日 30 分 ¥7,000 は外した",
+    wd.length === 2 && wd.filter((r) => r.is_default_ext === true).length === 1 && wd.find((r) => r.is_default_ext)?.amount === 13000 && wd.some((r) => r.amount === 13000 && r.duration_min === 60) && wd.some((r) => r.name === "VIP 延長" && r.amount === 9000 && r.seat_kind === null)
+    && ext("ace").length === 3 && ext("ace").some((r) => r.amount === 4000 && r.duration_min === 30) && EXT_PATTERNS.ace.rows.length === 2, JSON.stringify(ext("ace").map((r) => [r.name, r.amount, r.is_default_ext])));
   check("p174(7-2) 他 5 店: 延長に既定の印なし（従来どおり）", ["lily", "luna", "muse", "nest", "noir"].every((c) => ext(c).every((r) => r.is_default_ext === false)));
 }
 

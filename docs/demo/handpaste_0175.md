@@ -14,10 +14,10 @@
 |---|---|
 | アドレスバー | `https://supabase.com/dashboard/project/hiqbfagmkrdpmlqhkmsu/sql/new`（`project/` の直後が hiqbfagmkrdpmlqhkmsu） |
 | ファイル | Downloads/0175_rules_bundle_v2_draft.sql（docs/tmp の同名と同一・repo の supabase/migrations には**収蔵前**＝適用確認後に 0175_rules_bundle.sql として収蔵） |
-| sha256 | `bf104469163e71edd1b906075054aa41176eb119b5376a5e2777e532eb708def`（sha16 bf104469163e71ed・374,589 B・4,671 行・LF・CR 0・**v2 最終＝10/23 追補 3 で ★28（裁定425 候補 役割「管理者」＝role CHECK に admin・auth_role は admin→owner・auth_role_raw・set_membership_role／owner_transfer・org_billing_select／terms_accept は raw）を追加**＝前版 f474fb3d706ca96a／4097c8676d7a7ec8／5d51a003443db8aa／9b5a47b46d44dbcb は撤去）。v1（62cdac53…）は撤去 |
+| sha256 | `3979b9fcf596acb7166080eb25b3259036f2a765e329ecf7e85daf2ba8836621`（sha16 3979b9fcf596acb7・379,986 B・4,739 行・LF・CR 0・**v2 最終＝10/23 便 SH-UI-c2 で ★29（裁定424 候補 丸めは凍結しない＝check_group_due が開いている伝票で stores の丸めを読む）を追加・追補 3 の ★28（裁定425 候補 役割「管理者」）**＝前版 bf104469163e71ed／f474fb3d706ca96a／4097c8676d7a7ec8／5d51a003443db8aa／9b5a47b46d44dbcb は撤去）。v1（62cdac53…）は撤去 |
 | 順序 | **0174 の後・0176／0177 の前**。0177（送り 4 方式）とは触る関数が重ならない（0177＝transport 系 6 本・0175＝set_store_profile／check_pay／punch_self／attendance_set／daily_pay_issue 等）＝再確認 10/23 で競合 0 |
 | 生成器 | docs/tmp/gen_0175.mjs（写経元＝docs/tmp/0175_live.json＝2026-10-22／23 SELECT 読取・pg_get_functiondef）。live の md5 pin: check_pay c11691b8・check_group_due 5c667792・receipt_issue a7f04e4c・set_store_profile 45012c75・set_comp_plan 21afb3f5・cast_sales_aggregate 34a0bf1e・payroll_adjustment_add 0feabfac・check_set_nominations 97dd24bb・demo_org_reset 3cdf7a30・punch_self 952f18a4・punch_proxy a760e1a4・attendance_set 7a56ca05・daily_pay_issue 94f989f9・★28 追補 3（R-8）: auth_role db860f0a・terms_accept 190912da・kiosk_login 90ab95a4・kiosk_operator_list e9c868bf・staff_pin_status c70866bf・set_staff_pin bda3b520 |
-| 構文検査 | scripts/mig-check.mjs＝libpg_query＋ローカル Postgres 18（plpgsql 55 本・sql 5 本・ROLLBACK）で **errors 0**（2026-10-23 追補 3 R-8 後） |
+| 構文検査 | scripts/mig-check.mjs＝libpg_query＋ローカル Postgres 18（plpgsql 56 本・sql 5 本・ROLLBACK）で **errors 0**（2026-10-23 便 SH-UI-c2 C2-16 後） |
 
 手元で再計算する場合（Git Bash）:
 

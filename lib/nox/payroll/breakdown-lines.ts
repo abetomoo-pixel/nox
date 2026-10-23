@@ -110,14 +110,15 @@ export function slideLinesOf(p: SlideLineInput, opts: { frozen?: boolean; showSa
     const salesIdx = tiers.filter((t) => m.sales >= t.at).length;
     const ptIdx = ptTiers.filter((t) => m.pts >= t.at).length;
     const wage = Math.max(m.salesWage, m.ptsWage);
-    const hit = wage > base && (salesIdx > 0 || ptIdx > 0);
+    const tiersKnown = !!plan && (tiers.length > 0 || ptTiers.length > 0); // 凍結形（旧 payslip）は段の表を持たないことがある＝時給だけで判定
+    const hit = wage > base && (!tiersKnown || salesIdx > 0 || ptIdx > 0);
     const parts: string[] = [];
     if (showSales || m.salesWage > 0 || (!showPt && m.ptsWage === 0)) parts.push(bVal(m.sales));
     if ((showPt || m.ptsWage > 0) && ptTiers.length > 0) parts.push(`pt ${m.pts}`);
     let result: string;
     if (hit) {
       const idx = m.salesWage >= m.ptsWage ? salesIdx : ptIdx;
-      result = `${parts.join("・")} → 段 ${idx}（時給 ${yen(wage)}・+${yen(wage - base)}/h）`;
+      result = idx > 0 ? `${parts.join("・")} → 段 ${idx}（時給 ${yen(wage)}・+${yen(wage - base)}/h）` : `${parts.join("・")} → 時給 ${yen(wage)}（+${yen(wage - base)}/h）`;
     } else result = `${parts.join("・")} → 段なし・基本時給 ${yen(base)} のまま`;
     if (gua && gua.base >= wage) result += `・保証 ${yen(gua.base)}（${gua.to ? md(gua.to) + " まで" : "期末まで"}）が優先`;
     out.push({ key: `slide-${m.month}`, label: head, label2: result, amount: hit ? topUp(wage) : 0, info: true, ...(hit ? {} : { amountText: "—" }) });
