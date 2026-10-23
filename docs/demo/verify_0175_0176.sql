@@ -30,8 +30,8 @@ with pins(name, md5) as (
       ('set_my_contact','728ef975'),
       ('attendance_set','031e9e21'),
       ('daily_pay_issue','df0d58ff'),
-      ('comp_plan_pay_rate_check','4915a248'),
-      ('comp_plan_ext_set','13e8ab85'),
+      ('comp_plan_pay_rate_check','a2bd4f02'),
+      ('comp_plan_ext_set','ba30d4dd'),
       ('plan_rate_band_set','a1db0579'),
       ('plan_norm_tier_set','ebc40f01'),
       ('plan_event_bonus_set','aa2c32f9'),
@@ -64,7 +64,7 @@ with pins(name, md5) as (
 ), r(mig, k, v, expected) as (
   select 'both', '貼り先証明 orgs', (select count(*) from public.orgs)::text, '9'
   union all select '0175', '新表 8（v2）', (select count(*) from pg_tables where schemaname='public' and tablename in ('punch_round_consents','availability','availability_terms','plan_rate_bands','plan_norm_tiers','plan_event_bonuses','slide_decisions','cast_rate_history'))::text, '8'
-  union all select '0175', 'comp_plans v2 列 11', (select count(*) from information_schema.columns where table_schema='public' and table_name='comp_plans' and column_name in ('pay_rate_tiers','slide_streak_n','reward_axis','assess_grace_months','hon_back_unit','jonai_back_unit','dohan_back_unit','product_back_rate_by_kind','product_back_fixed_vip','product_back_rate_vip','reservation_back_tiers'))::text, '11'
+  union all select '0175', 'comp_plans v2 列 12', (select count(*) from information_schema.columns where table_schema='public' and table_name='comp_plans' and column_name in ('pay_rate_tiers','slide_streak_n','reward_axis','assess_grace_months','hon_back_unit','jonai_back_unit','dohan_back_unit','product_back_rate_by_kind','product_back_fixed_vip','product_back_rate_vip','reservation_back_tiers','back_rate_tiers'))::text, '12'
   union all select '0175', 'stores.service_rate_by_seat／attendance の dohan 行 0', (select count(*) from information_schema.columns where table_schema='public' and table_name='stores' and column_name='service_rate_by_seat')::text || '/' || (select count(*) from public.attendance where status='dohan')::text, '1/0'
   union all select '0175', 'v2 新設 RPC 8', (select count(*) from pg_proc where pronamespace='public'::regnamespace and proname in ('comp_plan_pay_rate_check','comp_plan_ext_set','plan_rate_band_set','plan_norm_tier_set','plan_event_bonus_set','slide_decision_propose','slide_decision_decide','cast_rate_history_add'))::text, '8'
   union all select '0175', 'stores 打刻列 9', (select count(*) from information_schema.columns where table_schema='public' and table_name='stores' and column_name in ('punch_enforce','punch_restrict_mode','punch_lat','punch_lng','punch_radius_m','punch_allow_ip','punch_require_shift','punch_round_unit','punch_round_mode'))::text, '9'

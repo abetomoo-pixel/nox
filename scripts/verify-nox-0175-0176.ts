@@ -46,8 +46,8 @@ const cols = async (t: string, names: string[]) => n1(`select count(*)::text n f
   check("v175(1-10) v2 新表 5（plan_rate_bands／plan_norm_tiers／plan_event_bonuses／slide_decisions／cast_rate_history）・RLS 有効・authenticated SELECT のみ",
     (await n1(`select count(*)::text n from pg_class c join pg_namespace s on s.oid=c.relnamespace where s.nspname='public' and c.relname in ('plan_rate_bands','plan_norm_tiers','plan_event_bonuses','slide_decisions','cast_rate_history') and c.relrowsecurity`)) === 5
     && (await q<{ grantee: string; privs: string }>(`select grantee, string_agg(distinct privilege_type, ',') privs from information_schema.role_table_grants where table_schema='public' and table_name in ('plan_rate_bands','plan_norm_tiers','plan_event_bonuses','slide_decisions','cast_rate_history') and grantee in ('authenticated','anon','public') group by 1`)).every((g) => g.grantee === "authenticated" && g.privs === "SELECT"));
-  check("v175(1-11) v2 comp_plans 11 列・stores.service_rate_by_seat・slide_basis CHECK に pay_rate・attendance.status に dohan 行 0・CHECK に help／duty_absent",
-    (await cols("comp_plans", ["pay_rate_tiers", "slide_streak_n", "reward_axis", "assess_grace_months", "hon_back_unit", "jonai_back_unit", "dohan_back_unit", "product_back_rate_by_kind", "product_back_fixed_vip", "product_back_rate_vip", "reservation_back_tiers"])) === 11
+  check("v175(1-11) v2 comp_plans 12 列・stores.service_rate_by_seat・slide_basis CHECK に pay_rate・attendance.status に dohan 行 0・CHECK に help／duty_absent",
+    (await cols("comp_plans", ["pay_rate_tiers", "slide_streak_n", "reward_axis", "assess_grace_months", "hon_back_unit", "jonai_back_unit", "dohan_back_unit", "product_back_rate_by_kind", "product_back_fixed_vip", "product_back_rate_vip", "reservation_back_tiers", "back_rate_tiers"])) === 12
     && (await cols("stores", ["service_rate_by_seat"])) === 1
     && (await n1(`select count(*)::text n from pg_constraint where conname='comp_plans_slide_basis_check' and pg_get_constraintdef(oid) like '%pay_rate%'`)) === 1
     && (await n1(`select count(*)::text n from public.attendance where status='dohan'`)) === 0
