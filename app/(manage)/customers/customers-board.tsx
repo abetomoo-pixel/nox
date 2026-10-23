@@ -17,6 +17,8 @@ import { TelLink } from "@/components/ui/responsive-kit"; // ★裁定381（GV-B
 import CastAvatar from "@/components/ui/cast-avatar";
 import Modal from "@/components/ui/modal";
 import Picker from "@/components/nox/picker";
+import { rules0175On } from "@/lib/nox/rules-0175/flag"; // ★連続便 3 追補 P-9
+import KeepList from "@/components/nox/keep-list"; // ★連続便 3 追補 P-9（裁定419 候補）
 
 import { rpcErrJa as rpcErrJaCommon } from "@/lib/nox/ui/rpc-err"; // ★N2-2（2026-09-18）: 生の RPC 語の日本語化（写像に無い語は「処理できませんでした（コード: …）」）
 import Toast, { Message } from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
@@ -80,6 +82,7 @@ export default function CustomersBoard({
 }) {
   const [rows, setRows] = useState<Row[]>([]);
   const [err, setErr] = useState<string | null>(null);
+  const [view, setView] = useState<"list" | "keeps">("list"); // ★連続便 3 追補 P-9（裁定419 候補）: 上段タブ（顧客一覧｜キープボトル）＝フラグ true のときだけ出る
   const [storeSel, setStoreSel] = useState(""); // owner のみ・'' = 全店（p_store_id null）
   const [tier, setTier] = useState<Tier>("all");
   const [q, setQ] = useState("");
@@ -343,11 +346,30 @@ export default function CustomersBoard({
 
   const addCastOptions = casts.filter((c) => c.store_id === aStore && c.is_active);
 
+  // ★連続便 3 追補 P-9（裁定419 候補・0175 v2 ★22）: 「キープボトル」タブ＝店の全キープの一覧（タグ名｜顧客｜担当｜ボトル｜残量｜棚｜最終利用日｜状態）。フラグ false＝このタブ自体が無い
+  const viewTabs = rules0175On() ? (
+    <div className="nox-dtabs" data-cust-view={view} style={{ marginBottom: 12 }}>
+      {([["list", "顧客一覧"], ["keeps", "キープボトル"]] as const).map(([k, label]) => (
+        <button key={k} type="button" className={view === k ? "on" : ""} onClick={() => setView(k)}>{label}</button>
+      ))}
+    </div>
+  ) : null;
+  if (rules0175On() && view === "keeps") {
+    return (
+      <div className="nox-mv1 nox-mv1-m">
+        <PageHead eyebrow="CUSTOMER MANAGEMENT" title="顧客管理" desc="店の全キープボトル。タグ名・顧客名・ボトル名で検索できます。行を押すと顧客のキープの節へ。" />
+        {viewTabs}
+        <KeepList storeId={isOwner ? (storeSel || null) : myStoreId} casts={casts} />
+      </div>
+    );
+  }
+
   return (
     <div className="nox-mv1 nox-mv1-m">
       {/* 段0R 第2陣: モック .head を新シェルの nox-hero へ（/master・/home・/casts と同基準） */}
       <PageHead eyebrow="CUSTOMER MANAGEMENT" title="顧客管理"
         desc="来店履歴、担当キャスト、ボトルキープ、好みを一元管理します。" />
+      {viewTabs}{/* ★連続便 3 追補 P-9 */}
 
       {/* 段U2: KPI 帯＝すべて customer_list_summary の再掲（新規集計ゼロ）。
           顧客数＝取得行数／今月来店＝last_visit が今月の人数／離反リスク高＝churn_tier='high'／
@@ -371,7 +393,8 @@ export default function CustomersBoard({
           <div className="val num">{highCount}<small>人</small></div>
           <div className="sub">中（30日〜） {midCount}人</div>
         </div>
-        <div className="nox-kpi">
+        <div className="nox-kpi" data-kpi-keeps="1" role={rules0175On() ? "button" : undefined} tabIndex={rules0175On() ? 0 : undefined} style={rules0175On() ? { cursor: "pointer" } : undefined}
+          onClick={() => { if (rules0175On()) setView("keeps"); }}>{/* ★連続便 3 追補 P-9: 押すとキープボトルのタブへ（フラグ false＝従来の表示だけ） */}
           <div className="lbl">ボトルキープ中</div>
           <div className="val num">{bottleTotal}<small>本</small></div>
           <div className="sub">未開栓の合計</div>

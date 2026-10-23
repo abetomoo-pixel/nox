@@ -39,6 +39,7 @@ import TimePricingPanel from "../time-pricing-panel";
 import StoreFlagToggle from "../store-flag-toggle"; // ★mig0144: ext_shimei_enabled／dohan_auto_hon のトグル（set_store_profile）
 import { mineSettingsErrJa, mineSettingsOf } from "@/lib/nox/store/mine-settings"; // ★0160（起票96・便 M4-4）: contract_ack（加盟店契約の確認の記録＝店設定 8 キー目）
 import { swapAdjacent, reorderErrJa } from "@/lib/nox/ui/reorder";
+import { extCountTextOf } from "@/lib/nox/rules-0175/ext-pattern"; // ★連続便 3 追補 P-10 ④
 
 const card: React.CSSProperties = t.card;
 const input: React.CSSProperties = { ...t.input, width: "auto", padding: "8px 10px", fontSize: 13 };
@@ -547,6 +548,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
         }
         continue;
       }
+      if (fk === "extension" && !existing && rules.filter((r) => r.fee_kind === "extension" && r.is_active).length >= 3) { setMErr("延長パターンは 3 件までです（既存を停止するか編集してください）"); setBusy(false); return; } // ★連続便 3 追補 P-10 ④: 4 件目は送らない（RPC 'too many extension' の先回り）
       const err = await upsertRule({
         id: existing?.id ?? null, fee_kind: fk, seat_kind: mSeat === "" ? null : mSeat,
         dow_mask: dow, from, to, rank_id: null,
@@ -956,7 +958,8 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
             };
             return (
               <section className="nox-cardtop" style={{ ...card, marginBottom: 14 }} data-ext-patterns="1">
-                <h3 style={{ margin: "0 0 6px", fontSize: 14 }}>延長パターン <span className="nox-stpill" style={{ marginLeft: 6 }}>{exts.length}/3</span></h3>
+                <h3 style={{ margin: "0 0 6px", fontSize: 14 }}>延長パターン <span className={`nox-stpill${extCountTextOf(exts.length).over ? " bad" : ""}`} style={{ marginLeft: 6 }} data-ext-count={exts.length}>{extCountTextOf(exts.length).text}</span></h3>{/* ★連続便 3 追補 P-10 ④: 「4/3」→実数＋上限 */}
+                {extCountTextOf(exts.length).over && <p style={{ fontSize: 12, color: "var(--bad)", margin: "0 0 6px" }} data-ext-over="1">延長パターンは 3 件までです。超えている分は停止するか編集してください（4 件目以降は追加できません）。</p>}
                 <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "0 0 8px", lineHeight: 1.7 }}>
                   延長は 1 店 3 パターンまで（料金ルールの「延長料金」の行）。自動延長の店は<b>既定</b>を自動で当て、手動延長の店はレジで選びます。自動延長後の切替はレジの「延長パターン ▾」（確定済みの延長は新しい単価で引き直し）。
                 </p>

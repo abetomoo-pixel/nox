@@ -15,6 +15,8 @@ import * as t from "@/lib/nox/ui/theme";
 import Toast, { useToast } from "@/components/ui/toast";
 import Modal from "@/components/ui/modal";
 import Picker from "@/components/nox/picker";
+import { rules0175On } from "@/lib/nox/rules-0175/flag"; // ★連続便 3 追補 P-9
+import { tagLabelDefaultOf } from "@/lib/nox/rules-0175/keeps"; // ★連続便 3 追補 P-9（裁定419 候補）
 
 type Product = { id: string; name: string; type: string; price: number };
 type Customer = { id: string; name: string; furigana?: string | null };
@@ -43,6 +45,9 @@ export default function BottleKeepPanel({ storeId, products }: { storeId: string
   const [fCustomer, setFCustomer] = useState("");
   const [fProduct, setFProduct] = useState("");
   const [fNote, setFNote] = useState("");
+  const [fTag, setFTag] = useState(""); // ★連続便 3 追補 P-9（裁定419 候補）: タグ名（既定＝「{顧客名} {ボトル名}」・編集可）
+  const [fShelf, setFShelf] = useState(""); // ★P-9: 棚（shelf_no）
+  const [tagTouched, setTagTouched] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
@@ -58,7 +63,7 @@ export default function BottleKeepPanel({ storeId, products }: { storeId: string
   useEffect(() => { void load(); }, [load]);
 
   function openModal() {
-    setFCustomer(""); setFProduct(""); setFNote(""); setMsg(null); setOpen(true);
+    setFCustomer(""); setFProduct(""); setFNote(""); setFTag(""); setFShelf(""); setTagTouched(false); setMsg(null); setOpen(true);
   }
 
   async function register() {
@@ -68,6 +73,7 @@ export default function BottleKeepPanel({ storeId, products }: { storeId: string
     const { error } = await supabase.rpc("bottle_keep_register", {
       p_store_id: storeId, p_customer_id: fCustomer, p_product_id: fProduct,
       p_note: fNote.trim() === "" ? null : fNote.trim(),
+      ...(rules0175On() ? { p_tag_label: fTag.trim() || null, p_shelf_no: fShelf.trim() || null } : {}), // ★連続便 3 追補 P-9: 0175 v2 の tag_label（フラグ false＝従来の 4 引数）
     });
     setBusy(false);
     setMsg(error ? `登録に失敗: ${errJa(error.message)}` : "ボトルを登録しました");
@@ -78,6 +84,8 @@ export default function BottleKeepPanel({ storeId, products }: { storeId: string
   const productName = (id: string) => bottles.find((p) => p.id === id)?.name ?? products.find((p) => p.id === id)?.name ?? "?";
   const selCustomer = customers.find((c) => c.id === fCustomer) ?? null;
   const selBottle = bottles.find((p) => p.id === fProduct) ?? null;
+  // ★連続便 3 追補 P-9: 顧客・ボトルを選ぶとタグ名の既定値を入れる（手で直したら上書きしない）
+  useEffect(() => { if (!rules0175On() || tagTouched) return; if (selCustomer && selBottle) setFTag(tagLabelDefaultOf(selCustomer.name, selBottle.name)); }, [selCustomer, selBottle, tagTouched]);
 
   return (
     <section className="nox-cardtop" style={{ ...card, width: "100%" }}>
@@ -121,6 +129,18 @@ export default function BottleKeepPanel({ storeId, products }: { storeId: string
                 items={bottles.map((p) => ({ id: p.id, label: p.name, sublabel: yen(p.price) }))}
                 value={fProduct || null} onPick={setFProduct} placeholder="ボトルを検索" empty="ボトル商品がありません" limit={20} dense />
             </div>
+            {rules0175On() && (/* ★連続便 3 追補 P-9（裁定419 候補・0175 v2 ★22）: タグ名と棚＝フラグ false では出ない */
+              <div style={{ display: "grid", gap: 10, gridTemplateColumns: "1fr 120px" }} data-keep-tag-fields="1">
+                <label style={{ display: "block" }}>
+                  <span style={{ ...t.fieldLabel, display: "block", marginBottom: 4 }}>タグ名（ボトルに書く名前）</span>
+                  <input value={fTag} maxLength={60} placeholder="例: 山田様 山崎" onChange={(e) => { setFTag(e.target.value); setTagTouched(true); }} style={{ ...input, width: "100%" }} aria-label="タグ名" />
+                </label>
+                <label style={{ display: "block" }}>
+                  <span style={{ ...t.fieldLabel, display: "block", marginBottom: 4 }}>棚</span>
+                  <input value={fShelf} maxLength={20} placeholder="A-3" onChange={(e) => setFShelf(e.target.value)} style={{ ...input, width: "100%" }} aria-label="棚" />
+                </label>
+              </div>
+            )}
             <label style={{ display: "block" }}>
               <span style={{ ...t.fieldLabel, display: "block", marginBottom: 4 }}>メモ（棚番号等・任意）</span>
               <input placeholder="例: 棚 A-3" value={fNote} onChange={(e) => setFNote(e.target.value)} style={{ ...input, width: "100%" }} />

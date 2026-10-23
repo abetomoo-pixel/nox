@@ -18,6 +18,8 @@ import * as t from "@/lib/nox/ui/theme";
 import { TelLink } from "@/components/ui/responsive-kit"; // ★裁定381（GV-B W-10）
 import Modal from "@/components/ui/modal"; // ★裁定253 R7: 顧客編集はモーダル
 import Picker from "@/components/nox/picker";
+import { rules0175On } from "@/lib/nox/rules-0175/flag"; // ★連続便 3 追補 P-9
+import { keepTagOf } from "@/lib/nox/rules-0175/keeps"; // ★連続便 3 追補 P-9（裁定419 候補）
 
 import Toast, { Message } from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 import { rpcErrJa } from "@/lib/nox/ui/rpc-err"; // ★0155（便 S-4）: 'already anonymized'／'bad reason'／'forbidden' の日本語化
@@ -32,7 +34,7 @@ type Summary = {
   active_bottles: number; open_receivable: number; pending_bottles?: number; // ★0173（裁定392）: 会計前のキープ（注記用）
 };
 // ★0153（裁定305-6・D2）: キープ一覧（bottle_name・残量・最終利用日・棚）＝bottle_keeps 直 SELECT（RLS＝can_register 軸・読めなければ空）
-type KeepRow = { id: string; bottle_name: string | null; product_id: string; remaining_pct: number | null; shelf_no: string | null; last_used_at: string | null; opened_at: string; status: string; products: { name: string } | null };
+type KeepRow = { id: string; bottle_name: string | null; product_id: string; remaining_pct: number | null; shelf_no: string | null; last_used_at: string | null; opened_at: string; status: string; products: { name: string } | null; tag_label?: string | null; expires_on?: string | null; note?: string | null }; // ★連続便 3 追補 P-9: +tag_label／expires_on／note（フラグ true で読む）
 // ★0153（裁定305-9・D2）: 顧客別売上（customer_sales_summary＝owner／manager・期間）
 type SalesRow = { customer_id: string; name: string; amount: number; check_count: number };
 type Visit = {
@@ -70,6 +72,21 @@ export default function CustomerDetail({
   const [summary, setSummary] = useState<Summary | null>(null);
   const [visits, setVisits] = useState<Visit[]>([]);
   const [keeps, setKeeps] = useState<KeepRow[] | null>(null); // ★0153 D2（null＝未取得）
+  // ★連続便 3 追補 P-9（裁定419 候補）: キープの行内編集（タグ名・棚・残量・状態）＝bottle_keep_update（+p_tag_label）。フラグ false では列も編集も出ない
+  const [keepEdit, setKeepEdit] = useState<{ id: string; tag: string; shelf: string; remaining: string; status: string } | null>(null);
+  const [keepBusy, setKeepBusy] = useState(false);
+  async function saveKeep(k: KeepRow) {
+    if (!keepEdit || keepEdit.id !== k.id || keepBusy) return;
+    setKeepBusy(true); setMsg(null);
+    const supabase = createClient();
+    const { error } = await supabase.rpc("bottle_keep_update", {
+      p_id: k.id, p_remaining_pct: keepEdit.remaining === "" ? null : Number(keepEdit.remaining), p_expires_on: k.expires_on ?? null, p_shelf_no: keepEdit.shelf.trim() || null,
+      p_status: keepEdit.status, p_note: k.note ?? null, p_bottle_name: k.bottle_name, p_tag_label: keepEdit.tag.trim(),
+    });
+    setKeepBusy(false);
+    if (error) { setMsg(`キープの更新に失敗: ${rpcErrJa(error.message)}`); return; }
+    setMsg("キープを更新しました"); setKeepEdit(null); await load();
+  }
   const [salesFrom, setSalesFrom] = useState(() => new Date().toISOString().slice(0, 7) + "-01");
   const [salesTo, setSalesTo] = useState(() => new Date().toISOString().slice(0, 10));
   const [sales, setSales] = useState<SalesRow | null | undefined>(undefined); // ★0153 D2（undefined＝未取得・null＝期間内 0）
@@ -123,7 +140,7 @@ export default function CustomerDetail({
     if (eV) { setErr(`来店履歴の読み込みに失敗: ${eV.message}`); return; }
     setVisits((v ?? []) as Visit[]);
     // ★0153 D2: キープ一覧（+1）
-    const { data: ks } = await supabase.from("bottle_keeps").select("id, bottle_name, product_id, remaining_pct, shelf_no, last_used_at, opened_at, status, products(name)").eq("customer_id", customerId).order("opened_at", { ascending: false });
+    const { data: ks } = await supabase.from("bottle_keeps").select(rules0175On() ? "id, bottle_name, product_id, remaining_pct, shelf_no, last_used_at, opened_at, status, tag_label, expires_on, note, products(name)" : "id, bottle_name, product_id, remaining_pct, shelf_no, last_used_at, opened_at, status, products(name)").eq("customer_id", customerId).order("opened_at", { ascending: false }); // ★連続便 3 追補 P-9: tag_label はフラグ true で
     setKeeps((ks ?? []) as unknown as KeepRow[]);
   }, [customerId]);
   // ★0153 D2: 顧客別売上（+1・期間を変えたときだけ再取得）
@@ -314,15 +331,17 @@ export default function CustomerDetail({
         {keeps !== null && keeps.length > 0 && (
           <div className="nox-tablewrap">
             <table className="nox-table cardrows">{/* ★X-13-17（便 X-13d-1）: ≤899 は 1 本 1 カード */}
-              <thead><tr><th>ボトル</th><th>残量</th><th>最終利用日</th><th>棚</th><th>状態</th></tr></thead>
+              <thead><tr>{rules0175On() && <th>タグ名</th>}<th>ボトル</th><th>残量</th><th>最終利用日</th><th>棚</th><th>状態</th>{rules0175On() && <th></th>}</tr></thead>{/* ★連続便 3 追補 P-9 */}
               <tbody>
                 {keeps.map((k) => (
-                  <tr key={k.id}>
+                  <tr key={k.id} data-keep-id={k.id}>
+                    {rules0175On() && <td data-label="タグ名" style={{ fontWeight: 800 }}>{keepEdit?.id === k.id ? <input value={keepEdit.tag} maxLength={60} aria-label="タグ名" onChange={(e) => setKeepEdit({ ...keepEdit, tag: e.target.value })} style={{ ...t.input, width: 160, padding: "4px 8px" }} /> : keepTagOf(k, cust?.name, k.bottle_name ?? k.products?.name)}</td>}
                     <td>{k.bottle_name ?? k.products?.name ?? "（商品）"}</td>
-                    <td className="num" data-label="残量">{k.remaining_pct != null ? `${k.remaining_pct}%` : "—"}</td>
+                    <td className="num" data-label="残量">{rules0175On() && keepEdit?.id === k.id ? <input value={keepEdit.remaining} inputMode="numeric" aria-label="残量" onChange={(e) => setKeepEdit({ ...keepEdit, remaining: e.target.value.replace(/[^0-9]/g, "").slice(0, 3) })} style={{ ...t.input, width: 60, padding: "4px 8px" }} /> : (k.remaining_pct != null ? `${k.remaining_pct}%` : "—")}</td>
                     <td className="num" data-label="最終利用日">{k.last_used_at ? fmtWhen(k.last_used_at) : "—"}</td>
-                    <td data-label="棚">{k.shelf_no ?? "—"}</td>
-                    <td data-label="状態">{k.status === "active" ? "保管中" : k.status === "pending" ? "会計前" : k.status === "empty" ? "空" : "終了"}{/* ★便 P173（裁定392） */}</td>
+                    <td data-label="棚">{rules0175On() && keepEdit?.id === k.id ? <input value={keepEdit.shelf} maxLength={20} aria-label="棚" onChange={(e) => setKeepEdit({ ...keepEdit, shelf: e.target.value })} style={{ ...t.input, width: 70, padding: "4px 8px" }} /> : (k.shelf_no ?? "—")}</td>
+                    <td data-label="状態">{rules0175On() && keepEdit?.id === k.id ? <select value={keepEdit.status} aria-label="状態" onChange={(e) => setKeepEdit({ ...keepEdit, status: e.target.value })} style={{ ...t.input, width: "auto", padding: "4px 8px" }}><option value="active">保管中</option><option value="empty">空</option><option value="removed">返却</option></select> : (k.status === "active" ? "保管中" : k.status === "pending" ? "会計前" : k.status === "empty" ? "空" : "終了")}{/* ★便 P173（裁定392） */}</td>
+                    {rules0175On() && <td data-label="">{keepEdit?.id === k.id ? (<span style={{ display: "inline-flex", gap: 4 }}><button type="button" style={{ ...t.btnGhost, ...t.btnSm }} disabled={keepBusy} onClick={() => setKeepEdit(null)}>取消</button><button type="button" style={{ ...t.btnGold, ...t.btnSm }} disabled={keepBusy} onClick={() => void saveKeep(k)}>保存</button></span>) : (<button type="button" style={{ ...t.btnGhost, ...t.btnSm }} disabled={k.status === "pending"} onClick={() => setKeepEdit({ id: k.id, tag: keepTagOf(k, cust?.name, k.bottle_name ?? k.products?.name), shelf: k.shelf_no ?? "", remaining: k.remaining_pct != null ? String(k.remaining_pct) : "", status: k.status === "pending" ? "active" : k.status })}>編集</button>)}</td>}
                   </tr>
                 ))}
               </tbody>

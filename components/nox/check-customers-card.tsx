@@ -14,10 +14,12 @@ import { createClient } from "@/lib/supabase/client";
 import { Message } from "@/components/ui/toast";
 import CustomerPickModal from "@/components/nox/customer-pick-modal"; // ★裁定377（GV-B W-7）: 伝票の顧客追加も共通モーダル
 import * as t from "@/lib/nox/ui/theme";
+import { rules0175On } from "@/lib/nox/rules-0175/flag"; // ★連続便 3 追補 P-9
+import { keepCallTextOf } from "@/lib/nox/rules-0175/keeps"; // ★連続便 3 追補 P-9（裁定419 候補）: 「H様 山崎 10/23」
 
 type Named = { customer_id: string; pos: number; name: string; bottle_names: string[] };
 type Cust = { id: string; name: string; furigana: string | null; tel?: string | null };
-type Keep = { id: string; customer_id: string | null; bottle_name: string | null; product_id: string; remaining_pct: number | null; shelf_no: string | null; last_used_at: string | null };
+type Keep = { id: string; customer_id: string | null; bottle_name: string | null; product_id: string; remaining_pct: number | null; shelf_no: string | null; last_used_at: string | null; tag_label?: string | null }; // ★連続便 3 追補 P-9: +tag_label（フラグ true で読む）
 export type CustomerLine = { id: string; name_snapshot: string; kind: string; line_total: number; customer_id?: string | null; time_auto?: boolean };
 
 /** RPC のエラー語→和文（裁定281・握り潰さない） */
@@ -62,8 +64,8 @@ export default function CheckCustomersCard({ checkId, storeId, isOpen, lines: _l
     setCusts(((c.data ?? []) as Cust[]));
     const ids = rows.map((r) => r.customer_id);
     if (ids.length === 0) { setKeeps([]); return; }
-    const { data: ks } = await supabase.from("bottle_keeps").select("id, customer_id, bottle_name, product_id, remaining_pct, shelf_no, last_used_at").in("customer_id", ids).eq("status", "active").order("opened_at");
-    setKeeps((ks ?? []) as Keep[]);
+    const { data: ks } = await supabase.from("bottle_keeps").select(rules0175On() ? "id, customer_id, bottle_name, product_id, remaining_pct, shelf_no, last_used_at, tag_label" : "id, customer_id, bottle_name, product_id, remaining_pct, shelf_no, last_used_at").in("customer_id", ids).eq("status", "active").order("opened_at"); // ★連続便 3 追補 P-9
+    setKeeps((ks ?? []) as unknown as Keep[]); // ★P-9: select 文字列が条件式のため型推論を外す
   }, [supabase, checkId, storeId]);
   useEffect(() => { void load(); }, [load]);
 
@@ -118,7 +120,7 @@ export default function CheckCustomersCard({ checkId, storeId, isOpen, lines: _l
           <div style={{ display: "grid", gap: 6 }}>
             {keeps.map((k) => (
               <div key={k.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5 }}>
-                <span>{k.bottle_name ?? productName(k.product_id)}<span style={{ color: "var(--sub)", marginLeft: 6 }}>{nameOf(k.customer_id)}{k.remaining_pct != null ? `・残 ${k.remaining_pct}%` : ""}{k.shelf_no ? `・棚 ${k.shelf_no}` : ""}</span></span>
+                <span>{rules0175On() && k.tag_label ? keepCallTextOf(k.tag_label, k.last_used_at) : (k.bottle_name ?? productName(k.product_id))}<span style={{ color: "var(--sub)", marginLeft: 6 }}>{nameOf(k.customer_id)}{k.remaining_pct != null ? `・残 ${k.remaining_pct}%` : ""}{k.shelf_no ? `・棚 ${k.shelf_no}` : ""}</span></span>
                 {isOpen && <button type="button" className="nox-btn" style={{ marginLeft: "auto" }} disabled={busy}
                   onClick={() => void call("キープ出し", "bottle_keep_out", { p_keep_id: k.id, p_check_id: checkId, p_idem_key: crypto.randomUUID() }, `${k.bottle_name ?? productName(k.product_id)} を出しました`)}>出す</button>}
               </div>

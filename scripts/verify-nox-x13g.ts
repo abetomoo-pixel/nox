@@ -162,7 +162,7 @@ check("x13g(20) W-19 ① customers-keep の snapshot は検証 org の範囲・�
   const d = cardGrossDefaultOf(30993, 10), s1 = cardGrossSplitOf(d, 30993, 10), s2 = cardGrossSplitOf(11000, 30993, 10);
   check("x13g(28) W-25 ①: カード（加算あり）の入金額は手数料込み＝既定 34,092・充当 30,993／手数料 3,099・一部 11,000＝充当 10,000／手数料 1,000・入金ボタンも受取額",
     d === 34092 && s1.applied === 30993 && s1.fee === 3099 && s2.applied === 10000 && s2.fee === 1000 && cardGrossSplitOf(0, 100, 10).applied === 0
-    && rb.includes("うち 残額への充当 {yen(grossSplit.applied)}／カード手数料 {yen(grossSplit.fee)}") && rb.includes("入金する（{amtValid ? yen(grossMode ? grossN : effAmount)")
+    && rb.includes("うち 残額への充当 {yen(grossSplit.applied)}／カード手数料 {yen(grossSplit.fee)}") && rb.includes("入金する（{amtValid ? yen(grossMode ? grossN : (feeNote && noteModeOf(feeNote) !== \"auto\" ? feeNote.receive : effAmount))") /* ★連続便 3 追補 P-8: なし／指定はお客様からもらう額（pin 張替え） */
     && rb.includes("setEntered(Math.ceil((grossMode ? grossDefault : balance) / n))"));
 }
 {

@@ -6,7 +6,7 @@
 with pins(name, md5) as (
   values
       ('pt_rules_check','cc622435'),
-      ('check_pay','3cb13667'),
+      ('check_pay','b4d9c399'),
       ('check_group_due','22428eed'),
       ('receipt_issue','3c277f65'),
       ('set_store_profile','c65329e5'),
@@ -28,6 +28,11 @@ with pins(name, md5) as (
       ('availability_set','393a6d45'),
       ('availability_list','da9c6040'),
       ('set_my_contact','728ef975'),
+      ('bottle_keep_register','32270812'),
+      ('bottle_keep_update','90c8f859'),
+      ('check_set_ext_rule','4e8676fc'),
+      ('check_extension_add','00bafe19'),
+      ('check_open','c67dcab6'),
       ('attendance_set','031e9e21'),
       ('daily_pay_issue','df0d58ff'),
       ('comp_plan_pay_rate_check','a2bd4f02'),
@@ -75,7 +80,9 @@ with pins(name, md5) as (
   union all select '0175', 'daily_pays 取消 3', (select count(*) from information_schema.columns where table_schema='public' and table_name='daily_pays' and column_name in ('cancelled_at','cancelled_by','cancel_reason'))::text, '3'
   union all select '0175', 'pricing_rules vip_timing／vip_ext_amount', (select count(*) from information_schema.columns where table_schema='public' and table_name='pricing_rules' and column_name in ('vip_timing','vip_ext_amount'))::text, '2'
   union all select '0175', 'staff_contracts 新列 6／memberships 2／users 2', (select count(*) from information_schema.columns where table_schema='public' and ((table_name='staff_contracts' and column_name in ('pay_kind','monthly','daily','min_month_h','max_month_h','max_consec')) or (table_name='memberships' and column_name in ('hire_date','leave_date')) or (table_name='users' and column_name in ('contact_email','phone'))))::text, '10'
-  union all select '0175', '引数 check_pay／receipt_issue／set_comp_plan／payroll_adjustment_add／punch_self', (select string_agg(proname || '=' || pronargs, ',' order by proname) from pg_proc where pronamespace='public'::regnamespace and proname in ('check_pay','receipt_issue','set_comp_plan','payroll_adjustment_add','punch_self','daily_pay_issue')), 'check_pay=10,daily_pay_issue=6,payroll_adjustment_add=14,punch_self=7,receipt_issue=6,set_comp_plan=32'
+  union all select '0175', '引数 check_pay／receipt_issue／set_comp_plan／payroll_adjustment_add／punch_self', (select string_agg(proname || '=' || pronargs, ',' order by proname) from pg_proc where pronamespace='public'::regnamespace and proname in ('check_pay','receipt_issue','set_comp_plan','payroll_adjustment_add','punch_self','daily_pay_issue')), 'check_pay=11,daily_pay_issue=6,payroll_adjustment_add=14,punch_self=7,receipt_issue=6,set_comp_plan=32'
+  union all select '0175', 'v2 追補 列 4（payments fee_amount／fee_source・bottle_keeps tag_label・checks ext_rule_id）', (select count(*) from information_schema.columns where table_schema='public' and ((table_name='payments' and column_name in ('fee_amount','fee_source')) or (table_name='bottle_keeps' and column_name='tag_label') or (table_name='checks' and column_name='ext_rule_id')))::text, '4'
+  union all select '0175', 'v2 追補 引数 bottle_keep_register 11／update 8', (select string_agg(proname || '=' || pronargs, ',' order by proname) from pg_proc where pronamespace='public'::regnamespace and proname in ('bottle_keep_register','bottle_keep_update')), 'bottle_keep_register=11,bottle_keep_update=8'
   union all select '0175', '旧署名の残り（overload）', (select count(*) from pg_proc where pronamespace='public'::regnamespace and proname in ('check_pay','receipt_issue','set_comp_plan','payroll_adjustment_add','punch_self','daily_pay_issue'))::text, '6'
   union all select '0175', '新設 RPC 12', (select count(*) from pg_proc where pronamespace='public'::regnamespace and proname in ('pt_rules_check','payroll_adjustment_cancel','norm_shortfall_decide','daily_pay_cancel','set_cast_kind','set_pricing_rule_vip','staff_payroll_run_set_status','store_wifi_add','store_wifi_remove','availability_set','availability_list','set_my_contact'))::text, '12'
   union all select '0175', '内部専用 pt_rules_check に authenticated なし', (select count(*) from pg_proc where pronamespace='public'::regnamespace and proname='pt_rules_check' and coalesce(proacl::text, '') not like '%authenticated%')::text, '1'

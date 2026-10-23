@@ -6,6 +6,7 @@
  *      payload 6 店は gen-demo の CANON 差し替えが null（profiles.canonOf／okuriModeOf が従来値）・collect／UI の gate が rules0175On() で閉じている（逐語）
  *  (3) true の client 段＝fixture（DB 段は SKIP）: P-1 時給の履歴（基本＋段の累積・保証・手動）／P-2 取消済み（除外・ラベル）／P-3 店設定（ドリンクバック OFF・売上小計・支払サイクル・プランの軸）／
  *      P-4 基本の働き方（既定値・固定休の印・雇用の時間帯）／P-5 CANON 40％・75％・120％ の 3 ケース＋連続 2 期の発動／不発動・規定未達は UP だけ止まる・免除は査定を止める／P-6 fixture 6 店／P-7 0177 の送り 4 方式
+ *  (4)(5)(6) 連続便 3 追補＝P-8 手数料の 3 択（店の率／なし／指定 ¥5,000・p_fee_amount・フラグ false は 8 引数）／P-9 キープのタグ名（既定・検索・並び・呼び出し文言・配線）／P-10 延長パターン（選択中・切替で単価・1 パターンは ▾ なし・マスタ n 件（上限 3））＋v2 起草の逐語（起草ファイルがあるときだけ）
  */
 import fs from "node:fs";
 import { payOf, type PayInput } from "../lib/nox/pay";
@@ -16,6 +17,9 @@ import { drinkCountBackOn, salesSubtotalModeOf, payCycleOf, payCycleTextOf, plan
 import { availFormOf, availPatchOf, wishDefaultOf, fixedOffConflictOf, canEditTimeOf, availChipsOf, emptyAvailForm } from "../lib/nox/rules-0175/availability";
 import { canonOutcomeOf, canonApplyOf, payRatePctOf, payRateTierOf, directionOf, streakOf, streakMetOf, normTierOf, normRequiredOf, graceOf, dailyPayCapOf, serviceRateOf, payDiscountOf, backOf, hourlyAtOf, type CanonCtx, type PayRateTier } from "../lib/nox/rules-0175/canon";
 import { rateInputOf, guaranteeInputOf } from "../lib/nox/payroll/assemble";
+import { feeAmountArgOf, noteModeOf, payFeeModesFor, payFeeNoteWithModeOf, payFeeRowTextOf } from "../lib/nox/rules-0175/pay-fee"; // ★連続便 3 追補 P-8
+import { keepCallTextOf, keepSearchOf, keepSortOf, keepTagOf, tagLabelDefaultOf } from "../lib/nox/rules-0175/keeps"; // ★連続便 3 追補 P-9
+import { extButtonTextOf, extCountTextOf, extCurrentOf, extLineNameOf, extMenuShowOf } from "../lib/nox/rules-0175/ext-pattern"; // ★連続便 3 追補 P-10
 
 let pass = 0; const fails: string[] = [];
 const check = (label: string, ok: boolean, detail?: string) => { if (ok) pass++; else fails.push(`${label}${detail ? `: ${detail}` : ""}`); };
@@ -31,9 +35,10 @@ check("p175(1-3) 読み口＝rules0175On()／okuri4wayOn() は定数を返し、
 const GATED_FILES = [
   "lib/nox/payroll/collect.ts", "app/(manage)/master/cast-comp/systems/systems-board.tsx", "app/(manage)/master/cast-comp/plan/plan-editor.tsx", "app/(manage)/casts/casts-board.tsx",
   "app/mine/page.tsx", "app/mine/wishes/wish-form.tsx", "app/(manage)/report/report-board.tsx", "app/(manage)/payroll/payroll-board.tsx", "components/nox/daily-pay-form.tsx", "app/(manage)/master/deduction-panel.tsx",
+  "app/(manage)/register/register-board.tsx", "app/(manage)/register/bottle-keep-panel.tsx", "app/(manage)/customers/customers-board.tsx", "app/(manage)/customers/[id]/customer-detail.tsx", "components/nox/check-customers-card.tsx", // ★連続便 3 追補 P-8／P-9／P-10
 ];
 const gateCount = GATED_FILES.map((p) => ({ p, n: (src(p).match(/rules0175On\(\)|okuri4wayOn\(\)/g) ?? []).length }));
-check("p175(1-4) 眠らせた箇所＝10 ファイル全部に rules0175On()／okuri4wayOn() がある・直書きの RULES_0175_APPLIED／OKURI_4WAY_APPLIED は flag.ts と鏡だけ", gateCount.every((g) => g.n > 0) && !GATED_FILES.some((p) => /const (RULES_0175_APPLIED|OKURI_4WAY_APPLIED) =/.test(src(p))), J(gateCount));
+check("p175(1-4) 眠らせた箇所＝15 ファイル全部に rules0175On()／okuri4wayOn() がある・直書きの RULES_0175_APPLIED／OKURI_4WAY_APPLIED は flag.ts と鏡だけ", gateCount.every((g) => g.n > 0) && !GATED_FILES.some((p) => /const (RULES_0175_APPLIED|OKURI_4WAY_APPLIED) =/.test(src(p))), J(gateCount));
 console.log(`眠らせた箇所: ${gateCount.length} ファイル／${gateCount.reduce((a, g) => a + g.n, 0)} 箇所 = ${gateCount.map((g) => `${g.p.split("/").pop()} ${g.n}`).join("・")}`);
 
 // ── (2) false＝従来と 1 バイト同値 ──
@@ -145,6 +150,44 @@ check("p175(3-5m) P-5 CANON の器＝サ料 30／VIP 35・現金 10％ OFF（残
 check("p175(3-5n) P-5 バック単位＝per_check 500×3＝1,500・per_30min 300×（90 分→3）＝900・hourly_add は固定 0（時給加算側）", backOf({ amount: 500, rate: null, unit: "per_check", checks: 3, seatedMinutes: 0, extensions: 0, sets: 0, subtotal: 0 }).total === 1500 && backOf({ amount: 300, rate: null, unit: "per_30min", checks: 0, seatedMinutes: 90, extensions: 0, sets: 0, subtotal: 0 }).total === 900 && backOf({ amount: 300, rate: null, unit: "hourly_add", checks: 0, seatedMinutes: 0, extensions: 0, sets: 0, subtotal: 0 }).total === 0);
 // P-7 0177 の送り 4 方式（フラグ true のとき）
 check("p175(3-7) P-7 0177 後＝deduction-panel は 'store'／'none' を okuri4wayOn() で選べる・payload は profiles.okuriModeOf（LILY 'store'／NOIR 'none'）＝フラグで眠る", src("lib/nox/shift/okuri-mode.ts").includes("export const okuriModeSelectableOf = (mode: OkuriMode, applied: boolean): boolean => applied || mode === \"actual\" || mode === \"flat\";") && prof.includes("export function okuriModeOf(code)"));
+// ── (4) P-8 カード手数料の入金ごとの上書き（裁定393 追補4・0175 v2 ★21） ──
+const RATES = { card: 10, emoney: 0, other: 0 } as const;
+check("p175(4-1) P-8 店の率／なし／指定 ¥5,000＝手数料と受取額（入金 78,620・残額 78,620）", J(payFeeNoteWithModeOf("card", 78_620, RATES, "auto", null, 78_620)) === J({ key: "card", rate: 10, fee: 7862, receive: 86_482, mode: "auto" })
+  && J(payFeeNoteWithModeOf("card", 78_620, RATES, "none", null, 78_620)) === J({ key: "card", rate: 0, fee: 0, receive: 78_620, mode: "none" })
+  && J(payFeeNoteWithModeOf("card", 78_620, RATES, "manual", 5000, 78_620)) === J({ key: "card", rate: 0, fee: 5000, receive: 83_620, mode: "manual" })
+  && payFeeNoteWithModeOf("cash", 1000, RATES, "manual", 5000, 1000) === null);
+check("p175(4-2) P-8 p_fee_amount＝auto null／none 0／manual 指定（上限＝残額）", feeAmountArgOf("auto", 5000, 10_000) === null && feeAmountArgOf("none", 5000, 10_000) === 0 && feeAmountArgOf("manual", 5000, 10_000) === 5000 && feeAmountArgOf("manual", 50_000, 10_000) === 10_000 && feeAmountArgOf("manual", null, 10_000) === 0);
+check("p175(4-3) P-8 行の文言と役割＝「手数料 ¥7,862（10%）」「手数料 ¥0（なし）」「手数料 ¥5,000（指定）」・スタッフは店の率だけ・mode なしの従来 note は auto", payFeeRowTextOf({ fee: 7862, rate: 10, mode: "auto" }) === "手数料 ¥7,862（10%）" && payFeeRowTextOf({ fee: 0, rate: 0, mode: "none" }) === "手数料 ¥0（なし）" && payFeeRowTextOf({ fee: 5000, rate: 0, mode: "manual" }) === "手数料 ¥5,000（指定）" && J(payFeeModesFor(false)) === J(["auto"]) && payFeeModesFor(true).length === 3 && noteModeOf({ key: "card", rate: 10, fee: 1, receive: 2 }) === "auto");
+const rb = src("app/(manage)/register/register-board.tsx");
+check("p175(4-4) P-8 レジ＝p_fee_amount は rules0175On() のときだけ送る（...(rules0175On() ? { p_fee_amount: … } : {})）・3 択は rules0175On() && で包む・フラグ false は従来の 8 引数", rb.includes("...(rules0175On() ? { p_fee_amount: feeAmountArgOf(feeMode,") && rb.includes('{rules0175On() && payFeeKeyOf(payMethod) && payFeeRates[payFeeKeyOf(payMethod)!] > 0 && (() => {') && rb.includes('const feeMode0: PayFeeMode = rules0175On() ? feeMode : "auto";'));
+const v2 = fs.existsSync("docs/tmp/0175_rules_bundle_v2_draft.sql") ? src("docs/tmp/0175_rules_bundle_v2_draft.sql") : "";
+check("p175(4-5) P-8 0175 v2＝check_pay 11 引数（p_fee_amount）・payments.fee_amount／fee_source・manual は「（指定）」の行・audit に pay_fee_amount（起草ファイルがあるときだけ）", v2 === "" || (v2.includes("p_fee_on boolean DEFAULT true, p_fee_amount integer DEFAULT NULL::integer)") && v2.includes("alter table public.payments add column if not exists fee_amount integer not null default 0;") && v2.includes("fee_source in ('auto','none','manual')") && v2.includes("'pay_fee_amount', v_fee, 'pay_fee_source', v_fee_source") && v2.includes("check_pay(uuid, text, integer, text, integer, uuid, text, text, numeric, boolean, integer)")));
+// ── (5) P-9 キープボトルのタグ名と一覧（裁定419 候補・0175 v2 ★22） ──
+check("p175(5-1) P-9 タグ名の既定値＝「{顧客名} {ボトル名}」・tag_label があればそれ・60 字", tagLabelDefaultOf("山田", "山崎") === "山田 山崎" && keepTagOf({ tag_label: "H様 山崎" }, "山田", "山崎") === "H様 山崎" && keepTagOf({ tag_label: null }, "山田", "山崎") === "山田 山崎" && tagLabelDefaultOf("a".repeat(70), "b").length === 60);
+const KEEPS = [
+  { id: "1", tag: "H様 山崎", customer: "山田", bottle: "山崎", shelf_no: "B-2", last_used_at: "2026-10-20T10:00:00Z" },
+  { id: "2", tag: "佐藤様 響", customer: "佐藤", bottle: "響", shelf_no: "A-1", last_used_at: "2026-10-01T10:00:00Z" },
+  { id: "3", tag: "鈴木様 白州", customer: "鈴木", bottle: "白州", shelf_no: null, last_used_at: null },
+  { id: "4", tag: "田中様 山崎", customer: "田中", bottle: "山崎", shelf_no: "A-1", last_used_at: "2026-10-22T10:00:00Z" },
+];
+check("p175(5-2) P-9 検索＝タグ名・顧客名・ボトル名の部分一致（「山崎」2 件・「佐藤」1 件・空＝全件）", keepSearchOf(KEEPS, "山崎").length === 2 && keepSearchOf(KEEPS, "佐藤").length === 1 && keepSearchOf(KEEPS, "H様").length === 1 && keepSearchOf(KEEPS, "").length === 4);
+check("p175(5-3) P-9 並び＝棚→最終利用日（新しい順）・棚なしは末尾（A-1 10/22→A-1 10/1→B-2→なし）", J(keepSortOf(KEEPS).map((k) => k.id)) === J(["4", "2", "1", "3"]), J(keepSortOf(KEEPS).map((k) => k.id)));
+check("p175(5-4) P-9 レジのキープ呼び出し＝「H様 山崎 10/20」・最終利用なしはタグだけ", keepCallTextOf("H様 山崎", "2026-10-20T10:00:00Z") === "H様 山崎 10/20" && keepCallTextOf("H様 山崎", null) === "H様 山崎");
+check("p175(5-5) P-9 配線＝キープ登録は p_tag_label を rules0175On() のときだけ・顧客管理のタブと KPI・顧客詳細の列と行内編集・レジ呼び出しのタグ名は rules0175On() で包む・一覧部品は mount されない",
+  src("app/(manage)/register/bottle-keep-panel.tsx").includes("...(rules0175On() ? { p_tag_label: fTag.trim() || null, p_shelf_no: fShelf.trim() || null } : {})")
+  && src("app/(manage)/customers/customers-board.tsx").includes('if (rules0175On() && view === "keeps") {') && src("app/(manage)/customers/customers-board.tsx").includes("const viewTabs = rules0175On() ? (")
+  && src("app/(manage)/customers/[id]/customer-detail.tsx").includes("{rules0175On() && <th>タグ名</th>}") && src("app/(manage)/customers/[id]/customer-detail.tsx").includes("p_tag_label: keepEdit.tag.trim()")
+  && src("components/nox/check-customers-card.tsx").includes("{rules0175On() && k.tag_label ? keepCallTextOf(k.tag_label, k.last_used_at) :") && fs.existsSync("components/nox/keep-list.tsx"));
+check("p175(5-6) P-9 0175 v2＝bottle_keeps.tag_label・bottle_keep_register 11 引数（既定「{顧客名} {ボトル名}」）・update 8 引数（null＝据え置き）・既存行の埋め（起草ファイルがあるときだけ）", v2 === "" || (v2.includes("alter table public.bottle_keeps add column if not exists tag_label text;") && v2.includes("p_status text DEFAULT 'active'::text, p_tag_label text DEFAULT NULL::text)") && v2.includes("p_bottle_name text DEFAULT NULL::text, p_tag_label text DEFAULT NULL::text)") && v2.includes("tag_label = case when p_tag_label is null then tag_label else nullif(trim(p_tag_label), '') end") && v2.includes("where b.tag_label is null;")));
+// ── (6) P-10 延長パターンの選択（裁定408 系・0175 v2 ★23） ──
+const MENU = [{ rule_id: "r1", duration_min: 30, amount: 7000, label: "平日通常 30分", is_default: true }, { rule_id: "r2", duration_min: 30, amount: 4000, label: "週末通常 30分" }, { rule_id: "r3", duration_min: 60, amount: 13000, label: "平日通常 60分" }];
+check("p175(6-1) P-10 選択中＝ext_rule_id が最優先（r2）・無ければ値の一致（r3）・それも無ければ既定（r1）・メニューなしは null", extCurrentOf(MENU, "r2", 30, 7000)?.rule_id === "r2" && extCurrentOf(MENU, null, 60, 13000)?.rule_id === "r3" && extCurrentOf(MENU, null, 45, 1)?.rule_id === "r1" && extCurrentOf(null, "r1", 30, 7000) === null && extCurrentOf([], null, 30, 7000) === null);
+check("p175(6-2) P-10 延長ボタン＝「延長を追加（¥7,000 / 30分・平日通常 30分）」・1 パターンの店は名前なし＝▾ なし", extButtonTextOf(7000, 30, MENU, MENU[0]) === "延長を追加（¥7,000 / 30分・平日通常 30分）" && extButtonTextOf(3500, 30, [MENU[0]], MENU[0]) === "延長を追加（¥3,500 / 30分）" && extMenuShowOf(MENU) && !extMenuShowOf([MENU[0]]) && !extMenuShowOf(null));
+check("p175(6-3) P-10 切替で単価が変わる＝r2 を選ぶと 4,000（自動延長も check_set_ext_rule が ext_fee を書くので追随）・延長行の名前「延長料金（週末通常 30分）」・旧伝票は「延長料金(30分)」", extCurrentOf(MENU, "r2", 30, 7000)?.amount === 4000 && extLineNameOf("週末通常 30分", 30) === "延長料金（週末通常 30分）" && extLineNameOf(null, 30) === "延長料金(30分)");
+check("p175(6-4) P-10 ④ マスタの表記＝「4 件（上限 3・超過）」「3 件（上限 3）」「2 件（上限 3）」・超過と満杯の印", J(extCountTextOf(4)) === J({ text: "4 件（上限 3・超過）", over: true, full: true }) && J(extCountTextOf(3)) === J({ text: "3 件（上限 3）", over: false, full: true }) && extCountTextOf(2).full === false);
+const pbS = src("app/(manage)/master/pricing/pricing-board.tsx");
+check("p175(6-5) P-10 配線＝レジの cur／ボタン文言は rules0175On() で分岐（false＝従来の値一致）・マスタは実数表記＋超過の警告＋4 件目は送らない（ゲートなし）", rb.includes("const cur = rules0175On() ? extCurrentOf(menu,") && rb.includes("const curExt = rules0175On() ? extCurrentOf(menu,") && pbS.includes("{extCountTextOf(exts.length).text}") && pbS.includes('rules.filter((r) => r.fee_kind === "extension" && r.is_active).length >= 3) { setMErr("延長パターンは 3 件までです'));
+check("p175(6-6) P-10 0175 v2＝checks.ext_rule_id・check_set_ext_rule が ext_rule_id と label を書く・check_extension_add は label を併記・check_open は既定の rule_id（起草ファイルがあるときだけ）", v2 === "" || (v2.includes("alter table public.checks add column if not exists ext_rule_id uuid references public.pricing_rules(id) on delete set null;") && v2.includes("ext_unit = coalesce(v_eunit, ext_unit), ext_rule_id = p_rule_id") && v2.includes("name_snapshot = '延長料金（' || coalesce(v_label, v_emin || '分') || '）'") && v2.includes("case when v_label is null then '延長料金(' || v_emin || '分)' else '延長料金（' || v_label || '）' end") && v2.includes("          r_ext.rule_id,   -- ★23 v2")));
 __setRules0175ForTest(null); __setOkuri4wayForTest(null);
 check("p175(3-9) 上書きを戻す＝false", !rules0175On() && !okuri4wayOn());
 
