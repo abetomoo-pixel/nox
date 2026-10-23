@@ -103,10 +103,13 @@ export type CanonCtx = {
 };
 export type CanonOutcome = {
   pct: number | null; tierIdx: number | null; direction: SlideDirection; streak: number; met: boolean; normMet: boolean; grace: boolean;
+  windowN: number;   // ⑦ 移動窓の N（判定ログ＝窓の N 期の率・帯・適用した処理は slide_decisions.detail に＝P175 client）
   upAmount: number; downAmount: number; backMult: number; payPct: number; wageCutPct: number; honBackRate: number | null; bonusPct: number; backGate: boolean;
   applied: boolean;   // 店が「適用」したときだけ金額に効く（⑬）
 };
-/** CANON 型の判定（金額に掛ける前の決定）。⑪＝規定未達は UP 側（up_amount・back_mult 100・bonus）だけ停止・査定側は適用。⑰(c) 免除＝査定を止める */
+/** CANON 型の判定（金額に掛ける前の決定）。⑦（裁定418 差し替え 10/23）＝直前 N 期（既定 2）の移動窓＝N 期すべてが同じ帯のときだけ今期に適用＝連続カウント streak ≥ N と同値（窓は 1 期ずつずれる＝連続すれば毎期発動）・不成立の期は前期の決定時給のまま。
+ *  ⑫（差し替え）＝UP は +額を決定時給に加算して以後も続く（累積＝cast_rate_history の slide_up）・査定は決定時給を変えず今期の総報酬（時給分＋バック）に支給率を掛け、バック倍率は今期のバックに掛ける＝減率（wage_cut）は使わない。
+ *  ⑪（Agoora 確定 10/23）＝規定未達は UP 側（up_amount・back_mult 100・bonus）だけ停止・査定側は適用。⑰(c) 免除＝査定を止める */
 export function canonOutcomeOf(c: CanonCtx, timePay: number): CanonOutcome {
   const pct = payRatePctOf(timePay, c.salesSubtotal);
   const hit = payRateTierOf(c.tiers, pct);
@@ -121,10 +124,10 @@ export function canonOutcomeOf(c: CanonCtx, timePay: number): CanonOutcome {
   const upOk = applied && dir === "up" && normMet;          // ⑪ 未達は UP 側だけ停止
   const assessOk = applied && dir === "assess" && !grace;    // ⑰(c) 免除中は査定なし
   return {
-    pct, tierIdx: hit?.idx ?? null, direction: dir, streak, met, normMet, grace,
+    pct, tierIdx: hit?.idx ?? null, direction: dir, streak, met, normMet, grace, windowN: Math.max(1, c.streakN),
     upAmount: upOk ? (t?.up_amount ?? 0) : 0, downAmount: assessOk ? (t?.down_amount ?? 0) : 0,
     backMult: upOk ? (t?.back_mult ?? 100) : (assessOk && t?.back_mult !== undefined ? t.back_mult : 100),
-    payPct: assessOk ? (t?.pay_pct ?? 100) : 100, wageCutPct: assessOk ? (t?.wage_cut_pct ?? 0) : 0,
+    payPct: assessOk ? (t?.pay_pct ?? 100) : 100, wageCutPct: 0,   // ⑫ 差し替え: 査定は決定時給を変えない（減率は使わない＝常に 0）
     honBackRate: assessOk && t?.hon_back_rate !== undefined ? t.hon_back_rate : null, bonusPct: upOk ? (t?.bonus_pct ?? 0) : 0,
     backGate: backGateOf(t, c.actual.days, pct), applied,
   };

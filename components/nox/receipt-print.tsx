@@ -4,12 +4,15 @@
 //   /receipts の台帳（行ごとの印刷）で共用。1 枚＝1 ページ・R-番号・発行日＋取引日・登録番号・公開 URL の QR。
 import { renderSVG } from "uqr";
 import BrandLogo from "@/components/ui/brand-logo"; // ★便 SH-UI-a A-2: ロゴ（Concept 2 改）
+import { rules0175On } from "@/lib/nox/rules-0175/flag"; // ★追補 2 同乗 R-6
+import { stampNoticeOf } from "@/lib/nox/rules-0175/invoice-receipt"; // ★追補 2 同乗 R-6（裁定422 候補）
 
 export type ReceiptPrintItem = {
   id: string; serial: number; amount: number; name: string; note: string;
   biz_date: string; token: string; store_name: string;
   /** 発行日（YYYY-MM-DD）。省略＝今日（レジの発行直後） */
   issued_on?: string;
+  payment_method?: string | null; // ★追補 2 同乗 R-6（裁定422 候補）: 印紙の判定（0175 後に RPC が返す）
 };
 
 const jaDate = (ymd?: string) => {
@@ -52,6 +55,7 @@ export default function ReceiptPrintSheet({ items, storeName, invoiceRegNo }: { 
           </div>
           <div style={{ marginTop: 8, textAlign: "right", fontWeight: 700 }}>{r.store_name || storeName}</div>
           {invoiceRegNo && <div style={{ textAlign: "right", fontSize: 12 }}>登録番号 {invoiceRegNo}</div>}
+          {rules0175On() && stampNoticeOf(r.payment_method, r.amount) && <div data-stamp-notice="1" style={{ marginTop: 6, fontSize: 11, border: "1px dashed #999", padding: "4px 8px" }}>{stampNoticeOf(r.payment_method, r.amount)}</div>}{/* ★追補 2 同乗 R-6: 現金かつ 5 万円以上＝収入印紙の注意（カードは出さない） */}
           <div style={{ fontSize: 10, color: "#555", marginTop: 4, textAlign: "right" }}>
             QR から内容を確認できます（掲載期限: 発行から90日）
           </div>

@@ -18,6 +18,8 @@ import * as t from "@/lib/nox/ui/theme";
 import Modal from "@/components/ui/modal";
 
 import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
+import { rules0175On } from "@/lib/nox/rules-0175/flag"; // ★追補 2 同乗 R-6
+import InvoiceProfileFields from "@/components/nox/invoice-profile-fields"; // ★追補 2 同乗 R-6（裁定422 候補）
 type Profile = { address: string; tel: string; regNo: string; footer: string };
 type Job = {
   id: string; check_id: string; pay_group: string; status: string;
@@ -34,7 +36,7 @@ const STATUS_JA: Record<string, string> = {
   queued: "待機中", printing: "印刷中", printed: "印刷済", failed: "失敗", canceled: "取消",
 };
 
-export default function PrinterPanel({ storeId, storeName, initialProfile }: { storeId: string; storeName: string; initialProfile: Profile }) {
+export default function PrinterPanel({ storeId, storeName, initialProfile, isOwner = true }: { storeId: string; storeName: string; initialProfile: Profile; isOwner?: boolean }) { // ★追補 2 同乗 R-6: isOwner（省略＝true・RPC が owner を最終判定）
   const supabase = createClient();
   const [enabled, setEnabled] = useState(false);
   const [serial, setSerial] = useState("");
@@ -111,6 +113,7 @@ export default function PrinterPanel({ storeId, storeName, initialProfile }: { s
 
   return (
     <div>
+      {rules0175On() && <InvoiceProfileFields storeId={storeId} isOwner={isOwner} />}{/* ★追補 2 同乗 R-6（裁定422 候補）: 領収書の発行者（フラグ false では出ない） */}
       <div className="nox-2col nox-2col--32">
         {/* ── 左: プリンタ設定＋印刷ジョブ ── */}
         <div style={{ display: "grid", gap: 14, alignContent: "start" }}>

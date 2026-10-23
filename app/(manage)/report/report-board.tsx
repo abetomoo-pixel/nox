@@ -10,6 +10,8 @@ import { cashPayoutRowsOf, cashPayoutTotalOf, cashPayoutWithOtherOf, otherPayout
 import CashPayoutIssue, { type PayoutIssueKind } from "@/components/nox/cash-payout-issue";
 import { OKURI_ROW_LABEL, okuriAsks, okuriCashOf, okuriExpenseOf, okuriModeOf, type OkuriMode } from "@/lib/nox/shift/okuri-mode"; // ★裁定414（S-4）: 送りの 4 方式＝現金支払／諸経費の読み分け // ★便 X13-G W-24 ②: 内訳の ＋発行 // ★裁定311-②／④（便 Y-4）: 現金支払のプレフィル集計と内訳
 import { rules0175On } from "@/lib/nox/rules-0175/flag"; // ★便 P175-prep P-2
+import { staffDirectDiscountOf } from "@/lib/nox/rules-0175/staff-discount"; // ★追補 2（裁定421 候補）
+import { castPaymentsOf } from "@/lib/nox/rules-0175/cast-register"; // ★追補 2（裁定420）
 import { roundYen } from "@/lib/nox/money";
 import * as t from "@/lib/nox/ui/theme";
 import Toast from "@/components/ui/toast";
@@ -25,6 +27,8 @@ type Preview = {
   // E8-2 #1/#2/#6: 追加集計（すべて既存テーブルの client 集計＝権威は締め時のサーバ再集計）
   kindSums: { time: number; drink: number; champ: number; bottle: number; other: number }; // #1 カテゴリ5分類
   discount: number;        // #2 値引き（kind='discount' の合計・正値）
+  staffDirect?: number;    // ★追補 2（裁定421 候補）: 割引（スタッフ即時）＝approvals.staff_direct の合計（フラグ true のときだけ）
+  castPaid?: number;       // ★追補 2（裁定420）: キャスト入金＝payments.by_membership が cast の合計（締めで店長が確認する印）
   hon: number;             // #2 本指名（nom_type='hon' の組数）
   newCust: number;         // #2 新規（過去伝票のない顧客 or 顧客未登録の組）
   repeatCust: number;      // #2 リピート（過去伝票のある顧客の組）
@@ -195,14 +199,23 @@ export default function ReportBoard({
     const closed = (checks ?? []).filter((c) => c.status === "closed");
     const ids = closed.map((c) => c.id as string);
     let cash = 0, cardSum = 0, uri = 0, other = 0, drink = 0, discount = 0, payFee = 0, upper = 0, products = 0; // ★便 P173
+    let staffDirect = 0, castPaid = 0; // ★追補 2
     const kindSums = { time: 0, drink: 0, champ: 0, bottle: 0, other: 0 };
     if (ids.length) {
-      const { data: pays } = await supabase.from("payments").select("method, amount, check_id").in("check_id", ids);
-      for (const p of pays ?? []) {
+      const { data: pays } = await supabase.from("payments").select(rules0175On() ? "method, amount, check_id, by_membership" : "method, amount, check_id").in("check_id", ids); // ★追補 2: by_membership はフラグ true で
+      for (const p of (pays ?? []) as unknown as { method: string; amount: number; check_id: string; by_membership?: string | null }[]) {
         if (p.method === "cash") cash += p.amount;
         else if (p.method === "card") cardSum += p.amount;
         else if (p.method === "ar") uri += p.amount;
         else other += p.amount;
+      }
+      if (rules0175On()) { // ★追補 2（裁定420／421 候補）: キャスト入金（memberships.role='cast'）と 割引（スタッフ即時）（approvals.staff_direct）
+        const mids = [...new Set(((pays ?? []) as unknown as { by_membership?: string | null }[]).map((p) => p.by_membership).filter((x): x is string => !!x))];
+        const { data: mems } = mids.length ? await supabase.from("memberships").select("id, role").in("id", mids) : { data: [] as { id: string; role: string }[] };
+        const castIds = new Set(((mems ?? []) as { id: string; role: string }[]).filter((m) => m.role === "cast").map((m) => m.id));
+        castPaid = castPaymentsOf(((pays ?? []) as unknown as { amount: number; by_membership?: string | null }[]), castIds);
+        const { data: aps } = await supabase.from("approvals").select("amount, staff_direct, status").in("check_id", ids).eq("status", "approved");
+        staffDirect = staffDirectDiscountOf(((aps ?? []) as unknown as { amount: number; staff_direct?: boolean | null; status?: string | null }[]));
       }
       const { data: lines } = await supabase.from("check_lines").select("kind, fee_kind, line_total, check_id").in("check_id", ids);
       for (const l of lines ?? []) {
@@ -255,7 +268,7 @@ export default function ReportBoard({
       dohan: closed.filter((c) => c.nom_type === "dohan").length,
       cash, card: cardSum, cardTax: roundYen((cardSum * cardTaxRate) / 100), uri, other, drink,
       payFee, upper, products, // ★便 P173
-      kindSums, discount,
+      kindSums, discount, ...(rules0175On() ? { staffDirect, castPaid } : {}), // ★追補 2
       hon: closed.filter((c) => c.nom_type === "hon").length,
       newCust, repeatCust, avgStayMin,
       bottlesOpened: bottlesOpened ?? 0, workedCasts: workedCasts ?? 0,
@@ -1114,6 +1127,7 @@ export default function ReportBoard({
               ["平均滞在", preview.avgStayMin != null ? `${preview.avgStayMin}分` : "—"],
               ["出勤キャスト", `${preview.workedCasts}名`],
               ["値引き", preview.discount > 0 ? `−${yen(preview.discount)}` : "—"],
+              ...(rules0175On() ? [["割引（スタッフ即時）", (preview.staffDirect ?? 0) > 0 ? `−${yen(preview.staffDirect ?? 0)}` : "—"], ["キャスト入金", (preview.castPaid ?? 0) > 0 ? `${yen(preview.castPaid ?? 0)}（締めで確認）` : "—"]] as const : []), // ★追補 2（裁定420／421 候補）: フラグ true のときだけ出る内訳行
             ] as const).map(([l, v]) => (
               <span key={l} style={{ fontSize: 12 }}>
                 <span style={{ color: "var(--sub)", fontSize: 11 }}>{l}</span><br />

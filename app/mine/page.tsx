@@ -8,6 +8,7 @@ import PayslipSlip from "@/components/payslip-slip";
 import { okuriModeOf } from "@/lib/nox/shift/okuri-mode"; // ★裁定414（S-4）
 import { rules0175On } from "@/lib/nox/rules-0175/flag"; // ★便 P175-prep P-4
 import AvailabilityEditor from "@/components/nox/availability-editor"; // ★便 P175-prep P-4（裁定397＋413）
+import KioskQrButton from "@/components/nox/kiosk-qr-modal"; // ★追補 2 同乗 R-7（裁定423 候補）
 import { wageNowOf } from "@/lib/nox/cast/wage-now"; // ★便 P174 T-5（GV-55／56）
 import { mineCurrentWageOf } from "@/lib/nox/mine/wage-server"; // ★便 X13-H H-8: 今期の時給（一覧・詳細と同じ値・文言・根拠）
 import { ATTENDANCE_MONTH_NOTE, closeHmOf, hoursLabelOf, monthAttendanceRowsOf, todayInOutLabelOf } from "@/lib/nox/mine/attendance-month"; // ★裁定326-5（便 M2-1）: 勤怠時刻＋当月一覧（実働は dayWorkedHours）
@@ -227,6 +228,7 @@ export default async function MinePage() {
           段M2: モックの .me ヘッダ（写真＋名前＋店）へ。店名は上で引いた自店を渡すだけ。 */}
       {showContractAck && <ContractAckGate />}{/* ★0162 ★4（便 M5-2）: 初回表示の契約確認＝記録済みは出さない・rev 更新で再表示 */}
       <PhotoCard storeName={myStore?.name as string | undefined} />
+      {rules0175On() && meCast?.id && (<div style={{ margin: "-4px 0 10px", display: "flex", justifyContent: "flex-end" }}><KioskQrButton /></div>)}{/* ★追補 2 同乗 R-7（裁定423 候補）: キオスク用 QR（全画面・30 秒更新）。フラグ false＝出ない */}
 
       {/* 段M2: 打刻はスマホで一番使うのでヘッダ直後へ（section の中身・PunchActions・最終打刻の
           文言はそのまま＝移設のみ）。 */}

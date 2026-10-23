@@ -11,11 +11,11 @@
         { "at_pct": 70, "down_amount": 100, "pay_pct": 100 },
         { "at_pct": 80, "down_amount": 200, "pay_pct": 95 },
         { "at_pct": 90, "down_amount": 300, "pay_pct": 90 },
-        { "at_pct": 100, "down_amount": 300, "pay_pct": 85, "wage_cut_pct": 5 },
-        { "at_pct": 110, "down_amount": 500, "pay_pct": 80, "wage_cut_pct": 10 },
-        { "at_pct": 120, "down_amount": 500, "pay_pct": 70, "wage_cut_pct": 10 }
+        { "at_pct": 100, "down_amount": 300, "pay_pct": 85 },
+        { "at_pct": 110, "down_amount": 500, "pay_pct": 80 },
+        { "at_pct": 120, "down_amount": 500, "pay_pct": 70 }
       ],
-      "pay_rate_tiers_note": "報酬率表 10 段（CSV）。40％未満＝UP・40〜50＝UP 小・50〜60＝維持・60〜＝査定（支給率と減率）。段の金額は CSV の写し・『W 別規定』は plan_norm_tiers。",
+      "pay_rate_tiers_note": "報酬率表 10 段（CSV）。40％未満＝UP・40〜50＝UP 小・50〜60＝維持・60〜＝査定（支給率と減率）。段の金額は CSV の写し・『W 別規定』は plan_norm_tiers。裁定418 ⑫ 差し替え（10/23）＝査定は決定時給を変えない＝減率なし（wage_cut_pct は撤去）。",
       "slide_streak_n": 2,
       "norm_tiers": [
         { "week_days_min": 1, "week_days_max": 2, "days_required": 6, "hours_required": 30 },

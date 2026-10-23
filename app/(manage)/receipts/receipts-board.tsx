@@ -16,6 +16,8 @@ import Modal from "@/components/ui/modal";
 import { BILLING_LOCKED_MSG, isBillingLocked } from "@/lib/billing/messages";
 import ReceiptPrintSheet, { type ReceiptPrintItem } from "@/components/nox/receipt-print"; // ★便 GV-C C-13
 import { receiptReissueErrJa } from "@/lib/nox/register/receipt-ledger";
+import { rules0175On } from "@/lib/nox/rules-0175/flag"; // ★追補 2 同乗 R-6
+import { PAYMENT_METHOD_LABEL, stampNoticeOf } from "@/lib/nox/rules-0175/invoice-receipt"; // ★追補 2 同乗 R-6（裁定422 候補）
 
 type Store = { id: string; name: string; settings_json?: Record<string, unknown> | null };
 type Issue = {
@@ -23,6 +25,7 @@ type Issue = {
   recipient: string | null; proviso: string | null; store_name_snap: string; biz_date: string;
   issued_at: string; issued_by: string | null; token: string; expires_on: string;
   voided: boolean; void_note: string | null;
+  payment_method?: string | null; tax_breakdown?: unknown; issued_hash?: string | null; // ★追補 2 同乗 R-6: 0175 後に現れる列（select * なので列の有無に依らない）
 };
 
 const yen = (n: number) => "¥" + n.toLocaleString();
@@ -150,6 +153,7 @@ export default function ReceiptsBoard({ stores }: { stores: Store[] }) {
                   <th style={{ width: 96, textAlign: "right" }}>金額</th>
                   <th>宛名</th>
                   <th style={{ width: 110 }}>取引日</th>
+                  {rules0175On() && <th style={{ width: 90 }}>支払</th>}{/* ★追補 2 同乗 R-6 */}
                   <th style={{ width: 110 }}>発行者</th>
                   <th style={{ width: 84 }}>状態</th>
                   <th style={{ width: 300 }}>操作</th>
@@ -166,6 +170,7 @@ export default function ReceiptsBoard({ stores }: { stores: Store[] }) {
                       {r.voided && r.void_note && <small style={{ display: "block", color: "var(--bad)" }}>取消理由: {r.void_note}</small>}
                     </td>
                     <td data-label="取引日"><span style={t.num}>{r.biz_date}</span></td>
+                    {rules0175On() && <td data-label="支払">{r.payment_method ? (PAYMENT_METHOD_LABEL[r.payment_method as "cash" | "card" | "other" | "mixed"] ?? r.payment_method) : "—"}{stampNoticeOf(r.payment_method, r.amount) ? <small style={{ display: "block", color: "var(--champ)" }}>印紙</small> : null}</td>}
                     <td data-label="発行者">{(r.issued_by && userNames.get(r.issued_by)) ?? "—"}</td>
                     <td data-label="状態">
                       <span className={`nox-stpill ${r.voided ? "ng" : "ok"}`}>{r.voided ? "取消済み" : "有効"}</span>

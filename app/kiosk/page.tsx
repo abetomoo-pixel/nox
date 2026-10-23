@@ -17,6 +17,8 @@ import { Message } from "@/components/ui/toast"; // ★裁定281（便 U）: メ
 import { okuriSelfPlanOf, OKURI_PENDING_NOTE, type OkuriSelfPlan } from "@/lib/nox/shift/okuri-self";
 import { okuriOutTextOf, okuriRecordedTextOf } from "@/lib/nox/shift/okuri-mode"; // ★裁定414（S-4）: 方式の 1 文・「記録」
 import { rpcErrJa } from "@/lib/nox/ui/rpc-err"; // ★裁定327（0161・便 M1-4）: 順序検査の拒否 3 語は端末にも同じ和文
+import { rules0175On } from "@/lib/nox/rules-0175/flag"; // ★追補 2 同乗 R-7
+import { KIOSK_FEATURE_HREF, KIOSK_FEATURE_LABEL, type KioskFeature } from "@/lib/nox/rules-0175/kiosk"; // ★追補 2 同乗 R-7（裁定423 候補）
 type KRow = { cast_id: string; cast_name: string; has_pin: boolean; staff?: boolean }; // ★便 P174 T-6（355）: staff＝true は cast_id に membership_id（スタッフ群）
 type SRow = { membership_id: string; user_name: string; role: string; has_pin: boolean; last_kind: string | null; last_at: string | null }; // ★便 P174 T-6: kiosk_staff_list（0174 ★5）
 type Phase = "loading" | "login" | "denied" | "select" | "pin" | "okuri" | "result";
@@ -43,6 +45,7 @@ export default function KioskPage() {
   const [group, setGroup] = useState<"cast" | "staff">("cast");
   const [target, setTarget] = useState<KRow | null>(null);
   const [pin, setPin] = useState("");
+  const [kioskTiles, setKioskTiles] = useState<KioskFeature[]>([]); // ★追補 2 同乗 R-7（裁定423 候補）: ホームのタイル（フラグ true のときだけ API が返す）
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<PunchResult | null>(null);
   const [loginEmail, setLoginEmail] = useState("");
@@ -61,7 +64,7 @@ export default function KioskPage() {
     // ★便 P174 T-6（355）: スタッフ群（打刻端末だけ・読めなければ空＝キャスト群のみ）
     const { data: sd, error: se } = await supabase.rpc("kiosk_staff_list");
     setStaffs(se ? [] : ((sd ?? []) as SRow[]));
-    void fetch("/api/kiosk/punch-methods").then((r) => (r.ok ? r.json() : null)).then((j) => { if (j && j.castPunchOff === true) { setCastPunchOff(true); setGroup("staff"); } }).catch(() => {});
+    void fetch("/api/kiosk/punch-methods").then((r) => (r.ok ? r.json() : null)).then((j) => { if (j && j.castPunchOff === true) { setCastPunchOff(true); setGroup("staff"); } if (rules0175On() && j && Array.isArray(j.tiles)) setKioskTiles(j.tiles as KioskFeature[]); }).catch(() => {}); // ★追補 2 同乗 R-7: タイル（フラグ true）
     return true;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -210,6 +213,13 @@ export default function KioskPage() {
 
         {phase === "select" && (
           <>
+            {rules0175On() && kioskTiles.length > 1 && (/* ★追補 2 同乗 R-7（裁定423 候補）: ホームの大きなタイル＝出退勤（この画面）・レジ・シフト（店設定で ON のものだけ）。フラグ false＝従来の名前選択だけ */
+              <div data-kiosk-tiles="1" style={{ display: "grid", gridTemplateColumns: `repeat(${kioskTiles.length}, 1fr)`, gap: 12, margin: "0 0 18px" }}>
+                {kioskTiles.map((k) => (k === "punch"
+                  ? <span key={k} style={{ ...bigBtn, textAlign: "center", padding: "18px 0", fontSize: 18, borderColor: "var(--gold)", color: "var(--gold)" }}>{KIOSK_FEATURE_LABEL[k]}</span>
+                  : <a key={k} href={KIOSK_FEATURE_HREF[k]} style={{ ...bigBtn, textAlign: "center", padding: "18px 0", fontSize: 18, textDecoration: "none" }}>{KIOSK_FEATURE_LABEL[k]}</a>))}
+              </div>
+            )}
             <p style={{ textAlign: "center", fontSize: 15, color: "var(--champ)", fontWeight: 700, margin: "0 0 16px" }}>
               名前を選んでください
             </p>

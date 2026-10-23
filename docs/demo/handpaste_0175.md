@@ -3,6 +3,8 @@
 **結論 3 行**
 1. 本番 ref **hiqbfagmkrdpmlqhkmsu** の SQL Editor に **Downloads/0175_rules_bundle_v2_draft.sql** の全文を貼って Run（1 本だけ・所要 1〜3 分）。**順序＝P175（v2）→P176→P177**（0176 は 0175 の列を前提・0177 は独立だが番号順）。Downloads の `0175_staff_is_active_guard.sql`／`0176_workstyle_limits_manager_only.sql` は **BANZEN のファイル＝NOX には貼らない**。
 2. 中身＝v1 の ★1〜★10（393 追補2／3・402・店設定キー 4・405／407・410／I-3／I-5・日払い取消・便 S 起票・起票117・396・税既定 外税・W-24・408 追補1・356・398・397＋413・399・400）＋**v2 の ★11〜★20**＝CANON 型 ①〜⑳（店設定キー 8・支払方法の割引行・comp_plans 12 列（back_rate_tiers 含む）と slide_basis 'pay_rate'・固定額＋率の併用・時間帯テーブル plan_rate_bands・ノルマ区分 plan_norm_tiers・イベント加算 plan_event_bonuses・判定ログ兼提案 slide_decisions・時給の変更履歴 cast_rate_history・RPC 8）＋attendance の 'dohan' 撤去（同伴の正本＝伝票・既存行は shukkin へ）＋daily_pay_issue の上限の表（6 引数）。
+3. ★26〜★27（追補 2 同乗 R-6／R-7）＝簡易インボイス（receipt_issues +4 列・stores +3 列・receipt_issue が税率別内訳・発行者・支払方法・sha256 を凍結・nox_receipt_public は drop→create で戻り 11 列＝anon 白名単の ACL を明示・set_store_invoice_profile）／キオスク（kiosk_unlock＝PIN だけで本人特定・kiosk_lock＝終了理由・kiosk_idle_sec／kiosk_features・QR＝memberships.qr_secret＋kiosk_unlock_qr（TOTP 30 秒・±1 窓・失敗 5 回 10 分・token_hash で 1 回だけ）・totp_code_of 内部）。
+3. ★24〜★25（追補 2）＝裁定421 候補 sys_staff_discount（0 承認制／1 上限内は即時／2 不可）＋staff_discount_cap＋approvals.staff_direct（approval_direct を staff に開く・申請からキャスト撤去・check_pay の手数料カットは staff 1 かつ上限内）／裁定420 sys_cast_register（0／1／2・旧 cast_register_enabled true→1 を導出）＋auth_cast_register_level（内部）＋check_pay／receipt_issue は 2 のときだけ cast に。
 3. ★21〜★23（連続便 3 追補）＝P-8 check_pay +p_fee_amount（payments.fee_amount／fee_source）・P-9 bottle_keeps.tag_label（既存行は「顧客名 ボトル名」で埋める）・P-10 checks.ext_rule_id（延長行にパターン名）。client は RULES_0175_APPLIED=false で眠っている（P175 後に true）。
 3. Success 後に **docs/demo/verify_0175_0176.sql（1 文）** を貼り、**返った行（ok 列）を CC へ貼る**（0175 だけの時点では mig='0176' の行が false＝想定どおり）。client（P175）は 0175 の適用確認後。
 
@@ -12,10 +14,10 @@
 |---|---|
 | アドレスバー | `https://supabase.com/dashboard/project/hiqbfagmkrdpmlqhkmsu/sql/new`（`project/` の直後が hiqbfagmkrdpmlqhkmsu） |
 | ファイル | Downloads/0175_rules_bundle_v2_draft.sql（docs/tmp の同名と同一・repo の supabase/migrations には**収蔵前**＝適用確認後に 0175_rules_bundle.sql として収蔵） |
-| sha256 | `5d51a003443db8aa00de25d969073b281d5b3ef11df90946be380592f504cf3b`（sha16 5d51a003443db8aa・310,100 B・3,800 行・LF・CR 0・**v2 最終＝10/23 連続便 3 追補 P-8／P-9／P-10 で ★21〜★23 を追加**＝前版 9b5a47b46d44dbcb（3,177 行）は撤去）。v1（62cdac53…）は撤去 |
+| sha256 | `f474fb3d706ca96a2a3de9c729af04a24a396566b3c6223c7223b86505ece0b4`（sha16 f474fb3d706ca96a・354,717 B・4,344 行・LF・CR 0・**v2 最終＝10/23 追補 2 で ★24〜★27（裁定421 候補・裁定420・裁定422 候補 簡易インボイス・裁定423 候補 キオスク PIN／QR）を追加**＝前版 4097c8676d7a7ec8／5d51a003443db8aa／9b5a47b46d44dbcb は撤去）。v1（62cdac53…）は撤去 |
 | 順序 | **0174 の後・0176／0177 の前**。0177（送り 4 方式）とは触る関数が重ならない（0177＝transport 系 6 本・0175＝set_store_profile／check_pay／punch_self／attendance_set／daily_pay_issue 等）＝再確認 10/23 で競合 0 |
 | 生成器 | docs/tmp/gen_0175.mjs（写経元＝docs/tmp/0175_live.json＝2026-10-22／23 SELECT 読取・pg_get_functiondef）。live の md5 pin: check_pay c11691b8・check_group_due 5c667792・receipt_issue a7f04e4c・set_store_profile 45012c75・set_comp_plan 21afb3f5・cast_sales_aggregate 34a0bf1e・payroll_adjustment_add 0feabfac・check_set_nominations 97dd24bb・demo_org_reset 3cdf7a30・punch_self 952f18a4・punch_proxy a760e1a4・attendance_set 7a56ca05・daily_pay_issue 94f989f9 |
-| 構文検査 | scripts/mig-check.mjs＝libpg_query＋ローカル Postgres 18（plpgsql 38 本・ROLLBACK）で **errors 0**（2026-10-23 追補後） |
+| 構文検査 | scripts/mig-check.mjs＝libpg_query＋ローカル Postgres 18（plpgsql 49 本・sql 2 本・ROLLBACK）で **errors 0**（2026-10-23 追補 2 R-6／R-7 後） |
 
 手元で再計算する場合（Git Bash）:
 
@@ -42,7 +44,7 @@ sha256sum ~/Downloads/0175_rules_bundle_v2_draft.sql
 | 見るところ | 期待 |
 |---|---|
 | ok 列 | mig='0175' と 'both' の行が全部 true（'0176' の行は P176 まで false・「関数数 357」「表数 104」も P176 後） |
-| 「md5 不一致の関数名」の v | 0175 の 38 本（★21〜★23 で check_pay 改稿・bottle_keep_register／update・check_set_ext_rule／check_extension_add／check_open を追加）は一致（set_my_contact は 0176 適用後は 0176 の値＝P176 まで 1 本だけ名前が出る） |
+| 「md5 不一致の関数名」の v | 0175 の 50 本（★21〜★27＝check_pay・bottle_keep_*・check_set_ext_rule／check_extension_add／check_open・approval_*・auth_cast_can_register／set_store_cast_register・receipt_issue／nox_receipt_public・auth_kiosk_operator・新設 auth_cast_register_level／set_store_invoice_profile／kiosk_unlock／kiosk_lock／my_qr_secret／kiosk_unlock_qr／totp_code_of）は一致（set_my_contact は 0176 適用後は 0176 の値＝P176 まで 1 本だけ名前が出る） |
 | 「新表 8（v2）」「comp_plans v2 列 12」「dohan 行 0」「v2 新設 RPC 8」 | 8／12／1/0／8 |
 | 「関数数」「表数」 | 0175 だけなら **334／95**・P176 後 357／104 |
 

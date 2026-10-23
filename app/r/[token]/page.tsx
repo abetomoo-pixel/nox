@@ -6,6 +6,8 @@
 //   （存在推測を与えない・正本B③）。PII なし（返却5項目のみ・正本B④）・noindex。
 import { createClient } from "@supabase/supabase-js";
 import type { Metadata } from "next";
+import { rules0175On } from "@/lib/nox/rules-0175/flag"; // ★追補 2 同乗 R-6
+import { issuerLinesOf, taxLineTextOf, type IssuerSnapshot, type TaxBreakdownRow } from "@/lib/nox/rules-0175/invoice-receipt"; // ★追補 2 同乗 R-6（裁定422 候補）
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
@@ -15,6 +17,8 @@ export const metadata: Metadata = {
 
 type PublicReceipt = {
   store_name: string; serial_no: string; amount: number; issued_on: string; biz_date: string;
+  // ★追補 2 同乗 R-6（裁定422 候補・0175 v2 ★26）: 0175 後に nox_receipt_public が返す（フラグ true のときだけ使う）
+  recipient?: string | null; proviso?: string | null; tax_breakdown?: TaxBreakdownRow[] | null; issuer_snapshot?: IssuerSnapshot | null; payment_method?: string | null; issued_hash?: string | null;
 };
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -57,6 +61,8 @@ export default async function PublicReceiptPage({ params }: { params: Promise<{ 
     );
   }
 
+  // ★追補 2 同乗 R-6（裁定422 候補）: フラグ true かつ凍結内訳があれば簡易インボイスの表示（無ければ従来）
+  const inv = rules0175On() && Array.isArray(row.tax_breakdown) ? row : null;
   const fmt = (ymd: string) => {
     const [y, m, d] = ymd.split("-").map(Number);
     return `${y}年${m}月${d}日`;
@@ -78,14 +84,26 @@ export default async function PublicReceiptPage({ params }: { params: Promise<{ 
           <div style={{ display: "flex", justifyContent: "space-between" }}>
             <span style={{ color: "#666" }}>取引日</span><span>{fmt(row.biz_date)}</span>
           </div>
-          <div style={{ display: "flex", justifyContent: "space-between" }}>
+          {inv && inv.recipient && (<div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "#666" }}>宛名</span><span style={{ fontWeight: 700 }}>{inv.recipient} 様</span></div>)}
+          {inv && (<div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "#666" }}>但し書き</span><span>{inv.proviso ?? "ご飲食代として"}</span></div>)}
+          {inv && (inv.tax_breakdown ?? []).map((r) => (<div key={r.rate} data-tax-line={r.rate} style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5 }}><span style={{ color: "#666" }}>税率別</span><span className="num">{taxLineTextOf(r)}</span></div>))}
+          {inv && inv.payment_method === "card" && (<div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "#666" }}>お支払い</span><span>クレジットカード利用</span></div>)}
+          {!inv && (<div style={{ display: "flex", justifyContent: "space-between" }}>
             <span style={{ color: "#666" }}>発行元</span><span style={{ fontWeight: 700 }}>{row.store_name}</span>
-          </div>
+          </div>)}
+          {inv && (<div data-issuer="1" style={{ marginTop: 6, paddingTop: 6, borderTop: "1px solid #eee", fontSize: 12.5, lineHeight: 1.7 }}>{issuerLinesOf(inv.issuer_snapshot).length ? issuerLinesOf(inv.issuer_snapshot).map((l, i) => <div key={i} style={i === 0 ? { fontWeight: 700 } : undefined}>{l}</div>) : <div style={{ fontWeight: 700 }}>{row.store_name}</div>}</div>)}
         </div>
+        {inv ? (
+          <p style={{ fontSize: 11, color: "#888", margin: "16px 0 0", lineHeight: 1.7, borderTop: "1px solid #eee", paddingTop: 10 }}>
+            上記金額を正に領収いたしました。本ページは発行元が記録した領収内容です（掲載期限: 発行から90日）。{inv.issued_hash ? ` 記録番号 ${inv.issued_hash.slice(0, 8)}` : ""}
+            <span style={{ display: "block", marginTop: 6 }} className="nox-print-hide"><a href="javascript:window.print()" style={{ color: "#2f7fe7", fontWeight: 700 }}>PDF 保存・印刷</a></span>
+          </p>
+        ) : (
         <p style={{ fontSize: 11, color: "#888", margin: "16px 0 0", lineHeight: 1.7, borderTop: "1px solid #eee", paddingTop: 10 }}>
           本ページは発行元が記録した領収内容の確認用です（掲載期限: 発行から90日）。
           宛名・但し書きは紙の領収書をご確認ください。
         </p>
+        )}
       </div>
     </div>
   );

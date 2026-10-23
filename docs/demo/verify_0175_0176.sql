@@ -6,10 +6,10 @@
 with pins(name, md5) as (
   values
       ('pt_rules_check','cc622435'),
-      ('check_pay','b4d9c399'),
+      ('check_pay','798b9b99'),
       ('check_group_due','22428eed'),
-      ('receipt_issue','3c277f65'),
-      ('set_store_profile','c65329e5'),
+      ('receipt_issue','8f036095'),
+      ('set_store_profile','23cd5573'),
       ('set_comp_plan','e9143f01'),
       ('cast_sales_aggregate','8fb314c5'),
       ('payroll_adjustment_add','9a089cad'),
@@ -33,6 +33,19 @@ with pins(name, md5) as (
       ('check_set_ext_rule','4e8676fc'),
       ('check_extension_add','00bafe19'),
       ('check_open','c67dcab6'),
+      ('approval_direct','2ce967be'),
+      ('approval_request','9049a0a3'),
+      ('auth_cast_register_level','d5df4c21'),
+      ('auth_cast_can_register','d7eb1131'),
+      ('set_store_cast_register','054fc34f'),
+      ('nox_receipt_public','85635e1c'),
+      ('set_store_invoice_profile','6be5700a'),
+      ('auth_kiosk_operator','4bb8e31e'),
+      ('kiosk_unlock','b6b02f2e'),
+      ('kiosk_lock','7c8a87bc'),
+      ('totp_code_of','35a695cf'),
+      ('my_qr_secret','fbe0f51e'),
+      ('kiosk_unlock_qr','23a29e46'),
       ('attendance_set','031e9e21'),
       ('daily_pay_issue','df0d58ff'),
       ('comp_plan_pay_rate_check','a2bd4f02'),
@@ -82,9 +95,13 @@ with pins(name, md5) as (
   union all select '0175', 'staff_contracts 新列 6／memberships 2／users 2', (select count(*) from information_schema.columns where table_schema='public' and ((table_name='staff_contracts' and column_name in ('pay_kind','monthly','daily','min_month_h','max_month_h','max_consec')) or (table_name='memberships' and column_name in ('hire_date','leave_date')) or (table_name='users' and column_name in ('contact_email','phone'))))::text, '10'
   union all select '0175', '引数 check_pay／receipt_issue／set_comp_plan／payroll_adjustment_add／punch_self', (select string_agg(proname || '=' || pronargs, ',' order by proname) from pg_proc where pronamespace='public'::regnamespace and proname in ('check_pay','receipt_issue','set_comp_plan','payroll_adjustment_add','punch_self','daily_pay_issue')), 'check_pay=11,daily_pay_issue=6,payroll_adjustment_add=14,punch_self=7,receipt_issue=6,set_comp_plan=32'
   union all select '0175', 'v2 追補 列 4（payments fee_amount／fee_source・bottle_keeps tag_label・checks ext_rule_id）', (select count(*) from information_schema.columns where table_schema='public' and ((table_name='payments' and column_name in ('fee_amount','fee_source')) or (table_name='bottle_keeps' and column_name='tag_label') or (table_name='checks' and column_name='ext_rule_id')))::text, '4'
+  union all select '0175', 'v2 追補 2 列＝approvals.staff_direct・sys_cast_register 導出（旧 true の店数と一致）', (select count(*) from information_schema.columns where table_schema='public' and table_name='approvals' and column_name='staff_direct')::text || '/' || (select count(*) from public.stores where coalesce(settings_json->>'cast_register_enabled','')='true' and coalesce((settings_json->>'sys_cast_register')::int,0) >= 1)::text || '=' || (select count(*) from public.stores where coalesce(settings_json->>'cast_register_enabled','')='true')::text, (select '1/' || count(*)::text || '=' || count(*)::text from public.stores where coalesce(settings_json->>'cast_register_enabled','')='true')
+  union all select '0175', '★26 列＝receipt_issues 4／stores 3・nox_receipt_public の戻り 11 列', (select count(*) from information_schema.columns where table_schema='public' and ((table_name='receipt_issues' and column_name in ('tax_breakdown','issuer_snapshot','payment_method','issued_hash')) or (table_name='stores' and column_name in ('legal_name','trade_name','receipt_default_desc'))))::text || '/' || (select count(*) from information_schema.parameters where specific_schema='public' and specific_name like 'nox_receipt_public%' and parameter_mode='OUT')::text, '7/11'
+  union all select '0175', '★27 列＝kiosk_sessions 3／memberships 3・内部専用 totp_code_of に authenticated なし', (select count(*) from information_schema.columns where table_schema='public' and ((table_name='kiosk_sessions' and column_name in ('end_reason','token_hash','unlock_method')) or (table_name='memberships' and column_name in ('qr_secret','qr_fail_count','qr_locked_until'))))::text || '/' || (select count(*) from pg_proc where pronamespace='public'::regnamespace and proname='totp_code_of' and coalesce(proacl::text, '') not like '%authenticated%')::text, '6/1'
+  union all select '0175', '内部専用 auth_cast_register_level に authenticated なし', (select count(*) from pg_proc where pronamespace='public'::regnamespace and proname='auth_cast_register_level' and coalesce(proacl::text, '') not like '%authenticated%')::text, '1'
   union all select '0175', 'v2 追補 引数 bottle_keep_register 11／update 8', (select string_agg(proname || '=' || pronargs, ',' order by proname) from pg_proc where pronamespace='public'::regnamespace and proname in ('bottle_keep_register','bottle_keep_update')), 'bottle_keep_register=11,bottle_keep_update=8'
   union all select '0175', '旧署名の残り（overload）', (select count(*) from pg_proc where pronamespace='public'::regnamespace and proname in ('check_pay','receipt_issue','set_comp_plan','payroll_adjustment_add','punch_self','daily_pay_issue'))::text, '6'
-  union all select '0175', '新設 RPC 12', (select count(*) from pg_proc where pronamespace='public'::regnamespace and proname in ('pt_rules_check','payroll_adjustment_cancel','norm_shortfall_decide','daily_pay_cancel','set_cast_kind','set_pricing_rule_vip','staff_payroll_run_set_status','store_wifi_add','store_wifi_remove','availability_set','availability_list','set_my_contact'))::text, '12'
+  union all select '0175', '新設 RPC 18', (select count(*) from pg_proc where pronamespace='public'::regnamespace and proname in ('pt_rules_check','payroll_adjustment_cancel','norm_shortfall_decide','daily_pay_cancel','set_cast_kind','set_pricing_rule_vip','staff_payroll_run_set_status','store_wifi_add','store_wifi_remove','availability_set','availability_list','set_my_contact','set_store_invoice_profile','kiosk_unlock','kiosk_lock','my_qr_secret','kiosk_unlock_qr','totp_code_of'))::text, '18'
   union all select '0175', '内部専用 pt_rules_check に authenticated なし', (select count(*) from pg_proc where pronamespace='public'::regnamespace and proname='pt_rules_check' and coalesce(proacl::text, '') not like '%authenticated%')::text, '1'
   union all select '0175', 'authenticated は SELECT のみ（新表 8）', (select coalesce(string_agg(distinct privilege_type, ','), '') from information_schema.role_table_grants where grantee='authenticated' and table_schema='public' and table_name in ('punch_round_consents','availability','availability_terms','plan_rate_bands','plan_norm_tiers','plan_event_bonuses','slide_decisions','cast_rate_history')), 'SELECT'
   union all select '0175', 'anon の付与 0（新表 3）', (select count(*) from information_schema.role_table_grants where grantee='anon' and table_schema='public' and table_name in ('punch_round_consents','availability','availability_terms'))::text, '0'

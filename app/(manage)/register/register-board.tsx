@@ -40,6 +40,8 @@ import { payFeeOf } from "@/lib/nox/register/p173"; // ★連続便 3 追補 P-8
 import { rules0175On } from "@/lib/nox/rules-0175/flag"; // ★連続便 3 追補 P-8／P-10
 import { PAY_FEE_MODE_LABEL, feeAmountArgOf, noteModeOf, payFeeModesFor, payFeeNoteWithModeOf, payFeeRowTextOf, type PayFeeMode } from "@/lib/nox/rules-0175/pay-fee"; // ★連続便 3 追補 P-8（裁定393 追補4）
 import { extCurrentOf } from "@/lib/nox/rules-0175/ext-pattern"; // ★連続便 3 追補 P-10（裁定408 系）
+import { discountActionOf, feeModesForRoleOf, staffDiscountCapOf, staffDiscountLevelOf } from "@/lib/nox/rules-0175/staff-discount"; // ★追補 2（裁定421 候補・0175 v2 ★24）
+import { receiptDescDefaultOf } from "@/lib/nox/rules-0175/invoice-receipt"; // ★追補 2 同乗 R-6（裁定422 候補）
 
 import { rpcErrJa as rpcErrJaCommon } from "@/lib/nox/ui/rpc-err"; // ★N2-2（2026-09-18）: 生の RPC 語の日本語化（写像に無い語は「処理できませんでした（コード: …）」）
 import Toast, { Message } from "@/components/ui/toast"; // ★裁定281（便 U／AB）: メッセージ表示の共通部品
@@ -454,6 +456,7 @@ export default function RegisterBoard({
   type RcptIssued = { id: string; serial: number; token: string; amount: number;
     expires_on: string; biz_date: string; store_name: string; name: string; note: string };
   const [rcptForm, setRcptForm] = useState<{ amount: string; name: string; note: string }>({ amount: "", name: "", note: "" });
+  const [rcptDefaultDesc, setRcptDefaultDesc] = useState(""); // ★追補 2 同乗 R-6（裁定422 候補）: 但し書きの既定（stores.receipt_default_desc・フラグ true のときだけ読む）
   const [rcptIssued, setRcptIssued] = useState<RcptIssued[]>([]);
   const [rcptBusy, setRcptBusy] = useState(false);
   const [rcptMsg, setRcptMsg] = useState<string | null>(null);
@@ -634,6 +637,8 @@ export default function RegisterBoard({
   const [payTendered, setPayTendered] = useState("");
   // ★連続便 3 追補 P-8（裁定393 追補4・0175 v2 ★21）: 手数料の方式（店の率／なし／額を指定）＝RULES_0175_APPLIED=false では常に "auto" 扱い・引数も送らない
   const [feeMode, setFeeMode] = useState<PayFeeMode>("auto");
+  const [storeSj, setStoreSj] = useState<Record<string, unknown>>({}); // ★追補 2: 店設定（割引・手数料カットの段階）
+  const roleKey = isManagerUp ? "manager" : "staff"; // ★追補 2: レジの操作者（cast 本人のセッションは isManagerUp=false＝staff 扱いだが RPC が cast を弾く）
   const [feeManual, setFeeManual] = useState("");
   const [payDetail, setPayDetail] = useState(""); // F4c: 手段内訳メモ（card/other のみ・50字・空は null 送信）
   // F3c: 割引/無料 申請・適用フォーム
@@ -839,6 +844,8 @@ export default function RegisterBoard({
         // ★C3 §6-6（裁定90-⑤）: null=無効（既定）＝導線非表示
         setSurchargeRate((data?.card_surcharge_rate as number | null) ?? null);
         setPayFeeRates(payFeeRatesOf(data?.settings_json)); // ★便 P173（裁定393）
+        setStoreSj((data?.settings_json as Record<string, unknown> | null) ?? {}); // ★追補 2（裁定421 候補）: sys_staff_discount／staff_discount_cap（フラグ true のときだけ読む）
+        if (rules0175On()) { const { data: d2 } = await supabase.from("stores").select("receipt_default_desc").eq("id", storeId).maybeSingle(); if (alive) setRcptDefaultDesc(receiptDescDefaultOf(((d2 ?? null) as unknown as { receipt_default_desc?: string | null } | null)?.receipt_default_desc)); } // ★追補 2 同乗 R-6
       }
     })();
     return () => { alive = false; };
@@ -1627,7 +1634,7 @@ export default function RegisterBoard({
       groups: gs,
     });
     setRcptIssued([]);
-    setRcptForm({ amount: "", name: "", note: "" });
+    setRcptForm({ amount: "", name: "", note: rules0175On() ? rcptDefaultDesc : "" }); // ★追補 2 同乗 R-6: 但し書きの既定（編集可）
     setRcptMsg(null);
     // F4b: クローズ後のレシート印刷カード（printer_enabled の店のみ・pay_group ごと・フロア残置用）
     if (printerEnabled) {
@@ -1674,7 +1681,11 @@ export default function RegisterBoard({
     if (dayBlocked()) return; // ★C層③: 締め済み日の先回り（RPC の関所が本体）
     if (!(await tb.flush())) return; // money 系: 保留を先に確定（割引は総額に依存・失敗＝中止）
     setMsg(null);
-    const rpc = isManagerUp ? "approval_direct" : "approval_request";
+    // ★追補 2（裁定421 候補・0175 v2 ★24）: フラグ true＝店設定の段階と上限で direct／request を決める（上限超え・確定後は申請・2＝不可はボタン自体が無い）。フラグ false＝従来
+    const action = rules0175On() ? discountActionOf({ role: roleKey, level: staffDiscountLevelOf(storeSj), amount: apType === "discount" ? apAmount : apGroupBx, cap: staffDiscountCapOf(storeSj) }) : (isManagerUp ? "direct" : "request");
+    if (action === "none") return;
+    if (rules0175On() && action === "direct" && !isManagerUp && !apReason.trim()) { setMsg({ to: MSG_DETAIL, text: "即時適用には理由が必要です", kind: "bad" }); return; }
+    const rpc = action === "direct" ? "approval_direct" : "approval_request";
     const { error } = await supabase.rpc(rpc, {
       p_check_id: check.id, p_pay_group: apGroup, p_type: apType,
       p_amount: apType === "discount" ? apAmount : null,
@@ -1682,7 +1693,7 @@ export default function RegisterBoard({
     });
     if (error) { setMsg({ to: MSG_DETAIL, text: `${isManagerUp ? "適用" : "申請"}に失敗: ${apErrJa(error.message)}`, kind: "bad" }); return; }
     setMsg({ to: MSG_DETAIL, kind: "ok",
-      text: isManagerUp ? "割引/無料を適用しました" : "割引/無料を申請しました（承認待ち）" });
+      text: rpc === "approval_direct" ? (isManagerUp ? "割引/無料を適用しました" : "割引/無料を適用しました（上限内の即時適用・記録あり）") : "割引/無料を申請しました（承認待ち）" });
     setApAmount(0); setApReason("");
     await loadCheck(check.id);
   }
@@ -2266,7 +2277,7 @@ export default function RegisterBoard({
                   <div className="nox-inset" data-pay-fee-mode={feeMode0} style={{ padding: "8px 12px", marginTop: 8, fontSize: 12.5, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                     <span className="num" style={{ flex: "1 1 150px", fontWeight: 700 }}>{feeNote ? payFeeRowTextOf({ fee: feeNote.fee, rate: feeNote.rate, mode: noteModeOf(feeNote) }) : `手数料 ¥${autoFee.toLocaleString()}（${rate}%）`}</span>
                     <span role="radiogroup" aria-label="手数料の方式" style={{ display: "inline-flex", gap: 4 }}>
-                      {payFeeModesFor(isManagerUp).map((m) => (
+                      {(rules0175On() ? feeModesForRoleOf(roleKey, staffDiscountLevelOf(storeSj)) : payFeeModesFor(isManagerUp)).map((m) => (/* ★追補 2（裁定421 候補）: スタッフは「上限内は即時」のときだけ なし／指定（上限は RPC） */
                         <button key={m} type="button" data-fee-mode-opt={m} style={{ ...btnLight, padding: "4px 10px", ...(feeMode0 === m ? { border: "1px solid var(--gold)", color: "var(--champ)", background: "var(--goldface)" } : {}) }}
                           onClick={() => { setFeeMode(m); setPayCardGross(null); }}>{PAY_FEE_MODE_LABEL[m]}</button>
                       ))}
@@ -2471,7 +2482,7 @@ export default function RegisterBoard({
               }
               const r = data as { id: string; serial: number; token: string; amount: number; expires_on: string; biz_date: string; store_name: string };
               setRcptIssued((xs) => [...xs, { ...r, name: rcptForm.name.trim(), note: rcptForm.note.trim() }]);
-              setRcptForm({ amount: "", name: "", note: "" });
+              setRcptForm({ amount: "", name: "", note: rules0175On() ? rcptDefaultDesc : "" }); // ★追補 2 同乗 R-6: 但し書きの既定（編集可）
             };
             return (
               <div className="nox-inset" style={{ padding: "12px 14px", marginBottom: 12 }}>
@@ -3391,10 +3402,10 @@ export default function RegisterBoard({
         )}
 
         {/* 割引・無料（承認ワークフロー・F3c）＝段R2 で会計タブへ */}
-        {dtab === "pay" && (
-        <div className="nox-cardtop" style={card}>
+        {dtab === "pay" && !(rules0175On() && !isManagerUp && staffDiscountLevelOf(storeSj) === 2) && (/* ★追補 2（裁定421 候補）: 2＝不可のスタッフにはカードごと出さない */
+        <div className="nox-cardtop" style={card} data-staff-discount-level={rules0175On() ? staffDiscountLevelOf(storeSj) : undefined}>
           <h3 style={t.cardTitle}>
-            割引・無料（{isManagerUp ? "適用・承認" : "申請"}）
+            割引・無料（{isManagerUp ? "適用・承認" : rules0175On() && staffDiscountLevelOf(storeSj) === 1 ? `申請・上限 ${yen(staffDiscountCapOf(storeSj))} までは即時` : "申請"}）
           </h3>
           {/* 申請（スタッフ can_register）／適用（owner/manager 直接）フォーム */}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 10 }}>
@@ -3421,14 +3432,14 @@ export default function RegisterBoard({
             )}
             <input
               value={apReason} onChange={(e) => setApReason(e.target.value)}
-              placeholder="理由（任意）" maxLength={200} style={{ ...input, width: 160 }}
+              placeholder={rules0175On() && !isManagerUp && staffDiscountLevelOf(storeSj) === 1 ? "理由（即時適用は必須）" : "理由（任意）"} maxLength={200} style={{ ...input, width: 160 }}
             />
             <button
               onClick={requestOrApply}
               disabled={apType === "discount" && (apAmount <= 0 || apAmount > apGroupBx)}
               style={{ ...btnDark, opacity: apType === "discount" && (apAmount <= 0 || apAmount > apGroupBx) ? 0.4 : 1 }}
             >
-              {isManagerUp ? "適用" : "申請"}
+              {isManagerUp ? "適用" : rules0175On() && discountActionOf({ role: roleKey, level: staffDiscountLevelOf(storeSj), amount: apType === "discount" ? apAmount : apGroupBx, cap: staffDiscountCapOf(storeSj) }) === "direct" ? "即時適用" : "申請"}
             </button>
           </div>
           {/* この伝票の申請一覧（pending は owner/manager が承認/却下・staff は閲覧のみ） */}

@@ -22,6 +22,8 @@ import CastAvatar from "@/components/ui/cast-avatar";
 import Modal from "@/components/ui/modal";
 import CastPicker from "@/components/nox/cast-picker";
 import { BILLING_LOCKED_MSG_KIOSK, isBillingLocked } from "@/lib/billing/messages";
+import { rules0175On } from "@/lib/nox/rules-0175/flag"; // ★追補 2 同乗 R-7
+import KioskUnlockPad from "@/components/nox/kiosk-unlock-pad"; // ★追補 2 同乗 R-7（裁定423 候補）: PIN だけ／QR で解除
 
 import { rpcErrJa as rpcErrJaCommon } from "@/lib/nox/ui/rpc-err"; // ★N2-2（2026-09-18）: 生の RPC 語の日本語化（写像に無い語は「処理できませんでした（コード: …）」）
 import Toast, { Message } from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
@@ -273,6 +275,14 @@ export default function KioskRegisterPage() {
   }
   function keyIn(d: string) { setPin((p) => (p.length >= 4 ? p : p + d)); }
 
+  // ★追補 2 同乗 R-7（裁定423 候補）: PIN だけ／QR での解除の成功＝kiosk_login と同じ後処理（操作担当のバー・レジへ）
+  async function onUnlocked(j: { operator_name?: string; role?: string; idle_sec?: number; unlock_method?: string }) {
+    setSession({ name: j.operator_name ?? "", role: j.role ?? "" });
+    setLockMsg(null); setMsg(null); setSeatMsg(null); setDetail(null); setPrintCard(null);
+    markAction();
+    setPhase("register");
+    await refreshState();
+  }
   async function doPinLogin() {
     if (!target || pin.length !== 4 || busy) return;
     setBusy(true); setPinMsg(null);
@@ -302,7 +312,7 @@ export default function KioskRegisterPage() {
   // 交代/離席（サーバ側セッションも明示終了）
   async function operatorLogout() {
     markAction();
-    await supabase.rpc("kiosk_logout").then(() => undefined, () => undefined);
+    await (rules0175On() ? supabase.rpc("kiosk_lock", { p_reason: "manual" }) : supabase.rpc("kiosk_logout")).then(() => undefined, () => undefined); // ★追補 2 同乗 R-7: 終了理由（manual）を残す（フラグ false＝従来の kiosk_logout）
     lockToOperator("操作担当を交代してください。");
   }
 
@@ -601,7 +611,13 @@ export default function KioskRegisterPage() {
           </div>
         )}
 
-        {phase === "operator" && (
+        {phase === "operator" && rules0175On() && (/* ★追補 2 同乗 R-7（裁定423 候補）: 誰かを選ばず PIN だけ・QR で解除（カメラがある端末だけタブ） */
+          <>
+            {lockMsg && <Toast msg={lockMsg} style={{ margin: "0 0 14px", textAlign: "center" }} />}
+            <KioskUnlockPad onUnlocked={onUnlocked} />
+          </>
+        )}
+        {phase === "operator" && !rules0175On() && (
           <>
             {/* 段K2 先行 可読性: 見出し・案内は白（金は選択・主ボタン・バッジの3役のみ） */}
             <p style={{ textAlign: "center", fontSize: 15, color: "var(--v2-text)", fontWeight: 700, margin: "0 0 8px" }}>

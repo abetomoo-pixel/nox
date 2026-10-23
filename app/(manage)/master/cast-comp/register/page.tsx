@@ -37,6 +37,7 @@ export default async function CastCompRegisterPage() {
       isOwner={role === "owner"}
       initialEnabled={castRegEnabled}
       casts={castRegRows}
+      settings={(store?.settings_json as Record<string, unknown> | null) ?? null} /* ★追補 2: 3 段階の現在値（フラグ true のときだけ使う） */
     />
   );
 }

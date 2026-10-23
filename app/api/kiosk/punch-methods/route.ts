@@ -5,12 +5,16 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { castPunchOffOf, opsProfileOf } from "@/lib/nox/store/ops-profile";
+import { rules0175On } from "@/lib/nox/rules-0175/flag"; // ★追補 2 同乗 R-7
+import { kioskIdleSecOf, kioskTilesOf } from "@/lib/nox/rules-0175/kiosk"; // ★追補 2 同乗 R-7（裁定423 候補）
 
 export async function GET() {
   const supabase = await createClient();
   const { data: storeId } = await supabase.rpc("auth_kiosk_store_id");
   if (typeof storeId !== "string") return NextResponse.json({ error: "forbidden" }, { status: 403 });
-  const { data } = await createAdminClient().from("stores").select("punch_methods").eq("id", storeId).maybeSingle();
+  const { data } = await createAdminClient().from("stores").select(rules0175On() ? "punch_methods, settings_json" : "punch_methods").eq("id", storeId).maybeSingle();
   const pm = opsProfileOf((data ?? null) as Record<string, unknown> | null).punch_methods;
-  return NextResponse.json({ kiosk: pm.kiosk, castPunchOff: castPunchOffOf(pm) });
+  // ★追補 2 同乗 R-7（裁定423 候補）: キオスクで使える機能（kiosk_features）と無操作秒数（kiosk_idle_sec）＝フラグ true のときだけ返す
+  const sj = rules0175On() ? (((data ?? null) as unknown as { settings_json?: Record<string, unknown> | null } | null)?.settings_json ?? null) : null;
+  return NextResponse.json({ kiosk: pm.kiosk, castPunchOff: castPunchOffOf(pm), ...(sj ? { tiles: kioskTilesOf(sj), idleSec: kioskIdleSecOf(sj) } : {}) });
 }
