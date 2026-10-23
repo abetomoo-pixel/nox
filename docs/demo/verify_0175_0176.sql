@@ -41,11 +41,20 @@ with pins(name, md5) as (
       ('nox_receipt_public','85635e1c'),
       ('set_store_invoice_profile','6be5700a'),
       ('auth_kiosk_operator','4bb8e31e'),
-      ('kiosk_unlock','b6b02f2e'),
+      ('kiosk_unlock','a3d47b6d'),
       ('kiosk_lock','7c8a87bc'),
       ('totp_code_of','35a695cf'),
       ('my_qr_secret','fbe0f51e'),
-      ('kiosk_unlock_qr','23a29e46'),
+      ('kiosk_unlock_qr','2877fedd'),
+      ('auth_role','52bcdc2c'),
+      ('auth_role_raw','2ecfa162'),
+      ('terms_accept','30b78afb'),
+      ('set_membership_role','aa034ac3'),
+      ('owner_transfer','2353cde9'),
+      ('kiosk_login','8166c217'),
+      ('kiosk_operator_list','bfd6b46c'),
+      ('staff_pin_status','aa641edc'),
+      ('set_staff_pin','f246470c'),
       ('attendance_set','031e9e21'),
       ('daily_pay_issue','df0d58ff'),
       ('comp_plan_pay_rate_check','a2bd4f02'),
@@ -101,7 +110,8 @@ with pins(name, md5) as (
   union all select '0175', '内部専用 auth_cast_register_level に authenticated なし', (select count(*) from pg_proc where pronamespace='public'::regnamespace and proname='auth_cast_register_level' and coalesce(proacl::text, '') not like '%authenticated%')::text, '1'
   union all select '0175', 'v2 追補 引数 bottle_keep_register 11／update 8', (select string_agg(proname || '=' || pronargs, ',' order by proname) from pg_proc where pronamespace='public'::regnamespace and proname in ('bottle_keep_register','bottle_keep_update')), 'bottle_keep_register=11,bottle_keep_update=8'
   union all select '0175', '旧署名の残り（overload）', (select count(*) from pg_proc where pronamespace='public'::regnamespace and proname in ('check_pay','receipt_issue','set_comp_plan','payroll_adjustment_add','punch_self','daily_pay_issue'))::text, '6'
-  union all select '0175', '新設 RPC 18', (select count(*) from pg_proc where pronamespace='public'::regnamespace and proname in ('pt_rules_check','payroll_adjustment_cancel','norm_shortfall_decide','daily_pay_cancel','set_cast_kind','set_pricing_rule_vip','staff_payroll_run_set_status','store_wifi_add','store_wifi_remove','availability_set','availability_list','set_my_contact','set_store_invoice_profile','kiosk_unlock','kiosk_lock','my_qr_secret','kiosk_unlock_qr','totp_code_of'))::text, '18'
+  union all select '0175', '新設 RPC 21', (select count(*) from pg_proc where pronamespace='public'::regnamespace and proname in ('pt_rules_check','payroll_adjustment_cancel','norm_shortfall_decide','daily_pay_cancel','set_cast_kind','set_pricing_rule_vip','staff_payroll_run_set_status','store_wifi_add','store_wifi_remove','availability_set','availability_list','set_my_contact','set_store_invoice_profile','kiosk_unlock','kiosk_lock','my_qr_secret','kiosk_unlock_qr','totp_code_of','auth_role_raw','set_membership_role','owner_transfer'))::text, '21'
+  union all select '0175', '★28 role CHECK に admin／org_billing_select は auth_role_raw／auth_role は admin→owner', (select count(*) from pg_constraint where conname='memberships_role_check' and pg_get_constraintdef(oid) like '%admin%')::text || '/' || (select count(*) from pg_policies where schemaname='public' and tablename='org_billing' and qual like '%auth_role_raw%')::text || '/' || (select count(*) from pg_proc where pronamespace='public'::regnamespace and proname='auth_role' and prosrc like '%''admin'' then ''owner''%')::text, '1/1/1'
   union all select '0175', '内部専用 pt_rules_check に authenticated なし', (select count(*) from pg_proc where pronamespace='public'::regnamespace and proname='pt_rules_check' and coalesce(proacl::text, '') not like '%authenticated%')::text, '1'
   union all select '0175', 'authenticated は SELECT のみ（新表 8）', (select coalesce(string_agg(distinct privilege_type, ','), '') from information_schema.role_table_grants where grantee='authenticated' and table_schema='public' and table_name in ('punch_round_consents','availability','availability_terms','plan_rate_bands','plan_norm_tiers','plan_event_bonuses','slide_decisions','cast_rate_history')), 'SELECT'
   union all select '0175', 'anon の付与 0（新表 3）', (select count(*) from information_schema.role_table_grants where grantee='anon' and table_schema='public' and table_name in ('punch_round_consents','availability','availability_terms'))::text, '0'

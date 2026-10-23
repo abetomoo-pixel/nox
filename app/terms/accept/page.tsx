@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getSessionRole } from "@/lib/nox/auth";
+import { rules0175On } from "@/lib/nox/rules-0175/flag"; // ★追補 3 R-8（裁定425 候補）: 規約の同意（契約）はオーナー本人だけ
 import * as t from "@/lib/nox/ui/theme";
 import TermsAcceptForm from "@/components/nox/terms-accept-form";
 import { TERMS_VERSION } from "@/lib/nox/terms";
@@ -10,7 +11,7 @@ import { TERMS_VERSION } from "@/lib/nox/terms";
 export const dynamic = "force-dynamic";
 
 export default async function TermsAcceptPage() {
-  const { role } = await getSessionRole();
+  const { role, roleRaw } = await getSessionRole();
   if (!role) redirect("/login");
   const supabase = await createClient();
   const [{ data: orgRow }, { data: ok }] = await Promise.all([
@@ -21,7 +22,7 @@ export default async function TermsAcceptPage() {
   return (
     <main className="nox-dark" style={{ ...t.loginBg, minHeight: "100dvh", padding: "24px 16px" }}>
       <div style={{ textAlign: "center", marginBottom: 18 }}><span style={{ ...t.brand, fontSize: 26 }}>NOX</span></div>
-      <TermsAcceptForm isOwner={role === "owner"} orgName={(orgRow?.name as string | undefined) ?? "この店舗"} />
+      <TermsAcceptForm isOwner={(rules0175On() ? roleRaw : role) === "owner"} orgName={(orgRow?.name as string | undefined) ?? "この店舗"} />
     </main>
   );
 }

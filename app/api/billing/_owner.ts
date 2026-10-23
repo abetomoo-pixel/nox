@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 import { assertNotDemo } from "@/lib/nox/demo/guard"; // ★N7-1（裁定273-6）: デモ org は 403
+import { rules0175On } from "@/lib/nox/rules-0175/flag"; // ★追補 3 R-8
 export type OwnerCtx = { orgId: string; email: string | null };
 
 /** owner でなければ NextResponse（401/403）を返す。owner なら org_id/email を返す。 */
@@ -13,7 +14,7 @@ export async function requireOwner(): Promise<NextResponse | OwnerCtx> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const [{ data: role }, { data: orgId }] = await Promise.all([
-    supabase.rpc("auth_role"),
+    supabase.rpc(rules0175On() ? "auth_role_raw" : "auth_role"), // ★追補 3 R-8（裁定425 候補・0175 v2 ★28）: 契約と請求はオーナー本人だけ＝本来の役割（管理者は 403）。フラグ false＝従来の auth_role
     supabase.rpc("auth_org_id"),
   ]);
   if (role !== "owner") return NextResponse.json({ error: "請求の操作はオーナーのみ可能です" }, { status: 403 });

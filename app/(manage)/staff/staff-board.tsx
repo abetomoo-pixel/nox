@@ -20,6 +20,8 @@ import { rpcErrJa } from "@/lib/nox/ui/rpc-err";
 // ★0162（裁定329／329 追補1・便 M5-1）: スタッフ写真＝キャストと同じ bucket・同じ縮小・u_{user_id}.jpg。登録／差替え＝uploadUserPhoto・削除＝storage.remove → clear_user_photo
 import { resolveOrgId } from "@/lib/nox/cast-photo";
 import { photoActionLabelOf, removeUserPhoto, signUserPhotos, uploadUserPhoto } from "@/lib/nox/staff-photo";
+import { rules0175On } from "@/lib/nox/rules-0175/flag"; // ★追補 3 R-8
+import { ownerOnlyNoteOf, roleChangeTargetsOf, roleChangeTextOf, roleLabelOf, rolePillKindOf, staffListRolesOf } from "@/lib/nox/rules-0175/roles"; // ★追補 3 R-8（裁定425 候補）: 役割「管理者」
 type Mem = {
   id: string; user_id: string; store_id: string; role: string; is_active: boolean;
   can_register: boolean; can_crm: boolean; can_shift: boolean; can_view_backs: boolean;
@@ -37,10 +39,12 @@ const btnGhost: React.CSSProperties = { ...t.btnGhost, ...t.btnSm };
 const secTitle: React.CSSProperties = t.cardTitle;
 const rolePillMini = (role: string): React.CSSProperties => ({
   fontSize: 10, fontWeight: 800, letterSpacing: 0.5, borderRadius: 999, padding: "2px 8px",
-  color: role === "manager" ? "var(--on-gold)" : "var(--ink)",
-  background: role === "manager" ? "linear-gradient(135deg,var(--gold2),var(--gold3))" : "var(--card2)",
-  border: role === "manager" ? "0" : "1px solid var(--line2)",
+  color: rolePillKindOf(role) === "admin" ? "var(--card)" : role === "manager" ? "var(--on-gold)" : "var(--ink)", // ★追補 3 R-8: 管理者＝濃い地（オーナーの隣）
+  background: rolePillKindOf(role) === "admin" ? "var(--ink)" : role === "manager" ? "linear-gradient(135deg,var(--gold2),var(--gold3))" : "var(--card2)",
+  border: role === "manager" || rolePillKindOf(role) === "admin" ? "0" : "1px solid var(--line2)",
 });
+/** ★追補 3 R-8（裁定425 候補）: 役割の表示名＝フラグ true で「管理者」・false は従来の roleLabelJa */
+const labelOf = (r: string) => (rules0175On() ? roleLabelOf(r) : t.roleLabelJa(r));
 
 // 段L2: 権限チップの定義＝現行テーブルの見出し語彙をそのまま使う（会計/顧客/シフト*/バック†）。
 //   4つとも出す＝can_view_backs を落とさない（表示項目を減らさない）。
@@ -55,9 +59,9 @@ const PERM_DEFS: Array<[ PermKey, string ]> = [
 ];
 
 export default function StaffBoard({
-  isOwner, stores, myStoreId, myAuthUserId, tabs,
+  isOwner, roleRaw = "", stores, myStoreId, myAuthUserId, tabs,
 }: {
-  isOwner: boolean; stores: Store[]; myStoreId: string; myAuthUserId: string;
+  isOwner: boolean; roleRaw?: string; stores: Store[]; myStoreId: string; myAuthUserId: string; // ★追補 3 R-8: roleRaw＝本来の役割（フラグ true のとき admin が来る）
   tabs?: React.ReactNode; // ★0172（裁定356・便 P172）: 一覧／勤怠・報酬のタブ（page が描く）
 }) {
   const supabase = createClient();
@@ -136,7 +140,7 @@ export default function StaffBoard({
     const { data: mm } = await supabase
       .from("memberships")
       .select("id, user_id, store_id, role, is_active, can_register, can_crm, can_shift, can_view_backs, can_close, can_reopen, tel, line_id") // ★0172: +tel／line_id
-      .in("role", ["staff", "manager"]);
+      .in("role", staffListRolesOf(rules0175On())); // ★追補 3 R-8（裁定425 候補）: フラグ true で管理者も一覧に
     const rows = (mm ?? []) as Mem[];
     const userIds = [...new Set(rows.map((m) => m.user_id))];
     const map: Record<string, UserRow> = {};
@@ -298,7 +302,7 @@ export default function StaffBoard({
                 <div className="nm">
                   {u?.name ?? "—"}
                   {isSelf(m) && <span style={{ ...t.sub, marginLeft: 5 }}>(自分)</span>}
-                  <span style={{ ...rolePillMini(m.role), marginLeft: 6 }}>{t.roleLabelJa(m.role)}</span>
+                  <span style={{ ...rolePillMini(m.role), marginLeft: 6 }} data-role-pill={m.role}>{labelOf(m.role)}</span>
                   <span style={{ marginLeft: 6, fontSize: 11, fontWeight: 700, color: m.is_active ? "var(--ok)" : "var(--bad)" }}>
                     {m.is_active ? "在籍" : "解除"}
                   </span>
@@ -336,7 +340,7 @@ export default function StaffBoard({
             <strong>編集: {users[sel.user_id]?.name ?? "—"}</strong>
             <button type="button" className="nox-formmodal-x" aria-label="閉じる" onClick={() => !busy && setSel(null)}>×</button>
           </div>
-          <p style={{ ...t.sub, margin: "-8px 0 12px" }}>{storeName(sel.store_id)} / {t.roleLabelJa(sel.role)} / {sel.is_active ? "在籍" : "解除"}</p>
+          <p style={{ ...t.sub, margin: "-8px 0 12px" }}>{storeName(sel.store_id)} / {labelOf(sel.role)} / {sel.is_active ? "在籍" : "解除"}</p>
           {/* ★X-13-4（便 X-13a）: 名前の横に写真（現在・変更・削除）＝共通部品 PhotoEdit（キャスト詳細 X-13-5 と同じ経路）。デモは表示するが無効（裁定328 ④） */}
           <div style={{ display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap" }}>
             <PhotoEdit name={users[sel.user_id]?.name ?? ""} url={photoUrls.get(sel.user_id)} hasPhoto={!!users[sel.user_id]?.photo_updated_at} busy={phBusy || busy || !orgId} size={56}
@@ -385,10 +389,22 @@ export default function StaffBoard({
                 setSel(null);
               }}>在籍を解除</button>
             )}
-            {isOwner && sel.is_active && !isSelf(sel) && (
+            {isOwner && sel.is_active && !isSelf(sel) && rules0175On() && (/* ★追補 3 R-8（裁定425 候補・0175 v2 ★28）: 役割の候補＝呼び手の本来の役割 × 相手の今の役割（オーナー＝管理者の任命・解除も・管理者＝店長↔スタッフだけ）＝RPC set_membership_role。フラグ false＝下の従来ボタン */
+              <span data-role-change="0175" style={{ display: "inline-flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                {roleChangeTargetsOf(roleRaw, sel.role).map((to) => (
+                  <button key={to} style={btnGhost} disabled={busy} data-role-to={to} onClick={async () => {
+                    if (!confirm(`${users[sel.user_id]?.name ?? ""} を ${roleChangeTextOf(sel.role, to)}しますか？${to === "admin" ? "（管理者はオーナーと同じ権限＝解約・移譲・契約と請求・管理者任命だけ不可）" : ""}`)) return;
+                    await rpc("役職を変更", "set_membership_role", { p_membership_id: sel.id, p_new_role: to });
+                    setSel(null);
+                  }}>{roleChangeTextOf(sel.role, to)}</button>
+                ))}
+                {ownerOnlyNoteOf(roleRaw) && <span style={{ ...t.sub, fontSize: 11 }} data-owner-only-note="1">管理者の任命・解除は{ownerOnlyNoteOf(roleRaw)}</span>}
+              </span>
+            )}
+            {isOwner && sel.is_active && !isSelf(sel) && !rules0175On() && (
               <button style={btnGhost} disabled={busy} onClick={async () => {
                 const to = sel.role === "staff" ? "manager" : "staff";
-                if (!confirm(`${users[sel.user_id]?.name ?? ""} を ${t.roleLabelJa(to)} に${to === "manager" ? "昇格" : "降格"}しますか？`)) return;
+                if (!confirm(`${users[sel.user_id]?.name ?? ""} を ${labelOf(to)} に${to === "manager" ? "昇格" : "降格"}しますか？`)) return;
                 await rpc("役職を変更", "staff_change_role", { p_membership_id: sel.id, p_new_role: to });
                 setSel(null);
               }}>{sel.role === "staff" ? "店長に昇格" : "スタッフに降格"}</button>

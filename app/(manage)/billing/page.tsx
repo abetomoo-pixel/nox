@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getSessionRole } from "@/lib/nox/auth";
+import { rules0175On } from "@/lib/nox/rules-0175/flag"; // ★追補 3 R-8
 import { isStripeConfigured, getStripe } from "@/lib/stripe/client";
 import { contractAmountFromItem, contractAmountLabel } from "@/lib/billing/amount";
 import BillingBoard, { type BillingView } from "./billing-board";
@@ -13,9 +14,9 @@ export const dynamic = "force-dynamic";
 //     未接続/失敗/明細欠落は amount.ts の degrade ラベル（"—"）に落とす（画面は必ず出る）。
 //   ★billingGate は噛ませない＝失効中でも復帰できる必要がある（route 側 _owner.ts と同じ理由）。
 export default async function BillingPage() {
-  const { role } = await getSessionRole();
+  const { role, roleRaw } = await getSessionRole();
   if (!role) redirect("/login");
-  if (role !== "owner") redirect("/dashboard");
+  if ((rules0175On() ? roleRaw : role) !== "owner") redirect("/dashboard"); // ★追補 3 R-8（裁定425 候補）: 契約と請求はオーナー本人だけ（管理者は不可＝RLS org_billing_select も auth_role_raw）
 
   const supabase = await createClient();
   const { data: row } = await supabase

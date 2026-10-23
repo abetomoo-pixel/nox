@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getSessionRole } from "@/lib/nox/auth";
+import { rules0175On } from "@/lib/nox/rules-0175/flag"; // ★追補 3 R-8
 import StaffBoard from "./staff-board";
 import StaffWorkPanel from "./staff-work-panel";
 import PageHead from "@/components/ui/page-head";
@@ -17,7 +18,7 @@ export const dynamic = "force-dynamic";
 // ★0172（裁定356・便 P172）: ?tab=work＝勤怠・報酬タブ（読取のみ・staff-work-panel）。既定＝一覧（従来どおり StaffBoard）。タブの解決＝lib/nox/staff/tabs.ts（page から export しない）。
 export default async function StaffPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
   const supabase = await createClient();
-  const { role } = await getSessionRole();
+  const { role, roleRaw } = await getSessionRole();
   if (role !== "owner" && role !== "manager") redirect("/register");
   const tab = staffTabOf((await searchParams).tab);
   const {
@@ -45,6 +46,7 @@ export default async function StaffPage({ searchParams }: { searchParams: Promis
   return (
     <StaffBoard
       isOwner={role === "owner"}
+      roleRaw={rules0175On() ? (roleRaw ?? role ?? "") : (role ?? "")} // ★追補 3 R-8（裁定425 候補）: 本来の役割（admin）＝任命・解除の出し分け
       stores={(stores ?? []) as { id: string; name: string }[]}
       myStoreId={(myStoreId as string | null) ?? ""}
       myAuthUserId={user?.id ?? ""}

@@ -3,6 +3,8 @@ import BrandLogo from "@/components/ui/brand-logo"; // ★便 SH-UI-a A-2: ロ�
 import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { getSessionRole } from "@/lib/nox/auth";
+import { rules0175On } from "@/lib/nox/rules-0175/flag"; // ★追補 3 R-8
+import { roleLabelOf } from "@/lib/nox/rules-0175/roles"; // ★追補 3 R-8（裁定425 候補）: 「管理者」
 import Link from "next/link";
 import { TabBar, type NavGroup } from "@/components/ui/nav";
 import { HeaderGear, UserChip } from "@/components/ui/header-chips"; // ★N4（裁定275 追補2）: ヘッダー右＝歯車＋「登録名｜役割」
@@ -24,9 +26,12 @@ import * as t from "@/lib/nox/ui/theme";
 //   isManagerUp のみ（staff 非表示＝真の防御は各 RPC の service_role/owner 限定・ここは表示ナビ）。
 // F3b-A: 顧客 tab は owner/manager＋staff∧can_crm（server 導出・真の防御は customer_* RPC の可視ガード）。
 export default async function ManageLayout({ children }: { children: React.ReactNode }) {
-  const { role } = await getSessionRole();
+  const { role, roleRaw } = await getSessionRole();
   if (!role) redirect("/login");
   const supabase = await createClient();
+  // ★追補 3 R-8（裁定425 候補・0175 v2 ★28）: 管理者＝role は 'owner'（auth_role が写す）・roleRaw が 'admin'。オーナー限定 4 つ（ここでは「ご契約」の導線と課金バナーの復帰導線）は本来の役割で見る。フラグ false＝従来の role
+  const isOwnerRaw = rules0175On() ? roleRaw === "owner" : role === "owner";
+  const roleJa = rules0175On() ? roleLabelOf(roleRaw ?? role) : t.roleLabelJa(role as string);
 
   // F3g: cast のエリア制御。有効 cast は /register のみ通し、他パスは /mine へ。
   let castReg = false;
@@ -118,7 +123,7 @@ export default async function ManageLayout({ children }: { children: React.React
           // 監査ログは owner 限定（RLS も owner 限定＝mig0002・非 owner は 0行。ここは表示ナビ）
           ...(role === "owner" ? [{ href: "/audit", label: "監査" }] : []),
           // 課金（設計書 §6）: owner 限定＝org_billing の RLS SELECT も owner 限定・route も requireOwner
-          ...(role === "owner" && !isDemo ? [{ href: "/billing", label: "ご契約" }] : []), // ★N7-2 ③: デモは Stripe の導線を隠す
+          ...(isOwnerRaw && !isDemo ? [{ href: "/billing", label: "ご契約" }] : []), // ★N7-2 ③: デモは Stripe の導線を隠す。★追補 3 R-8: 管理者には出さない（契約と請求はオーナーのみ）
         ] },
       ].filter((g) => g.items.length > 0); // 権限で空になった群は見出しごと出さない
   return (
@@ -152,12 +157,12 @@ export default async function ManageLayout({ children }: { children: React.React
             <div className="acts">
               {/* ★裁定275 追補2-2（N4）: 右＝歯車（マスタ・監査・ご契約＝gear 群・cast／staff は項目 0＝描かない）＋「登録名｜役割」（自分の情報＋ログアウト）。POST /auth/signout は不変 */}
               <HeaderGear groups={splitNav(groups, ["/dashboard", "/register", "/report", "/shift"]).gearGroups} />
-              <UserChip name={meName} email={meEmail} isOwner={role === "owner"} roleJa={t.roleLabelJa(role as string)} storeLabel={storeLabel} meId={(meRow?.id as string | null) ?? null} mePhotoAt={(meRow?.photo_updated_at as string | null) ?? null} canPhoto={role !== "cast"} isDemo={isDemo} />{/* ★0162（便 M5-1）: 本人の写真＝owner／manager／staff（cast は /mine）・デモは隠す */}
+              <UserChip name={meName} email={meEmail} isOwner={role === "owner"} roleJa={roleJa} storeLabel={storeLabel} meId={(meRow?.id as string | null) ?? null} mePhotoAt={(meRow?.photo_updated_at as string | null) ?? null} canPhoto={role !== "cast"} isDemo={isDemo} />{/* ★0162（便 M5-1）: 本人の写真＝owner／manager／staff（cast は /mine）・デモは隠す */}
             </div>
           </header>
           <main className="nox-mainarea">
             {isDemo && <DemoBanner />}{/* ★N7-2 ①: デモ環境の帯＋初期状態に戻す */}
-            {billingLocked && <BillingBanner isOwner={role === "owner"} />}
+            {billingLocked && <BillingBanner isOwner={isOwnerRaw} />}{/* ★追補 3 R-8: 復帰導線（ご契約）はオーナー本人だけ */}
             <DemoProvider isDemo={isDemo}>{children}</DemoProvider>
           </main>
         </div>

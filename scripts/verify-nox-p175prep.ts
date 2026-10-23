@@ -6,6 +6,7 @@
  *      payload 6 店は gen-demo の CANON 差し替えが null（profiles.canonOf／okuriModeOf が従来値）・collect／UI の gate が rules0175On() で閉じている（逐語）
  *  (3) true の client 段＝fixture（DB 段は SKIP）: P-1 時給の履歴（基本＋段の累積・保証・手動）／P-2 取消済み（除外・ラベル）／P-3 店設定（ドリンクバック OFF・売上小計・支払サイクル・プランの軸）／
  *      P-4 基本の働き方（既定値・固定休の印・雇用の時間帯）／P-5 CANON 40％・75％・120％ の 3 ケース＋連続 2 期の発動／不発動・規定未達は UP だけ止まる・免除は査定を止める／P-6 fixture 6 店／P-7 0177 の送り 4 方式
+ *  (12) 追補 3 R-8 役割「管理者」（裁定425 候補・★28）＝序列・任命と解除の候補・文言・配線（auth_role_raw はフラグ true だけ）・v2 の CHECK／auth_role／auth_role_raw／org_billing／terms_accept／set_membership_role／owner_transfer／行を読む 6 本・読取の記録 210／70
  *  (4)(5)(6) 連続便 3 追補＝P-8 手数料の 3 択（店の率／なし／指定 ¥5,000・p_fee_amount・フラグ false は 8 引数）／P-9 キープのタグ名（既定・検索・並び・呼び出し文言・配線）／P-10 延長パターン（選択中・切替で単価・1 パターンは ▾ なし・マスタ n 件（上限 3））＋v2 起草の逐語（起草ファイルがあるときだけ）
  */
 import fs from "node:fs";
@@ -25,6 +26,7 @@ import { castCanPayOf, castPaymentsOf, castRegisterLevelOf, castRegisterNavOf } 
 import { issuerLinesOf, paymentMethodOf, receiptDescDefaultOf, regNoValidOf, stampNoticeOf, taxBreakdownOf, taxLineTextOf } from "../lib/nox/rules-0175/invoice-receipt"; // ★追補 2 同乗 R-6（裁定422 候補）
 import { kioskIdleSecOf, kioskTilesOf, operatorBarTextOf, unlockNextOf } from "../lib/nox/rules-0175/kiosk"; // ★追補 2 同乗 R-7（裁定423 候補）
 import { counterBytesOf, parseQrToken, qrLockOf, qrTabAvailableOf, qrTokenOf, replayOf, tokenWindowOkOf, totpCodeFromHmac, totpCounterOf, totpRemainSecOf } from "../lib/nox/rules-0175/kiosk-qr"; // ★追補 2 同乗 R-7 の QR
+import { OWNER_ONLY, ROLE_ORDER, effectiveRoleOf, isOwnerRawOf, ownerOnlyNoteOf, roleChangeTargetsOf, roleChangeTextOf, roleLabelOf, rolePillKindOf, roleRpcErrJaOf, staffListRolesOf } from "../lib/nox/rules-0175/roles"; // ★追補 3 R-8（裁定425 候補）
 import { createHmac } from "node:crypto";
 
 let pass = 0; const fails: string[] = [];
@@ -45,9 +47,10 @@ const GATED_FILES = [
   "app/(manage)/master/cast-register-panel.tsx", // ★追補 2（裁定420／421 候補）
   "app/r/[token]/page.tsx", "components/nox/receipt-print.tsx", "app/(manage)/receipts/receipts-board.tsx", "app/(manage)/master/printer-panel.tsx", // ★追補 2 同乗 R-6
   "app/kiosk/page.tsx", "app/kiosk-register/page.tsx", "app/api/kiosk/punch-methods/route.ts", // ★追補 2 同乗 R-7
+  "lib/nox/auth.ts", "app/(manage)/layout.tsx", "app/(manage)/staff/page.tsx", "app/(manage)/staff/staff-board.tsx", "app/(manage)/billing/page.tsx", "app/terms/accept/page.tsx", "app/api/billing/_owner.ts", // ★追補 3 R-8（裁定425 候補）
 ];
 const gateCount = GATED_FILES.map((p) => ({ p, n: (src(p).match(/rules0175On\(\)|okuri4wayOn\(\)/g) ?? []).length }));
-check("p175(1-4) 眠らせた箇所＝23 ファイル全部に rules0175On()／okuri4wayOn() がある・直書きの RULES_0175_APPLIED／OKURI_4WAY_APPLIED は flag.ts と鏡だけ", gateCount.every((g) => g.n > 0) && !GATED_FILES.some((p) => /const (RULES_0175_APPLIED|OKURI_4WAY_APPLIED) =/.test(src(p))), J(gateCount));
+check("p175(1-4) 眠らせた箇所＝30 ファイル全部に rules0175On()／okuri4wayOn() がある・直書きの RULES_0175_APPLIED／OKURI_4WAY_APPLIED は flag.ts と鏡だけ", gateCount.every((g) => g.n > 0) && !GATED_FILES.some((p) => /const (RULES_0175_APPLIED|OKURI_4WAY_APPLIED) =/.test(src(p))), J(gateCount));
 console.log(`眠らせた箇所: ${gateCount.length} ファイル／${gateCount.reduce((a, g) => a + g.n, 0)} 箇所 = ${gateCount.map((g) => `${g.p.split("/").pop()} ${g.n}`).join("・")}`);
 
 // ── (2) false＝従来と 1 バイト同値 ──
@@ -238,6 +241,32 @@ check("p175(11-2) QR トークンは 30 秒で変わる＝counter が変わる�
 check("p175(11-3) QR 同一トークンの 2 回目は拒否（5 分以内）・失敗 5 回で 10 分ロック・トークンの形 'noxk:<membership>.<6 桁>'", replayOf(Date.now() - 1000, Date.now()) && !replayOf(null, Date.now()) && !replayOf(Date.now() - 6 * 60_000, Date.now()) && qrLockOf(5).locked && qrLockOf(5).minutes === 10 && !qrLockOf(4).locked && parseQrToken(qrTokenOf("8e190b83-185a-57e6-84c6-a9e7f1e2caa3", "287082"))?.code === "287082" && parseQrToken("noxk:bad.1234") === null);
 check("p175(11-4) QR カメラ非対応の端末ではタブが出ない（getUserMedia なし）・あれば出る（BarcodeDetector 無しは jsQR のフォールバック）", !qrTabAvailableOf({ hasBarcodeDetector: false, hasMediaDevices: false }) && qrTabAvailableOf({ hasBarcodeDetector: false, hasMediaDevices: true }) && qrTabAvailableOf({ hasBarcodeDetector: true, hasMediaDevices: true }));
 check("p175(11-5) QR 0175 v2＝memberships.qr_secret／qr_fail_count／qr_locked_until・kiosk_sessions.token_hash／unlock_method・kiosk_unlock_qr（±1 窓・5 回で 10 分・replay）・my_qr_secret・totp_code_of（内部）（起草ファイルがあるときだけ）", v2 === "" || (v2.includes("alter table public.memberships add column if not exists qr_secret text;") && v2.includes("unlock_method text not null default 'pin'") && v2.includes("public.totp_code_of(v_m.qr_secret, v_cnt - 1), public.totp_code_of(v_m.qr_secret, v_cnt + 1)") && v2.includes("qr_locked_until = case when qr_fail_count + 1 >= 5 then now() + interval '10 minutes' else qr_locked_until end") && v2.includes("return jsonb_build_object('ok', false, 'reason', 'replay');") && v2.includes("revoke execute on function public.totp_code_of(text, bigint) from public, anon, authenticated, service_role;")));
+// ── (12) R-8 役割「管理者」（裁定425 候補・0175 v2 ★28） ──
+check("p175(12-1) R-8 序列 owner→admin→manager→staff→cast・表示名「管理者」・権限判定は admin→owner（DB の auth_role と同じ式）・オーナー本人の判定は admin で false", J(ROLE_ORDER) === J(["owner", "admin", "manager", "staff", "cast"]) && roleLabelOf("admin") === "管理者" && roleLabelOf("owner") === "オーナー" && roleLabelOf("manager") === "店長" && effectiveRoleOf("admin") === "owner" && effectiveRoleOf("manager") === "manager" && effectiveRoleOf(null) === null && isOwnerRawOf("owner") && !isOwnerRawOf("admin"), J([roleLabelOf("admin"), effectiveRoleOf("admin")]));
+check("p175(12-2) R-8 任命と解除＝オーナーは staff→店長／管理者・manager→スタッフ／管理者・admin→店長／スタッフ。管理者は staff↔manager だけ・admin には触れない。店長・スタッフは候補なし", J(roleChangeTargetsOf("owner", "staff")) === J(["manager", "admin"]) && J(roleChangeTargetsOf("owner", "manager")) === J(["staff", "admin"]) && J(roleChangeTargetsOf("owner", "admin")) === J(["manager", "staff"]) && J(roleChangeTargetsOf("admin", "staff")) === J(["manager"]) && J(roleChangeTargetsOf("admin", "manager")) === J(["staff"]) && J(roleChangeTargetsOf("admin", "admin")) === J([]) && J(roleChangeTargetsOf("manager", "staff")) === J([]) && J(roleChangeTargetsOf(null, "staff")) === J([]), J([roleChangeTargetsOf("owner", "staff"), roleChangeTargetsOf("admin", "staff")]));
+check("p175(12-3) R-8 文言＝「管理者に昇格」「店長に昇格」「スタッフに降格」「店長に降格」（admin→manager）・注記はオーナーのみ（管理者だけに出る）・一覧の役割はフラグ false で staff／manager・true で +admin・ピルは admin／manager／plain・RPC の例外の日本語", roleChangeTextOf("staff", "admin") === "管理者に昇格" && roleChangeTextOf("staff", "manager") === "店長に昇格" && roleChangeTextOf("manager", "staff") === "スタッフに降格" && roleChangeTextOf("admin", "manager") === "店長に降格" && ownerOnlyNoteOf("admin") === "オーナーのみ" && ownerOnlyNoteOf("owner") === null && J(staffListRolesOf(false)) === J(["staff", "manager"]) && J(staffListRolesOf(true)) === J(["staff", "manager", "admin"]) && rolePillKindOf("admin") === "admin" && rolePillKindOf("manager") === "manager" && rolePillKindOf("staff") === "plain" && OWNER_ONLY.length === 4 && roleRpcErrJaOf("forbidden").includes("オーナーのみ") && roleRpcErrJaOf("self").includes("自分"), roleChangeTextOf("admin", "manager"));
+{
+  const auth = src("lib/nox/auth.ts"), lay = src("app/(manage)/layout.tsx"), bil = src("app/(manage)/billing/page.tsx"), trm = src("app/terms/accept/page.tsx"), own = src("app/api/billing/_owner.ts"), sb = src("app/(manage)/staff/staff-board.tsx"), sp = src("app/(manage)/staff/page.tsx");
+  check("p175(12-4) R-8 配線＝getSessionRole は rules0175On() のときだけ auth_role_raw を足す（false は auth_role 1 本・roleRaw＝role）・layout の「ご契約」導線と課金バナーは isOwnerRaw・表示名は roleLabelOf(roleRaw)・/billing と規約の同意と api/billing はフラグ true で本来の役割・スタッフ画面は set_membership_role と候補（従来 staff_change_role はフラグ false に残る）・監査（/audit）は触らない（管理者も読める）",
+    auth.includes(`rules0175On()`) && auth.includes(`supabase.rpc("auth_role_raw")`) && auth.includes(`roleRaw: (role as string | null) ?? null`)
+    && lay.includes(`const isOwnerRaw = rules0175On() ? roleRaw === "owner" : role === "owner";`) && lay.includes(`...(isOwnerRaw && !isDemo ? [{ href: "/billing", label: "ご契約" }] : [])`) && lay.includes(`<BillingBanner isOwner={isOwnerRaw} />`) && lay.includes(`roleLabelOf(roleRaw ?? role)`) && lay.includes(`...(role === "owner" ? [{ href: "/audit", label: "監査" }] : [])`)
+    && bil.includes(`if ((rules0175On() ? roleRaw : role) !== "owner") redirect("/dashboard");`) && trm.includes(`isOwner={(rules0175On() ? roleRaw : role) === "owner"}`) && own.includes(`supabase.rpc(rules0175On() ? "auth_role_raw" : "auth_role")`)
+    && sb.includes(`staffListRolesOf(rules0175On())`) && sb.includes(`"set_membership_role", { p_membership_id: sel.id, p_new_role: to }`) && sb.includes(`roleChangeTargetsOf(roleRaw, sel.role)`) && sb.includes(`!rules0175On() && (`) && sb.includes(`"staff_change_role", { p_membership_id: sel.id, p_new_role: to }`) && sb.includes(`data-owner-only-note="1"`) && sp.includes(`roleRaw={rules0175On() ? (roleRaw ?? role ?? "") : (role ?? "")}`)
+    && !src("app/(manage)/audit/page.tsx").includes("rules0175On"));
+  const sql = src("docs/tmp/0175_rules_bundle_v2_draft.sql");
+  const cnt = (re: RegExp) => (sql.match(re) ?? []).length;
+  check("p175(12-5) R-8 0175 v2 ★28＝memberships.role CHECK に 'admin'・auth_role は admin→'owner'（1 本）・auth_role_raw（新設・authenticated）・org_billing_select は auth_role_raw・terms_accept は auth_role_raw・set_membership_role（admin の付与・解除は raw owner・自分は不可）・owner_transfer（raw owner・相手 admin／manager）・行を読む 6 本に ('owner','admin','manager')・audit_logs_select は触らない",
+    sql.includes(`check (role = any (array['owner'::text, 'admin'::text, 'manager'::text, 'staff'::text, 'cast'::text]))`) && cnt(/CREATE OR REPLACE FUNCTION public\.auth_role\(\)/g) === 1 && sql.includes(`select case when m.role = 'admin' then 'owner' else m.role end`)
+    && sql.includes(`CREATE OR REPLACE FUNCTION public.auth_role_raw()`) && sql.includes(`grant execute on function public.auth_role_raw() to authenticated;`)
+    && sql.includes(`create policy org_billing_select on public.org_billing for select to authenticated using (org_id = public.auth_org_id() and public.auth_role_raw() = 'owner');`)
+    && sql.includes(`if public.auth_role_raw() <> 'owner' then raise exception 'forbidden'; end if;   -- 同意は owner`)
+    && sql.includes(`if (p_new_role = 'admin' or v_row.role = 'admin') and v_raw <> 'owner' then raise exception 'forbidden'; end if;`) && sql.includes(`if v_row.id = public.auth_membership_id() then raise exception 'self'; end if;`) && sql.includes(`grant execute on function public.set_membership_role(uuid, text) to authenticated;`)
+    && sql.includes(`CREATE OR REPLACE FUNCTION public.owner_transfer(p_membership_id uuid)`) && sql.includes(`if v_row.role not in ('admin','manager') then raise exception 'bad target'; end if;`) && sql.includes(`grant execute on function public.owner_transfer(uuid) to authenticated;`)
+    && cnt(/role in \('owner','admin','manager'\)/g) === 6 && cnt(/role in \('owner','manager'\)/g) === 0 && cnt(/create policy audit_logs_select/g) === 0,
+    J({ check: sql.includes("'admin'::text"), authRole: cnt(/CREATE OR REPLACE FUNCTION public\.auth_role\(\)/g), six: cnt(/role in \('owner','admin','manager'\)/g), old: cnt(/role in \('owner','manager'\)/g) }));
+  const r8 = JSON.parse(src("docs/tmp/0175_live_r8.json")) as { fnTotal: number | string; fnsOwner: string[]; polsOwner: unknown[]; ownerLiteralCount: number | string };
+  check("p175(12-6) R-8 読取の記録＝owner を含む RPC 210／314（literal 226）・RLS 70＝auth_role() の写しで全部に効く（★28 で書き換えた関数は 6 本＋新設 3 本だけ）", r8.fnsOwner.length === 210 && Number(r8.fnTotal) === 314 && r8.polsOwner.length === 70 && Number(r8.ownerLiteralCount) === 226, J([r8.fnsOwner.length, r8.fnTotal, r8.polsOwner.length, r8.ownerLiteralCount]));
+}
 __setRules0175ForTest(null); __setOkuri4wayForTest(null);
 check("p175(3-9) 上書きを戻す＝false", !rules0175On() && !okuri4wayOn());
 

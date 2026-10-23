@@ -15,6 +15,7 @@ import path from "node:path";
 import { createHash } from "node:crypto";
 import { groupDueFull } from "../../lib/nox/check-calc.ts";
 import { ADVANCES, SLIDES, EXTRA_PLANS, PROFILES, TRIAL, STAFF_DEMO, BONUS_TIERS, EXT_PATTERNS, sysSettingsOf, backOf as profileBackOf, canonOf, okuriModeOf as profileOkuriModeOf } from "./profiles.mjs"; // ★X-13c: 6 店の差別化（表＝docs/demo/store_profiles_20261009.md）
+import { RULES_0175_APPLIED } from "./rules-0175-flag.mjs"; // ★追補 3 R-8: デモ ACE の管理者はフラグ true のときだけ
 
 const SRC = JSON.parse(fs.readFileSync("docs/demo/source/20261001/nox_demo_all.json", "utf8"));
 const D = (k) => SRC.datasets[k].records;
@@ -114,6 +115,7 @@ for (const st of STORES) {
   const memb = (role, user, extra = {}) => push("memberships", { id: uid(`memb:${code}:${role}`), user_id: user, store_id: storeId, role, is_active: true, can_register: role !== "cast", can_crm: role !== "cast", can_shift: role !== "cast", can_view_backs: role !== "cast", can_close: role !== "cast", can_reopen: role === "owner" || role === "manager", ...extra });
   // memberships は org_id 列なし（demo_org_reset の例外）＝org_id を外す
   memb("owner", users.owner); memb("manager", users.manager); memb("staff", users.staff); memb("cast", users.cast);
+  if (RULES_0175_APPLIED && code === "ace") { users.admin = uid(`user:${code}:admin`); memb("admin", users.admin); } // ★追補 3 R-8（裁定425 候補・0175 v2 ★28）: デモ ACE に管理者 1 人（demo-ace-admin）＝フラグ true のときだけ（false は role CHECK に admin が無く load が落ちる＝payload 不変）。users 行と auth ユーザー・seed.ts DEMO_ROLES／env DEMO_USERS の ace:admin は Agoora の create-demo-orgs --apply（フラグ true の便）
   T.memberships = T.memberships.map(({ org_id: _o, ...r }) => r);
   // ★便 P173（ex_plan M173-2・0174 ★6）: 規約の同意（6 店＝本番 org の開通ゲートは demo で常に true だが器を埋める）
   push("terms_acceptances", { id: uid(`terms:${code}`), terms_version: "0.9", accepted_at: { $rel: -30, t: "12:00:00" }, accepted_by: users.owner });
