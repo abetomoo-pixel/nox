@@ -1,7 +1,7 @@
 # 0176 手貼り案内（Agoora 向け・2026-10-22 起草・便 0175／0176 起草＝401 LINE・399 の残り（スタッフ契約の書込・登録→招待・基本情報）・400 の残り（連絡先の履歴）・I-4 連絡の確認済み・SH-UI-b の 0176 行き 5 件）
 
 **結論 3 行**
-1. 本番 ref **hiqbfagmkrdpmlqhkmsu** の SQL Editor に **Downloads/0176_people_line_draft.sql** の全文を貼って Run（1 本だけ・所要 1 分）。**0175 の後**（users.contact_email／staff_contracts.pay_kind／memberships.hire_date を前提）・0177 の前。
+1. 本番 ref **hiqbfagmkrdpmlqhkmsu** の SQL Editor に **Downloads/0176_people_line_draft.sql** の全文を貼って Run（1 本だけ・所要 1 分）。**0175 v2 の後**（users.contact_email／staff_contracts.pay_kind／memberships.hire_date を前提・v1 は貼らない）・0177 の前。
 2. 中身＝①LINE 連携（stores.line_config／line_monthly_limit・line_links・line_bind_tokens・line_push_log・RPC 8＝Vault のシークレットは service_role だけ）②スタッフ契約の書込 staff_contract_set・登録→招待の 2 段（staff_invites＋create／accept）・本人の基本情報 member_profiles（申告→店が確定）③遅刻・当欠の連絡＝確認済み（attendance.ack_*）と履歴（attendance_contacts）④連絡先の変更履歴 contact_changes（set_my_contact を置換）⑤シフト＝期間ごとの必要人数・締切の自動遷移（cron 用 RPC）・本人の辞退・キャスト 1 人あて通知・宛先つきお知らせ。
 3. Success 後に **docs/demo/verify_0175_0176.sql（1 文）** を貼り、**返った行（ok 列）を CC へ貼る**（全行 true が期待）。
 
@@ -39,7 +39,7 @@ sha256sum ~/Downloads/0176_people_line_draft.sql
 |---|---|
 | ok 列 | 全行 true（0175→0176 の両方が入った状態） |
 | 「md5 不一致の関数名」の v | 空（set_my_contact は 0176 の値で一致） |
-| 「関数数」「表数」 | 349／99 |
+| 「関数数」「表数」 | 357／104 |
 
 **Success 表示は適用の証明にならない（恒久注意28）＝上の 1 文の返り値（ok 列）を貼ってから P177（0177_okuri_mode_4way_draft.sql・docs/tmp・sha16 e22bfcc3eb93625c）へ。**
 

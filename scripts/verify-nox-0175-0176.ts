@@ -1,5 +1,5 @@
 /*
- * verify:nox-0175-0176 — 0175（rules bundle）／0176（people・LINE）の DB 段（2026-10-22 起草・**実行は P175 の後**＝f0 への追加も P175 後）。
+ * verify:nox-0175-0176 — 0175 v2（rules bundle・2026-10-23 CN-R 追加）／0176（people・LINE）の DB 段（2026-10-22 起草・**実行は P175 の後**＝f0 への追加も P175 後）。
  *   Postgres 直結（SUPABASE_DB_URL・default_transaction_read_only）で introspection のみ＝書込なし。
  *   未適用（stores.punch_enforce が無い）なら SKIP で緑（exit 0）＝起草の時点で f0 に入れても害がない。P176 未適用なら 0176 の段だけ SKIP。
  *  (1) 0175: 新表 3・列（stores 9／comp_plans 2／payroll_adjustments 6／daily_pays 3／pricing_rules 2／staff_contracts 6／memberships 2／users 2）・引数（check_pay 10・receipt_issue 6・set_comp_plan 32・payroll_adjustment_add 14・punch_self 7）・旧 overload なし・
@@ -42,6 +42,20 @@ const cols = async (t: string, names: string[]) => n1(`select count(*)::text n f
   check("v175(1-7) 新表 3 の RLS 有効", (await n1(`select count(*)::text n from pg_class c join pg_namespace s on s.oid=c.relnamespace where s.nspname='public' and c.relname in ('punch_round_consents','availability','availability_terms') and c.relrowsecurity`)) === 3);
   check("v175(1-8) price_display の既定＝tax_excluded", (await q<{ d: string }>(`select column_default d from information_schema.columns where table_schema='public' and table_name='stores' and column_name='price_display'`))[0]?.d?.includes("tax_excluded") === true);
   check("v175(1-9) comp_plans.slide_method＝全行 sales／point／none（移行 SQL）", (await n1(`select count(*)::text n from public.comp_plans where slide_method not in ('sales','point','none')`)) === 0);
+  // v2（2026-10-23・CN-R／412 追補／R-4）
+  check("v175(1-10) v2 新表 5（plan_rate_bands／plan_norm_tiers／plan_event_bonuses／slide_decisions／cast_rate_history）・RLS 有効・authenticated SELECT のみ",
+    (await n1(`select count(*)::text n from pg_class c join pg_namespace s on s.oid=c.relnamespace where s.nspname='public' and c.relname in ('plan_rate_bands','plan_norm_tiers','plan_event_bonuses','slide_decisions','cast_rate_history') and c.relrowsecurity`)) === 5
+    && (await q<{ grantee: string; privs: string }>(`select grantee, string_agg(distinct privilege_type, ',') privs from information_schema.role_table_grants where table_schema='public' and table_name in ('plan_rate_bands','plan_norm_tiers','plan_event_bonuses','slide_decisions','cast_rate_history') and grantee in ('authenticated','anon','public') group by 1`)).every((g) => g.grantee === "authenticated" && g.privs === "SELECT"));
+  check("v175(1-11) v2 comp_plans 11 列・stores.service_rate_by_seat・slide_basis CHECK に pay_rate・attendance.status に dohan 行 0・CHECK に help／duty_absent",
+    (await cols("comp_plans", ["pay_rate_tiers", "slide_streak_n", "reward_axis", "assess_grace_months", "hon_back_unit", "jonai_back_unit", "dohan_back_unit", "product_back_rate_by_kind", "product_back_fixed_vip", "product_back_rate_vip", "reservation_back_tiers"])) === 11
+    && (await cols("stores", ["service_rate_by_seat"])) === 1
+    && (await n1(`select count(*)::text n from pg_constraint where conname='comp_plans_slide_basis_check' and pg_get_constraintdef(oid) like '%pay_rate%'`)) === 1
+    && (await n1(`select count(*)::text n from public.attendance where status='dohan'`)) === 0
+    && (await n1(`select count(*)::text n from pg_constraint where conname='attendance_status_check' and pg_get_constraintdef(oid) like '%duty_absent%' and pg_get_constraintdef(oid) not like '%dohan%'`)) === 1);
+  check("v175(1-12) v2 新設 RPC 8・comp_plan_pay_rate_check は内部専用・daily_pay_issue 6 引数 1 本",
+    (await n1(`select count(*)::text n from pg_proc where pronamespace='public'::regnamespace and proname in ('comp_plan_pay_rate_check','comp_plan_ext_set','plan_rate_band_set','plan_norm_tier_set','plan_event_bonus_set','slide_decision_propose','slide_decision_decide','cast_rate_history_add')`)) === 8
+    && (await n1(`select count(*)::text n from pg_proc where pronamespace='public'::regnamespace and proname='comp_plan_pay_rate_check' and coalesce(proacl::text,'') not like '%authenticated%'`)) === 1
+    && JSON.stringify((await q<{ pronargs: number; n: string }>(`select max(pronargs)::int pronargs, count(*)::text n from pg_proc where pronamespace='public'::regnamespace and proname='daily_pay_issue'`))[0]) === JSON.stringify({ pronargs: 6, n: "1" }));
   // (2) 0176（未適用なら SKIP）
   const applied176 = (await n1(`select count(*)::text n from pg_tables where schemaname='public' and tablename='line_links'`)) === 1;
   if (!applied176) {

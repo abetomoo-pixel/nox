@@ -6,11 +6,11 @@
 with pins(name, md5) as (
   values
       ('pt_rules_check','cc622435'),
-      ('check_pay','36ac408c'),
+      ('check_pay','3cb13667'),
       ('check_group_due','22428eed'),
       ('receipt_issue','3c277f65'),
-      ('set_store_profile','443590d9'),
-      ('set_comp_plan','c2269df9'),
+      ('set_store_profile','c65329e5'),
+      ('set_comp_plan','e9143f01'),
       ('cast_sales_aggregate','8fb314c5'),
       ('payroll_adjustment_add','9a089cad'),
       ('payroll_adjustment_cancel','540e9920'),
@@ -28,6 +28,16 @@ with pins(name, md5) as (
       ('availability_set','393a6d45'),
       ('availability_list','da9c6040'),
       ('set_my_contact','728ef975'),
+      ('attendance_set','031e9e21'),
+      ('daily_pay_issue','df0d58ff'),
+      ('comp_plan_pay_rate_check','4915a248'),
+      ('comp_plan_ext_set','13e8ab85'),
+      ('plan_rate_band_set','a1db0579'),
+      ('plan_norm_tier_set','ebc40f01'),
+      ('plan_event_bonus_set','aa2c32f9'),
+      ('slide_decision_propose','8b36e688'),
+      ('slide_decision_decide','d7677013'),
+      ('cast_rate_history_add','52da1c07'),
       ('set_store_line_config','71d050d9'),
       ('set_line_secret','9c478364'),
       ('get_line_secret','a7088f36'),
@@ -53,7 +63,10 @@ with pins(name, md5) as (
       ('notice_create_targets','9f407a40')
 ), r(mig, k, v, expected) as (
   select 'both', '貼り先証明 orgs', (select count(*) from public.orgs)::text, '9'
-  union all select '0175', '新表 3', (select count(*) from pg_tables where schemaname='public' and tablename in ('punch_round_consents','availability','availability_terms'))::text, '3'
+  union all select '0175', '新表 8（v2）', (select count(*) from pg_tables where schemaname='public' and tablename in ('punch_round_consents','availability','availability_terms','plan_rate_bands','plan_norm_tiers','plan_event_bonuses','slide_decisions','cast_rate_history'))::text, '8'
+  union all select '0175', 'comp_plans v2 列 11', (select count(*) from information_schema.columns where table_schema='public' and table_name='comp_plans' and column_name in ('pay_rate_tiers','slide_streak_n','reward_axis','assess_grace_months','hon_back_unit','jonai_back_unit','dohan_back_unit','product_back_rate_by_kind','product_back_fixed_vip','product_back_rate_vip','reservation_back_tiers'))::text, '11'
+  union all select '0175', 'stores.service_rate_by_seat／attendance の dohan 行 0', (select count(*) from information_schema.columns where table_schema='public' and table_name='stores' and column_name='service_rate_by_seat')::text || '/' || (select count(*) from public.attendance where status='dohan')::text, '1/0'
+  union all select '0175', 'v2 新設 RPC 8', (select count(*) from pg_proc where pronamespace='public'::regnamespace and proname in ('comp_plan_pay_rate_check','comp_plan_ext_set','plan_rate_band_set','plan_norm_tier_set','plan_event_bonus_set','slide_decision_propose','slide_decision_decide','cast_rate_history_add'))::text, '8'
   union all select '0175', 'stores 打刻列 9', (select count(*) from information_schema.columns where table_schema='public' and table_name='stores' and column_name in ('punch_enforce','punch_restrict_mode','punch_lat','punch_lng','punch_radius_m','punch_allow_ip','punch_require_shift','punch_round_unit','punch_round_mode'))::text, '9'
   union all select '0175', 'comp_plans slide_method／pt_rules', (select count(*) from information_schema.columns where table_schema='public' and table_name='comp_plans' and column_name in ('slide_method','pt_rules'))::text, '2'
   union all select '0175', 'products.pt／check_lines.fee_rate／daily_reports.other_cash_memo／punches.geo_override', (select count(*) from information_schema.columns where table_schema='public' and ((table_name='products' and column_name='pt') or (table_name='check_lines' and column_name='fee_rate') or (table_name='daily_reports' and column_name='other_cash_memo') or (table_name='punches' and column_name='geo_override')))::text, '4'
@@ -62,11 +75,11 @@ with pins(name, md5) as (
   union all select '0175', 'daily_pays 取消 3', (select count(*) from information_schema.columns where table_schema='public' and table_name='daily_pays' and column_name in ('cancelled_at','cancelled_by','cancel_reason'))::text, '3'
   union all select '0175', 'pricing_rules vip_timing／vip_ext_amount', (select count(*) from information_schema.columns where table_schema='public' and table_name='pricing_rules' and column_name in ('vip_timing','vip_ext_amount'))::text, '2'
   union all select '0175', 'staff_contracts 新列 6／memberships 2／users 2', (select count(*) from information_schema.columns where table_schema='public' and ((table_name='staff_contracts' and column_name in ('pay_kind','monthly','daily','min_month_h','max_month_h','max_consec')) or (table_name='memberships' and column_name in ('hire_date','leave_date')) or (table_name='users' and column_name in ('contact_email','phone'))))::text, '10'
-  union all select '0175', '引数 check_pay／receipt_issue／set_comp_plan／payroll_adjustment_add／punch_self', (select string_agg(proname || '=' || pronargs, ',' order by proname) from pg_proc where pronamespace='public'::regnamespace and proname in ('check_pay','receipt_issue','set_comp_plan','payroll_adjustment_add','punch_self')), 'check_pay=10,payroll_adjustment_add=14,punch_self=7,receipt_issue=6,set_comp_plan=32'
-  union all select '0175', '旧署名の残り（overload）', (select count(*) from pg_proc where pronamespace='public'::regnamespace and proname in ('check_pay','receipt_issue','set_comp_plan','payroll_adjustment_add','punch_self'))::text, '5'
+  union all select '0175', '引数 check_pay／receipt_issue／set_comp_plan／payroll_adjustment_add／punch_self', (select string_agg(proname || '=' || pronargs, ',' order by proname) from pg_proc where pronamespace='public'::regnamespace and proname in ('check_pay','receipt_issue','set_comp_plan','payroll_adjustment_add','punch_self','daily_pay_issue')), 'check_pay=10,daily_pay_issue=6,payroll_adjustment_add=14,punch_self=7,receipt_issue=6,set_comp_plan=32'
+  union all select '0175', '旧署名の残り（overload）', (select count(*) from pg_proc where pronamespace='public'::regnamespace and proname in ('check_pay','receipt_issue','set_comp_plan','payroll_adjustment_add','punch_self','daily_pay_issue'))::text, '6'
   union all select '0175', '新設 RPC 12', (select count(*) from pg_proc where pronamespace='public'::regnamespace and proname in ('pt_rules_check','payroll_adjustment_cancel','norm_shortfall_decide','daily_pay_cancel','set_cast_kind','set_pricing_rule_vip','staff_payroll_run_set_status','store_wifi_add','store_wifi_remove','availability_set','availability_list','set_my_contact'))::text, '12'
   union all select '0175', '内部専用 pt_rules_check に authenticated なし', (select count(*) from pg_proc where pronamespace='public'::regnamespace and proname='pt_rules_check' and coalesce(proacl::text, '') not like '%authenticated%')::text, '1'
-  union all select '0175', 'authenticated は SELECT のみ（新表 3）', (select coalesce(string_agg(distinct privilege_type, ','), '') from information_schema.role_table_grants where grantee='authenticated' and table_schema='public' and table_name in ('punch_round_consents','availability','availability_terms')), 'SELECT'
+  union all select '0175', 'authenticated は SELECT のみ（新表 8）', (select coalesce(string_agg(distinct privilege_type, ','), '') from information_schema.role_table_grants where grantee='authenticated' and table_schema='public' and table_name in ('punch_round_consents','availability','availability_terms','plan_rate_bands','plan_norm_tiers','plan_event_bonuses','slide_decisions','cast_rate_history')), 'SELECT'
   union all select '0175', 'anon の付与 0（新表 3）', (select count(*) from information_schema.role_table_grants where grantee='anon' and table_schema='public' and table_name in ('punch_round_consents','availability','availability_terms'))::text, '0'
   union all select '0175', 'price_display の既定＝外税', (select case when column_default like '%tax_excluded%' then 'tax_excluded' else coalesce(column_default, '') end from information_schema.columns where table_schema='public' and table_name='stores' and column_name='price_display'), 'tax_excluded'
   union all select '0176', '新表 9', (select count(*) from pg_tables where schemaname='public' and tablename in ('line_links','line_bind_tokens','line_push_log','staff_invites','member_profiles','attendance_contacts','contact_changes','shift_period_needs','cast_notifications'))::text, '9'
@@ -78,7 +91,7 @@ with pins(name, md5) as (
   union all select '0176', 'line_bind_tokens に authenticated／anon の付与 0', (select count(*) from information_schema.role_table_grants where grantee in ('authenticated','anon') and table_schema='public' and table_name='line_bind_tokens')::text, '0'
   union all select '0176', 'supabase_vault', (select count(*) from pg_extension where extname='supabase_vault')::text, '1'
   union all select 'both', 'md5 不一致の関数名（空＝全一致）', (select coalesce(string_agg(p.name, ',' order by p.name), '') from pins p left join pg_proc f on f.pronamespace='public'::regnamespace and f.proname = p.name and left(md5(replace(f.prosrc, E'\r', '')), 8) = p.md5 where f.oid is null), ''
-  union all select 'both', '関数数（0174 後 314＋12＋23＝349）', (select count(*) from pg_proc where pronamespace='public'::regnamespace)::text, '349'
-  union all select 'both', '表数（0174 後 87＋3＋9＝99）', (select count(*) from pg_tables where schemaname='public')::text, '99'
+  union all select 'both', '関数数（0174 後 314＋20（0175 v2）＋23（0176）＝357）', (select count(*) from pg_proc where pronamespace='public'::regnamespace)::text, '357'
+  union all select 'both', '表数（0174 後 87＋8（0175 v2）＋9（0176）＝104）', (select count(*) from pg_tables where schemaname='public')::text, '104'
 )
 select mig, k, v, expected, (v = expected) as ok from r;
