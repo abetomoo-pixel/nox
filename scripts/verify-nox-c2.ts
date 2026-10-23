@@ -230,6 +230,9 @@ check("c2(2-8) CSV・印刷用にも同じ列＝従来の 10 列＋時給分｜�
   const rows = [{ dow: 5, is_closed: false, open_hm: "20:00", close_hm: "25:00" }];
   const st = (iso: string) => businessHoursStatus(new Date(iso), rows, "06:00").status;
   check("c2(15-1) C2-20 ② 営業時間＝20:00 ちょうどは営業内・01:00（翌・終了ちょうど）は営業内・01:01 は時間外・19:59 は時間外（深夜またぎ＝営業日の曜日で判定）", st("2026-10-23T20:00:00+09:00") === "inside" && st("2026-10-24T01:00:00+09:00") === "inside" && st("2026-10-24T01:01:00+09:00") === "outside" && st("2026-10-23T19:59:00+09:00") === "outside", J([st("2026-10-23T20:00:00+09:00"), st("2026-10-24T01:00:00+09:00"), st("2026-10-24T01:01:00+09:00")]));
+  const rows24 = [{ dow: 5, is_closed: false, open_hm: "20:00", close_hm: "01:00" }]; // live（ACE）＝終了を 24h 表記「01:00」で保存している店
+  const st24 = (iso: string) => businessHoursStatus(new Date(iso), rows24, "06:00").status;
+  check("c2(15-1b) C2-20 ② 終了が開始以下（\"01:00\" の 24h 表記）＝翌日扱い＝22:30 と 01:00 は営業内・01:01 は時間外（live の ACE で 22:30 が時間外になっていた）", st24("2026-10-23T22:30:00+09:00") === "inside" && st24("2026-10-24T01:00:00+09:00") === "inside" && st24("2026-10-24T01:01:00+09:00") === "outside" && st24("2026-10-23T19:59:00+09:00") === "outside", J([st24("2026-10-23T22:30:00+09:00"), st24("2026-10-24T01:00:00+09:00"), st24("2026-10-24T01:01:00+09:00")]));
   const bd = castBadgesOf({ shifts: [{ cast_id: "a", start_hm: "20:00" }, { cast_id: "c", start_hm: "21:00" }], attendance: [{ cast_id: "b", status: "off" }, { cast_id: "c", status: "shukkin" }], seated: [{ castId: "c", seatName: "A3" }] });
   check("c2(15-2) C2-20 ③ 担当のバッジ＝出勤予定 20:00／休み（薄く）／着卓中（A3）が優先・無い人はバッジなし", bd.get("a")?.label === "出勤予定 20:00" && bd.get("b")?.label === "休み" && bd.get("b")?.tone === "muted" && bd.get("c")?.label === "着卓中（A3）" && !bd.has("d"), J([...bd.entries()]));
   const rp = src("app/(manage)/register/reservation-panel.tsx"), css = src("app/globals.css");
