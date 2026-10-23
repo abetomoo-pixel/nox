@@ -35,7 +35,7 @@ export default function LpPage() {
       <div style={{ ...t.wrap, maxWidth: 960, margin: "0 auto", padding: "28px 16px 40px" }}>
         {/* ヒーロー */}
         <header style={{ marginBottom: 26 }}>
-          <BrandLogo height={40} />{/* ★便 SH-UI-a A-2: ロゴ */}
+          <Link href="/lp" aria-label="ホームへ" className="nox-brandlink" data-brand-home="/lp"><BrandLogo height={40} /></Link>{/* ★便 SH-UI-a A-2: ロゴ・★便 SH-UI-b2 B2-2: /lp の先頭へ */}
           <h1 style={{ ...t.pheadH1, marginTop: 10, fontSize: 26, lineHeight: 1.35 }}>会計・シフト・報酬を 1 つに。<br />夜の店の運営を、数字で。</h1>
           <p style={{ ...t.pheadP, maxWidth: 640 }}>
             レジ・日報・シフト・給与（報酬）・顧客・分析を 1 つの画面で。店ごとの報酬制度（時給・バック・ポイント・スライド・ノルマ）を設定のとおりに計算します。

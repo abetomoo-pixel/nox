@@ -41,11 +41,11 @@ export function wageSpansOf(wdays: WageDayLike[], opts: { timePay?: number; spli
   return spans;
 }
 
-/** 区間の行ラベル。period 'YYYY-MM' があれば「10/1〜10/24」・無ければ日付なし。1 区間だけなら従来と同じ「時給 ¥n/h × h」 */
+/** 区間の行ラベル。period 'YYYY-MM' があれば「10/1〜10/24」（1 日だけなら「10/22」＝B2-0b）・無ければ日付なし。1 区間だけなら従来と同じ「時給 ¥n/h × h」 */
 export function wageSpanLabelOf(s: WageSpan, period: string | null | undefined, single: boolean): string {
   const yen = `¥${s.hourly.toLocaleString("en-US")}`;
   if (single) return `時給 ${yen}/h × ${s.hours}h`;
   const m = period ? Number(period.slice(5, 7)) : null;
-  const range = m ? `${m}/${s.fromD}〜${m}/${s.toD}・` : "";
+  const range = m ? (s.fromD === s.toD ? `${m}/${s.fromD}・` : `${m}/${s.fromD}〜${m}/${s.toD}・`) : "";   // ★便 SH-UI-b2 B2-0b: 1 日だけの区間は単日表記（10/22）
   return `時給 ${yen}/h × ${s.hours}h（${range}${s.kind}）`;
 }

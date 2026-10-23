@@ -35,7 +35,8 @@ import { detectTargetOf, type SettlementTarget } from "@/lib/nox/payroll/settlem
 import { KIND_LABEL, correctionSummaryOf, disputedOf, pendingOf, requestedLabelOf, termOf, type CorrectionRow, type PunchKind } from "@/lib/nox/shift/punch-correction";
 import { mdDowOf } from "@/lib/nox/shift/staff-place";
 // ★便 AU2／AU3（2026-09-24・週末バックログ 2／3）: 計画期間の進行段・期間ごとの帯と地色・確定シフトの「未確定」印・月セルの名前合成（純関数）
-import { PERIOD_STAGES, effectiveStageOf, isUnpublishedDay, periodBandText, periodIndexOfDate, periodStageOf, periodToneOf, stageIndexOf } from "@/lib/nox/shift/period-stage";
+import { PERIOD_STAGES, effectiveStageOf, isUnpublishedDay, periodBandText, periodStageOf, stageIndexOf } from "@/lib/nox/shift/period-stage";
+import { PERIOD_LEGEND, periodBoundaryClassOf, periodBoundaryOf, periodCellClassOf, periodCellStageOf, unprocessedWishIdsOf, wishRowsOf } from "@/lib/nox/shift/period-cell"; // ★便 SH-UI-b2 B2-1／B2-3: 日セルの地色＝期間の状態・提出一覧の行から希望を処理
 import { cellNamesOf } from "@/lib/nox/shift/cell-names";
 // ★0125（裁定112-A）: 自動配置 UI は撤去（autoAssign import ごと）。RPC/器（shift_auto_apply 等）は残置。
 import { shiftHoursStatus, fmtHoursLabel, type BusinessHourRow } from "@/lib/nox/business-hours";
@@ -912,7 +913,12 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   // ★SC-8 ⑦: タブ名は選択日に追従（key "today" は据え置き＝裁定44）。
   // ★便 AU2-2（2026-09-24）: 「作る」タブ上部＝計画期間の進行の帯（4 段・現在段を強調・期間と締切を併記）。月内に複数期間があれば期間ごとの帯（地色＝既存トークン 4 色の循環）と凡例。
   //   セルの地色＝その日が属する期間（選択中の日は .sel の地色を優先＝表示を変えない側）。RPC なし・取得済み periods の再形。
-  const periodBgOf = (ymd: string): React.CSSProperties | undefined => { const tone = periodToneOf(periodIndexOfDate(periods, ymd)); return tone ? { background: tone } : undefined; };
+  // ★便 SH-UI-b2 B2-1（裁定406）: 日セルの地色＝その日が属する期間の状態（募集中＝青／配置中＝黄／公開済み＝緑／期間なし＝灰＋「期間なし」の字）・境目は左右 1px（.pb-l／.pb-r）
+  const periodCellClsOf = (ymd: string) => `${periodCellClassOf(periodCellStageOf(periodsAll, ymd, bizToday))} ${periodBoundaryClassOf(periodBoundaryOf(periodsAll, ymd))}`.trim();
+  const periodNoneOf = (ymd: string) => periodCellStageOf(periodsAll, ymd, bizToday) === "none";
+  // 期間なしの日を押す＝①の新規作成フォームへ開始日を入れて遷移
+  const openNewPeriodAt = (ymd: string) => { resetPeriodForm(); setPStart(ymd); setPTouched(true); setPMsg(null); setDayModal(""); setTab("build"); };
+  const [openSubmitCast, setOpenSubmitCast] = useState<string | null>(null); // ★B2-3: 提出一覧で開いているキャスト
   // ★裁定406（便 SH-UI-b）: 手順ごとの期間＝実効段（締切を過ぎた募集中は配置中）・提出状況・不足日。DB 変更 0（状態の遷移は shift_period_set の p_status）
   const ymdAddOf = (ymd: string, n: number) => { const d = new Date(`${ymd}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
   const stageOfP = (p: Period) => effectiveStageOf(p, bizToday);
@@ -958,16 +964,10 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
           </div>
         );
       })()}
-      {periods.length > 1 && (
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", marginTop: 6 }}>
-          {periods.map((p, i) => (
-            <span key={p.id} className="num" style={{ fontSize: 11, padding: "2px 8px", borderRadius: 999, background: periodToneOf(i) ?? undefined, border: "1px solid var(--line)", color: "var(--ink)" }}>
-              {periodBandText(p)}・{periodStageOf(p.status)}
-            </span>
-          ))}
-          <span style={{ fontSize: 10.5, color: "var(--v2-muted)" }}>凡例: セルの地色＝その日が属する期間</span>
-        </div>
-      )}
+      {/* ★便 SH-UI-b2 B2-1: 凡例＝4 つ（色だけに頼らず語を出す・390px でも見える） */}
+      <div className="nox-plegend" data-period-legend="1" style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", marginTop: 6 }}>
+        {PERIOD_LEGEND.map(([k, label]) => <span key={k} className={`nox-plegend-it ${periodCellClassOf(k)}`} data-period-legend-item={k}><i /> {label}</span>)}
+      </div>
     </div>
   ) : null;
   const tdLabel = todayDate === bizToday ? "今日"
@@ -1644,11 +1644,50 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
               <div className="nox-rs"><div className="l">未提出</div><div className="v num" style={{ color: sub.not.length ? "var(--bad)" : undefined }}>{sub.not.length}<small>人</small></div></div>
             </div>
             <h3 style={{ fontSize: 13, margin: "12px 0 6px" }}>未提出</h3>
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }} data-shift-not-submitted="1">{sub.not.length === 0 ? <span style={{ fontSize: 12.5, color: "var(--sub)" }}>全員提出済みです。</span> : sub.not.map((c) => <span key={c.id} className="nox-stpill">{c.name}</span>)}</div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }} data-shift-not-submitted="1">{sub.not.length === 0 ? <span style={{ fontSize: 12.5, color: "var(--sub)" }}>全員提出済みです。</span> : sub.not.map((c) => <span key={c.id} className="nox-stpill" style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>{c.name}<button type="button" style={{ ...btnLight, ...t.btnSm, opacity: 0.5 }} disabled title="0176 適用後に送れます" data-submit-remind={c.id}>催促</button></span>)}</div>{/* ★B2-3: 催促＝通知の器（cast_notifications）は 0176＝無効表示 */}
             <h3 style={{ fontSize: 13, margin: "12px 0 6px" }}>提出済み</h3>
             <div style={{ overflowX: "auto" }}>
               <table className="nox-table" style={{ width: "100%" }}><thead><tr><th style={t.th}>キャスト</th><th style={t.th}>提出内容</th><th style={t.th}>最終提出</th></tr></thead>
-                <tbody>{sub.done.map((c) => <tr key={c.id} data-shift-submitted={c.id}><td style={t.td}>{c.name}</td><td style={t.td}>{c.work ? `出勤希望 ${c.work} 日` : ""}{c.work && c.off ? "・" : ""}{c.off ? `休み ${c.off} 日` : ""}</td><td className="num" style={t.td}>{c.last ? c.last.slice(5, 10).replace("-", "/") : "—"}</td></tr>)}{sub.done.length === 0 && <tr><td colSpan={3} style={{ ...t.td, color: "var(--sub)" }}>まだ提出はありません。</td></tr>}</tbody></table>
+                <tbody>{sub.done.map((c) => { const open = openSubmitCast === c.id; const rows = open ? wishRowsOf(wishAll, shifts, c.id, p) : []; const todo = unprocessedWishIdsOf(rows).filter((id) => { const w = rows.find((r) => r.wish.id === id)!.wish; return !closedOf(w.date, w.start_hm, w.end_hm); }); return (
+                  <Fragment key={c.id}>
+                    <tr data-shift-submitted={c.id} className={open ? "on" : ""} style={{ cursor: "pointer" }} onClick={() => setOpenSubmitCast(open ? null : c.id)} aria-expanded={open}>
+                      <td style={t.td}><span className="nox-link" style={{ fontWeight: 700 }}>{open ? "▾ " : "▸ "}{c.name}</span></td>
+                      <td style={t.td}>{c.work ? `出勤希望 ${c.work} 日` : ""}{c.work && c.off ? "・" : ""}{c.off ? `休み ${c.off} 日` : ""}</td>
+                      <td className="num" style={t.td}>{c.last ? c.last.slice(5, 10).replace("-", "/") : "—"}</td>
+                    </tr>
+                    {open && (
+                      <tr data-shift-submit-detail={c.id}><td colSpan={3} style={{ ...t.td, padding: "8px 6px 12px" }}>{/* ★便 SH-UI-b2 B2-3: そのキャスト・その期間の希望一覧＝③シフト配置と同じ RPC・同じ 4 状態（裁定380／345／406）。締切前でも処理できる */}
+                        <div className="nox-cta" style={{ marginBottom: 8 }}>
+                          <button type="button" style={{ ...btnDark, opacity: todo.length ? 1 : 0.45 }} disabled={!isManagerUp || todo.length === 0} data-submit-bulk={c.id}
+                            onClick={() => { void approveAllWishes(todo); }}>未処理を一括確定（{todo.length} 件）</button>
+                        </div>
+                        <div className="nox-wishrows" data-submit-rows={c.id}>
+                          {rows.length === 0 && <p style={{ fontSize: 12.5, color: "var(--sub)", margin: 0 }}>この期間の希望はありません。</p>}
+                          {rows.map((r) => (
+                            <div key={r.wish.id} className="nox-wishrow" data-wish-state={r.state}>
+                              <span className="num">{mdDowOf(r.wish.date)}</span>
+                              <span className="num">{(r.wish.kind ?? "work") === "off" ? "休み希望" : `${r.wish.start_hm}–${r.wish.end_hm}`}</span>
+                              <span className={`nox-stpill ${r.state === "確定" ? "ok" : r.state === "見送り" ? "ng" : r.state === "調整中" ? "warn" : ""}`}>{r.state}</span>
+                              <span className="nox-wishrow-acts">
+                                {r.state === "未処理" && isManagerUp && (r.wish.kind ?? "work") === "work" && (<>
+                                  <button type="button" style={{ ...btnDark, ...t.btnSm }} disabled={closedOf(r.wish.date, r.wish.start_hm, r.wish.end_hm)} title={closedOf(r.wish.date, r.wish.start_hm, r.wish.end_hm) ? "定休日のため採用できません（見送りは可）" : "希望どおり採用して確定"} onClick={() => void decide(r.wish.id, true)}>確定</button>
+                                  <button type="button" style={{ ...btnLight, ...t.btnSm }} onClick={() => { setAdjWish(r.wish); setWStart(r.wish.start_hm); setWEnd(r.wish.end_hm); }}>調整</button>
+                                  <button type="button" style={{ ...btnLight, ...t.btnSm }} onClick={() => void decide(r.wish.id, false)}>見送り</button>
+                                </>)}
+                                {r.state === "未処理" && isManagerUp && (r.wish.kind ?? "work") === "off" && (
+                                  <button type="button" style={{ ...btnLight, ...t.btnSm }} onClick={() => void decide(r.wish.id, false)}>見送り</button>
+                                )}
+                                {r.state === "調整中" && r.shift && isManagerUp && (
+                                  <button type="button" style={{ ...btnLight, ...t.btnSm }} onClick={() => { setAdjTarget(r.shift!); setAStart(r.shift!.start_hm); setAEnd(r.shift!.end_hm); }}>再調整</button>
+                                )}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </td></tr>
+                    )}
+                  </Fragment>
+                ); })}{sub.done.length === 0 && <tr><td colSpan={3} style={{ ...t.td, color: "var(--sub)" }}>まだ提出はありません。</td></tr>}</tbody></table>
             </div>
           </>)}
         </section>
@@ -1947,12 +1986,13 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                 if (!ymd) return <div key={`b${i}`} />;
                 const st = dayStat(ymd);
                 const fc = fcOf(ymd);
-                const cls = ["nox-cald", st.fill, isPast(ymd) ? "past" : "", ymd === selDate ? "sel" : "", ymd === bizToday ? "today" : ""].filter(Boolean).join(" ");
+                const cls = ["nox-cald", st.fill, isPast(ymd) ? "past" : "", ymd === selDate ? "sel" : "", ymd === bizToday ? "today" : "", periodCellClsOf(ymd)].filter(Boolean).join(" ");   // ★B2-1: 地色＝期間の状態
                 return (
-                  <button key={ymd} className={cls} style={ymd === selDate ? undefined : periodBgOf(ymd)} /* ★AU2-2: 地色＝期間 */
-                    onClick={() => { setSelDate(ymd); setDayModal("calendar"); }}
+                  <button key={ymd} className={cls} data-period-stage={periodCellStageOf(periodsAll, ymd, bizToday)}
+                    onClick={() => { if (periodNoneOf(ymd) && isManagerUp) { openNewPeriodAt(ymd); return; } setSelDate(ymd); setDayModal("calendar"); }} /* ★B2-1: 期間なしの日＝①の新規作成へ */
                     title={`${ymd}・${FILL_LABEL[st.fill]}（確定${st.confirmed}/確認待ち${st.proposed}/予定${st.planned}）${st.over > 0 ? `・余剰${st.over}` : ""}`}>
                     <span className="nox-cald-n num">{Number(ymd.slice(8))}</span>
+                    {periodNoneOf(ymd) && <span className="nox-cald-pn">期間なし</span>}
                     {/* 段0R その3: 状態バッジ文字（モック .st ok/warn/ng/none 逐語）。色だけでなく語で伝える。 */}
                     <span className={`nox-caldst ${st.fill}`}>{FILL_LABEL[st.fill]}</span>
                     {st.required > 0 && <span className="nox-cald-c num">{st.assigned}/{st.required}</span>}
@@ -2217,9 +2257,9 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                   const day = shifts.filter((x) => x.date === ymd);
                   const auto = day.filter((x) => x.source === "auto").length;
                   const man = day.length - auto;
-                  const cls = ["nox-cald", st.fill, isPast(ymd) ? "past" : "", ymd === selDate ? "sel" : "", ymd === bizToday ? "today" : ""].filter(Boolean).join(" ");
+                  const cls = ["nox-cald", st.fill, isPast(ymd) ? "past" : "", ymd === selDate ? "sel" : "", ymd === bizToday ? "today" : "", periodCellClsOf(ymd)].filter(Boolean).join(" ");   // ★B2-1
                   return (
-                    <button key={ymd} className={cls} style={ymd === selDate ? undefined : periodBgOf(ymd)} /* ★AU2-2: 地色＝期間 */
+                    <button key={ymd} className={cls} data-period-stage={periodCellStageOf(periodsAll, ymd, bizToday)} /* ★B2-1: 地色＝期間の状態 */
                       onClick={() => { setSelDate(ymd); setDayModal("build"); }}
                       title={`${ymd}・自動${auto}件 / 手修正${man}件`}>
                       <span className="nox-cald-n num">{Number(ymd.slice(8))}</span>

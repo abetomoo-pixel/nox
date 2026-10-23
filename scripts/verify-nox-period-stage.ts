@@ -37,7 +37,7 @@ check("ps(3-2) periodToneOf 4 色循環・-1 は null", periodToneOf(0) === "var
 check("ps(3-3) isUnpublishedDay: open の日 true・published の日 false・期間なしの日 false", isUnpublishedDay([A, B, C], "2026-10-05") && !isUnpublishedDay([A, B, C], "2026-10-20") && !isUnpublishedDay([A, B, C], "2026-12-01") && isUnpublishedDay([A, B, C], "2026-11-03"));
 // (4)
 const sb = fs.readFileSync("app/(manage)/shift/shift-board.tsx", "utf8");
-check("ps(4-1) shift-board: 進行の帯（periodStageOf・stageIndexOf）・期間の帯と凡例（periodToneOf）・セル背景（periodIndexOfDate）・確定シフトの「未確定」（isUnpublishedDay）", /periodStageOf\(/.test(sb) && /stageIndexOf\(/.test(sb) && /periodToneOf\(/.test(sb) && /periodIndexOfDate\(/.test(sb) && /isUnpublishedDay\(/.test(sb) && /未確定/.test(sb));
+check("ps(4-1) shift-board: 進行の帯（periodStageOf・stageIndexOf）・セル背景と凡例＝期間の状態（★便 SH-UI-b2 B2-1: periodCellStageOf／PERIOD_LEGEND・旧 periodToneOf／periodIndexOfDate は使わない）・確定シフトの「未確定」（isUnpublishedDay）", /periodStageOf\(/.test(sb) && /stageIndexOf\(/.test(sb) && /periodCellStageOf\(/.test(sb) && /PERIOD_LEGEND\.map\(/.test(sb) && !/periodToneOf\(/.test(sb) && /isUnpublishedDay\(/.test(sb) && /未確定/.test(sb));
 
 if (fails.length) {
   console.error(`FAIL ${fails.length} 件 / pass ${pass}`);

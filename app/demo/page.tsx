@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import BrandLogo from "@/components/ui/brand-logo"; // ★便 SH-UI-a A-2: ロゴ（Concept 2 改）
 import * as t from "@/lib/nox/ui/theme";
 import { Suspense } from "react";
@@ -25,7 +26,7 @@ export default function DemoPage() {
     <div className="nox-dark" style={t.appBg}>
       <div style={{ ...t.wrap, maxWidth: 760, margin: "0 auto", padding: "28px 16px" }}>
         <header style={{ marginBottom: 18 }}>
-          <BrandLogo height={34} />{/* ★便 SH-UI-a A-2: ロゴ */}
+          <Link href="/demo" aria-label="ホームへ" className="nox-brandlink" data-brand-home="/demo"><BrandLogo height={34} /></Link>{/* ★便 SH-UI-a A-2: ロゴ・★便 SH-UI-b2 B2-2: /demo の先頭へ */}
           <h1 style={{ ...t.pheadH1, marginTop: 8 }}>デモを試す</h1>
           <p style={t.pheadP}>店と役割を選ぶと、そのままログインした状態で画面が開きます（パスワードやメールの入力はありません）。デモの入力内容は他の閲覧者にも見え、{DEMO_RESET_TIME_JA}に初期状態へ戻ります。</p>
         </header>

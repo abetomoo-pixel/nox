@@ -20,7 +20,7 @@ import { NavIcon } from "./nav-icons";
 //   モックの `.brand`＝「N（brandmark 37px）／NOX／店名」と同一構成。
 //   ★モックの `.sidefoot` は**ページ状態行**（「最終更新 15:58」「LINE通知 正常」等）で、
 //     NOX に対応するデータが無いため**描かない**（無いものを埋めるとナビに新情報を足すことになる）。
-export default function SideNav({ groups, storeLabel }: {
+export default function SideNav({ groups, storeLabel , homeHref = "/" }: { /** ★便 SH-UI-b2 B2-2: ロゴのリンク先（オーナー／店長＝/・キャスト＝/mine） */ homeHref?: string;
   groups: NavGroup[];
   storeLabel?: string;
 }) {
@@ -54,8 +54,8 @@ export default function SideNav({ groups, storeLabel }: {
     )}
     <aside className={`nox-side${mode === "rail" ? " is-rail" : mode === "hidden" ? " is-hidden" : ""}`} data-side-mode={mode}>
       {/* E2: モック .brand（brandmark＋NOX＋店名）。リンクではない＝遷移を増やさない。 */}
-      <div className="brand">{/* ★便 SH-UI-a A-2: 「N／NOX」の文字ロゴ→横組みロゴ（暗地）。店名は従来のまま小字 */}
-        <BrandLogo height={34} />
+      <div className="brand">{/* ★便 SH-UI-a A-2: 「N／NOX」の文字ロゴ→横組みロゴ（暗地）。店名は従来のまま小字。★便 SH-UI-b2 B2-2: ロゴ＝その role のホームへ */}
+        <Link href={homeHref} aria-label="ホームへ" className="nox-brandlink" data-brand-home={homeHref}><BrandLogo height={34} /></Link>
         {storeLabel && <div><small>{storeLabel}</small></div>}
       </div>
       {groups.map((g, gi) => (
