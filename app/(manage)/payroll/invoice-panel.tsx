@@ -96,7 +96,7 @@ export default function InvoicePanel({ storeId, period, isOwner }: { storeId: st
 
   return (
     <section className="nox-cardtop" style={{ ...t.card, marginTop: 18 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      <div className="nox-taxhead" style={{ display: "flex", alignItems: "center", gap: 10 }}>{/* ★便 PR-1 R-5 ①: 390px＝「再読込」を中央・幅 100% */}
         {/* E5b: t.cardTitle の再発明（800/champ）を本定数へ。パネル最上位見出しの 15px と margin はローカル上書き＝算出値は不変 */}
         <h2 style={{ ...t.cardTitle, fontSize: 15, margin: 0 }}>インボイス・支払調書</h2>
         <button onClick={() => void load()} disabled={busy} style={{ ...t.btnGhost, ...t.btnSm, marginLeft: "auto" }}>
@@ -124,8 +124,8 @@ export default function InvoicePanel({ storeId, period, isOwner }: { storeId: st
               （対象: {noMynumber.map((r) => r.castName).join("、")}）。
             </p>
           )}
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 12.5 }}>
+          <div className="nox-tablewrap plain nox-invwrap">{/* ★便 PR-1 R-5 ②: 1,024px 以上は表（横スクロールは器の中・本体は動かない）・390px はカード型（.nox-invtable） */}
+            <table className="nox-invtable" style={{ borderCollapse: "collapse", width: "100%", fontSize: 12.5 }}>
               <thead>
                 <tr>
                   <th style={t.th}>キャスト</th>
@@ -140,10 +140,10 @@ export default function InvoicePanel({ storeId, period, isOwner }: { storeId: st
               </thead>
               <tbody>
                 {rows.map((r) => (
-                  <tr key={r.castId}>
-                    <td style={t.td}>{r.castName}</td>
-                    <td style={{ ...t.td, ...t.num, textAlign: "right" }}>{r.withholding != null ? `¥${r.withholding.toLocaleString()}` : "—"}</td>
-                    <td style={t.td}>
+                  <tr key={r.castId} data-inv-row={r.castId}>
+                    <td style={t.td} data-label="キャスト" className="inv-name">{r.castName}</td>
+                    <td style={{ ...t.td, ...t.num, textAlign: "right" }} data-label="源泉">{r.withholding != null ? `¥${r.withholding.toLocaleString()}` : "—"}</td>
+                    <td style={t.td} data-label="区分">
                       {/* ★未登録は「未設定」を選択状態にする（invoice セレクトと同じ形）。
                           value={r.mode ?? "委託"} だと未登録でも「報酬」が選択済みに見え、
                           そのまま「報酬」を選んでも値が変わらず change が発火せず保存されない
@@ -151,33 +151,33 @@ export default function InvoicePanel({ storeId, period, isOwner }: { storeId: st
                       <SegSelect value={r.mode ?? ""} onChange={(v) => { if (!v) return; void saveTax(r, { mode: v }); }}
             options={[["", "未設定"], ["委託", "報酬"], ["雇用", "給与"]] as const} disabled={busy} />
                     </td>
-                    <td style={t.td}>
+                    <td style={t.td} data-label="インボイス" className="inv-seg">
                       {r.mode !== "雇用" ? (
                         <SegSelect value={r.invoice ?? ""} onChange={(v) => void saveTax(r, { invoice: v || null })}
             options={[["", "—"], ["課税", "登録"], ["免税", "免税"]] as const} disabled={busy} />
                       ) : <span style={t.sub}>—</span>}
                     </td>
-                    <td style={t.td}>
+                    <td style={t.td} data-label="登録番号" className={r.invoice === "課税" ? "inv-opt" : "inv-opt inv-empty"}>
                       {r.invoice === "課税" ? (
                         <RegNoInput initial={r.regNo ?? ""} disabled={busy} onSave={(v) => void saveTax(r, { regNo: v })} />
                       ) : <span style={t.sub}>—</span>}
                     </td>
                     {/* mig0073: 登録の効力期間・通知受領日（登録＝課税のときだけ意味を持つ＝登録番号と同じ出し分け） */}
-                    <td style={t.td}>
+                    <td style={t.td} data-label="登録の効力発生日" className={r.invoice === "課税" ? "inv-opt" : "inv-opt inv-empty"}>
                       {r.invoice === "課税" ? (
                         <input type="date" value={r.regValidFrom ?? ""} disabled={busy}
                           onChange={(e) => void saveTax(r, { regValidFrom: e.target.value || null })}
                           style={{ ...t.input, width: "auto", padding: "4px 8px", fontSize: 12 }} />
                       ) : <span style={t.sub}>—</span>}
                     </td>
-                    <td style={t.td}>
+                    <td style={t.td} data-label="失効日" className={r.invoice === "課税" ? "inv-opt" : "inv-opt inv-empty"}>
                       {r.invoice === "課税" ? (
                         <input type="date" value={r.regValidTo ?? ""} disabled={busy}
                           onChange={(e) => void saveTax(r, { regValidTo: e.target.value || null })}
                           style={{ ...t.input, width: "auto", padding: "4px 8px", fontSize: 12 }} />
                       ) : <span style={t.sub}>—</span>}
                     </td>
-                    <td style={t.td}>
+                    <td style={t.td} data-label="登録通知受領日" className={r.invoice === "課税" ? "inv-opt" : "inv-opt inv-empty"}>
                       {r.invoice === "課税" ? (
                         <input type="date" value={r.regNotifiedOn ?? ""} disabled={busy}
                           onChange={(e) => void saveTax(r, { regNotifiedOn: e.target.value || null })}
@@ -191,7 +191,7 @@ export default function InvoicePanel({ storeId, period, isOwner }: { storeId: st
           </div>
 
           {isOwner && (
-            <div style={{ display: "flex", gap: 8, alignItems: "flex-end", marginTop: 12 }}>
+            <div className="nox-taxcard nox-taxcsv" style={{ display: "flex", gap: 8, alignItems: "flex-end", marginTop: 12, flexWrap: "wrap" }}>{/* ★便 PR-1 R-5 ①: 390px＝支払調書CSV を中央・幅 100% */}
               <label style={{ fontSize: 12, color: "var(--sub)" }}>支払調書 暦年<br />
                 <input value={year} onChange={(e) => setYear(e.target.value)} style={{ ...t.input, width: 80, padding: "8px 10px", fontSize: 13 }} maxLength={4} />
               </label>

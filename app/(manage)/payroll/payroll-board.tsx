@@ -15,7 +15,7 @@ import { OPS_DEFAULT, opsProfileOf, type OpsProfile } from "@/lib/nox/store/ops-
 import { finalizedPeriodsOf } from "@/lib/nox/payroll/list-periods"; // ★X-13-28: 確定済みの月の印
 //残す）
 import { totalDeductionsOf, frozenAdjustmentKeys, type FrozenAdjustment } from "@/lib/nox/payroll/adjust";
-import { breakdownLinesOf, hoursCellOf } from "@/lib/nox/payroll/breakdown-lines"; // ★裁定303: 支給／控除の行は PayslipSlip と同じ単一関数・一覧の「打刻なし」 // 裁定264-3: 控除計の式は 1 本に集約／264-10: 明細プレビューの凍結形
+import { breakdownLinesOf, hoursCellOf , type BreakdownPayLike } from "@/lib/nox/payroll/breakdown-lines"; // ★裁定303: 支給／控除の行は PayslipSlip と同じ単一関数・一覧の「打刻なし」 // 裁定264-3: 控除計の式は 1 本に集約／264-10: 明細プレビューの凍結形
 import Modal from "@/components/ui/modal"; // ★裁定265: 調整行の削除理由はモーダル（window.prompt は使わない）
 import { PAYMENT_METHODS, paymentMethodLabelOf, type PaymentMethod } from "@/lib/nox/payroll/payment-method"; // ★裁定340（便 X-13d-2a）: 支払ダイアログの方法
 import { bulkPlanOf, bulkSummaryOf, payDialogDefaultsOf, payDialogErrorOf, remainingOf, type BulkResult, type PayDialogDraft, type PayLine } from "@/lib/nox/payroll/pay-record"; // ★裁定340
@@ -956,7 +956,7 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
                 // ★裁定303-1／303-2: 支給／控除の行＝PayslipSlip と同じ単一関数（同じ行・同じ順・同じ値）。残り物の行（旧「その他」系の合算行）は作らない。
                 //   preview は凍結前＝調整控除の理由行は breakdown.adjustmentsShown（264-10）・extras は gross に内在（裁定26＝二重加算しない）
                 const bd = breakdownLinesOf({ systems: storeSettings as Record<string, unknown> | null, /* ★便 GV-C C-10（GV-53） */
-                  pay, extras: r.breakdown?.extras ?? [],
+                  pay: pay as unknown as BreakdownPayLike, extras: r.breakdown?.extras ?? [], period, splitAtD: (pay.slideBasis as { apply?: string } | undefined)?.apply === "half" ? [16] : undefined, // ★便 PR-1 R-2（裁定416）: 区間行の日付・半月判定は 16 日で切る
                   adjustments: { before: (r.adjustmentsShown ?? []).filter((a) => a.before_withholding), after: (r.adjustmentsShown ?? []).filter((a) => !a.before_withholding) }, // 264-10: preview が行に載せる凍結形
                 });
                 const adjMine = adjRows.filter((a) => a.cast_id === r.castId);
@@ -1232,7 +1232,7 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
               <p style={{ fontSize: 11, color: "var(--sub)", margin: "4px 0 0" }}>合計 <span className="num">¥{openBal.reduce((s, b) => s + b.open_total, 0).toLocaleString()}</span></p>
             </div>
           )}
-          <a href="/master/cast-comp/deduction" className="nox-link" style={{ display: "inline-block", marginTop: 8, fontSize: 12 }}>控除・送り（前借りの発行・取消）へ ›</a>
+          <a href="/master/cast-comp/deduction" className="nox-link nox-wraplink" style={{ display: "inline-block", marginTop: 8, fontSize: 12 }}>控除・送り（前借りの発行・取消）へ ›</a>{/* ★便 PR-1 R-5 ③: 折り返して切れない */}
         </section>
       )}
 
@@ -1241,7 +1241,7 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
       {/* D3 給与明細CSV（確定済み run のみ活性・全cast の支給/控除/差引・振込フォーマットではない＝口座なし）。
           支払調書CSV（invoice-panel＝源泉/インボイス・委託のみ・暦年）とは別物。 */}
       {storeId && (
-        <section className="nox-cardtop" style={{ ...t.card, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+        <section className="nox-cardtop nox-taxcard" style={{ ...t.card, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }} data-taxcard="csv">{/* ★便 PR-1 R-5: 390px＝主ボタン中央・幅 100% */}
           <div style={{ flex: 1, minWidth: 220 }}>
             <h3 style={{ ...t.cardTitle, margin: "0 0 4px" }}>給与明細CSV</h3>
             <p style={{ fontSize: 12, color: "var(--sub)", margin: 0 }}>
@@ -1268,7 +1268,7 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
           className={printRows && printRows.length > 0 ? "nox-cardtop nox-print" : "nox-cardtop nox-noprint"}
           style={{ ...t.card }}
         >
-          <div className="nox-noprint" style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+          <div className="nox-noprint nox-taxcard" style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }} data-taxcard="print">{/* ★便 PR-1 R-5 */}
             <div style={{ flex: 1, minWidth: 220 }}>
               <h3 style={{ ...t.cardTitle, margin: "0 0 4px" }}>報酬明細（印刷 / PDF）</h3>
               <p style={{ fontSize: 12, color: "var(--sub)", margin: 0 }}>

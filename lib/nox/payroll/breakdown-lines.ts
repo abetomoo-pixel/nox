@@ -8,11 +8,13 @@
 //   ★extras（出勤ボーナス等）は gross に内在（裁定26）＝行としては出すが合計に二重加算しない。
 import { periodLabelOf } from "./slide"; // ★裁定338（0168・便 P168）
 import type { FrozenAdjustment } from "./adjust";
+import { wageSpanLabelOf, wageSpansOf } from "./wage-spans"; // ★便 PR-1 R-2（裁定416）: 時給の区間行
 
 export type BreakdownPayLike = {
   wage?: number; wHours?: number; timePay?: number;
   payRule?: { rule?: string; guaranteedHours?: number; fixedAmount?: number; calcDays?: number; periodDays?: number; perShiftAmount?: number; shiftCount?: number } | null;
   guarantee?: { spans: { from: string; to: string | null; base: number }[]; baseHours: number; basePay: number; guaHours: number; guaPay: number } | null;
+  wdays?: { d: number; hours: number; hourly: number; basis: string; gua?: boolean }[]; // ★便 PR-1 R-2（裁定416）: 営業日ごとの時給＝区間行の元（凍結 pay にも入っている）
   slideBasis?: { apply?: string; provisional?: boolean; months: { month: string; prevMonth: string; sales: number; pts: number; salesWage: number; ptsWage: number }[]; basis?: string; scope?: { rankIds: string[]; castRankId: string | null; excluded: boolean } } | null; // ★裁定343: basis／scope
   honBack?: number; jonaiBack?: number; dohanBack?: number;
   drinkBack?: number; champBack?: number; bottleBack?: number; calculatedBack?: number; salesBack?: number;
@@ -44,6 +46,10 @@ export type BreakdownInput = {
   /** ★裁定414（S-4 ④）: 送りの控除を方式で分けた額（分かるときだけ）。渡されたら「送り立替」「送り（定額）」の 2 行・無ければ従来の「送り」1 行 */
   okuriModes?: { actual: number; flat: number };
   employment?: "委託" | "雇用" | null;
+  /** ★便 PR-1 R-2（裁定416）: 期（'YYYY-MM'）＝区間行の日付「10/1〜10/24」に使う。無ければ日付なし */
+  period?: string | null;
+  /** ★便 PR-1 R-2: 区間を必ず切る日番号（半月判定＝[16]＝判定日を境に 2 区間）。無ければ時給／区分の変化だけで切る */
+  splitAtD?: number[];
   /** ★便 GV-C C-10（GV-53）: 店の利用機能（settings_json の sys_*）。渡すと OFF の制度の行は金額 0 なら省き・0 でなければ「（OFF の制度）」を付けて残す。未指定＝従来どおり */
   systems?: Record<string, unknown> | null;
 };
@@ -67,6 +73,16 @@ const md = (iso: string) => `${Number(iso.slice(5, 7))}/${Number(iso.slice(8, 10
 /** 源泉行のラベル（凍結 taxMode・旧データは「源泉」） */
 export function whLabelOf(taxMode: string | null | undefined): string {
   return taxMode === "委託" ? "源泉（報酬・料金）" : taxMode === "雇用" ? "源泉（給与）" : "源泉";
+}
+
+/** ★便 PR-1 R-2（裁定416）: 時給の区間行。actual で wdays があり区間が 2 つ以上なら区間ごとに 1 行（Σ＝timePay）。それ以外は timeLineOf の 1 行 */
+export function timeLinesOf(pay: BreakdownPayLike, opts: { period?: string | null; splitAtD?: number[] } = {}): BreakdownLine[] {
+  const rule = pay.payRule?.rule ?? "actual";
+  if (rule === "actual" && pay.wdays && pay.wdays.length > 0) {
+    const spans = wageSpansOf(pay.wdays, { timePay: z(pay.timePay), splitAtD: opts.splitAtD });
+    if (spans.length >= 2) return spans.map((s, i) => ({ key: `timePay-${i + 1}`, label: wageSpanLabelOf(s, opts.period, false), amount: s.pay }));
+  }
+  return [timeLineOf(pay)];
 }
 
 /** 時間行（303-2）＝報酬型ごとの 1 行。常に返す（0 でも出す） */
@@ -100,9 +116,10 @@ export function breakdownLinesOf(input: BreakdownInput): Breakdown {
     if (!on && amount === 0) return; // ★便 GV-C C-10: OFF の制度は 0 の行を出さない（keepZero でも）
     earn.push({ key, label: on ? label : `${label}（OFF の制度）`, amount, ...(opts.sub ? { sub: true } : {}), ...(opts.info ? { info: true } : {}) });
   };
-  // 時間（303-2＝常に出す）
-  earn.push(timeLineOf(p));
-  if (p.guarantee) {
+  // 時間（303-2＝常に出す）。★PR-1 R-2（裁定416）: 時給が変わる期は区間ごとの行（保証→基本・半月判定の判定日）＝そのときは「うち基本／うち保証」の補助行は出さない（区間行が代わり）
+  const timeLines = timeLinesOf(p, { period: input.period, splitAtD: input.splitAtD });
+  earn.push(...timeLines);
+  if (p.guarantee && timeLines.length === 1) {
     push("guaBase", `　うち基本（${p.guarantee.baseHours}h）`, z(p.guarantee.basePay), { keepZero: true, sub: true });
     push("guaPay", `　うち保証 ${p.guarantee.spans.map((s) => `${md(s.from)}〜${s.to ? md(s.to) : ""} ${yen(s.base)}`).join("／")}（${p.guarantee.guaHours}h）`, z(p.guarantee.guaPay), { keepZero: true, sub: true });
   }

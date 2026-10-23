@@ -53,7 +53,7 @@ export const TRIAL = {
   muse: { base: 1500, gua: 2300, from: 0, to: 2, cast: "まり" },
   luna: { base: 2000, gua: 3000, from: 0, to: 2, cast: "まい" },
   noir: { base: 2500, gua: 3500, from: 0, to: 2, cast: "こころ" },
-  ace: { base: 2200, gua: 3200, from: 0, to: 2, cast: "るな" },
+  ace: { base: 2200, gua: 3200, from: 0, to: 2, cast: "るな", guaFromMonthStart: true, guaToRel: -2 }, // ★便 PR-1 R-3（裁定416）: 保証＝当月 1 日〜R−2（開始日を明示）・R−1 以降は基本 2,200＝10 月の支給が 2 行（保証／基本）
   lily: { base: 1300, gua: 1800, from: 0, to: 2, cast: "ゆな" },
   nest: { base: 1200, gua: 1800, from: -5, to: -3, cast: "レン" },
 };

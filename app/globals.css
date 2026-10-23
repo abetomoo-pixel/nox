@@ -2521,6 +2521,27 @@ body {
 .nox-castgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(94px, 1fr)); gap: 8px; }
 .nox-castgrid[data-dense] { grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); }
 @media (max-width: 430px) { .nox-castgrid, .nox-castgrid[data-dense] { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+/* ★便 PR-1 R-5（2026-10-23）: 給与「税務・出力」＝390px では主ボタン中央・カード内 100%（裁定406 の主ボタン中央の規則を給与の全カードに）・インボイス表はカード型（1 人 1 枚）・リンクは折り返す */
+.nox-wraplink { white-space: normal; overflow-wrap: anywhere; }
+.nox-invwrap { max-width: 100%; }
+@media (max-width: 600px) {
+  .nox-taxcard { flex-direction: column; align-items: stretch; }
+  .nox-taxcard > button, .nox-taxcard > label { width: 100%; max-width: 100%; margin-left: 0; }
+  .nox-taxcard > button { justify-content: center; text-align: center; }
+  .nox-taxcard > span { text-align: center; }
+  .nox-taxhead { flex-wrap: wrap; }
+  .nox-taxhead > button { width: 100%; margin-left: 0 !important; justify-content: center; }
+  .nox-invwrap { overflow: visible; border: 0; background: transparent; }
+  .nox-invtable, .nox-invtable tbody, .nox-invtable tr, .nox-invtable td { display: block; width: 100%; }
+  .nox-invtable thead { display: none; }
+  .nox-invtable tr { border: 1px solid var(--line); border-radius: 10px; background: var(--card); padding: 8px 10px; margin: 0 0 8px; }
+  .nox-invtable td { border: 0 !important; padding: 4px 0 !important; text-align: left !important; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .nox-invtable td::before { content: attr(data-label); flex: 0 0 7.5em; font-size: 11px; color: var(--sub); }
+  .nox-invtable td.inv-name { font-weight: 700; font-size: 14px; }
+  .nox-invtable td.inv-name::before { display: none; }
+  .nox-invtable td.inv-seg .nox-seg { display: inline-flex; flex-wrap: nowrap; }
+  .nox-invtable td.inv-opt.inv-empty { display: none; }
+}
 /* ★裁定406（便 SH-UI-b・2026-10-22）: シフト作成の手順 4 段（PC 4 列・≤899 2 列・≤600 縦 1 列）・主ボタン中央（.nox-cta）・期間の切替（.nox-ptabs）・不足日・段のピル */
 .nox-steps { list-style: none; margin: 0 0 10px; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
 .nox-steps button { width: 100%; display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--sub); text-align: left; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; min-height: 48px; }

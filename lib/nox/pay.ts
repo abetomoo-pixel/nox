@@ -98,6 +98,7 @@ export type WageDay = {
   hours: number;
   hourly: number;
   basis: WageBasis;
+  gua?: boolean; // ★便 PR-1 R-2（裁定416）: 保証行が効いた日（basis の「保証」は基本時給の日にも付く＝区間の区分はこの印で分ける）
 };
 
 // ★夜間便 N3（裁定287-5・2026-09-18）: キャスト個別・期限つきの保証時給（cast_plan.overrides_json.guarantee=true の行）を営業日単位で base に当てる。
@@ -435,7 +436,7 @@ export function wageDetail(
     weighted += hourly * r.hours;
     hours += r.hours;
     wbasis[basis] = (wbasis[basis] || 0) + 1;
-    wdays.push({ d: r.d, sales: r.sales, pts: dayPts, hours: r.hours, hourly, basis });
+    wdays.push({ d: r.d, sales: r.sales, pts: dayPts, hours: r.hours, hourly, basis, ...(gBase !== undefined ? { gua: true } : {}) });   // ★PR-1 R-2: 保証の日に印（無い日はキーを持たない＝従来と同値）
   }
   return {
     wage: hours > 0 ? roundYen(weighted / hours) : eplan.base || 0,

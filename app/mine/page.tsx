@@ -14,6 +14,7 @@ import { mdLabelOf } from "@/lib/nox/payroll/finalize-guard";
 import ReservationRequestCard from "./reservation-request-card"; // ★裁定326-4（便 M3-2）: 予約申請（店設定 reservation_request ON のときだけ）
 import ScheduleCard, { type ScheduleTab } from "./schedule-card"; // ★便 X13-G W-22: 出勤予定（今月／来月・確定と確認待ち）
 import { daysCountOf, daysNormLineOf, scheduleOf, type ScheduleShift, type ScheduleWish } from "@/lib/nox/mine/schedule";
+import { dohanSeatsOf, dohanMarkTextOf, DOHAN_LATE_EXEMPT_NOTE } from "@/lib/nox/shift/dohan-mark"; // ★便 PR-1 R-4（裁定417）: 今日の同伴＝伝票が正本
 import { daysNormTargetsOf } from "@/lib/nox/mine/days-norm-server";
 import { castRankingModeOf } from "@/lib/nox/payroll/cast-sales"; // ★裁定346: off／self／top
 import * as t from "@/lib/nox/ui/theme";
@@ -152,6 +153,12 @@ export default async function MinePage() {
     cutoffHm: cutoff, closeHm: closeHmOf(myStore?.settings_json),
   });
   const todayRow = attRows.find((r) => r.bizDate === bizToday) ?? null;
+  // ★便 PR-1 R-4（裁定417）: 今日の同伴＝伝票（check_nominations.is_dohan・void 除く・自分の行）→「同伴（A2）」の印＋遅刻扱いなし（今日タブと同じ読み方）
+  type DohanRow = { cast_id: string; ended_at: string | null; checks: { status: string; seats: { name: string } | { name: string }[] | null } | { status: string; seats: { name: string } | { name: string }[] | null }[] | null };
+  const { data: myDohan } = meCast
+    ? await supabase.from("check_nominations").select("cast_id, ended_at, checks!inner(started_at, status, store_id, seats(name))").eq("cast_id", meCast.id as string).eq("is_dohan", true).neq("checks.status", "void").gte("checks.started_at", bizStartIso).lt("checks.started_at", bizEndIso)
+    : { data: null };
+  const myDohanSeats = meCast ? dohanSeatsOf(((myDohan ?? []) as DohanRow[]).map((r) => { const ck = Array.isArray(r.checks) ? r.checks[0] : r.checks; const st = ck ? (Array.isArray(ck.seats) ? ck.seats[0] : ck.seats) : null; return { cast_id: r.cast_id, seat_name: st?.name ?? null, ended_at: r.ended_at, check_status: ck?.status ?? null }; })).get(meCast.id as string) : undefined;
   // ★0156（起票85・便 V-7）: マイナンバーの廃棄状況（cast_mynumber_discard_status＝cast 本人・値は返さない・audit なし）。廃棄後だけ「廃棄済み YYYY-MM-DD」を出す
   const { data: discardRows } = meCast ? await supabase.rpc("cast_mynumber_discard_status", { p_cast_id: meCast.id as string }) : { data: null };
   const discard = ((discardRows ?? []) as { mynumber_deleted_at: string | null; mynumber_deletion_method: string | null; has_mynumber: boolean }[])[0];
@@ -265,6 +272,7 @@ export default async function MinePage() {
 
       <section className="nox-panel">
         <h3>遅刻・当欠の連絡</h3>
+        {myDohanSeats && <p className="sub" data-dohan-chip="1" style={{ margin: "0 0 6px", fontSize: 12.5 }}>{dohanMarkTextOf(myDohanSeats)}＝伝票の同伴（{DOHAN_LATE_EXEMPT_NOTE}）</p>}{/* ★便 PR-1 R-4（裁定417） */}
         {(() => { const st = mineReportStateOf((((att ?? []) as { date: string; status: string; eta: string | null; source: string | null }[]).find((a) => a.date === bizToday) ?? null) ? { cast_id: "", ...(((att ?? []) as { date: string; status: string; eta: string | null; source: string | null }[]).find((a) => a.date === bizToday)!) } : null); return st ? <p className="nox-pstate" data-mine-report="1" style={{ margin: "0 0 8px" }}>{st}</p> : null; })()}{/* ★便 X13-H H-17 ③ */}
         <AttendanceForm defaultDate={bizToday} />
       </section>

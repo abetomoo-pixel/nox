@@ -14,6 +14,7 @@ import type { CastRaw, StoreMasters, DeductionOverride } from "./assemble";
 import { isSystemOn } from "../store-systems"; // ★便 GV-C C-10（R-5c） // ★0156: DeductionOverride（run 別控除上書き）
 import { calcPeriodOf } from "./assemble"; // ★0154 D6
 import { baseOverrideOf } from "./base-override"; // ★便 P174 T-5（R-11 (d)）
+import { attendanceWithDohanOf } from "@/lib/nox/shift/dohan-mark"; // ★便 PR-1 R-4（裁定417）: 同伴の正本＝伝票
 import { payTimeBasisOf } from "./time-basis"; // ★裁定324（便 L-2-3）
 import type { ShortfallDay } from "./shortfall"; // ★裁定324-3（便 L-2-4）: 不就労控除の入力（営業日ごとの確定シフト×打刻）: 勤務時間の計算基準（store 設定・期の初日で解決）
 /** ★0154 D2: 'HH:MM'（0-47 域）→ 分（shift-time.hm2min と同式・collect 内で閉じる） */
@@ -353,15 +354,17 @@ async function loadShimeiAmounts(admin: SupabaseClient, storeId: string, win: Pa
 // export: /api/mine/norm-progress が同一定義（final∈{ok,late}）で days を再利用（SQL 再実装しない＝定義乖離防止）。
 //   cast セッションの client を渡すと RLS パターン1 で自分の行のみ＝self スコープに自然に縮む。
 export async function loadPunch(admin: SupabaseClient, storeId: string, win: PayrollWindow, grace: { lateGrace?: number; earlyGrace?: number; overGrace?: number }) {
-  const [shiftsR, attR, punchR] = await Promise.all([
+  const [shiftsR, attR, punchR, dohanR] = await Promise.all([
     // ★SD-4（2026-08-21・設計書 §1）: 給与分母は confirmed のみ＝この .eq は不変。
     //   mig0101 で status が 3値化（planned→proposed→confirmed）されたが、中間 status（proposed）は
     //   キャスト確認待ちの未確定＝給与の出勤分母に数えない。ここを広げる変更は SD-4 の再裁定が要る。
     admin.from("shifts").select("id, cast_id, date, start_hm, end_hm").eq("store_id", storeId).eq("status", "confirmed").gte("date", win.periodStart).lte("date", win.periodEnd), // ★324-3（便 L-2-4）: +id（shortfall の target_shift_id）
     admin.from("attendance").select("cast_id, date, status").eq("store_id", storeId).gte("date", win.periodStart).lte("date", win.periodEnd),
     admin.from("punches").select("cast_id, punched_at, type").eq("store_id", storeId).gte("punched_at", win.startTs).lt("punched_at", win.endTs),
+    // ★便 PR-1 R-4（裁定417）: 同伴の正本＝伝票（check_nominations.is_dohan・void 除く・窓は drink_claims と同じ checks!inner started_at [startTs, endTs)）→ 営業日に同伴があれば遅刻免除（applyAttendance の dohan）
+    admin.from("check_nominations").select("cast_id, checks!inner(started_at, status, store_id)").eq("is_dohan", true).eq("checks.store_id", storeId).neq("checks.status", "void").gte("checks.started_at", win.startTs).lt("checks.started_at", win.endTs),
   ]);
-  for (const r of [shiftsR, attR, punchR]) if (r.error) throw new Error(`打刻: ${r.error.message}`);
+  for (const r of [shiftsR, attR, punchR, dohanR]) if (r.error) throw new Error(`打刻: ${r.error.message}`);
   const byCast = new Map<string, { shifts: ShiftRow[]; shiftIds: Map<string, string>; att: AttendanceRow[]; punches: PunchRow[] }>();
   const ensure = (cid: string) => {
     let e = byCast.get(cid);
@@ -371,13 +374,21 @@ export async function loadPunch(admin: SupabaseClient, storeId: string, win: Pay
   for (const s of (shiftsR.data ?? []) as Record<string, unknown>[]) { const e = ensure(s.cast_id as string); e.shifts.push({ date: s.date as string, start_hm: s.start_hm as string, end_hm: s.end_hm as string }); e.shiftIds.set(s.date as string, s.id as string); } // ★324-3: 日→shift id（同日 2 枠は後勝ち＝1 日 1 枠が前提）
   for (const a of (attR.data ?? []) as Record<string, unknown>[]) ensure(a.cast_id as string).att.push({ date: a.date as string, status: a.status as AttendanceRow["status"] });
   for (const p of (punchR.data ?? []) as Record<string, unknown>[]) ensure(p.cast_id as string).punches.push({ punched_at: p.punched_at as string, type: p.type as "in" | "out" });
+  // ★PR-1 R-4: 同伴の営業日（cast 別）＝伝票の started_at を店の cutoff で営業日に
+  const dohanDatesByCast = new Map<string, Set<string>>();
+  for (const r of (dohanR.data ?? []) as { cast_id: string; checks: { started_at: string } | { started_at: string }[] | null }[]) {
+    const ck = Array.isArray(r.checks) ? r.checks[0] : r.checks;
+    if (!ck?.started_at) continue;
+    (dohanDatesByCast.get(r.cast_id) ?? dohanDatesByCast.set(r.cast_id, new Set()).get(r.cast_id)!).add(bizDateOf(ck.started_at, win.cutoffHm));
+  }
 
   const result = new Map<string, { days: number; lateN: number; absentN: number; anomalyCount: number; missingOutDates: string[]; hoursByDate: Map<string, number>; shiftHoursByDate: Record<string, number>; attendanceDays: number; shortfallDays: ShortfallDay[] }>();
   // 受給者判定（確認1・裁定）: final∈{ok,late}（確定シフトがある日に出勤）＝raw のみ（no_shift/absent）は含めない。
   const recipientsByDate = new Map<string, string[]>();
   const todayBiz = bizDateOf(new Date().toISOString(), win.cutoffHm); // ★X-13-27: 営業日の今日（store の cutoff）
   for (const [cid, raw] of byCast) {
-    const built = buildMatchInput({ cutoffHm: win.cutoffHm, shifts: raw.shifts, attendance: raw.att, punches: raw.punches });
+    const attWithDohan = attendanceWithDohanOf(raw.att, dohanDatesByCast.get(cid) ?? new Set<string>(), (date) => ({ date, status: "shukkin" as AttendanceRow["status"] })); // ★PR-1 R-4（裁定417）: 伝票の同伴＝遅刻免除
+    const built = buildMatchInput({ cutoffHm: win.cutoffHm, shifts: raw.shifts, attendance: attWithDohan, punches: raw.punches });
     const m = matchPunches({ ...built, config: { close: win.closeHm, lateGraceMin: grace.lateGrace, earlyGraceMin: grace.earlyGrace, overGraceMin: grace.overGrace } });
     const hoursByDate = new Map<string, number>();
     let anomalyCount = 0;

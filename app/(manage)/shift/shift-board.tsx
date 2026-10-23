@@ -25,7 +25,8 @@ import { SHIFT_VIEWS, VIEW_TABS, searchOfTab, stepOfTab, tabFromSearch, tabOfVie
 import { matchPunches, LATE_GRACE_MIN_DEFAULT } from "@/lib/nox/punch-match"; // ★裁定257 R20-a: 遅刻判定は給与側と同じ純関数
 import { buildMatchInput, type PunchRow } from "@/lib/nox/punch-io";
 // ★便 AT2（2026-09-24）: 今日タブの出退勤表示＝純関数（退勤ボタンの出し分け・時刻文字列・最初の in／最後の out）
-import { firstInLastOut, okuriButtonOf, outButtonOf, outDialogNeeded, punchTimeLabel, punchInAfterAtt, attRowModeOf, arrivedChipOf, dohanToggleOf, todayRowViewOf, dohanUnsetStatusOf } from "@/lib/nox/shift/today-row"; // ★裁定357（GV-5・便 N1014 A-6）: 送りは退勤後も営業日内は可・退勤ダイアログ 2 択
+import { firstInLastOut, okuriButtonOf, outButtonOf, outDialogNeeded, punchTimeLabel, punchInAfterAtt, attRowModeOf, arrivedChipOf, todayRowViewOf } from "@/lib/nox/shift/today-row";
+import { dohanSeatsOf, dohanMarkTextOf, lateExemptByDohanOf } from "@/lib/nox/shift/dohan-mark"; // ★便 PR-1 R-4（裁定417）: 同伴の正本＝伝票（今日タブの同伴ボタンは撤去） // ★裁定357（GV-5・便 N1014 A-6）: 送りは退勤後も営業日内は可・退勤ダイアログ 2 択
 import { opsProfileOf } from "@/lib/nox/store/ops-profile"; // ★0164（便 W5-2b）: punch_methods.proxy
 import { PunchCorrectionForm } from "@/components/nox/punch-correction-modal"; // ★0154 D1: 出退勤の修正（owner／manager＝申請＝確定）・★裁定310: 「調整」モーダルのタブ①に埋め込む（本体のみ）
 import PunchDecideModal from "@/components/nox/punch-decide-modal"; // ★裁定297-1: cast の申請（pending）の承認／却下（理由必須）
@@ -134,7 +135,7 @@ function BandBars({ stats }: { stats: BandStat[] }) {
 //   ★「未記録に戻す（解除）」は現行 RPC の仕様内では不可＝attendance_set は p_status が
 //     null／5値以外なら 'bad status' で弾く（mig0009 行287 実測）＝**選択替えのみ**にする。
 const ATT_OPTIONS = [
-  ["shukkin", "出勤"], ["late", "遅刻"], ["absent", "当欠"], ["dohan", "同伴"], ["off", "休み"],
+  ["shukkin", "出勤"], ["late", "遅刻"], ["absent", "当欠"], ["off", "休み"],   // ★便 PR-1 R-4（裁定417）: 「同伴」を撤去＝同伴は伝票（check_nominations.is_dohan）が正本・0175 v2 で attendance の値域からも外す
 ] as const;
 
 const card: React.CSSProperties = t.card;
@@ -271,6 +272,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   //      戻していない。必要になったら勝手に別画面を作らず裁定を取る）。
   const attDate = bizToday;
   const [atts, setAtts] = useState<Att[]>([]);
+  const [dohanSeats, setDohanSeats] = useState<Map<string, string[]>>(new Map()); // ★便 PR-1 R-4（裁定417）: 表示日の営業日に同伴の名簿行がある伝票（cast → 席名）
   // ★B4-a 裁定222（H32）: 表示日の punches（自店・営業日範囲）→ cast ごとの最終 'in' 時刻（HH:MM）。読取 1・表示専用。
   const [punchIn, setPunchIn] = useState<Map<string, string>>(new Map());
   // ★裁定257 R20-a: 表示日の打刻行（in／out とも）＝matchPunches の入力。R20-b: 退勤（punch_proxy）後の再読込トリガ
@@ -503,6 +505,17 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   useEffect(() => { void load(); }, [load]);
   useLiveReload(load); // ★便 GV-C C-12
   useEffect(() => { void loadAtt(attDate); }, [attDate, loadAtt]);
+  // ★便 PR-1 R-4（裁定417）: 同伴の正本＝伝票。表示日の営業日 [cutoff, 翌 cutoff) に同伴（is_dohan）の名簿行がある伝票（void 除く）→ cast → 席名。伝票で外せば印も消える
+  const loadDohan = useCallback(async (d: string) => {
+    const startIso = new Date(`${d}T${cutoff}:00+09:00`).toISOString(), endIso = new Date(`${addDays(d, 1)}T${cutoff}:00+09:00`).toISOString();
+    const { data } = await supabase.from("check_nominations").select("cast_id, ended_at, checks!inner(started_at, status, store_id, seats(name))")
+      .eq("is_dohan", true).eq("checks.store_id", storeId).neq("checks.status", "void").gte("checks.started_at", startIso).lt("checks.started_at", endIso);
+    type Row = { cast_id: string; ended_at: string | null; checks: { status: string; seats: { name: string } | { name: string }[] | null } | { status: string; seats: { name: string } | { name: string }[] | null }[] | null };
+    setDohanSeats(dohanSeatsOf(((data ?? []) as Row[]).map((r) => { const ck = Array.isArray(r.checks) ? r.checks[0] : r.checks; const st = ck ? (Array.isArray(ck.seats) ? ck.seats[0] : ck.seats) : null; return { cast_id: r.cast_id, seat_name: st?.name ?? null, ended_at: r.ended_at, check_status: ck?.status ?? null }; })));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cutoff, storeId]);
+  useEffect(() => { void loadDohan(attDate); }, [attDate, loadDohan]);
+  useLiveReload(() => { void loadDohan(attDate); }); // 伝票側の変更（同伴 ON／OFF）に追随
 
   async function decide(wishId: string, accept: boolean) {
     setMsg(null);
@@ -1468,17 +1481,14 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                                 {/* ★裁定383（GV-B W-13）→★便 X13-G W-11: 出勤前＝「出勤」（主ボタン）＋遅刻／当欠／同伴／休み（送り・退勤なし）／出勤後＝チップ＋同伴＋送り・退勤／当欠・休み＝チップのみ／退勤後＝チップ＋送り（退勤なし） */}
                                 {(view === "arrived" || view === "done") && (() => {
                                   const mode = attRowModeOf({ hasIn: !!io?.inHm, hasOut: !!io?.outHm });
-                                  const chip = arrivedChipOf({ inHm: io?.inHm, outHm: io?.outHm, lateMin: n });
-                                  const dh = dohanToggleOf(att?.status);
+                                  const dseats = dohanSeats.get(s.cast_id); // ★便 PR-1 R-4（裁定417）: 同伴＝伝票が正本（今日タブの同伴ボタンは撤去・伝票で外せば印も消える）
+                                  const ex = lateExemptByDohanOf(n, !!dseats);   // 同伴の営業日は遅刻扱いなし（出勤記録は実時刻のまま）
+                                  const chip = arrivedChipOf({ inHm: io?.inHm, outHm: io?.outHm, lateMin: ex.late ? n : 0 });
                                   return (
                                     <span className="nox-attchips" style={{ display: "inline-flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                                       <span className={`nox-stpill ${chip.late ? "warn" : "ok"}`} data-att-chip={mode}>{chip.label}</span>
-                                      {dh.set && <span className="nox-stpill" data-dohan-chip="1">同伴</span>}
-                                      {canRecord && (
-                                        <button type="button" className="nox-rowbtn" style={{ minHeight: 36 }} data-dohan-toggle={dh.set ? "off" : "on"}
-                                          title={dh.set ? "同伴を外して出勤に戻します" : "同伴として記録します"}
-                                          onClick={() => void setAtt(s.cast_id, dh.set ? dohanUnsetStatusOf(n) : "dohan")}>{dh.set ? "同伴を外す" : "同伴"}</button>
-                                      )}
+                                      {dseats && <span className="nox-stpill" data-dohan-chip="1" title={ex.note ?? "伝票の同伴（伝票で外すと消えます）"}>{dohanMarkTextOf(dseats)}</span>}
+                                      {ex.note && <span className="sub" data-dohan-exempt="1" style={{ fontSize: 11 }}>{ex.note}</span>}
                                       {att?.eta ? <span className="num sub">見込み {att.eta}</span> : null}
                                     </span>
                                   );

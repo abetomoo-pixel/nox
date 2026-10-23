@@ -201,9 +201,14 @@ for (const st of STORES) {
     const slot = extraPlans.length ? castSeq++ % (extraPlans.length + 1) : 0; // ★X-13-21: 0＝源泉のプラン・1〜＝追加プラン
     const planId = slot === 0 ? srcPlanId : extraPlans[slot - 1].id;
     if (c.display_name === TR.cast) { // ★裁定348 追補1: 体験入店＋期限付き保証時給（set_cast_guarantee の 3 行形・R からの相対日）
-      push("cast_plan", { id: uid(`castplan:${c.person_id}`), cast_id: id, store_id: storeId, plan_id: trialPlanId, overrides_json: {}, valid_from: { $rel: -400 }, valid_to: { $rel: TR.from - 1 } });
-      push("cast_plan", { id: uid(`castplan:${c.person_id}:gua`), cast_id: id, store_id: storeId, plan_id: trialPlanId, overrides_json: { base: TR.gua, guarantee: true }, valid_from: { $rel: TR.from }, valid_to: { $rel: TR.to } });
-      push("cast_plan", { id: uid(`castplan:${c.person_id}:back`), cast_id: id, store_id: storeId, plan_id: trialPlanId, overrides_json: {}, valid_from: { $rel: TR.to + 1 }, valid_to: null });
+      // ★便 PR-1 R-3（裁定416）: guaFromMonthStart＝保証の開始を当月 1 日（$m:0 d:1）・終了を R+guaToRel（既定＝従来の TR.from／TR.to）。前の行の終了＝前月末（$m:-1 d:31＝末日に畳む）
+      const gFrom = TR.guaFromMonthStart ? { $m: 0, d: 1 } : { $rel: TR.from };
+      const gTo = TR.guaToRel !== undefined ? { $rel: TR.guaToRel } : { $rel: TR.to };
+      const prevTo = TR.guaFromMonthStart ? { $m: -1, d: 31 } : { $rel: TR.from - 1 };
+      const backFrom = TR.guaToRel !== undefined ? { $rel: TR.guaToRel + 1 } : { $rel: TR.to + 1 };
+      push("cast_plan", { id: uid(`castplan:${c.person_id}`), cast_id: id, store_id: storeId, plan_id: trialPlanId, overrides_json: {}, valid_from: { $rel: -400 }, valid_to: prevTo });
+      push("cast_plan", { id: uid(`castplan:${c.person_id}:gua`), cast_id: id, store_id: storeId, plan_id: trialPlanId, overrides_json: { base: TR.gua, guarantee: true }, valid_from: gFrom, valid_to: gTo });
+      push("cast_plan", { id: uid(`castplan:${c.person_id}:back`), cast_id: id, store_id: storeId, plan_id: trialPlanId, overrides_json: {}, valid_from: backFrom, valid_to: null });
       // ★348 追補2（便 N1014 B-3）: 10 月の出勤＝保証期間内 2 日（NEST は期限切れ前 2 日）＋期間外 1 日（基本時給の行が並ぶ）。過去日は in/out 両方・R 当日は in のみ（当日は on_duty と同じ扱い）
       for (const d of (TR.from < 0 ? [TR.from, TR.from + 1, TR.to + 1] : [TR.from - 1, TR.from, TR.from + 1]).filter((x) => x <= 0)) {
         const inT = "20:00:00", outT = "26:00:00";

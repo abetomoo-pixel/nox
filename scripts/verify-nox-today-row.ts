@@ -95,8 +95,8 @@ check("tr(7-9) 配線: shift-board＝調整モーダル タブ①の PunchCorrec
     JSON.stringify(arrivedChipOf({ inHm: "20:05", outHm: null, lateMin: 0 })) === JSON.stringify({ label: "出勤 20:05", late: false }) && JSON.stringify(arrivedChipOf({ inHm: "20:25", outHm: null, lateMin: 10 })) === JSON.stringify({ label: "遅刻 20:25", late: true })
     && JSON.stringify(arrivedChipOf({ inHm: "20:25", outHm: "01:30", lateMin: 10 })) === JSON.stringify({ label: "出勤 20:25〜01:30", late: true }) && arrivedChipOf({ inHm: null, outHm: null, lateMin: null }).label === "出勤 --:--"
     && JSON.stringify(dohanToggleOf("dohan")) === JSON.stringify({ show: true, set: true }) && JSON.stringify(dohanToggleOf("arrived")) === JSON.stringify({ show: true, set: false }) && dohanToggleOf(null).set === false);
-  check("tr(9-3) 配線: 行に data-att-mode＝attRowModeOf・pre だけ 5 択セグメント・arrived／done はチップ（data-att-chip）＋同伴トグル（data-dohan-toggle）・done は操作列も非表示（減額／確認へ／確定）",
-    sb.includes("data-att-mode={attRowModeOf({ hasIn: !!io?.inHm, hasOut: !!io?.outHm })}") && sb.includes("const chip = arrivedChipOf({ inHm: io?.inHm, outHm: io?.outHm, lateMin: n });") && sb.includes("const dh = dohanToggleOf(att?.status);") && sb.includes("data-att-chip") && sb.includes("data-dohan-toggle")
+  check("tr(9-3) 配線: 行に data-att-mode＝attRowModeOf・pre だけ 4 択セグメント・arrived／done はチップ（data-att-chip）＋伝票の同伴の印（data-dohan-chip＝★便 PR-1 R-4・裁定417: 同伴トグルは撤去）・done は操作列も非表示（減額／確認へ／確定）",
+    sb.includes("data-att-mode={attRowModeOf({ hasIn: !!io?.inHm, hasOut: !!io?.outHm })}") && sb.includes("const chip = arrivedChipOf({ inHm: io?.inHm, outHm: io?.outHm, lateMin: ex.late ? n : 0 });") && sb.includes("const dseats = dohanSeats.get(s.cast_id);") && sb.includes("data-att-chip") && !sb.includes("data-dohan-toggle") && sb.includes('data-dohan-chip="1"')
     && sb.includes('{view === "pre" && (canRecord ? (') && sb.includes('{canRecord && (view === "arrived" || view === "done") && (') /* ★便 X13-G W-11: 出し分けは todayRowViewOf（pre／arrived／absent／done） */);
   // ★便 X13-G W-11: 出勤前＝出勤（主）＋4 択・送り／退勤なし／当欠・休み＝チップのみ／退勤後＝送りだけ（退勤なし）・同伴は付け外し
   check("tr(9-4) todayRowViewOf: 打刻なし＝pre（当欠・休みは absent）／in＝arrived／out＝done・同伴を外す＝猶予超過なら遅刻・それ以外は出勤",

@@ -51,7 +51,8 @@ export default function PayslipSlip({ slip, castName, compact = false, systems =
     if (e.action !== "deducted") return acc; const m = (e.transport_id && okuriModes[e.transport_id]) || "actual";
     if (m === "flat") acc.flat += e.amount ?? 0; else acc.actual += e.amount ?? 0; return acc;
   }, { actual: 0, flat: 0 }) : undefined;
-  const bd = breakdownLinesOf({ pay: pay as BreakdownPayLike, extras, adjustments: { before: adj.before, after: adj.after }, deducted: { ar, adv, okuri }, systems, okuriModes: okuriSplit });
+  const bd = breakdownLinesOf({ pay: pay as BreakdownPayLike, extras, adjustments: { before: adj.before, after: adj.after }, deducted: { ar, adv, okuri }, systems, okuriModes: okuriSplit,
+    period: slip.period, splitAtD: ((pay as { slideBasis?: { apply?: string } }).slideBasis?.apply === "half") ? [16] : undefined }); // ★便 PR-1 R-2（裁定416）: 区間行＝右パネルと同じ関数・同じ引数
   const taxMode = pay.taxMode === "委託" || pay.taxMode === "雇用" ? pay.taxMode : null;
   const hasDed = bd.ded.length > 0;
   if (compact) {
