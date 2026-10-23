@@ -51,7 +51,7 @@ export default function PayslipSlip({ slip, castName, compact = false, systems =
     if (e.action !== "deducted") return acc; const m = (e.transport_id && okuriModes[e.transport_id]) || "actual";
     if (m === "flat") acc.flat += e.amount ?? 0; else acc.actual += e.amount ?? 0; return acc;
   }, { actual: 0, flat: 0 }) : undefined;
-  const bd = breakdownLinesOf({ pay: pay as BreakdownPayLike, extras, adjustments: { before: adj.before, after: adj.after }, deducted: { ar, adv, okuri }, systems, okuriModes: okuriSplit,
+  const bd = breakdownLinesOf({ frozen: true, /* ★便 SH-UI-c2 C2-9 ④: 明細＝確定済み */ pay: pay as BreakdownPayLike, extras, adjustments: { before: adj.before, after: adj.after }, deducted: { ar, adv, okuri }, systems, okuriModes: okuriSplit,
     period: slip.period, splitAtD: ((pay as { slideBasis?: { apply?: string } }).slideBasis?.apply === "half") ? [16] : undefined }); // ★便 PR-1 R-2（裁定416）: 区間行＝右パネルと同じ関数・同じ引数
   const taxMode = pay.taxMode === "委託" || pay.taxMode === "雇用" ? pay.taxMode : null;
   const hasDed = bd.ded.length > 0;
@@ -69,9 +69,9 @@ export default function PayslipSlip({ slip, castName, compact = false, systems =
       </div>
     );
   }
-  const earn = (label: string, v: number, key: string, muted = false) => (
-    <div key={key} style={{ ...t.slipRow, opacity: muted ? 0.75 : 1 }}><span>{label}</span><span style={t.num}>{yen(v)}</span></div>
-  );
+  const earn = (label: string, v: number, key: string, muted = false, extra?: { label2?: string; amountText?: string }) => (
+    <div key={key} className={extra?.label2 ? "nox-bd-row has-l2" : undefined} style={{ ...t.slipRow, opacity: muted ? 0.75 : 1 }}><span>{label}{extra?.label2 && <span className="nox-bd-l2" data-bd-l2="1">{extra.label2}</span>}</span><span style={t.num}>{extra?.amountText ?? yen(v)}</span></div>
+  ); // ★便 SH-UI-c2 C2-9: スライド行＝見出し＋結果（390px は 2 行）・段なしは「—」
   const ded = (label: string, v: number, key: string) =>
     <div key={key} style={t.slipRow}><span>{label}</span><span style={{ ...t.num, color: "var(--bad)" }}>−{yen(v)}</span></div>;
   return (
@@ -85,7 +85,7 @@ export default function PayslipSlip({ slip, castName, compact = false, systems =
       </div>
 
       <div style={t.slipSec}>支給</div>
-      {bd.earn.map((ln) => earn(ln.label, ln.amount, ln.key, !!(ln.sub || ln.info)))}{/* ★303-1／303-2: 右パネルと同じ行・同じ順・時間行は 0 でも出る */}
+      {bd.earn.map((ln) => earn(ln.label, ln.amount, ln.key, !!(ln.sub || ln.info), { label2: ln.label2, amountText: ln.amountText }))}{/* ★303-1／303-2: 右パネルと同じ行・同じ順・時間行は 0 でも出る */}
       {(pay.gross ?? 0) > 0 && (
         <div style={t.slipRowB}><span>総支給（賞与等含む）</span><span style={t.num}>{yen(pay.gross ?? 0)}</span></div>
       )}

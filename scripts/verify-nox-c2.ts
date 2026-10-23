@@ -4,6 +4,7 @@
  *  (1) C2-3 日別の算定給与＝時給分（wdays の hourly×hours）・バック（per_count／rate）・罰金（target_shift_id／biz_date）・日計＝時給分＋バック−罰金・
  *      月のまとめ＝Σ日計＋月で決まる支給−控除＝差引支給額（玲奈 golden 5170／5931・源泉 117241／125802 の payOf 結果で検算）
  *  (2) C2-2 行の編集＝時刻修正→実働 h と日計が同じ関数で変わる・日を追加→行が増え日数 +1・取消→日計から消え行は取消済み・punch id／shift id・編集の送信内容・翌表記の入力
+ *  (4) C2-8 棚卸し（分類の群・既定値＝現在庫・±1・差分ありだけ送る）(5) C2-9 スライド行（段なし「—」／段あり上乗せ／保証中／確定済み／2 行）(6) C2-10 売上バック（率）＝sys_backs (7) C2-12 請求（税・サ込）
  *  (3) C2-1／C2-4／C2-6／C2-7 配線＝日付リンク（→今日タブ）なし・「この月のシフトを開く」1 本・確定済みは編集ボタンなし・390px の列・合計表の 4 列・狭い幅はシート・/mine は読取専用
  */
 import fs from "node:fs";
@@ -11,6 +12,9 @@ import { payOf, type PayInput } from "../lib/nox/pay";
 import { attendanceDayRowsOf, attendanceSummaryOf, attendanceCsvOf, hm47OfInput, isoOfBizHm, kintaiEditPlanOf, rowEditableOf, sheetRowCellsOf, SHEET_COLUMNS } from "../lib/nox/payroll/attendance-sheet";
 import { dailyBacksOf, dailyFinesOf, dailyPayRowsOf, dailyWageOf, monthSummaryOf, castPayTotalsOf, sumCastPayTotalsOf, payTotalsNoteOf, yenCellOf, backsDetailTextOf, DAILY_PAY_COLUMNS } from "../lib/nox/payroll/daily-pay";
 import { addShiftSpanOf, kintaiErrJa } from "../components/nox/kintai-edit";
+import { actualValueOf, deltaOf, stepActualOf, stocktakeGroupsOf, stocktakePlanOf, stocktakeRowsOf } from "../lib/nox/stock/stocktake"; // ★C2-8
+import { breakdownLinesOf, slideLinesOf, systemOfLineKey } from "../lib/nox/payroll/breakdown-lines"; // ★C2-9／C2-10
+import { periodLabelOf } from "../lib/nox/payroll/slide";
 
 let pass = 0; const fails: string[] = [];
 const check = (label: string, ok: boolean, detail?: string) => { if (ok) pass++; else fails.push(`${label}${detail ? `: ${detail}` : ""}`); };
@@ -101,6 +105,55 @@ check("c2(2-8) CSV・印刷用にも同じ列＝従来の 10 列＋時給分｜�
   check("c2(3-4) C2-4 390px＝日付・出／退・日計の 3 列（確定シフト・店の修正・区分・実働・送り・備考と日計以外の金額列が .opt）・編集は Modal（≤900 はシート）", row.includes("const OPT = new Set([1, 4, 5, 6, 7, 8]);") && row.includes('className={i === 3 ? "pay" : "opt pay"}') && ed.includes("<Modal onClose={() => { if (!busy) onClose(); }} maxWidth={460} scroll>") && css.includes(".nox-kintai .nox-kintai-table .opt { display: none; }"));
   check("c2(3-5) C2-6 合計表＝4 列（data-kintai-sum-head wage／backs／fine／net）・合計行（data-kintai-sum-net-total）・390px は キャスト｜日数｜現時点の差引（.nox-kintai-sum .opt を隠す・▸ で残り）・注記", ["wage", "backs", "fine", "net"].every((k) => ab.includes(`data-kintai-sum-head="${k}"`)) && ab.includes("data-kintai-sum-net-total={total.pay.net}") && css.includes(".nox-kintai .nox-kintai-sum .opt { display: none; }") && ab.includes("data-kintai-sum-toggle={c.castId}") && ab.includes("payTotalsNoteOf(finalized, sheet.todayBiz)"));
   check("c2(3-6) C2-7 1,024px 未満は画面下のシート（BottomSheet・高さ 90%・取っ手・閉じる・CSV／印刷用は上端の actions）・以上は従来の下の表（useNarrow(1024)）", ab.includes("const narrow = useNarrow(1024);") && ab.includes("{sheet && sel && narrow && (") && ab.includes('<BottomSheet onClose={() => setCastId(null)} title={detailTitle} actions={detailActions} testId="kintai">') && bs.includes('height: "90%"') && bs.includes('data-sheet-close="1"') && bs.includes("max-width: ${max - 1}px"));
+}
+
+// ── (4) C2-8 棚卸しの 390px ──
+{
+  const cats = [{ id: "c1", name: "ウイスキー", sort_order: 1 }, { id: "c2", name: "焼酎", sort_order: 2 }];
+  const prods = [{ id: "p1", name: "山崎", type: "bottle", is_active: true, category_id: "c1", sort_order: 1 }, { id: "p2", name: "響", type: "bottle", is_active: true, category_id: "c1", sort_order: 2 }, { id: "p3", name: "黒霧島", type: "bottle", is_active: true, category_id: "c2", sort_order: 1 }, { id: "p4", name: "無効の品", type: "bottle", is_active: false, category_id: "c2", sort_order: 2 }];
+  const stock = { p1: 10, p2: 3, p3: 7, p4: 1 };
+  const rows = stocktakeRowsOf(prods, stock, cats);
+  const groups = stocktakeGroupsOf(rows);
+  check("c2(4-1) C2-8 分類見出しの数＝分類の数（2）・各群の行＝その分類の商品・無効は「無効の商品も表示」で群に入る", groups.length === 2 && groups.map((g) => g.categoryName).join("/") === "ウイスキー/焼酎" && groups[0].rows.length === 2 && groups[1].rows.length === 1 && stocktakeGroupsOf(stocktakeRowsOf(prods, stock, cats, { showInactive: true }))[1].rows.length === 2, J(groups.map((g) => [g.categoryName, g.rows.length])));
+  check("c2(4-2) C2-8 実数の既定値＝現在庫（差分 0）・＋で差分 +1・−で −1・0 未満にしない・整数でない入力は差分 null", actualValueOf(undefined, 10) === 10 && deltaOf(undefined, 10) === 0 && stepActualOf(undefined, 10, 1) === "11" && deltaOf("11", 10) === 1 && stepActualOf("1", 5, -1) === "0" && stepActualOf("0", 5, -1) === "0" && deltaOf("3.5", 10) === null && stepActualOf("abc", 7, 1) === "8");
+  check("c2(4-3) C2-8 記録で差分ありの行だけ送る＝既定（未入力）と現在庫と同じ入力は送らない", J(stocktakePlanOf(prods, stock, { p1: "10", p2: "5", p3: "" }).map((r) => [r.id, r.delta])) === J([["p2", 2]]));
+  const st = src("app/(manage)/master/stock/stock-board.tsx"), css = src("app/globals.css");
+  check("c2(4-4) C2-8 配線＝分類はグループ見出し行（商品行に挟まない）・2 行カード（col-name／col-actual／col-delta・現在庫は 1 行目に）・−／＋長押し（400ms 後 120ms）・固定バー「記録する（差分あり N 件）」・「無効の商品も表示（n 件）」・説明は「？」・在庫を持たない注記は見出し下", st.includes('data-stocktake-group-head="1"') && !st.includes("{r.head && <span") && st.includes('className="nox-st-cur num"') && st.includes("setTimeout(() => { timer.current.i = setInterval(onStep, 120); }, 400)") && st.includes("記録する（差分あり ${tPlan.length} 件）") && st.includes("無効の商品も表示（{inactiveCount} 件）") && st.includes('data-stocktake-help="1"') && st.includes("data-stocktake-unmanaged={unmanaged}") && css.includes(".nox-stocktake .nox-st-bar { position: fixed;") && css.includes(".nox-stocktake .nox-sttable td.col-cur { display: none; }"));
+}
+
+// ── (5) C2-9 スライド行の表記 ──
+{
+  const tiers = [{ at: 300_000, wage: 2000 }, { at: 600_000, wage: 2500 }];
+  const base = { eplan: { base: 1800, salesSlide: tiers, pointSlide: [] }, wHours: 8 };
+  const none = slideLinesOf({ ...base, slideBasis: { apply: "monthly", months: [{ month: "2026-10", prevMonth: "2026-09", sales: 211_604, pts: 0, salesWage: 1800, ptsWage: 0 }] } });
+  check("c2(5-1) C2-9 ①段に届いていない＝「スライド 10月（暫定・期首〜今日）」＋「売上 ¥211,604 → 段なし・基本時給 ¥1,800 のまま」・金額欄「—」・情報行", none.length === 1 && none[0].label === `スライド ${periodLabelOf("2026-10")}（暫定・期首〜今日）` && none[0].label2 === "売上 ¥211,604 → 段なし・基本時給 ¥1,800 のまま" && none[0].amountText === "—" && none[0].amount === 0 && none[0].info === true, J(none));
+  const hit = slideLinesOf({ ...base, wdays: [{ d: 1, hours: 5, hourly: 2000, basis: "売上" }, { d: 2, hours: 3, hourly: 1800, basis: "保証" }], slideBasis: { apply: "monthly", months: [{ month: "2026-10", prevMonth: "2026-09", sales: 350_000, pts: 0, salesWage: 2000, ptsWage: 0 }] } });
+  check("c2(5-2) C2-9 ②届いた＝「→ 段 1（時給 ¥2,000・+¥200/h）」・金額欄＝上乗せの合計（+¥200 × 段の日の実働 5h＝¥1,000）", hit[0].label2 === "売上 ¥350,000 → 段 1（時給 ¥2,000・+¥200/h）" && hit[0].amount === 1000 && hit[0].amountText === undefined, J(hit));
+  const gua = slideLinesOf({ ...base, guarantee: { spans: [{ from: "2026-10-01", to: "2026-10-24", base: 3200 }], baseHours: 0, basePay: 0, guaHours: 10, guaPay: 32_000 }, slideBasis: { apply: "monthly", months: [{ month: "2026-10", prevMonth: "2026-09", sales: 350_000, pts: 0, salesWage: 2000, ptsWage: 0 }] } });
+  check("c2(5-3) C2-9 ③保証中＝「…→ 段 1（時給 ¥2,000・+¥200/h）・保証 ¥3,200（10/24 まで）が優先」", gua[0].label2.endsWith("・保証 ¥3,200（10/24 まで）が優先") && gua[0].label2.includes("→ 段 1（時給 ¥2,000・+¥200/h）"), gua[0].label2);
+  const frozen = slideLinesOf({ ...base, slideBasis: { apply: "monthly", months: [{ month: "2026-10", prevMonth: "2026-09", sales: 211_604, pts: 0, salesWage: 1800, ptsWage: 0 }] } }, { frozen: true });
+  const next = slideLinesOf({ ...base, slideBasis: { apply: "next", months: [{ month: "2026-10", prevMonth: "2026-09", sales: 211_604, pts: 0, salesWage: 1800, ptsWage: 0 }] } });
+  const half = slideLinesOf({ ...base, slideBasis: { apply: "half", months: [{ month: "2026-10", prevMonth: "2026-10", sales: 100_000, pts: 0, salesWage: 1800, ptsWage: 0 }] } }, { frozen: true });
+  check("c2(5-4) C2-9 ④確定済み＝「暫定」を外し判定基準を 1 語（月の累計／前月の累計／半月の累計）", frozen[0].label === `スライド ${periodLabelOf("2026-10")}（月の累計）` && next[0].label === `スライド ${periodLabelOf("2026-10")}（前月の累計）` && half[0].label.endsWith("（半月の累計）") && !frozen[0].label.includes("暫定"), J([frozen[0].label, next[0].label, half[0].label]));
+  const bd = breakdownLinesOf({ pay: { wage: 1800, wHours: 8, timePay: 14_400, ...base, slideBasis: { apply: "monthly", months: [{ month: "2026-10", prevMonth: "2026-09", sales: 211_604, pts: 0, salesWage: 1800, ptsWage: 0 }] }, gross: 14_400, net: 14_400 }, period: "2026-10" });
+  const sl = bd.earn.find((l) => l.key === "slide-2026-10");
+  check("c2(5-5) C2-9 breakdownLinesOf（右パネル・/mine・明細 PDF が同じ関数）＝スライド行は情報行（合計に足さない）・label2 と「—」・段なしでも出る（スライド ON）・日次は従来どおり", !!sl && sl.info === true && sl.label2 === "売上 ¥211,604 → 段なし・基本時給 ¥1,800 のまま" && sl.amountText === "—" && bd.earnTotal === 14_400 && slideLinesOf({ ...base, slideBasis: { apply: "daily", months: [{ month: "2026-10", prevMonth: "2026-09", sales: 1, pts: 0, salesWage: 0, ptsWage: 0 }] } }).length === 0, J(sl));
+  const pb = src("app/(manage)/payroll/payroll-board.tsx"), ps = src("components/payslip-slip.tsx"), css = src("app/globals.css");
+  check("c2(5-6) C2-9 ⑤配線＝右パネルと明細の行が label2（.nox-bd-l2＝≤430px で 2 行目・折り返さない）と amountText を描く・明細は frozen・右パネルは run の確定で frozen", pb.includes('<span className="nox-bd-l2" data-bd-l2="1">{extra.label2}</span>') && pb.includes("{ label2: ln.label2, amountText: ln.amountText }") && pb.includes('frozen: runInfo?.status === "finalized" || runInfo?.status === "paid"') && ps.includes("breakdownLinesOf({ frozen: true,") && ps.includes('data-bd-l2="1"') && css.includes("@media (max-width: 430px) { .nox-bd-l2 { display: block;"));
+}
+
+// ── (6) C2-10 裁定412 の残り＝売上歩合を各種バックへ ──
+{
+  const bl = src("lib/nox/payroll/breakdown-lines.ts"), col = src("lib/nox/payroll/collect.ts");
+  const bd = breakdownLinesOf({ pay: { wage: 1800, wHours: 1, timePay: 1800, honBack: 100, salesBack: 6348, gross: 8248, net: 8248 }, systems: { sys_backs: true, sys_sales_rate: false } });
+  const bdOff = breakdownLinesOf({ pay: { wage: 1800, wHours: 1, timePay: 1800, salesBack: 0, gross: 1800, net: 1800 }, systems: { sys_backs: false } });
+  check("c2(6-1) C2-10 行名「売上バック（率）」＝各種バックの並び（本指名バックの直後群）・出し分けは sys_backs（sys_sales_rate は読まない）・各種バック OFF なら 0 の行は出ない・collect の売上率テーブルの出し分けも sys_backs", systemOfLineKey("salesBack") === "sys_backs" && bd.earn.some((l) => l.key === "salesBack" && l.label === "売上バック（率）") && bd.earn.findIndex((l) => l.key === "salesBack") > bd.earn.findIndex((l) => l.key === "honBack") && !bdOff.earn.some((l) => l.key === "salesBack") && !bl.includes('"sys_sales_rate"') && col.includes('"sys_backs") ? {} : { salesBackTable: [] }'), J(bd.earn.map((l) => [l.key, l.label])));
+}
+
+// ── (7) C2-12 会計タブ「①請求を確認」の列見出し ──
+{
+  const rb = src("app/(manage)/register/register-board.tsx"), kr = src("app/kiosk-register/page.tsx");
+  check("c2(7-1) C2-12 見出し＝外税の店「請求（税・サ込）」・内税の店「請求（サ込・内税）」（伝票の凍結値 price_display で判定）・値は明細の「合計（税込）」と同じ due（gi.due）・キオスクも同じ", rb.includes('data-due-head="1">{check?.price_display === "tax_excluded" && (check?.business_tax_status ?? "taxable") === "taxable" ? "請求（税・サ込）" : "請求（サ込・内税）"}') && rb.includes('<div className="nox-sumrow total" data-sum-total="1"><span>合計（税込）</span>') && rb.includes("{yen(gi.due)}") && kr.includes('"請求（税・サ込）" : "請求（サ込・内税）"') && !rb.includes("請求（サ料込）</th>") && !kr.includes("請求（サ料込）</th>"));
 }
 
 if (fails.length) { console.error(`verify:nox-c2 FAIL ${fails.length}（pass ${pass}）\n` + fails.map((f) => ` - ${f}`).join("\n")); process.exit(1); }

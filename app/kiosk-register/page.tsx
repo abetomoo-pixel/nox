@@ -1149,7 +1149,7 @@ export default function KioskRegisterPage() {
                         <th style={t.th}>伝票</th>
                         <th style={t.th}>小計</th>
                         <th style={t.th}>割引</th>
-                        <th style={t.th}>請求（サ料込）</th>
+                        <th style={t.th} data-due-head="1">{(detail.check as { price_display?: string | null; business_tax_status?: string | null }).price_display === "tax_excluded" && ((detail.check as { business_tax_status?: string | null }).business_tax_status ?? "taxable") === "taxable" ? "請求（税・サ込）" : "請求（サ込・内税）"}</th>{/* ★便 SH-UI-c2 C2-12 */}
                         <th style={t.th}>入金済</th>
                         <th style={t.th}>残額</th>
                       </tr>

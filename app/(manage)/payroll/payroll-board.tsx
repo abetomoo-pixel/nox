@@ -960,7 +960,7 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
                 const z = (v: number | undefined) => v ?? 0;
                 // ★裁定303-1／303-2: 支給／控除の行＝PayslipSlip と同じ単一関数（同じ行・同じ順・同じ値）。残り物の行（旧「その他」系の合算行）は作らない。
                 //   preview は凍結前＝調整控除の理由行は breakdown.adjustmentsShown（264-10）・extras は gross に内在（裁定26＝二重加算しない）
-                const bd = breakdownLinesOf({ systems: storeSettings as Record<string, unknown> | null, /* ★便 GV-C C-10（GV-53） */
+                const bd = breakdownLinesOf({ systems: storeSettings as Record<string, unknown> | null, /* ★便 GV-C C-10（GV-53） */ frozen: runInfo?.status === "finalized" || runInfo?.status === "paid", /* ★便 SH-UI-c2 C2-9 ④ */
                   pay: pay as unknown as BreakdownPayLike, extras: r.breakdown?.extras ?? [], period, splitAtD: (pay.slideBasis as { apply?: string } | undefined)?.apply === "half" ? [16] : undefined, // ★便 PR-1 R-2（裁定416）: 区間行の日付・半月判定は 16 日で切る
                   adjustments: { before: (r.adjustmentsShown ?? []).filter((a) => a.before_withholding), after: (r.adjustmentsShown ?? []).filter((a) => !a.before_withholding) }, // 264-10: preview が行に載せる凍結形
                 });
@@ -968,10 +968,10 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
                 const adjLabel = (a: AdjRow) => a.mode === "fixed" ? `定額 ¥${(a.amount ?? 0).toLocaleString()}` : `率 ${bpToPct(a.rate_bp ?? 0)}%`;
                 const earnTotal = bd.earnTotal; // ★裁定303-1: 行の Σ＝gross（extras 内在・裁定26）
                 const dedTotal = bd.dedTotal;   // 裁定264-3: 集約関数と同値（bd.ded の Σ）
-                const line = (l: React.ReactNode, v: number, neg = false, key = typeof l === "string" ? l : "node", muted = false) => ( // ★便 SH-UI-c C-2 ③: 時給行の「× 74.9h」を勤怠表への link に
-                  <div key={key} style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: 12.5, padding: "2px 0", opacity: muted ? 0.75 : 1 }}>
-                    <span style={{ color: "var(--sub)" }}>{l}</span>
-                    <span className="num" style={neg ? { color: "var(--bad)" } : undefined}>{neg ? "−" : ""}¥{v.toLocaleString()}</span>
+                const line = (l: React.ReactNode, v: number, neg = false, key = typeof l === "string" ? l : "node", muted = false, extra?: { label2?: string; amountText?: string }) => ( // ★便 SH-UI-c C-2 ③: 時給行の「× 74.9h」を勤怠表への link に
+                  <div key={key} className={extra?.label2 ? "nox-bd-row has-l2" : undefined} style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: 12.5, padding: "2px 0", opacity: muted ? 0.75 : 1 }}>
+                    <span style={{ color: "var(--sub)" }}>{l}{extra?.label2 && <span className="nox-bd-l2" data-bd-l2="1">{extra.label2}</span>}</span>{/* ★便 SH-UI-c2 C2-9 ⑤: 結果の行＝390px で 2 行目に */}
+                    <span className="num" style={neg ? { color: "var(--bad)" } : undefined}>{extra?.amountText ?? `${neg ? "−" : ""}¥${v.toLocaleString()}`}</span>
                   </div>
                 );
                 return (
@@ -1006,7 +1006,7 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
                         : null; })()}
                     </div>
                     <p style={{ fontSize: 11.5, fontWeight: 800, color: "var(--champ)", margin: "8px 0 2px" }}>支給</p>
-                    {bd.earn.map((ln) => line(ln.key === "timePay" ? <Link href={`/payroll?tab=attendance&store=${storeId}&period=${period}&cast=${r.castId}`} className="nox-link" data-kintai-link-line={r.castId} title="勤怠表を開く">{ln.label}</Link> : ln.label, ln.amount, false, ln.key, !!(ln.sub || ln.info)))}{/* ★303-2: 時間行は 0 でも出る（関数が決める） */}
+                    {bd.earn.map((ln) => line(ln.key === "timePay" ? <Link href={`/payroll?tab=attendance&store=${storeId}&period=${period}&cast=${r.castId}`} className="nox-link" data-kintai-link-line={r.castId} title="勤怠表を開く">{ln.label}</Link> : ln.label, ln.amount, false, ln.key, !!(ln.sub || ln.info), { label2: ln.label2, amountText: ln.amountText }))}{/* ★303-2: 時間行は 0 でも出る（関数が決める） */}
                     <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, fontWeight: 800, borderTop: "1px solid var(--line2)", marginTop: 4, paddingTop: 4 }}>
                       <span>支給合計</span><span className="num">¥{earnTotal.toLocaleString()}</span>
                     </div>

@@ -193,7 +193,7 @@ async function loadMasters(admin: SupabaseClient, storeId: string, period: strin
   const pen = penR.data as Record<string, unknown> | null;
   const basis = payTimeBasisOf(((stR.data?.settings_json ?? null) as Record<string, unknown> | null), runPeriodStart ?? `${period}-01`); // ★324-2: run の期の初日 ≥ next_from なら next
   const masters: StoreMasters = {
-    ...(isSystemOn((stR.data?.settings_json ?? null) as Record<string, unknown> | null, "sys_sales_rate") ? {} : { salesBackTable: [] }), // ★便 GV-C C-10（R-5c）: 売上歩合 OFF の店は売上率テーブルを効かせない（ON／欠損＝従来の既定＝golden 不変）
+    ...(isSystemOn((stR.data?.settings_json ?? null) as Record<string, unknown> | null, "sys_backs") ? {} : { salesBackTable: [] }), /* ★便 SH-UI-c2 C2-10（裁定412 の残り）: 売上歩合＝各種バックに統合（sys_sales_rate は読まない） */ // ★便 GV-C C-10（R-5c）: 売上歩合 OFF の店は売上率テーブルを効かせない（ON／欠損＝従来の既定＝golden 不変）
     ...(basis === "shift" ? { payTimeBasis: "shift" as const } : {}), // ★324（便 L-2-3）: 'punch'／未設定はキーを足さない（従来と 1 バイト同値）
     penalty: {
       fineAbsent: (pen?.fine_absent as number) ?? 0,

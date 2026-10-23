@@ -15,7 +15,10 @@ export type BreakdownPayLike = {
   payRule?: { rule?: string; guaranteedHours?: number; fixedAmount?: number; calcDays?: number; periodDays?: number; perShiftAmount?: number; shiftCount?: number } | null;
   guarantee?: { spans: { from: string; to: string | null; base: number }[]; baseHours: number; basePay: number; guaHours: number; guaPay: number } | null;
   wdays?: { d: number; hours: number; hourly: number; basis: string; gua?: boolean }[]; // ★便 PR-1 R-2（裁定416）: 営業日ごとの時給＝区間行の元（凍結 pay にも入っている）
-  slideBasis?: { apply?: string; provisional?: boolean; months: { month: string; prevMonth: string; sales: number; pts: number; salesWage: number; ptsWage: number }[]; basis?: string; scope?: { rankIds: string[]; castRankId: string | null; excluded: boolean } } | null; // ★裁定343: basis／scope
+  slideBasis?: { apply?: string; provisional?: boolean; months: { month: string; prevMonth: string; sales: number; pts: number; salesWage: number; ptsWage: number }[]; basis?: string; scope?: { rankIds: string[]; castRankId: string | null; excluded: boolean } } | null;
+  /** ★便 SH-UI-c2 C2-9: 段の判定（基本時給・売上／pt の段）＝凍結 pay にも plan／eplan が入っている */
+  eplan?: { base?: number; salesSlide?: { at: number; wage: number }[]; pointSlide?: { at: number; wage: number }[] } | null;
+  plan?: { base?: number; salesSlide?: { at: number; wage: number }[]; pointSlide?: { at: number; wage: number }[] } | null; // ★裁定343: basis／scope
   honBack?: number; jonaiBack?: number; dohanBack?: number;
   drinkBack?: number; champBack?: number; bottleBack?: number; calculatedBack?: number; salesBack?: number;
   customTotal?: number; cbacks?: { name?: string; amount?: number }[];
@@ -35,6 +38,10 @@ export type BreakdownLine = {
   sub?: boolean;
   /** 情報行（スライドの段など）＝合計に足さない・金額列は参考値 */
   info?: boolean;
+  /** ★便 SH-UI-c2 C2-9 ⑤: 結果の行（390px で 1 行に収まらないときは見出し行＋結果の行の 2 行＝途中で折り返さない） */
+  label2?: string;
+  /** ★便 SH-UI-c2 C2-9 ①: 金額欄の表示を置き換える（「—」＝¥0 を出さない） */
+  amountText?: string;
 };
 export type BreakdownInput = {
   pay: BreakdownPayLike;
@@ -52,11 +59,13 @@ export type BreakdownInput = {
   splitAtD?: number[];
   /** ★便 GV-C C-10（GV-53）: 店の利用機能（settings_json の sys_*）。渡すと OFF の制度の行は金額 0 なら省き・0 でなければ「（OFF の制度）」を付けて残す。未指定＝従来どおり */
   systems?: Record<string, unknown> | null;
+  /** ★便 SH-UI-c2 C2-9 ④: 確定済みの月＝「暫定」を外し判定基準を 1 語で */
+  frozen?: boolean;
 };
 /** ★便 GV-C C-10: 行キー → 制度（sys_*）。ここに無い行（時間・控除の多く・調整）は制度に依らない */
 export function systemOfLineKey(key: string): string | null {
   if (["honBack", "jonaiBack", "dohanBack", "drinkBack", "champBack", "bottleBack", "calculatedBack", "customTotal", "customRest"].includes(key) || key.startsWith("cback-")) return "sys_backs";
-  if (key === "salesBack") return "sys_sales_rate";
+  if (key === "salesBack") return "sys_backs"; // ★便 SH-UI-c2 C2-10（裁定412 の残り）: 売上歩合＝各種バックに統合（行名「売上バック（率）」・出し分けも sys_backs）
   if (key === "achievementBonus") return "sys_bonus";
   if (key === "guaranteeAdd") return "sys_hourly";
   if (key === "normPenalty") return "sys_norms";
@@ -69,6 +78,52 @@ export type Breakdown = { earn: BreakdownLine[]; ded: BreakdownLine[]; earnTotal
 const yen = (n: number) => "¥" + n.toLocaleString("en-US");
 const z = (v: number | undefined | null) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
 const md = (iso: string) => `${Number(iso.slice(5, 7))}/${Number(iso.slice(8, 10))}`;
+
+// ★便 SH-UI-c2 C2-9（2026-10-23）: 右パネルのスライド行の表記（計算は変えない）。
+//   ①段に届いていない＝「スライド 10月（暫定・期首〜今日）」＋「売上 ¥211,604 → 段なし・基本時給 ¥1,800 のまま」・金額欄「—」
+//   ②届いた＝「→ 段 2（時給 ¥2,000・+¥200/h）」・金額欄＝上乗せの合計（(段の時給−基本)×その日の実働 h の Σ＝wdays の basis 売上／ポイントの日）
+//   ③保証中＝「→ 保証 ¥3,200（10/24 まで）が優先」（保証の時給が段の時給以上のとき）
+//   ④確定済み＝「暫定」を外し判定基準を 1 語（前月の累計／月の累計／半月の累計）。⑤390px＝見出し行（label）＋結果の行（label2）＝renderer が 2 行に分ける。
+//   /mine（PayslipSlip）も同じ関数＝同じ文言。
+export type SlideLineInput = Pick<BreakdownPayLike, "slideBasis" | "eplan" | "plan" | "wdays" | "wHours" | "guarantee">;
+export function slideLinesOf(p: SlideLineInput, opts: { frozen?: boolean; showSales?: boolean; showPt?: boolean } = {}): BreakdownLine[] {
+  const sb = p.slideBasis; if (!sb?.months?.length) return [];
+  const apply = sb.apply ?? "next";
+  if (apply === "daily") return [];
+  const plan = p.eplan ?? p.plan ?? null;
+  const base = z(plan?.base);
+  const tiers = [...(plan?.salesSlide ?? [])].sort((a, b) => a.at - b.at);
+  const ptTiers = [...(plan?.pointSlide ?? [])].sort((a, b) => a.at - b.at);
+  const basisWord = apply === "monthly" ? "月の累計" : apply === "half" ? "半月の累計" : "前月の累計";
+  const bLabel = sb.basis === "hon_count" ? "本指名" : sb.basis === "dohan_count" ? "同伴" : null;
+  const bVal = (v: number) => (bLabel ? `${bLabel} ${v} 件` : `売上 ${yen(v)}`);
+  const showSales = opts.showSales ?? true, showPt = opts.showPt ?? true;
+  const gua = p.guarantee && p.guarantee.guaHours > 0 && p.guarantee.spans.length > 0 ? p.guarantee.spans[p.guarantee.spans.length - 1] : null;
+  const topUp = (wage: number) => {
+    if (wage <= base) return 0;
+    const days = (p.wdays ?? []).filter((w) => w.hours > 0 && (w.basis === "売上" || w.basis === "ポイント"));
+    return Math.round(days.length > 0 ? days.reduce((a, w) => a + Math.max(0, w.hourly - base) * w.hours, 0) : (wage - base) * z(p.wHours));
+  };
+  const out: BreakdownLine[] = [];
+  for (const m of sb.months) {
+    const head = `スライド ${periodLabelOf(m.month)}（${opts.frozen || apply === "next" ? basisWord : `暫定・期首〜今日`}）`;
+    const salesIdx = tiers.filter((t) => m.sales >= t.at).length;
+    const ptIdx = ptTiers.filter((t) => m.pts >= t.at).length;
+    const wage = Math.max(m.salesWage, m.ptsWage);
+    const hit = wage > base && (salesIdx > 0 || ptIdx > 0);
+    const parts: string[] = [];
+    if (showSales || m.salesWage > 0 || (!showPt && m.ptsWage === 0)) parts.push(bVal(m.sales));
+    if ((showPt || m.ptsWage > 0) && ptTiers.length > 0) parts.push(`pt ${m.pts}`);
+    let result: string;
+    if (hit) {
+      const idx = m.salesWage >= m.ptsWage ? salesIdx : ptIdx;
+      result = `${parts.join("・")} → 段 ${idx}（時給 ${yen(wage)}・+${yen(wage - base)}/h）`;
+    } else result = `${parts.join("・")} → 段なし・基本時給 ${yen(base)} のまま`;
+    if (gua && gua.base >= wage) result += `・保証 ${yen(gua.base)}（${gua.to ? md(gua.to) + " まで" : "期末まで"}）が優先`;
+    out.push({ key: `slide-${m.month}`, label: head, label2: result, amount: hit ? topUp(wage) : 0, info: true, ...(hit ? {} : { amountText: "—" }) });
+  }
+  return out;
+}
 
 /** 源泉行のラベル（凍結 taxMode・旧データは「源泉」） */
 export function whLabelOf(taxMode: string | null | undefined): string {
@@ -132,17 +187,12 @@ export function breakdownLinesOf(input: BreakdownInput): Breakdown {
     const ms = p.slideBasis.months;
     push("slide-daily", `　スライド 日次＝その日の${bLabel}の件数で段（${ms.length} 日・${ms.filter((m) => m.salesWage > 0).length} 日で段あり）${p.slideBasis.scope ? "・対象ランク" : ""}`, Math.max(...ms.map((m) => Math.max(m.salesWage, m.ptsWage))), { keepZero: true, info: true });
   } else if (p.slideBasis?.months?.length) {
-    // ★便 GV-C live（GV-53）: 売上／pt の片方だけ OFF の店は、OFF 側の「→時給」を出さない（段で時給が付いていれば出す）
+    // ★便 GV-C live（GV-53）: 売上／pt の片方だけ OFF の店は、OFF 側の値を出さない（段で時給が付いていれば出す）
+    // ★便 SH-UI-c2 C2-9: 文言は slideLinesOf（段なし＝「—」・段あり＝上乗せ・保証中・確定済み・390px は 2 行）＝/mine と同じ
     const showSales = sysOn(sysK, "sys_sales_slide"), showPt = sysOn(sysK, "sys_point_slide") && sysOn(sysK, "sys_points");
-    const slidePartsOf = (m: { sales: number; salesWage: number; pts: number; ptsWage: number }) => [
-      showSales || m.salesWage > 0 || (!showPt && m.ptsWage === 0) ? `${bVal(m.sales)}→時給 ${yen(m.salesWage)}` : null,
-      showPt || m.ptsWage > 0 ? `pt ${m.pts}→${yen(m.ptsWage)}` : null,
-    ].filter(Boolean).join("／");
-    for (const m of p.slideBasis.months) {
-      // ★裁定338＋追補1（0168・便 P168）: monthly／half＝期間の累計（暫定の印）・'next'＝従来の前月表示
-      const ap = p.slideBasis.apply;
-      if (ap === "monthly" || ap === "half") push(`slide-${m.month}`, `　スライド ${periodLabelOf(m.month)}＝${ap === "monthly" ? "月" : "半月"}の累計${m.prevMonth !== m.month ? `（${periodLabelOf(m.prevMonth)} 基準）` : ""}${p.slideBasis.provisional ? "・暫定（期首〜今日）" : ""} ${slidePartsOf(m)}${p.slideBasis.scope ? "・対象ランク" : ""}`, Math.max(m.salesWage, m.ptsWage), { keepZero: true, info: true });
-      else push(`slide-${m.month}`, `　スライド ${Number(m.month.slice(5, 7))}月分＝前月（${Number(m.prevMonth.slice(5, 7))}月）${slidePartsOf(m)}`, Math.max(m.salesWage, m.ptsWage), { keepZero: true, info: true });
+    for (const ln of slideLinesOf(p, { frozen: input.frozen, showSales, showPt })) {
+      if (slidesOff && ln.amount === 0) continue;
+      earn.push(ln);
     }
   }
   push("honBack", "本指名バック", z(p.honBack));
@@ -152,7 +202,7 @@ export function breakdownLinesOf(input: BreakdownInput): Breakdown {
   push("champBack", "シャンパンバック", z(p.champBack));
   push("bottleBack", "ボトルバック", z(p.bottleBack));
   push("calculatedBack", "商品バック（プラン率／固定）", z(p.calculatedBack));
-  push("salesBack", "売上歩合", z(p.salesBack));
+  push("salesBack", "売上バック（率）", z(p.salesBack)); // ★便 SH-UI-c2 C2-10（裁定412 の残り）: 旧「売上歩合」＝各種バックの並び
   if (Array.isArray(p.cbacks) && p.cbacks.length > 0) {
     for (const [i, c] of p.cbacks.entries()) push(`cback-${i}`, c.name ? `自由設計バック（${c.name}）` : "自由設計バック", z(c.amount));
     const rest = z(p.customTotal) - p.cbacks.reduce((a, c) => a + z(c.amount), 0);

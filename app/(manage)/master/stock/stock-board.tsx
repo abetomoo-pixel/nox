@@ -19,13 +19,13 @@
 //   在庫管理の判定＝products に管理フラグの列は無い → 「product_stock_totals の戻りに行がある商品（stock_logs に 1 行以上）」を管理ありとする（在庫数 null＝管理なし）。
 //   役割の分担: 入荷・返品（増減）＝商品ページの行「入荷」／実数で置き換え＝この在庫ページ。
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import Toast from "@/components/ui/toast";
 import MasterPageHead from "../master-page-head";
 import { fetchProductCategories, fetchProducts, fetchStockTotals, type MasterCategory, type MasterProduct as Product } from "@/lib/nox/master/queries";
-import { stocktakeRowsOf, stocktakePlanOf } from "@/lib/nox/stock/stocktake";
+import { stocktakeRowsOf, stocktakePlanOf, stocktakeGroupsOf, actualValueOf, deltaOf, stepActualOf } from "@/lib/nox/stock/stocktake"; // ★便 SH-UI-c2 C2-8
 import { STOCK_REASON_STOCKTAKE, stockReasonLabel } from "@/lib/nox/stock/reasons";
 import { stockUnitOf } from "@/lib/nox/inventory/unit";
 
@@ -43,6 +43,18 @@ const ctlBtn: React.CSSProperties = { height: CTL_H, boxSizing: "border-box", di
 const numWheelBlur = (e: React.WheelEvent<HTMLInputElement>) => { (e.currentTarget as HTMLInputElement).blur(); };
 
 const PAGE = 50;
+
+/** ★便 SH-UI-c2 C2-8: −／＋＝押すと 1・長押しで連続（400ms 後に 120ms ごと）。タップ目安 40px */
+function StepBtn({ label, onStep, disabled, testId }: { label: string; onStep: () => void; disabled?: boolean; testId?: string }) {
+  const timer = useRef<{ t: ReturnType<typeof setTimeout> | null; i: ReturnType<typeof setInterval> | null }>({ t: null, i: null });
+  const stop = () => { if (timer.current.t) clearTimeout(timer.current.t); if (timer.current.i) clearInterval(timer.current.i); timer.current = { t: null, i: null }; };
+  const start = () => { stop(); timer.current.t = setTimeout(() => { timer.current.i = setInterval(onStep, 120); }, 400); };
+  return (
+    <button type="button" className="nox-st-btn" aria-label={label === "−" ? "1 減らす" : "1 増やす"} disabled={disabled} data-stocktake-step={testId}
+      onClick={onStep} onPointerDown={start} onPointerUp={stop} onPointerLeave={stop} onPointerCancel={stop} onContextMenu={(e) => e.preventDefault()}
+      style={{ width: 40, height: CTL_H, borderRadius: 8, border: "1px solid var(--line2)", background: "var(--card2)", color: "var(--ink)", fontSize: 16, fontWeight: 800, touchAction: "manipulation", userSelect: "none" }}>{label}</button>
+  );
+}
 
 type StockLog = {
   id: string; product_id: string; delta: number; reason: string | null; by_user_id: string | null; at: string;
@@ -107,6 +119,7 @@ export default function StockBoard({ isManagerUp, initial, users }: {
   // ★裁定323: 行（在庫管理ありだけ・カテゴリ順）と、記録する行（実数が整数で差分 ≠ 0）
   const tRows = useMemo(() => stocktakeRowsOf(managedProducts, stock, categories, { q: tq, showInactive }), [managedProducts, stock, categories, tq, showInactive]);
   const tPlan = useMemo(() => stocktakePlanOf(managedProducts, stock, actuals), [managedProducts, stock, actuals]);
+  const inactiveCount = useMemo(() => managedProducts.filter((p) => !p.is_active && stock[p.id] !== undefined).length, [managedProducts, stock]); // ★便 SH-UI-c2 C2-8 ④: 「無効の商品も表示（n 件）」
   const unmanaged = products.filter((p) => p.is_active && (p.track_stock === false || stock[p.id] === undefined)).length; // ★X-13-8: track_stock=false も「管理なし」に数える
 
   async function recordStocktakeAll() {
@@ -147,21 +160,23 @@ export default function StockBoard({ isManagerUp, initial, users }: {
       )}
 
       {isManagerUp && (
-        <section className="nox-cardtop" style={{ ...card, marginBottom: 14 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", margin: "0 0 6px" }}>
+        <section className="nox-cardtop nox-stocktake" style={{ ...card, marginBottom: 14 }} data-stocktake="1">
+          {/* ★便 SH-UI-c2 C2-8（2026-10-23）: 棚卸しの 390px＝①分類はグループ見出し（商品行に挟まない・広い幅も同じ）②カードは 2 行（商品名…現在庫／[−][n][＋] 本 差分）
+              ③画面下に固定バー「記録する（差分あり N 件）」④「無効の商品も表示（n 件）」⑤説明は 1 行＋「？」⑥在庫を持たない商品の注記は見出し下の 1 行。実数の既定値＝現在庫（差分 0・灰） */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", margin: "0 0 4px" }}>
             <h3 style={{ margin: 0, fontSize: 14 }}>棚卸し</h3>
-            <span style={{ fontSize: 11.5, color: "var(--sub)" }}>棚の実数を入れた行だけ記録します（差分は自動計算）</span>
+            <span style={{ fontSize: 11.5, color: "var(--sub)" }}>棚の実数を入れると差分を記録します</span>
+            <details className="nox-help" style={{ fontSize: 11.5, color: "var(--sub)" }} data-stocktake-help="1">
+              <summary style={{ cursor: "pointer", display: "inline-block", width: 20, height: 20, lineHeight: "20px", textAlign: "center", borderRadius: 999, border: "1px solid var(--line2)", fontWeight: 800 }} aria-label="棚卸しの説明">？</summary>
+              <p style={{ margin: "6px 0 0", lineHeight: 1.7 }}>実数の既定値は現在庫（差分 0）。−／＋で 1 ずつ・長押しで連続・直接入力も可。差分のある行だけ記録します（差分 0 の行は送りません）。入荷・返品（数を足す／引く）は<Link href="/master/products" className="nox-link">商品ページ</Link>の行「入荷」から。売上による減算は会計から自動で入ります。</p>
+            </details>
           </div>
-          {/* ★裁定323: 役割の分担を注記（入荷・返品＝商品ページ／実数で置き換え＝在庫ページ） */}
-          <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "0 0 10px", lineHeight: 1.7 }}>
-            入荷・返品（数を足す／引く）は<Link href="/master/products" className="nox-link">商品ページ</Link>の行「入荷」から。この画面は棚の実数で在庫を置き換えます。
-            {unmanaged > 0 && <> 在庫を持たない商品（入荷の記録が無い商品）<span className="num">{unmanaged}</span> 件は表示していません。</>}
-          </p>
+          {unmanaged > 0 && <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "0 0 8px" }} data-stocktake-unmanaged={unmanaged}>在庫を持たない商品（入荷の記録が無い商品）<span className="num">{unmanaged}</span> 件は表示していません。</p>}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
             <input value={tq} onChange={(e) => setTq(e.target.value)} placeholder="商品名で絞り込み" aria-label="棚卸しの商品を絞り込み"
               style={{ ...ctlInput, width: "100%", maxWidth: 240 }} />
             <label style={{ fontSize: 12, display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
-              <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} /> 無効も表示
+              <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} data-stocktake-inactive="1" /> 無効の商品も表示（{inactiveCount} 件）
             </label>
             <span style={{ fontSize: 11.5, color: "var(--sub)" }}><span className="num">{tRows.length}</span> 件</span>
           </div>
@@ -169,53 +184,61 @@ export default function StockBoard({ isManagerUp, initial, users }: {
             <p style={{ fontSize: 13, color: "var(--sub)", margin: 0 }}>{tq.trim() ? "該当する商品がありません。" : "在庫を持つ商品がありません（商品ページの「入荷」で在庫を登録すると、ここに出ます）。"}</p>
           ) : (
             <div className="nox-ptwrap">
-              <table className="nox-ptable">
+              <table className="nox-ptable nox-sttable">
                 <thead>
                   <tr>
                     <th>商品</th>
-                    <th style={{ width: 90, textAlign: "right" }}>現在庫</th>
-                    <th style={{ width: 130, textAlign: "right" }}>実数</th>
+                    <th className="col-cur" style={{ width: 90, textAlign: "right" }}>現在庫</th>
+                    <th style={{ width: 170, textAlign: "right" }}>実数</th>
                     <th style={{ width: 90, textAlign: "right" }}>差分</th>
                   </tr>
                 </thead>
-                <tbody>
-                  {tRows.map((r) => {
-                    const raw = actuals[r.id] ?? "";
-                    const n = raw.trim() === "" ? null : Number(raw);
-                    const bad = n !== null && !Number.isInteger(n);
-                    const d = n !== null && !bad ? n - r.current : null;
-                    return (
-                      <tr key={r.id} style={r.isActive ? undefined : { opacity: 0.6 }}>
-                        <td data-label="商品">
-                          {r.head && <span style={{ display: "block", fontSize: 10.5, color: "var(--champ)", fontWeight: 800 }}>{r.categoryName}</span>}
-                          {r.name}{!r.isActive && <span style={{ ...t.tag, fontSize: 10, marginLeft: 6, color: "var(--sub)", borderColor: "var(--line2)" }}>無効</span>}
-                        </td>
-                        <td data-label="現在庫" style={{ textAlign: "right" }}><span style={t.num}>{r.current}{r.unit}</span></td>
-                        <td data-label="実数" style={{ textAlign: "right" }}>
-                          <input type="number" step={1} value={raw} disabled={busy} placeholder="棚の実数" aria-label={`${r.name} の実数`}
-                            onChange={(e) => setActuals((a) => ({ ...a, [r.id]: e.target.value }))}
-                            className="nox-numfield" inputMode="numeric" onWheel={numWheelBlur}
-                            style={{ ...ctlInput, ...t.num, textAlign: "right", width: 90, ...(bad ? { borderColor: "var(--bad)" } : {}) }} />
-                          <span data-unit style={{ fontSize: 12.5, color: "var(--sub)", marginLeft: 4 }}>{r.unit}</span>
-                        </td>
-                        <td data-label="差分" style={{ textAlign: "right" }}>
-                          <span style={{ ...t.num, fontWeight: 700, color: d == null || d === 0 ? "var(--sub)" : d > 0 ? "var(--ok)" : "var(--bad)" }}>
-                            {d == null ? "—" : d > 0 ? `+${d}` : d}{d == null ? "" : r.unit}
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
+                {stocktakeGroupsOf(tRows).map((g) => (
+                  <tbody key={g.categoryName} data-stocktake-group={g.categoryName}>
+                    <tr className="nox-st-group"><th colSpan={4} data-stocktake-group-head="1">{g.categoryName}<span className="num" style={{ marginLeft: 6, fontWeight: 400, color: "var(--sub)" }}>{g.rows.length}</span></th></tr>
+                    {g.rows.map((r) => {
+                      const raw = actuals[r.id];
+                      const n = actualValueOf(raw, r.current);
+                      const bad = n === null;
+                      const d = deltaOf(raw, r.current);
+                      const step = (k: number) => setActuals((a) => ({ ...a, [r.id]: stepActualOf(a[r.id], r.current, k) }));
+                      return (
+                        <tr key={r.id} style={r.isActive ? undefined : { opacity: 0.6 }} data-stocktake-row={r.id} data-stocktake-delta={d ?? ""}>
+                          <td data-label="商品" className="col-name">
+                            <span className="nox-st-name">{r.name}{!r.isActive && <span style={{ ...t.tag, fontSize: 10, marginLeft: 6, color: "var(--sub)", borderColor: "var(--line2)" }}>無効</span>}</span>
+                            <span className="nox-st-cur num" style={{ color: "var(--sub)" }}>現在庫 {r.current}{r.unit}</span>
+                          </td>
+                          <td data-label="現在庫" className="col-cur" style={{ textAlign: "right" }}><span style={t.num}>{r.current}{r.unit}</span></td>
+                          <td data-label="実数" className="col-actual" style={{ textAlign: "right" }}>
+                            <span className="nox-st-step">
+                              <StepBtn label="−" onStep={() => step(-1)} disabled={busy} testId={`${r.id}:-`} />
+                              <input type="number" step={1} value={raw ?? String(r.current)} disabled={busy} aria-label={`${r.name} の実数`}
+                                onChange={(e) => setActuals((a) => ({ ...a, [r.id]: e.target.value }))}
+                                className="nox-numfield" inputMode="numeric" onWheel={numWheelBlur} data-stocktake-actual={r.id}
+                                style={{ ...ctlInput, ...t.num, textAlign: "right", width: 64, padding: "0 6px", ...(bad ? { borderColor: "var(--bad)" } : {}) }} />
+                              <StepBtn label="＋" onStep={() => step(1)} disabled={busy} testId={`${r.id}:+`} />
+                              <span data-unit style={{ fontSize: 12.5, color: "var(--sub)", marginLeft: 2 }}>{r.unit}</span>
+                            </span>
+                          </td>
+                          <td data-label="差分" className="col-delta" style={{ textAlign: "right" }}>
+                            <span className="num" style={{ fontWeight: 700, color: d == null || d === 0 ? "var(--sub)" : d > 0 ? "var(--ok)" : "var(--bad)" }} data-stocktake-diff={r.id}>
+                              差分 {d == null ? "—" : d > 0 ? `+${d}` : d}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                ))}
               </table>
             </div>
           )}
-          <div className="nox-actions end" style={{ marginTop: 10 }}>
+          <div className="nox-st-bar" data-stocktake-bar="1">
             {Object.values(actuals).some((v) => v.trim() !== "") && (
-              <button style={{ ...t.btnGhost, ...t.btnSm, ...ctlBtn, padding: "0 12px" }} disabled={busy} onClick={() => setActuals({})}>入力を消す</button>
+              <button type="button" style={{ ...t.btnGhost, ...t.btnSm, ...ctlBtn, padding: "0 12px" }} disabled={busy} onClick={() => setActuals({})}>入力を消す</button>
             )}
-            <button style={{ ...btnDark, ...ctlBtn, padding: "0 12px", opacity: tPlan.length === 0 || busy ? 0.5 : 1 }} disabled={tPlan.length === 0 || busy} onClick={() => void recordStocktakeAll()}>
-              {busy ? "記録中…" : `${tPlan.length} 件を記録`}
+            <button type="button" style={{ ...btnDark, ...ctlBtn, padding: "0 14px", opacity: tPlan.length === 0 || busy ? 0.5 : 1 }} disabled={tPlan.length === 0 || busy} onClick={() => void recordStocktakeAll()} data-stocktake-record="1">
+              {busy ? "記録中…" : `記録する（差分あり ${tPlan.length} 件）`}
             </button>
           </div>
         </section>

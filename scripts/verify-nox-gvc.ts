@@ -52,12 +52,13 @@ const bl = src("lib/nox/payroll/breakdown-lines.ts"), col = src("lib/nox/payroll
     pay.includes("runLoadedKey") && pay.includes('data-payroll-provisional="1"') && pay.includes("data-row-slip"));
   {
     const pay = { slideBasis: { apply: "monthly", provisional: false, months: [{ month: "2026-09", prevMonth: "2026-09", sales: 1000, pts: 0, salesWage: 0, ptsWage: 0 }] } } as unknown;
-    const txt = (sys: Record<string, unknown> | null) => (breakdownLinesOf({ pay, systems: sys } as never).earn ?? []).map((l: { label: string }) => l.label).join(" | ");
-    const ptOff = txt({ sys_sales_slide: true, sys_point_slide: false }), both = txt(null);
-    check("gvc(2-3) live 修正（GV-53）: pt スライド OFF の店はスライド行の「／pt n→¥」を出さない・systems なしは従来どおり両方", !ptOff.includes("pt 0→") && ptOff.includes("→時給 ¥0") && both.includes("／pt 0→¥0"), ptOff + " || " + both);
+    const txt = (sys: Record<string, unknown> | null, p2: unknown = pay) => (breakdownLinesOf({ pay: p2, systems: sys } as never).earn ?? []).map((l: { label: string; label2?: string }) => l.label + " " + (l.label2 ?? "")).join(" | ");
+    const ptOff = txt({ sys_sales_slide: true, sys_point_slide: false }), both = txt(null, { ...(pay as object), eplan: { base: 0, salesSlide: [], pointSlide: [{ at: 1, wage: 100 }] } });
+    // ★便 SH-UI-c2 C2-9: 文言は slideLinesOf（「売上 ¥1,000 → 段なし・基本時給 ¥0 のまま」・pt は pt の段があるときだけ「・pt 0」）
+    check("gvc(2-3) live 修正（GV-53）: pt スライド OFF の店はスライド行の pt を出さない・systems なし（pt の段あり）は両方", !ptOff.includes("pt ") && ptOff.includes("→ 段なし・基本時給 ¥0 のまま") && both.includes("・pt 0 → 段なし"), ptOff + " || " + both);
   }
   check("gvc(2-2) C-10 OFF の制度: breakdownLinesOf に systems・0 円の行は出さない／値があれば「（OFF の制度）」・collect は売上率 OFF で salesBackTable 空",
-    bl.includes("systemOfLineKey") && bl.includes("（OFF の制度）") && col.includes('"sys_sales_rate"') && col.includes("salesBackTable: []"));
+    bl.includes("systemOfLineKey") && bl.includes("（OFF の制度）") && col.includes('"sys_backs"') /* ★便 SH-UI-c2 C2-10: 売上歩合は各種バックに統合 */ && col.includes("salesBackTable: []"));
 }
 
 // ── (3) 制度・マスタ・ON/OFF・最終来店

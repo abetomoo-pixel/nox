@@ -227,7 +227,7 @@ check("ms(2-17) 裁定323: 行＝在庫管理ありの有効商品だけ・カ�
   JSON.stringify(stRows.map((r) => r.name)) === JSON.stringify(["ビール", "響", "角"]) && JSON.stringify(stRows.map((r) => r.head)) === JSON.stringify([true, true, false]) && stRows[0].current === 0
   && JSON.stringify(stocktakeRowsOf(stProducts, stStock, stCats, { showInactive: true }).map((r) => r.name).sort()) === JSON.stringify(["ビール", "山崎", "響", "角"].sort()) && stocktakeRowsOf(stProducts, stStock, stCats, { showInactive: true })[3].name === "角" && stocktakeRowsOf(stProducts, stStock, stCats, { q: "角" }).length === 1
   && JSON.stringify(stocktakePlanOf(stProducts, stStock, { p1: "3", p2: "0", p5: "3.5", p4: "9", p3: " 4 " }).map((r) => [r.id, r.delta])) === JSON.stringify([["p1", -2], ["p3", 2]])
-  && !stockSrc.includes("function ProductCombo") && !stockSrc.includes("<ProductCombo") && stockSrc.includes("件を記録") && stockSrc.includes("無効も表示") && stockSrc.includes("if (error) { failed = ") && stockSrc.includes("商品ページ")
+  && !stockSrc.includes("function ProductCombo") && !stockSrc.includes("<ProductCombo") && stockSrc.includes("記録する（差分あり ${tPlan.length} 件）") /* ★便 SH-UI-c2 C2-8 ③ */ && stockSrc.includes("無効の商品も表示（") /* ★C2-8 ④ */ && stockSrc.includes("if (error) { failed = ") && stockSrc.includes("商品ページ")
   && messageKindOf("2 件を記録しました。次の行の記録に失敗したため中止しました（角: 権限がありません）") === "error" && messageKindOf("棚卸しを 3 件記録しました") === "success");
 
 // ── 便 AB（0158 client・2026-09-30）──

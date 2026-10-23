@@ -47,3 +47,28 @@ export function stocktakePlanOf(products: readonly { id: string; name: string }[
   }
   return out;
 }
+
+// ★便 SH-UI-c2 C2-8（2026-10-23）: 棚卸しの 390px＝分類はグループ見出し・実数の既定値＝現在庫（差分 0）・−／＋で 1 ずつ・差分の色
+export type StocktakeGroup = { categoryName: string; rows: StocktakeRow[] };
+/** 行（カテゴリ順）→ 分類ごとのグループ（見出し行の数＝分類の数） */
+export function stocktakeGroupsOf(rows: readonly StocktakeRow[]): StocktakeGroup[] {
+  const out: StocktakeGroup[] = [];
+  for (const r of rows) { const last = out[out.length - 1]; if (last && last.categoryName === r.categoryName) last.rows.push(r); else out.push({ categoryName: r.categoryName, rows: [r] }); }
+  return out;
+}
+/** 実数の値＝未入力（undefined／空）なら現在庫・整数でない入力は null */
+export function actualValueOf(raw: string | undefined, current: number): number | null {
+  if (raw === undefined || raw.trim() === "") return current;
+  const v = Number(raw.trim());
+  return Number.isInteger(v) ? v : null;
+}
+/** 差分＝実数 − 現在庫（整数でない入力は null） */
+export function deltaOf(raw: string | undefined, current: number): number | null {
+  const v = actualValueOf(raw, current);
+  return v === null ? null : v - current;
+}
+/** −／＋＝今の実数に step を足した文字列（0 未満にしない・不正な入力は現在庫から） */
+export function stepActualOf(raw: string | undefined, current: number, step: number): string {
+  const v = actualValueOf(raw, current) ?? current;
+  return String(Math.max(0, v + step));
+}

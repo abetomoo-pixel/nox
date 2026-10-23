@@ -3744,7 +3744,7 @@ export default function RegisterBoard({
             <thead>
               <tr>
                 <th style={t.th}>伝票</th>
-                <th style={t.th}>請求（サ料込）</th>{/* ★裁定375（GV-B W-5）: 4 列＝伝票／請求／入金済／残額 */}
+                <th style={t.th} data-due-head="1">{check?.price_display === "tax_excluded" && (check?.business_tax_status ?? "taxable") === "taxable" ? "請求（税・サ込）" : "請求（サ込・内税）"}</th>{/* ★裁定375（GV-B W-5）: 4 列＝伝票／請求／入金済／残額。★便 SH-UI-c2 C2-12: 見出し＝外税の店「税・サ込」・内税の店「サ込・内税」（値は明細の「合計（税込）」と同じ due） */}
                 <th style={t.th}>入金済</th>
                 <th style={t.th}>残額</th>
               </tr>

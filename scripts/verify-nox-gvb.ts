@@ -46,7 +46,7 @@ check("gvb(4-2) current-wage.ts＝currentWageOf（wdays 最終日の hourly／ba
 // (5) 375
 const rb = src("app/(manage)/register/register-board.tsx");
 check("gvb(5-1) 会計①＝伝票／請求（サ料込）／入金済／残額の 4 列（小計・割引の列なし）・「入金へ進む」主 56（data-pay-next）・「会計を分ける」副 48・残額 0 で非表示（!allCovered）",
-  rb.includes("<th style={t.th}>請求（サ料込）</th>{/* ★裁定375") && !rb.includes("<th style={t.th}>小計</th>") && rb.includes('data-pay-next="1"') && rb.includes('data-pay-split="1"') && rb.includes('{!allCovered && (\n            <div data-pay-step="1"'));
+  rb.includes('<th style={t.th} data-due-head="1">{check?.price_display === "tax_excluded"') /* ★便 SH-UI-c2 C2-12: 見出し＝税・サ込／サ込・内税 */ && !rb.includes("<th style={t.th}>小計</th>") && rb.includes('data-pay-next="1"') && rb.includes('data-pay-split="1"') && rb.includes('{!allCovered && (\n            <div data-pay-step="1"'));
 check("gvb(5-2) 入金モーダル＝数字キーパッド（0〜9・00・⌫・C）・「入金する」主 56（data-pay-submit）・③「会計を完了」は allCovered のときだけ（主 56・← フロア 副 48）",
   rb.includes('data-pay-keypad="1"') && rb.includes('(["7", "8", "9", "4", "5", "6", "1", "2", "3", "00", "0", "⌫"] as const)') && rb.includes('style={t.btnPrimary56} data-pay-submit="1"') && rb.includes('{allCovered && (/* ★裁定375') && rb.includes('data-pay-close="1">会計を完了</button>'));
 // (6) 376
