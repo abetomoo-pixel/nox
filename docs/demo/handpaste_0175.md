@@ -26,7 +26,7 @@ sha256sum ~/Downloads/0175_rules_bundle_v2_draft.sql
 
 ★overload 罠: check_pay（8→10 引数）・receipt_issue（4→6）・set_comp_plan（30→32）・payroll_adjustment_add（11→14）・punch_self（4→7）・**daily_pay_issue（5→6・v2）**は冒頭で旧署名を drop（0172／0173 と同じ）。既存 client の呼び出しは新しい引数が default 付きなのでそのまま通る（P175 を待たない）。CANON 拡張の 11 列は set_comp_plan の引数を増やさず **comp_plan_ext_set（jsonb patch）** で書く。
 ★既存データの書換え＝comp_plans.slide_method の導出（27 行）と **attendance.status 'dohan'→'shukkin'**（件数は verify の「dohan 行 0」で確認・今日タブの「同伴」ボタンは PR-1 で外す＝伝票の同伴が正本・裁定417）。他は列追加（既定値つき）と関数置換。
-★デモとの順序: NOT NULL の新列（stores／comp_plans／pricing_rules／staff_contracts）は既定値あり＋**同じトランザクションで demo_org_reset を「payload に無い列は表の既定値」へ置き換える**（起票117）ので、翌朝 06:05 の reset（デプロイ済み payload に新列が無い）は失敗しない。ただし payload の attendance に status 'dohan' があると新 CHECK で load が落ちる＝**P175 の前に gen-demo の 'dohan' を外して deploy するか、P175 を reset 前日の夕方に貼る**（PR-1 R-3／R-4 で payload を直す予定＝本便）。
+★デモとの順序: NOT NULL の新列（stores／comp_plans／pricing_rules／staff_contracts）は既定値あり＋**同じトランザクションで demo_org_reset を「payload に無い列は表の既定値」へ置き換える**（起票117）ので、翌朝 06:05 の reset（デプロイ済み payload に新列が無い）は失敗しない。payload の attendance に status 'dohan' は**無い**（2026-10-23 確認＝6 店 0 件）＝新 CHECK で load は落ちない。
 ★client との順序: 新しい引数は全部 default 付き・新設 RPC は client が無くても害なし。計算側（給与の cancelled_at 除外・sales_split equal・pt・VIP タイミング・丸め・報酬率スライド・時間帯・ノルマ区分・イベント加算・予約バック・時給の履歴）は P175 で読み替える＝適用直後は従来どおりの計算。**取消 RPC（payroll_adjustment_cancel／daily_pay_cancel）の cancelled_at を計算側が除外する分は PR-1 の R-2（営業日ごとの時給解決）と同じ便（P175 client）で入れる。**
 
 ## 2. 貼る
