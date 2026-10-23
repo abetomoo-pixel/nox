@@ -11,6 +11,8 @@ import { matchPunches, type DayResolution } from "../punch-match";
 import { punchCountsUpToOf } from "./anomaly";
 import { hm2min, min2hm } from "../shift-time";
 import { OKURI_MODE_LABEL, type OkuriMode } from "../shift/okuri-mode";
+import { bizDateOf } from "../biz-date"; // ★便 SH-UI-c2 C2-2: 出／退の punch id（編集＝punch_correction_request の p_punch_id）
+import { DAILY_PAY_COLUMNS, dailyPayCellsOf, type DailyPayRow } from "./daily-pay"; // ★便 SH-UI-c2 C2-3: 日別の算定給与の列
 
 export type SheetPunch = PunchRow & { id?: string; source?: string | null; okuri?: boolean | null };
 export type SheetAttendance = AttendanceRow & { eta?: string | null; reason?: string | null; source?: string | null; updated_at?: string | null };
@@ -42,6 +44,14 @@ export type AttendanceDayRow = {
   future: boolean;
   /** 判定（final＝S3 対応表の後）＝日数の定義（ok／late を数える＝給与の days と同じ） */
   final: "ok" | "late" | "absent" | "no_shift" | null;
+  /** ★便 SH-UI-c2 C2-2: 出（最初の in）／退（最後の out）の punch id＝時刻修正 RPC の対象（無ければ null＝新規 insert） */
+  inPunchId: string | null; outPunchId: string | null;
+  /** ★便 SH-UI-c2 C2-2 ③: 取消＝shift_remove の対象（確定シフトの id・無ければ null） */
+  shiftId: string | null;
+  /** ★便 SH-UI-c2 C2-2 ③: 取消済み＝打刻もシフトも無く、店の修正に「削除」がある日（行は残す） */
+  cancelled: boolean;
+  /** ★便 SH-UI-c2 C2-3: 日別の算定給与（builder が付ける・/mine も同じ） */
+  pay?: DailyPayRow;
 };
 export type AttendanceSummary = { days: number; hours: number; lateN: number; absentN: number; earlyN: number; okuriN: number; missingOutN: number };
 
@@ -66,7 +76,7 @@ export function jstMdHm(iso: string | null | undefined): string | null {
 }
 
 export type AttendanceSheetInput = {
-  punches: SheetPunch[]; shifts: ShiftRow[]; attendance: SheetAttendance[];
+  punches: SheetPunch[]; shifts: (ShiftRow & { id?: string })[]; attendance: SheetAttendance[];
   corrections?: SheetCorrection[]; transports?: SheetTransport[]; fines?: SheetFine[];
   cutoffHm: string; closeHm: string;
   grace?: { lateGrace?: number; earlyGrace?: number; overGrace?: number };
@@ -86,6 +96,16 @@ export function attendanceDayRowsOf(input: AttendanceSheetInput): AttendanceDayR
   const m = matchPunches({ ...built, config: { close: input.closeHm, lateGraceMin: input.grace?.lateGrace, earlyGraceMin: input.grace?.earlyGrace, overGraceMin: input.grace?.overGrace } });
   const byDate = new Map<string, DayResolution>(m.days.map((d) => [d.bizDate, d]));
   const shiftByDate = new Map(input.shifts.map((s) => [s.date, s]));
+  // ★便 SH-UI-c2 C2-2: 営業日ごとの punch id（最初の in・最後の out＝表の出／退と同じ選び方）
+  const idsByDate = new Map<string, { inId: string | null; inAt: number; outId: string | null; outAt: number }>();
+  for (const p of input.punches) {
+    if (!p.id) continue;
+    const bd = bizDateOf(p.punched_at, input.cutoffHm); const at = new Date(p.punched_at).getTime();
+    const cur = idsByDate.get(bd) ?? { inId: null, inAt: Infinity, outId: null, outAt: -Infinity };
+    if (p.type === "in" && at < cur.inAt) { cur.inId = p.id; cur.inAt = at; }
+    if (p.type === "out" && at > cur.outAt) { cur.outId = p.id; cur.outAt = at; }
+    idsByDate.set(bd, cur);
+  }
   const attByDate = new Map(input.attendance.map((a) => [a.date, a]));
   const shiftHours: Record<string, number> = {};
   for (const s of input.shifts) shiftHours[s.date] = (shiftHours[s.date] ?? 0) + Math.max(0, (hm2min(s.end_hm) - hm2min(s.start_hm)) / 60);
@@ -118,6 +138,8 @@ export function attendanceDayRowsOf(input: AttendanceSheetInput): AttendanceDayR
       hours, basis, okuri: { n: trs.length, modes: [...new Set(trs.map((t) => OKURI_MODE_LABEL[((t.mode ?? "actual") as OkuriMode)] ?? String(t.mode)))] },
       note: noteParts.join("・"), missingOut: !!d && !future && d.raw.in.type !== "no_shift" && d.raw.in.type !== "absent" && d.raw.out.type === "noout" && !!inHm, future,
       final: d ? d.final.type : null,
+      inPunchId: idsByDate.get(bizDate)?.inId ?? null, outPunchId: idsByDate.get(bizDate)?.outId ?? null, shiftId: sh?.id ?? null, // ★C2-2
+      cancelled: !inHm && !outHm && !sh && corr.some((c) => c.after === null), // ★C2-2 ③
     });
   }
   return rows;
@@ -143,7 +165,8 @@ export const correctionTextOf = (c: AttendanceDayRow["corrections"][number], wit
 
 /** ②の列（CSV と印刷で同じ順） */
 export const SHEET_COLUMNS = ["日付", "確定シフト", "出勤", "退勤", "店の修正", "遅刻・当欠・早退", "実働h", "基準", "送り", "備考"] as const;
-export function sheetRowCellsOf(r: AttendanceDayRow, opts: { withBy?: boolean } = {}): string[] {
+export function sheetRowCellsOf(r: AttendanceDayRow, opts: { withBy?: boolean; withPay?: boolean } = {}): string[] {
+  const payCells = opts.withPay ? dailyPayCellsOf(r.pay) : []; // ★便 SH-UI-c2 C2-3: CSV・印刷用にも同じ列
   return [
     r.bizDate,
     r.shift ? `${r.shift.start}–${hm47Ja(r.shift.end)}` : "",
@@ -153,17 +176,52 @@ export function sheetRowCellsOf(r: AttendanceDayRow, opts: { withBy?: boolean } 
     r.hours > 0 ? String(r.hours) : "",
     r.hours > 0 ? BASIS_MARK[r.basis] : "",
     r.okuri.n > 0 ? `${r.okuri.n}${r.okuri.modes.length ? `（${r.okuri.modes.join("・")}）` : ""}` : "",
-    r.note,
+    r.cancelled ? `取消済み${r.note ? "・" + r.note : ""}` : r.note,
+    ...payCells,
   ];
 }
 /** CSV（UTF-8 BOM・CRLF・②の列・見出し行＝店名・期間・氏名・出力日時） */
-export function attendanceCsvOf(meta: { storeName: string; period: string; castName: string; exportedAt: string }, rows: readonly AttendanceDayRow[]): string {
+export function attendanceCsvOf(meta: { storeName: string; period: string; castName: string; exportedAt: string }, rows: readonly AttendanceDayRow[], opts: { withPay?: boolean } = {}): string {
   const esc = (v: string) => (/[",\r\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
+  const cols = opts.withPay ? [...SHEET_COLUMNS, ...DAILY_PAY_COLUMNS] : [...SHEET_COLUMNS]; // ★便 SH-UI-c2 C2-3
   const lines = [
     `# ${meta.storeName} 勤怠 ${meta.period} ${meta.castName} 出力 ${meta.exportedAt}`,
-    SHEET_COLUMNS.join(","),
-    ...rows.map((r) => sheetRowCellsOf(r).map(esc).join(",")),
+    cols.join(","),
+    ...rows.map((r) => sheetRowCellsOf(r, { withPay: opts.withPay }).map(esc).join(",")),
   ];
   return "﻿" + lines.join("\r\n") + "\r\n";
 }
 export const attendanceCsvFileNameOf = (storeName: string, period: string, castName: string): string => `kintai_${storeName}_${period}_${castName}.csv`.replace(/[\\/:*?"<>|\s]/g, "_");
+
+// ★便 SH-UI-c2 C2-2（2026-10-23）: 編集の純関数＝営業日＋0-47 域 HH:MM → ISO（JST）・編集可否・取消の判定
+/** 'YYYY-MM-DD'（営業日）＋ 'HH:MM'（0-47 域・翌表記は 24:00 以上）→ ISO（+09:00）。不正な HH:MM は null */
+export function isoOfBizHm(bizDate: string, hm47: string | null | undefined): string | null {
+  const m = /^([0-3]?[0-9]|4[0-7]):([0-5][0-9])$/.exec((hm47 ?? "").trim());
+  if (!m) return null;
+  const min = Number(m[1]) * 60 + Number(m[2]);
+  if (min >= 48 * 60) return null;
+  const base = new Date(`${bizDate}T00:00:00+09:00`).getTime();
+  return new Date(base + min * 60_000).toISOString();
+}
+/** 「翌01:30」や「25:30」の入力 → 0-47 域の 'HH:MM'（翌＝+24h）。空は null・不正は undefined */
+export function hm47OfInput(v: string): string | null | undefined {
+  const s = v.trim();
+  if (s === "") return null;
+  const m = /^(翌)?\s*([0-9]{1,2}):([0-5][0-9])$/.exec(s);
+  if (!m) return undefined;
+  let h = Number(m[2]); const mm = Number(m[3]);
+  if (m[1]) h += 24;
+  if (h > 47) return undefined;
+  return `${String(h).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+}
+/** 編集できる行か＝店長・オーナー（呼び出し側）・確定済みの月は不可・未来日は不可・取消済みは不可 */
+export const rowEditableOf = (r: Pick<AttendanceDayRow, "future" | "cancelled">, finalized: boolean): boolean => !finalized && !r.future && !r.cancelled;
+/** 編集の送信内容＝変わった項目だけ（出／退は punch_correction_request・区分は attendance_set・取消は削除＋シフト除去） */
+export type KintaiEditPlan = { corrections: { kind: "in" | "out"; punchId: string | null; afterIso: string | null }[]; attendance: { status: string; reason: string | null } | null };
+export function kintaiEditPlanOf(r: Pick<AttendanceDayRow, "bizDate" | "inHm" | "outHm" | "inPunchId" | "outPunchId">, next: { inHm: string | null; outHm: string | null; status: string | null; reason: string | null }, cur: { status: string | null; reason: string | null }): KintaiEditPlan {
+  const corrections: KintaiEditPlan["corrections"] = [];
+  if ((next.inHm ?? null) !== (r.inHm ?? null) && !(next.inHm === null && !r.inPunchId)) corrections.push({ kind: "in", punchId: r.inPunchId, afterIso: next.inHm ? isoOfBizHm(r.bizDate, next.inHm) : null });
+  if ((next.outHm ?? null) !== (r.outHm ?? null) && !(next.outHm === null && !r.outPunchId)) corrections.push({ kind: "out", punchId: r.outPunchId, afterIso: next.outHm ? isoOfBizHm(r.bizDate, next.outHm) : null });
+  const attendance = next.status && (next.status !== cur.status || (next.reason ?? "") !== (cur.reason ?? "")) ? { status: next.status, reason: next.reason } : null;
+  return { corrections, attendance };
+}

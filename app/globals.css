@@ -2590,6 +2590,9 @@ body {
 .nox-kintai-table th, .nox-kintai-table td { white-space: nowrap; }
 .nox-kintai-table td.opt, .nox-kintai-table th.opt { white-space: normal; }
 @media (max-width: 430px) { .nox-kintai .nox-kintai-table .opt { display: none; } .nox-kintai .nox-kintai-table { font-size: 12px; } }
+/* ★便 SH-UI-c2 C2-4／C2-6（2026-10-23）: 390px＝1 人の表は 日付・出／退・日計（.opt を隠す＝実働と日計以外の金額列も .opt）・合計表は キャスト｜日数｜現時点の差引（.nox-kintai-sum .opt を隠す・▸ で残りを開く）。広い幅は ▸ を出さない */
+.nox-kintai .nox-kintai-sum-more { display: none; }
+@media (max-width: 430px) { .nox-kintai .nox-kintai-sum .opt { display: none; } .nox-kintai .nox-kintai-sum-more { display: inline; } .nox-kintai .nox-kintai-sum { font-size: 12px; } }
 @media print { .nox-kintai .nox-kintai-table { font-size: 10.5px; } .nox-kintai .nox-kintai-more { display: none !important; } .nox-kintai .nox-print { page-break-after: always; } }
 /* ★便 S（S-6 ②）: 席の節＝フリーの着席ログの行（着卓中は太字・離席済みは薄く） */
 .nox-seatrow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 12.5px; }

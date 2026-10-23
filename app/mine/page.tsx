@@ -1,6 +1,9 @@
 import Link from "next/link";
 import KintaiRow, { KintaiHead } from "@/components/nox/kintai-row"; // ★便 SH-UI-c C-2 ④
-import { attendanceDayRowsOf, attendanceSummaryOf } from "@/lib/nox/payroll/attendance-sheet";
+import { attendanceDayRowsOf, attendanceSummaryOf, type AttendanceDayRow } from "@/lib/nox/payroll/attendance-sheet";
+import { buildKintaiSheet } from "@/lib/nox/payroll/kintai-sheet";
+import { yenCellOf } from "@/lib/nox/payroll/daily-pay"; // ★便 SH-UI-c2 C2-3／C2-5 ④: 日計あり（店長の表と同じ関数・編集なし・修正者名なし）
+import { createAdminClient } from "@/lib/supabase/admin"; // ★便 SH-UI-c2: builder の読取（本人の cast だけ・get_cast_sales は本人セッション＝自分の行）
 import { payTimeBasisOf } from "@/lib/nox/payroll/time-basis";
 import { createClient } from "@/lib/supabase/server";
 import { bizDateOf, bizDateRange } from "@/lib/nox/biz-date";
@@ -140,14 +143,18 @@ export default async function MinePage() {
   const ps = punchStateOf((todayPunches ?? []) as { type: string; punched_at: string }[]); // ★326 追補3: 当日営業日の自分の打刻 → 未出勤／出勤中／退勤済み
   // ★便 SH-UI-c C-2 ④: 「今月の勤怠」＝給与と同じ計算の表（lib/nox/payroll/attendance-sheet・自分の行＝RLS）。送りは transport の自分の行（mode は 0177 後）
   const { data: mineTransport } = await supabase.from("transport").select("*").gte("biz_date", `${month}-01`);
-  const kintaiRows = attendanceDayRowsOf({
+  // ★便 SH-UI-c2 C2-3: 日別の算定給与＝店長の勤怠表と同じ builder（computePayrollDraft＝給与と同じ）。本人の cast で絞る・読めなければ従来の表（日計なし）
+  const kintaiBuilt = meCast && myStore ? await buildKintaiSheet(createAdminClient(), supabase, myStore.id as string, month, { castId: meCast.id as string }).catch(() => null) : null;
+  const kintaiBuiltRows: AttendanceDayRow[] | null = kintaiBuilt?.casts[0]?.rows ?? null;
+  const kintaiRows = (kintaiBuiltRows ?? attendanceDayRowsOf({
     punches: ((monthPunches ?? []) as { id: string; type: string; punched_at: string }[]).map((p) => ({ id: p.id, punched_at: p.punched_at, type: p.type as "in" | "out" })),
     shifts: monthConfirmedShifts.map((s) => ({ date: s.date, start_hm: s.start_hm, end_hm: s.end_hm })),
     attendance: ((att ?? []) as { date: string; status: string; eta: string | null; source: string | null; reason?: string | null; updated_at?: string | null }[]).map((a) => ({ date: a.date, status: a.status as "shukkin" | "dohan" | "late" | "off" | "absent", eta: a.eta, source: a.source, reason: a.reason ?? null, updated_at: a.updated_at ?? null })),
     corrections: ((corrRows ?? []) as { punch_id: string | null; biz_date: string; kind: "in" | "out"; before_at: string | null; after_at: string | null; reason: string; decision: string; decided_at: string | null }[]).map((c) => ({ ...c, decided_by_name: null })),
     transports: ((mineTransport ?? []) as Record<string, unknown>[]).map((tr) => ({ biz_date: tr.biz_date as string, amount: tr.amount as number, mode: (tr.mode as string | null | undefined) ?? null, status: tr.status as string })),
     cutoffHm: cutoff, closeHm: closeHmOf(myStore?.settings_json), payTimeBasis: payTimeBasisOf((myStore?.settings_json ?? null) as Record<string, unknown> | null, `${month}-01`), todayBiz: bizToday,
-  }).filter((r) => !r.future && (r.inHm || r.shift || r.absent || r.corrections.length > 0 || r.okuri.n > 0)).reverse();
+  })).filter((r) => !r.future && (r.inHm || r.shift || r.absent || r.corrections.length > 0 || r.okuri.n > 0 || (r.pay && r.pay.total !== 0))).reverse();
+  const kintaiPay = kintaiBuilt?.casts[0]?.pay ?? null; // ★C2-3: 月のまとめ（本人）
   const kintaiSum = attendanceSummaryOf(kintaiRows, bizToday);
   // ★326-5: 当月の勤怠一覧（日付・出勤・退勤・実働＝dayWorkedHours・確定シフトのある日だけ時間が出る）と当日の出勤・退勤時刻
   const attRows = monthAttendanceRowsOf({
@@ -402,8 +409,12 @@ export default async function MinePage() {
         {kintaiRows.length === 0 ? <p style={noneP}>記録なし</p> : (
           <div style={{ overflowX: "auto" }}>
             <table className="nox-table nox-kintai-table" style={{ width: "100%", fontSize: 12.5 }}>
-              <KintaiHead />
+              <KintaiHead withPay={!!kintaiPay} />
               <tbody>{kintaiRows.map((r) => <KintaiRow key={r.bizDate} r={r} withBy={false} link={false} />)}</tbody>
+              {kintaiPay && (<tfoot data-mine-kintai-month="1">
+                <tr><td colSpan={9} style={{ ...t.td, fontWeight: 800 }}>日計の合計</td><td className="opt pay" colSpan={3} style={t.td} /><td className="pay num" style={{ ...t.td, textAlign: "right", fontWeight: 800 }} data-kintai-sum-daily={kintaiPay.month.sumDaily}>{yenCellOf(kintaiPay.month.sumDaily)}</td></tr>
+                {kintaiPay.month.rows.map((m) => (<tr key={m.key} data-kintai-month-row={m.key}><td colSpan={9} style={{ ...t.td, color: m.key === "net" ? undefined : "var(--sub)" }}>{m.key === "net" ? m.label : `月のまとめ：${m.label}`}</td><td className="opt pay" colSpan={3} style={t.td} /><td className="pay num" style={{ ...t.td, textAlign: "right", fontWeight: m.key === "net" ? 800 : 500 }}>{m.key === "deductions" ? yenCellOf(m.amount, { neg: m.amount > 0 }) : yenCellOf(m.amount)}</td></tr>))}
+              </tfoot>)}
             </table>
           </div>
         )}

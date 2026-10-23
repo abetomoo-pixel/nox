@@ -218,7 +218,7 @@ export async function runDemoReset(admin: SupabaseClient, orgId: string, payload
 }
 
 export type DemoFinalizeStore = { store: string; status: "finalized" | "skipped" | "failed"; castCount?: number; ms: number; reason?: string };
-export type AfterResetResult = { photos: { casts: number; users: number }; payroll: { period: string; stores: DemoFinalizeStore[]; ms: number; reason?: string } };
+export type AfterResetResult = { photos: { casts: number; users: number }; payroll: { period: string; stores: DemoFinalizeStore[]; ms: number; reason?: string }; fine?: { status: "added" | "skipped" | "failed"; reason?: string; ms: number } };
 
 /**
  * 再生後の後処理（裁定276-4）:
@@ -252,7 +252,46 @@ export async function afterResetHooks(admin: SupabaseClient, orgId: string, _biz
   //   冪等＝その店×先月に finalized／paid の run があれば skip（reset は payroll_runs を wipe するため毎回作り直す）。失敗 org は audit 'demo.finalize.failed' に理由・写真 hook も reset も止めない。
   //   owner 文脈＝demo owner の magiclink をサーバ内で消費（入場 route と同じ・メールは送らない）。報酬参考との差は 328 追補6 の仕様差。
   out.payroll = await finalizePrevMonthForDemo(admin, orgId, _bizDate).catch((e) => ({ period: prevPeriodOf(_bizDate.slice(0, 7)), stores: [], ms: 0, reason: e instanceof Error ? e.message : String(e) }));
+  // ★便 SH-UI-c2 C2-5（2026-10-23）: デモ ACE のひなの＝当月の遅刻の日に罰金 1 件（遅刻 ¥2,000＝店設定の精算プリセット「遅刻」と同額・source settlement・target_shift_id＝その日の確定シフト）
+  //   payload には入れない（payroll_runs は正規経路＝payroll_run_create で当月の draft run を作り payroll_adjustment_add）。他の 5 店は無し。失敗しても reset は成功扱い（fine.status に理由）。
+  out.fine = await demoLateFineForAce(admin, orgId, _bizDate).catch((e) => ({ status: "failed" as const, reason: e instanceof Error ? e.message : String(e), ms: 0 }));
   return out;
+}
+
+/** ★便 SH-UI-c2 C2-5: ACE のひなの（当月に遅刻の attendance がある日）へ精算調整 ¥2,000（遅刻）を当月の draft run に登録。ACE 以外・該当日なし＝skipped */
+export async function demoLateFineForAce(admin: SupabaseClient, orgId: string, bizDate: string): Promise<NonNullable<AfterResetResult["fine"]>> {
+  const t0 = Date.now();
+  const period = bizDate.slice(0, 7);
+  const { data: store } = await admin.from("stores").select("id").eq("org_id", orgId).eq("name", "CLUB ACE").maybeSingle();
+  if (!store) return { status: "skipped", reason: "not ACE", ms: Date.now() - t0 };
+  const storeId = store.id as string;
+  const { data: cast } = await admin.from("casts").select("id").eq("store_id", storeId).eq("name", "ひなの").maybeSingle();
+  if (!cast) return { status: "skipped", reason: "no hinano", ms: Date.now() - t0 };
+  const { data: att } = await admin.from("attendance").select("date").eq("store_id", storeId).eq("cast_id", cast.id as string).eq("status", "late").gte("date", `${period}-01`).lte("date", bizDate).order("date", { ascending: false }).limit(1).maybeSingle();
+  if (!att) return { status: "skipped", reason: "no late day", ms: Date.now() - t0 };
+  const { data: shift } = await admin.from("shifts").select("id").eq("store_id", storeId).eq("cast_id", cast.id as string).eq("date", att.date as string).eq("status", "confirmed").maybeSingle();
+  const ownerCtx = await demoOwnerClientOf(admin, orgId);
+  if (!ownerCtx) return { status: "failed", reason: "owner context unavailable", ms: Date.now() - t0 };
+  try {
+    const { data: existing } = await admin.from("payroll_runs").select("id, status").eq("store_id", storeId).eq("period", period).maybeSingle();
+    let runId = existing?.id as string | undefined;
+    if (!runId) {
+      const { data: rc, error: eRc } = await ownerCtx.client.rpc("payroll_run_create", { p_store_id: storeId, p_period: period });
+      const run = ((rc ?? []) as { id: string }[])[0];
+      if (eRc || !run) return { status: "failed", reason: `run_create: ${eRc?.message ?? "no run"}`, ms: Date.now() - t0 };
+      runId = run.id;
+    } else if (existing?.status !== "draft") return { status: "skipped", reason: `run ${existing?.status}`, ms: Date.now() - t0 };
+    const { data: dup } = await admin.from("payroll_adjustments").select("id").eq("run_id", runId).eq("cast_id", cast.id as string).eq("source", "settlement").eq("target_shift_id", (shift?.id as string | null) ?? null).limit(1);
+    if (dup && dup.length > 0) return { status: "skipped", reason: "exists", ms: Date.now() - t0 };
+    const { error } = await ownerCtx.client.rpc("payroll_adjustment_add", {
+      p_run_id: runId, p_cast_id: cast.id as string, p_mode: "fixed", p_amount: 2000, p_rate_bp: null, p_before_withholding: true, p_show_detail: true,
+      p_reason: "遅刻（精算プリセット「遅刻」）", p_source: "settlement", p_basis: "契約書の遅刻精算条項に基づく減額", p_target_shift_id: (shift?.id as string | null) ?? null,
+    });
+    if (error) return { status: "failed", reason: `adjustment_add: ${error.message}`, ms: Date.now() - t0 };
+    return { status: "added", ms: Date.now() - t0 };
+  } finally {
+    await ownerCtx.client.auth.signOut().catch(() => undefined);
+  }
 }
 
 /** demo org の owner（memberships.role='owner'・is_active）のユーザー文脈クライアント（magiclink をサーバ内で消費・24h cookie は置かない＝セッションは使い捨て） */
