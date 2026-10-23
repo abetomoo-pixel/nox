@@ -6,6 +6,8 @@ import { createClient } from "@/lib/supabase/server";
 import { bizDateOf, bizDateRange } from "@/lib/nox/biz-date";
 import PayslipSlip from "@/components/payslip-slip";
 import { okuriModeOf } from "@/lib/nox/shift/okuri-mode"; // ★裁定414（S-4）
+import { rules0175On } from "@/lib/nox/rules-0175/flag"; // ★便 P175-prep P-4
+import AvailabilityEditor from "@/components/nox/availability-editor"; // ★便 P175-prep P-4（裁定397＋413）
 import { wageNowOf } from "@/lib/nox/cast/wage-now"; // ★便 P174 T-5（GV-55／56）
 import { mineCurrentWageOf } from "@/lib/nox/mine/wage-server"; // ★便 X13-H H-8: 今期の時給（一覧・詳細と同じ値・文言・根拠）
 import { ATTENDANCE_MONTH_NOTE, closeHmOf, hoursLabelOf, monthAttendanceRowsOf, todayInOutLabelOf } from "@/lib/nox/mine/attendance-month"; // ★裁定326-5（便 M2-1）: 勤怠時刻＋当月一覧（実働は dayWorkedHours）
@@ -405,6 +407,12 @@ export default async function MinePage() {
         )}
         <p style={{ ...noteP, marginTop: 6 }}>{ATTENDANCE_MONTH_NOTE}</p>
       </section>
+      {rules0175On() && meCast?.id && myStore && (/* ★便 P175-prep P-4（裁定397＋413）: 基本の働き方（本人）＝雇用は時間帯を店が決める（表示＋メモ）。通知は audit のみ。フラグ false＝DOM 差分 0 */
+        <section className="nox-panel" data-mine-availability="1">
+          <h3>基本の働き方</h3>
+          <AvailabilityEditor castId={meCast.id as string} storeId={myStore.id as string} employment={((meCast as { employment?: string | null }).employment ?? null)} bySelf />
+        </section>
+      )}
       {/* ★0154 D1（裁定294-2／294-4／295-1）: 出退勤の修正申請（本人）＝店の承認後に punches へ反映・承認分は本人が確認／異議あり */}
       {ms.punch_correction_request && meCast?.id && (/* ★326-8: punch_correction_request OFF＝修正申請カード非表示 */
         <section className="nox-panel">

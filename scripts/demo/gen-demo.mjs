@@ -14,7 +14,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import { groupDueFull } from "../../lib/nox/check-calc.ts";
-import { ADVANCES, SLIDES, EXTRA_PLANS, PROFILES, TRIAL, STAFF_DEMO, BONUS_TIERS, EXT_PATTERNS, sysSettingsOf, backOf as profileBackOf } from "./profiles.mjs"; // ★X-13c: 6 店の差別化（表＝docs/demo/store_profiles_20261009.md）
+import { ADVANCES, SLIDES, EXTRA_PLANS, PROFILES, TRIAL, STAFF_DEMO, BONUS_TIERS, EXT_PATTERNS, sysSettingsOf, backOf as profileBackOf, canonOf, okuriModeOf as profileOkuriModeOf } from "./profiles.mjs"; // ★X-13c: 6 店の差別化（表＝docs/demo/store_profiles_20261009.md）
 
 const SRC = JSON.parse(fs.readFileSync("docs/demo/source/20261001/nox_demo_all.json", "utf8"));
 const D = (k) => SRC.datasets[k].records;
@@ -95,12 +95,14 @@ for (const st of STORES) {
   const closeMin = 1500; // 翌 01:00（30 時間制）
   // ★X-13-9（便 X-13a・2026-10-08）: 機能の公開＝会社の既定（store_id null）で「スタッフシフト」「締め解除フロー」を ON（flag_enabled は店舗行→org 行→false）
   const PF = PROFILES[code]; // ★X-13c: 店のプロファイル
+  const CANON = canonOf(code); // ★便 P175-prep P-6: MUSE の CANON 型（RULES_0175_APPLIED=true でだけ非 null＝false は payload 不変）
+  void profileOkuriModeOf; // ★便 P175-prep P-7: okuri_mode は settings_json に書かない（set_store_okuri_mode の既定 coalesce＝flat／デモは okuri_base_amount で表す）＝0177 後の便で LILY 'store'／NOIR 'none' を書く
   for (const key of ["staff_shift", "reopen_flow"]) push("feature_flags", { id: uid(`flag:${code}:${key}`), store_id: null, key, enabled: key === "reopen_flow" ? !!PF.reopen : true, updated_by: null }); // ★X-13c: 締め解除フローは店で差
   push("stores", {
     id: storeId, name: st.store_name, short: st.store_code, open_time: openHm,
     settings_json: { biz_type: ({ MUSE: "cabaret", LUNA: "cabaret", NOIR: "lounge", ACE: "cabaret", LILY: "girlsbar", NEST: "snack" })[st.store_code] /* ★便 N1014 B-4: 業態＝store_profiles §3c（MUSE キャバクラ・NOIR ラウンジ・NEST スナック） */, norm_axes: { days: PF.normAxes.includes("days"), dohan: PF.normAxes.includes("dohan"), sales: PF.normAxes.includes("sales"), shimei: PF.normAxes.includes("shimei") } /* ★便 N1014 live 修正: 採用軸（0171 set_store_norm_axes の形）＝P171 の D-3 が payload に落ちていなかった（live は null＝全 ON） */, biz_cutoff_hm: "06:00", setup_done: true, billing_mode: "table",
       ...sysSettingsOf(code), pay_time_basis: PF.basis, shift_cast_confirm: PF.confirm, // ★X-13c: 報酬制度の ON/OFF・勤務時間の計算基準・キャスト確認＝プロファイル
-      slide_apply: "current", receipt_address: "東京都新宿区歌舞伎町 1-1-1（デモ）", receipt_tel: "03-0000-0000", receipt_footer: "飲食代", okuri_base_amount: PF.okuri, /* ★X-13c: 送り（0＝なし） */ ...(PF.okuriMode ? { okuri_mode: PF.okuriMode } : {}), /* ★裁定348: 送りの方式 flat／actual（0158・無しはキー無し） */
+      slide_apply: "current", receipt_address: "東京都新宿区歌舞伎町 1-1-1（デモ）", receipt_tel: "03-0000-0000", receipt_footer: "飲食代", okuri_base_amount: PF.okuri, ...(CANON ? { sys_drink_count_back: false, sales_subtotal_mode: CANON.sales_subtotal_mode, pay_discount_rates: CANON.pay_discount_rates, service_rate_by_seat: { vip: CANON.service_rate_vip } } : {}), /* ★便 P175-prep P-6: CANON 型の店設定（フラグ true でだけ） */ /* ★X-13c: 送り（0＝なし） */ ...(PF.okuriMode ? { okuri_mode: PF.okuriMode } : {}), /* ★裁定348: 送りの方式 flat／actual（0158・無しはキー無し） */
       payslip_visibility: "detail", reservation_request: "on", drink_claim: "on", ranking: "on", shift_request_mode: PF.wishMode ?? "shift" /* ★裁定348: NEST＝休み希望のみ */,
       ...(code === "ace" ? { pay_fee_rates: { card: 10, emoney: 0, other: 0 }, contract_ack: true, settlement_presets: [{ code: "late", name: "遅刻", amount: 2000, basis: "契約書の遅刻精算条項に基づく減額", target: "late" }, { code: "absent", name: "当欠", amount: 5000, basis: "契約書の当日欠勤精算条項に基づく減額", target: "absent" }] /* ★便 X13-H H-15 ④（裁定410） */ } : {}) /* ★便 X13-G W-18 ①: ACE はお客様へ加算＝カード 10%（Agoora 決定・加盟店契約の確認は記録済み扱い） */ },
     hon_fee: defRank?.main_charge_yen ?? 0, jonai_fee: defRank?.inhouse_charge_yen ?? 0, dohan_fee: defRank?.accompanied_charge_yen ?? 0, service_rate: tax.service_rate, card_tax_rate: 0,
@@ -175,7 +177,7 @@ for (const st of STORES) {
     norm_days_target: on("days") ? (hi ? 16 : 12) : null, norm_dohan_target: on("dohan") ? (hi ? 6 : 4) : null,
     norm_sales_target: on("sales") ? (hi ? 800000 : 500000) : null, norm_shimei_target: on("shimei") ? (hi ? 30 : 20) : null }; };
   const slide = D("sales_slide_tiers").filter((t) => t.store_id === S && t.tier > 0).map((t) => ({ at: t.daily_sales_threshold_yen, wage: t.hourly_yen }));
-  for (const p of plans) push("comp_plans", { id: uid(`plan:${p.plan_id}`), store_id: storeId, name: p.plan_name, base: p.base_hourly_yen, slide_apply: PF.slideApply ?? null, /* ★便 P173（裁定395 追補1・0174） */ hon_back: p.main_reward_yen, jonai_back: p.inhouse_reward_yen, dohan_back: p.accompanied_reward_yen,
+  for (const p of plans) push("comp_plans", { id: uid(`plan:${p.plan_id}`), store_id: storeId, name: p.plan_name, base: p.base_hourly_yen, slide_apply: PF.slideApply ?? null, ...(CANON ? { reward_axis: "pay_rate", pay_rate_tiers: CANON.pay_rate_tiers, slide_streak_n: CANON.slide_streak_n, assess_grace_months: CANON.assess_grace_months, hon_back_rate: CANON.hon_back_rate, hon_back_mode: "rate" } : {}), /* ★便 P175-prep P-6: CANON 型（フラグ true でだけ・0175 v2 の列） */ /* ★便 P173（裁定395 追補1・0174） */ hon_back: p.main_reward_yen, jonai_back: p.inhouse_reward_yen, dohan_back: p.accompanied_reward_yen,
     sales_slide: SL.sales ?? (p.sales_slide ? slide : []), point_slide: SL.points ?? [], is_active: true, hon_back_mode: "per_count", hon_back_rate: null, jonai_back_mode: "per_count", jonai_back_rate: null, dohan_back_mode: "per_count", dohan_back_rate: null, product_back_mode: PF.sys.sales_rate ? "plan_rate" : "product_rule", product_back_rate: PF.sys.sales_rate ? 10 : null, /* ★裁定348: MUSE 売上歩合＝商品売上の 10% */ product_back_fixed: null, product_back_fixed_hon: null, product_back_fixed_jonai: null, product_back_fixed_free: null, slide_period: SL.period ?? "daily", slide_basis: SL.basis ?? "sales", slide_rank_ids: ranks.filter((r) => (SL.ranks ?? []).includes(r.rank_name)).map((r) => uid(`rank:${r.rank_id}`)), ...normDefaultsOf(p.plan_name) /* ★裁定347（0171）: プラン既定の目標 */ }); // ★0168（裁定338・便 P168）: 判定期間
   // ★X-13-21（便 X-13d-1）: 1 本だけの店に 2〜3 本目（EXTRA_PLANS）＝キャストは [源泉のプラン, 追加…] を順番に割り振る（overrides は従来どおり {}）
   const extraPlans = (EXTRA_PLANS[code] ?? []).map((x) => ({ ...x, id: uid(`plan:x:${code}:${x.key}`) }));

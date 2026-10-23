@@ -8,8 +8,8 @@ import IssueBulkForm from "@/components/nox/issue-bulk-form"; // ★裁定302-1�
 import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 type Cast = { id: string; name: string };
 import { OKURI_MODES, OKURI_MODE_LABEL, OKURI_MODE_NOTE, OKURI_MODE_PENDING_NOTE, okuriAsks, okuriModeSelectableOf, type OkuriMode } from "@/lib/nox/shift/okuri-mode"; // ★裁定414（S-4）: 4 方式
-// ★裁定414: 'store'／'none' は 0177 の適用（P）後に有効化＝それまでは「適用後に選べます」で無効（P 後の便で true に）
-const OKURI_4WAY_APPLIED = false;
+// ★裁定414: 'store'／'none' は 0177 の適用（P）後に有効化＝それまでは「適用後に選べます」で無効。★便 P175-prep P-7: フラグは flag.ts の 1 か所（okuri4wayOn）
+import { okuri4wayOn } from "@/lib/nox/rules-0175/flag";
 
 // F2e-2 天引き運用パネル: 送り方式(okuri_mode)トグル(owner のみ)＋前借り/送り実費 発行フォーム(manager+)。
 // 排他は okuri_mode で構造的に担保（flat 店では送り実費発行を RPC が弾く＝ここでも actual のときだけ有効化）。
@@ -85,7 +85,7 @@ export default function DeductionPanel({
         </p>
         {isOwner ? (
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }} data-okuri-4way="1">{/* ★裁定414（S-4 ⑤）: 4 択＝実費／定額／店負担／なし（'store'／'none' は P 前は無効＝「適用後に選べます」） */}
-            {OKURI_MODES.map((m) => { const selectable = okuriModeSelectableOf(m, OKURI_4WAY_APPLIED); return (
+            {OKURI_MODES.map((m) => { const selectable = okuriModeSelectableOf(m, okuri4wayOn()); return (
               <button key={m} onClick={() => switchMode(m)} disabled={modeBusy || okuriMode === m || !selectable} style={okuriMode === m ? btnOn : { ...btn, opacity: selectable ? 1 : 0.5 }}
                 title={selectable ? OKURI_MODE_NOTE[m] : OKURI_MODE_PENDING_NOTE} data-okuri-mode-btn={m} data-okuri-pending={selectable ? undefined : "1"}>{OKURI_MODE_LABEL[m]}{selectable ? "" : "（適用後）"}</button>
             ); })}

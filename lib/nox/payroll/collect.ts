@@ -16,6 +16,8 @@ import { calcPeriodOf } from "./assemble"; // ★0154 D6
 import { baseOverrideOf } from "./base-override"; // ★便 P174 T-5（R-11 (d)）
 import { attendanceWithDohanOf } from "@/lib/nox/shift/dohan-mark"; // ★便 PR-1 R-4（裁定417）: 同伴の正本＝伝票
 import { payTimeBasisOf } from "./time-basis"; // ★裁定324（便 L-2-3）
+import { rules0175On } from "@/lib/nox/rules-0175/flag"; // ★便 P175-prep: 0175 v2 の列・表を読むのはフラグ true のときだけ（false＝従来と 1 バイト同値）
+import { loadCanonCtx, loadCastMeta0175, loadRateHistory, loadRules0175Store } from "./rules-0175-collect"; // ★便 P175-prep P-1／P-5
 import type { ShortfallDay } from "./shortfall"; // ★裁定324-3（便 L-2-4）: 不就労控除の入力（営業日ごとの確定シフト×打刻）: 勤務時間の計算基準（store 設定・期の初日で解決）
 /** ★0154 D2: 'HH:MM'（0-47 域）→ 分（shift-time.hm2min と同式・collect 内で閉じる） */
 const hm2minOf = (hm: string): number => { const [h, mm] = String(hm).split(":").map(Number); return (Number.isFinite(h) ? h : 0) * 60 + (Number.isFinite(mm) ? mm : 0); };
@@ -591,10 +593,11 @@ export async function loadPayrollAdjustments(admin: SupabaseClient, storeId: str
   const { data: run, error: eR } = await admin.from("payroll_runs").select("id").eq("store_id", storeId).eq("period", period).maybeSingle();
   if (eR) throw new Error(`payroll_runs(調整控除): ${eR.message}`);
   if (!run) return byCast;
-  const { data, error } = await admin
+  const q0 = admin
     .from("payroll_adjustments")
     .select("cast_id, mode, amount, rate_bp, before_withholding, show_detail, reason")
-    .eq("run_id", run.id as string)
+    .eq("run_id", run.id as string);
+  const { data, error } = await (rules0175On() ? q0.is("cancelled_at", null) : q0) // ★便 P175-prep P-2（裁定413 I-3・0175 v2 ★12 cancelled_at）: 取消済みは控除しない（フラグ false＝列を触らない）
     .order("created_at", { ascending: true }).order("id", { ascending: true });
   if (error) throw new Error(`payroll_adjustments: ${error.message}`);
   type R = { cast_id: string; mode: "fixed" | "rate"; amount: number | null; rate_bp: number | null; before_withholding: boolean; show_detail: boolean; reason: string };
@@ -615,9 +618,10 @@ export async function loadPayrollAdjustments(admin: SupabaseClient, storeId: str
 export type DailyPaidSum = { gross: number; withheld: number; n: number; settlementGross: number; advanceGross: number };
 export async function loadDailyPays(admin: SupabaseClient, storeId: string, win: PayrollWindow): Promise<Map<string, DailyPaidSum>> {
   const byCast = new Map<string, DailyPaidSum>();
-  const { data, error } = await admin.from("daily_pays").select("cast_id, gross, withholding, kind")
+  const q0 = admin.from("daily_pays").select("cast_id, gross, withholding, kind")
     .eq("store_id", storeId)
     .or(`settle_period.eq.${win.period},and(settle_period.is.null,biz_date.gte.${win.periodStart},biz_date.lte.${win.periodEnd})`);
+  const { data, error } = await (rules0175On() ? q0.is("cancelled_at", null) : q0); // ★便 P175-prep P-2（裁定413 I-3・0175 v2 ★12）: 取消済みの日払いは既払いに数えない（フラグ false＝列を触らない）
   if (error) throw new Error(`daily_pays: ${error.message}`);
   for (const r of (data ?? []) as { cast_id: string; gross: number; withholding: number; kind: string | null }[]) {
     const cur = byCast.get(r.cast_id) ?? { gross: 0, withheld: 0, n: 0, settlementGross: 0, advanceGross: 0 };
@@ -850,6 +854,21 @@ export async function collectPeriod(
       employment: employmentById.get(cid) ?? null, // ★裁定98: 二層ガードの分岐キー
       avgDailyWage: avgWageByCast.get(cid) ?? null, // ★裁定98-C: null=暫定式（pay.ts 側）
     });
+  }
+  // ★便 P175-prep P-1／P-5（裁定416／418・0175 v2）: フラグ true のときだけ cast_rate_history（時給の履歴）と CANON 文脈（comp_plans 拡張列・plan_norm_tiers・slide_decisions・availability_terms）を読んで各 cast に付ける。
+  //   false のときはこのブロックに入らない＝query 0・CastRaw のキー増減 0（golden 不変）。
+  //   ⑩ 売上小計の範囲＝本便は会計額（cast 別按分 sales）で渡す。pre_tax_service（税サ前・割引前）の按分集計は check_lines 直読が要るため、フラグ true の便で実装（【事後承認待ち】）。
+  if (rules0175On()) {
+    const st0175 = await loadRules0175Store(admin, storeId);
+    const ids = casts.map((c) => c.castId);
+    const [hist, meta] = await Promise.all([loadRateHistory(admin, storeId, win.periodStart, win.periodEnd), loadCastMeta0175(admin, storeId, ids)]);
+    const ctx = await loadCanonCtx(admin, storeId, { period: win.period, periodStart: win.periodStart, periodEnd: win.periodEnd, periodDays: periodCalendarDays(win.period) }, st0175,
+      casts.map((c) => { const p = punchByCast.get(c.castId); const hours = p ? [...p.hoursByDate.values()].reduce((a, b) => a + b, 0) : 0;
+        return { castId: c.castId, planId: castPlanByCast.get(c.castId)?.planId ?? null, membershipId: meta.get(c.castId)?.membershipId ?? null, joinedOn: meta.get(c.castId)?.joinedOn ?? null, days: c.days, hours, salesSubtotal: c.sales }; }));
+    for (const c of casts) {
+      const h = hist.get(c.castId); if (h && h.length) c.rateHistory = h;
+      const x = ctx.get(c.castId); if (x) c.rules0175 = x;
+    }
   }
   return { casts, masters, incentives, recipientsByDate, receivablesByCast, advancesByCast, transportByCast };
 }

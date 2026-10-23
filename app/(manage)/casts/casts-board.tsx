@@ -28,6 +28,8 @@ import AdvanceOkuriForm from "@/components/nox/advance-okuri-form"; // ★裁定
 import DailyPayForm from "@/components/nox/daily-pay-form"; // ★0156（裁定309-6・便 V-4）: 日払いの発行（cast 固定・daily_pay_issue・源泉プレビュー）
 import { issueDateDefaultOf } from "@/lib/nox/payroll/advance-okuri";
 import { okuriModeOf } from "@/lib/nox/shift/okuri-mode"; // ★裁定414（S-4）
+import { rules0175On } from "@/lib/nox/rules-0175/flag"; // ★便 P175-prep P-4
+import AvailabilityEditor from "@/components/nox/availability-editor"; // ★便 P175-prep P-4（裁定397＋413）: 基本の働き方
 import Picker from "@/components/nox/picker"; // ★裁定306-13: 待遇プランの候補（件数可変＝picker）
 import { isSystemOn } from "@/lib/nox/store-systems";
 import { firstInLastOut, isTodayWorking, todayStateOf, type TodayState } from "@/lib/nox/shift/today-row"; // ★裁定353（便 N1014 A-2）: 今日の状態＝今日タブと同じ純関数
@@ -1038,6 +1040,11 @@ export default function CastsBoard({
                 </div>
               )}
               <div className="nox-frow"><span className="k">所属店</span><span className="v">{storeName(selCast.store_id)}</span></div>
+              {rules0175On() && (/* ★便 P175-prep P-4（裁定397＋413・0175 v2 ★9）: 基本の働き方＝曜日 可／不可／相談＋時間帯・週の目安・適用開始日（雇用の時間帯は店が決める）。フラグ false＝DOM 差分 0 */
+                <div className="nox-frow" data-availability-row="1"><span className="k">働き方</span><span className="v" style={{ flex: 1 }}>
+                  <AvailabilityEditor castId={selCast.id} storeId={selCast.store_id} employment={((selCast as { employment?: string | null }).employment ?? null)} bySelf={false} />
+                </span></div>
+              )}
               <div className="nox-frow">
                 <span className="k">状態</span>
                 <span className="v" style={{ display: "flex", gap: 6, alignItems: "center" }}>

@@ -1,3 +1,5 @@
+import fs from "node:fs"; // ★便 P175-prep P-6: CANON fixture を読む（フラグ true でだけ）
+import { RULES_0175_APPLIED, OKURI_4WAY_APPLIED } from "./rules-0175-flag.mjs"; // ★便 P175-prep: flag.ts の鏡（suite が同値を pin）
 // ★便 X-13c（2026-10-09・X-13-15／16）: デモ 6 店の差別化＝1 店 1 プロファイル（仮決め＝docs/demo/store_profiles_20261009.md の表と対・Agoora の赤入れで X-13d）。
 //   gen-demo.mjs（payload 生成）と verify-nox-demo-profiles.ts（6 店の設定が表どおりの pin）が同じ定数を読む。
 //   軸: template（331 の 5 種・キャバクラは LUNA／ACE の 2 店で規模違い）／sys（報酬制度の ON/OFF）／back（率％型 3 店・4 段階型 3 店）／price（価格帯の札）／
@@ -36,6 +38,17 @@ export const PROFILES = {
     shift: { base: 3, fri_sat: 4, fill: "short", pattern: [2, 3, 2, 3, 3, 4, 2] } },
 };
 export const PROFILE_CODES = Object.keys(PROFILES);
+/** ★便 P175-prep P-6（裁定418 CANON 型・2026-10-23）: RULES_0175_APPLIED=true のとき MUSE を CANON 型に差し替える（docs/demo/fixtures/canon_stores.json の code CANON）。false＝null＝payload 不変 */
+export function canonOf(code) {
+  if (!RULES_0175_APPLIED || code !== "muse") return null;
+  const fx = JSON.parse(fs.readFileSync(new URL("../../docs/demo/fixtures/canon_stores.json", import.meta.url), "utf8"));
+  return fx.stores.find((s) => s.code === "CANON") ?? null;
+}
+/** ★便 P175-prep P-7（裁定414 S-4）: 送りの方式＝OKURI_4WAY_APPLIED=true のとき LILY 'store'（店負担）／NOIR 'none'。false＝PROFILES の値（actual／flat／null）＝payload 不変 */
+export function okuriModeOf(code) {
+  if (OKURI_4WAY_APPLIED) { if (code === "lily") return "store"; if (code === "noir") return "none"; }
+  return PROFILES[code]?.okuriMode ?? null;
+}
 /** ★X-13-21（便 X-13d-1・仮決め）: 待遇プランが 1 本だけの店に 2〜3 本目を足す（源泉 nox_demo_all.json の compensation_plans は不変＝gen-demo が末尾に足し、キャストは順番に割り振る）。
  *  NOIR は源泉で 3 本・LILY は源泉 1 本（live の 3 本中 2 本はデモ内で手入力されたもの＝reset で消える）・ACE は源泉 1 本（売上スライド）のまま＝相談役ブロック「ACE はプラン 0 のまま（仕様）」に合わせ据え置き（実体は 1 本）。 */
 /** ★X-13-26（便 X-13d-2a・仮決め）: 代表キャストの前借り（先月の中旬＝{$m:-1,d:15}・open）＝先月分の確定（finalize hook）で天引き済み・当月に繰越なし。0＝入れない */

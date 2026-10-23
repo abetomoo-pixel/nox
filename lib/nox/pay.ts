@@ -12,6 +12,7 @@
 //  - 売上バック率テーブル = モック値をデフォルト引数に（店設定化は F2 判断）
 
 import { roundYen, roundPt1, floorYen } from "./money";
+import { canonApplyOf, canonOutcomeOf, type CanonCtx, type CanonOutcome } from "./rules-0175/canon"; // ★便 P175-prep P-5（裁定418）: フラグ true のときだけ collect が input.rules0175 を渡す
 import { adjustOf, type AdjustmentRow } from "./payroll/adjust"; // 裁定258／264: run 別調整控除（純関数・roundYen は money.ts）
 import { bonusOf, bonusTiersOf } from "./bonus-tiers"; // ★便 P173 T-2（起票110）: 達成ボーナスの多段（純関数）
 
@@ -267,6 +268,8 @@ export type PayInput = {
   dailyAdvanceGross?: number;
   // ★0172（裁定349）: 雇用の甲欄／乙欄（扶養控除等申告書の提出あり＝甲・なし＝乙）。税額表は器なし（起票113＝第 2 期）＝源泉は 0 のまま・区分だけ凍結に残す
   taxClass?: EmployeeTaxClass;
+  // ★便 P175-prep P-5（裁定418 CANON 型・0175 v2）: 報酬率軸のスライド・支給率・倍率・規定・免除・提案の文脈。未指定＝従来と 1 バイト同値（golden 不変）。RULES_0175_APPLIED=false の間は collect が渡さない
+  rules0175?: CanonCtx;
 };
 
 // ★裁定98: sanction（制裁控除）の二層ガード結果。
@@ -309,6 +312,7 @@ export type PayResult = {
   achievementBonus: number;
   guaranteeAdd: number;
   compSkipped: string[];
+  canon?: CanonOutcome & { backsDelta: number; timeDelta: number; bonus: number; payPctDelta: number; grossBefore: number }; // ★便 P175-prep P-5（裁定418）: rules0175 を渡した cast だけ
   gross: number;
   fixedDed: number;
   // ★裁定98: sanction 二層ガードの明細（sanction 行が無ければ null＝既存 payslips 凍結と互換）
@@ -721,7 +725,16 @@ export function payOf(input: PayInput): PayResult {
     const cur = grossBase + achievementBonus + guaranteeAdd;
     if (cur < (c.amount as number)) guaranteeAdd += (c.amount as number) - cur;
   }
-  const gross = grossBase + achievementBonus + guaranteeAdd; // ①=控除前総支給への床（控除はこの後）
+  let gross = grossBase + achievementBonus + guaranteeAdd; // ①=控除前総支給への床（控除はこの後）
+  // ★便 P175-prep P-5（裁定418）: CANON 型＝報酬率の段（UP 累積は時給履歴側・ここは倍率／支給率／減率／ボーナス／支給可否）を gross に差し込む。input.rules0175 が無ければ通らない
+  let canon: (CanonOutcome & { backsDelta: number; timeDelta: number; bonus: number; payPctDelta: number; grossBefore: number }) | null = null;
+  if (input.rules0175) {
+    const o = canonOutcomeOf(input.rules0175, timePayRule);
+    const backsTotal = honBack + jonaiBack + dohanBack + drinkBack + champBack + bottleBack + calculatedBack + salesBack + customTotal;
+    const ap = canonApplyOf(o, { timePay: timePayRule, backsTotal, gross, salesSubtotal: input.rules0175.salesSubtotal });
+    canon = { ...o, backsDelta: ap.backsDelta, timeDelta: ap.timeDelta, bonus: ap.bonus, payPctDelta: ap.payPctDelta, grossBefore: gross };
+    gross = ap.gross;
+  }
 
   // ★裁定258／264: 調整控除＝gross 確定後・fixedDed 前に確定（率の分母は上の gross・全率行が同じ gross＝258-2）。
   //   before 群は源泉対象額から引く（264-6）・after 群は net 式で引く。sanction cap（下）の基底は生 gross のまま不変（264-5）。
@@ -823,6 +836,7 @@ export function payOf(input: PayInput): PayResult {
     achievementBonus, // ★裁定96-②
     guaranteeAdd,     // ★裁定96-①
     compSkipped,      // ★rate モード等の明示スキップ（黙殺しない）
+    ...(canon ? { canon } : {}), // ★便 P175-prep P-5: CANON 型の判定と差分（rules0175 を渡した cast だけキーを持つ＝凍結の互換）
     gross,
     fixedDed,
     sanction, // ★裁定98

@@ -16,8 +16,10 @@ import { rpcErrJa } from "@/lib/nox/ui/rpc-err";
 import { carriedNoteOf, dailyPayPeriodNoteOf, dailyPayOverNoteOf } from "@/lib/nox/payroll/advance-okuri";
 import { Message } from "@/components/ui/toast";
 import { monthRangeOf } from "@/lib/nox/month"; // ★便 X13-H H-9: 暦月の日付は 1 か所で（「-31」固定・翌月 0 日を撤去）
+import { rules0175On } from "@/lib/nox/rules-0175/flag"; // ★便 P175-prep P-2
+import { DAILY_PAY_KIND_LABEL as DAILY_PAY_KIND_LABEL_0175, activeRowsOf, cancelledLabelOf, isCancelledOf } from "@/lib/nox/rules-0175/cancelled"; // ★便 P175-prep P-2（裁定413 I-3）
 
-type Paid = { id: string; biz_date: string; gross: number; withholding: number; net: number; withholding_category: string; kind: string | null }; // ★0172: +kind
+type Paid = { id: string; biz_date: string; gross: number; withholding: number; net: number; withholding_category: string; kind: string | null; cancelled_at?: string | null; cancel_reason?: string | null }; // ★0172: +kind ★便 P175-prep P-2: +cancelled_at（0175 v2・フラグ true で読む）
 const yen = (n: number) => "¥" + n.toLocaleString();
 
 export default function DailyPayForm({ castId, castName, dateDefault, storeId, onIssued }: {
@@ -46,11 +48,11 @@ export default function DailyPayForm({ castId, castName, dateDefault, storeId, o
     const [{ data: tp }, { data: cs }, { data: dp }] = await Promise.all([ // ★便 X13-G live ㉓: 受け順を Promise の順（税区分→期の状態→日払い）に（逆で「発行済み」が常に空だった）
       supabase.from("cast_tax_profiles").select("mode").eq("cast_id", castId).maybeSingle(),
       supabase.from("casts").select("store_id").eq("id", castId).maybeSingle().then(async (c) => c.data?.store_id ? supabase.from("payroll_runs").select("status").eq("store_id", c.data.store_id as string).eq("period", month).maybeSingle() : { data: null }),
-      supabase.from("daily_pays").select("id, biz_date, gross, withholding, net, withholding_category, kind").eq("cast_id", castId)
+      supabase.from("daily_pays").select(rules0175On() ? "id, biz_date, gross, withholding, net, withholding_category, kind, cancelled_at, cancel_reason" : "id, biz_date, gross, withholding, net, withholding_category, kind").eq("cast_id", castId) // ★便 P175-prep P-2: 取消列はフラグ true で
         .gte("biz_date", `${month}-01`).lt("biz_date", nextMonth).order("biz_date", { ascending: false }),
     ]);
     setTaxMode((tp?.mode as "委託" | "雇用" | undefined) ?? "委託");
-    setPaid((dp ?? []) as Paid[]);
+    setPaid((dp ?? []) as unknown as Paid[]); // ★便 P175-prep P-2: select 文字列が条件式のため型推論を外す
     setRunStatus((cs as { status?: string } | null)?.status ?? null);
   }, [supabase, castId, date]);
   useEffect(() => { void load(); }, [load]);
@@ -91,7 +93,20 @@ export default function DailyPayForm({ castId, castName, dateDefault, storeId, o
 
   const periodNote = dailyPayPeriodNoteOf(runStatus, date.slice(0, 7));
   const overNote = dailyPayOverNoteOf((paid ?? []).reduce((s, p) => s + p.gross, 0), gross ?? 0, expectedNet); // ★便 L-3-2: 過徴収 warn（止めない） // ★起票93: 支払済みの期でも発行できる（裁定312＝翌月へ繰り下げ）＝発行欄は常に出す
-  const sumG = (paid ?? []).reduce((s, p) => s + p.gross, 0), sumW = (paid ?? []).reduce((s, p) => s + p.withholding, 0);
+  const live = activeRowsOf(paid ?? []); // ★便 P175-prep P-2: 合計は取消済みを除く（フラグ false＝cancelled_at 無し＝全件）
+  const sumG = live.reduce((s, p) => s + p.gross, 0), sumW = live.reduce((s, p) => s + p.withholding, 0);
+  // ★便 P175-prep P-2（裁定413 I-3・0175 v2 ★4 daily_pay_cancel）: 取消＝行を消さず印（理由必須・paid の期は RPC が 'paid period'）。フラグ false ではボタンを出さない
+  async function cancelPaid(p: Paid) {
+    if (busy) return;
+    const reason = window.prompt(`${p.biz_date} の ${yen(p.gross)} を取り消します。理由（必須・200 字まで）`);
+    if (reason === null) return;
+    if (!reason.trim()) { setMsg("取消の理由を入れてください"); return; }
+    setBusy(true); setMsg(null);
+    const { error } = await supabase.rpc("daily_pay_cancel", { p_id: p.id, p_reason: reason.trim().slice(0, 200) });
+    setBusy(false);
+    if (error) { setMsg(`取消に失敗: ${rpcErrJa(error.message)}`); return; }
+    setMsg(`${p.biz_date} の日払いを取り消しました`); await load(); await onIssued?.();
+  }
   return (
     <div style={{ display: "grid", gap: 8 }}>
       {/* ★0172（裁定349・便 P172）: 種別＝前払（既定・控除なし・期の精算で控除）／日払い（日次精算＝1 日分の源泉を引いて渡す・期間精算から除外） */}
@@ -133,6 +148,8 @@ export default function DailyPayForm({ castId, castName, dateDefault, storeId, o
               <div key={p.id} style={{ display: "flex", gap: 10, fontSize: 12.5, alignItems: "baseline" }}>
                 <span className="num" style={{ color: "var(--sub)" }}>{p.biz_date}</span>
                 <span className="num">{yen(p.gross)}</span>
+                {rules0175On() && cancelledLabelOf(p, DAILY_PAY_KIND_LABEL_0175) && <span data-dp-cancelled="1" style={{ fontSize: 11, fontWeight: 800, color: "var(--bad)" }}>{cancelledLabelOf(p, DAILY_PAY_KIND_LABEL_0175)}</span>}{/* ★便 P175-prep P-2 */}
+                {rules0175On() && !isCancelledOf(p) && <button type="button" style={{ ...t.btnGhost, ...t.btnSm, border: "1px solid var(--bad)", color: "var(--bad)" }} disabled={busy} onClick={() => void cancelPaid(p)}>取消</button>}
                 <span style={{ fontSize: 11.5, color: "var(--sub)" }}>源泉 <span className="num">{yen(p.withholding)}</span>・手取り <span className="num">{yen(p.net)}</span>・{p.withholding_category}・{p.kind === "advance" ? "前払" : "日次精算"}</span>
               </div>
             ))}

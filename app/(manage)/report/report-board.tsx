@@ -9,6 +9,7 @@ import { bizDateOf, bizDateRange } from "@/lib/nox/biz-date";
 import { cashPayoutRowsOf, cashPayoutTotalOf, cashPayoutWithOtherOf, otherPayoutMemoMissing, noteWithOtherPayoutOf, otherPayoutFromNoteOf, manualPayoutDiffLineOf, type CashPayoutParts } from "@/lib/nox/report/cash-payout";
 import CashPayoutIssue, { type PayoutIssueKind } from "@/components/nox/cash-payout-issue";
 import { OKURI_ROW_LABEL, okuriAsks, okuriCashOf, okuriExpenseOf, okuriModeOf, type OkuriMode } from "@/lib/nox/shift/okuri-mode"; // ★裁定414（S-4）: 送りの 4 方式＝現金支払／諸経費の読み分け // ★便 X13-G W-24 ②: 内訳の ＋発行 // ★裁定311-②／④（便 Y-4）: 現金支払のプレフィル集計と内訳
+import { rules0175On } from "@/lib/nox/rules-0175/flag"; // ★便 P175-prep P-2
 import { roundYen } from "@/lib/nox/money";
 import * as t from "@/lib/nox/ui/theme";
 import Toast from "@/components/ui/toast";
@@ -431,7 +432,7 @@ export default function ReportBoard({
           ? supabase.from("transport").select("*").eq("store_id", storeId).eq("biz_date", bizDate).neq("status", "cancelled")
           : Promise.resolve({ data: [] as { cast_id: string; amount: number }[] }),
         supabase.from("advances").select("cast_id, amount").eq("store_id", storeId).eq("advanced_on", bizDate).neq("status", "cancelled"),
-        supabase.from("daily_pays").select("cast_id, net").eq("store_id", storeId).eq("biz_date", bizDate),
+        (() => { const q = supabase.from("daily_pays").select("cast_id, net").eq("store_id", storeId).eq("biz_date", bizDate); return rules0175On() ? q.is("cancelled_at", null) : q; })(), // ★便 P175-prep P-2（裁定413 I-3）: 取消済みの日払いは現金支払に数えない（フラグ false＝列を触らない）
         supabase.from("payment_records").select("cast_id, paid_amount").eq("store_id", storeId).eq("paid_at", bizDate).eq("method", "cash"),
         supabase.from("casts").select("id, name, is_active").eq("store_id", storeId).order("name"),
       ]);

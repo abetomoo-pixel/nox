@@ -31,6 +31,9 @@ import SanctionModal from "@/components/nox/sanction-modal";
 import NormProposals from "@/components/nox/norm-proposals"; // ★便 X13-I I-5: ノルマ未達の減額の提案
 import type { NormProposal } from "@/lib/nox/payroll/norm-proposal"; // ★0154 D5: 懲戒減給（雇用・労基法 91 条）
 import AdvanceOkuriForm from "@/components/nox/advance-okuri-form"; // ★裁定300-2: 前借り／送り実費の入口（cast・期固定・確定後は読取のみ）
+import { okuri4wayOn, rules0175On } from "@/lib/nox/rules-0175/flag"; // ★便 P175-prep P-2／P-7
+import { cancelledLabelOf, isCancelledOf, type CancellableRow } from "@/lib/nox/rules-0175/cancelled"; // ★便 P175-prep P-2（裁定413 I-3）
+import { okuriModeOf, type OkuriMode } from "@/lib/nox/shift/okuri-mode"; // ★便 P175-prep P-7
 import { issueDateDefaultOf } from "@/lib/nox/payroll/advance-okuri";
 import { finalizeGuardOf, notEndedMessageOf, PERIOD_NOT_ENDED } from "@/lib/nox/payroll/finalize-guard"; // ★裁定316（便 X-8-13）: 確定は期間終了の翌営業日から
 import { bizDateOf } from "@/lib/nox/biz-date";
@@ -87,6 +90,8 @@ type AdjRow = {
   source?: "manual" | "carryover" | "settlement" | "sanction" | "shortfall"; // ★裁定272-1（0148）: carryover 行＝削除不可・「前期繰越」バッジ（列は手貼り後に現れる＝欠落は manual 扱い）
 };
 type Blocker = { castName: string; reason: string };
+// ★便 P175-prep P-7（裁定414 S-4）: 送りセルの見出し＝店の方式（okuri4wayOn() のときだけ）
+const OKURI_HEAD: Record<OkuriMode, string> = { actual: "送り（実費）", flat: "送り（定額）", store: "送り（店負担）", none: "送り" };
 // ★裁定98: sanction 二層ガードの警告（blocker と別枠・確定は止めない）。
 //   ラベル写像と要対応の整形は ui-calc（裁定99-④・純関数）へ集約＝ここでは issuesOfDraft を呼ぶだけ。
 type Warning = { castName: string; kind: string; detail: string };
@@ -858,7 +863,7 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
                 <th className="fold" style={{ ...t.th, textAlign: "right" }}>控除計</th>
                 <th className="fold" style={{ ...t.th, textAlign: "right" }}>売掛</th>
                 <th className="fold" style={{ ...t.th, textAlign: "right" }}>前借り</th>
-                <th className="fold" style={{ ...t.th, textAlign: "right" }}>送り</th>
+                <th className="fold" style={{ ...t.th, textAlign: "right" }}>{okuri4wayOn() ? OKURI_HEAD[okuriModeOf(storeSettings)] : "送り"}</th>{/* ★便 P175-prep P-7（裁定414）: 0177 後は方式を見出しに（実費／定額／店負担＝控除なし） */}
                 <th style={{ ...t.th, textAlign: "right" }}>差引支給</th>
                 <th className="fold" style={{ ...t.th, textAlign: "right" }}>不整合</th>
                 {/* ★U-1（裁定99-②）: 状態列＝支払状態のみ（未確定/未払/一部/支払済・キャスト単位確定は作らない） */}
@@ -1023,11 +1028,11 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
                     {adjMine.map((a) => (
                       <div key={a.id} style={{ borderTop: "1px solid var(--line2)", padding: "5px 0", fontSize: 12 }}>
                         <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
-                          <span className="num" style={{ fontWeight: 700 }}>{adjLabel(a)}{a.source === "carryover" && <span style={{ marginLeft: 6, fontSize: 10.5, fontWeight: 800, borderRadius: 999, padding: "1px 8px", border: "1px solid var(--line2)", color: "var(--sub)" }}>前期繰越</span>}{a.source === "shortfall" && <span style={{ marginLeft: 6, fontSize: 10.5, fontWeight: 800, borderRadius: 999, padding: "1px 8px", border: "1px solid var(--line2)", color: "var(--sub)" }}>不就労（自動）</span>}</span>{/* ★裁定324-4（便 C-3）: shortfall 行＝sync が管理 */}
+                          <span className="num" style={{ fontWeight: 700 }}>{adjLabel(a)}{rules0175On() && cancelledLabelOf(a as CancellableRow) && <span data-adj-cancelled="1" style={{ marginLeft: 6, fontSize: 10.5, fontWeight: 800, color: "var(--bad)" }}>{cancelledLabelOf(a as CancellableRow)}</span>}{/* ★便 P175-prep P-2（裁定413 I-3）: 取消済みの行は消さず印（フラグ true＝0175 の cancelled_at／kind） */}{a.source === "carryover" && <span style={{ marginLeft: 6, fontSize: 10.5, fontWeight: 800, borderRadius: 999, padding: "1px 8px", border: "1px solid var(--line2)", color: "var(--sub)" }}>前期繰越</span>}{a.source === "shortfall" && <span style={{ marginLeft: 6, fontSize: 10.5, fontWeight: 800, borderRadius: 999, padding: "1px 8px", border: "1px solid var(--line2)", color: "var(--sub)" }}>不就労（自動）</span>}</span>{/* ★裁定324-4（便 C-3）: shortfall 行＝sync が管理 */}
                           <span style={{ color: "var(--sub)", fontSize: 11 }}>{a.before_withholding ? "源泉前" : "源泉後"}・{a.show_detail ? "本人に理由を表示" : "控除計に合算"}</span>
                         </div>
                         <div style={{ color: "var(--sub)", marginTop: 2, wordBreak: "break-all" }}>{a.reason}</div>
-                        {adjEditable && a.source !== "carryover" && a.source !== "shortfall" && (/* ★裁定272-1／324-4: carryover・shortfall 行は sync が管理＝削除ボタンを出さない */
+                        {adjEditable && a.source !== "carryover" && a.source !== "shortfall" && !(rules0175On() && isCancelledOf(a as CancellableRow)) && (/* ★裁定272-1／324-4: carryover・shortfall 行は sync が管理＝削除ボタンを出さない */
                           <div className="nox-actions" style={{ justifyContent: "flex-start", marginTop: 4 }}>{/* 裁定244: Danger は左端 */}
                             <button type="button" onClick={() => { setDelReason(""); setDelTarget({ id: a.id, label: `${adjLabel(a)}（${a.reason}）` }); }} disabled={adjBusy || busy}
                               style={{ ...t.btnGhost, ...t.btnSm, border: "1px solid var(--bad)", color: "var(--bad)" }}>削除</button>

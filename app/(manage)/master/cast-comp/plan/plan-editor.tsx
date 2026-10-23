@@ -17,6 +17,8 @@ import { SLIDE_APPLY_LABEL, SLIDE_BASIS_LABEL, slideBasisOf, slideBasisPillOf, s
 import { isSectionOn, isSystemOn, pointSlideOn, salesSlideOn, slidesTabOn, type StoreSettings } from "@/lib/nox/store-systems"; // ★裁定269: 使う制度の出し分け
 import { BONUS_TIER_MAX, bonusParamsOf, bonusTiersErrOf, bonusTiersLabel, bonusTiersOf, type BonusTier } from "@/lib/nox/bonus-tiers"; // ★便 P173 T-2（起票110）: 達成ボーナスの多段
 import { slideErrOf, slideToSave } from "@/lib/nox/comp/slide-rows"; // ★便 P174 T-1（裁定390）
+import { rules0175On } from "@/lib/nox/rules-0175/flag"; // ★便 P175-prep P-3
+import { PLAN_REWARD_AXIS_LABEL, planRewardAxisOf, planRewardAxisPatchOf, type PlanRewardAxis } from "@/lib/nox/rules-0175/settings"; // ★便 P175-prep P-3（裁定412 追補）
 import {
   SlideInput, compErrJa, secTitle, BackTab, PRODUCT_BACK_OPTIONS, productBackArgsOf, productBackErrOf,
   type Plan, type Slide, type BackModeRow, type CompRow, type BackDef, type ProductBackMode,
@@ -531,6 +533,18 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
           <span className="nox-stpill">{slidePillOf(draft.slidePeriod, effApply === "next")}</span>
           <span>対象: <b style={{ color: "var(--v2-text)" }}>時給</b>（固定）</span>
         </p>
+        {rules0175On() && draft.id && (/* ★便 P175-prep P-3（裁定412 追補・0175 v2 ★12 comp_plan_ext_set）: 報酬の軸はプラン単位（null＝店の軸を引き継ぐ）。保存済みプランだけ。フラグ false＝DOM 差分 0 */
+          <p data-plan-reward-axis={planRewardAxisOf(plans.find((x) => x.id === draft.id) as { reward_axis?: string | null } | undefined, settings)} style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 8px", display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+            <span>報酬の軸:</span>
+            {(() => { const cur = (plans.find((x) => x.id === draft.id) as { reward_axis?: string | null } | undefined)?.reward_axis ?? null; const curKey: PlanRewardAxis | "store" = cur === null ? "store" : cur === "pt" ? "pts" : (cur as PlanRewardAxis);
+              return ([["store", "店の軸に従う"], ["sales", PLAN_REWARD_AXIS_LABEL.sales], ["pts", PLAN_REWARD_AXIS_LABEL.pts], ["pay_rate", PLAN_REWARD_AXIS_LABEL.pay_rate]] as const).map(([v, label]) => (
+                <label key={v} style={{ display: "inline-flex", gap: 4, alignItems: "center" }}>
+                  <input type="radio" name="plan-reward-axis" checked={curKey === v} disabled={!isOwner} aria-label={`報酬の軸 ${label}`}
+                    onChange={() => void (async () => { const { error } = await supabase.rpc("comp_plan_ext_set", { p_plan_id: draft.id, p_patch: planRewardAxisPatchOf(v === "store" ? null : v) }); if (error) { setSecErr((e) => ({ ...e, スライド: compErrJa(error.message) })); return; } setMsg(`報酬の軸を「${label}」にしました`); await reload(); })()} />{label}
+                </label>
+              )); })()}
+          </p>
+        )}
         {/* ★便 P174 T-4（裁定395・395 追補2）: 判定のタイミング＝詳細設定の奥（主表示は上の判定期間）。null＝店設定に従う・前期の実績（既定）・当期の累計（稀） */}
         <details data-slide-apply="1" style={{ margin: "0 0 8px", fontSize: 12, color: "var(--sub)" }}>
           <summary style={{ cursor: "pointer" }}>詳細設定（判定のタイミング: {SLIDE_APPLY_LABEL[effApply]}）</summary>

@@ -29,6 +29,8 @@ import { outOfPeriodNoteOf, ymFromSearch } from "@/lib/nox/ui/month-nav";
 // ★裁定326-7／追補2-4（0160・便 M4-1）: 店設定 shift_request_mode。'off_only'＝休み希望（kind 'off'・時刻なし＝時間欄を出さない）。'shift'＝従来（kind 'work'）
 import { wishNeedsTimes, wishPageTextOf, wishRowLabelOf, wishSubmitArgsOf, type WishMode } from "@/lib/nox/mine/wish-mode";
 import { DAY_STATE_ORDER, dayStateLabelOf, dayStateOf, type DayShift } from "@/lib/nox/mine/day-state"; // ★便 GV-C C-14（GV-60・裁定403）: 日の状態 7 種
+import { rules0175On } from "@/lib/nox/rules-0175/flag"; // ★便 P175-prep P-4
+import { availFormOf, fixedOffConflictOf, wishDefaultOf, type AvailForm, type AvailRow, type AvailTerms } from "@/lib/nox/rules-0175/availability"; // ★便 P175-prep P-4（裁定397＋413）
 
 const DOW = ["日", "月", "火", "水", "木", "金", "土"];
 const btnLight: React.CSSProperties = { ...t.btnGhost, ...t.btnSm };
@@ -52,6 +54,23 @@ export default function WishForm({ mode = "shift" }: { mode?: WishMode }) {
   const [closedDates, setClosedDates] = useState<Set<string>>(new Set());
   const [checkedDates, setCheckedDates] = useState<Set<string>>(new Set());
   const [focus, setFocus] = useState<string | null>(null); // 提出済みの日をタップ＝取り下げ導線
+  // ★便 P175-prep P-4（裁定397＋413・0175 v2 ★9）: 基本の働き方（本人）＝曜日ごとの既定時間と固定休。フラグ false＝読まない（null）＝既定値は従来 20:00〜26:00
+  const [avail, setAvail] = useState<AvailForm | null>(null);
+  useEffect(() => {
+    if (!rules0175On()) return;
+    let alive = true; const sb = createClient();
+    void (async () => {
+      const { data: m } = await sb.from("memberships").select("id").eq("is_active", true).limit(1).maybeSingle();
+      if (!m?.id) return;
+      const [{ data: rows }, { data: terms }] = await Promise.all([
+        sb.from("availability").select("dow, avail, from_min, to_min, memo").eq("membership_id", m.id as string),
+        sb.from("availability_terms").select("week_days_target, fixed_off_dows, effective_from, memo").eq("membership_id", m.id as string).maybeSingle(),
+      ]);
+      if (alive) setAvail(availFormOf((rows ?? []) as Partial<AvailRow>[], (terms ?? null) as Partial<AvailTerms> | null));
+    })();
+    return () => { alive = false; };
+  }, []);
+  const availConflicts = avail ? [...new Set(Object.keys(sel).map((ymd) => fixedOffConflictOf(avail, ymd)).filter((x): x is string => !!x))] : [];
 
   // ★N5-1: 自店の募集中（status='open'）の期間＝RPC shift_open_periods_mine（cast 本人・0 行＝募集なし）。関数が無ければ null に落とす
   useEffect(() => {
@@ -122,7 +141,9 @@ export default function WishForm({ mode = "shift" }: { mode?: WishMode }) {
   async function submitAll() {
     if (busy || selDates.length === 0) return;
     if (needsTimes && !timesValid({ start: defStart, end: defEnd })) { setMsg({ kind: "error", text: "一括の時間は 開始 00:00〜23:59・終了 00:00〜47:59 で入力してください" }); return; }
-    const rows = composeSubmissions(sel, { start: defStart, end: defEnd });
+    const rows0 = composeSubmissions(sel, { start: defStart, end: defEnd });
+    // ★便 P175-prep P-4: 日別の上書きが無い日は、その曜日の基本の時間帯を既定に（avail が null＝従来どおり一括既定）
+    const rows = avail ? rows0.map((r) => { const o = sel[r.date]; if (o && (o.start || o.end)) return r; const dft = wishDefaultOf(avail, new Date(`${r.date}T00:00:00Z`).getUTCDay(), { start: defStart, end: defEnd }); return dft ? { ...r, start_hm: dft.start, end_hm: dft.end } : r; }) : rows0;
     const bad = needsTimes ? rows.find((r) => !timesValid({ start: r.start_hm, end: r.end_hm })) : undefined;
     if (bad) { setMsg({ kind: "error", text: `${mdDowOf(bad.date)} の時間が正しくありません（開始 00:00〜23:59・終了 00:00〜47:59）` }); return; }
     setBusy(true); setMsg(null);
@@ -239,6 +260,7 @@ export default function WishForm({ mode = "shift" }: { mode?: WishMode }) {
             })}
           </div>
         )}
+        {availConflicts.length > 0 && <p data-avail-conflict="1" style={{ fontSize: 12, color: "var(--champ)", margin: "8px 0 0" }}>注意: {availConflicts.join("・")}（提出はできます）</p>}{/* ★便 P175-prep P-4: 固定休と矛盾する希望の印 */}
         <div className="nox-actions" style={{ marginTop: 10 }}>
           {/* ★318 追補: 一括・日別のどれかが範囲外なら提出を非活性 */}
           <button type="button" disabled={busy || selDates.length === 0 || hmBad} onClick={() => void submitAll()}

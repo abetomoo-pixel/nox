@@ -17,6 +17,8 @@ import type {
   TaxMode,
 } from "../pay";
 import type { AdjustmentRow } from "./adjust"; // 裁定258／264
+import { rateHistoryInputOf, type RateHistoryRow } from "@/lib/nox/rules-0175/rate-history"; // ★便 P175-prep P-1
+import type { CanonCtx } from "@/lib/nox/rules-0175/canon"; // ★便 P175-prep P-5
 
 // breakdown_json の器: { pay: PayResult, extras: Extra[] }。
 // #32 出勤インセンティブは extras に {kind:'attendance_bonus', amount, label, source:incentive行id} を乗せる。
@@ -49,6 +51,10 @@ export type CastRaw = {
   override?: PlanOverride;
   // ★夜間便 N3（裁定287-5）: 期と重なる保証行（cast_plan.overrides_json.guarantee=true）。collect が格納・fixture は省略＝従来と同値
   guarantees?: { validFrom: string; validTo: string | null; base: number }[];
+  // ★便 P175-prep P-1（裁定416・0175 v2 cast_rate_history）: フラグ true のとき collect が格納＝営業日ごとの基本＋段の累積加算と保証（履歴）を guaranteeByDay に写す。無ければ従来（保証 3 行形）
+  rateHistory?: RateHistoryRow[];
+  // ★便 P175-prep P-5（裁定418）: CANON 型の文脈（フラグ true のとき collect が格納）
+  rules0175?: CanonCtx;
   // ★夜間便 N3b（裁定288）: slide_apply と「営業日の暦月→その前月の合計」。'next' の店でだけ collect が格納（'current'／fixture は無し＝従来と同値）
   slideApply?: "next" | "current";
   prevMonthTotals?: Record<string, { sales: number; pts: number }>; // key＝営業日が属する暦月 'YYYY-MM'（値＝その前月の合計）
@@ -126,6 +132,18 @@ function dayNum(bizDate: string): number {
 //   periodDays は「計算期間の暦日数（両端含む）」＝源泉の 5,000円×日数 の日数（裁定23）。
 //   extrasTotal は出勤ボーナス等の加算合計＝gross に入り源泉対象になる（裁定23-b ①）。
 /** ★N3: 保証行（valid_from〜valid_to）を営業日ごとの base に写す。保証行が期の日に 1 日も掛からなければ {}（キーを足さない） */
+/** ★便 P175-prep P-1（裁定416）: 履歴（cast_rate_history）があれば営業日ごとの rate を履歴で解く＝基本＋段の累積加算（up）・手動・保証を日別の床として guaranteeByDay に乗せる（wageDetail は max(gBase, eplan.base) を取る＝従来経路の流用）。履歴が無ければ従来の保証 3 行形 */
+export function rateInputOf(raw: Pick<CastRaw, "daily" | "guarantees" | "rateHistory" | "plan">): Pick<PayInput, "guaranteeByDay" | "guaranteeSpans"> {
+  const g3 = guaranteeInputOf(raw);
+  if (!raw.rateHistory || raw.rateHistory.length === 0) return g3;
+  const planBase = raw.plan?.base ?? 0;
+  const { baseByDay, guaranteeByDay } = rateHistoryInputOf(raw.rateHistory, raw.daily.map((d) => d.bizDate), planBase, dayNum);
+  const merged: Record<number, number> = { ...(g3.guaranteeByDay ?? {}) };
+  for (const [d, v] of Object.entries(guaranteeByDay)) merged[Number(d)] = Math.max(merged[Number(d)] ?? 0, v);
+  for (const [d, v] of Object.entries(baseByDay)) if (v > planBase) merged[Number(d)] = Math.max(merged[Number(d)] ?? 0, v); // 基本と同額の日は床を作らない（従来と同じ行になる）
+  const spans = raw.rateHistory.filter((r) => r.kind === "guarantee").map((r) => ({ from: r.valid_from, to: r.valid_to, base: r.rate }));
+  return Object.keys(merged).length ? { guaranteeByDay: merged, guaranteeSpans: [...(g3.guaranteeSpans ?? []), ...spans] } : {};
+}
 export function guaranteeInputOf(raw: Pick<CastRaw, "daily" | "guarantees">): Pick<PayInput, "guaranteeByDay" | "guaranteeSpans"> {
   const gs = raw.guarantees ?? [];
   if (gs.length === 0) return {};
@@ -194,7 +212,8 @@ export function buildPayInput(
     daily: raw.daily.map((d) => ({ d: dayNum(d.bizDate), hours: d.hours, sales: d.sales })),
     plan: raw.plan,
     override: raw.override,
-    ...guaranteeInputOf(raw), // ★N3: 保証行が無ければ何も足さない（キー自体を持たない＝従来と 1 バイト同値）
+    ...rateInputOf(raw), // ★N3: 保証行が無ければ何も足さない（キー自体を持たない＝従来と 1 バイト同値）。★P175-prep P-1: 履歴があれば履歴で（フラグ true のときだけ collect が格納）
+    ...(raw.rules0175 ? { rules0175: raw.rules0175 } : {}), // ★P175-prep P-5
     ...(masters.payTimeBasis === "shift" ? { payTimeBasis: "shift" as const } : {}), // ★324（便 L-2-3）: 'shift' のときだけキーを足す（'punch'／未指定＝従来と 1 バイト同値）
     ...slideInputOf(raw), // ★N3b: 'next' でなければ何も足さない
     productBack: raw.productBack,

@@ -11,8 +11,10 @@ import StoreSystemsPanel from "@/components/nox/store-systems-panel";
 import { storeProfileErrJa } from "../../store-flag-toggle";
 import { SYSTEM_LABELS, WAGE_CUT_RULE_DESC, WAGE_CUT_RULE_KEY, WAGE_CUT_RULE_LABEL, WAGE_CUT_RULE_PENDING_NOTE, wageCutRuleOf, type SystemKey } from "@/lib/nox/store-systems"; // ★便 SH-UI-a A-1
 import OnOffSeg from "@/components/ui/on-off";
-// ★便 SH-UI-a A-1: 白名単（0175）の適用後に true＝切替を有効化（適用前は RPC が 'bad key'）
-const WAGE_CUT_RULE_APPLIED = false;
+// ★便 SH-UI-a A-1: 白名単（0175）の適用後に true＝切替を有効化（適用前は RPC が 'bad key'）。★便 P175-prep P-3: フラグは flag.ts（rules0175On）
+import { rules0175On } from "@/lib/nox/rules-0175/flag";
+import StoreRules0175Panel from "@/components/nox/store-rules-0175-panel"; // ★便 P175-prep P-3: ドリンクバック／売上小計の範囲／支払サイクル／税の既定
+const WAGE_CUT_RULE_APPLIED = rules0175On();
 import SettlementPresetsEditor from "@/components/nox/settlement-presets-editor"; // ★0154 D4: 精算調整のひな形
 
 const card: React.CSSProperties = t.card;
@@ -59,6 +61,17 @@ export default function SystemsBoard({ storeId, storeName, isOwner, initialSetti
     setMsg(`${label}にしました`);
   }
 
+  // ★便 P175-prep P-3: 0175 の店設定キー（任意値）＝set_store_profile の patch（白名単は 0175 v2 ★3／★11・フラグ false では呼ばれない）
+  async function onPatch0175(patch: Record<string, unknown>, label: string) {
+    if (busyKey || !storeId) return;
+    setBusyKey("sys_backs"); setMsg(null);
+    const { error } = await supabase.rpc("set_store_profile", { p_store_id: storeId, p_patch: patch });
+    setBusyKey(null);
+    if (error) { setMsg(`保存に失敗: ${storeProfileErrJa(error.message)}`); return; }
+    setSettings((s) => ({ ...s, ...patch }));
+    setMsg(`${label}にしました`);
+  }
+
   return (
     <div>
       <Toast msg={msg} />
@@ -95,6 +108,7 @@ export default function SystemsBoard({ storeId, storeName, isOwner, initialSetti
             )}
           </div>
         ); })()}
+        {rules0175On() && <StoreRules0175Panel settings={settings} onPatch={onPatch0175} readOnly={!isOwner} busy={busyKey !== null} />}{/* ★便 P175-prep P-3: 0175 適用後にだけ出る（false＝DOM 差分 0） */}
       </section>
       {/* ★0154 D4（裁定293 追補1-1／294-7）: 精算調整のひな形（settings_json.settlement_presets・owner のみ編集） */}
       <section className="nox-cardtop" style={card} id="settlement-presets">{/* ★便 X13-H H-15: 閾値パネルの「ひな形を開く」の飛び先 */}

@@ -1,0 +1,32 @@
+{
+  "_note": "★便 P175-prep P-6（2026-10-23・裁定418 CANON 型）: CSV（docs/dp/店舗報酬制度_18店舗_20261023.csv）から写した CANON 型 6 店の fixture＝suite（verify:nox-p175prep）専用・payload には入れない。MUSE は RULES_0175_APPLIED=true のとき profiles.mjs の canon で差し替える。『未確定』＝CSV に無い・相談役の仮置き（Agoora の赤入れで直す）。",
+  "stores": [
+    { "code": "CANON", "name": "CANON（MUSE 差し替え元）", "set": { "regular": 6000, "vip": 8000 }, "service_rate": 30, "service_rate_vip": 35, "pay_discount_rates": { "cash": 10 },
+      "dohan_back": { "tiers": [30, 20, 15], "note": "同伴 30／20／15%＝本数の段（1 本目／2 本目／3 本目以降）" }, "hon_back_rate": 10, "jonai_back": 500, "drink_count_back": false,
+      "pay_rate_tiers": [
+        { "at_pct": 0,  "up_amount": 500, "back_mult": 100, "bonus_pct": 0 },
+        { "at_pct": 40, "up_amount": 300, "back_mult": 100 },
+        { "at_pct": 50, "up_amount": 0 },
+        { "at_pct": 60, "down_amount": 0, "pay_pct": 100 },
+        { "at_pct": 70, "down_amount": 100, "pay_pct": 100 },
+        { "at_pct": 80, "down_amount": 200, "pay_pct": 95 },
+        { "at_pct": 90, "down_amount": 300, "pay_pct": 90 },
+        { "at_pct": 100, "down_amount": 300, "pay_pct": 85, "wage_cut_pct": 5 },
+        { "at_pct": 110, "down_amount": 500, "pay_pct": 80, "wage_cut_pct": 10 },
+        { "at_pct": 120, "down_amount": 500, "pay_pct": 70, "wage_cut_pct": 10 }
+      ],
+      "pay_rate_tiers_note": "報酬率表 10 段（CSV）。40％未満＝UP・40〜50＝UP 小・50〜60＝維持・60〜＝査定（支給率と減率）。段の金額は CSV の写し・『W 別規定』は plan_norm_tiers。",
+      "slide_streak_n": 2,
+      "norm_tiers": [
+        { "week_days_min": 1, "week_days_max": 2, "days_required": 6, "hours_required": 30 },
+        { "week_days_min": 3, "week_days_max": 4, "days_required": 12, "hours_required": 60 },
+        { "week_days_min": 5, "week_days_max": 7, "days_required": 18, "hours_required": 90 }
+      ],
+      "assess_grace_months": 3, "sales_subtotal_mode": "pre_tax_service" },
+    { "code": "CLUB_G", "name": "CLUB G", "set": { "regular": 7000 }, "service_rate": 25, "pay_rate_tiers": [{ "at_pct": 0, "up_amount": 300 }, { "at_pct": 50, "up_amount": 0 }, { "at_pct": 70, "down_amount": 200, "pay_pct": 90 }], "slide_streak_n": 1, "note": "未確定＝段の金額は仮置き（CSV は率だけ）" },
+    { "code": "CLASS", "name": "CLASS", "set": { "regular": 5000 }, "service_rate": 30, "pay_rate_tiers": [{ "at_pct": 0, "up_amount": 500 }, { "at_pct": 45, "up_amount": 0 }, { "at_pct": 65, "down_amount": 300, "pay_pct": 90 }], "slide_streak_n": 2, "note": "未確定＝連続 N は仮置き 2" },
+    { "code": "BELLEZZA", "name": "BELLEZZA", "set": { "regular": 8000, "vip": 10000 }, "service_rate": 30, "service_rate_vip": 40, "pay_rate_tiers": [{ "at_pct": 0, "up_amount": 500 }, { "at_pct": 50, "up_amount": 0 }, { "at_pct": 80, "down_amount": 500, "pay_pct": 80 }], "slide_streak_n": 2, "note": "未確定＝VIP サ料は CSV の注記から" },
+    { "code": "PREMIER", "name": "Premier", "set": { "regular": 6000 }, "service_rate": 30, "pay_rate_tiers": [{ "at_pct": 0, "up_amount": 300 }, { "at_pct": 40, "up_amount": 0 }, { "at_pct": 60, "down_amount": 200, "pay_pct": 95 }], "slide_streak_n": 3, "note": "未確定＝連続 N 3 は仮置き" },
+    { "code": "NECT", "name": "NECT", "set": { "regular": 5500 }, "service_rate": 25, "pay_rate_tiers": [{ "at_pct": 0, "up_amount": 200 }, { "at_pct": 50, "up_amount": 0 }, { "at_pct": 75, "down_amount": 200, "pay_pct": 90 }], "slide_streak_n": 1, "note": "未確定＝全部仮置き（CSV は型名のみ）" }
+  ]
+}
