@@ -6,12 +6,12 @@
 //   ⑥不足日＝期間のある日だけ数える。色は CSS 変数（globals.css --cal-*／--stg-*）＝E-23 追補1 のコントラスト 3 以上。
 import type { PeriodCellStage } from "./period-cell";
 
-export type Fill = "none" | "ok" | "warn" | "ng";
+export type Fill = "none" | "ok" | "warn" | "ng" | "closed"; // ★便 NR-1 B①: closed＝定休日（地色グレー・募集／配置／代行確定の対象外・不足日と予想人件費から除外）
 export type CellStat = { assigned: number; confirmed: number; proposed: number; planned: number; required: number };
 
 /** 充足＝必要 0 は未設定・assigned ≥ required は充足・不足 1 はやや不足・2 以上は不足（S-1 と同じ規則） */
 export const fillOf = (assigned: number, required: number): Fill => (required <= 0 ? "none" : assigned >= required ? "ok" : required - assigned === 1 ? "warn" : "ng");
-export const FILL_WORD: Record<Fill, string> = { none: "未設定", ok: "充足", warn: "やや不足", ng: "不足" };
+export const FILL_WORD: Record<Fill, string> = { none: "未設定", ok: "充足", warn: "やや不足", ng: "不足", closed: "定休日" };
 export const STAGE_WORD: Record<PeriodCellStage, string> = { draft: "作成中", open: "募集中", closed: "配置中", published: "公開済み", none: "期間なし" };
 /** 凡例＝進行状況 5 つ／充足状況 4 つ（カレンダー上部に 2 列・390px は 2 段） */
 export const LEGEND_STAGE: ReadonlyArray<readonly [PeriodCellStage, string]> = [["draft", "作成中"], ["open", "募集中"], ["closed", "配置中"], ["published", "公開済み"], ["none", "期間なし"]];
@@ -19,7 +19,10 @@ export const LEGEND_FILL: ReadonlyArray<readonly [Fill, string]> = [["ok", "充�
 
 export type CellText = { fill: Fill; center: string; sub: string | null; pending: string | null };
 /** セルの文字＝中央「確定/必要」・下「あと N 名」（充足／未設定）・小字「確認待ち n」（proposed＋planned） */
-export function cellTextOf(st: CellStat): CellText {
+/** ★便 NR-1 B①: 定休日のセル＝地色 closed・中央「定休日」（人数は出さない・既にある行は日詳細の赤バッジで見せる） */
+export const CLOSED_CELL_TEXT: CellText = { fill: "closed", center: "定休日", sub: null, pending: null };
+export function cellTextOf(st: CellStat, closed = false): CellText {
+  if (closed) return CLOSED_CELL_TEXT;
   const fill = fillOf(st.assigned, st.required);
   if (st.required <= 0) return { fill, center: "未設定", sub: null, pending: null };
   const pend = st.proposed + st.planned;

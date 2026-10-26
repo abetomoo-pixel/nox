@@ -133,7 +133,7 @@ const PENALTY_LABEL_JA: Record<keyof Penalty, string> = {
   norm_days_flat: "出勤日数 未達の定額",
   norm_days_per: "出勤日数 不足1日につき",
   norm_dohan_flat: "同伴 未達の定額",
-  norm_dohan_per: "同伴 不足1本につき",
+  norm_dohan_per: "同伴 不足1回につき", // ★便 NR-1 ⑥
   late_grace_min: "遅刻猶予",
   early_grace_min: "早退猶予",
   over_grace_min: "残留猶予",
@@ -897,10 +897,6 @@ export function NormTab({ casts, norms, isManagerUp, setMsg, reload, plans = [],
             </div>
             <p style={{ ...note, marginTop: 6 }}>空欄の項目は変えません（その人の現在値のまま）。表の行をタップして選択します。</p>
           </div>
-          <p style={{ ...note, marginTop: 8 }}>
-            ※未達の減額（4 軸・定額／不足ごと）は下の「遅刻・当欠の検知（閾値）」で設定し、給与の精算調整で登録します。
-            店として採用する軸と指名のカウント定義は「ノルマ設定（店）」パネルで切り替えます。
-          </p>
         </>
       ) : <p style={note}>ノルマはマネージャー以上のみ可能です。</p>}
     </div>
@@ -1007,7 +1003,7 @@ export function DeductionTab({ deductions, isManagerUp, storeId, setMsg, reload 
 /** ★便 P174 T-3（裁定394）: 減額 4 軸の欄＝[軸, ラベル, 定額キー, 不足ごとキー, 単位] */
 export const PENALTY_AXES = [
   ["days", "出勤日数", "norm_days_flat", "norm_days_per", "日"],
-  ["dohan", "同伴", "norm_dohan_flat", "norm_dohan_per", "本"],
+  ["dohan", "同伴", "norm_dohan_flat", "norm_dohan_per", "回"], // ★便 NR-1 ⑥: 同伴は「不足 1 回ごと」（「本」は誤り）
   ["shimei", "指名", "norm_shimei_flat", "norm_shimei_per", "回"],
   ["sales", "売上", "norm_sales_flat", "norm_sales_per", "単位"],
 ] as const;

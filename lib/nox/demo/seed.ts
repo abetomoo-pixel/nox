@@ -218,7 +218,7 @@ export async function runDemoReset(admin: SupabaseClient, orgId: string, payload
 }
 
 export type DemoFinalizeStore = { store: string; status: "finalized" | "skipped" | "failed"; castCount?: number; ms: number; reason?: string };
-export type AfterResetResult = { photos: { casts: number; users: number }; payroll: { period: string; stores: DemoFinalizeStore[]; ms: number; reason?: string }; fine?: { status: "added" | "skipped" | "failed"; reason?: string; ms: number } };
+export type AfterResetResult = { closedDays?: { stores: number; shifts: number; wishes: number; reason?: string }; photos: { casts: number; users: number }; payroll: { period: string; stores: DemoFinalizeStore[]; ms: number; reason?: string }; fine?: { status: "added" | "skipped" | "failed"; reason?: string; ms: number } };
 
 /**
  * 再生後の後処理（裁定276-4）:
@@ -255,6 +255,32 @@ export async function afterResetHooks(admin: SupabaseClient, orgId: string, _biz
   // ★便 SH-UI-c2 C2-5（2026-10-23）: デモ ACE のひなの＝当月の遅刻の日に罰金 1 件（遅刻 ¥2,000＝店設定の精算プリセット「遅刻」と同額・source settlement・target_shift_id＝その日の確定シフト）
   //   payload には入れない（payroll_runs は正規経路＝payroll_run_create で当月の draft run を作り payroll_adjustment_add）。他の 5 店は無し。失敗しても reset は成功扱い（fine.status に理由）。
   out.fine = await demoLateFineForAce(admin, orgId, _bizDate).catch((e) => ({ status: "failed" as const, reason: e instanceof Error ? e.message : String(e), ms: 0 }));
+  // ★便 NR-1 B⑤（裁定428 候補・2026-10-26）: 定休日の曜日に入った shifts／shift_wishes を落とす（payload の日付は {$rel}＝曜日は reset 日で決まるため生成器では落とせない）。全デモ店・admin・失敗しても reset は成功扱い
+  out.closedDays = await demoDropClosedDayShifts(admin, orgId).catch((e) => ({ stores: 0, shifts: 0, wishes: 0, reason: e instanceof Error ? e.message : String(e) }));
+  return out;
+}
+
+/** ★便 NR-1 B⑤: 店の定休日（store_business_hours.is_closed）の曜日に入っている shifts／shift_wishes を削除（デモ reset の後処理・自動削除は demo だけ＝本番の店は店長が消す／残すを選ぶ） */
+export async function demoDropClosedDayShifts(admin: SupabaseClient, orgId: string): Promise<NonNullable<AfterResetResult["closedDays"]>> {
+  const out = { stores: 0, shifts: 0, wishes: 0 };
+  const { data: bh, error: eBh } = await admin.from("store_business_hours").select("store_id, dow").eq("org_id", orgId).eq("is_closed", true);
+  if (eBh) throw new Error(`store_business_hours: ${eBh.message}`);
+  const closedByStore = new Map<string, Set<number>>();
+  for (const r of (bh ?? []) as { store_id: string; dow: number }[]) (closedByStore.get(r.store_id) ?? closedByStore.set(r.store_id, new Set()).get(r.store_id)!).add(r.dow);
+  const dowOf = (ymd: string) => { const [y, m, d] = ymd.split("-").map(Number); return new Date(Date.UTC(y, m - 1, d)).getUTCDay(); };
+  for (const [storeId, dows] of closedByStore) {
+    if (dows.size === 0) continue;
+    out.stores++;
+    for (const t of ["shifts", "shift_wishes"] as const) {
+      const { data: rows, error } = await admin.from(t).select("id, date").eq("store_id", storeId);
+      if (error) throw new Error(`${t}: ${error.message}`);
+      const ids = ((rows ?? []) as { id: string; date: string }[]).filter((r) => dows.has(dowOf(r.date))).map((r) => r.id);
+      if (ids.length === 0) continue;
+      const { error: eDel } = await admin.from(t).delete().in("id", ids);
+      if (eDel) throw new Error(`${t} delete: ${eDel.message}`);
+      if (t === "shifts") out.shifts += ids.length; else out.wishes += ids.length;
+    }
+  }
   return out;
 }
 

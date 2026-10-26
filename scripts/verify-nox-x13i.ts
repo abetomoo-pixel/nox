@@ -33,8 +33,8 @@ check("x13i(2-1) core が行に normProposal（無い行はキーなし）・col
   core.includes("...(np4 ? { normProposal:") && col.includes("normPenalty4: {") && col.includes("normTargets4: (() => {") && src("app/api/payroll/preview/route.ts").includes("...(r.normProposal ? { normProposal: r.normProposal } : {})")
   && pb.includes("<NormProposals rows={rows.filter((r) => !!r.normProposal)") && np.includes('p_source: isEmp ? "sanction" : "settlement"') && np.includes("ノルマ未達 {contractor.length} 名・提案額 合計") && np.includes("ノルマ未達の懲戒減給（雇用・労基法 91 条の上限内）"));
 const nb = src("app/(manage)/master/cast-comp/norma/norma-board.tsx");
-check("x13i(2-2) ノルマ設定＝閾値パネル（detect）と独立パネル「ノルマ未達の減額」（norm）・保存先は同じ set_penalty_config",
-  nb.includes('part="detect"') && nb.includes('part="norm"') && nb.includes("<h2 style={secTitle}>ノルマ未達の減額</h2>") && src("app/(manage)/master/cast-comp/comp-sections.tsx").includes('const showDetect = part !== "norm", showNorm = part !== "detect";'));
+check("x13i(2-2) ノルマ設定＝★便 NR-1（裁定428 候補）で再構成: 減額は「軸と減額」パネル（norm-axes-penalty-panel・set_penalty_config）・閾値（detect）は控除・送りタブ（deduction-board）・PenaltyTab の part 分岐は残る",
+  nb.includes("<NormAxesPenaltyPanel") && !nb.includes("<PenaltyTab") && src("app/(manage)/master/cast-comp/deduction/deduction-board.tsx").includes('part="detect"') && src("app/(manage)/master/cast-comp/norma/norm-axes-penalty-panel.tsx").includes('supabase.rpc("set_penalty_config", penaltyArgsOf(storeId, penalty))') && src("app/(manage)/master/cast-comp/comp-sections.tsx").includes('const showDetect = part !== "norm", showNorm = part !== "detect";'));
 const ace = JSON.parse(src("docs/demo/payload/ace.json")).tables;
 check("x13i(2-3) デモ＝ACE の penalty_config（検知 ON・指名 ¥1,000／回・売上 ¥2,000／¥100,000）", ace.penalty_config?.[0]?.norm_on === true && ace.penalty_config[0].norm_shimei_per === 1000 && ace.penalty_config[0].norm_sales_unit === 100000);
 // H-20

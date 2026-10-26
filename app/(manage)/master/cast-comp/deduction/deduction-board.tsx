@@ -9,8 +9,9 @@ import { useState } from "react";
 import type { OkuriMode } from "@/lib/nox/shift/okuri-mode"; // ★裁定414（S-4）
 import * as t from "@/lib/nox/ui/theme";
 import Toast from "@/components/ui/toast";
+import Link from "next/link"; // ★便 NR-1: 罰金ひな形への案内
 import DeductionPanel from "../../deduction-panel";
-import { DeductionTab, useCompData, secTitle } from "../comp-sections";
+import { DeductionTab, PenaltyTab, useCompData, secTitle } from "../comp-sections"; // ★便 NR-1: 遅刻・当欠の検知（閾値）をノルマ設定から移設
 import { isSectionOn, type StoreSettings } from "@/lib/nox/store-systems"; // ★裁定269: 使う制度の出し分け
 
 const card: React.CSSProperties = t.card;
@@ -51,6 +52,17 @@ export default function DeductionBoard({ storeId, isManagerUp, isOwner, casts, o
         initialOkuriBase={okuriBase}
         bizCutoffHm={typeof (settings as Record<string, unknown> | undefined)?.biz_cutoff_hm === "string" ? ((settings as Record<string, unknown>).biz_cutoff_hm as string) : "06:00"} // ★302-1: 一括発行の「当日（営業日）」
       />)}{/* ★裁定269-4: deductionPanel */}
+
+      {/* ★便 NR-1（裁定428 候補・2026-10-26）: 遅刻・当欠の検知（閾値）＝ノルマ設定（店）から移設（保存先 penalty_config・owner のみ編集）。罰金の既定額は精算調整のひな形（利用機能タブ） */}
+      {isSectionOn(settings, "compPenaltyTab") && (<section className="nox-cardtop" style={{ ...card, marginTop: 14 }} data-penalty-detect-panel="1">
+        <h2 style={secTitle}>遅刻・当欠の検知（閾値）</h2>
+        <div data-penalty-link="1" style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", margin: "0 0 10px" }}>
+          <span style={{ fontSize: 12.5, color: "var(--sub)", flex: "1 1 240px" }}>遅刻・当欠の罰金（委託キャスト）の既定額は「報酬制度 → 精算調整のひな形（委託）」で設定します。ここは検知の閾値だけです。</span>
+          <Link href="/master/cast-comp/systems#settlement-presets" style={{ ...t.btnSecondary48, display: "inline-flex", alignItems: "center", textDecoration: "none" }}>ひな形を開く</Link>
+        </div>
+        <PenaltyTab settings={settings} penalty={data.penalty} setPenalty={data.setPenalty} exists={data.penaltyExists}
+          isOwner={isOwner} storeId={storeId} setMsg={setMsg} reload={data.reload} part="detect" />
+      </section>)}
 
       {/* ③ 注意事項（モックの静的文言のみ・変更履歴セクションは作らない） */}
       <section className="nox-cardtop" style={{ ...card, marginTop: 14 }}>

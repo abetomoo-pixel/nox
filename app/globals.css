@@ -2535,7 +2535,7 @@ body {
 /* ★便 SH-UI-b2（2026-10-23）: B2-1 日セルの地色＝期間の状態（募集中 青／配置中 黄／公開済み 緑／期間なし 灰＋字）・境目 1px・凡例 4 つ／B2-2 ロゴのリンク／B2-3 提出一覧の希望行 */
 /* ★便 SH-UI-c2 C2-19（2026-10-23・B2-1 を上書き）: 日セル＝地色は充足（暗めの地に明るい字＝コントラスト 3 以上）・右上バッジは進行（濃い地に白／明るい地に黒）・凡例 2 列（390px は 2 段）。色は変数だけで決める */
 :root {
-  --cal-ok-bg: #1e4d33; --cal-ok-fg: #d9f5e3; --cal-warn-bg: #5a4716; --cal-warn-fg: #ffe9a8; --cal-ng-bg: #5c2320; --cal-ng-fg: #ffd6d3; --cal-none-bg: #2a2a33; --cal-none-fg: #c9c9d1;
+  --cal-ok-bg: #1e4d33; --cal-ok-fg: #d9f5e3; --cal-warn-bg: #5a4716; --cal-warn-fg: #ffe9a8; --cal-ng-bg: #5c2320; --cal-ng-fg: #ffd6d3; --cal-none-bg: #2a2a33; --cal-none-fg: #c9c9d1; --cal-closed-bg: #3b3b46; --cal-closed-fg: #d7d7df; /* ★便 NR-1 B①: 定休日＝グレー（コントラスト 8.9） */
   --stg-draft-bg: #1f8f85; --stg-draft-fg: #ffffff; --stg-open-bg: #2f7fe7; --stg-open-fg: #ffffff; --stg-closed-bg: #22b8cf; --stg-closed-fg: #0b1a1e; --stg-published-bg: #7fe0a0; --stg-published-fg: #0b2a16; --stg-none-bg: #6b7280; --stg-none-fg: #ffffff;
 }
 .nox-cald.nox-cald2 { position: relative; justify-content: flex-start; padding: 18px 4px 5px; border-color: transparent; }
@@ -2543,6 +2543,9 @@ body {
 .nox-cald.nox-cald2.fill-warn { background: var(--cal-warn-bg); color: var(--cal-warn-fg); }
 .nox-cald.nox-cald2.fill-ng { background: var(--cal-ng-bg); color: var(--cal-ng-fg); }
 .nox-cald.nox-cald2.fill-none { background: var(--cal-none-bg); color: var(--cal-none-fg); }
+.nox-cald.nox-cald2.fill-closed { background: var(--cal-closed-bg); color: var(--cal-closed-fg); opacity: .85; } /* ★便 NR-1 B① */
+.nox-cald.nox-cald2.fill-closed .nox-cald-bd { visibility: hidden; } /* 定休日は進行のバッジを出さない */
+.nox-callegend-sw.fill-closed { background: var(--cal-closed-bg); }
 .nox-cald.nox-cald2 .nox-cald-n { position: absolute; left: 6px; top: 3px; color: inherit; }
 .nox-cald.nox-cald2.today .nox-cald-n { color: var(--champ); }
 .nox-cald.nox-cald2.sel { outline: 2px solid var(--gold); outline-offset: -2px; background-color: inherit; }
@@ -2909,3 +2912,21 @@ input[type="date"]::-webkit-date-and-time-value, input[type="time"]::-webkit-dat
 .nox-payoutrow > .nox-rowbtn { justify-self: end; min-height: 40px; white-space: nowrap; }
 .nox-payoutrow--other { grid-template-columns: minmax(0, 1fr) 120px; }
 .nox-payoutrow--other > input { grid-column: 1 / -1; }
+
+/* ★便 NR-1（裁定428 候補・2026-10-26）: ノルマ設定「軸と減額」＝1 軸 1 行（採用チェック｜方式 2 択｜金額｜単位）。
+   390px（≤430）＝セグメントは 2 択を 50／50 で親幅いっぱい・金額欄も同じ幅・保存は中央。PC は 1 行に並ぶ。 */
+.nox-normax-head { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; margin: 0 0 8px; }
+.nox-normax-row { display: grid; grid-template-columns: 120px minmax(220px, 1fr) auto auto; gap: 8px 12px; align-items: center; padding: 6px 0; border-top: 1px solid var(--line); }
+.nox-normax-row .nox-normax-seg .nox-segtabs { width: 100%; }
+.nox-normax-row .nox-normax-seg .nox-segtabs > button { flex: 1 1 50%; min-width: 0; padding: 0 8px; }
+.nox-normax-row .nox-numfield { width: 7.5em; }
+.nox-normax-save { display: flex; gap: 10px; align-items: center; margin-top: 10px; }
+@media (max-width: 430px) {
+  .nox-normax-row { grid-template-columns: 1fr; gap: 6px; }
+  .nox-normax-row .nox-normax-seg { width: 100%; }
+  .nox-normax-row .nox-normax-seg .nox-segtabs > button { flex: 1 1 50%; font-size: 12px; }
+  .nox-normax-row .nox-normax-amt, .nox-normax-row .nox-normax-unit { display: flex; align-items: center; gap: 6px; width: 100%; }
+  .nox-normax-row .nox-normax-amt .nox-numfield, .nox-normax-row .nox-normax-unit .nox-numfield { flex: 1 1 auto; width: 100%; }
+  .nox-normax-save { justify-content: center; flex-direction: column; }
+  .nox-normax-save > button { width: 100%; max-width: 320px; }
+}

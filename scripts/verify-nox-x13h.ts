@@ -122,7 +122,7 @@ async function main() {
     && rbd.includes("{grossMode && balance > 0 && (") && !rbd.includes('data-pay-fee-line="1"'));
   // ── H-15／H-16（裁定410）
   const { DEFAULT_SETTLEMENT_PRESETS, SELECTABLE_TARGETS, penaltyAmountErrOf, penaltyArgsOf } = await import("../lib/nox/payroll/settlement");
-  const pe2 = src("components/nox/settlement-presets-editor.tsx"), nb = src("app/(manage)/master/cast-comp/norma/norma-board.tsx");
+  const pe2 = src("components/nox/settlement-presets-editor.tsx"), nb = src("app/(manage)/master/cast-comp/deduction/deduction-board.tsx"); // ★便 NR-1: 閾値パネル（ひな形を開く）は控除・送りタブへ
   check("x13h(9-1) ひな形＝既定 2 件（遅刻・当欠）・早退は選択肢から外す・「既定の 2 件に戻す」・閾値パネルから「ひな形を開く」（金額欄なし）",
     DEFAULT_SETTLEMENT_PRESETS.map((p) => p.target).join(",") === "late,absent" && !SELECTABLE_TARGETS.includes("early") && pe2.includes(">既定の 2 件に戻す</button>") && pe2.includes("早退は罰金の対象外です")
     && nb.includes('href="/master/cast-comp/systems#settlement-presets"') && nb.includes(">ひな形を開く</Link>") && src("app/(manage)/master/cast-comp/systems/systems-board.tsx").includes('id="settlement-presets"'));

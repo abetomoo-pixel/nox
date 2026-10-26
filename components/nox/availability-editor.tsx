@@ -40,7 +40,7 @@ export default function AvailabilityEditor({ castId, storeId, employment, bySelf
     ]);
     setForm(availFormOf((rows ?? []) as Partial<AvailRow>[], (terms ?? null) as Partial<AvailTerms> | null));
     setLoaded(true);
-  }, [supabase, castId]);
+  }, [supabase, castId, storeId]); // ★便 ON-1: storeId で membership を解く（lint exhaustive-deps）
   useEffect(() => { void load(); }, [load]);
 
   const setRow = (dow: number, patch: Partial<AvailRow>) => setForm((f) => ({ ...f, rows: f.rows.map((r) => (r.dow === dow ? { ...r, ...patch } : r)) }));

@@ -332,6 +332,10 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   const [selDate, setSelDate] = useState(bizToday);
   // B-5②: 営業時間マスタ（行なし=未設定・判定なし。cast 0行だが本画面は staff 以上のみ到達）
   const [bhRows, setBhRows] = useState<BusinessHourRow[]>([]);
+  // ★便 NR-1 B（裁定428 候補・2026-10-26）: 定休日（store_business_hours.is_closed）の曜日集合。カレンダー＝地色グレー「定休日」・必要人数 0 固定・不足日と予想人件費から除外・
+  //   新規配置／希望は従来どおり UI＋RPC 'closed day' でブロック・既にある行は赤バッジ「定休日」（店長が消す／残すを選ぶ＝自動削除なし）
+  const closedDows = new Set(bhRows.filter((r) => r.is_closed).map((r) => r.dow));
+  const isClosedDay = (ymd: string) => closedDows.has(dowOf(ymd));
   // 新規シフトフォーム（manager）
   // ★SC-1（裁定42）: 手動追加フォームは ShiftAddForm へ切り出した。
   //   親が持つのは「どの面から・どの日付・どの状態で開くか」だけ（フォームの6 state は子の内部）。
@@ -757,6 +761,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   // E8-4 #3（mig0095）: 5引数＝時間帯バンドの upsert（同 store/dow/from_min は置換・交差は RPC 'overlap' 拒否）
   async function saveNeed(dow: number, required: number, fromMin: number, toMin: number, okMsg?: string) {
     setMsg(null);
+    if (closedDows.has(dow) && required > 0) { setMsg("定休日の曜日は必要人数を 0 のままにします（営業時間の設定で定休日を外すと入力できます）"); return false; } // ★便 NR-1 B②
     const { error } = await supabase.rpc("set_staffing_need", {
       p_store_id: storeId, p_dow: dow, p_required: required, p_from_min: fromMin, p_to_min: toMin,
     });
@@ -862,6 +867,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
     const list = shiftsOn(ymd);
     const confirmed = list.filter((s) => s.status === "confirmed").length;
     const proposed = list.filter((s) => s.status === "proposed").length;
+    if (isClosedDay(ymd)) return { assigned: list.length, confirmed, proposed, planned: list.length - confirmed - proposed, required: 0, shortage: 0, over: 0, fill: "none" as const }; // ★便 NR-1 B①: 定休日＝必要 0・不足なし
     const bs = bandStatsOf(ymd);
     const required = bs.reduce((m, b) => Math.max(m, b.required), 0);
     const shortage = bs.reduce((m, b) => Math.max(m, Math.max(0, b.required - b.assigned)), 0);
@@ -894,11 +900,12 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
       if (list) list.push(s); else byDate.set(s.date, [s]);
     }
     for (const [date, list] of byDate) {
+      if (closedDows.has(dowOf(date))) continue; // ★便 NR-1 B①: 定休日の行は予想人件費に入れない
       // status（confirmed/planned）は金額に影響しない＝両方渡す（設計§2）
       m.set(date, forecastDay(list.map((x) => ({ castId: x.cast_id, startHm: x.start_hm, endHm: x.end_hm })), comps));
     }
     return m;
-  }, [shifts, comps, isManagerUp]);
+  }, [shifts, comps, isManagerUp, bhRows]); // eslint-disable-line react-hooks/exhaustive-deps -- closedDows は bhRows から毎描画で作る（★便 NR-1）
   const fcOf = (ymd: string) => fcByDate.get(ymd);
   const yen = (n: number) => "¥" + n.toLocaleString();
 
@@ -1187,7 +1194,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
           <thead>
             <tr>
               <th style={{ ...cellTd, textAlign: "left", minWidth: 90, color: "var(--sub)" }}>キャスト</th>
-              {days.map((d) => <th key={d} className="num" style={{ ...cellTd, color: dowOf(d) === 0 ? "var(--bad)" : dowOf(d) === 6 ? "var(--champ)" : "var(--sub)" }}>{Number(d.slice(8))}</th>)}
+              {days.map((d) => <th key={d} className="num" title={isClosedDay(d) ? "定休日" : undefined} data-staff-closed={isClosedDay(d) ? "1" : undefined} style={{ ...cellTd, ...(isClosedDay(d) ? { background: "var(--cal-closed-bg)" } : {}), color: dowOf(d) === 0 ? "var(--bad)" : dowOf(d) === 6 ? "var(--champ)" : "var(--sub)" }}>{Number(d.slice(8))}</th>)}{/* ★便 NR-1 B①: 定休日の列はグレー */}
             </tr>
           </thead>
           <tbody>
@@ -1201,7 +1208,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                   const top = mine.some((x) => x.status === "confirmed") ? "confirmed" : mine.some((x) => x.status === "proposed") ? "proposed" : mine.length > 0 ? "planned" : null;
                   const first = mine.slice().sort((a, b) => a.start_hm.localeCompare(b.start_hm))[0];
                   return (
-                    <td key={d} className="num" style={{ ...cellTd, color: top ? shiftStColor(top) : undefined, fontWeight: top === "confirmed" ? 800 : 500 }}
+                    <td key={d} className="num" data-staff-closed={isClosedDay(d) ? "1" : undefined} style={{ ...cellTd, ...(isClosedDay(d) ? { background: "var(--cal-closed-bg)" } : {}), color: isClosedDay(d) && first ? "var(--bad)" : top ? shiftStColor(top) : undefined, fontWeight: top === "confirmed" ? 800 : 500 }}
                       title={mine.length > 0 ? `${d} ${mine.map((x) => `${fmtWin(x.start_hm, x.end_hm)}（${SHIFT_ST_LABEL[x.status]}）`).join("・")}` : undefined}>
                       {first ? first.start_hm : ""}
                     </td>
@@ -2038,7 +2045,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                 const fc = fcOf(ymd);
                 const stage = periodCellStageOf(periodsAll, ymd, bizToday);
                 return (
-                  <CalCell key={ymd} ymd={ymd} stat={st} stage={stage} past={isPast(ymd)} sel={ymd === selDate} today={ymd === bizToday}
+                  <CalCell key={ymd} ymd={ymd} stat={st} stage={stage} past={isPast(ymd)} sel={ymd === selDate} today={ymd === bizToday} closed={isClosedDay(ymd)} /* ★便 NR-1 B① */
                     onClick={() => { if (periodNoneOf(ymd) && isManagerUp) { openNewPeriodAt(ymd); return; } setSelDate(ymd); setDayModal("calendar"); }} /* ★B2-1: 期間なしの日＝①の新規作成へ・★C2-19 ⑦: その日の配置ダイアログはそのまま */
                     title={`${ymd}・${FILL_LABEL[st.fill]}（確定${st.confirmed}/確認待ち${st.proposed}/予定${st.planned}）${st.over > 0 ? `・余剰${st.over}` : ""}`}
                     yen={isManagerUp && fc && fc.total > 0 ? yen(fc.total) : null}
@@ -2091,11 +2098,13 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
           </p>
           {DOW.map((label, dow) => {
             const bs = needs.filter((n) => n.dow === dow);
+            const closedDow = closedDows.has(dow); // ★便 NR-1 B②: 定休日の曜日＝0 固定・入力不可
             return (
               <div key={dow} style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", padding: "5px 0", borderBottom: "1px solid var(--line)", fontSize: 12.5 }}>
                 <span style={{ width: 20, color: dow === 0 ? "var(--bad)" : dow === 6 ? "var(--champ)" : "var(--sub)", fontWeight: 700 }}>{label}</span>
-                {bs.length === 0 && <span style={{ color: "var(--v2-muted)" }}>未設定</span>}
-                {bs.map((n) => (
+                {closedDow && <span data-need-closed={dow} style={{ color: "var(--sub)" }}>定休日（必要人数 0・入力不可）</span>}
+                {!closedDow && bs.length === 0 && <span style={{ color: "var(--v2-muted)" }}>未設定</span>}
+                {!closedDow && bs.map((n) => (
                   <span key={`${n.id}:${n.required}:${n.to_min}`} style={{ display: "inline-flex", alignItems: "center", gap: 6, border: "1px solid var(--line)", borderRadius: 8, padding: "3px 8px" }}>
                     <span className="num" style={{ color: "var(--sub)" }}>{bandLabel(n)}</span>
                     <input
@@ -2336,6 +2345,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
           <p style={{ fontSize: 13, color: "var(--sub)" }}>なし</p>
         ) : (
           <div className="nox-tablewrap">
+            {shifts.some((s) => isClosedDay(s.date)) && <p data-closed-shift-note="1" style={{ fontSize: 12, color: "var(--bad)", margin: "0 0 8px", lineHeight: 1.7 }}>定休日に入っているシフトがあります（状態に赤い「定休日」）。消す（削除）か残すかは店長が選びます＝自動では消しません。</p>}{/* ★便 NR-1 B④ */}
             <table className="nox-table cardrows">
               <thead>
                 <tr><th>スタッフ</th><th>勤務日</th><th>確定時間</th><th>確定者</th><th>状態</th><th className="nox-noprint">操作</th></tr>

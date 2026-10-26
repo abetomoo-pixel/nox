@@ -40,8 +40,8 @@ const kiosk = src("app/kiosk/page.tsx"), pin = src("app/(manage)/master/kiosk-pi
 }
 // ── (2) 394＋GV-51
 check("p174(2-1) PenaltyTab: 4 軸（出勤日数・同伴・指名・売上）・採用 OFF の軸は出さない（normAxesOf(settings)）・売上は単位の欄（既定 10,000）・norma-board が settings を渡す",
-  cs.includes('["shimei", "指名", "norm_shimei_flat", "norm_shimei_per", "回"]') && cs.includes('["sales", "売上", "norm_sales_flat", "norm_sales_per", "単位"]') && cs.includes("PENALTY_AXES.filter(([ax]) => axesOn[ax])") && cs.includes('aria-label="売上ノルマ 不足の単位（円）"')
-  && src("app/(manage)/master/cast-comp/norma/norma-board.tsx").includes("<PenaltyTab settings={settings}"));
+  cs.includes('["shimei", "指名", "norm_shimei_flat", "norm_shimei_per", "回"]') && cs.includes('["dohan", "同伴", "norm_dohan_flat", "norm_dohan_per", "回"]') /* ★便 NR-1 ⑥: 同伴も「回」 */ && cs.includes('["sales", "売上", "norm_sales_flat", "norm_sales_per", "単位"]') && cs.includes("PENALTY_AXES.filter(([ax]) => axesOn[ax])") && cs.includes('aria-label="売上ノルマ 不足の単位（円）"')
+  && src("app/(manage)/master/cast-comp/deduction/deduction-board.tsx").includes("<PenaltyTab settings={settings}")); // ★便 NR-1: 閾値（detect）は控除・送りタブへ・減額は norm-axes-penalty-panel
 check("p174(2-2) set_penalty_config は 17 引数を常に明示（penaltyArgsOf）・新 5 引数の既定へ黙って戻さない", cs.includes('supabase.rpc("set_penalty_config", penaltyArgsOf(storeId, penalty))')
   && ["p_norm_shimei_flat", "p_norm_shimei_per", "p_norm_sales_flat", "p_norm_sales_per", "p_norm_sales_unit"].every((k) => cs.includes(k)));
 check("p174(2-3) GV-51: 猶予 3 欄（遅刻／早退／残留）はパネル先頭の独立行（data-grace-row）・保存ボタンの直前には無い・「売上・指名ノルマは表示のみ」の注記なし",
