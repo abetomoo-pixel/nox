@@ -73,8 +73,8 @@ const ccGrp = MASTER_NAV.find((g) => g.key === "cast-comp"), stGrp = MASTER_NAV.
 check("nv(5-1) MASTER_NAV＝4 群（商品・料金／キャスト・報酬／店舗・運用／スタッフ・システム）・入口 9・キャスト・報酬群＝報酬設定（タブ 3＝待遇プラン／控除・送り／ノルマ・★MC2: 仮置き 2 タブは外した）＋紹介者・紹介料（href /master/referrers）",
   JSON.stringify(MASTER_NAV.map((g) => g.label)) === JSON.stringify(["商品・料金", "キャスト・報酬", "店舗・運用", "スタッフ・システム"]) && MASTER_NAV.reduce((n, g) => n + g.pages.length, 0) === 9
   && JSON.stringify(ccGrp?.pages.map((p) => p.label)) === JSON.stringify(["報酬設定", "紹介者・紹介料"]) && JSON.stringify(ccGrp?.pages[0]?.tabs?.map((t) => t.label)) === JSON.stringify(["待遇プラン", "控除・送り", "ノルマ設定（店）"]) /* ★GV-63（便 P173）: 上段「ノルマ」→「ノルマ設定（店）」 */ && ccGrp?.pages[1]?.href === "/master/referrers", JSON.stringify(ccGrp?.pages.map((p) => p.label)));
-check("nv(5-2) MASTER_NAV 店舗・運用群＝店舗設定（/master/store-profile・タブ 利用機能／店舗情報＝★MC2）／席・卓／営業時間・定休日・在庫（/master/stock）は無い・全群で /master/referrers は 1 回",
-  JSON.stringify(stGrp?.pages.map((p) => p.label)) === JSON.stringify(["店舗設定", "席・卓", "営業時間・定休日"]) && stGrp?.pages[0]?.href === "/master/store-profile" && JSON.stringify(stGrp?.pages[0]?.tabs?.map((t) => t.label)) === JSON.stringify(["利用機能", "店舗情報"])
+check("nv(5-2) MASTER_NAV 店舗・運用群＝店舗設定（/master/store-profile・タブ 利用機能／店舗情報／LINE 連携＝★MC2＋ON-3）／席・卓／営業時間・定休日・在庫（/master/stock）は無い・全群で /master/referrers は 1 回",
+  JSON.stringify(stGrp?.pages.map((p) => p.label)) === JSON.stringify(["店舗設定", "席・卓", "営業時間・定休日"]) && stGrp?.pages[0]?.href === "/master/store-profile" && JSON.stringify(stGrp?.pages[0]?.tabs?.map((t) => t.label)) === JSON.stringify(["利用機能", "店舗情報", "LINE 連携"]) /* ★便 ON-3（0176 ★1 401）: 3 本目＝LINE 連携（?tab=line） */
   && !MASTER_NAV.some((g) => g.pages.some((p) => p.href === "/master/stock" || (p.tabs ?? []).some((t) => t.href === "/master/stock"))) && MASTER_NAV.flatMap((g) => g.pages).filter((p) => p.href === "/master/referrers").length === 1, JSON.stringify(stGrp?.pages.map((p) => p.label)));
 const mb = fs.readFileSync("app/(manage)/master/master-board.tsx", "utf8");
 check("nv(5-3) 概要（マスタトップ）＝MASTER_NAV から 4 パネルを描く（固定の HUBS 配列は無い）・在庫カード無し・入口カードは Link（href＝入口の先頭）",

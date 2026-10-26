@@ -9,6 +9,8 @@ import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import Toast from "@/components/ui/toast";
 import { rpcErrJa } from "@/lib/nox/ui/rpc-err";
+import { notifyCast } from "@/lib/nox/people/notify"; // ★便 ON-3（0176 ★5 (d)・裁定413 の「相手に通知」）: 店が変えたら本人へ
+import { AVAILABILITY_CHANGED_BODY, notifRefOf } from "@/lib/nox/people/notify-text";
 import { AVAIL_LABEL, DOW_JA, availChipsOf, availFormOf, availPatchOf, canEditTimeOf, emptyAvailForm, type Avail, type AvailForm, type AvailRow, type AvailTerms } from "@/lib/nox/rules-0175/availability";
 
 const hm = (min: number | null): string => (min === null ? "" : `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`);
@@ -49,7 +51,9 @@ export default function AvailabilityEditor({ castId, storeId, employment, bySelf
     const { error } = await supabase.rpc("availability_set", { p_membership_id: membershipId, ...availPatchOf(form) });
     setBusy(false);
     if (error) { setMsg({ kind: "error", text: `保存に失敗: ${rpcErrJa(error.message)}` }); return; }
-    setMsg({ kind: "success", text: "基本の働き方を保存しました" }); setEdit(false); await load();
+    // ★便 ON-3: 店側（bySelf=false）の保存＝本人へ通知（cast_notifications availability_changed＋LINE）。本人側の保存＝店は audit と詳細の表示で知る（本人→店の通知の器は無い）
+    if (!bySelf) void notifyCast(supabase, { castId, kind: "availability_changed", body: AVAILABILITY_CHANGED_BODY, ref: notifRefOf("availability", membershipId) });
+    setMsg({ kind: "success", text: bySelf ? "基本の働き方を保存しました" : "基本の働き方を保存し、本人に通知しました" }); setEdit(false); await load();
   }
 
   return (

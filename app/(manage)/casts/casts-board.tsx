@@ -32,6 +32,8 @@ import { okuriTiersOn } from "@/lib/nox/rules-0175/flag"; // ★裁定414 追補
 const CAST_RELOAD_COLS: string = okuriTiersOn() ? "id, name, user_id, photo_updated_at, is_active, store_id, left_on, rank_id, joined_on, kind, employment, employment_valid_from, shift_request_mode, okuri_tier" : "id, name, user_id, photo_updated_at, is_active, store_id, left_on, rank_id, joined_on, kind, employment, employment_valid_from, shift_request_mode";
 import { rules0175On } from "@/lib/nox/rules-0175/flag"; // ★便 P175-prep P-4
 import AvailabilityEditor from "@/components/nox/availability-editor"; // ★便 P175-prep P-4（裁定397＋413）: 基本の働き方
+import ContactChangesPanel from "@/components/nox/contact-changes-panel"; // ★便 ON-3（0176 ★4 400）: 連絡先の変更（未確認）
+import { LINE_BIND_NOTE, liffBindUrlOf } from "@/lib/nox/line/liff-endpoint"; // ★便 ON-3（0176 ★1 401）: LINE 連携のリンク
 import Picker from "@/components/nox/picker"; // ★裁定306-13: 待遇プランの候補（件数可変＝picker）
 import { isSystemOn } from "@/lib/nox/store-systems";
 import { firstInLastOut, isTodayWorking, todayStateOf, type TodayState } from "@/lib/nox/shift/today-row"; // ★裁定353（便 N1014 A-2）: 今日の状態＝今日タブと同じ純関数
@@ -89,6 +91,17 @@ export default function CastsBoard({
 }) {
   const supabase = createClient();
   const isDemo = useIsDemo(); // ★N7-2 ③
+  // ★便 ON-3（0176 ★1 401）: LINE 連携（line_links subject 'cast'）＝連携済みの集合・発行したリンク（1 回だけ表示）
+  const [lineLinked, setLineLinked] = useState<Set<string>>(new Set());
+  const [bindUrl, setBindUrl] = useState<string | null>(null);
+  const [bindCopied, setBindCopied] = useState(false);
+  useEffect(() => { void (async () => { const { data } = await supabase.from("line_links").select("subject_id").eq("subject_kind", "cast"); setLineLinked(new Set(((data ?? []) as { subject_id: string }[]).map((x) => x.subject_id))); })(); }, [supabase]);
+  async function issueBind(c: CastLogin) {
+    setBindUrl(null); setBindCopied(false);
+    const { data, error } = await supabase.rpc("line_bind_token_create", { p_subject_kind: "cast", p_subject_id: c.id, p_purpose: "bind" });
+    if (error || typeof data !== "string") { setMsg(`LINE 連携のリンクを発行できませんでした: ${rpcErrJa(error?.message ?? "")}`); return; }
+    setBindUrl(liffBindUrlOf(window.location.origin, c.store_id, data));
+  }
   const [trials, setTrials] = useState<Trial[]>(initialTrials);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -727,6 +740,7 @@ export default function CastsBoard({
       <PageHead eyebrow="CAST MANAGEMENT" title="キャスト管理"
         desc="在籍・待遇・実績・アカウントをキャストごとに管理します。" />
       <Toast msg={msg} />
+      <ContactChangesPanel canConfirm={isOwner || !!myStoreId} />{/* ★便 ON-3（0176 ★4）: 連絡先の変更（未確認）＝0 件なら出ない */}
 
       {/* E8-5 casts#1（T1）: KPI 帯4枚＝既存 state の再形のみ（新規取得ゼロ） */}
       <div className="nox-repsum">
@@ -1404,6 +1418,22 @@ export default function CastsBoard({
                     : selCast.user_id
                     ? <button style={btnGhost} disabled={busy} onClick={() => openInvite(selCast, "reset")}>PW再発行</button>
                     : <button style={btnGold} disabled={busy} onClick={() => openInvite(selCast, "invite")}>招待</button>}{/* ★N7-2 ③ */}
+                </span>
+                {/* ★便 ON-3（0176 ★1 401）: LINE 連携＝紐付けのリンク（line_bind_token_create 'cast'・7 日・1 回だけ）。ログイン未招待（user_id なし）でも紐付けは可＝LINE ログインは招待後 */}
+                <span className="k">LINE 連携</span>
+                <span className="v" style={{ display: "grid", gap: 4 }} data-cast-line-bind={lineLinked.has(selCast.id) ? "linked" : "none"}>
+                  <span style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                    <span style={{ color: lineLinked.has(selCast.id) ? "var(--ok)" : "var(--v2-muted)" }}>{lineLinked.has(selCast.id) ? "連携済み（LINE に通知が届きます）" : "未連携"}</span>
+                    {isDemo ? <span style={{ fontSize: 11, color: "var(--v2-muted)" }}>デモでは連携できません</span>
+                      : <button style={btnGhost} disabled={busy} onClick={() => void issueBind(selCast)}>{lineLinked.has(selCast.id) ? "付け替えのリンク" : "連携のリンクを発行"}</button>}
+                  </span>
+                  {bindUrl && (
+                    <span style={{ display: "grid", gap: 4 }} data-cast-line-bind-url="1">
+                      <span style={{ fontSize: 12, wordBreak: "break-all" }}>{bindUrl}</span>
+                      <span><button type="button" style={btnGhost} onClick={() => { void navigator.clipboard?.writeText(bindUrl).then(() => setBindCopied(true)).catch(() => undefined); }}>{bindCopied ? "コピーしました ✓" : "リンクをコピー"}</button></span>
+                      <span style={{ fontSize: 11.5, color: "var(--sub)" }}>{LINE_BIND_NOTE}</span>
+                    </span>
+                  )}
                 </span>
               </div>
               <div className="nox-frow">

@@ -10,7 +10,8 @@ import DemoBanner from "@/components/ui/demo-banner";
 import { UserChip } from "@/components/ui/header-chips"; // ★便 GV-C C-14h（X-13-2）
 import { DemoProvider } from "@/lib/nox/demo/context";
 import { mineSettingsOf } from "@/lib/nox/store/mine-settings"; // ★裁定326-8（便 M1-3）: ranking OFF の店はナビ項目を出さない
-import { noticeNavLabelOf, unreadCountOf } from "@/lib/nox/mine/notice-unread"; // ★裁定326-6（便 M2-3）: お知らせ未読数「お知らせ（N）」
+import { noticeNavLabelOf, unreadCountOf } from "@/lib/nox/mine/notice-unread";
+import { mineNavUnreadOf, noticeVisibleToCastOf, unreadNotifCountOf } from "@/lib/nox/people/notify-text"; // ★便 ON-3（0176 ★5 (d)(e)）: 通知の未読・宛先つき // ★裁定326-6（便 M2-3）: お知らせ未読数「お知らせ（N）」
 import { resolveWishMode, wishNavLabelOf } from "@/lib/nox/mine/wish-mode"; // ★裁定326-7（便 M4-1）: 「シフト希望」／'off_only' は「休み希望」
 import { castRegisterEntryOf } from "@/lib/nox/register/cast-entry-server"; // ★便 P173（裁定389）: レジ使用 ON ∧ 本人セッション可のときだけナビに「レジ」
 
@@ -34,11 +35,13 @@ export default async function MineLayout({ children }: { children: React.ReactNo
   const { data: meCast } = myCastId ? await supabase.from("casts").select("shift_request_mode").eq("id", myCastId as string).maybeSingle() : { data: null };
   const wishMode = resolveWishMode((meCast as { shift_request_mode?: string | null } | null)?.shift_request_mode, ms.shift_request_mode);
   // ★326-6（便 M2-3）: 未読＝可視のお知らせ（RLS＝自店・audience all|cast）− 自分の既読（cast_notice_reads・RLS 本人）。0 は文言だけ
-  const [{ data: noticeRows }, { data: readRows }] = await Promise.all([
-    supabase.from("notices").select("id"),
+  const [{ data: noticeRows }, { data: readRows }, { data: notifRows }] = await Promise.all([
+    supabase.from("notices").select("id, cast_ids"),
     supabase.from("cast_notice_reads").select("notice_id"),
+    supabase.from("cast_notifications").select("read_at").is("read_at", null).limit(200), // ★便 ON-3: 通知の未読（RLS 本人）
   ]);
-  const unread = unreadCountOf(((noticeRows ?? []) as { id: string }[]).map((r) => r.id), ((readRows ?? []) as { notice_id: string }[]).map((r) => r.notice_id));
+  const unreadNotices = unreadCountOf(((noticeRows ?? []) as { id: string; cast_ids?: string[] | null }[]).filter((n) => noticeVisibleToCastOf(n.cast_ids ?? null, (myCastId as string | null) ?? null)).map((r) => r.id), ((readRows ?? []) as { notice_id: string }[]).map((r) => r.notice_id));
+  const unread = mineNavUnreadOf(unreadNotices, unreadNotifCountOf((notifRows ?? []) as { read_at: string | null }[])); // ★便 ON-3: お知らせ（本人宛を含む）＋通知
   const regEntry = await castRegisterEntryOf(supabase); // ★便 P173（裁定389）
   // 段N: TabBar が群構造になったため1群（見出しなし）で渡す＝/mine の並び・挙動は完全に不変。
   //   spPriority は渡さない＝4項目をそのままボトムタブに並べる（従来どおり）。

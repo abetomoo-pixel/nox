@@ -48,11 +48,15 @@ import MonthNav, { useYmQuery } from "@/components/nox/month-nav"; // ★裁定3
 import { recruitNoteOf } from "@/lib/nox/ui/month-nav"; // ★306-2 募集期間の注記・306-10 は staff-shift-manage
 import { nextPeriodDefaults, overlappingPeriods, mdOf } from "@/lib/nox/shift/period"; // ★便 T（2026-09-18）: 期間の既定日付・重なり判定（純関数）
 import Modal from "@/components/ui/modal";
+import { notifyCast } from "@/lib/nox/people/notify"; // ★便 ON-3（0176 ★5 (d)・裁定413）: 確定シフトの追加／外し・送り返し・催促の通知（cast_notifications＋LINE）
+import { notifRefOf, remindNoticeDefaultOf, remindWishBody, shiftAddedBody, shiftChangedBody, shiftProposedBody, shiftRemovedBody } from "@/lib/nox/people/notify-text";
+import { PERIOD_NEEDS_NOTE, emptyPeriodNeedsForm, periodNeedRequiredOf, periodNeedRowsOf, periodNeedsChipOf, periodNeedsErrorOf, periodNeedsFormOf, type PeriodNeedRow, type PeriodNeedsForm } from "@/lib/nox/shift/period-needs"; // ★便 ON-3（0176 ★5 (a)）: 期間ごとの必要人数
+import { declineTextOf } from "@/lib/nox/shift/decline"; // ★便 ON-3（0176 ★5 (c)・裁定406）: 辞退の印
 import HmInput from "@/components/ui/hm-input"; // ★裁定318（便 X-9-2）: 時刻入力の共通部品（blur で HH:MM に正規化）
 import { HM_FORMAT_ERR, hmRangeErrorOf, normalizeHHMM } from "@/lib/nox/time/hhmm";
 import OkuriOutDialog from "@/components/nox/okuri-out-dialog";
 import PenaltyDialog, { type PenaltyTarget } from "@/components/nox/penalty-dialog";
-import { castReportOf, castReportLineOf, keepReportArgsOf } from "@/lib/nox/shift/cast-report"; // ★便 X13-H H-17: 本人の遅刻・当欠の連絡 // ★便 X13-H H-16（裁定410）: 遅刻・当欠の罰金（委託のみ） // ★裁定317（便 X-9-3）: 退勤の「送り」金額ダイアログ
+import { ACK_BUTTON, ackLineOf, castReportOf, castReportLineOf, contactHistoryHeadOf, contactHistoryLineOf, keepReportArgsOf, reportAckStateOf, reportChipTextOf, type ContactLike } from "@/lib/nox/shift/cast-report"; // ★便 ON-3（0176 ★3 I-4）: 確認済み・履歴 // ★便 X13-H H-17: 本人の遅刻・当欠の連絡 // ★便 X13-H H-16（裁定410）: 遅刻・当欠の罰金（委託のみ） // ★裁定317（便 X-9-3）: 退勤の「送り」金額ダイアログ
 import { okuriDefaultAmountOf, type OkuriDefault } from "@/lib/nox/shift/okuri-default";
 import { okuriAsks, okuriModeOf, okuriOutTextOf, okuriRecordedTextOf, type OkuriMode } from "@/lib/nox/shift/okuri-mode"; // ★裁定414（S-4）: 送りの 4 方式
 import StaffShiftBoard from "./staff-shift-board"; // ★C層② 面 b/c（スタッフ）
@@ -69,11 +73,11 @@ import { daysInMonthOf, monthLastDayOf } from "@/lib/nox/month"; // ★便 X13-H
 type Cast = { id: string; name: string; photo_updated_at: string | null; employment?: string | null; shift_request_mode?: "shift" | "off_only" | null }; // ★0154 D1: employment（用語の出し分け）・★裁定337（0167）: 個別の方式（null＝店の既定）
 type Wish = { id: string; cast_id: string; date: string; start_hm: string; end_hm: string; status: string; kind?: string; created_at?: string }; // ★裁定406: 提出一覧＝種別（出勤／休み）と提出日
 // ★SD V2-2（mig0101）: status 3値（planned→proposed→confirmed）＋wish_id（原型対比）＋source/period_id（自動配置）
-type Shift = { id: string; cast_id: string; date: string; start_hm: string; end_hm: string; status: string; created_by: string; wish_id: string | null; source: string; period_id: string | null };
+type Shift = { id: string; cast_id: string; date: string; start_hm: string; end_hm: string; status: string; created_by: string; wish_id: string | null; source: string; period_id: string | null; declined_at?: string | null; decline_reason?: string | null }; // ★便 ON-3: 辞退（0176）
 type Period = { id: string; start_date: string; end_date: string; wish_deadline: string | null; status: string };
 // ★0125（裁定112-A）: Rules 型は配置ルールカード撤去に伴い削除（shift_rules 器は残置）。
 // ★SC-8 ⑥: date を持つ（面4 が7日ぶんを読むため）。今日タブ本体は date === bizToday で絞って使う。
-type Att = { cast_id: string; date: string; status: string; eta: string | null; reason?: string | null; source?: string | null; updated_at?: string | null }; // ★便 X13-H H-17: 連絡の理由・送り元・時刻
+type Att = { id?: string; cast_id: string; date: string; status: string; eta: string | null; reason?: string | null; source?: string | null; updated_at?: string | null; ack_at?: string | null }; // ★便 ON-3（I-4）: id・ack_at // ★便 X13-H H-17: 連絡の理由・送り元・時刻
 // E8-4（mig0095）: staffing_needs は時間帯バンド化＝(store_id, dow, from_min) UNIQUE。
 //   from_min/to_min は 0..1440（分）・0/1440=終日（既存行は mig0095 backfill で終日バンド化済み）。
 type Need = { id: string; dow: number; required: number; from_min: number; to_min: number };
@@ -194,6 +198,12 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   const [wishes, setWishes] = useState<Wish[]>([]);
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [needs, setNeeds] = useState<Need[]>([]);
+  // ★便 ON-3（0176）: 期間ごとの必要人数（shift_period_needs）・連絡の履歴（attendance_contacts）・期間フォームの必要人数 7 欄・催促／一括お知らせ
+  const [periodNeeds, setPeriodNeeds] = useState<PeriodNeedRow[]>([]);
+  const [contacts, setContacts] = useState<(ContactLike & { cast_id: string; biz_date: string })[]>([]);
+  const [pNeeds, setPNeeds] = useState<PeriodNeedsForm>(emptyPeriodNeedsForm());
+  const [busyRemind, setBusyRemind] = useState<string | null>(null);
+  const [remindTarget, setRemindTarget] = useState<{ period: Period; castIds: string[]; title: string; body: string } | null>(null);
   // ★SD V2-2: 表示月の wishes 全 status（原型対比・4段フロー）／period／配置ルール
   const [wishAll, setWishAll] = useState<Wish[]>([]);
   const [periods, setPeriods] = useState<Period[]>([]);
@@ -451,7 +461,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
     const to = toBase > stripEnd ? toBase : stripEnd;
     // E8-4 #10: created_by を追加取得（確定シフト一覧の「登録者」列・下で users 名を1クエリ解決）
     const { data: ss } = await supabase
-      .from("shifts").select("id, cast_id, date, start_hm, end_hm, status, created_by, wish_id, source, period_id")
+      .from("shifts").select("id, cast_id, date, start_hm, end_hm, status, created_by, wish_id, source, period_id, declined_at, decline_reason")
       .gte("date", from).lte("date", to).order("date").limit(2000);
     // ★SD V2-2: 表示月の wishes 全 status（原型対比 wish_id→shift_wishes ＋ 4段フローの希望件数）。
     //   queue 用の pending 全期間クエリとは別物（範囲・status とも異なる）。RLS は同じ店スコープ。
@@ -472,6 +482,9 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
     const { data: ns } = await supabase.from("staffing_needs")
       .select("id, dow, required, from_min, to_min").order("dow").order("from_min");
     // B-5②: 営業時間（シフトは date 直判定＝cutoff 不要なので stores.settings_json は読まない）
+    // ★便 ON-3（0176 ★5 (a)）: 期間ごとの必要人数（RLS＝店スコープ・owner は store_id で絞る）
+    const { data: pn } = await supabase.from("shift_period_needs").select("period_id, dow, required").eq("store_id", storeId);
+    setPeriodNeeds((pn ?? []) as PeriodNeedRow[]);
     const { data: bh } = await supabase.from("store_business_hours")
       .select("dow, is_closed, open_hm, close_hm").eq("store_id", storeId);
     setWishes((ws ?? []) as Wish[]);
@@ -507,9 +520,13 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   // ★SC-8 ⑥: 単日 eq から範囲 gte/lte へ（引数 d を起点に7日＝裁定54 の stripEnd と同式）。
   //   date を select に足したので、今日タブ本体は date === bizToday で絞って従来どおり使う。
   const loadAtt = useCallback(async (d: string) => {
-    const { data } = await supabase.from("attendance").select("cast_id, date, status, eta, reason, source, updated_at")
+    const { data } = await supabase.from("attendance").select("id, cast_id, date, status, eta, reason, source, updated_at, ack_at") // ★便 ON-3（I-4）: +id／ack_at
       .gte("date", d).lte("date", addDays(d, 6));
     setAtts((data ?? []) as Att[]);
+    // ★便 ON-3（0176 ★3 I-4）: 同日の複数連絡の履歴（本人／店）
+    const { data: cs } = await supabase.from("attendance_contacts").select("cast_id, biz_date, kind, eta, reason, source, created_at")
+      .gte("biz_date", d).lte("biz_date", addDays(d, 6)).order("created_at");
+    setContacts((cs ?? []) as (ContactLike & { cast_id: string; biz_date: string })[]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -536,6 +553,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
     if (!error && accept && typeof sid === "string") { // ★裁定380: 希望どおり採用＝即確定（店設定に依らない）
       const { error: e2 } = await supabase.rpc("shift_confirm_bulk", { p_shift_ids: [sid] });
       if (e2) fixErr = bulkErrJa(e2.message);
+      else { const w = wishes.find((x) => x.id === wishId); if (w) void notifyCast(supabase, { castId: w.cast_id, kind: "shift_added", body: shiftAddedBody(w.date, w.start_hm, w.end_hm), ref: notifRefOf("shifts", sid) }); } // ★便 ON-3
     }
     // B-5②: 採用は RPC 二層目でも closed day 拒否（raise=ロールバックで wish は pending 維持・見送りは可＝非対称）
     setMsg(error
@@ -563,16 +581,45 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
       if (error) { fixErr = bulkErrJa(error.message); break; }
       fixed += Number(n ?? chunk.length);
     }
+    if (!fixErr) for (const w of wishes.filter((x) => ids.includes(x.id))) await notifyCast(supabase, { castId: w.cast_id, kind: "shift_added", body: shiftAddedBody(w.date, w.start_hm, w.end_hm), ref: notifRefOf("shift_periods", w.id) }); // ★便 ON-3: 一括採用＝1 人ずつ通知
     setMsg(errs.length === 0 && !fixErr ? `${ok}件を希望どおり採用し確定しました`
       : `${ok}件を採用（確定 ${fixed}件）${errs.length > 0 ? `・${errs.length}件は失敗（${errs[0]}）` : ""}${fixErr ? `・確定に失敗: ${fixErr}` : ""}`); // ★裁定380
     await load();
   }
+  // ★便 ON-3（0176 ★3 I-4）: 連絡を確認済みに（attendance_ack＝owner／自店 manager／staff・二重は no-op）
+  async function ackReport(attId: string) {
+    setMsg(null);
+    const { error } = await supabase.rpc("attendance_ack", { p_attendance_id: attId });
+    if (error) setMsg(rpcErrJaCommon(error.message));
+    await loadAtt(attDate);
+  }
+  const contactsOf = (castId: string, date: string) => contacts.filter((c) => c.cast_id === castId && c.biz_date === date);
+  // ★便 ON-3（0176 ★5 (d)・C2-13）: 催促＝本人へ通知（kind other）＋LINE（連携済みなら）
+  async function remindOne(castId: string, pe: Period) {
+    setBusyRemind(castId); setMsg(null);
+    const r = await notifyCast(supabase, { castId, kind: "other", body: remindWishBody(pe), ref: notifRefOf("shift_periods", pe.id) });
+    setBusyRemind(null);
+    setMsg(r.ok ? `${castName(castId)} に催促を送りました${r.line === "sent" ? "（LINE にも）" : ""}` : `催促に失敗: ${rpcErrJaCommon(r.err ?? "")}`);
+  }
+  // ★便 ON-3（0176 ★5 (e)）: 未提出者への一括お知らせ＝notice_create_targets（宛先つき・掲載期限＝希望締切）＋LINE（連携済みの人にだけ・route が未連携は 204）
+  async function sendRemindAll() {
+    if (!remindTarget) return;
+    setBusyRemind("all"); setMsg(null);
+    const { error } = await supabase.rpc("notice_create_targets", { p_title: remindTarget.title, p_body: remindTarget.body, p_cast_ids: remindTarget.castIds, p_until: remindTarget.period.wish_deadline });
+    if (error) { setBusyRemind(null); setMsg(`お知らせの送信に失敗: ${rpcErrJaCommon(error.message)}`); return; }
+    let line = 0;
+    for (const id of remindTarget.castIds) { try { const res = await fetch("/api/line/push", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ castId: id, text: `${remindTarget.title}\n${remindTarget.body}`, kind: "other" }) }); if (res.ok && res.status !== 204) line++; } catch { /* LINE は任意 */ } }
+    setBusyRemind(null); setRemindTarget(null);
+    setMsg(`未提出の ${remindTarget.castIds.length} 人にお知らせを送りました${line > 0 ? `（LINE ${line} 人）` : ""}`);
+  }
+
   // ★N4（対応表 H30・B層）: shift_remove（0103 裁定D）の UI 結線＝計画中／確認待ちの行を個別削除。
   //   confirmed で出勤記録がある日は RPC が 'has attendance' で拒否。wish 由来の行は wish が pending に戻る（RPC 側）。
   async function removeShift(s: Shift) {
     if (!confirm(`${castName(s.cast_id)} ${s.date} ${fmtWin(s.start_hm, s.end_hm)} のシフトを削除しますか？${s.wish_id ? "（元の希望は「キャスト希望」に戻ります）" : ""}`)) return;
     setMsg(null);
     const { error } = await supabase.rpc("shift_remove", { p_id: s.id });
+    if (!error && s.status === "confirmed") void notifyCast(supabase, { castId: s.cast_id, kind: "shift_removed", body: shiftRemovedBody(s.date, s.start_hm, s.end_hm), ref: notifRefOf("shifts", s.id) }); // ★便 ON-3（0176 ★5 (d)）: 確定シフトの外し＝本人へ通知
     setMsg(error
       ? (error.message.includes("has attendance") ? "出勤記録がある日のシフトは削除できません" : `削除に失敗: ${rpcErrJa(error.message)}`)
       : s.wish_id ? "シフトを削除し、希望をキャスト希望へ戻しました" : "シフトを削除しました");
@@ -586,6 +633,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
     const { error } = await supabase.rpc("shift_set", {
       p_id: s.id, p_cast_id: s.cast_id, p_date: s.date, p_start_hm: s.start_hm, p_end_hm: s.end_hm, p_status: "confirmed",
     });
+    if (!error) void notifyCast(supabase, { castId: s.cast_id, kind: "shift_added", body: shiftAddedBody(s.date, s.start_hm, s.end_hm), ref: notifRefOf("shifts", s.id) }); // ★便 ON-3: 確定＝本人へ通知
     setMsg(error ? `${PROXY_CONFIRM_LABEL}に失敗: ${rpcErrJa(error.message)}` : `${PROXY_CONFIRM_LABEL}しました`); // ★裁定345: 「承認」→「代行確定」
     await load();
   }
@@ -607,6 +655,10 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
     });
     let e3: string | null = null;
     if (!error && next === "sendback") { const { error: eP } = await supabase.rpc("shift_propose", { p_shift_ids: [adjTarget.id] }); if (eP) e3 = rpcErrJa(eP.message); }
+    if (!error && !e3) { // ★便 ON-3（0176 ★5 (d)）: 確定＝追加・送り返し＝確認のお願い・確定済みの時間変更＝変更
+      const k = next === "confirm" ? "shift_added" : next === "sendback" ? "shift_proposed" : adjTarget.status === "confirmed" && (adjTarget.start_hm !== st || adjTarget.end_hm !== en) ? "shift_changed" : null;
+      if (k) void notifyCast(supabase, { castId: adjTarget.cast_id, kind: k, body: k === "shift_changed" ? shiftChangedBody(adjTarget.date, { start: adjTarget.start_hm, end: adjTarget.end_hm }, { start: st, end: en }) : k === "shift_proposed" ? shiftProposedBody(adjTarget.date, st, en) : shiftAddedBody(adjTarget.date, st, en), ref: notifRefOf("shifts", adjTarget.id) });
+    }
     setMsg(error ? `勤務時間の調整に失敗: ${rpcErrJa(error.message)}` : e3 ? `調整しましたが送り返しに失敗: ${e3}`
       : next === "confirm" ? "調整して確定しました" : next === "sendback" ? "調整してキャストへ送り返しました（確認待ち）" : "勤務時間を調整しました");
     if (!error && !e3) setAdjTarget(null);
@@ -629,6 +681,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
     const { error: e2 } = await supabase.rpc("shift_set", { p_id: sid, p_cast_id: adjWish.cast_id, p_date: adjWish.date, p_start_hm: st, p_end_hm: en, p_status: sendBack ? "planned" : "confirmed" });
     let e3: string | null = null;
     if (!e2 && sendBack) { const { error: eP } = await supabase.rpc("shift_propose", { p_shift_ids: [sid] }); if (eP) e3 = rpcErrJa(eP.message); }
+    if (!e2 && !e3) void notifyCast(supabase, { castId: adjWish.cast_id, kind: sendBack ? "shift_proposed" : "shift_added", body: sendBack ? shiftProposedBody(adjWish.date, st, en) : shiftAddedBody(adjWish.date, st, en), ref: notifRefOf("shifts", sid) }); // ★便 ON-3
     setWBusy(false);
     setMsg(e2 ? `採用しましたが時間の調整に失敗: ${rpcErrJa(e2.message)}` : e3 ? `調整しましたが送り返しに失敗: ${e3}` : sendBack ? "調整してキャストへ送り返しました（確認待ち）" : "調整して確定しました");
     if (!e2 && !e3) setAdjWish(null);
@@ -646,18 +699,28 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
     if (m && m.includes("overlap")) return pOverlapText ?? "既存の期間と重なっています";
     return rpcErrJa(m);
   };
-  const resetPeriodForm = () => { setPEditId(null); setPStart(""); setPEnd(""); setPDeadline(""); setPStatus("open"); setPTouched(false); }; // ★裁定406: 既定＝募集中
+  const resetPeriodForm = () => { setPEditId(null); setPStart(""); setPEnd(""); setPDeadline(""); setPStatus("open"); setPTouched(false); setPNeeds(emptyPeriodNeedsForm()); }; // ★裁定406: 既定＝募集中
   // ★SD V2-2: period CRUD（shift_period_set / shift_period_remove＝V1 検証済みの引数形と一字一致）。
   //   ★便 T-2／T-4: 成否はカード内（pMsg）＝共有 msg には出さない。成功時は作成した期間を一覧で強調（pNewId）。
   async function savePeriod() {
     setPMsg(null);
     if (!pStart || !pEnd) { setPMsg({ kind: "error", text: "計画期間の開始と終了を入力してください" }); return; }
     if (pOverlapText) { setPMsg({ kind: "error", text: pOverlapText }); return; }
+    { const eNeeds = periodNeedsErrorOf(pNeeds); if (eNeeds) { setPMsg({ kind: "error", text: eNeeds }); return; } } // ★便 ON-3
     const { data, error } = await supabase.rpc("shift_period_set", {
       p_id: pEditId, p_store_id: storeId, p_start_date: pStart, p_end_date: pEnd,
       p_wish_deadline: pDeadline || null, p_status: pStatus,
     });
     if (error) { setPMsg({ kind: "error", text: error.message.includes("overlap") ? periodErrJa(error.message) : `計画の保存に失敗: ${periodErrJa(error.message)}` }); return; }
+    // ★便 ON-3（0176 ★5 (a)）: 期間ごとの必要人数＝値がある／前にあったときだけ全置換（空欄だけで前も無ければ呼ばない）
+    const pid = typeof data === "string" ? data : pEditId;
+    if (pid) {
+      const rows = periodNeedRowsOf(pNeeds);
+      if (rows.length > 0 || periodNeeds.some((r) => r.period_id === pid)) {
+        const { error: eN } = await supabase.rpc("shift_period_needs_set", { p_period_id: pid, p_rows: rows });
+        if (eN) { setPMsg({ kind: "error", text: `期間は保存しましたが必要人数の保存に失敗: ${rpcErrJa(eN.message)}` }); await load(); return; }
+      }
+    }
     const stLabel = PERIOD_ST_LABEL[pStatus] ?? pStatus;
     // ★夜間便 N5-4（裁定287-2）: 募集中で保存したときはキャスト側に案内が出る旨を足す（shift_open_periods_mine が status='open' を返す）
     setPMsg({ kind: "success", text: (pEditId ? `期間を更新しました(${stLabel})` : `期間を作成しました(${stLabel})`) + (pStatus === "open" ? "。キャストのマイページに希望提出の案内が表示されます" : "") });
@@ -695,6 +758,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
     if (ids.length === 0) return;
     setMsg(null);
     const { data: n, error } = await supabase.rpc("shift_propose", { p_shift_ids: ids });
+    if (!error) for (const s of shifts.filter((x) => ids.includes(x.id))) await notifyCast(supabase, { castId: s.cast_id, kind: "shift_proposed", body: shiftProposedBody(s.date, s.start_hm, s.end_hm), ref: notifRefOf("shifts", s.id) }); // ★便 ON-3（0176 ★5 (d)）: 送り返し＝確認のお願い
     setMsg(error ? `確認依頼に失敗: ${rpcErrJa(error.message)}` : `${n}件をキャスト確認へ送りました`);
     await load();
   }
@@ -713,6 +777,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
       if (error) { setMsg(`${done}／${ids.length}件${PROXY_CONFIRM_LABEL}・残りは再試行してください（${bulkErrJa(error.message)}）`); await load(); return; }
       done += Number(n ?? chunk.length);
     }
+    for (const s of shifts.filter((x) => ids.includes(x.id))) await notifyCast(supabase, { castId: s.cast_id, kind: "shift_added", body: shiftAddedBody(s.date, s.start_hm, s.end_hm), ref: notifRefOf("shifts", s.id) }); // ★便 ON-3
     setMsg(`${done}件を${PROXY_CONFIRM_LABEL}しました`); // ★裁定345
     await load();
   }
@@ -720,6 +785,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   async function confirmOne(id: string) {
     setMsg(null);
     const { error } = await supabase.rpc("shift_confirm_bulk", { p_shift_ids: [id] });
+    if (!error) { const s = shifts.find((x) => x.id === id); if (s) void notifyCast(supabase, { castId: s.cast_id, kind: "shift_added", body: shiftAddedBody(s.date, s.start_hm, s.end_hm), ref: notifRefOf("shifts", s.id) }); } // ★便 ON-3
     setMsg(error ? `${PROXY_CONFIRM_LABEL}に失敗: ${bulkErrJa(error.message)}` : `${PROXY_CONFIRM_LABEL}しました`); // ★裁定345
     await load();
   }
@@ -738,9 +804,12 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   async function setAtt(castId: string, status: string) {
     if (!status) return;
     setMsg(null);
+    const keep = keepReportArgsOf(attOf(castId, attDate), status);
     const { error } = await supabase.rpc("attendance_set", {
-      p_cast_id: castId, p_date: attDate, p_status: status, ...keepReportArgsOf(attOf(castId, attDate), status), // ★便 X13-H H-17: 本人の連絡（見込み・理由）を残して記録
+      p_cast_id: castId, p_date: attDate, p_status: status, ...keep, // ★便 X13-H H-17: 本人の連絡（見込み・理由）を残して記録
     });
+    // ★便 ON-3（0176 ★3 I-4）: 店が遅刻／当欠を記録＝履歴に 1 行（source 'store'・失敗しても記録は止めない）
+    if (!error && (status === "late" || status === "absent")) { const { error: eC } = await supabase.rpc("attendance_contact_log", { p_cast_id: castId, p_biz_date: attDate, p_kind: status, p_eta: keep.p_eta, p_reason: keep.p_reason }); if (eC) console.error(`attendance_contact_log: ${eC.message}`); }
     setMsg(error ? rpcErrJaCommon(error.message) : null);
     await loadAtt(attDate);
     // ★便 X13-H H-16（裁定410）: 遅刻／当欠を記録したら、委託キャストにだけ罰金ダイアログ（雇用・早退・キオスク・/mine には出さない・精算調整 OFF の店は出さない）
@@ -844,6 +913,9 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   const shiftsOn = (ymd: string) => shifts.filter((s) => s.date === ymd);
   const bandStatsOf = (ymd: string): BandStat[] => {
     const list = shiftsOn(ymd);
+    // ★便 ON-3（0176 ★5 (a)）: その日を含む期間に曜日の行があれば、その人数を終日 1 バンドとして店の staffing_needs より優先
+    const pr = periodNeedRequiredOf(ymd, periodsAll, periodNeeds);
+    if (pr !== null) return [{ id: "period", dow: dowOf(ymd), required: pr, from_min: 0, to_min: 1440, assigned: list.length, fill: fillOf(list.length, pr) }];
     return needs.filter((n) => n.dow === dowOf(ymd)).map((n) => {
       const assigned = list.filter((s) => hm2min(s.start_hm) < n.to_min && n.from_min < hm2min(s.end_hm)).length;
       return { ...n, assigned, fill: fillOf(assigned, n.required) };
@@ -1236,6 +1308,20 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
       <PageHead eyebrow="SHIFT MANAGEMENT" title="シフト管理"
         desc="申請、承認、出勤状況と人員充足をまとめて管理します。" />
       <Toast msg={msg} />
+      {remindTarget && (/* ★便 ON-3（0176 ★5 (e)）: 未提出者への一括お知らせ＝notice_create_targets（宛先＝未提出のキャスト・掲載期限＝希望締切）＋LINE（連携済みの人だけ） */
+        <Modal onClose={() => busyRemind !== "all" && setRemindTarget(null)} maxWidth={460}>
+          <h2 style={t.cardTitle}>未提出の {remindTarget.castIds.length} 人にお知らせを送る</h2>
+          <div style={{ display: "grid", gap: 8 }} data-remind-modal="1">
+            <label style={{ display: "grid", gap: 4 }}><span style={t.fieldLabel}>件名</span>
+              <input value={remindTarget.title} maxLength={80} onChange={(e) => setRemindTarget((r) => (r ? { ...r, title: e.target.value } : r))} style={{ ...t.input, width: "100%" }} data-remind-title="1" /></label>
+            <label style={{ display: "grid", gap: 4 }}><span style={t.fieldLabel}>本文</span>
+              <textarea value={remindTarget.body} maxLength={4000} rows={4} onChange={(e) => setRemindTarget((r) => (r ? { ...r, body: e.target.value } : r))} style={{ ...t.input, width: "100%", minHeight: 96 }} data-remind-body="1" /></label>
+            <p style={{ ...t.sub, margin: 0 }}>宛先＝未提出の {remindTarget.castIds.length} 人（マイページ「お知らせ」に届きます。LINE 連携済みの人には LINE にも）。掲載期限＝希望締切{remindTarget.period.wish_deadline ? `（${remindTarget.period.wish_deadline}）` : "なし"}。</p>
+            <button type="button" style={t.btnPrimary56} disabled={busyRemind === "all" || !remindTarget.title.trim() || !remindTarget.body.trim()} data-remind-send="1" onClick={() => void sendRemindAll()}>{busyRemind === "all" ? "送信中…" : "送る"}</button>
+            <div style={t.btnRow48}><button type="button" style={t.btnSecondary48} disabled={busyRemind === "all"} onClick={() => setRemindTarget(null)}>キャンセル</button></div>
+          </div>
+        </Modal>
+      )}
       {/* ★0154 D4: 精算調整モーダル（委託のみ・成功＝同じ枠に success） */}
       {settle && (
         <SettlementModal storeId={storeId} castId={settle.castId} castName={castName(settle.castId)} biz={todayDate} shiftId={settle.shiftId} target={settle.target}
@@ -1467,10 +1553,10 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
               ))}
             </div>
           )}
-          {(() => { const n = shiftsOn(todayDate).filter((s) => castReportOf(attOf(s.cast_id, todayDate))).length; return n > 0 || reportsOnly ? (/* ★便 X13-H H-17 ②: 連絡 n 件（確認済みの列は 0176＝本人の連絡は全部「未確認」） */
+          {(() => { const n = shiftsOn(todayDate).filter((s) => castReportOf(attOf(s.cast_id, todayDate))).length; const un = shiftsOn(todayDate).filter((s) => reportAckStateOf(attOf(s.cast_id, todayDate)) === "unacked").length; return n > 0 || reportsOnly ? (/* ★便 X13-H H-17 ②: 連絡 n 件（確認済みの列は 0176＝本人の連絡は全部「未確認」） */
             <div style={{ margin: "0 0 8px" }}>
-              <button type="button" className={`nox-chip${reportsOnly ? " on" : ""}`} data-report-chip={n} aria-pressed={reportsOnly} style={{ minHeight: 40, padding: "0 14px", fontWeight: 800, color: n > 0 ? "var(--bad)" : undefined }}
-                onClick={() => setReportsOnly((v) => !v)}>連絡 {n} 件（未確認 {n}）{reportsOnly ? "・絞り込み中" : ""}</button>
+              <button type="button" className={`nox-chip${reportsOnly ? " on" : ""}`} data-report-chip={n} aria-pressed={reportsOnly} style={{ minHeight: 40, padding: "0 14px", fontWeight: 800, color: un > 0 ? "var(--bad)" : undefined }} data-report-unacked={un}
+                onClick={() => setReportsOnly((v) => !v)}>{reportChipTextOf(n, un)}{reportsOnly ? "・絞り込み中" : ""}</button>{/* ★便 ON-3（I-4）: 未確認＝ack_at の無い本人連絡 */}
             </div>
           ) : null; })()}
           {shiftsOn(todayDate).length === 0 ? (
@@ -1498,6 +1584,14 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                           {(() => { const rp = castReportOf(attOf(s.cast_id, todayDate)); return rp ? (/* ★便 X13-H H-17 ①: 本人の連絡（未確認＝目立つ色）＋記録の 2 ボタン（既存の記録→委託は罰金ダイアログ） */
                             <div data-cast-report={rp.kind} style={{ marginTop: 4, fontSize: 12, fontWeight: 700, color: "var(--bad)", lineHeight: 1.5, whiteSpace: "normal", maxWidth: 260 }}>
                               {castReportLineOf(rp)}
+                              {(() => { /* ★便 ON-3（0176 ★3 I-4）: 確認済み（attendance_ack）・同日の複数連絡の履歴（attendance_contacts） */
+                                const a = attOf(s.cast_id, todayDate); const ack = ackLineOf(a?.ack_at); const hist = contactsOf(s.cast_id, todayDate); const hh = contactHistoryHeadOf(hist.length);
+                                return (<>
+                                  {ack && <span data-report-ack="1" style={{ display: "block", color: "var(--ok)", fontWeight: 600 }}>{ack}</span>}
+                                  {hh && <details style={{ fontWeight: 400, color: "var(--sub)" }} data-report-history={hist.length}><summary style={{ cursor: "pointer" }}>{hh}</summary>{hist.map((c, i) => <span key={i} style={{ display: "block" }}>{contactHistoryLineOf(c)}</span>)}</details>}
+                                  {isManagerUp && !a?.ack_at && a?.id && <button type="button" className="nox-rowbtn" data-report-ack-btn="1" style={{ marginTop: 4 }} onClick={() => void ackReport(a.id!)}>{ACK_BUTTON}</button>}
+                                </>);
+                              })()}
                               {canRecord && (
                                 <span style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 4 }}>
                                   <button type="button" className="nox-rowbtn" data-report-rec="late" onClick={() => void setAtt(s.cast_id, "late")}>遅刻として記録</button>
@@ -1698,7 +1792,12 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
               <div className="nox-rs"><div className="l">未提出</div><div className="v num" style={{ color: sub.not.length ? "var(--bad)" : undefined }}>{sub.not.length}<small>人</small></div></div>
             </div>
             <h3 style={{ fontSize: 13, margin: "12px 0 6px" }}>未提出</h3>
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }} data-shift-not-submitted="1">{sub.not.length === 0 ? <span style={{ fontSize: 12.5, color: "var(--sub)" }}>全員提出済みです。</span> : sub.not.map((c) => <span key={c.id} className="nox-stpill" style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>{c.name}<button type="button" style={{ ...btnLight, ...t.btnSm, opacity: 0.5 }} disabled title="0176 適用後に送れます" data-submit-remind={c.id}>催促</button></span>)}</div>{/* ★B2-3: 催促＝通知の器（cast_notifications）は 0176＝無効表示 */}
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }} data-shift-not-submitted="1">{sub.not.length === 0 ? <span style={{ fontSize: 12.5, color: "var(--sub)" }}>全員提出済みです。</span> : sub.not.map((c) => <span key={c.id} className="nox-stpill" style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>{c.name}<button type="button" style={{ ...btnLight, ...t.btnSm }} disabled={busyRemind === c.id} title="本人に「シフト希望の提出をお願いします」の通知を送ります（LINE 連携済みなら LINE にも）" data-submit-remind={c.id} onClick={() => void remindOne(c.id, p)}>{busyRemind === c.id ? "送信中…" : "催促"}</button></span>)}</div>{/* ★B2-3 → ★便 ON-3（0176 ★5 (d)）: 催促＝cast_notification_create（kind other）＋LINE */}
+            {isManagerUp && sub.not.length > 0 && (
+              <div className="nox-actions" style={{ display: "flex", justifyContent: "center", margin: "8px 0 0" }}>
+                <button type="button" style={btnLight} data-remind-all={sub.not.length} onClick={() => { const d = remindNoticeDefaultOf(p); setRemindTarget({ period: p, castIds: sub.not.map((c) => c.id), title: d.title, body: d.body }); }}>未提出の {sub.not.length} 人にお知らせを送る</button>{/* ★便 ON-3（0176 ★5 (e)）: notice_create_targets（宛先つきお知らせ） */}
+              </div>
+            )}
             <h3 style={{ fontSize: 13, margin: "12px 0 6px" }}>提出済み</h3>
             <div style={{ overflowX: "auto" }}>
               <table className="nox-table" style={{ width: "100%" }}><thead><tr><th style={t.th}>キャスト</th><th style={t.th}>提出内容</th><th style={t.th}>最終提出</th></tr></thead>
@@ -1897,6 +1996,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                             {r.stage}
                           </span>
                           {closed && <span style={{ display: "block", fontSize: 10.5, color: "var(--bad)", fontWeight: 700, marginTop: 2 }}>定休日</span>}
+                          {r.shift && declineTextOf(r.shift) && <span data-queue-declined="1" style={{ display: "block", fontSize: 10.5, color: "var(--gold2)", fontWeight: 700, marginTop: 2 }}>{declineTextOf(r.shift)}</span>}{/* ★便 ON-3（0176 ★5 (c)・裁定406）: 本人が辞退＝planned に戻っている */}
                         </td>
                         <td className="ops">
                           {isManagerUp && r.kind === "wish" && (
@@ -2202,6 +2302,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
               <span className="pc-sub">
                 <span style={{ fontSize: 12, color: "var(--sub)" }}>希望締切 <span className="num">{p.wish_deadline ?? "—"}</span></span>
                 <span className={`nox-stpill ${p.status === "published" ? "ok" : ""}`}>{PERIOD_ST_LABEL[p.status] ?? p.status}</span>
+                {periodNeedsChipOf(periodNeeds, p.id) && <span className="nox-stpill" data-period-needs-chip="1">{periodNeedsChipOf(periodNeeds, p.id)}</span>}{/* ★便 ON-3（0176 ★5 (a)） */}
               </span>
             </div>
             <div className="pc-acts">
@@ -2210,7 +2311,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
               {stageOfP(p) === "closed" && <button type="button" className="nox-link" style={{ fontSize: 12 }} data-period-link="queue" onClick={() => openPeriodInStep(p, "queue")}>③で配置 ›</button>}
               {p.status === "published" && <button type="button" className="nox-link" style={{ fontSize: 12 }} data-period-link="publish" onClick={() => openPeriodInStep(p, "publish")}>④で見る ›</button>}
               <button style={btnLight}
-                onClick={() => { setPMsg(null); setPTouched(true); setPEditId(p.id); setPStart(p.start_date); setPEnd(p.end_date); setPDeadline(p.wish_deadline ?? ""); setPStatus(p.status); }}>編集</button>
+                onClick={() => { setPMsg(null); setPTouched(true); setPEditId(p.id); setPStart(p.start_date); setPEnd(p.end_date); setPDeadline(p.wish_deadline ?? ""); setPStatus(p.status); setPNeeds(periodNeedsFormOf(periodNeeds, p.id)); }}>編集</button>
               <button style={btnLight} title="シフトから参照されている期間は削除できません"
                 onClick={() => void removePeriod(p.id)}>削除</button>
             </div>
@@ -2225,6 +2326,16 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
           <div className="pf-row">
             <label style={{ fontSize: 12 }}>希望締切 <input type="date" value={pDeadline} onChange={(e) => { setPTouched(true); setPDeadline(e.target.value); }} style={input} /></label>
             <SegSelect value={pStatus} onChange={(v) => setPStatus(v)} options={PERIOD_ST_OPTIONS} ariaLabel="状態" />
+          </div>
+          {/* ★便 ON-3（0176 ★5 (a)）: この期間だけの必要人数（曜日別・空欄＝店の既定）＝shift_period_needs_set（保存と同時に全置換） */}
+          <div className="pf-row" data-period-needs="1" style={{ flexWrap: "wrap", gap: 6 }}>
+            <span style={{ fontSize: 12, color: "var(--sub)", flexBasis: "100%" }}>必要人数（この期間だけ・空欄＝店の既定）</span>
+            {DOW.map((d, i) => (
+              <label key={d} style={{ fontSize: 12, display: "inline-flex", alignItems: "center", gap: 3 }}>{d}
+                <input inputMode="numeric" value={pNeeds[i] ?? ""} onChange={(e) => { const v = e.target.value; setPNeeds((f) => f.map((x, k) => (k === i ? v : x))); }} style={{ ...input, width: 44, padding: "6px 6px", textAlign: "center" }} placeholder="—" aria-label={`${d}曜の必要人数`} data-period-need-dow={i} />
+              </label>
+            ))}
+            <span style={{ fontSize: 10.5, color: "var(--v2-muted)", flexBasis: "100%" }}>{PERIOD_NEEDS_NOTE}</span>
           </div>
           <div className="pf-acts nox-cta">{/* ★裁定406: 主ボタンは中央 */}
             {pEditId && (

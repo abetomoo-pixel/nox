@@ -142,8 +142,8 @@ async function main() {
   const rp = castReportOf(self);
   check("x13h(10-1) 連絡＝attendance の本人行（source self）→今日タブの 1 行「遅刻の連絡 15:42・見込み 21:30『電車遅延』」・記録で見込みと理由を残す・/mine の状態が「店が遅刻として記録」へ",
     !!rp && castReportLineOf(rp) === "遅刻の連絡 15:42・見込み 21:30『電車遅延』" && JSON.stringify(keepReportArgsOf(self, "late")) === JSON.stringify({ p_eta: "21:30", p_reason: "電車遅延" })
-    && castReportOf({ ...self, source: "manager" }) === null && mineReportStateOf(self) === "遅刻の連絡は店に届きました（店の記録待ち）" && mineReportStateOf({ ...self, source: "manager" }) === "店が遅刻として記録しました"
-    && sbd.includes("data-report-chip={n}") && sbd.includes('data-report-rec="late"') && sbd.includes("...keepReportArgsOf(attOf(castId, attDate), status)") && src("app/mine/attendance-form.tsx").includes('"店に届きました"'));
+    && castReportOf({ ...self, source: "manager" }) === null && mineReportStateOf(self) === "遅刻の連絡は店に届きました（店の確認待ち）" /* ★便 ON-3（0176 ★3 I-4）: 「記録待ち」→「確認待ち」（確認済み＝ack_at で「店が確認しました」） */ && mineReportStateOf({ ...self, source: "manager" }) === "店が遅刻として記録しました"
+    && sbd.includes("data-report-chip={n}") && sbd.includes('data-report-rec="late"') && sbd.includes("const keep = keepReportArgsOf(attOf(castId, attDate), status);") && sbd.includes("p_cast_id: castId, p_date: attDate, p_status: status, ...keep,") /* ★便 ON-3: keep を変数に（履歴 attendance_contact_log にも渡す） */ && src("app/mine/attendance-form.tsx").includes('"店に届きました"'));
 
   if (fails.length) { console.log(`✗ verify:nox-x13h 失敗 ${fails.length}（成功 ${pass}）`); for (const f of fails) console.log(` - ${f}`); process.exit(1); }
   console.log(`verify:nox-x13h OK (${pass} checks)`);

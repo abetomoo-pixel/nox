@@ -30,10 +30,10 @@ check("mt(1-2) 在庫（/master/stock）はナビに無い（alias にも無い�
   !masterHasHref("/master/stock") && entries.filter((p) => p.ownerOnly).map((p) => p.label).join() === "端末・印刷" && entries.filter((p) => p.href === "/master/referrers").length === 1
   && entries.every((p) => p.href.startsWith("/master/") && (p.tabs ?? []).every((t) => t.href.startsWith("/master/") && (t.aliases ?? []).every((a) => a.startsWith("/master/")))));
 const tabsOf = (label: string) => entries.find((p) => p.label === label)?.tabs ?? [];
-check("mt(1-3) タブ構成（MC2）: 商品管理 2・料金・会計 3（?tab=master／rules／checkout）・報酬設定 3（待遇プラン／控除・送り／ノルマ＝仮置きは無い）・店舗設定 2（利用機能 ?tab=features（alias 2＝報酬制度ページ・system#features）／店舗情報 ?tab=info）・端末・印刷 3・権限・情報管理 3（キャスト会計の許可／データ管理 ?tab=data／機密情報 #secrets）",
+check("mt(1-3) タブ構成（MC2）: 商品管理 2・料金・会計 3（?tab=master／rules／checkout）・報酬設定 3（待遇プラン／控除・送り／ノルマ＝仮置きは無い）・店舗設定 3（利用機能 ?tab=features（alias 2＝報酬制度ページ・system#features）／店舗情報 ?tab=info／LINE 連携 ?tab=line＝ON-3）・端末・印刷 3・権限・情報管理 3（キャスト会計の許可／データ管理 ?tab=data／機密情報 #secrets）",
   tabsOf("商品管理").length === 2 && tabsOf("料金・会計").map((t) => t.href).join() === "/master/pricing?tab=master,/master/pricing?tab=rules,/master/pricing?tab=checkout"
   && tabsOf("報酬設定").map((t) => t.label).join() === "待遇プラン,控除・送り,ノルマ設定（店）" /* ★GV-63（便 P173） */
-  && tabsOf("店舗設定").map((t) => `${t.label}:${t.href}`).join() === "利用機能:/master/store-profile?tab=features,店舗情報:/master/store-profile?tab=info"
+  && tabsOf("店舗設定").map((t) => `${t.label}:${t.href}`).join() === "利用機能:/master/store-profile?tab=features,店舗情報:/master/store-profile?tab=info,LINE 連携:/master/store-profile?tab=line" /* ★便 ON-3（0176 ★1 401）: 3 本目 */
   && JSON.stringify(tabsOf("店舗設定")[0].aliases) === JSON.stringify(["/master/cast-comp/systems", "/master/system#features"])
   && tabsOf("端末・印刷").length === 3 && tabsOf("権限・情報管理").map((t) => `${t.label}:${t.href}`).join() === "キャスト会計の許可:/master/cast-comp/register,データ管理:/master/store-profile?tab=data,機密情報:/master/system#secrets"
   && entries.find((p) => p.label === "権限・情報管理")?.href === "/master/cast-comp/register", JSON.stringify(entries.map((p) => [p.label, (p.tabs ?? []).map((t) => t.href)])));

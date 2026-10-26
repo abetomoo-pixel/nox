@@ -1,7 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { bizDateOf } from "@/lib/nox/biz-date";
 import * as t from "@/lib/nox/ui/theme";
-import { NOTICE_NEW_BADGE, unreadIdsOf } from "@/lib/nox/mine/notice-unread"; // ★裁定326-6（便 M2-3）: 開いたら既読（notice_mark_read）・開いた時点の未読に「新着」
+import { NOTICE_NEW_BADGE, unreadIdsOf } from "@/lib/nox/mine/notice-unread";
+import { CAST_NOTIF_KIND_LABEL, NOTIF_EMPTY, NOTIF_NEW_BADGE, NOTIF_SECTION_TITLE, noticeVisibleToCastOf, notifWhenOf, type CastNotifKind, type CastNotifRow } from "@/lib/nox/people/notify-text"; // ★便 ON-3（0176 ★5 (d)(e)）: 通知・宛先つきお知らせ // ★裁定326-6（便 M2-3）: 開いたら既読（notice_mark_read）・開いた時点の未読に「新着」
 
 export const dynamic = "force-dynamic";
 
@@ -22,12 +23,19 @@ export default async function MineNoticesPage() {
   const bizToday = bizDateOf(new Date().toISOString(), await loadCutoff(supabase));
   const { data: notices } = await supabase
     .from("notices")
-    .select("id, title, body, pinned, until, created_at")
+    .select("id, title, body, pinned, until, created_at, cast_ids") // ★便 ON-3（0176 ★5 (e)）: 宛先つき（cast_ids）
     .order("pinned", { ascending: false })
     .order("created_at", { ascending: false });
+  // ★便 ON-3: 宛先つきお知らせ＝本人を含む行だけ（null＝全員）。通知（cast_notifications・RLS 本人）＝開いたら既読（cast_notification_read・冪等）
+  const { data: myCastId } = await supabase.rpc("auth_cast_id");
+  const visibleNotices = ((notices ?? []) as { id: string; cast_ids?: string[] | null }[]).filter((n) => noticeVisibleToCastOf(n.cast_ids ?? null, (myCastId as string | null) ?? null));
+  const { data: notifRows } = await supabase.from("cast_notifications").select("id, kind, body, ref, read_at, created_at").order("created_at", { ascending: false }).limit(50);
+  const notifs = (notifRows ?? []) as CastNotifRow[];
+  const newNotif = new Set(notifs.filter((n) => n.read_at === null).map((n) => n.id));
+  await Promise.all([...newNotif].map((id) => supabase.rpc("cast_notification_read", { p_id: id })));
   // ★326-6: 既読の記録＝未読分だけ notice_mark_read（冪等・RPC 側で自店・audience を再検査・audit は初回だけ）。失敗しても表示は止めない
   const { data: readRows } = await supabase.from("cast_notice_reads").select("notice_id");
-  const unreadIds = new Set(unreadIdsOf(((notices ?? []) as { id: string }[]).map((n) => n.id), ((readRows ?? []) as { notice_id: string }[]).map((r) => r.notice_id)));
+  const unreadIds = new Set(unreadIdsOf(visibleNotices.map((n) => n.id), ((readRows ?? []) as { notice_id: string }[]).map((r) => r.notice_id)));
   await Promise.all([...unreadIds].map((id) => supabase.rpc("notice_mark_read", { p_notice_id: id })));
 
   const title: React.CSSProperties = t.cardTitle;
@@ -41,10 +49,25 @@ export default async function MineNoticesPage() {
         <p style={t.pheadP}>店舗からのお知らせ</p>
       </div>
 
-      <section className="nox-cardtop" style={t.card}>
+      <section className="nox-cardtop" style={t.card} data-mine-notifs={notifs.length}>{/* ★便 ON-3（0176 ★5 (d)）: あなたへの通知（シフトの追加／取消／変更・確認のお願い・基本の働き方・催促） */}
+        <h2 style={title}>{NOTIF_SECTION_TITLE}</h2>
+        {notifs.length === 0 && <p style={{ fontSize: 13, color: "var(--sub)" }}>{NOTIF_EMPTY}</p>}
+        {notifs.map((n) => (
+          <div key={n.id} data-mine-notif={n.kind} style={{ padding: "8px 0", borderBottom: "1px solid var(--line2)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              {newNotif.has(n.id) && <span style={{ fontSize: 10.5, fontWeight: 800, color: "var(--champ)" }}>{NOTIF_NEW_BADGE}</span>}
+              <span className="nox-stpill" style={{ fontSize: 10.5 }}>{CAST_NOTIF_KIND_LABEL[n.kind as CastNotifKind] ?? n.kind}</span>
+              <span style={{ marginLeft: "auto", ...t.num, fontSize: 11.5, color: "var(--sub)" }}>{notifWhenOf(n.created_at)}</span>
+            </div>
+            <p style={{ fontSize: 13, color: "var(--ink)", margin: "4px 0 0", whiteSpace: "pre-wrap" }}>{n.body}</p>
+          </div>
+        ))}
+      </section>
+
+      <section style={{ ...t.card, marginTop: 12 }}>
         <h2 style={title}>お知らせ</h2>
-        {(notices ?? []).length === 0 && <p style={{ fontSize: 13, color: "var(--sub)" }}>お知らせはありません。</p>}
-        {(notices ?? []).map((n) => {
+        {visibleNotices.length === 0 && <p style={{ fontSize: 13, color: "var(--sub)" }}>お知らせはありません。</p>}
+        {((notices ?? []) as { id: string; title: string; body: string; pinned: boolean | null; until: string | null; created_at: string; cast_ids?: string[] | null }[]).filter((n) => visibleNotices.some((v) => v.id === n.id)).map((n) => {
           const expired = !!n.until && (n.until as string) < bizToday;
           return (
             <div key={n.id as string} style={{ padding: "9px 0", borderBottom: "1px solid var(--line2)" }}>

@@ -45,6 +45,7 @@ export const MASTER_NAV: MasterNavGroup[] = [
           // ★MC2: 利用機能＝報酬制度（sys_* 9・ノルマを使う＝sys_norms）・売掛・機能の公開・勤務時間の計算基準（0159）・キャスト画面の設定（M1）。旧 href（報酬制度ページ・system#features）は alias
           { label: "利用機能", href: "/master/store-profile?tab=features", aliases: ["/master/cast-comp/systems", "/master/system#features"] },
           { label: "店舗情報", href: "/master/store-profile?tab=info" },
+          { label: "LINE 連携", href: "/master/store-profile?tab=line" }, // ★便 ON-3（0176 ★1 401）
         ] },
       { label: "席・卓", href: "/master/seats", desc: "卓・カウンター・VIPの登録" },
       { label: "営業時間・定休日", href: "/master/business-hours", desc: "曜日別の営業時間・シフト運用" },
@@ -128,7 +129,7 @@ export function masterSearchHit(page: MasterNavPage, q: string): boolean {
 }
 
 /** 店舗設定ページのタブ（?tab=）＝利用機能（既定）／店舗情報／データ管理（権限・情報管理の入口から） */
-export type StoreProfileTab = "features" | "info" | "data";
+export type StoreProfileTab = "features" | "info" | "data" | "line"; // ★便 ON-3: LINE 連携
 export function storeProfileTabOf(raw: string | null | undefined): StoreProfileTab {
-  return raw === "info" || raw === "data" ? raw : "features";
+  return raw === "info" || raw === "data" || raw === "line" ? raw : "features";
 }

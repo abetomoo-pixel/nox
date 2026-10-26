@@ -33,6 +33,8 @@ export default function AttendanceForm({ defaultDate }: { defaultDate: string })
       p_eta: etaN,
       p_reason: reason || null,
     });
+    // ★便 ON-3（0176 ★3 I-4）: 同日の複数連絡の履歴＝attendance_contact_log（本人＝source self・失敗しても連絡は止めない）
+    if (!error) { const { data: myCastId } = await supabase.rpc("auth_cast_id"); if (myCastId) { const { error: eC } = await supabase.rpc("attendance_contact_log", { p_cast_id: myCastId as string, p_biz_date: date, p_kind: status, p_eta: etaN, p_reason: reason || null }); if (eC) console.error(`attendance_contact_log: ${eC.message}`); } }
     setMsg(error ? "送信に失敗しました。時刻の形式を確認してください（例 2000・20:00）" : "店に届きました");
     setBusy(false);
     router.refresh();

@@ -33,7 +33,7 @@ const muse = JSON.parse(src("docs/demo/payload/muse.json")).tables as { stores: 
 const st = muse.stores[0], sj = st.settings_json as Record<string, unknown>;
 const setRules = muse.pricing_rules.filter((r) => r.fee_kind === "set").map((r) => [r.amount, r.time_from_min, r.time_to_min]);
 check("on2(2-1) MUSE 店＝サ料 30・service_rate_by_seat {VIP:35}（列）・VIP 卓 1・settings に service_rate_by_seat なし・sys_drink_count_back false・sales_subtotal_mode pre_tax_service・現金 10% OFF", st.service_rate === 30 && J(st.service_rate_by_seat) === J({ VIP: 35 }) && muse.seats.filter((s) => s.kind === "VIP").length === 1 && !("service_rate_by_seat" in sj) && sj.sys_drink_count_back === false && sj.sales_subtotal_mode === "pre_tax_service" && J(sj.pay_discount_rates) === J({ cash: 10 }), J([st.service_rate, st.service_rate_by_seat, muse.seats.map((s) => s.kind)]));
-check("on2(2-2) MUSE セットの料金ルール 3 本＝〜22:00 ¥6,000（1140〜1319）／22:00〜 ¥8,000（1320〜1439）／深夜 ¥8,000（0〜1139）", J(setRules) === J([[6000, 1140, 1319], [8000, 1320, 1439], [8000, 0, 1139]]), J(setRules));
+check("on2(2-2) MUSE セットの料金ルール 3 本＝〜22:00 ¥6,000（1140〜1319）／22:00〜 ¥8,000（1320〜1439）／深夜 ¥8,000（0〜359＝cutoff 06:00 の手前・live ① で 0〜1139 は不一致と判明）・店の基本セット（帯の外＝06:00〜開店前）は ¥6,000", J(setRules) === J([[6000, 1140, 1319], [8000, 1320, 1439], [8000, 0, 359]]) && st.set_fee === 6000, J([setRules, st.set_fee]));
 const main = muse.comp_plans.find((p) => p.name === "MUSE Standard");
 check("on2(2-3) MUSE 主プラン＝reward_axis pay_rate・報酬率表 10 段・本指名 率 10%", main?.reward_axis === "pay_rate" && main?.pay_rate_tiers?.length === 10 && main?.hon_back_mode === "rate" && main?.hon_back_rate === 10, J(main));
 

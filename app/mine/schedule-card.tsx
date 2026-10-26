@@ -5,6 +5,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import ShiftConfirmButton from "./shift-confirm-button";
+import ShiftDeclineButton from "./shift-decline-button"; // ★便 ON-3（0176 ★5 (c)・裁定406）: 辞退で店に戻る
 import type { DaysNormLine, ScheduleItem } from "@/lib/nox/mine/schedule";
 
 export type ScheduleTab = { month: string; label: string; fixed: ScheduleItem[]; pending: ScheduleItem[]; norm: DaysNormLine | null };
@@ -28,6 +29,7 @@ export default function ScheduleCard({ tabs }: { tabs: ScheduleTab[] }) {
       <span className="num tm">{x.time}</span>
       {x.kind === "pending" && <span className="nox-stpill" style={{ fontSize: 10.5 }}>{x.source === "wish" ? "申請済み" : x.proposed ? "確認待ち（あなた）" : "確認待ち"}</span>}
       {x.proposed && <ShiftConfirmButton shiftId={x.id} />}
+      {x.proposed && <ShiftDeclineButton shiftId={x.id} />}{/* ★便 ON-3: 確認待ち（あなた）＝確認する／辞退 */}
     </li>
   );
   return (

@@ -36,10 +36,13 @@ const DENY_GUARDED: Record<string, string> = {
   "cast/mynumber": "app/api/cast/mynumber/route.ts",
   "kiosk/provision": "app/api/kiosk/provision/route.ts",
   "print/jobs": "app/api/print/jobs/route.ts",
+  "staff/invite": "app/api/staff/invite/route.ts", // ★便 ON-3（0176 ★2 I-1）: 登録→招待＝staff/create と同じ柵（裁定273-6）
+  "line/secret": "app/api/line/secret/route.ts", // ★便 ON-3（0176 ★1 401）: Vault へ書く＝デモは 403
+  "line/push": "app/api/line/push/route.ts", // ★便 ON-3: 外部送信＝デモ org は 204（送らない・台帳にも書かない）
 };
 // B) セッション無し（差し込みなし）
 const DENY_NO_SESSION = new Set<string>([
-  "stripe/webhook", "cron/expire-trials", "cron/billing-reminders", "cron/demo-reset", "cron/shift-auto-confirm" /* ★0172（裁定380・便 P172）: Bearer CRON_SECRET のみ・セッション無し */, "print/poll/[store_token]", "print/result/[store_token]",
+  "stripe/webhook", "cron/expire-trials", "cron/billing-reminders", "cron/demo-reset", "cron/shift-auto-confirm", "cron/shift-periods-close" /* ★便 ON-3（0176 ★5 (b)） */, "staff/invite/accept" /* ★便 ON-3: トークンが境目（sha256）・Auth を作る */, "line/session", "line/bind", "line/webhook/[storeId]" /* ★便 ON-3（0176 ★1 401）: id_token／署名が境目 */ /* ★0172（裁定380・便 P172）: Bearer CRON_SECRET のみ・セッション無し */, "print/poll/[store_token]", "print/result/[store_token]",
 ]);
 // C) 許可
 const ALLOW = new Set<string>([
@@ -103,7 +106,7 @@ check("dg(5-3) /demo: noindex 維持（robots index:false・follow:false）・�
   check("dg(6-1) ①メール／パスワード変更: staff/update-email は柵 A・パスワード／メール変更の route は他に無い・client は auth.updateUser を呼ばない", "staff/update-email" in DENY_GUARDED && !routes6.some((r) => /password|email/.test(r) && r !== "staff/update-email") && !clientSrc.some((s) => /auth\.updateUser\(/.test(s)));
   check("dg(6-2) ②org 削除・Auth 系（招待・スタッフ作成・キオスク発行）: org 削除 route なし・cast/invite／staff/create／kiosk/provision は柵 A", !routes6.some((r) => /org.*delete|delete.*org/.test(r)) && ["cast/invite", "staff/create", "kiosk/provision"].every((r) => r in DENY_GUARDED));
   const enter = fs.readFileSync("app/api/demo/enter/route.ts", "utf8");
-  check("dg(6-3) ③外部送信（LINE／メール／Stripe）: LINE・メール送信の route なし・billing 4 本は柵 A・stripe/webhook はセッション無し（B）・demo/enter の magiclink は送信しない", !routes6.some((r) => /line|mail/.test(r) && r !== "staff/update-email") && ["billing/checkout", "billing/interval", "billing/portal", "billing/switch-to-card"].every((r) => r in DENY_GUARDED) && DENY_NO_SESSION.has("stripe/webhook") && !/sendEmail|inviteUserByEmail|signInWithOtp/.test(enter));
+  check("dg(6-3) ③外部送信（LINE／メール／Stripe）: メール送信の route なし・LINE は push／secret が柵 A（デモ 403／204）・session／bind／webhook はセッション無し（B）・billing 4 本は柵 A・stripe/webhook は B・demo/enter の magiclink は送信しない", !routes6.some((r) => /mail/.test(r) && r !== "staff/update-email") && ["line/push", "line/secret"].every((r) => r in DENY_GUARDED) && ["line/session", "line/bind", "line/webhook/[storeId]"].every((r) => DENY_NO_SESSION.has(r)) && /const demo = await demoGuardErr\(orgId as string\); if \(demo\) return new NextResponse\(null, \{ status: 204 \}\)/.test(fs.readFileSync("app/api/line/push/route.ts", "utf8")) && /if \(p\.isDemo\) return/.test(fs.readFileSync("lib/nox/line/server.ts", "utf8")) && ["billing/checkout", "billing/interval", "billing/portal", "billing/switch-to-card"].every((r) => r in DENY_GUARDED) && DENY_NO_SESSION.has("stripe/webhook") && !/sendEmail|inviteUserByEmail|signInWithOtp/.test(enter));
   check("dg(6-4) ④写真・印刷: storage policy の is_demo 句（0149 ★10）＋ client は useIsDemo で導線を隠す（photo-card／casts／staff）・print/jobs は柵 A", "print/jobs" in DENY_GUARDED && ["app/mine/photo-card.tsx", "app/(manage)/casts/casts-board.tsx", "app/(manage)/staff/staff-board.tsx"].every((f) => /useIsDemo\(\)/.test(fs.readFileSync(f, "utf8"))));
   check("dg(6-5) ⑤判定は demo フラグ（orgs.is_demo）だけ・本番 org には効かない: guard は読めなければ false・layout は is_demo で帯と「ご契約」を切替・/setup へ飛ばさない", /return data\?\.is_demo === true;/.test(guard) && layout.includes("{isDemo && <DemoBanner />}") && layout.includes('isOwnerRaw && !isDemo ? [{ href: "/billing"') && layout.includes('const isOwnerRaw = rules0175On() ? roleRaw === "owner" : role === "owner";') /* ★追補 3 R-8（裁定425 候補）: 「ご契約」はオーナー本人だけ＝フラグ false は role === "owner" と同値 */ && layout.includes('if (role === "owner" && !isDemo)'));
   const demoPage2 = fs.readFileSync("app/demo/page.tsx", "utf8");

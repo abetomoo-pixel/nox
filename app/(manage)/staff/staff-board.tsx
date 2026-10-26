@@ -21,7 +21,10 @@ import { rpcErrJa } from "@/lib/nox/ui/rpc-err";
 import { resolveOrgId } from "@/lib/nox/cast-photo";
 import { photoActionLabelOf, removeUserPhoto, signUserPhotos, uploadUserPhoto } from "@/lib/nox/staff-photo";
 import { rules0175On } from "@/lib/nox/rules-0175/flag"; // ★追補 3 R-8
-import { ownerOnlyNoteOf, roleChangeTargetsOf, roleChangeTextOf, roleLabelOf, rolePillKindOf, staffListRolesOf } from "@/lib/nox/rules-0175/roles"; // ★追補 3 R-8（裁定425 候補）: 役割「管理者」
+import { ownerOnlyNoteOf, roleChangeTargetsOf, roleChangeTextOf, roleLabelOf, rolePillKindOf, staffListRolesOf } from "@/lib/nox/rules-0175/roles";
+import { INVITE_STATE_LABEL, LOGIN_METHOD_NOTE, LOGIN_METHOD_OPTIONS, inviteErrJa, inviteExpiryTextOf, inviteFormErrorOf, inviteStateOf, type LoginMethod } from "@/lib/nox/people/invite"; // ★便 ON-3（0176 ★2 I-1）: 登録→招待の 2 段
+import { LINE_BIND_NOTE, liffBindUrlOf } from "@/lib/nox/line/liff-endpoint"; // ★便 ON-3（0176 ★1 401）: LINE 連携のリンク
+import ContactChangesPanel from "@/components/nox/contact-changes-panel"; // ★便 ON-3（0176 ★4 400）: 連絡先の変更（未確認） // ★追補 3 R-8（裁定425 候補）: 役割「管理者」
 type Mem = {
   id: string; user_id: string; store_id: string; role: string; is_active: boolean;
   can_register: boolean; can_crm: boolean; can_shift: boolean; can_view_backs: boolean;
@@ -96,6 +99,13 @@ export default function StaffBoard({
   const [aErr, setAErr] = useState<string | null>(null);
   const [aResult, setAResult] = useState<CreateResult | null>(null);
   const [copied, setCopied] = useState(false);
+  // ★便 ON-3（0176 ★2 I-1）: ログインの方法（初期パスワード＝従来／招待リンク＝本人がパスワードを決める）・招待の結果・招待中の一覧・LINE 連携
+  const [aMethod, setAMethod] = useState<LoginMethod>("password");
+  const [aInvite, setAInvite] = useState<{ url: string; expires_at: string | null; email: string } | null>(null);
+  const [invites, setInvites] = useState<{ id: string; store_id: string; email: string; name: string; role: string; expires_at: string; accepted_at: string | null }[]>([]);
+  const [lineLinked, setLineLinked] = useState<Set<string>>(new Set());
+  const [bindUrl, setBindUrl] = useState<string | null>(null);
+  const [bindCopied, setBindCopied] = useState(false);
 
   const storeName = (id: string) => stores.find((s) => s.id === id)?.name ?? "—";
   useEffect(() => { void resolveOrgId(supabase).then((o) => setOrgId(o)); }, [supabase]);
@@ -155,6 +165,13 @@ export default function StaffBoard({
       || (map[a.user_id]?.name ?? "").localeCompare(map[b.user_id]?.name ?? ""));
     setMems(rows);
     setUsers(map);
+    // ★便 ON-3: 招待中（未受諾・期限内）と LINE 連携済み（line_links subject membership）＝RLS（owner 全店／manager 自店）
+    const [{ data: inv }, { data: ll }] = await Promise.all([
+      supabase.from("staff_invites").select("id, store_id, email, name, role, expires_at, accepted_at").is("accepted_at", null).order("created_at", { ascending: false }).limit(100),
+      supabase.from("line_links").select("subject_id").eq("subject_kind", "membership"),
+    ]);
+    setInvites(((inv ?? []) as typeof invites).filter((i) => inviteStateOf(i, Date.now()) === "ok"));
+    setLineLinked(new Set(((ll ?? []) as { subject_id: string }[]).map((x) => x.subject_id)));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -194,15 +211,37 @@ export default function StaffBoard({
     setEStore(stores.find((s) => s.id !== m.store_id)?.id ?? "");
   }
 
+  // ★便 ON-3（0176 ★1 401）: LINE 連携のリンク＝line_bind_token_create（owner／自店 manager・平文トークンは 1 回だけ）→ <origin>/liff/<store>?t=…&m=bind
+  async function issueBind(m: Mem) {
+    setBusy(true); setMsg(null); setBindUrl(null); setBindCopied(false);
+    const { data, error } = await supabase.rpc("line_bind_token_create", { p_subject_kind: "membership", p_subject_id: m.id, p_purpose: "bind" });
+    setBusy(false);
+    if (error || typeof data !== "string") { setMsg(`LINE 連携のリンクを発行できませんでした: ${rpcErrJa(error?.message ?? "")}`); return; }
+    setBindUrl(liffBindUrlOf(window.location.origin, m.store_id, data));
+  }
+
   function openAdd() {
     setAName(""); setAEmail(""); setATel(""); setALine(""); setAStore(isOwner ? (stores[0]?.id ?? "") : myStoreId); // ★裁定381
     setARole("staff"); setAErr(null); setAResult(null); setCopied(false);
+    setAMethod("password"); setAInvite(null); // ★便 ON-3
     setAIdemKey(crypto.randomUUID()); // 送信意図ごとに1つ＝リトライは同キー（route が二重作成を止める）
     setAddOpen(true);
   }
 
   async function submitAdd() {
     if (!aName.trim()) { setAErr("名前を入力してください"); return; }
+    // ★便 ON-3（0176 ★2 I-1）: 招待リンク＝POST /api/staff/invite（staff_invite_create・Auth は作らない・URL は 1 回だけ表示）
+    if (aMethod === "invite") {
+      const v = inviteFormErrorOf({ name: aName, email: aEmail, method: aMethod }); if (v) { setAErr(v); return; }
+      setBusy(true); setAErr(null);
+      try {
+        const res = await fetch("/api/staff/invite", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: aName.trim(), email: aEmail.trim(), storeId: isOwner ? aStore : myStoreId, role: isOwner ? aRole : "staff" }) });
+        const body = (await res.json()) as { url?: string; expires_at?: string | null; email?: string; error?: string };
+        if (!res.ok || !body.url) setAErr(inviteErrJa(body.error ?? `招待に失敗しました（${res.status}）`));
+        else { setAInvite({ url: body.url, expires_at: body.expires_at ?? null, email: body.email ?? aEmail.trim() }); await load(); }
+      } catch (e) { setAErr((e as Error).message); } finally { setBusy(false); }
+      return;
+    }
     setBusy(true); setAErr(null);
     try {
       const res = await fetch("/api/staff/create", {
@@ -359,6 +398,20 @@ export default function StaffBoard({
             <FieldStack label="LINE ID" htmlFor="staff-edit-line">
               <input id="staff-edit-line" placeholder="@line_id" maxLength={40} value={eLine} onChange={(e) => setELine(e.target.value)} style={{ ...t.input, width: "100%" }} data-staff-edit-line="1" />
             </FieldStack>
+            {/* ★便 ON-3（0176 ★1 401）: LINE 連携（line_links）＝紐付けのリンクを発行（line_bind_token_create 'membership'・7 日・1 回だけ）→ 本人が LINE で開く。デモは出さない */}
+            <FieldStack label="LINE 連携" htmlFor="staff-edit-line-bind">
+              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }} data-staff-line-bind={lineLinked.has(sel.id) ? "linked" : "none"}>
+                <span style={{ fontSize: 12.5, color: lineLinked.has(sel.id) ? "var(--ok)" : "var(--sub)" }}>{lineLinked.has(sel.id) ? "連携済み（LINE に通知が届きます）" : "未連携"}</span>
+                {!isDemo && <button id="staff-edit-line-bind" type="button" style={btnGhost} disabled={busy} onClick={() => void issueBind(sel)}>{lineLinked.has(sel.id) ? "別の LINE に付け替えるリンク" : "連携のリンクを発行"}</button>}
+              </div>
+              {bindUrl && (
+                <div style={{ display: "grid", gap: 4, marginTop: 6 }} data-staff-line-bind-url="1">
+                  <span style={{ fontSize: 12, wordBreak: "break-all" }}>{bindUrl}</span>
+                  <span style={{ display: "flex", gap: 8 }}><button type="button" style={btnGhost} onClick={() => { void navigator.clipboard?.writeText(bindUrl).then(() => setBindCopied(true)).catch(() => undefined); }}>{bindCopied ? "コピーしました ✓" : "リンクをコピー"}</button></span>
+                  <span style={{ ...t.sub }}>{LINE_BIND_NOTE}</span>
+                </div>
+              )}
+            </FieldStack>
             {isOwner && !isDemo && (
               <FieldStack label="メール（ログインID）" htmlFor="staff-edit-email" note="変更すると新しいメールでログインします">
                 <input id="staff-edit-email" type="email" placeholder="メール（ログインID）" value={eEmail} onChange={(e) => setEEmail(e.target.value)} style={{ ...t.input, width: "100%" }} />
@@ -419,10 +472,36 @@ export default function StaffBoard({
         </Modal>
       )}
 
+      {/* ★便 ON-3（0176 ★4）: 連絡先の変更（未確認）＝0 件なら出ない */}
+      <ContactChangesPanel canConfirm={isOwner || myStoreId !== ""} />
+      {/* ★便 ON-3（0176 ★2 I-1）: 招待中（未受諾・期限内）＝受諾で users／memberships ができて一覧に移る */}
+      {invites.length > 0 && (
+        <section className="nox-panel" data-staff-invites={invites.length} style={{ marginBottom: 12 }}>
+          <h3>招待中（{invites.length}）</h3>
+          <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 4, fontSize: 12.5 }}>
+            {invites.map((i) => <li key={i.id} data-staff-invite={i.id}><b>{i.name}</b>（{labelOf(i.role)}・{storeName(i.store_id)}）<span style={{ color: "var(--sub)" }}> {i.email}・{INVITE_STATE_LABEL[inviteStateOf(i, Date.now())]}・{inviteExpiryTextOf(i.expires_at)}</span></li>)}
+          </ul>
+          <p style={{ ...t.sub, margin: "6px 0 0" }}>リンクは発行時に 1 回だけ表示されます。期限切れは再登録（同じメールで再発行）してください。</p>
+        </section>
+      )}
       {/* 追加モーダル（Q-2・POST /api/staff/create） */}
       {addOpen && (
-        <Modal onClose={() => !busy && !aResult && setAddOpen(false)}>
-            {!aResult ? (
+        <Modal onClose={() => !busy && !aResult && !aInvite && setAddOpen(false)}>
+            {aInvite ? (/* ★便 ON-3（0176 ★2 I-1）: 招待リンク（1 回だけ表示・14 日） */
+              <>
+                <h2 style={secTitle}>招待リンクを発行しました</h2>
+                <div style={{ display: "grid", gap: 6, marginBottom: 10 }} data-staff-invite-result="1">
+                  <div style={t.bdRow}><span style={t.bdKey}>宛先</span><span style={{ ...t.bdVal, wordBreak: "break-all" }}>{aInvite.email}</span></div>
+                  <div style={t.bdRow}><span style={t.bdKey}>招待リンク</span><span style={{ ...t.bdVal, wordBreak: "break-all", fontSize: 12 }} data-staff-invite-url="1">{aInvite.url}</span></div>
+                  {aInvite.expires_at && <div style={t.bdRow}><span style={t.bdKey}>有効期限</span><span style={t.bdVal}>{inviteExpiryTextOf(aInvite.expires_at)}</span></div>}
+                </div>
+                <p style={{ ...t.alert, marginBottom: 10 }}>このリンクは再表示できません。本人に送ってください（リンクを開いてパスワードを決めるとログインできます）。</p>
+                <div className="nox-actions" style={{ display: "flex", gap: 8 }}>
+                  <button style={btnGhost} onClick={() => { void navigator.clipboard?.writeText(aInvite.url).then(() => setCopied(true)).catch(() => undefined); }}>{copied ? "コピーしました ✓" : "リンクをコピー"}</button>
+                  <button style={btnGold} onClick={() => setAddOpen(false)}>閉じる</button>
+                </div>
+              </>
+            ) : !aResult ? (
               <>
                 <h2 style={secTitle}>スタッフ登録</h2>{/* ★裁定381 */}
                 <div style={{ display: "grid", gap: 10 }}>
@@ -433,7 +512,13 @@ export default function StaffBoard({
                   <label style={{ display: "grid", gap: 4 }}>
                     <span style={t.fieldLabel}>メールアドレス（任意）</span>
                     <input value={aEmail} onChange={(e) => setAEmail(e.target.value)} style={t.input}
-                      placeholder="入力したときだけログインIDに使います（未入力なら自動発行）" type="email" />
+                      placeholder={aMethod === "invite" ? "招待リンクの宛先（必須）" : "入力したときだけログインIDに使います（未入力なら自動発行）"} type="email" />
+                  </label>
+                  {/* ★便 ON-3（0176 ★2 I-1）: ログインの方法＝初期パスワード（従来・即時）／招待リンク（本人がパスワードを決める・メール必須・Auth は受諾まで作らない） */}
+                  <label style={{ display: "grid", gap: 4 }} data-staff-login-method={aMethod}>
+                    <span style={t.fieldLabel}>ログインの方法</span>
+                    <SegSelect value={aMethod} onChange={(v) => setAMethod(v as LoginMethod)} options={LOGIN_METHOD_OPTIONS} ariaLabel="ログインの方法" />
+                    <span style={{ ...t.sub, lineHeight: 1.6 }}>{LOGIN_METHOD_NOTE[aMethod]}</span>
                   </label>
                   {/* ★裁定381（GV-B W-10）→★0172（便 P172）: 電話・LINE ID は staff_create の p_tel／p_line_id で保存。契約区分は staff_contracts（器のみ＝書込 RPC は次便）＝注記 */}
                   <label style={{ display: "grid", gap: 4 }}>
@@ -485,7 +570,7 @@ export default function StaffBoard({
                     </ol>
                   </div>
                   {aErr && <Message kind="error" style={{ margin: 0 }}>{aErr}</Message>}
-                  <button type="button" style={t.btnPrimary56} disabled={busy} data-staff-register="1" onClick={() => void submitAdd()}>{busy ? "登録中…" : "登録する"}</button>
+                  <button type="button" style={t.btnPrimary56} disabled={busy} data-staff-register="1" onClick={() => void submitAdd()}>{busy ? "登録中…" : aMethod === "invite" ? "登録して招待リンクを発行" : "登録する"}</button>
                   <div style={t.btnRow48}>
                     <button type="button" style={t.btnSecondary48} disabled={busy} onClick={() => setAddOpen(false)}>キャンセル</button>
                   </div>

@@ -32,7 +32,8 @@ import PhotoCard from "./photo-card";
 import ContractAckGate from "./contract-ack-gate"; // ★0162 ★4（裁定326 追補7-6・便 M5-2）: 契約確認（店 ON かつ未記録のときだけ最上部）
 import { contractAckGateOf } from "@/lib/nox/mine/contract-ack";
 import AttendanceForm from "./attendance-form";
-import { mineReportStateOf } from "@/lib/nox/shift/cast-report"; // ★便 X13-H H-17 ③
+import { mineReportStateOf } from "@/lib/nox/shift/cast-report"; // ★便 X13-H H-17 ③ // ★便 ON-3（I-4）: ack_at で「店が確認しました」
+import ContactForm from "./contact-form"; // ★便 ON-3（0176 ★4＝400）: 本人の連絡先
 import NormCard from "./norm-card";
 import DrinkClaimForm from "./drink-claim-form";
 import PrintPayslipButton from "./print-payslip-button";
@@ -68,6 +69,7 @@ export default async function MinePage() {
 
   // ★0154 D1（裁定294／295）: 自分の cast 行（id・employment＝用語）・修正申請（RLS 本人・表が無ければ空）
   const { data: meCast } = await supabase.from("casts").select("id, employment").limit(1).maybeSingle();
+  const { data: meUser } = await supabase.from("users").select("contact_email, phone").limit(1).maybeSingle(); // ★便 ON-3（0176 ★4）: 自分の users 行（cast の RLS＝本人だけ）
   const term = termOf((meCast?.employment as string | null) ?? null);
   const { startIso: bizStartIso, endIso: bizEndIso } = bizDateRange(bizToday, cutoff);
   // ★裁定326-5（便 M2-1）: 当月の自分の打刻を 1 本で読む（勤怠一覧）→ 当日分はここから絞る（旧 todayPunches の fetch と置換＝新規 fetch 0）
@@ -98,7 +100,7 @@ export default async function MinePage() {
   // 今月の勤怠
   const { data: att } = await supabase
     .from("attendance")
-    .select("date, status, eta, source, reason, updated_at") // ★便 X13-H H-17 ③: 連絡の状態（本人＝self／店が記録）★便 SH-UI-c C-2 ④: 勤怠表の連絡時刻・備考
+    .select("date, status, eta, source, reason, updated_at, ack_at") // ★便 X13-H H-17 ③: 連絡の状態（本人＝self／店が記録）★便 SH-UI-c C-2 ④: 勤怠表の連絡時刻・備考 ★便 ON-3（I-4）: ack_at
     .gte("date", `${month}-01`)
     .order("date", { ascending: false })
     .limit(62);
@@ -284,7 +286,7 @@ export default async function MinePage() {
       <section className="nox-panel">
         <h3>遅刻・当欠の連絡</h3>
         {myDohanSeats && <p className="sub" data-dohan-chip="1" style={{ margin: "0 0 6px", fontSize: 12.5 }}>{dohanMarkTextOf(myDohanSeats)}＝伝票の同伴（{DOHAN_LATE_EXEMPT_NOTE}）</p>}{/* ★便 PR-1 R-4（裁定417） */}
-        {(() => { const st = mineReportStateOf((((att ?? []) as { date: string; status: string; eta: string | null; source: string | null }[]).find((a) => a.date === bizToday) ?? null) ? { cast_id: "", ...(((att ?? []) as { date: string; status: string; eta: string | null; source: string | null }[]).find((a) => a.date === bizToday)!) } : null); return st ? <p className="nox-pstate" data-mine-report="1" style={{ margin: "0 0 8px" }}>{st}</p> : null; })()}{/* ★便 X13-H H-17 ③ */}
+        {(() => { const st = mineReportStateOf((((att ?? []) as { date: string; status: string; eta: string | null; source: string | null; ack_at?: string | null }[]).find((a) => a.date === bizToday) ?? null) ? { cast_id: "", ...(((att ?? []) as { date: string; status: string; eta: string | null; source: string | null; ack_at?: string | null }[]).find((a) => a.date === bizToday)!) } : null); return st ? <p className="nox-pstate" data-mine-report="1" style={{ margin: "0 0 8px" }}>{st}</p> : null; })()}{/* ★便 X13-H H-17 ③ */}
         <AttendanceForm defaultDate={bizToday} />
       </section>
 
@@ -419,6 +421,11 @@ export default async function MinePage() {
           </div>
         )}
         <p style={{ ...noteP, marginTop: 6 }}>{ATTENDANCE_MONTH_NOTE}</p>
+      </section>
+      {/* ★便 ON-3（0176 ★4＝400 の残り）: 本人の連絡先（連絡用メール・電話＝set_my_contact・変更は店が確認） */}
+      <section className="nox-panel" data-mine-contact-card="1">
+        <h3>連絡先</h3>
+        <ContactForm contactEmail={(meUser?.contact_email as string | null) ?? null} phone={(meUser?.phone as string | null) ?? null} />
       </section>
       {rules0175On() && meCast?.id && myStore && (/* ★便 P175-prep P-4（裁定397＋413）: 基本の働き方（本人）＝雇用は時間帯を店が決める（表示＋メモ）。通知は audit のみ。フラグ false＝DOM 差分 0 */
         <section className="nox-panel" data-mine-availability="1">

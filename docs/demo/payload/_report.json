@@ -1,7 +1,7 @@
 {
  "stores": {
   "muse": {
-   "bytes": 2652324,
+   "bytes": 2652323,
    "rows": 4531,
    "tables": 45,
    "checks": 559,
@@ -120,7 +120,7 @@
      ]
     }
    ],
-   "sha256": "55006d29749c766e464553e2fbb73f761f59c35b8824aefeaef4a8114c2b9055"
+   "sha256": "4e09009f2b8e42f53c33d42a3f0d20412b6088bb03cf1c6dcc7e7331b6146a4f"
   },
   "luna": {
    "bytes": 3826114,

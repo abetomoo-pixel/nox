@@ -6,6 +6,7 @@ import MineSettingsPanel from "../mine-settings-panel"; // ★裁定326-1（0160
 import FeatureFlagsPanel from "../feature-flags-panel"; // ★C層①（mig0135）: 機能の公開（owner）→ ★MC2: system から店舗設定 ＞ 利用機能へ
 import SystemsBoard from "../cast-comp/systems/systems-board"; // ★裁定269-7／270-2: 報酬制度 9 フラグ（sys_norms＝ノルマを使う を含む）→ ★MC2: 利用機能タブへ
 import MasterPageHead from "../master-page-head";
+import LineConfigPanel from "../line-config-panel"; // ★便 ON-3（0176 ★1 401）: LINE 連携と送信数
 import { systemUsageOf } from "@/lib/nox/store-systems";
 import { storeProfileTabOf } from "@/lib/nox/master/nav";
 
@@ -55,7 +56,9 @@ export default async function MasterStoreProfilePage({ searchParams }: { searchP
     }
   }
 
-  const head = tab === "info"
+  const head = tab === "line"
+    ? { eyebrow: "LINE", title: "店舗設定 › LINE 連携", desc: "LINE ログイン（LIFF）・通知（Messaging API）・月の送信上限と今月の送信数。LINE Developers に貼る URL はこの画面で確認できます。" }
+    : tab === "info"
     ? { eyebrow: "STORE PROFILE", title: "店舗設定 › 店舗情報", desc: "店舗名・略称・店舗コード・表示名・送りの基本額とキャスト確認、会計と運用（インボイス登録日・支払日・消費税の表示・フロア・支払い方法・打刻方法）。住所・電話・インボイス登録番号は「端末・印刷 › レシート・プリンタ」で編集します（二重に編集する場所を作りません）。" }
     : tab === "data"
       ? { eyebrow: "DATA MANAGEMENT", title: "権限・情報管理 › データ管理", desc: "顧客情報の利用目的と保持年数、操作ログの保持。店舗情報とは別の画面にしています。" }
@@ -79,6 +82,7 @@ export default async function MasterStoreProfilePage({ searchParams }: { searchP
       )}
       {tab === "info" && <StoreProfilePanel stores={stores} isOwner={isOwner} sections={["profile", "shift", "ops"]} />}{/* ★0164（便 W5-2a）: 会計と運用＝列 7 つ */}
       {tab === "data" && <StoreProfilePanel stores={stores} isOwner={isOwner} sections={["data"]} />}
+      {tab === "line" && <LineConfigPanel stores={stores} isOwner={isOwner} />}{/* ★便 ON-3（0176 ★1 401） */}
     </div>
   );
 }
