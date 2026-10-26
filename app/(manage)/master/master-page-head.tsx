@@ -17,7 +17,7 @@ export default function MasterPageHead({ eyebrow, title, count, unit = "件", de
   count?: number;
   unit?: string;
   desc: string;
-  /** 右端の主アクション（例「＋ 商品を追加」）。無いページは省略する。 */
+  /** 主アクション（例「＋ 商品を追加」）。★便 BTN（裁定242）: 見出しの下の中央の行（旧＝右端）。無いページは省略する。 */
   action?: React.ReactNode;
 }) {
   return (
@@ -30,7 +30,7 @@ export default function MasterPageHead({ eyebrow, title, count, unit = "件", de
         </div>
         <p className="desc">{desc}</p>
       </div>
-      {action}
+      {action && <div className="nox-actions nox-pthead-actions" data-pthead-actions="1">{action}</div>}
     </div>
   );
 }

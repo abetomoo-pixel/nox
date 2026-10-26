@@ -99,7 +99,7 @@ export default function DeductionPanel({
           現在: <strong style={{ color: "var(--champ)" }} data-okuri-mode-now={okuriMode}>{OKURI_MODE_LABEL[okuriMode]}</strong>　<span style={{ fontSize: 12, color: "var(--sub)" }}>{OKURI_MODE_NOTE[okuriMode]}</span>{/* ★裁定414: 4 方式 */}
         </p>
         {isOwner ? (
-          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }} data-okuri-4way="1">{/* ★裁定414（S-4 ⑤）: 4 択＝実費／定額／店負担／なし（'store'／'none' は P 前は無効＝「適用後に選べます」） */}
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }} data-okuri-4way="1" data-actions-exempt="送りの方式の選択（選択中の方式が青＝状態の表示）">{/* ★裁定414（S-4 ⑤）: 4 択＝実費／定額／店負担／なし（'store'／'none' は P 前は無効＝「適用後に選べます」） */}
             {OKURI_MODES.map((m) => { const selectable = okuriModeSelectableOf(m, okuri4wayOn()); return (
               <button key={m} onClick={() => switchMode(m)} disabled={modeBusy || okuriMode === m || !selectable} style={okuriMode === m ? btnOn : { ...btn, opacity: selectable ? 1 : 0.5 }}
                 title={selectable ? OKURI_MODE_NOTE[m] : OKURI_MODE_PENDING_NOTE} data-okuri-mode-btn={m} data-okuri-pending={selectable ? undefined : "1"}>{OKURI_MODE_LABEL[m]}{selectable ? "" : "（適用後）"}</button>
@@ -148,7 +148,7 @@ export default function DeductionPanel({
                   <button type="button" onClick={() => setTiers((ts) => ts.filter((_, j) => j !== i))} disabled={tiersBusy} style={btn} aria-label={`区分 ${i + 1} を削除`}>削除</button>
                 </div>
               ))}
-              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 6 }}>
+              <div className="nox-actions" style={{ marginTop: 6 }}>{/* ★便 BTN: 中央 */}
                 <button type="button" onClick={() => setTiers((ts) => [...ts, { code: "", name: "", amount: 0 }])} disabled={tiersBusy || tiers.length >= OKURI_FLAT_TIERS_MAX} style={btn} data-okuri-tier-add="1">＋ 区分を追加</button>
                 <button type="button" onClick={() => void saveTiers()} disabled={tiersBusy} style={btnOn} data-okuri-tiers-save="1">保存</button>
               </div>

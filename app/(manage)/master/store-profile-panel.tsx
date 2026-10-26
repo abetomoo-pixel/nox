@@ -324,6 +324,8 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginTop: 8 }}>
               <SegSelect value={tbPick} onChange={(v) => setTbPick(v as PayTimeBasis)} options={[["punch", "実打刻"], ["shift", "確定シフトどおり"]]} />
+            </div>
+            <div className="nox-actions" style={{ marginTop: 8 }}>{/* ★便 BTN（裁定242）: 主ボタンは行の中央 */}
               <button type="button" style={{ ...t.btnGold, ...t.btnSm }} disabled={tbBusy || tbRuns === null || tbPick === (tb.next ?? tb.current)} onClick={() => void saveTimeBasis()}>
                 {tbRuns === null ? "読み込み中…" : tbRuns > 0 ? "次の期から切り替える" : "この基準にする"}
               </button>

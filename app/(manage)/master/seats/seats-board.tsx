@@ -106,11 +106,13 @@ export default function SeatsBoard({ storeId, isManagerUp, initial, hiddenKinds 
             <h2 id="m-seat" style={{ ...secTitle, margin: 0 }}>席一覧</h2>
             <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "2px 0 0" }}>行をクリックすると「席を編集」を開きます</p>
           </div>
-          {isManagerUp && (
-            <button style={{ ...btnDark, marginLeft: "auto" }}
-              onClick={() => { setSId(null); setSName(""); setSKind("卓"); setSSort(0); setSActive(true); setSeatOpen(true); }}>＋ 席を追加</button>
-          )}
         </div>
+        {isManagerUp && (
+          <div className="nox-actions" style={{ margin: "0 0 10px" }}>{/* ★便 BTN（裁定242）: 主ボタンは行の中央 */}
+            <button style={btnDark}
+              onClick={() => { setSId(null); setSName(""); setSKind("卓"); setSSort(0); setSActive(true); setSeatOpen(true); }}>＋ 席を追加</button>
+          </div>
+        )}
         {/* E8-5 席#5（T2）: 検索＋種別フィルタ（表示のみ） */}
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 10 }}>
           <input value={seatQ} onChange={(e) => setSeatQ(e.target.value)} placeholder="席名で検索"

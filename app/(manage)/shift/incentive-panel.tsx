@@ -120,7 +120,7 @@ export default function IncentivePanel({ storeId, casts, initialDate, cutoff }: 
         />
       </div>
       {/* E8-4: 対象＝全員（null）/ 選択（uuid[]）。選択時はキャストのチェックチップ。 */}
-      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 4 }}>
+      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 4 }} data-actions-exempt="対象の選択（全員／選択＝選択中が青）">
         <span style={{ fontSize: 12, color: "var(--sub)" }}>対象</span>
         <button style={targetAll ? btnDark : btnLight} onClick={() => setTargetAll(true)}>全員</button>
         <button style={!targetAll ? btnDark : btnLight} onClick={() => setTargetAll(false)}>

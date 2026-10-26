@@ -135,7 +135,7 @@ export default function ReferrersBoard({ storeId, isManagerUp, initial, members 
         action={isManagerUp ? <button type="button" className="nox-btn" onClick={openNew}>＋ 紹介者を追加</button> : undefined} />
       {msg && <Message kind={msg.kind} onDismiss={() => setMsg(null)}>{msg.text}</Message>}
 
-      <div style={card}>
+      <div style={card} data-card="1">
         <h3 style={t.cardTitle}>紹介者一覧</h3>
         {rows.length === 0 ? (
           <p style={{ ...t.sub, fontSize: 12.5, margin: 0 }}>紹介者はまだ登録されていません。</p>
@@ -162,7 +162,7 @@ export default function ReferrersBoard({ storeId, isManagerUp, initial, members 
       </div>
 
       {/* ── 紹介料の支払（298-6／298-7／298-10）── */}
-      <div style={card}>
+      <div style={card} data-card="1">
         <h3 style={t.cardTitle}>紹介料の支払（未払一覧）</h3>
         <p style={{ ...t.sub, fontSize: 12, margin: "0 0 8px", lineHeight: 1.7 }}>
           会計確定で未払が 1 件できます。支払を確定すると源泉（外交員報酬＝同月の支払累計が 120,000 円を超える部分の 10.21%）を DB が計算します。
@@ -172,9 +172,9 @@ export default function ReferrersBoard({ storeId, isManagerUp, initial, members 
           <label style={{ fontSize: 12 }}>営業日 <input type="date" value={range.from} onChange={(e) => setRange({ ...range, from: e.target.value })} style={input} /></label>
           <span style={{ fontSize: 12 }}>〜</span>
           <input type="date" value={range.to} onChange={(e) => setRange({ ...range, to: e.target.value })} style={input} aria-label="終了日" />
-          <button type="button" style={btnDark} onClick={() => void loadUnpaid()}>未払を表示</button>
           <SegSelect value={paidVia} onChange={setPaidVia} options={PAID_VIA} ariaLabel="支払方法" />
         </div>
+        <div className="nox-actions" style={{ marginBottom: 8 }}>{/* ★便 BTN（裁定242）: 主ボタンは行の中央 */}<button type="button" style={btnDark} onClick={() => void loadUnpaid()}>未払を表示</button></div>
         {unpaid && unpaid.length === 0 && <p style={{ ...t.sub, fontSize: 12.5, margin: 0 }}>この期間の未払はありません。</p>}
         {unpaid && unpaid.length > 0 && (
           <>

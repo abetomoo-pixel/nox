@@ -1028,8 +1028,8 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
           <section className="nox-cardtop" style={{ ...card, marginBottom: 14 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "0 0 6px" }}>
               <h3 style={{ margin: 0, fontSize: 14 }}>料金区分</h3>
-              <button type="button" style={{ ...btnDark, marginLeft: "auto" }} onClick={openNewCat}>＋ 区分を追加</button>
             </div>
+            <div className="nox-actions" style={{ margin: "0 0 8px" }}>{/* ★便 BTN（裁定242）: 主ボタンは行の中央 */}<button type="button" style={btnDark} onClick={openNewCat}>＋ 区分を追加</button></div>
             <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "0 0 10px", lineHeight: 1.7 }}>
               「通常」「初来店」など、開卓時に選ぶ料金の区分です。一番上が開卓時の既定になります（∧∨で並び替え）。
               区分を1つも作らない場合、開卓は区分なしで動きます。
@@ -1087,8 +1087,8 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
           <section className="nox-cardtop" style={{ ...card, marginBottom: 14 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "0 0 10px" }}>
               <h3 style={{ margin: 0, fontSize: 14 }}>通常営業の料金スケジュール</h3>
-              <button type="button" style={{ ...btnDark, marginLeft: "auto" }} onClick={openNewBand}>＋ 時間帯を追加</button>
             </div>
+            <div className="nox-actions" style={{ margin: "0 0 10px" }}>{/* ★便 BTN（裁定242）: 主ボタンは行の中央 */}<button type="button" style={btnDark} onClick={openNewBand}>＋ 時間帯を追加</button></div>
             {bands.length === 0 ? (
               <p style={{ fontSize: 12.5, color: "var(--sub)", margin: 0 }}>
                 時間帯料金は未設定です。すべての伝票に「基本料金」（会計設定タブの、どのルールにも当たらないときの値）が適用されています。
@@ -1236,8 +1236,8 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
                 <SegSelect value={pvPay} onChange={(v) => setPvPay(v as "cash" | "card")}
             options={[["cash", "現金"], ["card", "カード"]] as const} />
               </label>
-              <button type="button" style={btnDark} onClick={() => void runPreview()}>この条件で計算</button>
             </div>
+            <div className="nox-actions" style={{ marginTop: 10 }}>{/* ★便 BTN（裁定242）: 主ボタンは行の中央 */}<button type="button" style={btnDark} onClick={() => void runPreview()}>この条件で計算</button></div>
             {pvErr && <Message kind="error" style={{ margin: "10px 0 0" }}>{pvErr}</Message>}
             {pvOut && (
               <div style={{ marginTop: 12, fontSize: 12.5, lineHeight: 2 }}>
@@ -1732,8 +1732,8 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
             </span>
             {taxDirty && <span className="nox-stpill warn" data-unsaved="tax">未保存</span>}{/* ★便 X13-G W-17 ②: 未保存の印 */}
             {taxMsg && <Toast msg={taxMsg} />}
-            <button style={btnDark} disabled={taxBusy} onClick={() => void saveTaxAndService()} data-tax-save="1">税・サービス料を保存</button>
           </div>
+          <div className="nox-actions" style={{ marginTop: 6 }}>{/* ★便 BTN（裁定242）: 主ボタンは行の中央 */}<button style={btnDark} disabled={taxBusy} onClick={() => void saveTaxAndService()} data-tax-save="1">税・サービス料を保存</button></div>
         </section>
 
         {/* ★裁定131（v8.1 P52/P53/P54・モック「カード手数料」カード）: 2系統を1カードに同居。
@@ -1782,8 +1782,8 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", margin: "8px 0 4px" }}>
             {feeDirty && <span className="nox-stpill warn" data-unsaved="card-fee">未保存</span>}
             {feeMsg && <span data-card-fee-msg="1"><Message kind={feeMsg.includes("保存しました") || feeMsg.includes("無効にしました") ? "success" : "error"}>{feeMsg}</Message></span>}
-            <button type="button" style={{ ...btnDark, marginLeft: "auto" }} disabled={feeBusy} onClick={() => void saveCardFee()} data-save-card-fee="1">お客様への加算を保存</button>
           </div>
+          <div className="nox-actions" style={{ marginTop: 6 }}>{/* ★便 BTN（裁定242）: 主ボタンは行の中央 */}<button type="button" style={btnDark} disabled={feeBusy} onClick={() => void saveCardFee()} data-save-card-fee="1">お客様への加算を保存</button></div>
           {/* ★0160（起票96・T6・便 M4-4）: 加盟店契約の確認の記録＝店設定 contract_ack（owner／manager・set_store_mine_settings）。記録済みなら有効化時のチェックは出さない。改定時は店が OFF→ON で再確認（仮決め） */}
           <div className="nox-listrow nox-setrow" style={{ marginTop: 6 }}>
             <span style={{ flex: 1, minWidth: 0 }}>

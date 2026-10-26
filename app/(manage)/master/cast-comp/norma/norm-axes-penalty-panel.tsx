@@ -91,9 +91,9 @@ export default function NormAxesPenaltyPanel({ storeId, isOwner, initialAxes, in
               </div>
             );
           })}
-          <div className="nox-normax-save">
+          {!exists && <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "10px 0 0", textAlign: "center" }}>減額は未設定（既定値・保存で作成）</p>}
+          <div className="nox-normax-save nox-actions">{/* ★便 BTN（今回の指摘）: 保存は中央（注記は上の行へ＝ボタンの位置をずらさない） */}
             <button type="button" onClick={() => void save()} disabled={busy} style={{ ...t.btnGold, ...t.btnSm }} data-norm-save="axes">保存</button>
-            <span style={{ fontSize: 11.5, color: "var(--sub)" }}>{exists ? "" : "減額は未設定（既定値・保存で作成）"}</span>
           </div>
         </>
       ) : (

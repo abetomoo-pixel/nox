@@ -100,8 +100,10 @@ export default function LineConfigPanel({ stores, isOwner }: { stores: Store[]; 
             <input type="password" value={secrets[k]} onChange={(e) => setSecrets((s) => ({ ...s, [k]: e.target.value }))} style={t.input} placeholder={LINE_SECRET_PLACEHOLDER} autoComplete="off" data-line-secret={k} />
           </label>
         ))}
+      </div>
+      <div style={{ marginTop: 10 }}>{/* ★便 BTN: 保存はフォームの列（最大 560px）の外＝カードの中央 */}
         {isDemo ? <p style={{ ...t.sub, margin: 0 }}>デモ環境では LINE の設定を変更できません。</p>
-          : <button type="button" style={t.btnPrimary56} disabled={busy || !storeId} onClick={() => void saveConfig()} data-line-save="1">{busy ? "保存中…" : "LINE の設定を保存"}</button>}
+          : <div className="nox-actions">{/* ★便 BTN（裁定242）: 主ボタンは行の中央 */}<button type="button" style={{ ...t.btnPrimary56, width: "auto", padding: "0 28px" }} disabled={busy || !storeId} onClick={() => void saveConfig()} data-line-save="1">{busy ? "保存中…" : "LINE の設定を保存"}</button></div>}
       </div>
       <div style={{ marginTop: 16, display: "grid", gap: 6 }} data-line-limit={limit}>
         <span style={t.fieldLabel}>月の送信上限（表示のための設定）</span>

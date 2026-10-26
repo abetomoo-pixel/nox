@@ -79,7 +79,7 @@ export default function CastRegisterPanel({
           現在: <strong style={{ color: enabled ? "var(--ok)" : "var(--sub)" }}>{enabled ? "有効（キャストにレジを開放）" : "無効（キャストはレジ操作不可）"}</strong>
         </p>
         {isOwner ? (
-          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }} data-actions-exempt="有効／無効の選択（選択中が青＝状態の表示）">
             <button onClick={() => void switchStore(false)} disabled={busy || !enabled} style={!enabled ? btnOn : btn}>無効</button>
             <button onClick={() => void switchStore(true)} disabled={busy || enabled} style={enabled ? btnOn : btn}>有効</button>
             <span style={{ fontSize: 12, color: "var(--sub)" }}>※有効にしても、下の一覧で許可したキャストだけがレジを使えます（2段確認）。</span>

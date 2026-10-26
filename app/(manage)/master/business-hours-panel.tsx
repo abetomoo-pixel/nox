@@ -280,9 +280,6 @@ export default function BusinessHoursPanel({
             <h2 style={{ ...secTitle, margin: 0 }}>週間営業時間</h2>
             <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "2px 0 0" }}>曜日ごとに営業時間または定休日を設定します</p>
           </div>
-          <button style={{ ...t.btnGold, ...t.btnSm, marginLeft: "auto", opacity: busy ? 0.6 : 1 }} disabled={busy}
-            title="行のある曜日と、一括設定で入力した曜日をまとめて保存します"
-            onClick={() => void saveWeek()}>週間設定を保存</button>
         </div>
         {stores.length > 1 && (
           <div style={{ marginBottom: 10 }}>
@@ -313,8 +310,8 @@ export default function BusinessHoursPanel({
                 <button key={k} className={bulkTarget === k ? "on" : ""} onClick={() => setBulkTarget(k)}>{BULK_LABEL[k]}</button>
               ))}
             </div>
-            <button style={{ ...t.btnGold, ...t.btnSm }} onClick={applyBulk}>適用</button>
           </div>
+          <div className="nox-actions" style={{ marginTop: 8 }}><button style={{ ...t.btnGold, ...t.btnSm }} onClick={applyBulk}>適用</button></div>{/* ★便 BTN: 中央 */}
         </div>
 
         {/* 曜日テーブル（モック .table = 曜日／営業状態／開店／閉店／営業時間／状態） */}
@@ -368,6 +365,11 @@ export default function BusinessHoursPanel({
           ※定休日は予約を受け付けません（深夜は前営業日扱い＝例: 日曜定休なら月曜早朝も不可）。
           営業時間外の予約は警告つきで登録できます。未設定の曜日は制限しません。
         </p>
+        <div className="nox-actions" style={{ marginTop: 12 }}>{/* ★便 BTN（裁定242）: 主ボタンは行の中央（旧＝見出しの右端） */}
+          <button style={{ ...t.btnGold, ...t.btnSm, opacity: busy ? 0.6 : 1 }} disabled={busy}
+            title="行のある曜日と、一括設定で入力した曜日をまとめて保存します"
+            onClick={() => void saveWeek()}>週間設定を保存</button>
+        </div>
       </section>
 
       {/* ③ 特別営業日・臨時休業（実体なし＝準備中） */}
@@ -408,7 +410,7 @@ export default function BusinessHoursPanel({
           <input type="time" disabled style={{ ...input, maxWidth: 108 }} />
           <span>〜</span>
           <input type="time" disabled style={{ ...input, maxWidth: 108 }} />
-          <button style={{ ...t.btnGold, ...t.btnSm }} disabled>特別日を追加</button>
+          <div className="nox-actions" style={{ width: "100%" }}><button style={{ ...t.btnGold, ...t.btnSm }} disabled>特別日を追加</button></div>{/* ★便 BTN: 中央 */}
         </div>
       </section>
     </>

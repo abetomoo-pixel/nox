@@ -91,7 +91,9 @@ export default function BottleKeepPanel({ storeId, products }: { storeId: string
     <section className="nox-cardtop" style={{ ...card, width: "100%" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
         <h2 style={{ ...t.cardTitle, margin: 0 }}>ボトルキープ</h2>
-        <button style={{ ...t.btnGold, ...t.btnSm, marginLeft: "auto" }} disabled={customers.length === 0 || bottles.length === 0} onClick={openModal}>
+      </div>
+      <div className="nox-actions" style={{ marginTop: 8 }}>{/* ★便 BTN（裁定242）: 主ボタンは行の中央 */}
+        <button style={{ ...t.btnGold, ...t.btnSm }} disabled={customers.length === 0 || bottles.length === 0} onClick={openModal}>
           ボトルキープを登録
         </button>
       </div>

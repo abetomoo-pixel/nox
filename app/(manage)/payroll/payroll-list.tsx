@@ -181,6 +181,8 @@ export default function PayrollList({ stores, isOwner }: { stores: Store[]; isOw
               <select value={emptyPeriod} onChange={(e) => setEmptyPeriod(e.target.value)} style={{ ...t.input, width: "auto" }} aria-label="プレビューする期間">
                 {periods.map((p) => <option key={p} value={p}>{periodOptionLabelOf(p, finalizedPeriods, fmtPeriodYM)}</option>)}
               </select>
+            </div>
+            <div className="nox-actions" style={{ marginTop: 8 }}>{/* ★便 BTN（裁定242）: 主ボタンは行の中央 */}
               <Link href={previewHrefOf(emptyStore || stores[0]?.id || "", emptyPeriod)} className="nox-btn" style={{ ...t.btnGold, ...t.btnSm, textDecoration: "none" }} aria-disabled={!emptyStore && stores.length === 0}>
                 {emptyPeriod === prevPeriodOf(currentYm) ? "先月のプレビューを開く" : `${fmtPeriodYM(emptyPeriod)} のプレビューを開く`}
               </Link>

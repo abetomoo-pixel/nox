@@ -352,6 +352,22 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
   const pname = draft.name.trim() || "新規プラン";
   // ★N2（報酬プラン v3.1・A層＝既存行のみ）: 節ヘッダ＝見出し（大セクション 16px＝規約 §9）＋説明1行＋保存ボタン右寄せ
   //   ＋保存状態ピル（保存済み=Green／未保存=Red＝規約 §11）。保存経路（set_comp_plan 節保存）は不変。
+  // ★便 BTN（裁定242）: 節の保存は節の末尾の中央（旧＝見出しの右端）。SecHead と同じ props を受ける
+  const SecSave = ({ keys, section }: { title?: string; keys: (keyof Draft)[]; section: string; desc?: string }) => {
+    void keys;
+    const creatable = section === "基本給・保証";
+    const disabled = !draft.name.trim() || (draft.id === null && !creatable);
+    if (!isOwner) return null;
+    return (
+      <div className="nox-actions" style={{ marginTop: 12 }} data-plan-save={section}>
+        <button type="button" style={{ ...t.btnGold, ...t.btnSm, opacity: disabled ? 0.5 : 1 }} onClick={() => void savePlan(section)}
+          disabled={disabled}
+          title={draft.id === null && !creatable ? "先に「基本給・保証を保存」でプランを作成してください" : ""}>
+          {section}を保存
+        </button>
+      </div>
+    );
+  };
   const SecHead = ({ title, keys, section, desc }: { title: string; keys: (keyof Draft)[]; section: string; desc?: string }) => {
     const isDirty = dirty(keys);
     const creatable = section === "基本給・保証";
@@ -366,13 +382,6 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
             <span className="nox-stpill" style={{ borderColor: isDirty ? "var(--danger-bd)" : "rgba(119, 186, 131, .45)", color: isDirty ? "var(--danger-ink)" : "var(--ok)" }}>
               {isDirty ? "未保存" : "保存済み"}
             </span>
-          )}
-          {isOwner && (
-            <button type="button" style={{ ...t.btnGold, ...t.btnSm, marginLeft: "auto", opacity: disabled ? 0.5 : 1 }} onClick={() => void savePlan(section)}
-              disabled={disabled}
-              title={draft.id === null && !creatable ? "先に「基本給・保証を保存」でプランを作成してください" : ""}>
-              {section}を保存
-            </button>
           )}
         </div>
         {desc && <p style={{ fontSize: 12, color: "var(--sub)", margin: "4px 0 0" }}>{desc}</p>}
@@ -423,6 +432,7 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
           <CompRows kind="guarantee_min" section="基本給・保証" comps={comps} isOwner={isOwner} onSave={saveComp} />
         )}
         {/* ★GV-63（便 P173）: 準備中チップ 3 つ（日給制・保証対象時間帯・保証判定単位）は撤去（押せないものを置かない＝教訓25） */}
+        <SecSave title="基本・保証" keys={["name", "base", "active"]} section="基本給・保証" />
       </section>)}
 
       {/* ── ③ 歩合・バック ── */}
@@ -519,6 +529,7 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
           )}
           {on.backTab && <BackTab backs={backs} isManagerUp={isOwner} storeId={storeId} setMsg={setMsg} reload={reload} />}{/* ★裁定269-4: compBackTab */}
         </div>
+        <SecSave title="歩合・バック" keys={["honBack", "jonaiBack", "dohanBack", "honMode", "honRate", "jonaiMode", "jonaiRate", ...PB_KEYS]} section="各種バック" />
       </section>)}
 
       {/* ── ④ スライド・ポイント ── */}
@@ -585,6 +596,7 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
           <Prep k="point_rules" /><Prep k="gross_profit_slide" /><Prep k="slide_ratio_col" />
         </div>
+        <SecSave title="スライド・ポイント" keys={["salesSlide", "pointSlide", "slidePeriod", "slideApply"]} section="スライド" />
       </section>)}
 
       {/* ── ⑤ 達成ボーナス ── */}

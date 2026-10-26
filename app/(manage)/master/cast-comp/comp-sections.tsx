@@ -438,8 +438,10 @@ export function PlanTab({ plans, isOwner, storeId, setMsg, reload }: { plans: Pl
             <SlideInput label="ポイントスライド" slide={pointSlide} setSlide={setPointSlide} />
           </div>
           <label style={{ fontSize: 12 }}><input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} /> 有効</label>
-          <button style={btnDark} onClick={save}>{id ? "更新" : "登録"}</button>
-          {id && <button style={btnLight} onClick={() => { setId(null); setName(""); }}>新規に戻す</button>}
+          <div className="nox-actions" style={{ flexBasis: "100%", width: "100%" }}>{/* ★便 BTN（裁定242）: 主ボタン（＋補助）は行の中央 */}
+            <button style={btnDark} onClick={save}>{id ? "更新" : "登録"}</button>
+            {id && <button style={btnLight} onClick={() => { setId(null); setName(""); }}>新規に戻す</button>}
+          </div>
         </div>
       ) : <p style={note}>プランの編集はオーナーのみ可能です（閲覧のみ）。</p>}
       {/* ── ★C1 §6-4（mig0115）: 追加コンポーネント＝選択中プランに付く行型（guarantee_min/achievement_bonus） ── */}
@@ -479,8 +481,10 @@ export function PlanTab({ plans, isOwner, storeId, setMsg, reload }: { plans: Pl
               <span style={note}>{cKind === "guarantee_min" ? "判定単位: 月（固定）" : "1 段目の加算額（多段の編集はプラン編集の「達成ボーナス」）"}</span>
               <label style={{ fontSize: 12 }}>priority <input type="number" value={cPriority} onChange={(e) => setCPriority(Number(e.target.value))} style={{ ...input, width: 70 }} /></label>
               <label style={{ fontSize: 12 }}><input type="checkbox" checked={cActive} onChange={(e) => setCActive(e.target.checked)} /> 有効</label>
-              <button style={btnDark} onClick={() => void saveComp()}>{cId ? "更新" : "追加"}</button>
-              {cId && <button style={btnLight} onClick={() => { setCId(null); setCAmount(0); setCPriority(100); setCActive(true); }}>追加に戻す</button>}
+              <div className="nox-actions" style={{ flexBasis: "100%", width: "100%" }}>{/* ★便 BTN（裁定242）: 主ボタン（＋補助）は行の中央 */}
+                <button style={btnDark} onClick={() => void saveComp()}>{cId ? "更新" : "追加"}</button>
+                {cId && <button style={btnLight} onClick={() => { setCId(null); setCAmount(0); setCPriority(100); setCActive(true); }}>追加に戻す</button>}
+              </div>
             </div>
           )}
         </div>
@@ -868,7 +872,7 @@ export function NormTab({ casts, norms, isManagerUp, setMsg, reload, plans = [],
       <table className="nox-table nox-normtable nox-rtable" style={{ marginBottom: 10 }}>
         <thead><tr>
           {isManagerUp && <th style={{ width: 34 }}><input type="checkbox" checked={allOn} onChange={toggleAll} aria-label="全員を選択" disabled={busy} /></th>}
-          {["キャスト", "期間", ...axisCols.map((k) => `${NORM_AXIS_LABEL[k]}(${NORM_AXIS_UNIT[k]})`)].map((h) => <th key={h}>{h}</th>)}{/* ★裁定347: 採用軸だけ */}
+          <th>キャスト</th>{["期間", ...axisCols.map((k) => `${NORM_AXIS_LABEL[k]}(${NORM_AXIS_UNIT[k]})`)].map((h) => <th key={h} className="num" data-norm-head={h}>{h}</th>)}{/* ★便 BTN ③: 値（td.num＝右揃え）と見出しを同じ揃えに */}{/* ★裁定347: 採用軸だけ */}
         </tr></thead>
         <tbody>
           {casts.map((c) => { const n = normOf(c.id); const r = resolvedOf(c.id, n); return (
@@ -894,7 +898,9 @@ export function NormTab({ casts, norms, isManagerUp, setMsg, reload, plans = [],
               {axes.dohan && <label style={{ fontSize: 12 }}>同伴(回) {cell("dohan", bulk.dohan)}</label>}
               {axes.sales && <label style={{ fontSize: 12 }}>売上(円) {cell("sales", bulk.sales)}</label>}
               {axes.shimei && <label style={{ fontSize: 12 }}>指名(回) {cell("shimei", bulk.shimei)}</label>}
-              <button style={btnDark} onClick={() => void saveBulk()} disabled={busy || picked.size === 0 || !period || !anyInput}>選択した {picked.size} 人にまとめて入力</button>
+            </div>
+            <div className="nox-actions" style={{ marginTop: 8 }}>{/* ★便 BTN（今回の指摘）: まとめて入力は入力欄の下の中央 */}
+              <button style={btnDark} onClick={() => void saveBulk()} disabled={busy || picked.size === 0 || !period || !anyInput} data-norm-bulk-save="1">選択した {picked.size} 人にまとめて入力</button>
             </div>
             <p style={{ ...note, marginTop: 6 }}>空欄の項目は変えません（その人の現在値のまま）。表の行をタップして選択します。</p>
           </div>
@@ -980,8 +986,10 @@ export function DeductionTab({ deductions, isManagerUp, storeId, setMsg, reload,
             <SegSelect value={per} onChange={(v) => setPer(v)}
               options={[["day", "日ごと"], ["month", "月ごと"], ["rate", "売上%"]] as const} />
             <label style={{ fontSize: 12 }}><input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} /> 有効</label>
-            <button style={btnDark} onClick={save}>{id ? "更新" : "登録"}</button>
-            {id && <button style={btnLight} onClick={resetForm}>新規に戻す</button>}
+            <div className="nox-actions" style={{ flexBasis: "100%", width: "100%" }}>{/* ★便 BTN（裁定242）: 主ボタン（＋補助）は行の中央 */}
+              <button style={btnDark} onClick={save}>{id ? "更新" : "登録"}</button>
+              {id && <button style={btnLight} onClick={resetForm}>新規に戻す</button>}
+            </div>
           </div>
           {kind === "sanction" && (
             <div style={{ marginTop: 10, padding: "10px 12px", border: "1px solid var(--bad)", borderRadius: 8, fontSize: 12.5 }}>
@@ -1083,7 +1091,9 @@ export function PenaltyTab({ penalty, setPenalty, exists, isOwner, storeId, setM
               </div>
             );
           })}
-          <button style={btnDark} onClick={save}>保存</button>
+          <div className="nox-actions" style={{ flexBasis: "100%", width: "100%" }}>{/* ★便 BTN（裁定242）: 主ボタン（＋補助）は行の中央 */}
+            <button style={btnDark} onClick={save}>保存</button>
+          </div>
         </div>
       ) : (
         <div style={{ fontSize: 12, color: "var(--ink)" }}>
@@ -1175,8 +1185,10 @@ export function BackTab({ backs, isManagerUp, storeId, setMsg, reload }: { backs
             </>
           )}
           <label style={{ fontSize: 12 }}><input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} /> 有効</label>
-          <button style={btnDark} onClick={save}>{id ? "更新" : "登録"}</button>
-          {id && <button style={btnLight} onClick={() => { setId(null); setName(""); }}>新規に戻す</button>}
+          <div className="nox-actions" style={{ flexBasis: "100%", width: "100%" }}>{/* ★便 BTN（裁定242）: 主ボタン（＋補助）は行の中央 */}
+            <button style={btnDark} onClick={save}>{id ? "更新" : "登録"}</button>
+            {id && <button style={btnLight} onClick={() => { setId(null); setName(""); }}>新規に戻す</button>}
+          </div>
         </div>
       ) : <p style={note}>自由バックはマネージャー以上のみ可能です。</p>}
     </div>
