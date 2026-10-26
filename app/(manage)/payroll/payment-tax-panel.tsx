@@ -9,6 +9,7 @@ import { useCallback, useEffect, useState } from "react";
 import { fmtMD, fmtPeriodYM } from "@/lib/nox/payroll/view"; // ★N3 AV-1（2026-09-24）: 日付は M/D・期は YYYY/M
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
+import { mig0186On } from "@/lib/nox/rules-0175/flag"; // ★便 W-10 #22（0186）
 
 import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 type Row = {
@@ -57,7 +58,7 @@ export default function PaymentTaxPanel({ hasUnpaidFinalized }: { hasUnpaidFinal
 
   async function record(r: Row) {
     const on = paidOn[keyOf(r)] || todayJst;
-    if (!confirm(`${r.target_month} の「${CAT_LABEL[r.tax_category] ?? r.tax_category}」を ${on} に納付済みとして記録します。よろしいですか？\n（取消機能は未実装です）`)) return;
+    if (!confirm(`${r.target_month} の「${CAT_LABEL[r.tax_category] ?? r.tax_category}」を ${on} に納付済みとして記録します。よろしいですか？`)) return;
     setBusy(true); setMsg("");
     const { error } = await supabase.rpc("withholding_payment_record", {
       p_target_month: r.target_month, p_tax_category: r.tax_category, p_paid_on: on,
@@ -69,6 +70,17 @@ export default function PaymentTaxPanel({ hasUnpaidFinalized }: { hasUnpaidFinal
   }
 
   const overdue = (r: Row) => !r.paid_on && r.deadline < todayJst;
+  // ★便 W-10 #22（0186＝フラグ配下）: 納付記録の取消（owner・理由必須・audit に元の行）
+  async function cancelRecord(r: Row) {
+    const reason = window.prompt(`${r.target_month} の「${CAT_LABEL[r.tax_category] ?? r.tax_category}」の納付記録を取り消します。理由を入れてください（必須）`);
+    if (reason === null) return;
+    if (!reason.trim()) { setMsg("取消の理由を入れてください"); return; }
+    setBusy(true); setMsg("");
+    const { error } = await supabase.rpc("withholding_payment_cancel", { p_target_month: r.target_month, p_tax_category: r.tax_category, p_reason: reason.trim() });
+    setMsg(error ? (/forbidden/.test(error.message) ? "取消はオーナーのみです" : `取消に失敗: ${error.message}`) : "納付記録を取り消しました");
+    setBusy(false);
+    if (!error) await load();
+  }
 
   return (
     <section className="nox-cardtop" style={{ ...t.card, marginTop: 18 }}>
@@ -131,7 +143,8 @@ export default function PaymentTaxPanel({ hasUnpaidFinalized }: { hasUnpaidFinal
                           税区分が未凍結です。給与を解除して再確定すると区分が記録され、納付を記録できます。
                         </span>
                       ) : r.paid_on ? (
-                        <span style={{ color: "var(--ok)" }} title={r.paid_on}>納付済み（{fmtMD(r.paid_on)}）</span>
+                        <span style={{ display: "inline-flex", gap: 6, alignItems: "center" }}><span style={{ color: "var(--ok)" }} title={r.paid_on}>納付済み（{fmtMD(r.paid_on)}）</span>
+                          {mig0186On() && <button type="button" onClick={() => void cancelRecord(r)} disabled={busy} style={{ ...t.btnGhost, ...t.btnSm }} data-wh-pay-cancel={keyOf(r)}>取消</button>}</span>
                       ) : (
                         <span style={{ display: "flex", gap: 6, alignItems: "center" }}>
                           <input type="date" value={paidOn[keyOf(r)] ?? todayJst}
@@ -150,7 +163,7 @@ export default function PaymentTaxPanel({ hasUnpaidFinalized }: { hasUnpaidFinal
       )}
       <p style={{ fontSize: 11, color: "var(--sub)", margin: "8px 0 0" }}>
         ※ 納期の特例（半年分をまとめて納付）はホステス等の報酬には適用されません（翌月10日納付）。
-        期限が土日祝のときの順延は表示していません。記録の取消は未実装です。
+        期限が土日祝のときの順延は表示していません。{mig0186On() ? "記録の取消は行の「取消」から（理由を残します）。" : ""}
       </p>
     </section>
   );

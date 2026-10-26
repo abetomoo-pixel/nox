@@ -1811,14 +1811,6 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
               round_unit: store.round_unit, round_mode: store.round_mode,
             }} />
           </div>
-          <div className="nox-listrow nox-setrow" style={{ opacity: 0.55 }}>
-            <span style={{ flex: 1, minWidth: 0 }}>
-              値引きを税計算前に適用
-              <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)" }}>切替は準備中です。</span>
-            </span>
-            <button type="button" className="nox-switch" disabled aria-disabled><i /></button>
-            <span className="nox-stpill">準備中</span>
-          </div>
         </section>
 
         {/* ④ 確認・権限（列が無い＝器のみ） */}
@@ -1839,23 +1831,11 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
             <b>常に表示</b>
             <span className="nox-stpill">固定</span>
           </div>
-          <div className="nox-listrow nox-setrow" style={{ opacity: 0.55 }}>
-            <span style={{ flex: 1, minWidth: 0 }}>
-              締め後の伝票修正
-              <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)" }}>権限の切替は準備中です。</span>
-            </span>
-            <div className="nox-seg">
-              <button disabled>許可しない</button>
-              <button disabled>管理者のみ</button>
-              <button disabled>すべて許可</button>
-            </div>
-            <span className="nox-stpill">準備中</span>
-          </div>
           <div className="nox-listrow nox-setrow">
             <span style={{ flex: 1, minWidth: 0 }}>
               監査ログ
               <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)" }}>
-                料金・伝票の変更履歴は全件記録されます（保存期間の設定は準備中）。履歴は「操作履歴」画面で確認できます。
+                料金・伝票の変更履歴は全件記録されます（削除していません）。履歴は「操作履歴」画面で確認できます。
               </span>
             </span>
             <a href="/audit" className="nox-link">操作履歴を見る</a>
@@ -1946,7 +1926,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
             <SegSelect value={mTax} onChange={(v) => setMTax(v)}
               options={[["taxable_10", "課税10%"], ["exempt", "非課税"], ["out_of_scope", "不課税"]] as const} />
             <span className="hint">
-              通常の料金は課税10%です。非課税・不課税は取引の性質で決まる場合のみ選択してください（軽減税率8%は準備中）。
+              通常の料金は課税10%です。非課税・不課税は取引の性質で決まる場合のみ選択してください。
             </span>
           </div>
 

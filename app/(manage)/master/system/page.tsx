@@ -159,11 +159,6 @@ export default async function MasterSystemPage() {
           <div className="nox-kpi2-v num" style={{ fontSize: 18 }}>{printerOn ? "有効" : "無効"}</div>
           <div className="nox-kpi2-s">{printerOn ? "レシート印刷が使えます" : "レシート印刷は使いません"}</div>
         </div>
-        <div className="nox-kpi2">
-          <div className="nox-kpi2-l">要確認</div>
-          <div className="nox-kpi2-v num">—</div>
-          <div className="nox-kpi2-s">準備中</div>
-        </div>
       </div>
       <SystemBoard tabs={tabs} />
     </div>

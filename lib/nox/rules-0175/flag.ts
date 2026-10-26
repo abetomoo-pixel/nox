@@ -33,3 +33,8 @@ export const MIG_0185_APPLIED = false;
 let override0185: boolean | null = null;
 export function mig0185On(): boolean { return override0185 ?? MIG_0185_APPLIED; }
 export function __set0185ForTest(v: boolean | null): void { override0185 = v; }
+/** ★便 W-10（2026-10-26）: 0186（特別日・既定に従うへ戻す・納付記録の取消・監査ログの出力の記録）を Agoora が手貼りしたら true。false の間はその 4 つの入口を出さない（準備中の表示もしない） */
+export const MIG_0186_APPLIED = false;
+let override0186: boolean | null = null;
+export function mig0186On(): boolean { return override0186 ?? MIG_0186_APPLIED; }
+export function __set0186ForTest(v: boolean | null): void { override0186 = v; }

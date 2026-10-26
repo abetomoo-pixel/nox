@@ -11,6 +11,8 @@ import { bizDateOf, addDays } from "@/lib/nox/biz-date";
 import * as t from "@/lib/nox/ui/theme";
 import Toast from "@/components/ui/toast";
 import Modal from "@/components/ui/modal";
+import Link from "next/link";
+import { noticeLineResultOf } from "@/lib/nox/line/notice-line"; // ★便 W-10 #21
 
 type Notice = {
   id: string; title: string; body: string; audience: string;
@@ -73,7 +75,6 @@ const TEMPLATES: Array<{ key: string; label: string; title: string; body: string
 //   ★この扱いは教訓25（実体のない段を描かない）と矛盾しない: 段（状態遷移）は作らず、
 //     器（置き場）だけをモックの位置に置き、**準備中と明記して押せなくする**＝
 //     「押しても何も起きない」を作らない。実装が入ったら disabled を外す1箇所で開通する。
-const SOON = "準備中";
 // モックのカテゴリ5種（notices に category 列が無い＝表示のみ・選ばせない）
 const CATEGORIES = ["店舗連絡", "シフト", "給与", "緊急", "システム"];
 
@@ -119,6 +120,9 @@ export default function NoticesBoard({ isManagerUp, audienceCounts, storeName, c
   const [fAud, setFAud] = useState("all");
   const [fPinned, setFPinned] = useState(false);
   const [fUntilSeg, setFUntilSeg] = useState(0);
+  const [fLine, setFLine] = useState(false); // ★便 W-10 #21: 掲載と同時に LINE で送る（連携している人だけ）
+  const [lineLinked, setLineLinked] = useState<number | null>(null); // ★便 W-10 #21: LINE 連携の人数（line_links・店長以上の RLS）
+  useEffect(() => { void (async () => { const { count } = await createClient().from("line_links").select("id", { count: "exact", head: true }); setLineLinked(count ?? 0); })(); }, []);
   // 編集（inline・until は date 入力で任意値を保持）
   // ★DP3 P1（裁定 DP3-①・E8 notices#8）: 一覧の検索。**client フィルタのみ**＝取得は不変。
   const [q, setQ] = useState("");
@@ -144,13 +148,19 @@ export default function NoticesBoard({ isManagerUp, audienceCounts, storeName, c
 
   async function post() {
     setMsg(null); setBusy(true);
-    const { error } = await supabase.rpc("notice_create", {
+    const { data: newId, error } = await supabase.rpc("notice_create", {
       p_title: fTitle, p_body: fBody, p_audience: fAud, p_pinned: fPinned, p_until: untilFromSeg(fUntilSeg),
     });
+    if (error) { setBusy(false); setMsg(`投稿に失敗: ${rpcErrJa(error.message)}`); return; }
+    let lineMsg = "";
+    if (fLine && typeof newId === "string") { // ★便 W-10 #21: 掲載の後に LINE（失敗しても掲載は残る）
+      const res = await fetch("/api/line/notice", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ noticeId: newId }) });
+      const j = (await res.json().catch(() => ({}))) as { recipients?: number; sent?: number; failed?: number; skipped?: number; demo?: boolean; error?: string };
+      lineMsg = res.ok ? `・${noticeLineResultOf({ recipients: j.recipients ?? 0, sent: j.sent ?? 0, failed: j.failed ?? 0, skipped: j.skipped ?? 0, demo: j.demo })}` : `・LINE は送れませんでした（${j.error ?? res.status}）`;
+    }
     setBusy(false);
-    if (error) { setMsg(`投稿に失敗: ${rpcErrJa(error.message)}`); return; }
-    setMsg("お知らせを投稿しました");
-    setFTitle(""); setFBody(""); setFAud("all"); setFPinned(false); setFUntilSeg(0);
+    setMsg(`お知らせを投稿しました${lineMsg}`);
+    setFTitle(""); setFBody(""); setFAud("all"); setFPinned(false); setFUntilSeg(0); setFLine(false);
     await load();
   }
 
@@ -227,23 +237,21 @@ export default function NoticesBoard({ isManagerUp, audienceCounts, storeName, c
         desc="店舗の連絡をスタッフ・キャストのマイページに掲載します。" />
       <Toast msg={msg} />
 
-      {/* ★DP-R: モック冒頭の案内帯（LINE を基本に配信・連携管理への導線）。
-          LINE 連携そのものが未実装＝ボタンは押せない状態で置く（準備中と明記）。 */}
+      {/* ★DP-R: モック冒頭の案内帯（LINE を基本に配信・連携管理への導線）。★便 W-10 #21: LINE 連携は店舗設定の LINE 連携タブ（0176）＝導線を結ぶ */}
       <div className="nox-alert" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
         <span>
           お知らせはこの画面に掲載され、スタッフ・キャストのマイページに表示されます。
-          <b>LINE 通知とメール送信は{SOON}です</b>（掲載は今すぐ使えます）。
+          LINE を連携している人には「LINE 通知を送る」で掲載と同時に送れます。
         </span>
-        <button style={{ ...btnLight, opacity: 0.45 }} disabled title={`LINE 連携は${SOON}です`}>LINE連携を管理</button>
+        <Link href="/master/store-profile?tab=line" style={{ ...btnLight, textDecoration: "none" }}>LINE連携を管理</Link>
       </div>
 
-      {/* ★DP-R: KPI 帯4枚＝モック逐語の並び（LINE連携／今月の配信／平均既読率／未連携）。
-          出せるのは「今月の配信」だけ＝**残り3枚は「—」＋準備中**で置く（器は作るが数字は作らない）。 */}
+      {/* ★DP-R: KPI 帯＝LINE連携／今月の配信／未連携。★便 W-10 #21: 連携と未連携は line_links から（平均既読率は既読の記録が無い＝出さない） */}
       <div className="nox-kpirow">
         <div className="nox-kpi2">
           <div className="nox-kpi2-l">LINE連携</div>
-          <div className="nox-kpi2-v num">—</div>
-          <div className="nox-kpi2-s">{SOON}</div>
+          <div className="nox-kpi2-v num">{lineLinked ?? "—"}<small>人</small></div>
+          <div className="nox-kpi2-s">店舗設定 › LINE 連携</div>
         </div>
         <div className="nox-kpi2">
           <div className="nox-kpi2-l">今月の配信</div>
@@ -251,14 +259,9 @@ export default function NoticesBoard({ isManagerUp, audienceCounts, storeName, c
           <div className="nox-kpi2-s">前月 {postedPrev}件</div>
         </div>
         <div className="nox-kpi2">
-          <div className="nox-kpi2-l">平均既読率</div>
-          <div className="nox-kpi2-v num">—</div>
-          <div className="nox-kpi2-s">{SOON}</div>
-        </div>
-        <div className="nox-kpi2">
           <div className="nox-kpi2-l">未連携</div>
-          <div className="nox-kpi2-v num">—</div>
-          <div className="nox-kpi2-s">{SOON}</div>
+          <div className="nox-kpi2-v num">{lineLinked !== null && typeof cntAll === "number" ? Math.max(0, cntAll - lineLinked) : "—"}<small>人</small></div>
+          <div className="nox-kpi2-s">在籍のキャスト・スタッフのうち</div>
         </div>
       </div>
 
@@ -271,14 +274,7 @@ export default function NoticesBoard({ isManagerUp, audienceCounts, storeName, c
           <p style={{ fontSize: 11.5, color: "var(--v2-muted)", margin: "-4px 0 10px" }}>
             配信前に対象とプレビューを確認できます。
           </p>
-          {/* カテゴリ＝モックに在るが notices に列が無い＝選ばせない（準備中） */}
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
-            <span style={t.fieldLabel}>カテゴリ</span>
-            <span className="nox-chip" style={{ opacity: 0.5 }}>{SOON}</span>
-            {CATEGORIES.map((c) => (
-              <span key={c} className="nox-chip" style={{ opacity: 0.35 }}>{c}</span>
-            ))}
-          </div>
+          {/* ★便 W-10: カテゴリ（notices に列が無い）は出さない */}
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {/* ★DP3 P1: 定型文（定数のみ・選ぶと件名/本文を流し込むだけ＝RPC も引数も不変） */}
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
@@ -361,33 +357,14 @@ export default function NoticesBoard({ isManagerUp, audienceCounts, storeName, c
                 <button key={v} style={v === fUntilSeg ? btnDark : btnLight} onClick={() => setFUntilSeg(v)}>{l}</button>
               ))}
             </div>
-            {/* ★DP-R: 通知方法（モック .methods）＝LINE/メールとも実装が無い＝チェックできない状態で置く。
-                「お知らせ一覧の先頭に固定」だけは pinned 列があるので**上のピン留めが実体**＝ここには重ねない。 */}
+            {/* ★便 W-10 #21: 通知方法＝LINE（連携している人だけ・掲載と同時）。メール・確認回答・予約掲載・下書きは器が無い＝出さない */}
             <div>
               <span style={t.fieldLabel}>通知方法</span>
               <div style={{ display: "grid", gap: 6, marginTop: 6 }}>
-                <label style={{ ...chkLabel, opacity: 0.5, cursor: "not-allowed" }}>
-                  <input type="checkbox" checked={false} disabled readOnly />
-                  LINE通知を送る<span style={{ fontSize: 10.5, color: "var(--v2-muted)", marginLeft: 6 }}>（{SOON}）</span>
+                <label style={chkLabel}>
+                  <input type="checkbox" checked={fLine} onChange={(e) => setFLine(e.target.checked)} data-notice-line="1" />
+                  LINE通知を送る<span style={{ fontSize: 10.5, color: "var(--v2-muted)", marginLeft: 6 }}>（連携 {lineLinked ?? "—"} 人・掲載と同時）</span>
                 </label>
-                <label style={{ ...chkLabel, opacity: 0.5, cursor: "not-allowed" }}>
-                  <input type="checkbox" checked={false} disabled readOnly />
-                  スタッフへメールも送信<span style={{ fontSize: 10.5, color: "var(--v2-muted)", marginLeft: 6 }}>（{SOON}）</span>
-                </label>
-                <label style={{ ...chkLabel, opacity: 0.5, cursor: "not-allowed" }}>
-                  <input type="checkbox" checked={false} disabled readOnly />
-                  「確認しました」の回答を求める<span style={{ fontSize: 10.5, color: "var(--v2-muted)", marginLeft: 6 }}>（{SOON}）</span>
-                </label>
-              </div>
-            </div>
-            {/* ★DP-R: 配信タイミング（モック .timing）＝notices に status も配信予約も無い。
-                実体があるのは「今すぐ掲載」だけ＝それだけを選択済み固定で見せ、他は押せない。 */}
-            <div>
-              <span style={t.fieldLabel}>掲載タイミング</span>
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
-                <button type="button" style={btnDark} aria-pressed>今すぐ掲載</button>
-                <button type="button" style={{ ...btnLight, opacity: 0.45 }} disabled title={`予約掲載は${SOON}です`}>日時を予約（{SOON}）</button>
-                <button type="button" style={{ ...btnLight, opacity: 0.45 }} disabled title={`下書き保存は${SOON}です`}>下書き保存（{SOON}）</button>
               </div>
             </div>
             <div className="nox-actions" style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
@@ -407,7 +384,7 @@ export default function NoticesBoard({ isManagerUp, audienceCounts, storeName, c
           <section className="nox-panel">
             <h3>LINEプレビュー</h3>
             <p style={{ fontSize: 11.5, color: "var(--v2-muted)", margin: "-4px 0 10px" }}>
-              受信者に表示されるイメージです。<b>実際の送信は{SOON}</b>＝この画面から LINE は送られません。
+              受信者に表示されるイメージです。「LINE通知を送る」にすると、掲載と同時に連携している人へ送ります。
             </p>
             {/* モック .bubble（白背景の吹き出し）＝配色は固定値でよい＝LINE 画面の再現だから */}
             <div style={{ background: "#0d0d0c", border: "1px solid var(--line)", borderRadius: 10, padding: 12 }}>
@@ -451,7 +428,7 @@ export default function NoticesBoard({ isManagerUp, audienceCounts, storeName, c
       <section className="nox-panel">
         <h3>お知らせ一覧</h3>
         <p style={{ fontSize: 11.5, color: "var(--v2-muted)", margin: "-4px 0 10px" }}>
-          掲載中のお知らせ。既読・確認回答の追跡は{SOON}です。
+          掲載中のお知らせ。
         </p>
         {/* ★DP3 P1（E8 notices#8）: 検索＝取得済み rows の client フィルタのみ（取得も RLS も不変）。
             ★DP-R: モックのフィルタは「すべて／配信済み／予約／下書き」だが notices に status が無い＝
@@ -525,12 +502,6 @@ export default function NoticesBoard({ isManagerUp, audienceCounts, storeName, c
             </div>
             <p className="nox-nbody">{n.body}</p>
             {n.until && <p className="num" style={{ fontSize: 11, color: "var(--v2-muted)", margin: "3px 0 0" }}>掲載期限 {n.until}</p>}
-            {/* ★DP-R: モック一覧行の「既読 10/10名・確認済み 9/10名」＝**既読ログが無い**（notices 1テーブルのみ）。
-                器だけ同じ位置に置き、値は「—」＝数字を作らない。 */}
-            <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "3px 0 0" }}>
-              既読 <span className="num">—</span> ・ 確認済み <span className="num">—</span>
-              <span style={{ marginLeft: 6 }}>（{SOON}）</span>
-            </p>
             {isManagerUp && (
               <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
                 <button style={btnLight} onClick={() => startEdit(n)}>編集</button>
@@ -555,9 +526,7 @@ export default function NoticesBoard({ isManagerUp, audienceCounts, storeName, c
             <div className="nox-listrow"><span style={{ flex: 1 }}>掲載期限</span>
               <b className="num">{fUntilSeg === 0 ? "期限なし" : addDays(bizToday, fUntilSeg)}</b></div>
             <div className="nox-listrow"><span style={{ flex: 1 }}>ピン留め</span><b>{fPinned ? "する" : "しない"}</b></div>
-            <div className="nox-listrow" style={{ opacity: 0.6 }}>
-              <span style={{ flex: 1 }}>LINE通知 / メール</span><b>{SOON}（送信しません）</b>
-            </div>
+            <div className="nox-listrow"><span style={{ flex: 1 }}>LINE通知</span><b>{fLine ? `送る（連携 ${lineLinked ?? "—"} 人）` : "送らない"}</b></div>
             <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "8px 0 0", lineHeight: 1.7 }}>
               掲載すると、対象のマイページとこの一覧に表示されます。オーナー・店長は公開範囲にかかわらず閲覧できます。
             </p>

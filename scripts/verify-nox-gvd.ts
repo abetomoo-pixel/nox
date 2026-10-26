@@ -10,7 +10,7 @@ const check = (label: string, ok: boolean, detail?: unknown) => { if (ok) pass++
 const src = (p: string) => fs.readFileSync(p, "utf8");
 const css = src("app/globals.css");
 
-check("gvd(1) #1 給与 390 の期ヘッダー＝締め／計算基準／暫定の 3 つに data-payroll-headtag・600px 以下は折り返す", (src("app/(manage)/payroll/payroll-board.tsx").match(/data-payroll-headtag="1"/g) ?? []).length === 3 && css.includes("[data-payroll-headtag] { white-space: normal !important; max-width: 100%; }"));
+check("gvd(1) #1 給与 390 の期ヘッダー＝締め／計算基準／暫定の 3 つに data-payroll-headtag・600px 以下は折り返す", (src("app/(manage)/payroll/payroll-board.tsx").match(/data-payroll-headtag="1"/g) ?? []).length === 3 && css.includes("[data-payroll-headtag] { white-space: normal !important; max-width: 100%; flex: 0 1 auto; }") && css.includes("section:has(> [data-payroll-headtag]) { flex-wrap: wrap; }"));
 check("gvd(2) #2 日報の追加 KPI＝列数は class（店長 3 列・オーナー 4 列）・641px 以下は 2 列", src("app/(manage)/report/report-board.tsx").includes('<div className={`nox-repsum${isOwner ? "" : " three"}`} data-repsum-extra="1">') && css.includes(".nox-repsum.three { grid-template-columns: repeat(3, 1fr); }") && css.includes(".nox-repsum.three { grid-template-columns: repeat(2, 1fr); } }"));
 check("gvd(3) #3 シフト今日の「退勤」＝min-height 40", src("app/(manage)/shift/shift-board.tsx").includes('<button type="button" data-gvd-out="1" style={{ ...btnDark, padding: "4px 12px", fontSize: 12, minHeight: 40, opacity: outOn ? 1 : 0.5 }}'));
 check("gvd(5) #5 セグメント＝600px 以下は min-height 40（button／a とも中央）", css.includes(".nox-seg button, .nox-seg a { min-height: 40px; display: inline-flex; align-items: center; justify-content: center; }"));

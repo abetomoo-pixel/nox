@@ -16,6 +16,7 @@ import SegSelect from "@/components/ui/seg-select";
 import { FieldStack, ResponsiveTable } from "@/components/ui/responsive-kit"; // ★裁定382（GV-B W-1）
 
 import { Message } from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
+import { mig0186On } from "@/lib/nox/rules-0175/flag"; // ★便 W-10 #15（0186）
 type Store = { id: string; name: string };
 type FlagRow = { id: string; store_id: string | null; key: string; enabled: boolean; updated_at: string };
 
@@ -57,6 +58,17 @@ export default function FeatureFlagsPanel({ stores }: { stores: Store[] }) {
   const orgRow = (key: string) => rows.find((r) => r.key === key && r.store_id === null) ?? null;
   const storeRow = (key: string, storeId: string) => rows.find((r) => r.key === key && r.store_id === storeId) ?? null;
 
+  // ★便 W-10 #15（0186）: 店の上書きを消して会社の既定に従う（flag_unset・audit flag_unset）
+  async function unsetFlag(key: string, storeId: string, label: string) {
+    if (busy) return;
+    setBusy(true); setMsg(null);
+    const { error } = await supabase.rpc("flag_unset", { p_key: key, p_store_id: storeId, p_reason: reason.trim() === "" ? null : reason.trim() });
+    setBusy(false);
+    if (error) { setMsg({ kind: "bad", text: `変更に失敗: ${errJa(error.message)}` }); return; }
+    setMsg({ kind: "ok", text: `${label}を「既定に従う」に戻しました（監査に記録されます）` });
+    setReason("");
+    await load();
+  }
   async function setFlag(key: string, storeId: string | null, enabled: boolean, label: string) {
     if (busy) return;
     setBusy(true); setMsg(null);
@@ -74,7 +86,7 @@ export default function FeatureFlagsPanel({ stores }: { stores: Store[] }) {
     <section className="nox-cardtop" style={card}>
       <h3 style={h3}>機能の公開</h3>
       <p style={sub}>
-        会社の既定を決め、店舗ごとに上書きできます。OFF の機能は導線ごと表示されません（準備中表示にはなりません）。
+        会社の既定を決め、店舗ごとに上書きできます。OFF の機能は導線ごと表示されません。
         切替は操作履歴に記録されます。
       </p>
       {loadErr && <Message kind="error" style={{ margin: "0 0 10px" }}>{loadErr}</Message>}
@@ -107,8 +119,8 @@ export default function FeatureFlagsPanel({ stores }: { stores: Store[] }) {
                     const val = r === null ? "inherit" : r.enabled ? "on" : "off";
                     return (
                       <td key={s.id}>
-                        <OnOffSeg threeWay inherited={orgOn} value={val === "inherit" ? "inherit" : val === "on"} ariaLabel={`${k.label} ${s.name}`} disabled={busy}
-                          onChange={(v) => { if (v !== "inherit") void setFlag(k.key, s.id, v === true, `${k.label}（${s.name}）`); }} />{/* ★便 GV-C C-9（GV-52）: 3 値も同じ塗り */}
+                        <OnOffSeg threeWay={mig0186On() || r === null} inherited={orgOn} value={val === "inherit" ? "inherit" : val === "on"} ariaLabel={`${k.label} ${s.name}`} disabled={busy}
+                          onChange={(v) => { if (v === "inherit") { if (r !== null && mig0186On()) void unsetFlag(k.key, s.id, `${k.label}（${s.name}）`); } else void setFlag(k.key, s.id, v === true, `${k.label}（${s.name}）`); }} />{/* ★便 W-10 #15: 「既定に従う」へ戻す＝flag_unset（0186）。フラグ false の間は上書き中の店に 3 択を出さない */}{/* ★便 GV-C C-9（GV-52）: 3 値も同じ塗り */}
                         {r !== null && (
                           <div style={{ fontSize: 10.5, color: "var(--v2-muted)", marginTop: 2 }}>
                             上書き中（既定 {orgOn ? "ON" : "OFF"}）
@@ -130,8 +142,7 @@ export default function FeatureFlagsPanel({ stores }: { stores: Store[] }) {
       </div>
       {msg && <Message kind={msg.kind === "ok" ? "success" : "error"} style={{ margin: "10px 0 0" }}>{msg.text}</Message>}{/* ★裁定281（便 AB） */}
       <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "10px 0 0", lineHeight: 1.7 }}>
-        ※店舗の上書きは ON／OFF のみです（一度上書きした店舗を「既定に従う」へ戻す操作は準備中）。
-        ※QR 注文・通知の公開設定は準備中のため表示していません。
+        {mig0186On() ? "※店舗の上書きは「既定に従う」を選ぶと会社の既定に戻ります。" : "※店舗の上書きは ON／OFF です。"}
       </p>
     </section>
   );

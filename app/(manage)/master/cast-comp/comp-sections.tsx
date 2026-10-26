@@ -44,6 +44,7 @@ export type Plan = {
   // mig0086: 率バック方式（hon/jonai 独立・rate 中も円/本値は保持＝裁定v）
   hon_back_mode: BackModeRow; hon_back_rate: number | null;
   jonai_back_mode: BackModeRow; jonai_back_rate: number | null;
+  dohan_back_mode?: BackModeRow | null; dohan_back_rate?: number | null; // ★便 W-10 #12（0175 で率を解錠）
   product_back_mode?: ProductBackMode | null; product_back_rate?: number | null; product_back_fixed?: number | null;
   product_back_fixed_hon?: number | null; product_back_fixed_jonai?: number | null; product_back_fixed_free?: number | null; // ★0153（296 追補2／305-12）: 区分別固定額（null＝一律）
 };
@@ -303,6 +304,8 @@ export function PlanTab({ plans, isOwner, storeId, setMsg, reload }: { plans: Pl
   const [honRate, setHonRate] = useState(0);
   const [jonaiMode, setJonaiMode] = useState<BackModeRow>("per_count");
   const [jonaiRate, setJonaiRate] = useState(0);
+  const [dohanMode, setDohanMode] = useState<BackModeRow>("per_count"); // ★便 W-10 #12
+  const [dohanRate, setDohanRate] = useState(0);
   const [salesSlide, setSalesSlide] = useState<Slide[]>([]);
   const [pointSlide, setPointSlide] = useState<Slide[]>([]);
   const [active, setActive] = useState(true);
@@ -330,6 +333,7 @@ export function PlanTab({ plans, isOwner, storeId, setMsg, reload }: { plans: Pl
     setJonaiBack(p.jonai_back); setDohanBack(p.dohan_back);
     setHonMode(p.hon_back_mode ?? "per_count"); setHonRate(p.hon_back_rate ?? 0);
     setJonaiMode(p.jonai_back_mode ?? "per_count"); setJonaiRate(p.jonai_back_rate ?? 0);
+    setDohanMode(p.dohan_back_mode ?? "per_count"); setDohanRate(p.dohan_back_rate ?? 0); // ★便 W-10 #12
     setSalesSlide(p.sales_slide ?? []); setPointSlide(p.point_slide ?? []); setActive(p.is_active);
     setPb({ mode: p.product_back_mode ?? "product_rule", rate: p.product_back_rate ?? null, fixed: p.product_back_fixed ?? null });
     setPbRegion({ hon: p.product_back_fixed_hon != null ? String(p.product_back_fixed_hon) : "", jonai: p.product_back_fixed_jonai != null ? String(p.product_back_fixed_jonai) : "", free: p.product_back_fixed_free != null ? String(p.product_back_fixed_free) : "" }); // ★0153
@@ -370,7 +374,7 @@ export function PlanTab({ plans, isOwner, storeId, setMsg, reload }: { plans: Pl
       p_jonai_back_mode: jonaiMode, p_jonai_back_rate: jonaiMode === "rate" ? jonaiRate : null,
       // ★mig0115: dohan も常に明示送信（省略すると DEFAULT 'per_count' が効く＝教訓43 型の必須化）。
       //   UI は per_count 固定＝率は R-2b（同伴 cast_id 必須）後に解錠（RPC も 'dohan rate requires R-2b' で封印中）。
-      p_dohan_back_mode: "per_count", p_dohan_back_rate: null,
+      p_dohan_back_mode: dohanMode, p_dohan_back_rate: dohanMode === "rate" ? dohanRate : null, // ★便 W-10 #12（0175 で解錠＝率は小計の %）
       // ★mig0134: 19引数全明示（新規＝product_rule/null/null・編集＝行の値を写す）
       // ★0153（296 追補2）: 22 引数全明示＝区分別 3 欄（plan_fixed のときだけ値・空欄は null）
       ...productBackArgsOf(id ? pb.mode : "product_rule", id ? pb.rate : null, id ? pb.fixed : null, id ? regionOf(pbRegion) : null),
@@ -420,9 +424,14 @@ export function PlanTab({ plans, isOwner, storeId, setMsg, reload }: { plans: Pl
           ) : (
             <label style={{ fontSize: 12 }}>場内（1 本あたり） <MoneyInput value={jonaiBack} onChange={(v) => setJonaiBack(Number(v || 0))} style={input} width={100} ariaLabel="場内指名バック" /></label>
           )}
-          <label style={{ fontSize: 12 }}>同伴（1 本あたり） <MoneyInput value={dohanBack} onChange={(v) => setDohanBack(Number(v || 0))} style={input} width={100} ariaLabel="同伴バック" />
-            {/* ★mig0115（裁定86-②）: 同伴の率方式は R-2b（同伴 cast_id 必須）後に解錠＝それまで per_count 固定 */}
-            <span className="nox-stpill" style={{ marginLeft: 6 }}>率は準備中（R-2b 後）</span></label>
+          {/* ★便 W-10 #12: 同伴の率方式（0175 で解錠＝R-2b 済み）＝本指名・場内と同じ 2 択 */}
+          <label style={{ fontSize: 12 }}>同伴方式 <SegSelect value={dohanMode} onChange={(v) => setDohanMode(v as BackModeRow)}
+            options={[["per_count", "円/本"], ["rate", "率(%)"]] as const} /></label>
+          {dohanMode === "rate" ? (
+            <label style={{ fontSize: 12 }}>同伴 率(%) <input type="number" min={0} max={100} value={dohanRate} onChange={(e) => setDohanRate(Number(e.target.value))} style={{ ...input, width: 70 }} aria-label="同伴バックの率" /></label>
+          ) : (
+            <label style={{ fontSize: 12 }}>同伴（1 本あたり） <MoneyInput value={dohanBack} onChange={(v) => setDohanBack(Number(v || 0))} style={input} width={100} ariaLabel="同伴バック" /></label>
+          )}
           {/* ★0153（296 追補2／305-12）: 商品バック「販売数 × 固定額」の区分別 3 欄（空欄＝一律の固定額）。同伴は本指名と同額。商品側の unit4 が最優先 */}
           {id && pb.mode === "plan_fixed" && (
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end", width: "100%" }}>
@@ -498,7 +507,7 @@ export function PlanTab({ plans, isOwner, storeId, setMsg, reload }: { plans: Pl
             <span>基本時給 <b className="num">¥{base.toLocaleString()}</b></span>
             <span>本指名 <b className="num">{honMode === "rate" ? `率${honRate}%` : `¥${honBack.toLocaleString()}/本`}</b></span>
             <span>場内 <b className="num">{jonaiMode === "rate" ? `率${jonaiRate}%` : `¥${jonaiBack.toLocaleString()}/本`}</b></span>
-            <span>同伴 <b className="num">¥{dohanBack.toLocaleString()}/本</b>（率は準備中）</span>
+            <span>同伴 <b className="num">{dohanMode === "rate" ? `率${dohanRate}%` : `¥${dohanBack.toLocaleString()}/本`}</b></span>
             <span>スライド 売上{slideToSave(salesSlide).length}段・pt{slideToSave(pointSlide).length}段</span>
             {comps.filter((c) => c.is_active).map((c) => (
               <span key={c.id}>{COMP_KIND_LABEL[c.kind] ?? c.kind} <b className="num">{c.kind === "guarantee_min" ? `¥${(c.amount ?? 0).toLocaleString()}` : bonusTiersLabel(bonusTiersOf(c.params, c.amount))}</b>{c.kind === "guarantee_min" ? "/月" : "（達成時）"}</span>

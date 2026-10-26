@@ -1007,7 +1007,8 @@ body {
 /* ★便 GV-D #1・#5・#6（390 のタップの目安 40px）: 給与の期ヘッダーは折り返す・セグメント 40・btnSm 40 */
 @media (max-width: 600px) {
   :root { --nox-btnsm-h: 40px; }
-  [data-payroll-headtag] { white-space: normal !important; max-width: 100%; }
+  [data-payroll-headtag] { white-space: normal !important; max-width: 100%; flex: 0 1 auto; }
+  section:has(> [data-payroll-headtag]) { flex-wrap: wrap; } /* ★便 GV-D #1 の live の直し（390）: 期ヘッダーの行は折り返す（nowrap の flex で 3 つが縦長に潰れてカード外へ出ていた） */
   .nox-seg button, .nox-seg a { min-height: 40px; display: inline-flex; align-items: center; justify-content: center; }
 }
 /* 監査（モック .atool/.arow/.tm/.act/.tgt） */

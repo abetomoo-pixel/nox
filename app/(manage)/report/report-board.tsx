@@ -1263,7 +1263,6 @@ export default function ReportBoard({
         <section className="nox-panel">
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
             <h3 style={{ margin: 0 }}>売上ランキング（キャスト別）</h3>
-            <span className="nox-stpill" style={{ marginLeft: "auto" }}>準備中</span>
           </div>
           <p style={{ fontSize: 12.5, color: "var(--v2-muted)", margin: "8px 0 0", lineHeight: 1.8 }}>
             この画面ではキャスト別の売上を集計していません。

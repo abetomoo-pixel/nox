@@ -55,7 +55,7 @@ export default function LpPage() {
                 {s.video ? (
                   <video src={s.video} controls muted playsInline preload="none" style={{ width: "100%", aspectRatio: "16 / 9", background: "#000", borderRadius: 8 }} />
                 ) : (
-                  <div aria-label={`${s.name} の紹介動画（準備中）`} data-poster="1"
+                  <div aria-label={`${s.name} の紹介画像`} data-poster="1"
                     style={{ width: "100%", aspectRatio: "16 / 9", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--goldface2)", color: "var(--sub)", fontSize: 12 }}>
                     {s.name}（{s.biz}）
                   </div>

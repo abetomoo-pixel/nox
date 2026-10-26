@@ -835,7 +835,6 @@ export default function AnalyticsBoard({
           <section className="nox-panel">
             <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
               <h3 style={{ margin: 0 }}>注目ポイント</h3>
-              <span className="nox-stpill" style={{ marginLeft: "auto" }}>自動コメントは準備中</span>
             </div>
             {catRows === null ? <p style={noneP}>読み込み中…</p> : catSums.total === 0 ? (
               <p style={noneP}>この月の会計済み伝票がありません。</p>
@@ -877,7 +876,6 @@ export default function AnalyticsBoard({
                   </div>
                   <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "8px 0 0", lineHeight: 1.7 }}>
                     ここに出しているのは<b>同じ画面の数字の言い換え</b>です。
-                    「伸びています」「好調です」といった評価コメントの自動生成は準備中です。
                   </p>
                 </>
               );

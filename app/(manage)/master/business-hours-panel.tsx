@@ -14,6 +14,8 @@ import { hm2min, min2hm } from "@/lib/nox/shift-time";
 import { DOW_LABELS, type BusinessHourRow } from "@/lib/nox/business-hours";
 
 import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
+import SpecialDaysPanel from "@/components/nox/special-days-panel"; // ★便 W-10 #10（0186）
+import { mig0186On } from "@/lib/nox/rules-0175/flag";
 type Store = { id: string; name: string };
 // ★DP-R 第3弾: dirty＝「この曜日をこの画面で触った」印。未設定(exists=false)の曜日を
 //   一括保存で**意図せず作らない**という mig0032 の設計ロックを保ったまま、
@@ -235,11 +237,6 @@ export default function BusinessHoursPanel({
           <div className="nox-kpi2-v num" style={{ fontSize: 17 }}>{modeHours ?? "—"}</div>
           <div className="nox-kpi2-s">{modeHours ? "最多設定" : "営業日が未設定です"}</div>
         </div>
-        <div className="nox-kpi2">
-          <div className="nox-kpi2-l">特別日設定</div>
-          <div className="nox-kpi2-v num">—</div>
-          <div className="nox-kpi2-s">準備中</div>
-        </div>
       </div>
 
       {/* ★mig0106（裁定82・起票#14）: 営業日の切替時刻。KPI帯の直下・週間営業時間カードの上に独立 section。
@@ -372,47 +369,8 @@ export default function BusinessHoursPanel({
         </div>
       </section>
 
-      {/* ③ 特別営業日・臨時休業（実体なし＝準備中） */}
-      <section className="nox-cardtop" style={t.card}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 8 }}>
-          <div>
-            <h2 style={{ ...secTitle, margin: 0 }}>特別営業日・臨時休業</h2>
-            <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "2px 0 0" }}>通常設定より優先して適用されます</p>
-          </div>
-          <span className="nox-stpill" style={{ marginLeft: "auto" }}>準備中</span>
-        </div>
-        <p style={{ fontSize: 12.5, color: "var(--v2-muted)", margin: 0, lineHeight: 1.8 }}>
-          日付ごとの臨時休業・特別営業は<b>準備中</b>です。現在は上の曜日設定だけが使われます。
-          祝日やイベント日に営業時間を変える場合は、当日その曜日の設定を直してください（翌週も同じ設定になります）。
-        </p>
-      </section>
-
-      {/* ④ 特別日を追加（実体なし＝入力できない器） */}
-      <section className="nox-cardtop" style={t.card}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 8 }}>
-          <div>
-            <h2 style={{ ...secTitle, margin: 0 }}>特別日を追加</h2>
-            <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "2px 0 0" }}>祝日やイベント日の営業時間を個別設定</p>
-          </div>
-          <span className="nox-stpill" style={{ marginLeft: "auto" }}>準備中</span>
-        </div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", opacity: 0.45 }}>
-          <span style={t.fieldLabel}>日付</span>
-          <input type="date" disabled style={{ ...input, maxWidth: 150 }} />
-          <span style={t.fieldLabel}>設定内容</span>
-          <div className="nox-seg">
-            <button disabled>臨時休業</button>
-            <button disabled>特別営業</button>
-          </div>
-          <span style={t.fieldLabel}>名称・理由</span>
-          <input disabled placeholder="例: 年末年始" style={{ ...input, maxWidth: 170 }} />
-          <span style={t.fieldLabel}>特別営業時間</span>
-          <input type="time" disabled style={{ ...input, maxWidth: 108 }} />
-          <span>〜</span>
-          <input type="time" disabled style={{ ...input, maxWidth: 108 }} />
-          <div className="nox-actions" style={{ width: "100%" }}><button style={{ ...t.btnGold, ...t.btnSm }} disabled>特別日を追加</button></div>{/* ★便 BTN: 中央 */}
-        </div>
-      </section>
+      {/* ★便 W-10 #10: 特別営業日・臨時休業＝store_special_days（0186）。フラグ false の間は出さない（準備中の器は撤去） */}
+      {mig0186On() && storeSel && <SpecialDaysPanel storeId={storeSel} editable />}
     </>
   );
 }

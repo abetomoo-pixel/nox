@@ -24,8 +24,6 @@ import { OPS_DEFAULT, PAYMENT_METHOD_LABEL, PUNCH_METHOD_LABEL, opsSummaryOf, ty
 const FLAG_LABELS: Record<string, { label: string; desc: string }> = {
   staff_shift: { label: "スタッフシフト", desc: "スタッフのシフトと勤務パターン" },
   reopen_flow: { label: "締め解除フロー", desc: "締め解除・給与確定解除・現金差異承認・伝票統合の解除型" },
-  qr_order: { label: "QR注文", desc: "お客様スマホからの注文（準備中の機能スイッチ）" },
-  notify: { label: "通知", desc: "お知らせの通知（準備中の機能スイッチ）" },
 };
 const BILLING_MODES = [["table", "卓会計"], ["individual", "個別会計"], ["mixed", "併用"]] as const;
 const LAST = SETUP_STEPS.length - 1;

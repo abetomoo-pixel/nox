@@ -6,3 +6,4 @@ export const OKURI_TIERS_APPLIED = false; // ★裁定414 追補（0180）: flag
 export const SEAT_MOVE_PRICING_APPLIED = false; // ★便 ON-4（裁定427・0182）: flag.ts の鏡
 export const MIG_0183_APPLIED = false; // ★便 M（裁定429・M-4・M-7・0183）: flag.ts の鏡
 export const MIG_0185_APPLIED = false; // ★QR 便（裁定423 変更・0185）: flag.ts の鏡
+export const MIG_0186_APPLIED = false; // ★便 W-10（0186）: flag.ts の鏡

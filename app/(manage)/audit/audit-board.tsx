@@ -6,13 +6,16 @@
 // （全文 JSON を並べると金額1つの修正が読めないため。新規＝before null は「新規作成」表示）。
 // ページングは at 降順の単純 range（監査は直近確認が主用途・全量エクスポートは対象外）。
 import { useCallback, useEffect, useState } from "react";
+import { Message } from "@/components/ui/toast"; // ★裁定281（便 W-10 #7）
 import PageHead from "@/components/ui/page-head";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 
+import { AUDIT_HIGH_VOID_YEN, auditAlertsOf, auditCsvOf, auditExportErrorOf, voidApproverReasonOf, type AuditAlert } from "@/lib/nox/audit/alerts"; // ★便 W-10 #2／#5／#7
+import { mig0186On } from "@/lib/nox/rules-0175/flag"; // ★便 W-10 #7（0186＝出力の記録）
 type Log = {
   id: string; store_id: string | null; actor_user_id: string | null; action: string; target: string;
-  before_json: Record<string, unknown> | null; after_json: Record<string, unknown> | null; at: string; ip: string | null;
+  before_json: Record<string, unknown> | null; after_json: Record<string, unknown> | null; at: string; ip: string | null; reason?: string | null;
 };
 
 const PAGE = 50;
@@ -109,10 +112,47 @@ export default function AuditBoard({ users, stores }: {
   //   ★audit_logs の取得系（load / KPI の head クエリ）には一切触っていない＝別系統の読みを1本足しただけ。
   const [daily, setDaily] = useState<DailyRow[] | null>(null);
   const [kpi, setKpi] = useState<{ total: number; cancel: number; sensitive: number; perm: number } | null>(null);
+  const [alerts, setAlerts] = useState<AuditAlert[] | null>(null); // ★便 W-10 #2: 要確認（直近 30 日）
+  useEffect(() => { let alive = true; void (async () => {
+    const since = new Date(Date.now() - 30 * 86400_000).toISOString();
+    const { data } = await supabase.from("audit_logs").select("id, store_id, actor_user_id, action, target, before_json, after_json, at, ip, reason")
+      .gte("at", since).in("action", ["check_void", ...(VIEW_DEFS[2].actions ?? [])]).order("at", { ascending: false }).limit(500);
+    if (alive) setAlerts(auditAlertsOf((data ?? []) as Log[]));
+  })(); return () => { alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  // ★便 W-10 #7: 監査ログの CSV 出力（期間・利用目的）＋出力の記録（audit_export_record＝0186）
+  const jstToday = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
+  const [exFrom, setExFrom] = useState(new Date(Date.now() + 9 * 3600_000 - 30 * 86400_000).toISOString().slice(0, 10));
+  const [exTo, setExTo] = useState(jstToday);
+  const [exPurpose, setExPurpose] = useState("");
+  const [exMsg, setExMsg] = useState<{ kind: "success" | "error"; text: string } | null>(null);
+  const [exHist, setExHist] = useState<Log[] | null>(null);
+  const loadExHist = useCallback(async () => {
+    const { data } = await supabase.from("audit_logs").select("id, store_id, actor_user_id, action, target, before_json, after_json, at, ip, reason").eq("action", "audit_export").order("at", { ascending: false }).limit(20);
+    setExHist((data ?? []) as Log[]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => { if (ptab === "export" && mig0186On() && exHist === null) void loadExHist(); }, [ptab, exHist, loadExHist]);
+  async function exportCsv() {
+    const e = auditExportErrorOf(exFrom, exTo, exPurpose); if (e) { setExMsg({ kind: "error", text: e }); return; }
+    setExMsg(null);
+    const { data, error } = await supabase.from("audit_logs").select("id, store_id, actor_user_id, action, target, before_json, after_json, at, ip, reason")
+      .gte("at", `${exFrom}T00:00:00+09:00`).lte("at", `${exTo}T23:59:59+09:00`).order("at", { ascending: true }).limit(20000);
+    if (error) { setExMsg({ kind: "error", text: `読み込みに失敗: ${error.message}` }); return; }
+    const rows = (data ?? []) as Log[];
+    const { error: eR } = await supabase.rpc("audit_export_record", { p_from: exFrom, p_to: exTo, p_purpose: exPurpose.trim(), p_rows: rows.length, p_format: "csv" });
+    if (eR) { setExMsg({ kind: "error", text: `出力の記録に失敗しました（出力していません）: ${eR.message}` }); return; }
+    const csv = auditCsvOf(rows, (u) => userName(u), (s) => storeName(s ?? null));
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `audit_${exFrom}_${exTo}.csv`; a.click(); URL.revokeObjectURL(a.href);
+    setExMsg({ kind: "success", text: `${rows.length} 件を CSV で出力しました（出力の記録を残しました）` }); setExPurpose("");
+    await loadExHist();
+  }
 
   const load = useCallback(async (p: number, action: string, viewKey: string) => {
     let q = supabase.from("audit_logs")
-      .select("id, store_id, actor_user_id, action, target, before_json, after_json, at, ip")
+      .select("id, store_id, actor_user_id, action, target, before_json, after_json, at, ip, reason")
       .order("at", { ascending: false })
       .range(p * PAGE, p * PAGE + PAGE); // 1件余分に取って次ページ有無を判定
     if (action) q = q.eq("action", action);
@@ -229,13 +269,22 @@ export default function AuditBoard({ users, stores }: {
       <section className="nox-panel">
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <h3 style={{ margin: 0 }}>要確認のアラート</h3>
-          <span className="nox-stpill" style={{ marginLeft: "auto" }}>準備中</span>
+          {alerts && <span className="nox-stpill" style={{ marginLeft: "auto" }} data-audit-alerts={alerts.length}>直近 30 日 {alerts.length} 件</span>}
         </div>
-        <p style={{ fontSize: 12.5, color: "var(--v2-muted)", margin: "8px 0 0", lineHeight: 1.8 }}>
-          高額伝票の取消や営業時間外の機微情報閲覧を自動で拾い上げる機能は<b>準備中</b>です
-          （確認済みの印・金額のしきい値・営業時間外の判定を保存する場所がまだありません）。
-          現在は下の一覧を「取消・巻き戻し」「機微アクセス」で絞って確認してください。
+        <p style={{ fontSize: 11.5, color: "var(--v2-muted)", margin: "6px 0 8px", lineHeight: 1.7 }}>
+          自動で拾い上げます＝伝票の取消で ¥{AUDIT_HIGH_VOID_YEN.toLocaleString("en-US")} 以上・機微情報の閲覧が 6〜17 時台（営業時間外）。
         </p>
+        {alerts === null ? <p style={{ fontSize: 12.5, color: "var(--sub)" }}>読み込み中…</p> : alerts.length === 0 ? <p style={{ fontSize: 12.5, color: "var(--sub)" }}>該当はありません。</p> : (
+          <div style={{ display: "grid", gap: 4 }}>
+            {alerts.slice(0, 20).map((a) => (
+              <div key={a.id} className="nox-listrow" style={{ fontSize: 12.5 }} data-audit-alert={a.kind}>
+                <span style={{ flex: 1, minWidth: 0 }}><b>{a.label}</b><span style={{ display: "block", fontSize: 10.5, color: "var(--v2-muted)" }}>{a.target ?? "—"}</span></span>
+                <span>{userName(a.actor_user_id)}</span>
+                <span className="num" style={{ fontSize: 11, color: "var(--v2-muted)" }}>{fmtAt(a.at)}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </section>
       {/* E8-5 audit#1/#5: 用途別ビュー（action 明示リストの server フィルタ・切替でページ先頭へ）＝
           モックの4タブとは別軸（こちらは履歴の絞り込み）。取得クエリも action リストも不変。 */}
@@ -352,10 +401,7 @@ export default function AuditBoard({ users, stores }: {
                 <span style={{ flex: 1 }}>記録ID</span>
                 <b className="num" style={{ fontSize: 11 }}>{l.id}</b>
               </div>
-              <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "8px 0 0", lineHeight: 1.7 }}>
-                ※モックの「操作理由」「端末」「要確認にする」は<b>準備中</b>です
-                （操作の記録に理由・端末・確認の項目がありません）。
-              </p>
+              {l.reason && <div className="nox-listrow"><span style={{ flex: 1 }}>理由</span><b>{l.reason}</b></div>}
             </>
           );
         })()}
@@ -425,7 +471,6 @@ export default function AuditBoard({ users, stores }: {
           )}
           <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "8px 0 0", lineHeight: 1.7 }}>
             予定現金＝釣銭準備金＋現金売上−諸経費−現金支払。実査差＝実査現金−予定現金（日報の確定値）。
-            ※モックの「確認済み／要確認」の確認フラグは<b>準備中</b>です（列がないため、ここでは実査差の有無で表示しています）。
           </p>
         </section>
 
@@ -448,8 +493,10 @@ export default function AuditBoard({ users, stores }: {
                         <td>{l.action}</td>
                         <td>{l.target ?? "—"}</td>
                         <td>{userName(l.actor_user_id)}</td>
-                        <td style={{ color: "var(--v2-muted)" }}>—</td>
-                        <td style={{ color: "var(--v2-muted)" }}>—</td>
+                        {(() => { const v = voidApproverReasonOf(l); return (<>
+                          <td>{v.approverUserId ? userName(v.approverUserId) : <span style={{ color: "var(--v2-muted)" }}>—</span>}</td>
+                          <td>{v.reason ?? <span style={{ color: "var(--v2-muted)" }}>—</span>}</td>
+                        </>); })()}
                       </tr>
                     ))}
                   </tbody>
@@ -458,8 +505,7 @@ export default function AuditBoard({ users, stores }: {
             );
           })()}
           <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "8px 0 0", lineHeight: 1.7 }}>
-            ※「承認者」「理由」は<b>準備中</b>です（操作の記録に承認者・理由の項目がないため「—」）。
-            変更前後の値は「操作履歴」タブで行を開くと確認できます。
+            承認者＝伝票を取消した人（記録がある操作だけ）・理由＝取消の理由。変更前後の値は「操作履歴」タブで行を開くと確認できます。
           </p>
         </section>
       </>
@@ -488,7 +534,7 @@ export default function AuditBoard({ users, stores }: {
             ));
           })()}
           <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "8px 0 0", lineHeight: 1.7 }}>
-            ※モックの「閲覧目的」は<b>準備中</b>です（目的を保存する列がありません）。営業時間外かどうかの判定も準備中です。
+            営業時間外（6〜17 時台）の閲覧は「操作履歴」タブの要確認のアラートに出ます。
           </p>
         </section>
 
@@ -519,15 +565,28 @@ export default function AuditBoard({ users, stores }: {
         <section className="nox-panel">
           <h3>監査データの出力履歴</h3>
           <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "-4px 0 10px" }}>出力操作自体も監査記録に保存されます。</p>
-          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 10 }}>
-            <button style={{ ...t.btnGold, ...t.btnSm, opacity: 0.45 }} disabled title="監査ログの出力は準備中です">新しく出力</button>
-            <span className="nox-stpill">準備中</span>
-          </div>
-          <p style={{ fontSize: 12.5, color: "var(--v2-muted)", margin: 0, lineHeight: 1.8 }}>
-            監査ログのファイル出力（CSV / PDF・期間・利用目的・オーナーPIN）は<b>準備中</b>です。
-            出力履歴を保存する仕組みもまだありません（出力を実装するときに同時に作ります）。
-            現在は「操作履歴」タブで期間・種別・対象を絞って画面で確認してください。
-          </p>
+          {mig0186On() ? (<>
+            <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
+              <label style={t.fieldLabel}>期間<br /><input type="date" value={exFrom} onChange={(e) => setExFrom(e.target.value)} style={{ ...t.input, width: "auto" }} aria-label="出力の開始日" /></label>
+              <span style={{ paddingBottom: 10 }}>〜</span>
+              <label style={t.fieldLabel}><br /><input type="date" value={exTo} onChange={(e) => setExTo(e.target.value)} style={{ ...t.input, width: "auto" }} aria-label="出力の終了日" /></label>
+              <label style={{ ...t.fieldLabel, flex: "1 1 220px" }}>利用目的（必須）<br /><input value={exPurpose} onChange={(e) => setExPurpose(e.target.value)} maxLength={200} placeholder="例: 税務調査の準備" style={t.input} /></label>
+            </div>
+            <div className="nox-actions" style={{ marginTop: 10 }}><button type="button" style={{ ...t.btnGold, ...t.btnSm }} onClick={() => void exportCsv()} data-audit-export="1">CSV を出力</button></div>
+            {exMsg && <Message kind={exMsg.kind} style={{ margin: "8px 0 0" }}>{exMsg.text}</Message>}{/* ★裁定281: メッセージは共通部品 */}
+            <div style={{ marginTop: 10 }}>
+              {(exHist ?? []).length === 0 ? <p style={{ fontSize: 12.5, color: "var(--sub)", margin: 0 }}>出力の履歴はまだありません。</p> : (exHist ?? []).map((h) => (
+                <div key={h.id} className="nox-listrow" style={{ fontSize: 12.5 }}>
+                  <span style={{ flex: 1 }}>{String(h.after_json?.from ?? "")}〜{String(h.after_json?.to ?? "")}・{String(h.after_json?.purpose ?? "")}</span>
+                  <span className="num">{String(h.after_json?.rows ?? "—")} 件</span>
+                  <span>{userName(h.actor_user_id)}</span>
+                  <span className="num" style={{ fontSize: 11, color: "var(--v2-muted)" }}>{fmtAt(h.at)}</span>
+                </div>
+              ))}
+            </div>
+          </>) : (
+            <p style={{ fontSize: 12.5, color: "var(--v2-muted)", margin: 0, lineHeight: 1.8 }}>「操作履歴」タブで期間・種別・対象を絞って画面で確認してください。</p>
+          )}
         </section>
 
         <section className="nox-panel">
@@ -544,25 +603,14 @@ export default function AuditBoard({ users, stores }: {
             </span>
             <b>できません</b>
           </div>
-          <div className="nox-listrow" style={{ opacity: 0.55 }}>
-            <span style={{ flex: 1 }}>
-              操作ログ保管期間
-              <span style={{ display: "block", fontSize: 10.5, color: "var(--v2-muted)" }}>保管期間の設定は準備中です（現在は削除していません）。</span>
-            </span>
-            <span className="nox-stpill">準備中</span>
-          </div>
-          <div className="nox-listrow" style={{ opacity: 0.55 }}>
-            <span style={{ flex: 1 }}>
-              最終バックアップ
-              <span style={{ display: "block", fontSize: 10.5, color: "var(--v2-muted)" }}>表示は準備中です。</span>
-            </span>
-            <span className="num">—</span>
+          <div className="nox-listrow">
+            <span style={{ flex: 1 }}>操作ログ保管期間</span><b>無期限（削除していません）</b>
           </div>
           <div className="nox-listrow">
             <span style={{ flex: 1 }}>
               完全性チェック（ハッシュ連鎖）
               <span style={{ display: "block", fontSize: 10.5, color: "var(--v2-muted)" }}>
-                裁定により<b>採用していません</b>（準備中ではなく、作らない方針です）。改ざん防止は上の追記専用と権限で担保します。
+                裁定により<b>採用していません</b>（作らない方針です）。改ざん防止は上の追記専用と権限で担保します。
               </span>
             </span>
             <span className="nox-stpill">非採用</span>

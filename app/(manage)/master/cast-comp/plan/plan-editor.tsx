@@ -66,16 +66,7 @@ const draftOf = (p: Plan): Draft => ({
 });
 const PB_KEYS: (keyof Draft)[] = ["productBackMode", "productBackRate", "productBackFixed"];
 
-// 準備中バッジ（C5＝lib/nox/comp-methods.ts PREP_ITEMS が正本・散在リテラルにしない）
-function Prep({ k }: { k: string }) {
-  const p = prepItemOf(k);
-  if (!p) return null;
-  return (
-    <span className="nox-stpill" title={p.unlock ?? "準備中（第 2 期）"} style={{ opacity: 0.8 }}>
-      {p.label}: 準備中{p.unlock ? `（${p.unlock}）` : ""}
-    </span>
-  );
-}
+// ★便 W-10 #13: 第 2 期の項目の「準備中」バッジは撤去（出さない）
 
 // components（最低保証／達成ボーナス）の行＋追加/編集フォーム。★モジュール階層＝state が親再レンダーで飛ばない。
 function CompRows({ kind, section, comps, isOwner, onSave }: {
@@ -464,7 +455,7 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
             <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>同伴バック</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {/* 同伴の割合方式は R-2b まで封印（裁定86-②・対応表 C18＝準備中）＝トグルは出さず固定額のみ */}
-              <span style={{ fontSize: 11, color: "var(--sub)" }}>固定額 円/本（割合方式は準備中）</span>
+              <span style={{ fontSize: 11, color: "var(--sub)" }}>固定額 円/本</span>
               <label style={lbl}>バック額
                 <Unit post="/本"><MoneyInput value={draft.dohanBack} onChange={(v) => d({ dohanBack: Number(v || 0) })} style={t.input} width={120} disabled={!isOwner} ariaLabel="同伴バック" /></Unit>
               </label>
@@ -475,7 +466,7 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
           ※割合方式は、レジで「指名料を追加」した伝票の指名料額が対象です（裁定vi・本数カウントとは別系統）。
         </p>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
-          <Prep k="rounding_axes" /><Prep k="rate_back" /><Prep k="ext_promote_back" />
+
         </div>
         {/* 固定名プリセット＋自由バック（裁定101 補正3・器＝custom_back_defs・set_custom_back_def 7引数） */}
         <b style={{ fontSize: 14, display: "block", margin: "12px 0 6px" }}>商品販売バック</b>
@@ -594,7 +585,7 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
           )}
         </div>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
-          <Prep k="point_rules" /><Prep k="gross_profit_slide" /><Prep k="slide_ratio_col" />
+
         </div>
         <SecSave title="スライド・ポイント" keys={["salesSlide", "pointSlide", "slidePeriod", "slideApply"]} section="スライド" />
       </section>)}

@@ -190,12 +190,11 @@ export default function SeatsBoard({ storeId, isManagerUp, initial, hiddenKinds 
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 8 }}>
           <div>
             <h2 style={{ ...secTitle, margin: 0 }}>席種カテゴリ</h2>
-            <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "2px 0 0" }}>席種ごとの表示名・並び順の管理</p>
+            <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "2px 0 0" }}>席の種類</p>
           </div>
-          <span className="nox-stpill" style={{ marginLeft: "auto" }}>準備中</span>
         </div>
         <p style={{ fontSize: 12.5, color: "var(--v2-muted)", margin: 0, lineHeight: 1.8 }}>
-          席種は <b>卓 / カウンター / VIP</b> の3種で固定です（追加・改名は準備中）。
+          席種は <b>卓 / カウンター / VIP</b> の3種で固定です。
           時間帯料金の席種条件もこの3種を使います。
         </p>
       </section>
