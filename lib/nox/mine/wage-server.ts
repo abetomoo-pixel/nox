@@ -1,6 +1,7 @@
 // ★便 X13-H H-8（2026-10-21）: /mine の「今期の時給」＝キャスト一覧・詳細と同じ値（給与プレビューの core＝computePayrollDraft→payOf の PayResult を currentWageOf で読む・別計算なし）。
 //   get_cast_sales は本人のセッションで呼ぶ（RPC が cast を本人に限定）＝他キャストの売上は 0 で回るが、返すのは本人の行の時給・文言・根拠だけ。
 //   プラン・店設定・cast_plan は cast の RLS で読めない＝admin（本人分だけを返す）。失敗しても /mine は止めない（null）。
+import { nextWageLineOf, nextWageOfPay, type NextWagePayLike } from "@/lib/nox/payroll/next-wage"; // ★便 ON-4（C2-22）
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { computePayrollDraft } from "@/lib/nox/payroll/core";
@@ -16,10 +17,11 @@ export async function mineCurrentWageOf(castSession: SupabaseClient, castId: str
     const draft = await computePayrollDraft(admin, castSession, storeId, period, { previewDefaults: true });
     const me = draft.rows.find((r) => r.castId === castId);
     if (!me) return null;
-    return currentWageOf(me.pay as never, {
+    const cw = currentWageOf(me.pay as never, {
       planName: (plan?.name as string | undefined) ?? null, slidePeriod: plan?.slide_period, slideApply: plan?.slide_apply ?? null, today,
       planBase: (plan?.base as number | undefined) ?? null, rows: cur ? rows.filter((r) => r.plan_id === cur.plan_id) : [],
     });
+    return { ...cw, next: nextWageLineOf(nextWageOfPay(me.pay as NextWagePayLike)) }; // ★便 ON-4（C2-22）: 給与と同じ PayResult から来期の時給見込み
   } catch {
     return null;
   }

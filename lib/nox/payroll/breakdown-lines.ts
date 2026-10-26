@@ -6,6 +6,7 @@
 //   303-3: 一覧の時間セル＝hoursCellOf（0h かつ日数>0 なら「打刻なし／不完全」（303 追補1 の文言）を薄字で・値は変えない）。
 //   恒等（pay.ts と同じ）: net = gross − (fixedDed+fine+withholding+ar+adv+okuri+normPenalty+adjBefore+adjAfter) + adjustOverflow。
 //   ★extras（出勤ボーナス等）は gross に内在（裁定26）＝行としては出すが合計に二重加算しない。
+import { nextWageLineOf, nextWageOfPay, type NextWagePayLike } from "@/lib/nox/payroll/next-wage"; // ★便 ON-4（C2-22）
 import { periodLabelOf } from "./slide"; // ★裁定338（0168・便 P168）
 import type { FrozenAdjustment } from "./adjust";
 import { wageSpanLabelOf, wageSpansOf } from "./wage-spans"; // ★便 PR-1 R-2（裁定416）: 時給の区間行
@@ -204,6 +205,8 @@ export function breakdownLinesOf(input: BreakdownInput): Breakdown {
     const tierWord = p.canon.tierIdx !== null ? `段 ${p.canon.tierIdx + 1}` : "段なし";
     earn.push({ key: "slide-rate", label: `報酬率 ${p.canon.pct}% → ${tierWord}（${dirWord}${p.canon.direction === "up" && p.canon.upAmount > 0 ? ` +${yen(p.canon.upAmount)}/h` : p.canon.direction === "assess" && p.canon.payPct < 100 ? ` 支給率 ${p.canon.payPct}%` : ""}）`, label2: `${p.canon.applied ? "適用済み" : "提案＝店が適用を選ぶ"}・連続 ${p.canon.streak}／${p.canon.windowN} 期`, amount: 0, info: true, amountText: "—" });
   }
+  // ★便 ON-4（C2-22・Agoora 確定 10/26 ⑨）: 来期の時給見込み＝スライド行の下に 1 行（確定済みの明細には出さない・金額 0）
+  if (!input.frozen) { const nw = nextWageLineOf(nextWageOfPay(p as NextWagePayLike, { salesOn: sysOn(sysK, "sys_sales_slide"), ptOn: sysOn(sysK, "sys_point_slide") && sysOn(sysK, "sys_points") })); if (nw) earn.push({ key: "next-wage", label: nw.label, label2: nw.label2, amount: 0, info: true, amountText: "—" }); }
   push("honBack", "本指名バック", z(p.honBack));
   push("jonaiBack", "場内指名バック", z(p.jonaiBack));
   push("dohanBack", "同伴バック", z(p.dohanBack));

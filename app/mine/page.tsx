@@ -303,6 +303,9 @@ export default async function MinePage() {
         <p style={{ fontSize: 12.5, margin: "0 0 10px", lineHeight: 1.7 }} data-mine-wage="1">
           <b>今期の時給</b> <b className="num">¥{mineWage.hourly.toLocaleString()}</b> <span style={{ color: "var(--sub)" }}>{mineWage.basis}・{mineWage.periodLabel}</span>
           {mineWage.basisLine && <span data-wage-basis="1" style={{ display: "block", color: "var(--sub)", fontSize: 11.5 }}>{mineWage.basisLine}</span>}
+          {mineWage.next && (/* ★便 ON-4（C2-22・Agoora 確定 10/26 ⑨）: 来期の時給見込み＝給与右パネルと同じ文（見込み＝確定値ではない旨は小さく） */
+            <span data-mine-next-wage="1" style={{ display: "block", marginTop: 2 }}>{mineWage.next.label}<span style={{ display: "block", color: "var(--sub)", fontSize: 11 }}>{mineWage.next.label2}</span></span>
+          )}
         </p>
       )}
       {guaLabel && (/* ★裁定348 追補1: 期限付き保証時給の印（期間中だけ） */

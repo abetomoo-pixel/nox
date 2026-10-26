@@ -17,4 +17,9 @@ export function okuri4wayOn(): boolean { return overrideOkuri ?? OKURI_4WAY_APPL
 export function __setOkuri4wayForTest(v: boolean | null): void { overrideOkuri = v; }
 let overrideTiers: boolean | null = null;
 export function okuriTiersOn(): boolean { return overrideTiers ?? OKURI_TIERS_APPLIED; }
+/** ★便 ON-4（2026-10-26・裁定427＝C2-23）: 0182（席移動で席種が変わるときの料金＝check_move_seat／check_group_due）を Agoora が手貼りしたら true。false の間はレジの席移動は従来どおり（確認ダイアログも出さない） */
+export const SEAT_MOVE_PRICING_APPLIED = false;
+let overrideSeatMove: boolean | null = null;
+export function seatMovePricingOn(): boolean { return overrideSeatMove ?? SEAT_MOVE_PRICING_APPLIED; }
+export function __setSeatMovePricingForTest(v: boolean | null): void { overrideSeatMove = v; }
 export function __setOkuriTiersForTest(v: boolean | null): void { overrideTiers = v; }

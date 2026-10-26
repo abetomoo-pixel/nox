@@ -181,3 +181,38 @@ export function backRateByTierOf(tiers: readonly { at: number; rate: number }[] 
   const hit = [...tiers].sort((a, b) => a.at - b.at).filter((t) => subtotal >= t.at).pop();
   return hit ? hit.rate : fallbackRate;
 }
+
+// ── ★便 ON-4（C2-22）: 来期の時給見込み（報酬率軸）＝lib/nox/payroll/next-wage.ts が再 export ──
+export type NextWage = {
+  axis: "sales" | "pt" | "pay_rate";
+  wage: number;                 // 来期の決定時給（見込み）
+  judge: string;                // 今期の判定値（「売上 ¥855,956」／「報酬率 42.3%」）
+  toNext: number | null;        // あと ¥k で次の段（null＝最上段・段の無い軸）
+  note: string | null;          // 規定未達・連続 N 期・査定の注記
+};
+const yenNW = (n: number) => "¥" + Math.round(n).toLocaleString("en-US");
+/** 報酬率軸（CANON）＝今期がこのまま終わったとして、来期の決定時給。UP は連続 N 期＋規定（日数・時間）を満たしたときだけ（⑪）・査定／据え置きは時給を変えない（⑫） */
+export function canonNextWageOf(c: Pick<CanonCtx, "tiers" | "streakN" | "prevLog" | "salesSubtotal" | "normTiers" | "weekTarget" | "periodDays" | "actual">, timePay: number, base: number): NextWage | null {
+  if (!c.tiers || c.tiers.length === 0) return null;
+  const pct = payRatePctOf(timePay, c.salesSubtotal);
+  const hit = payRateTierOf(c.tiers, pct);
+  const dir = directionOf(hit?.tier ?? null);
+  const streak = streakOf(c.prevLog, dir);
+  const met = streakMetOf(streak, c.streakN);
+  const nt = normTierOf(c.normTiers, c.weekTarget);
+  const req = nt ? normRequiredOf(nt, c.periodDays) : null;
+  const shortDays = req ? Math.max(0, req.days - c.actual.days) : 0;
+  const shortHours = req ? Math.max(0, Math.ceil(req.hours - c.actual.hours)) : 0;
+  const up = hit?.tier.up_amount ?? 0;
+  let wage = base, note: string | null = null;
+  if (dir === "up" && up > 0) {
+    if (shortDays > 0 || shortHours > 0) note = `規定未達のため UP なし（あと ${shortDays > 0 ? `${shortDays} 日` : `${shortHours} 時間`}）`;
+    else if (!met) note = `据え置き（連続 ${streak}／${Math.max(1, c.streakN)} 期・来期も同じ段なら +${yenNW(up)}/h）`;
+    else wage = base + up;
+  } else if (dir === "assess") note = `査定の段（支給率 ${hit?.tier.pay_pct ?? 100}%）・時給は据え置き`;
+  // 次の段＝報酬率が今の段の下限（at_pct）を下回る売上小計（段 1＝最上段は null）
+  let toNext: number | null = null;
+  if (hit && hit.idx > 0 && hit.tier.at_pct > 0) toNext = Math.max(0, Math.floor((timePay * 100) / hit.tier.at_pct) + 1 - c.salesSubtotal);
+  return { axis: "pay_rate", wage, judge: pct === null ? "報酬率 —" : `報酬率 ${pct}%`, toNext, note };
+}
+

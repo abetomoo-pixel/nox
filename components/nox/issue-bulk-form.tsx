@@ -10,6 +10,13 @@ import { useCallback, useEffect, useState } from "react";
 import MoneyInput from "@/components/ui/money-input"; // ★便 X-11-6: 金額欄の共通部品（数字のみ・3 桁区切り・右に「円」）
 import { createClient } from "@/lib/supabase/client";
 import SegSelect from "@/components/ui/seg-select";
+import { OKURI_MODE_LABEL, okuriModeOf } from "@/lib/nox/shift/okuri-mode"; // ★便 ON-4（0177 残り）
+
+/** ★便 ON-4（0177 残り・裁定414）: 一括フォームの見出し＝店の送り方式で。なし＝前借りだけ */
+export function bulkHeadOf(mode: string | null | undefined): string {
+  const m = okuriModeOf({ okuri_mode: mode ?? undefined });
+  return m === "none" ? "前借りの一括発行（送りは「なし」の店）" : m === "actual" ? "前借り／送り（タクシー代の立替）の一括発行" : `前借り／送り（${OKURI_MODE_LABEL[m]}）の一括発行`;
+}
 import { Message } from "@/components/ui/toast";
 import * as t from "@/lib/nox/ui/theme";
 import { bizDateOf } from "@/lib/nox/biz-date";
@@ -123,7 +130,7 @@ export default function IssueBulkForm({ storeId, casts, okuriMode, okuriBase = 0
   return (
     <section className="nox-cardtop" style={{ ...t.card, marginBottom: 0, paddingBottom: 16 }}>
       {/* ★301-4: 見出し→12→ブロック（ラベル→6→入力）→16→…→注記 8→カード下端 16 */}
-      <h3 style={{ fontSize: 13.5, fontWeight: 800, color: "var(--champ)", margin: "0 0 12px" }}>前借り／送り実費の一括発行</h3>
+      <h3 style={{ fontSize: 13.5, fontWeight: 800, color: "var(--champ)", margin: "0 0 12px" }} data-bulk-head={okuriMode ?? "actual"}>{bulkHeadOf(okuriMode)}</h3>{/* ★便 ON-4（0177 残り・裁定414）: 見出しは店の送り方式で（実費立替／定額徴収／店負担／なし） */}
       <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 16 }}>
         <div>
           <div style={lbl}>種別</div>

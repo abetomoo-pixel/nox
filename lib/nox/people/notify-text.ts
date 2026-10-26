@@ -2,6 +2,8 @@
 //   kind 6 種＝0176 の CHECK と 1 字一致（shift_added／shift_removed／shift_changed／shift_proposed／availability_changed／other）。
 //   作る側＝店（owner／manager／staff）が cast_notification_create を呼ぶ（lib/nox/people/notify.ts）。読む側＝/mine（お知らせの上に「あなたへの通知」・開いたら既読＝cast_notification_read）。
 //   ナビの未読＝お知らせの未読（326-6）＋通知の未読（本便）。宛先つきお知らせ（notices.cast_ids）は本人を含む行だけ可視（noticeVisibleToCastOf）。
+import { fmtWin } from "@/lib/nox/shift-time";
+
 export type CastNotifKind = "shift_added" | "shift_removed" | "shift_changed" | "shift_proposed" | "availability_changed" | "other";
 export const CAST_NOTIF_KINDS: readonly CastNotifKind[] = ["shift_added", "shift_removed", "shift_changed", "shift_proposed", "availability_changed", "other"];
 export const CAST_NOTIF_KIND_LABEL: Record<CastNotifKind, string> = {
@@ -16,7 +18,7 @@ export function mdDowOf(ymd: string): string {
   const dow = DOW[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
   return `${m}/${d}（${dow}）`;
 }
-const win = (start: string, end: string) => `${start}〜${end}`;
+const win = (start: string, end: string) => fmtWin(start, end); // ★便 ON-3 live: 「26:00」でなく「翌02:00」（他の画面と同じ表記）
 
 /** 確定シフトの追加（shift_set で confirmed・一括確定）＝「10/28（水）20:00〜01:00 のシフトが確定しました」 */
 export const shiftAddedBody = (date: string, start: string, end: string): string => `${mdDowOf(date)} ${win(start, end)} のシフトが確定しました`;

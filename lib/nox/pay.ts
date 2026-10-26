@@ -12,7 +12,7 @@
 //  - 売上バック率テーブル = モック値をデフォルト引数に（店設定化は F2 判断）
 
 import { roundYen, roundPt1, floorYen } from "./money";
-import { canonApplyOf, canonOutcomeOf, type CanonCtx, type CanonOutcome } from "./rules-0175/canon"; // ★便 P175-prep P-5（裁定418）: フラグ true のときだけ collect が input.rules0175 を渡す
+import { canonApplyOf, canonNextWageOf, canonOutcomeOf, type CanonCtx, type CanonOutcome, type NextWage } from "./rules-0175/canon"; // ★便 P175-prep P-5（裁定418）: フラグ true のときだけ collect が input.rules0175 を渡す
 import { adjustOf, type AdjustmentRow } from "./payroll/adjust"; // 裁定258／264: run 別調整控除（純関数・roundYen は money.ts）
 import { bonusOf, bonusTiersOf } from "./bonus-tiers"; // ★便 P173 T-2（起票110）: 達成ボーナスの多段（純関数）
 
@@ -312,7 +312,7 @@ export type PayResult = {
   achievementBonus: number;
   guaranteeAdd: number;
   compSkipped: string[];
-  canon?: CanonOutcome & { backsDelta: number; timeDelta: number; bonus: number; payPctDelta: number; grossBefore: number }; // ★便 P175-prep P-5（裁定418）: rules0175 を渡した cast だけ
+  canon?: CanonOutcome & { backsDelta: number; timeDelta: number; bonus: number; payPctDelta: number; grossBefore: number; forecast?: NextWage | null }; // ★便 ON-4（C2-22）: forecast＝来期の時給見込み（表示だけ・金額に効かない） // ★便 P175-prep P-5（裁定418）: rules0175 を渡した cast だけ
   gross: number;
   fixedDed: number;
   // ★裁定98: sanction 二層ガードの明細（sanction 行が無ければ null＝既存 payslips 凍結と互換）
@@ -727,12 +727,12 @@ export function payOf(input: PayInput): PayResult {
   }
   let gross = grossBase + achievementBonus + guaranteeAdd; // ①=控除前総支給への床（控除はこの後）
   // ★便 P175-prep P-5（裁定418）: CANON 型＝報酬率の段（UP 累積は時給履歴側・ここは倍率／支給率／減率／ボーナス／支給可否）を gross に差し込む。input.rules0175 が無ければ通らない
-  let canon: (CanonOutcome & { backsDelta: number; timeDelta: number; bonus: number; payPctDelta: number; grossBefore: number }) | null = null;
+  let canon: (CanonOutcome & { backsDelta: number; timeDelta: number; bonus: number; payPctDelta: number; grossBefore: number; forecast?: NextWage | null }) | null = null;
   if (input.rules0175) {
     const o = canonOutcomeOf(input.rules0175, timePayRule);
     const backsTotal = honBack + jonaiBack + dohanBack + drinkBack + champBack + bottleBack + calculatedBack + salesBack + customTotal;
     const ap = canonApplyOf(o, { timePay: timePayRule, backsTotal, gross, salesSubtotal: input.rules0175.salesSubtotal });
-    canon = { ...o, backsDelta: ap.backsDelta, timeDelta: ap.timeDelta, bonus: ap.bonus, payPctDelta: ap.payPctDelta, grossBefore: gross };
+    canon = { ...o, backsDelta: ap.backsDelta, timeDelta: ap.timeDelta, bonus: ap.bonus, payPctDelta: ap.payPctDelta, grossBefore: gross, forecast: canonNextWageOf(input.rules0175, timePayRule, eplan.base || 0) }; // ★便 ON-4（C2-22）: 来期の時給見込み（金額に効かない）
     gross = ap.gross;
   }
 

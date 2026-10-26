@@ -19,7 +19,7 @@ export type PreviewPayLike = {
   eplan?: { salesSlide?: SlideStep[]; pointSlide?: SlideStep[] } | null;
   plan?: { name?: string } | null;
 };
-export type CurrentWage = { hourly: number; basis: string; periodLabel: string; basisLine: string | null; /* ★便 X13-H H-8: 根拠 1 行 */ guarantee: boolean; trial: boolean; hours: number; now?: WageNow };
+export type CurrentWage = { hourly: number; basis: string; periodLabel: string; basisLine: string | null; /* ★便 X13-H H-8: 根拠 1 行 */ guarantee: boolean; trial: boolean; hours: number; now?: WageNow; next?: { label: string; label2: string } | null /* ★便 ON-4（C2-22）: 来期の時給見込み（/mine） */ };
 
 export const WAGE_BASIS_LABEL: Record<string, string> = { "保証": "保証", "売上": "売上段", "pt": "pt 段", "基本": "基本", "固定": "固定" };
 

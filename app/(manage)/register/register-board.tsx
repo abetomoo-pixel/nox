@@ -38,7 +38,8 @@ import { BILLING_LOCKED_MSG, isBillingLocked } from "@/lib/billing/messages";
 import { orderLines, twoClassSumsOf, payFeeRatesOf, payFeeNoteOf, payFeeKeyOf, setFrozenNoteOf, cardGrossSplitOf, cardGrossDefaultOf, type PayFeeKey } from "@/lib/nox/register/p173"; // ★便 P173（0173 の client＝裁定385／386／389／391／393）
 import { payFeeOf } from "@/lib/nox/register/p173"; // ★連続便 3 追補 P-8
 import { dueSettingsOf } from "@/lib/nox/rules-0175/rounding"; // ★便 SH-UI-c2 C2-16（裁定424 候補）: 丸めは凍結しない（フラグ true）
-import { rules0175On } from "@/lib/nox/rules-0175/flag"; // ★連続便 3 追補 P-8／P-10
+import { rules0175On, seatMovePricingOn } from "@/lib/nox/rules-0175/flag"; // ★連続便 3 追補 P-8／P-10 // ★便 ON-4（裁定427・0182）: 席移動の料金はフラグ
+import { seatKindChangeOf, seatMoveConfirmTextOf } from "@/lib/nox/register/seat-move"; // ★便 ON-4（裁定427＝C2-23）: 席種が変わる移動の確認文
 import { drinkCountBackOn } from "@/lib/nox/rules-0175/settings"; // ★便 ON-2（CANON ⑨）: ドリンクバック（本数）OFF の店
 import { PAY_FEE_MODE_LABEL, feeAmountArgOf, noteModeOf, payFeeModesFor, payFeeNoteWithModeOf, payFeeRowTextOf, type PayFeeMode } from "@/lib/nox/rules-0175/pay-fee"; // ★連続便 3 追補 P-8（裁定393 追補4）
 import { extCurrentOf } from "@/lib/nox/rules-0175/ext-pattern"; // ★連続便 3 追補 P-10（裁定408 系）
@@ -1580,6 +1581,12 @@ export default function RegisterBoard({
     if (dayBlocked()) return; // ★C層③: 締め済み日の先回り（RPC の関所が本体）
     if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止）
     setSeatMsg(null);
+    // ★便 ON-4（裁定427・0182）: 席種が変わる移動＝料金が変わる（①セット行の差し替え／②延長パターンの再凍結／③サ率は移動時点から・④下位は残す・⑤入金済みは不変）＝フラグ true のときだけ確認を挟む
+    if (seatMovePricingOn()) {
+      const fromKind = seats.find((s) => s.id === check.seat_id)?.kind ?? null, toKind = seats.find((s) => s.id === seatId)?.kind ?? null;
+      const text = seatMoveConfirmTextOf({ change: seatKindChangeOf(fromKind, toKind), hasExtension: lines.some((l) => l.fee_kind === "extension"), paid: payments.length > 0, toKind, serviceRateTo: null });
+      if (text && !confirm(text)) return;
+    }
     const warn = await reservedNote(seatId);
     const { error } = await supabase.rpc("check_move_seat", { p_check_id: check.id, p_to_seat_id: seatId });
     if (error) { setSeatMsg(seatErrJa(error.message)); return; }
