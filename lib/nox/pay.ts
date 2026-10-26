@@ -14,6 +14,7 @@
 import { roundYen, roundPt1, floorYen, withholding1021Of } from "./money";
 import { canonApplyOf, canonNextWageOf, canonOutcomeOf, type CanonCtx, type CanonOutcome, type NextWage } from "./rules-0175/canon"; // ★便 P175-prep P-5（裁定418）: フラグ true のときだけ collect が input.rules0175 を渡す
 import { adjustOf, effectiveAdjustmentsOf, type AdjustmentRow } from "./payroll/adjust"; // 裁定258／264: run 別調整控除（純関数・roundYen は money.ts）
+import { autoWithholdingOf, effectiveWithholdingOf, employeeDeductionLinesOf, employeeDeductionsTotalOf, type EmployeeDeductionRow, type WithholdingKind } from "./payroll/withholding-kind"; // ★裁定432: 源泉区分と控除の入れ方
 import { bonusOf, bonusTiersOf } from "./bonus-tiers"; // ★便 P173 T-2（起票110）: 達成ボーナスの多段（純関数）
 
 // ── 型 ────────────────────────────────────────────────────────
@@ -270,6 +271,10 @@ export type PayInput = {
   taxClass?: EmployeeTaxClass;
   // ★便 P175-prep P-5（裁定418 CANON 型・0175 v2）: 報酬率軸のスライド・支給率・倍率・規定・免除・提案の文脈。未指定＝従来と 1 バイト同値（golden 不変）。RULES_0175_APPLIED=false の間は collect が渡さない
   rules0175?: CanonCtx;
+  // ★裁定432（0183 ★4・フラグ MIG_0183_APPLIED 配下）: 源泉区分（未指定＝従来の taxMode の式＝golden 不変）・委託の指定額（その期だけ）・社員の控除（入れた分だけ支給後に引く）
+  withholdingKind?: WithholdingKind;
+  withholdingOverride?: number | null;
+  employeeDeductions?: readonly EmployeeDeductionRow[];
 };
 
 // ★裁定98: sanction（制裁控除）の二層ガード結果。
@@ -336,7 +341,13 @@ export type PayResult = {
   dailyWithholdingShort?: number;
   dailySettlementGross?: number; // ★0172（裁定349）: 日次精算の合計（課税ベースから除外した額・あるときだけ）
   dailyAdvanceGross?: number;    // ★0172（裁定349）: 前払の合計（支給後控除のみ・あるときだけ）
-  taxClass?: EmployeeTaxClass;   // ★0172（裁定349）: 雇用の甲／乙（雇用のときだけ）
+  taxClass?: EmployeeTaxClass;   // ★0172（裁定349）: 雇用の甲／乙（雇用のときだけ・表示用＝税額は計算しない＝裁定432）
+  // ★裁定432: 区分を渡した cast だけキーを持つ（凍結の互換）。withholdingAuto＝自動額・withholdingOverride＝指定額（あるときだけ）・employeeDeductions＝入れた行だけ
+  withholdingKind?: WithholdingKind;
+  withholdingAuto?: number;
+  withholdingOverride?: number;
+  employeeDeductions?: { label: string; amount: number; kind: string }[];
+  employeeDeductionTotal?: number;
   net: number;
   lateN: number;
   absentN: number;
@@ -543,23 +554,16 @@ export function withholdingOf(
   gross: number,
   periodDays: number,
   taxMode: TaxMode,
-  taxClass?: EmployeeTaxClass,
+  _taxClass?: EmployeeTaxClass,
 ): number {
   return taxMode === "委託"
     ? withholding1021Of(Math.max(0, gross - 5000 * periodDays)) // ★裁定431 ②: 整数（floor(課税額×1021÷10000)）
-    : employeeWithholdingOf(gross, taxClass ?? "乙");
+    : 0; // ★裁定432 ③: 雇用（社員）は NOX が税額を計算しない（税額表の自動計算は撤去・控除は手入力＝employeeDeductions）
 }
 
 /** ★0172（裁定349・便 P172）: 雇用キャストの源泉区分＝扶養控除等申告書の提出あり＝甲欄／なし＝乙欄（日額表／月額表は支払方式で選ぶ）。 */
 export type EmployeeTaxClass = "甲" | "乙";
 export const employeeTaxClassOf = (dependentsForm: boolean | null | undefined): EmployeeTaxClass => (dependentsForm === true ? "甲" : "乙");
-/** 税額表（日額表／月額表・甲／乙）は器なし（起票113＝第 2 期）＝搭載されるまで false。true にした時点で employeeWithholdingOf が表を引く */
-export const EMPLOYEE_TAX_TABLE_READY = false;
-/** 雇用の源泉＝税額表の器が無い間は 0（裁定349 確定＝「雇用の税額表は器が別＝0172 には載せない」）。区分は甲／乙で分岐済み＝表が入れば差し替え 1 箇所 */
-export function employeeWithholdingOf(gross: number, taxClass: EmployeeTaxClass): number {
-  void gross; void taxClass;
-  return EMPLOYEE_TAX_TABLE_READY ? 0 : 0;
-}
 
 /** ★裁定373（GV-B W-3・2026-10-15）: ノルマ未達の減額は軸ごと「定額／不足 1 件ごと」の 1 方式。両方入っている既存店は「不足ごと」扱い（定額は使わない） */
 export type NormPenaltyMode = "flat" | "per";
@@ -785,7 +789,12 @@ export function payOf(input: PayInput): PayResult {
   //   advance（前払）は課税ベースを変えず支給後控除だけ。dailyWithheld は凍結用に残す（源泉からは引かない＝dailyWithholdingShort は常に 0）。
   const dailySettlement = input.dailySettlementGross ?? 0;
   const dailyAdvance = input.dailyAdvanceGross ?? 0;
-  const withholdingFull = withholdingOf(Math.max(0, gross - adj.before - dailySettlement), input.periodDays, input.taxMode, input.taxClass);
+  const taxBase = Math.max(0, gross - adj.before - dailySettlement);
+  const wkind = input.withholdingKind ?? null; // ★裁定432: 区分を渡したときだけ区分の式（hostess＝従来の委託と同値・other_fee＝定率・manual／none＝0）
+  const withholdingAuto = wkind ? autoWithholdingOf(wkind, taxBase, input.periodDays) : withholdingOf(taxBase, input.periodDays, input.taxMode, input.taxClass);
+  const withholdingFull = wkind ? effectiveWithholdingOf(wkind, withholdingAuto, input.withholdingOverride) : withholdingAuto;
+  const empDedLines = wkind === "manual" ? employeeDeductionLinesOf(input.employeeDeductions) : []; // ★裁定432 ③: 社員の控除＝入れた分だけ
+  const empDed = employeeDeductionsTotalOf(empDedLines);
   const dailyPaid = input.dailyPaidGross ?? dailySettlement + dailyAdvance;
   const dailyWithheld = input.dailyWithheld ?? 0;
   const withholding = withholdingFull;
@@ -808,7 +817,8 @@ export function payOf(input: PayInput): PayResult {
     input.okuriDeduct -
     normPenalty -
     adjTotal -
-    dailyPaid;
+    dailyPaid -
+    empDed; // ★裁定432 ③: 社員の控除（無ければ 0＝従来式）
   const adjustOverflow = Math.min(adjTotal, Math.max(0, -netRaw));
   const net = netRaw + adjustOverflow;
 
@@ -855,6 +865,8 @@ export function payOf(input: PayInput): PayResult {
     ...(dailySettlement ? { dailySettlementGross: dailySettlement } : {}), // ★0172（裁定349）: 種別別の合計（あるときだけ）
     ...(dailyAdvance ? { dailyAdvanceGross: dailyAdvance } : {}),
     ...(input.taxMode === "雇用" && input.taxClass ? { taxClass: input.taxClass } : {}), // ★0172（裁定349）: 雇用の甲／乙（雇用のときだけ）
+    ...(wkind ? { withholdingKind: wkind, withholdingAuto, ...(withholdingFull !== withholdingAuto || typeof input.withholdingOverride === "number" ? { withholdingOverride: withholdingFull } : {}) } : {}), // ★裁定432
+    ...(empDedLines.length ? { employeeDeductions: empDedLines, employeeDeductionTotal: empDed } : {}), // ★裁定432 ③
     net,
     lateN: input.fine.lateN,
     absentN: input.fine.absentN,

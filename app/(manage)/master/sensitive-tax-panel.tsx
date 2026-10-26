@@ -22,6 +22,8 @@ import * as t from "@/lib/nox/ui/theme";
 import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 import Modal from "@/components/ui/modal"; // ★0155（裁定309-3・便 S-3）: 廃棄の確認ダイアログ
 import { rpcErrJa } from "@/lib/nox/ui/rpc-err"; // ★0155: 'no mynumber'／'bad reason'／'forbidden' の日本語化
+import { mig0183On } from "@/lib/nox/rules-0175/flag"; // ★裁定432
+import { WITHHOLDING_ADVICE_NOTE, WITHHOLDING_KINDS, WITHHOLDING_KIND_LABEL, WITHHOLDING_KIND_SHORT } from "@/lib/nox/payroll/withholding-kind"; // ★裁定432
 type Cast = { id: string; name: string };
 type Store = { id: string; name: string };
 
@@ -72,6 +74,9 @@ export default function SensitiveTaxPanel({ casts, stores, isOwner }: { casts: C
 
   // 税務（manager+）
   const [mode, setMode] = useState("委託");
+  // ★裁定432（0183 ★4・フラグ配下）: 源泉区分（""＝既定＝委託 hostess／雇用 manual）
+  const [whKind, setWhKind] = useState<string>("");
+  const [whKindCur, setWhKindCur] = useState<string>("");
   const [invoice, setInvoice] = useState(""); // ''=未設定
   const [regNo, setRegNo] = useState("");
   // ★0172（裁定349・便 P172）: 扶養控除等申告書（雇用＝提出あり＝甲欄／なし＝乙欄）＝cast_tax_profiles.dependents_form／_on・保存は set_cast_dependents_form（税区分の保存の後）
@@ -147,6 +152,7 @@ export default function SensitiveTaxPanel({ casts, stores, isOwner }: { casts: C
       { const f = t?.dependents_form === true; const on = (t?.dependents_form_on as string | null) ?? ""; setDepForm(f); setDepOn(on); setDepCur({ form: f, on }); } // ★0172
       setTaxReady(true);
     }
+    if (mig0183On()) { const { data: wk } = await supabase.from("cast_tax_profiles").select("withholding_kind").eq("cast_id", castId).maybeSingle(); const v = ((wk?.withholding_kind as string | null) ?? ""); setWhKind(v); setWhKindCur(v); } // ★裁定432
   }, [castId, isOwner, supabase]);
 
   useEffect(() => { void load(); }, [load]);
@@ -186,6 +192,11 @@ export default function SensitiveTaxPanel({ casts, stores, isOwner }: { casts: C
     if (mode === "雇用" && (depForm !== depCur.form || (depForm && (depOn || "") !== depCur.on))) {
       const { error: eD } = await supabase.rpc("set_cast_dependents_form", { p_cast_id: castId, p_submitted: depForm, p_on: depForm && depOn ? depOn : null });
       if (eD) { setMsg(`扶養申告書の保存エラー: ${eD.message}`); void load(); return; }
+    }
+    // ★裁定432 ①: 源泉区分＝変わったときだけ（set_withholding_kind＝店長以上・"" は既定に戻す）
+    if (mig0183On() && whKind !== whKindCur) {
+      const { error: eK } = await supabase.rpc("set_withholding_kind", { p_subject_kind: "cast", p_subject_id: castId, p_kind: whKind === "" ? null : whKind });
+      if (eK) { setMsg(`源泉区分の保存エラー: ${eK.message}`); void load(); return; }
     }
     setMsg("税務情報を保存しました");
     void load();
@@ -333,6 +344,15 @@ export default function SensitiveTaxPanel({ casts, stores, isOwner }: { casts: C
                 <SegSelect value={mode} onChange={(v) => setMode(v)}
                 options={[["委託", "委託"], ["雇用", "雇用"]] as const} />
               </label>
+              {mig0183On() && (/* ★裁定432 ①: 源泉区分（人ごと・店長以上が変更） */
+                <label style={label} data-withholding-kind-select="1">源泉区分<br />
+                  <select value={whKind} onChange={(e) => setWhKind(e.target.value)} style={{ ...input, width: "auto", minHeight: 40 }} aria-label="源泉区分">
+                    <option value="">既定（{mode === "雇用" ? WITHHOLDING_KIND_SHORT.manual : WITHHOLDING_KIND_SHORT.hostess}）</option>
+                    {WITHHOLDING_KINDS.map((k) => <option key={k} value={k}>{WITHHOLDING_KIND_LABEL[k]}</option>)}
+                  </select>
+                  <span style={{ display: "block", fontSize: 11, color: "var(--sub)", marginTop: 2 }}>{WITHHOLDING_ADVICE_NOTE}</span>
+                </label>
+              )}
               <label style={label}>インボイス<br />
                 <SegSelect value={invoice} onChange={(v) => setInvoice(v)}
                 options={[["", "未設定"], ["課税", "課税"], ["免税", "免税"]] as const} />

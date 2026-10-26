@@ -115,6 +115,7 @@ export function readFrozenAdjustments(bj: unknown): { before: FrozenAdjustment[]
 
 /** 控除計の入力＝凍結 breakdown_json.pay／preview pay の部分集合。欠落キーは 0 円扱い（2026-07-28 既定）。 */
 export type DeductionParts = {
+  employeeDeductionTotal?: number; // ★裁定432 ③: 社員の控除（入れた分だけ・無ければ 0）
   fixedDed?: number;
   fine?: number;
   withholding?: number;
@@ -133,5 +134,5 @@ export function totalDeductionsOf(p: DeductionParts): number {
   const z = (v: number | undefined) => v ?? 0;
   return z(p.fixedDed) + z(p.fine) + z(p.withholding) + z(p.arDeduct)
     + z(p.advanceDeduct) + z(p.okuriDeduct) + z(p.normPenalty)
-    + z(p.adjBefore) + z(p.adjAfter);
+    + z(p.adjBefore) + z(p.adjAfter) + z(p.employeeDeductionTotal); // ★裁定432 ③
 }

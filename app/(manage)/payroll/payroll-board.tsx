@@ -32,6 +32,8 @@ import NormProposals from "@/components/nox/norm-proposals"; // ★便 X13-I I-5
 import type { NormProposal } from "@/lib/nox/payroll/norm-proposal"; // ★0154 D5: 懲戒減給（雇用・労基法 91 条）
 import AdvanceOkuriForm from "@/components/nox/advance-okuri-form"; // ★裁定300-2: 前借り／送り実費の入口（cast・期固定・確定後は読取のみ）
 import { mig0183On, okuri4wayOn, rules0175On } from "@/lib/nox/rules-0175/flag";
+import Withholding432Panel from "@/components/nox/withholding-432-panel"; // ★裁定432（0183 ★4）
+import { missingEmployeeDeductionsOf, type EmployeeDeductionKind, type WithholdingKind } from "@/lib/nox/payroll/withholding-kind"; // ★裁定432
 import { normFinalizeNoteOf, type NormIntent } from "@/lib/nox/payroll/norm-intent"; // ★便 M-7（0183） // ★便 P175-prep P-2／P-7
 import { cancelledLabelOf, isCancelledOf, type CancellableRow } from "@/lib/nox/rules-0175/cancelled"; // ★便 P175-prep P-2（裁定413 I-3）
 import { okuriModeOf, type OkuriMode } from "@/lib/nox/shift/okuri-mode"; // ★便 P175-prep P-7
@@ -388,6 +390,9 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
     let normNote = "";
     if (mig0183On() && runInfo?.id) { const { data: its } = await supabase.from("norm_shortfall_intents").select("cast_id, action, reason, detail, decided_at").eq("run_id", runInfo.id); const nf = normFinalizeNoteOf(rows ?? [], new Map(((its ?? []) as NormIntent[]).map((x) => [x.cast_id, x]))); if (nf) normNote = `
 ${nf.text}`; }
+    // ★裁定432 ③: 社員（manual）で控除が未入力の人がいれば 1 回だけ知らせる（止めない＝確定は続けられる）
+    if (mig0183On()) { const md = missingEmployeeDeductionsOf((rows ?? []).map((x) => { const p = x.breakdown?.pay as { withholdingKind?: WithholdingKind; employeeDeductions?: { amount: number; kind: string; label: string }[] } | undefined; return { kind: (p?.withholdingKind ?? "hostess") as WithholdingKind, rows: (p?.employeeDeductions ?? []).map((e) => ({ kind: e.kind as EmployeeDeductionKind, name: e.label, amount: e.amount })) }; })); if (md.message) normNote += `
+${md.message}（入れずに確定すると控除 0 のまま確定します）`; }
     if (!confirm(`${period} の給与を確定します。確定後はマスタ変更の影響を受けません。よろしいですか？${normNote}`)) return;
     setBusy(true);
     setMsg("");
@@ -1140,6 +1145,15 @@ ${nf.text}`; }
                         <span style={{ color: "var(--sub)" }}>（源泉既徴収 <span className="num">¥{(r.dailyWithheld ?? 0).toLocaleString()}</span>・<span className="num">{r.dailyN}</span> 件）＝差引支給から引かれます。日次精算で支払済みの額は源泉の基礎から除きます</span>{/* ★裁定431 ④: 実装どおりの文言（既徴収の相殺はしない＝T17 待ち） */}
                       </p>
                     )}
+                    {/* ★裁定432（0183 ★4・フラグ配下）: 源泉と控除の入れ方＝委託は自動額＋「額を指定」・社員は控除 4 欄（前月と同じ）・注記 */}
+                    {mig0183On() && (() => {
+                      const p4 = pay as { withholdingKind?: WithholdingKind; withholdingAuto?: number; withholdingOverride?: number; withholding?: number; employeeDeductions?: { label: string; amount: number; kind: string }[] };
+                      if (!p4.withholdingKind) return null;
+                      return <Withholding432Panel key={`${r.castId}-${period}`} period={period} subjectKind="cast" subjectId={r.castId} kind={p4.withholdingKind}
+                        auto={p4.withholdingAuto ?? p4.withholding ?? 0} override={typeof p4.withholdingOverride === "number" ? p4.withholdingOverride : null}
+                        deductions={(p4.employeeDeductions ?? []).map((e) => ({ kind: e.kind as EmployeeDeductionKind, name: e.kind === "other" ? e.label : null, amount: e.amount }))}
+                        editable={adjEditable} onSaved={async (m) => { setOvMsg(m); await preview(); }} />;
+                    })()}
                     {/* ★裁定300-2（2026-09-25）: 前借り／送り実費の入口（このキャスト・この期に固定・確定後は読取のみ）＝共通部品・既存 RPC。発行後はプレビュー再計算（advanceDeduct／okuriDeduct に反映）。残高は 0156 */}
                     <p style={{ fontSize: 11.5, fontWeight: 800, color: "var(--champ)", margin: "10px 0 2px" }}>前借り／送り実費{adjEditable ? "" : "（確定済み・読取のみ）"}</p>
                     <AdvanceOkuriForm storeId={storeId} casts={[]} castId={r.castId} castName={r.castName}

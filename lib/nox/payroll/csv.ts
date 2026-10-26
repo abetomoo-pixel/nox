@@ -75,10 +75,15 @@ export function guaranteeCellOf(g: GuaranteeLike | undefined): string {
   const span = g.spans.map((s) => `${md(s.from)}〜${s.to ? md(s.to) : ""}・¥${s.base}`).join("／");
   return `基本 ${g.baseHours}h ¥${g.basePay}／保証 ${span} ${g.guaHours}h ¥${g.guaPay}`;
 }
+/** ★裁定432 ③: 社員の控除のセル＝入れた項目だけ「社会保険料 ¥15000／住民税 ¥8000」 */
+type EmpDedLike = { label: string; amount: number }[] | undefined;
+export const employeeDeductionCellOf = (rows: EmpDedLike): string => (rows ?? []).filter((r) => r.amount > 0).map((r) => `${r.label} ¥${r.amount}`).join("／");
 export function buildPayrollCsv(rows: PayrollCsvRow[]): string {
   const withG = rows.some((r) => !!(r.pay as { guarantee?: GuaranteeLike }).guarantee);
-  const lines: (string | number)[][] = withG
-    ? [[...PAYROLL_CSV_HEADER, "時給内訳"], ...rows.map((r) => [...payrollCsvCells(r), guaranteeCellOf((r.pay as { guarantee?: GuaranteeLike }).guarantee)])]
-    : [PAYROLL_CSV_HEADER.slice(), ...rows.map(payrollCsvCells)];
+  const withE = rows.some((r) => ((r.pay as { employeeDeductions?: EmpDedLike }).employeeDeductions ?? []).length > 0); // ★裁定432: 1 人も無ければ列を足さない（従来と 1 バイト同値）
+  const head: string[] = [...PAYROLL_CSV_HEADER, ...(withG ? ["時給内訳"] : []), ...(withE ? ["社員の控除"] : [])];
+  const lines: (string | number)[][] = [head, ...rows.map((r) => [...payrollCsvCells(r),
+    ...(withG ? [guaranteeCellOf((r.pay as { guarantee?: GuaranteeLike }).guarantee)] : []),
+    ...(withE ? [employeeDeductionCellOf((r.pay as { employeeDeductions?: EmpDedLike }).employeeDeductions)] : [])])];
   return "﻿" + lines.map((r) => r.map(csvEsc).join(",")).join("\r\n");
 }

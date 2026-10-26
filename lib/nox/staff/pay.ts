@@ -6,6 +6,7 @@
 
 import { floorYen, withholding1021Of } from "../money"; // ★裁定431 ②
 import { monthRangeOf } from "../month"; // ★便 X13-H H-9: 暦月の日付は 1 か所で
+import { autoWithholdingOf, effectiveWithholdingOf, employeeDeductionLinesOf, WITHHOLDING_KIND_SHORT, type EmployeeDeductionRow, type WithholdingKind } from "../payroll/withholding-kind"; // ★裁定432
 
 export type StaffContractKind = "employee" | "parttime" | "contractor";
 export type StaffContract = {
@@ -51,6 +52,12 @@ export type StaffPayResult = {
   withholding: number;  // 雇用＝税額表（器なし＝0）・委託＝gross×率（既定 0）
   net: number;
   withholdingNote: string;
+  /** ★裁定432（opts.kind を渡したときだけ）: 区分・自動額・社員の控除（入れた行だけ） */
+  withholdingKind?: WithholdingKind;
+  withholdingAuto?: number;
+  withholdingOverride?: number;
+  employeeDeductions?: { label: string; amount: number; kind: string }[];
+  employeeDeductionTotal?: number;
 };
 /** ★便 X13-H H-12: 委託の源泉率（報酬・料金＝10.21%） */
 export const STAFF_CONTRACTOR_RATE = 10.21;
@@ -61,7 +68,7 @@ export function staffContractLineOf(c: StaffContract): string {
   if (isStaffEmployment(c.contract_kind) && c.hourly === 0 && c.fixed_allowance > 0) return `${head}・月給 ${yen(c.fixed_allowance)}`;
   return `${head}・時給 ${yen(c.hourly)}${c.fixed_allowance ? `・手当 ${yen(c.fixed_allowance)}` : ""}`;
 }
-export function staffPayOf(contract: StaffContract, days: readonly StaffDayHours[]): StaffPayResult {
+export function staffPayOf(contract: StaffContract, days: readonly StaffDayHours[], opts?: { kind: WithholdingKind; override?: number | null; deductions?: readonly EmployeeDeductionRow[] }): StaffPayResult {
   const minutes = days.reduce((s, d) => s + d.minutes, 0);
   const workDays = days.length;
   const timePay = floorYen((contract.hourly * minutes) / 60);
@@ -72,6 +79,15 @@ export function staffPayOf(contract: StaffContract, days: readonly StaffDayHours
   const rate = employment ? 0 : contract.withholding_rate > 0 ? contract.withholding_rate : STAFF_CONTRACTOR_RATE;
   const withholding = employment ? 0 : rate === STAFF_CONTRACTOR_RATE ? withholding1021Of(gross) : floorYen((gross * Math.round(rate * 100)) / 10000); // ★裁定431 ②: 10.21% は整数（1021÷10000）
   const withholdingNote = employment ? `給与所得（${contract.tax_class ?? "乙"}欄・見込みは源泉 0）` : `委託（${rate}%）`;
+  if (opts) { // ★裁定432（0183 ★4・フラグ配下）: 区分で計算（other_fee＝10.21% 定率・控除なし／manual＝計算しない・控除を手入力／none＝0）・指定額はその期だけ
+    const auto = autoWithholdingOf(opts.kind, gross, 0);
+    const wh = effectiveWithholdingOf(opts.kind, auto, opts.override);
+    const lines = opts.kind === "manual" ? employeeDeductionLinesOf(opts.deductions) : [];
+    const ded = lines.reduce((a, l) => a + l.amount, 0);
+    const note = opts.kind === "manual" ? (lines.length ? `社員（控除 ${lines.length} 項目）` : "社員（控除 未入力）") : `${WITHHOLDING_KIND_SHORT[opts.kind]}${wh !== auto ? "・指定額" : ""}`;
+    return { kind: contract.contract_kind, days: workDays, minutes, timePay, fixed, gross, withholding: wh, net: gross - wh - ded, withholdingNote: note,
+      withholdingKind: opts.kind, withholdingAuto: auto, ...(wh !== auto || typeof opts.override === "number" ? { withholdingOverride: wh } : {}), ...(lines.length ? { employeeDeductions: lines, employeeDeductionTotal: ded } : {}) };
+  }
   return { kind: contract.contract_kind, days: workDays, minutes, timePay, fixed, gross, withholding, net: gross - withholding, withholdingNote };
 }
 

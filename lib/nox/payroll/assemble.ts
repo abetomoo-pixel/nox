@@ -6,6 +6,7 @@
 import { periodKeyOf } from "./slide"; // ★裁定338（0168）
 import { castPts, employeeTaxClassOf, type SalesBackStep } from "../pay"; // ★裁定343（0170・便 W5-2b）: daily＋件数基準の dayPts（pay.ts と同じ式）
 import { roundPt1 } from "../money";
+import { defaultWithholdingKindOf, withholdingKindOf } from "./withholding-kind"; // ★裁定432
 import type {
   PayInput,
   CompPlan,
@@ -74,6 +75,8 @@ export type CastRaw = {
   norm: { days: number; dohan: number; salesTarget?: number; salesTargetSource?: "override" | "plan" | null }; // ★裁定96-②: salesTarget=achievement の目標（0/なし=不適用）・★裁定347 追補2（便 N1014 A-4）: 出所（個別／プラン既定）＝core が凍結形へ
   taxProfileMode: TaxMode | null; // cast_tax_profiles 未登録なら null（core が gate）
   dependentsForm?: boolean | null; // ★0172（裁定349）: 扶養控除等申告書の提出（雇用の甲／乙・fixture は省略＝乙）
+  /** ★裁定432（0183 ★4・フラグ MIG_0183_APPLIED のときだけ collect が格納＝false／fixture は無し＝従来と同値）: 区分の保存値（null＝既定）・その期の指定額・社員の控除 */
+  w432?: { stored: string | null; override: number | null; deductions: import("./withholding-kind").EmployeeDeductionRow[] };
   employment: "委託" | "雇用" | null; // ★裁定98: casts.employment（null＋sanction 行ありは core が no_employment blocker）
   avgDailyWage: number | null; // ★裁定98-C: 平均賃金（直近3確定期）。null=payOf の暫定式
   // ★裁定258／264: run 別調整控除（payroll_adjustments・当該 cast 分）。optional＝collect の結線は次レーン（未結線は []）。
@@ -247,6 +250,7 @@ export function buildPayInput(
     // ★0156（309-6）: 日払い済み（無ければキーを足さない＝従来と 1 バイト同値）
     ...(raw.dailyPaid && (raw.dailyPaid.gross > 0 || raw.dailyPaid.withheld > 0) ? { dailyPaidGross: raw.dailyPaid.gross, dailyWithheld: raw.dailyPaid.withheld, dailySettlementGross: raw.dailyPaid.settlementGross ?? 0, dailyAdvanceGross: raw.dailyPaid.advanceGross ?? 0 } : {}), // ★0172（裁定349）: 種別別
     ...(taxMode === "雇用" ? { taxClass: employeeTaxClassOf(raw.dependentsForm) } : {}), // ★0172（裁定349）: 雇用の甲／乙（委託はキーなし＝golden 不変）
+    ...(raw.w432 ? { withholdingKind: withholdingKindOf(raw.w432.stored, defaultWithholdingKindOf({ subject: "cast", taxMode })), withholdingOverride: raw.w432.override, employeeDeductions: raw.w432.deductions } : {}), // ★裁定432
   };
 }
 

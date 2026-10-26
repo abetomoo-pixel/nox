@@ -13,6 +13,9 @@ import { wageSpanLabelOf, wageSpansOf } from "./wage-spans"; // ★便 PR-1 R-2�
 
 export type BreakdownPayLike = {
   wage?: number; wHours?: number; timePay?: number;
+  /** ★裁定432: 源泉区分（区分を渡した cast だけ）・指定額（あるときだけ）・社員の控除（入れた行だけ） */
+  withholdingKind?: string; withholdingAuto?: number; withholdingOverride?: number;
+  employeeDeductions?: { label: string; amount: number; kind?: string }[];
   /** ★便 ON-2（裁定418 CANON）: 報酬率の判定（pay.ts の canon＝rules0175 を渡した cast だけ）。行「報酬率 ○%→段」の元 */
   canon?: { pct: number | null; tierIdx: number | null; direction: "up" | "hold" | "assess"; applied: boolean; upAmount: number; payPct: number; streak: number; windowN: number } | null;
   payRule?: { rule?: string; guaranteedHours?: number; fixedAmount?: number; calcDays?: number; periodDays?: number; perShiftAmount?: number; shiftCount?: number } | null;
@@ -133,6 +136,11 @@ export function slideLinesOf(p: SlideLineInput, opts: { frozen?: boolean; showSa
 export function whLabelOf(taxMode: string | null | undefined): string {
   return taxMode === "委託" ? "源泉（報酬・料金）" : taxMode === "雇用" ? "源泉（給与）" : "源泉";
 }
+/** ★裁定432: 区分があればその名（hostess＝ホステス報酬／other_fee＝報酬・料金）・指定額なら「（指定額）」。区分が無い旧データは whLabelOf のまま */
+export function whLabel432Of(p: { taxMode?: string | null; withholdingKind?: string; withholdingOverride?: number }): string {
+  const base = p.withholdingKind === "hostess" ? "源泉（ホステス報酬）" : p.withholdingKind === "other_fee" ? "源泉（報酬・料金）" : whLabelOf(p.taxMode);
+  return typeof p.withholdingOverride === "number" ? `${base.replace(/）$/, "")}・指定額）` : base;
+}
 
 /** ★便 PR-1 R-2（裁定416）: 時給の区間行。actual で wdays があり区間が 2 つ以上なら区間ごとに 1 行（Σ＝timePay）。それ以外は timeLineOf の 1 行 */
 export function timeLinesOf(pay: BreakdownPayLike, opts: { period?: string | null; splitAtD?: number[] } = {}): BreakdownLine[] {
@@ -235,7 +243,7 @@ export function breakdownLinesOf(input: BreakdownInput): Breakdown {
   const adjB = input.adjustments?.before ?? [], adjA = input.adjustments?.after ?? [];
   for (const [i, a] of adjB.entries()) dpush(`adj-b${i}`, a.reason || "調整控除（源泉前）", z(a.amount));
   dpush("adjBeforeHidden", adjB.length ? "調整控除（源泉前・明細非表示）" : "調整控除（源泉前）", z(p.adjBefore) - adjB.reduce((s, a) => s + z(a.amount), 0));
-  dpush("withholding", whLabelOf(p.taxMode), z(p.withholding));
+  dpush("withholding", whLabel432Of(p), z(p.withholding)); // ★裁定432: 区分・指定額のラベル（旧データは従来どおり）
   for (const [i, a] of adjA.entries()) dpush(`adj-a${i}`, a.reason || "調整控除（源泉後）", z(a.amount));
   dpush("adjAfterHidden", adjA.length ? "調整控除（源泉後・明細非表示）" : "調整控除（源泉後）", z(p.adjAfter) - adjA.reduce((s, a) => s + z(a.amount), 0));
   dpush("normPenalty", "ノルマ未達", z(p.normPenalty));
@@ -244,11 +252,12 @@ export function breakdownLinesOf(input: BreakdownInput): Breakdown {
   if (input.okuriModes) { dpush("okuriActual", "送り立替", z(input.okuriModes.actual)); dpush("okuriFlat", "送り（定額）", z(input.okuriModes.flat)); } // ★裁定414（S-4 ④）
   else dpush("okuri", "送り", input.deducted?.okuri != null ? z(input.deducted.okuri) : z(p.okuriDeduct));
   dpush("dailyPaid", "日払い済み", z(p.dailyPaidGross)); // ★0156（裁定309-6）: 支給後控除（無ければ 0＝行は出ない）
+  for (const [i, e] of (p.employeeDeductions ?? []).entries()) dpush(`empDed-${i}`, e.label, z(e.amount)); // ★裁定432 ③: 社員の控除＝入れた項目だけ（明細 PDF・CSV・/mine も同じ行）
 
   const earnTotal = earn.filter((l) => !l.sub && !l.info).reduce((s, l) => s + l.amount, 0);
   const dedTotal = ded.reduce((s, l) => s + l.amount, 0);
   const overflow = z(p.adjustOverflow);
-  return { earn, ded, earnTotal, dedTotal, net: earnTotal - dedTotal + overflow, whLabel: whLabelOf(p.taxMode), overflow };
+  return { earn, ded, earnTotal, dedTotal, net: earnTotal - dedTotal + overflow, whLabel: whLabel432Of(p), overflow };
 }
 
 /** 303-3: 一覧の時間セル。0h かつ日数>0 は「打刻なし／不完全」の注記（303 追補1）（値は変えない）。hours が無ければ "-" */

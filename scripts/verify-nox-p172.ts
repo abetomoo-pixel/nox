@@ -11,7 +11,7 @@
  */
 import fs from "node:fs";
 import { Client } from "pg";
-import { employeeTaxClassOf, employeeWithholdingOf, payOf, withholdingOf, type PayInput } from "../lib/nox/pay";
+import { employeeTaxClassOf, payOf, withholdingOf, type PayInput } from "../lib/nox/pay";
 import { termsBlocksOf, termsGateRedirectOf, TERMS_VERSION } from "../lib/nox/terms";
 import { hmOf, staffHoursOf, staffMonthRangeOf, staffPayOf } from "../lib/nox/staff/pay";
 import { autoConfirmCutoffOf, autoConfirmHoursOf } from "../lib/nox/shift/auto-confirm";
@@ -27,7 +27,7 @@ const src = (p: string) => fs.readFileSync(p, "utf8");
 const pay = src("lib/nox/pay.ts"); const col = src("lib/nox/payroll/collect.ts"); const asm = src("lib/nox/payroll/assemble.ts"); const core = src("lib/nox/payroll/core.ts");
 const dpf = src("components/nox/daily-pay-form.tsx"); const stp = src("app/(manage)/master/sensitive-tax-panel.tsx"); const spp = src("app/(manage)/master/store-profile-panel.tsx");
 check("p172(1-1) pay.ts: settlement を課税ベースから除外（withholdingOf(gross−adj.before−dailySettlement)）・既徴収の相殺なし（dailyWithholdingShort 0）・雇用は taxClass（甲／乙）",
-  pay.includes("const withholdingFull = withholdingOf(Math.max(0, gross - adj.before - dailySettlement), input.periodDays, input.taxMode, input.taxClass);")
+  pay.includes("const taxBase = Math.max(0, gross - adj.before - dailySettlement);") && pay.includes("withholdingOf(taxBase, input.periodDays, input.taxMode, input.taxClass);")
   && pay.includes("const withholding = withholdingFull;") && pay.includes("const dailyWithholdingShort = 0;") && pay.includes('export const employeeTaxClassOf = (dependentsForm: boolean | null | undefined): EmployeeTaxClass => (dependentsForm === true ? "甲" : "乙");'));
 check("p172(1-2) collect: daily_pays.kind を読み settlement／advance を別に合計・cast_tax_profiles.dependents_form を読む／assemble: dailySettlementGross／dailyAdvanceGross・雇用に taxClass／core: 行に 2 列",
   col.includes('.select("cast_id, gross, withholding, kind")') && col.includes('if (r.kind === "advance") cur.advanceGross += r.gross; else cur.settlementGross += r.gross;') && col.includes('.select("cast_id, mode, dependents_form")')
@@ -46,8 +46,8 @@ check("p172(1-2) collect: daily_pays.kind を読み settlement／advance を別�
     JSON.stringify({ w0: p0.withholding, wA: pA.withholding, n0: p0.net, nA: pA.net }));
   check("p172(1-5) 純関数: 日払いなし＝従来と同値（golden 不変・キーなし）", JSON.stringify(payOf({ ...base })) === JSON.stringify(p0) && p0.dailySettlementGross === undefined && p0.taxClass === undefined);
   const pE = payOf({ ...base, taxMode: "雇用", taxClass: "甲" });
-  check("p172(1-6) 雇用: 甲／乙は employeeTaxClassOf（提出あり＝甲）・源泉は税額表の器なし＝0・結果に taxClass を持つ（委託はキーなし）",
-    employeeTaxClassOf(true) === "甲" && employeeTaxClassOf(false) === "乙" && employeeTaxClassOf(null) === "乙" && employeeWithholdingOf(300000, "甲") === 0 && pE.withholding === 0 && pE.taxClass === "甲" && payOf({ ...base, taxClass: "甲" }).taxClass === undefined);
+  check("p172(1-6) 雇用: 甲／乙は employeeTaxClassOf（提出あり＝甲）・源泉は計算しない（裁定432＝税額表の自動計算は撤去・控除は手入力）＝0・結果に taxClass を持つ（委託はキーなし）",
+    employeeTaxClassOf(true) === "甲" && employeeTaxClassOf(false) === "乙" && employeeTaxClassOf(null) === "乙" && withholdingOf(300000, 31, "雇用", "甲") === 0 && pE.withholding === 0 && pE.taxClass === "甲" && payOf({ ...base, taxClass: "甲" }).taxClass === undefined);
 }
 check("p172(1-7) 日払いの発行 UI: 種別 SegSelect（既定 advance）・p_kind を送る・advance は控除 0 のプレビュー・一覧に種別",
   dpf.includes('useState<DailyPayKind>("advance")') && dpf.includes("p_idem_key: crypto.randomUUID(), p_kind: kind })") && dpf.includes("dailyPayKindDeductsNow(kind) ? withholdingOf(gross, 1, mode) : 0") && dpf.includes("data-daily-pay-kind={kind}") && dpf.includes('{p.kind === "advance" ? "前払" : "日次精算"}'));

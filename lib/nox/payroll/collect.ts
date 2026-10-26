@@ -16,7 +16,7 @@ import { calcPeriodOf } from "./assemble"; // ★0154 D6
 import { baseOverrideOf } from "./base-override"; // ★便 P174 T-5（R-11 (d)）
 import { attendanceWithDohanOf } from "@/lib/nox/shift/dohan-mark"; // ★便 PR-1 R-4（裁定417）: 同伴の正本＝伝票
 import { payTimeBasisOf } from "./time-basis"; // ★裁定324（便 L-2-3）
-import { rules0175On } from "@/lib/nox/rules-0175/flag"; // ★便 P175-prep: 0175 v2 の列・表を読むのはフラグ true のときだけ（false＝従来と 1 バイト同値）
+import { mig0183On, rules0175On } from "@/lib/nox/rules-0175/flag"; // ★便 P175-prep: 0175 v2 の列・表を読むのはフラグ true のときだけ（false＝従来と 1 バイト同値）
 import { loadCanonCtx, loadCastMeta0175, loadRateHistory, loadRules0175Store } from "./rules-0175-collect"; // ★便 P175-prep P-1／P-5
 import type { ShortfallDay } from "./shortfall"; // ★裁定324-3（便 L-2-4）: 不就労控除の入力（営業日ごとの確定シフト×打刻）: 勤務時間の計算基準（store 設定・期の初日で解決）
 /** ★0154 D2: 'HH:MM'（0-47 域）→ 分（shift-time.hm2min と同式・collect 内で閉じる） */
@@ -883,6 +883,20 @@ export async function collectPeriod(
       const h = hist.get(c.castId); if (h && h.length) c.rateHistory = h;
       const x = ctx.get(c.castId); if (x) c.rules0175 = x;
     }
+  }
+  // ★裁定432（0183 ★4）: フラグ true のときだけ区分・その期の指定額・社員の控除を読む（false＝query 0・CastRaw のキー増減 0＝golden 不変）
+  if (mig0183On()) {
+    const [kR, oR, dR] = await Promise.all([
+      admin.from("cast_tax_profiles").select("cast_id, withholding_kind").eq("store_id", storeId),
+      admin.from("payroll_withholding_overrides").select("subject_id, amount").eq("store_id", storeId).eq("period", win.period).eq("subject_kind", "cast"),
+      admin.from("payroll_employee_deductions").select("subject_id, kind, name, amount, sort").eq("store_id", storeId).eq("period", win.period).eq("subject_kind", "cast").order("sort"),
+    ]);
+    for (const r of [kR, oR, dR]) if (r.error) throw new Error(`源泉区分の読み取り: ${r.error.message}`);
+    const kind = new Map(((kR.data ?? []) as { cast_id: string; withholding_kind: string | null }[]).map((r) => [r.cast_id, r.withholding_kind]));
+    const ov = new Map(((oR.data ?? []) as { subject_id: string; amount: number }[]).map((r) => [r.subject_id, r.amount]));
+    const ded = new Map<string, { kind: "social_insurance" | "income_tax" | "resident_tax" | "other"; name: string | null; amount: number }[]>();
+    for (const r of (dR.data ?? []) as { subject_id: string; kind: "social_insurance" | "income_tax" | "resident_tax" | "other"; name: string | null; amount: number }[]) (ded.get(r.subject_id) ?? ded.set(r.subject_id, []).get(r.subject_id)!).push({ kind: r.kind, name: r.name, amount: r.amount });
+    for (const c of casts) c.w432 = { stored: kind.get(c.castId) ?? null, override: ov.get(c.castId) ?? null, deductions: ded.get(c.castId) ?? [] };
   }
   return { casts, masters, incentives, recipientsByDate, receivablesByCast, advancesByCast, transportByCast };
 }
