@@ -4,7 +4,7 @@
 //   委託（contractor）＝時給×実働（時給 0 なら 固定手当＝日額×出勤日数）・源泉率＝T11（税理士）回答待ち＝既定 0＝contracts.withholding_rate が 0 のまま。
 //   staff_payroll_runs への確定は器のみ（第 2 期）。丸め＝円未満切捨（floorYen）。
 
-import { floorYen } from "../money";
+import { floorYen, withholding1021Of } from "../money"; // ★裁定431 ②
 import { monthRangeOf } from "../month"; // ★便 X13-H H-9: 暦月の日付は 1 か所で
 
 export type StaffContractKind = "employee" | "parttime" | "contractor";
@@ -70,7 +70,7 @@ export function staffPayOf(contract: StaffContract, days: readonly StaffDayHours
   const gross = timePay + fixed;
   // ★便 X13-H H-12 ③: 委託＝源泉 10.21%（率が未設定＝0 の契約も 10.21% で見込み）・雇用＝甲欄／乙欄（見込みは源泉 0＝確定時に計算）
   const rate = employment ? 0 : contract.withholding_rate > 0 ? contract.withholding_rate : STAFF_CONTRACTOR_RATE;
-  const withholding = employment ? 0 : floorYen((gross * rate) / 100);
+  const withholding = employment ? 0 : rate === STAFF_CONTRACTOR_RATE ? withholding1021Of(gross) : floorYen((gross * Math.round(rate * 100)) / 10000); // ★裁定431 ②: 10.21% は整数（1021÷10000）
   const withholdingNote = employment ? `給与所得（${contract.tax_class ?? "乙"}欄・見込みは源泉 0）` : `委託（${rate}%）`;
   return { kind: contract.contract_kind, days: workDays, minutes, timePay, fixed, gross, withholding, net: gross - withholding, withholdingNote };
 }

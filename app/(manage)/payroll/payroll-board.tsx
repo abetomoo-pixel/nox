@@ -182,6 +182,8 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
   const [adjForm, setAdjForm] = useState<{ kind: "fixed" | "rate"; amount: string; pct: string; before: boolean; showDetail: boolean; reason: string }>(
     { kind: "fixed", amount: "", pct: "", before: true, showDetail: true, reason: "" },
   );
+  // ★裁定431 ①（Agoora 確定 10/26）: 手入力の調整控除の既定＝委託は「源泉の後に引く」・雇用は従来どおり「源泉の前」（キャストを開くたびに既定へ）
+  useEffect(() => { const tm = (rows ?? []).find((x) => x.castId === detailCast)?.taxMode; if (detailCast) setAdjForm((f) => ({ ...f, before: tm !== "委託" })); }, [detailCast]); // eslint-disable-line react-hooks/exhaustive-deps
   // ★裁定265: 削除理由のモーダル（対象行と理由・空／空白のみは送信不可）
   const [delTarget, setDelTarget] = useState<{ id: string; label: string } | null>(null);
   const [delReason, setDelReason] = useState("");
@@ -1135,7 +1137,7 @@ ${nf.text}`; }
                     {(r.dailyN ?? 0) > 0 && (
                       <p style={{ fontSize: 12, margin: "8px 0 0" }}>
                         <b style={{ color: "var(--champ)" }}>日払い済み</b> <span className="num">¥{(r.dailyPaidGross ?? 0).toLocaleString()}</span>
-                        <span style={{ color: "var(--sub)" }}>（源泉既徴収 <span className="num">¥{(r.dailyWithheld ?? 0).toLocaleString()}</span>・<span className="num">{r.dailyN}</span> 件）＝差引支給から引かれ、源泉は既徴収分を差し引きます</span>
+                        <span style={{ color: "var(--sub)" }}>（源泉既徴収 <span className="num">¥{(r.dailyWithheld ?? 0).toLocaleString()}</span>・<span className="num">{r.dailyN}</span> 件）＝差引支給から引かれます。日次精算で支払済みの額は源泉の基礎から除きます</span>{/* ★裁定431 ④: 実装どおりの文言（既徴収の相殺はしない＝T17 待ち） */}
                       </p>
                     )}
                     {/* ★裁定300-2（2026-09-25）: 前借り／送り実費の入口（このキャスト・この期に固定・確定後は読取のみ）＝共通部品・既存 RPC。発行後はプレビュー再計算（advanceDeduct／okuriDeduct に反映）。残高は 0156 */}

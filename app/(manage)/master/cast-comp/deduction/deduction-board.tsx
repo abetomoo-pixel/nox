@@ -34,7 +34,7 @@ export default function DeductionBoard({ storeId, isManagerUp, isOwner, casts, o
       {isSectionOn(settings, "compDeductionTab") && (<section className="nox-cardtop" style={{ ...card, marginBottom: 14 }}>{/* ★裁定269-4: compDeductionTab */}
         <h2 style={secTitle}>控除ルール一覧</h2>
         <DeductionTab deductions={data.deductions} isManagerUp={isManagerUp} storeId={storeId}
-          setMsg={setMsg} reload={data.reload} />
+          setMsg={setMsg} reload={data.reload} okuriMode={okuriMode} />{/* ★裁定431 ③: 送りの控除との二重を防ぐ */}
       </section>)}
 
       {/* ★便 X13-G W-13（差し替え）①: 「精算調整・控除」が OFF の店はタブを空にせず案内＋利用機能へのボタン（出し分けは C-5 どおり） */}

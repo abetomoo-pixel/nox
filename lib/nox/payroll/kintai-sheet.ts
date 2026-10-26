@@ -30,7 +30,7 @@ export async function buildKintaiSheet(admin: SupabaseClient, managerClient: Sup
   const draft = await computePayrollDraft(admin, managerClient, storeId, period, { previewDefaults: true });
   const basis: "punch" | "shift" = draft.payTimeBasis === "shift" ? "shift" : "punch";
   const todayBiz = bizDateOf(new Date().toISOString(), win.cutoffHm);
-  const castQ = admin.from("casts").select("id, name, is_active").eq("store_id", storeId).order("name");
+  const castQ = admin.from("casts").select("id, name, is_active, employment").eq("store_id", storeId).order("name"); // ★裁定431 ⑥: +employment（雇用のシフト無し出勤に時間）
   const [castsR, shiftsR, attR, punchR, corrR, trR, penR, storeR, runR, salesR, shimeiR, backsR, claimsR] = await Promise.all([
     opts.castId ? castQ.eq("id", opts.castId) : castQ,
     admin.from("shifts").select("id, cast_id, date, start_hm, end_hm").eq("store_id", storeId).eq("status", "confirmed").gte("date", win.periodStart).lte("date", win.periodEnd),
@@ -74,7 +74,8 @@ export async function buildKintaiSheet(admin: SupabaseClient, managerClient: Sup
   for (const r of (backsR.data ?? []) as Rec[]) { const d = bd(r); if (!d) continue; const x = ensure(r.cast_id as string, d); x.drink += num(r.drink_back); x.champ += num(r.champ_back); x.bottle += num(r.bottle_back); x.calc += num(r.calculated_back_amount); }
   for (const r of (claimsR.data ?? []) as Rec[]) { const d = bd(r); if (!d) continue; const x = ensure(r.cast_id as string, d); x.drink += num(r.back_amount); }
 
-  const casts: KintaiCast[] = ((castsR.data ?? []) as { id: string; name: string; is_active: boolean | null }[]).map((c) => {
+  const hm2minK = (hm: string): number => { const [h, m] = hm.split(":").map(Number); return h * 60 + m; };
+  const casts: KintaiCast[] = ((castsR.data ?? []) as { id: string; name: string; is_active: boolean | null; employment?: string | null }[]).map((c) => {
     const rows = attendanceDayRowsOf({
       punches: ((punchR.data ?? []) as Rec[]).filter((p) => p.cast_id === c.id).map((p) => ({ id: p.id as string, punched_at: p.punched_at as string, type: p.type as "in" | "out", source: p.source as string, okuri: p.okuri as boolean | null })),
       shifts: ((shiftsR.data ?? []) as Rec[]).filter((s) => s.cast_id === c.id).map((s) => ({ id: s.id as string, date: s.date as string, start_hm: s.start_hm as string, end_hm: s.end_hm as string })),
@@ -83,6 +84,8 @@ export async function buildKintaiSheet(admin: SupabaseClient, managerClient: Sup
       transports: ((trR.data ?? []) as Rec[]).filter((t) => t.cast_id === c.id).map((t) => ({ biz_date: t.biz_date as string, amount: t.amount as number, mode: (t.mode as string | null | undefined) ?? null, status: t.status as string })),
       cutoffHm: win.cutoffHm, closeHm: win.closeHm, grace, payTimeBasis: basis, todayBiz, periodStart: win.periodStart, periodEnd: win.periodEnd,
     });
+    // ★裁定431 ⑥（Agoora 確定 10/26）: 雇用はシフト無し出勤の日も打刻の時間（出〜退）を実働に＝給与（collect）と同じ。委託は従来どおり 0
+    if ((c as { employment?: string | null }).employment === "雇用") for (const r of rows) if (!r.shift && r.inHm && r.outHm && r.hours === 0 && !r.cancelled) { const mins = hm2minK(r.outHm) - hm2minK(r.inHm); if (mins > 0) r.hours = Math.round((mins / 60) * 10) / 10; }
     const summary = attendanceSummaryOf(rows, todayBiz);
     const d = draftByCast.get(c.id);
     const frozen = frozenByCast.get(c.id) ?? null;

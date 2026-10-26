@@ -97,3 +97,15 @@ export function okuriFlatTiersErrOf(tiers: readonly OkuriFlatTier[]): string | n
 /** 区分の表示（選択肢・キャスト詳細）＝「近距離（¥500）」 */
 export const okuriTierLabelOf = (t: OkuriFlatTier): string => `${t.name}（¥${t.amount.toLocaleString()}）`;
 export const okuriModeSelectableOf = (mode: OkuriMode, applied: boolean): boolean => applied || mode === "actual" || mode === "flat";
+
+// ★裁定431 ③（2026-10-26）: 固定控除マスタの「送り代」と送りの控除（transport＝実費立替／定額徴収）の二重を防ぐ。
+//   送りが使える店（方式が なし 以外）では、名前に「送り／送迎／タクシー」を含む固定控除は作れない・既存は警告（自動で消さない）。
+export const OKURI_DEDUCTION_NAME_RE = /送り|送迎|タクシー/;
+export const isOkuriDeductionName = (name: string): boolean => OKURI_DEDUCTION_NAME_RE.test(name);
+export const okuriDeductionBlockedOf = (mode: OkuriMode, name: string): boolean => mode !== "none" && isOkuriDeductionName(name);
+export const OKURI_DEDUCTION_BLOCK_MSG = "送りは「控除・送り」の送り（実費立替／定額徴収）で記録します。固定控除に送り代を作ると二重に引かれます（送りが「なし」の店だけ作れます）";
+export const okuriDeductionWarnOf = (mode: OkuriMode, names: readonly string[]): string | null => {
+  if (mode === "none") return null;
+  const hit = names.filter(isOkuriDeductionName);
+  return hit.length > 0 ? `固定控除に送り代（${hit.join("・")}）があります。送りの控除と二重に引かれるため、無効にしてください（送りは「控除・送り」で記録）` : null;
+};

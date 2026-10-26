@@ -10,6 +10,13 @@ export function roundYen(n: number): number {
 /** 円未満切捨（源泉徴収税額の専用丸め＝裁定23・タックスアンサー No.2807 注記）。
  *  ★roundYen とは別系統。源泉以外の金額は roundYen（四捨五入・モック忠実）のまま。
  *  負値は Math.floor が絶対値を大きくするため、呼び出し側で max(0, …) を先に取ること。 */
+/** ★裁定431 ②（2026-10-26）: 源泉＝10.21% を整数で（floor(課税額×1021÷10000)・浮動小数を使わない）。課税額は 0 以上の整数 */
+export function withholding1021Of(taxable: number): number {
+  const t = Math.max(0, Math.trunc(taxable));
+  const x = t * 1021;
+  return (x - (x % 10000)) / 10000;
+}
+
 export function floorYen(n: number): number {
   return Math.floor(n);
 }

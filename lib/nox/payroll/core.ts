@@ -15,7 +15,7 @@ import { shortfallRowsOf, type ShortfallRow } from "./shortfall"; // ★裁定32
 import { LATE_GRACE_MIN_DEFAULT } from "../punch-match";
 import { guaranteeEndNoteOf, guaranteeStateOf } from "../cast/guarantee"; // ★便 L-3-1: 保証時給の終了の注記（当期内または 7 日以内）
 import { bizDateOf } from "../biz-date";
-import { frozenAdjustmentsOf, type FrozenAdjustment } from "./adjust"; // 裁定264-10: 凍結形（show_detail=true の行だけ理由を持つ）
+import { effectiveAdjustmentsOf, frozenAdjustmentsOf, type FrozenAdjustment } from "./adjust"; // 裁定264-10: 凍結形（show_detail=true の行だけ理由を持つ）
 import { buildPayInput, applyDeductionOverrides, type Extra, type DeductionOverride } from "./assemble";
 
 // 天引きの消し込み計画（finalize に同梱＝receivable/advance/transport 遷移の指示）
@@ -264,7 +264,7 @@ export async function computePayrollDraft(
     }
     const ovApplied = applyDeductionOverrides(masters.deductions, c.deductionOverrides).applied; // ★0156（309-8）: 凍結用（実際の適用は buildPayInput 内）
     // ★裁定264-10: 凍結形＝show_detail=true の行だけ理由付きで・false は合算額のみ（率の分母は pay.gross＝payOf と同一）
-    const frozenAdj = frozenAdjustmentsOf(c.adjustments ?? [], pay.gross);
+    const frozenAdj = frozenAdjustmentsOf(effectiveAdjustmentsOf(c.adjustments ?? [], taxMode), pay.gross); // ★裁定431 ①: 明細の源泉前／後も計算と同じ
     // ★便 L-3-1（仮決め）: 保証時給の終了が当期内または今日から 7 日以内 → warning（確定は止めない・新規 fetch 0＝collect の guarantees）
     if (c.guarantees?.length) {
       const gst = guaranteeStateOf(c.guarantees.map((g) => ({ valid_from: g.validFrom, valid_to: g.validTo, overrides_json: { guarantee: true, base: g.base } })), bizToday);

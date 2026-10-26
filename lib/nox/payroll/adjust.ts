@@ -14,6 +14,8 @@ export type AdjustmentKind = "fixed" | "rate"; // = payroll_adjustments.mode
 export type AdjustmentRow = {
   castId: string;
   kind: AdjustmentKind;
+  /** ★裁定431 ①: 行の出所（settlement＝精算調整・ノルマ未達（委託）／sanction／shortfall／manual／carryover）＝委託の源泉前／後の判定に使う。未指定＝行の before_withholding のまま */
+  source?: string;
   amount: number | null; // fixed: 円（整数・0 以上）。rate では null
   rateBp: number | null; // rate: bp（整数 0..10000）。fixed では null
   beforeWithholding: boolean; // true=源泉の前に gross から引く／false=源泉の後に引く
@@ -45,6 +47,12 @@ export function adjustAmountOf(row: AdjustmentRow, gross: number): number {
     return roundYen((gross * row.rateBp) / 10000);
   }
   throw new Error(`bad adjustment: kind ${String((row as { kind: unknown }).kind)}`);
+}
+
+/** ★裁定431 ①（Agoora 確定 10/26）: 委託（ホステス等報酬）は精算調整（source settlement＝遅刻・当欠・罰金ダイアログ・ノルマ未達の減額）を源泉の後へ（行の before_withholding より優先）。
+ *  雇用の懲戒減給（sanction）・不就労（shortfall）・手入力（manual）は行の指定どおり。給与計算（pay.ts）と明細の凍結（core.ts）が同じ関数を使う＝表示と計算がずれない */
+export function effectiveAdjustmentsOf(rows: readonly AdjustmentRow[], taxMode: string | null | undefined): AdjustmentRow[] {
+  return taxMode === "委託" ? rows.map((r) => (r.source === "settlement" && r.beforeWithholding ? { ...r, beforeWithholding: false } : r)) : [...rows];
 }
 
 /** 調整行の確定（before 合計・after 合計・行別確定額）。全率行が同じ gross を見る（逐次適用しない）。 */

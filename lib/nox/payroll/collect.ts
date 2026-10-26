@@ -384,7 +384,7 @@ export async function loadPunch(admin: SupabaseClient, storeId: string, win: Pay
     (dohanDatesByCast.get(r.cast_id) ?? dohanDatesByCast.set(r.cast_id, new Set()).get(r.cast_id)!).add(bizDateOf(ck.started_at, win.cutoffHm));
   }
 
-  const result = new Map<string, { noShiftDates: string[]; days: number; lateN: number; absentN: number; anomalyCount: number; missingOutDates: string[]; hoursByDate: Map<string, number>; shiftHoursByDate: Record<string, number>; attendanceDays: number; shortfallDays: ShortfallDay[] }>();
+  const result = new Map<string, { noShiftHours: Map<string, number>; noShiftDates: string[]; days: number; lateN: number; absentN: number; anomalyCount: number; missingOutDates: string[]; hoursByDate: Map<string, number>; shiftHoursByDate: Record<string, number>; attendanceDays: number; shortfallDays: ShortfallDay[] }>();
   // 受給者判定（確認1・裁定）: final∈{ok,late}（確定シフトがある日に出勤）＝raw のみ（no_shift/absent）は含めない。
   const recipientsByDate = new Map<string, string[]>();
   const todayBiz = bizDateOf(new Date().toISOString(), win.cutoffHm); // ★X-13-27: 営業日の今日（store の cutoff）
@@ -423,7 +423,15 @@ export async function loadPunch(admin: SupabaseClient, storeId: string, win: Pay
     // ★便 M-10（Agoora 確定 10/26 ⑧）: シフト無し出勤＝in の打刻がある営業日で確定シフトが無い日（今日まで）。時給は付かない（仕様維持）＝要対応に出して当日追加配置で後追い
     const shiftDates = new Set(raw.shifts.map((s) => s.date));
     const noShiftDates = [...new Set(raw.punches.filter((p) => p.type === "in").map((p) => bizDateOf(p.punched_at, win.cutoffHm)))].filter((d) => !shiftDates.has(d) && d <= todayBiz).sort();
-    result.set(cid, { noShiftDates, days, lateN, absentN, anomalyCount, missingOutDates, hoursByDate, shiftHoursByDate, attendanceDays, shortfallDays });
+    // ★裁定431 ⑥（Agoora 確定 10/26）: シフト無し出勤の日の打刻時間（その営業日の最初の in〜最後の out）＝雇用だけ時給に入れる（委託は従来どおり時給なし）
+    const noShiftHours = new Map<string, number>();
+    for (const d of noShiftDates) {
+      const ps = raw.punches.filter((p) => bizDateOf(p.punched_at, win.cutoffHm) === d).map((p) => ({ t: new Date(p.punched_at).getTime(), type: p.type })).sort((a, b) => a.t - b.t);
+      const firstIn = ps.find((p) => p.type === "in");
+      const lastOut = [...ps].reverse().find((p) => p.type === "out" && firstIn && p.t > firstIn.t);
+      if (firstIn && lastOut) noShiftHours.set(d, (lastOut.t - firstIn.t) / 3600_000);
+    }
+    result.set(cid, { noShiftHours, noShiftDates, days, lateN, absentN, anomalyCount, missingOutDates, hoursByDate, shiftHoursByDate, attendanceDays, shortfallDays });
   }
   // pooled 端数 +1 の順序を確定させるため cast_id 昇順にソート
   for (const [d, list] of recipientsByDate) recipientsByDate.set(d, list.sort());
@@ -598,15 +606,15 @@ export async function loadPayrollAdjustments(admin: SupabaseClient, storeId: str
   if (!run) return byCast;
   const q0 = admin
     .from("payroll_adjustments")
-    .select("cast_id, mode, amount, rate_bp, before_withholding, show_detail, reason")
+    .select("cast_id, mode, amount, rate_bp, before_withholding, show_detail, reason, source") // ★裁定431 ①: +source
     .eq("run_id", run.id as string);
   const { data, error } = await (rules0175On() ? q0.is("cancelled_at", null) : q0) // ★便 P175-prep P-2（裁定413 I-3・0175 v2 ★12 cancelled_at）: 取消済みは控除しない（フラグ false＝列を触らない）
     .order("created_at", { ascending: true }).order("id", { ascending: true });
   if (error) throw new Error(`payroll_adjustments: ${error.message}`);
-  type R = { cast_id: string; mode: "fixed" | "rate"; amount: number | null; rate_bp: number | null; before_withholding: boolean; show_detail: boolean; reason: string };
+  type R = { cast_id: string; mode: "fixed" | "rate"; amount: number | null; rate_bp: number | null; before_withholding: boolean; show_detail: boolean; reason: string; source?: string | null };
   for (const r of (data ?? []) as R[]) {
     const cur = byCast.get(r.cast_id) ?? [];
-    cur.push({ castId: r.cast_id, kind: r.mode, amount: r.amount, rateBp: r.rate_bp, beforeWithholding: r.before_withholding, showDetail: r.show_detail, reason: r.reason });
+    cur.push({ castId: r.cast_id, kind: r.mode, amount: r.amount, rateBp: r.rate_bp, beforeWithholding: r.before_withholding, showDetail: r.show_detail, reason: r.reason, ...(r.source ? { source: r.source } : {}) });
     byCast.set(r.cast_id, cur);
   }
   return byCast;
@@ -798,11 +806,13 @@ export async function collectPeriod(
     const cp = castPlanByCast.get(cid);
     const plan = cp ? plansById.get(cp.planId) ?? null : null;
     // 日次 = sales 日 ∪ punch 日（hours>0 or sales>0）
-    const dateSet = new Set<string>([...(s?.daily.keys() ?? []), ...(p?.hoursByDate.keys() ?? [])]);
+    // ★裁定431 ⑥: 雇用はシフト無し出勤の日も打刻の時間で時給（委託は従来どおり 0＝当日追加配置で後追い）
+    const empNoShift = employmentById.get(cid) === "雇用" ? p?.noShiftHours ?? new Map<string, number>() : new Map<string, number>();
+    const dateSet = new Set<string>([...(s?.daily.keys() ?? []), ...(p?.hoursByDate.keys() ?? []), ...empNoShift.keys()]);
     const daily = [...dateSet].sort().map((bizDate) => ({
       bizDate,
       sales: s?.daily.get(bizDate) ?? 0,
-      hours: p?.hoursByDate.get(bizDate) ?? 0,
+      hours: (p?.hoursByDate.get(bizDate) ?? 0) + (empNoShift.get(bizDate) ?? 0),
     })).filter((d) => d.sales > 0 || d.hours > 0);
     // ★裁定343（0170・便 W5-2b）: 対象ランク（プランの slide_rank_ids が非空なら、そのランクのキャストだけスライド）。対象外＝プランの段を空にして base のまま（pay.ts 不変）・凍結形に印
     const rankIds = cp ? slideRankIdsByPlan.get(cp.planId) ?? [] : [];

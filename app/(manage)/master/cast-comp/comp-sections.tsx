@@ -1,4 +1,5 @@
 "use client";
+import { OKURI_DEDUCTION_BLOCK_MSG, okuriDeductionBlockedOf, okuriDeductionWarnOf, type OkuriMode } from "@/lib/nox/shift/okuri-mode"; // ★裁定431 ③
 import GroupedNumberInput from "@/components/ui/grouped-number-input"; // ★便 X13-G W-12 ④: 3 桁区切りの入力欄
 
 import { NORM_AXES, NORM_AXIS_LABEL, NORM_AXIS_UNIT, normAxesOf, normTargetsOf, resolveNormTargetsOf, type NormTargets } from "@/lib/nox/store/norm-axes"; // ★裁定347（0171・便 P171）: 継承値の薄濃・採用軸の列
@@ -917,7 +918,7 @@ export function normBulkArgsOf(b: NormBulk, cur: Pick<Norm, "days_target" | "doh
 }
 
 // ── 控除（manager 以上）──
-export function DeductionTab({ deductions, isManagerUp, storeId, setMsg, reload }: { deductions: Deduction[]; isManagerUp: boolean; storeId: string; setMsg: (m: string) => void; reload: () => Promise<void> }) {
+export function DeductionTab({ deductions, isManagerUp, storeId, setMsg, reload, okuriMode = "none" }: { deductions: Deduction[]; isManagerUp: boolean; storeId: string; setMsg: (m: string) => void; reload: () => Promise<void>; okuriMode?: OkuriMode }) {
   const supabase = createClient();
   const [id, setId] = useState<string | null>(null);
   const [name, setName] = useState("");
@@ -934,6 +935,7 @@ export function DeductionTab({ deductions, isManagerUp, storeId, setMsg, reload 
   }
   function resetForm() { setId(null); setName(""); setAmount(0); setKind("agreed_cost"); setBasisConfirmed(false); setBasisNote(""); }
   async function save() {
+    if (okuriDeductionBlockedOf(okuriMode, name)) { setMsg(OKURI_DEDUCTION_BLOCK_MSG); return; } // ★裁定431 ③
     // ★裁定98: 9引数を常に明示送信（kind を省略する経路を作らない＝教訓43 型）。非 sanction は false/null 固定。
     const { error } = await supabase.rpc("set_deduction", {
       p_id: id, p_store_id: storeId, p_name: name, p_amount: amount, p_per: per, p_is_active: active,
@@ -946,6 +948,7 @@ export function DeductionTab({ deductions, isManagerUp, storeId, setMsg, reload 
   }
   return (
     <div>
+      {(() => { const w = okuriDeductionWarnOf(okuriMode, deductions.filter((d) => d.is_active).map((d) => d.name)); return w ? <div data-okuri-ded-warn="1" style={{ margin: "0 0 8px" }}><Message kind="warn">{w}</Message></div> : null; })()}{/* ★裁定431 ③: 既存の送り代は警告（自動で消さない） */}
       <div className="nox-tablewrap plain">{/* ★M1 第 2 レーン（裁定251・2026-09-18）: 横スクロール容器 */}
       <table className="nox-table" style={{ marginBottom: 10 }}>
         <thead><tr>{["名称", "種別", "額", "単位", "根拠確認日", "状態"].map((h) => <th key={h}>{h}</th>)}</tr></thead>

@@ -6,14 +6,14 @@
 //  - お金は整数（円）。丸めは money.ts の roundYen/roundPt1 に集約（floor 差替は1箇所）。
 //  - 打刻照合（遅刻/当欠の回数算出）は payOf の外＝回数を入力で受ける。
 // モック忠実で実装し F2 ゲートで差し替える点（精密仕様 §7）:
-//  - 源泉の日数 = 出勤日数（暦日数か否かは税理士確認）
+//  - 源泉の日数 = 計算期間の暦日数（出勤日数ではない＝T1 回答・裁定23）。日次精算の 5,000 円×日数の扱いは税理士 T17 待ち（裁定431 ⑤＝現状維持）
 //  - 送り実費 vs 一律送り代の二重控除ガード = 無し（モック両取り忠実・F2 で仕様決定。
 //    okuriDeduct と deductions は分離入力なのでガード追加は payOf 内1箇所で済む）
 //  - 売上バック率テーブル = モック値をデフォルト引数に（店設定化は F2 判断）
 
-import { roundYen, roundPt1, floorYen } from "./money";
+import { roundYen, roundPt1, floorYen, withholding1021Of } from "./money";
 import { canonApplyOf, canonNextWageOf, canonOutcomeOf, type CanonCtx, type CanonOutcome, type NextWage } from "./rules-0175/canon"; // ★便 P175-prep P-5（裁定418）: フラグ true のときだけ collect が input.rules0175 を渡す
-import { adjustOf, type AdjustmentRow } from "./payroll/adjust"; // 裁定258／264: run 別調整控除（純関数・roundYen は money.ts）
+import { adjustOf, effectiveAdjustmentsOf, type AdjustmentRow } from "./payroll/adjust"; // 裁定258／264: run 別調整控除（純関数・roundYen は money.ts）
 import { bonusOf, bonusTiersOf } from "./bonus-tiers"; // ★便 P173 T-2（起票110）: 達成ボーナスの多段（純関数）
 
 // ── 型 ────────────────────────────────────────────────────────
@@ -546,7 +546,7 @@ export function withholdingOf(
   taxClass?: EmployeeTaxClass,
 ): number {
   return taxMode === "委託"
-    ? floorYen(Math.max(0, gross - 5000 * periodDays) * 0.1021)
+    ? withholding1021Of(Math.max(0, gross - 5000 * periodDays)) // ★裁定431 ②: 整数（floor(課税額×1021÷10000)）
     : employeeWithholdingOf(gross, taxClass ?? "乙");
 }
 
@@ -738,7 +738,9 @@ export function payOf(input: PayInput): PayResult {
 
   // ★裁定258／264: 調整控除＝gross 確定後・fixedDed 前に確定（率の分母は上の gross・全率行が同じ gross＝258-2）。
   //   before 群は源泉対象額から引く（264-6）・after 群は net 式で引く。sanction cap（下）の基底は生 gross のまま不変（264-5）。
-  const adj = adjustOf(input.adjustments ?? [], gross);
+  // ★裁定431 ①（Agoora 確定 10/26）: 委託（ホステス等報酬）は精算調整（遅刻・当欠・罰金ダイアログ・ノルマ未達の減額＝source settlement）を源泉の計算基礎から外す＝源泉の後に手取りから引く
+  //   （裁判例：罰金は違約金で報酬の減額要素ではない）。雇用の懲戒減給（sanction）・不就労（shortfall）は従来どおり源泉前。行の before_withholding より優先
+  const adj = adjustOf(effectiveAdjustmentsOf(input.adjustments ?? [], input.taxMode), gross);
 
   // 控除 ── ★裁定98: sanction（制裁）を他の kind から分離（二層ガード）。非 sanction は現行式と1バイト同値。
   const sanctionRows = (input.deductions ?? []).filter((d) => d.kind === "sanction");
