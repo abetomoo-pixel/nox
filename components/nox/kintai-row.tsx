@@ -4,6 +4,7 @@
 // ★便 SH-UI-c2 C2-1〜C2-4（2026-10-23）: 日付の遷移（→今日タブ）を撤去＝日付を押すとその行が編集で開く（onEdit・店長側だけ）。
 //   日別の算定給与の列（時給分｜バック（内訳はホバー／折りたたみ）｜罰金・減額｜日計）＝r.pay（kintai-sheet が付ける・/mine も同じ）。
 //   取消済み＝「取消済み」の印（薄く）。390px＝日付・出／退・日計の 3 列（.opt は隠す）＋行を押して残りを開く（globals.css .nox-kintai）。
+import { noShiftAddHrefOf } from "@/lib/nox/payroll/view"; // ★便 M-10
 import { useState } from "react";
 import * as t from "@/lib/nox/ui/theme";
 import { BASIS_MARK, correctionTextOf, flagsTextOf, hm47Ja, type AttendanceDayRow } from "@/lib/nox/payroll/attendance-sheet";
@@ -23,7 +24,7 @@ export function KintaiHead({ withPay = false }: { withPay?: boolean }) {
   );
 }
 
-export default function KintaiRow({ r, withBy, onEdit, withPay = r.pay !== undefined }: { r: AttendanceDayRow; storeId?: string; withBy: boolean; link?: boolean; onEdit?: ((r: AttendanceDayRow) => void) | null; withPay?: boolean }) {
+export default function KintaiRow({ r, withBy, onEdit, withPay = r.pay !== undefined, castId }: { r: AttendanceDayRow; castId?: string; storeId?: string; withBy: boolean; link?: boolean; onEdit?: ((r: AttendanceDayRow) => void) | null; withPay?: boolean }) {
   const [open, setOpen] = useState(false);
   const flags = flagsTextOf(r);
   const hoursTxt = r.hours > 0 ? `${r.hours}h` : "—";
@@ -39,7 +40,9 @@ export default function KintaiRow({ r, withBy, onEdit, withPay = r.pay !== undef
       <tr data-kintai-day={r.bizDate} data-missing-out={r.missingOut ? "1" : undefined} data-cancelled={r.cancelled ? "1" : undefined} style={{ cursor: "pointer", ...dim }} onClick={() => setOpen((v) => !v)}>
         <td style={t.td}>{dateCell}{r.cancelled && <span className="nox-stpill" style={{ marginLeft: 6 }} data-kintai-cancelled="1">取消済み</span>}</td>
         <td className="opt num" style={t.td}>{r.shift ? `${r.shift.start}–${hm47Ja(r.shift.end)}` : "—"}</td>
-        <td className="num" style={t.td}>{hm47Ja(r.inHm)}</td>
+        <td className="num" style={t.td}>{hm47Ja(r.inHm)}{r.inHm && !r.shift && !r.cancelled && (/* ★便 M-10（確定 ⑧）: シフト無し出勤＝時給なし・当日追加配置で後追い */
+          <span style={{ display: "block", fontSize: 10.5, fontWeight: 700, color: "var(--gold2)" }} data-kintai-no-shift={r.bizDate}>シフト無し出勤{castId && <a href={noShiftAddHrefOf(r.bizDate, castId)} className="nox-link" style={{ marginLeft: 4 }} onClick={(e) => e.stopPropagation()} data-kintai-no-shift-add={r.bizDate}>当日追加配置</a>}</span>
+        )}</td>
         <td className="num" style={{ ...t.td, color: r.missingOut ? "var(--bad)" : undefined, fontWeight: r.missingOut ? 700 : undefined }}>{r.missingOut ? "退勤記録なし" : hm47Ja(r.outHm)}</td>
         <td className="opt" style={t.td}>{r.corrections.length > 0 ? (
           <details onClick={(e) => e.stopPropagation()} data-kintai-corr="1"><summary style={{ cursor: "pointer", color: "var(--champ)" }}>修正 {r.corrections.length} 件</summary>

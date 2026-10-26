@@ -22,4 +22,9 @@ export const SEAT_MOVE_PRICING_APPLIED = false;
 let overrideSeatMove: boolean | null = null;
 export function seatMovePricingOn(): boolean { return overrideSeatMove ?? SEAT_MOVE_PRICING_APPLIED; }
 export function __setSeatMovePricingForTest(v: boolean | null): void { overrideSeatMove = v; }
+/** ★便 M（2026-10-26）: 0183（裁定429 シフト権限・M-4 新規客の予約・M-7 ノルマ未達の意思保存）を Agoora が手貼りしたら true（3 つとも同じ mig＝1 本のフラグ） */
+export const MIG_0183_APPLIED = false;
+let override0183: boolean | null = null;
+export function mig0183On(): boolean { return override0183 ?? MIG_0183_APPLIED; }
+export function __set0183ForTest(v: boolean | null): void { override0183 = v; }
 export function __setOkuriTiersForTest(v: boolean | null): void { overrideTiers = v; }

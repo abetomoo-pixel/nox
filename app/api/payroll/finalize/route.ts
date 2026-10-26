@@ -1,6 +1,8 @@
 // 給与確定: run_create（ユーザー文脈＝audit actor が auth.uid() 由来）→ 確定時点で再計算 →
 //   確定前ガード（税区分/プラン未設定なら 422）→ payslips 構築 → service キーで payroll_finalize。
 // org はサーバ導出（g.orgId=auth_org_id）を p_org_id に渡す＝クライアント申告を使わない（裁定D）。
+import { mig0183On } from "@/lib/nox/rules-0175/flag"; // ★便 M-7（0183）
+import { normReasonOf } from "@/lib/nox/payroll/norm-proposal";
 import { NextResponse } from "next/server";
 import { guardPayroll } from "@/lib/nox/payroll/route-guard";
 import { computePayrollDraft } from "@/lib/nox/payroll/core";
@@ -27,7 +29,26 @@ export async function POST(req: Request) {
     if (run.status === "paid") return NextResponse.json({ error: "already paid", runId: run.id }, { status: 409 });
 
     // 確定時点で再読み・再計算（プレビュー値は使わない＝A）。strict＝税区分/プラン未設定は行を作らない。
-    const draft = await computePayrollDraft(g.admin, g.supabase, g.storeId, g.period, { previewDefaults: false });
+    let draft = await computePayrollDraft(g.admin, g.supabase, g.storeId, g.period, { previewDefaults: false });
+    // ★便 M-7（Agoora 確定 10/26 ⑥・0183）: ノルマ未達の「適用」の意思＝確定時に最新の提案額で精算調整の行を書き、計算し直す（適用後に額が変わっても再適用は要らない）
+    if (mig0183On() && draft.blockers.length === 0) {
+      const { data: its } = await g.admin.from("norm_shortfall_intents").select("cast_id, action").eq("run_id", run.id).eq("action", "apply");
+      let added = 0;
+      for (const it of (its ?? []) as { cast_id: string }[]) {
+        const row = draft.rows.find((r) => r.castId === it.cast_id);
+        const np = row?.normProposal;
+        if (!row || !np || np.applied || !(np.proposed > 0) || np.status !== "ok") continue;
+        const isEmp = np.employment === "雇用";
+        const { error: eAdj } = await g.supabase.rpc("payroll_adjustment_add", {
+          p_run_id: run.id, p_cast_id: it.cast_id, p_mode: "fixed", p_amount: np.proposed, p_rate_bp: null, p_before_withholding: true, p_show_detail: true,
+          p_reason: normReasonOf(g.period, np.items), p_source: isEmp ? "sanction" : "settlement",
+          p_basis: isEmp ? "就業規則の減給の定め（ノルマ未達）・労基法 91 条の上限内" : "店のノルマ設定（ノルマ未達の減額）", p_target_shift_id: null,
+        });
+        if (eAdj) return NextResponse.json({ error: `ノルマ未達の減額を精算調整に入れられませんでした（${row.castName}）: ${eAdj.message}` }, { status: 500 });
+        added += 1;
+      }
+      if (added > 0) draft = await computePayrollDraft(g.admin, g.supabase, g.storeId, g.period, { previewDefaults: false });
+    }
     if (draft.blockers.length > 0) {
       // 税区分未登録（no_tax）／プラン未設定（no_plan）が1人でもいたら確定拒否（論点2・net 恒等と同格の確定前ガード）
       return NextResponse.json(

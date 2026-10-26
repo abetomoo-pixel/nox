@@ -20,7 +20,7 @@ import { rpcErrJa } from "@/lib/nox/ui/rpc-err";
 // ★0162（裁定329／329 追補1・便 M5-1）: スタッフ写真＝キャストと同じ bucket・同じ縮小・u_{user_id}.jpg。登録／差替え＝uploadUserPhoto・削除＝storage.remove → clear_user_photo
 import { resolveOrgId } from "@/lib/nox/cast-photo";
 import { photoActionLabelOf, removeUserPhoto, signUserPhotos, uploadUserPhoto } from "@/lib/nox/staff-photo";
-import { rules0175On } from "@/lib/nox/rules-0175/flag"; // ★追補 3 R-8
+import { mig0183On, rules0175On } from "@/lib/nox/rules-0175/flag"; // ★追補 3 R-8 // ★便 M-9（0183）
 import { ownerOnlyNoteOf, roleChangeTargetsOf, roleChangeTextOf, roleLabelOf, rolePillKindOf, staffListRolesOf } from "@/lib/nox/rules-0175/roles";
 import { INVITE_STATE_LABEL, LOGIN_METHOD_NOTE, LOGIN_METHOD_OPTIONS, inviteErrJa, inviteExpiryTextOf, inviteFormErrorOf, inviteStateOf, type LoginMethod } from "@/lib/nox/people/invite"; // ★便 ON-3（0176 ★2 I-1）: 登録→招待の 2 段
 import { LINE_BIND_NOTE, liffBindUrlOf } from "@/lib/nox/line/liff-endpoint"; // ★便 ON-3（0176 ★1 401）: LINE 連携のリンク
@@ -367,7 +367,7 @@ export default function StaffBoard({
             </div>
           );
         })}
-        <p style={{ ...t.sub, margin: "8px 0 0" }}>* シフト＝シフト画面を開ける権限（OFF のスタッフはメニューに出ず、開いてもホームへ戻ります）。</p>{/* ★裁定381（GV-B W-10）: can_shift を効かせた（shift/page.tsx・layout.tsx） */}
+        <p style={{ ...t.sub, margin: "8px 0 0" }} data-staff-shift-note={mig0183On() ? "manager" : "open"}>{mig0183On() ? "* シフト＝シフトの作成・配置・承認まで（店長と同じ）。OFF のスタッフはメニューに出ず、開いてもホームへ戻ります。" : "* シフト＝シフト画面を開ける権限（OFF のスタッフはメニューに出ず、開いてもホームへ戻ります）。"}</p>{/* ★便 M-9（裁定429）: 0183 手貼り後に注記を「店長と同じ」に */}{/* ★裁定381（GV-B W-10）: can_shift を効かせた（shift/page.tsx・layout.tsx） */}
         <p style={{ ...t.sub, margin: "3px 0 0" }}>† バック＝キャストのバック金額（報酬）の閲覧権限。会計権限とは独立です（既定オフ・必要なスタッフのみ付与）。</p>
       </section>
 

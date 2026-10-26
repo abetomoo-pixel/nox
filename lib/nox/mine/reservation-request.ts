@@ -43,3 +43,27 @@ export function rsvCustomerNameOf(customers: RsvRequestRow["customers"], fallbac
   const c = Array.isArray(customers) ? customers[0] : customers;
   return c?.name ? `${c.name} 様` : fallback;
 }
+
+// ★便 M-4（2026-10-26・Agoora 確定 10/26 ⑤）: 新規のお客様の予約申請＝仮の呼び名＋人数（reservation_request_guest＝0183・フラグ MIG_0183_APPLIED）。
+//   来店時（レジの予約→来店）に顧客カルテを作って紐づけ＝申請したキャストの担当客に自動登録（DB 側）。切替の語はスタッフ側（レジ→予約→新規予約）と同じ「フリー入力／既存客から」。
+export type RsvCustomerMode = "existing" | "guest";
+export const RSV_CUSTOMER_MODE_OPTIONS = [["existing", "既存客から"], ["guest", "フリー入力"]] as const;
+export type RsvGuestArgs = { p_store_id: string; p_guest_name: string; p_party_size: number; p_at: string; p_kind: string };
+export function rsvGuestArgsOf(input: { storeId: string; guestName: string; partySize: string; date: string; time: string; kind: string; now?: Date }): { ok: true; args: RsvGuestArgs } | { ok: false; err: string } {
+  const name = input.guestName.trim();
+  if (!name) return { ok: false, err: "お客様の呼び名を入力してください（例: 田中様）" };
+  if (name.length > 40) return { ok: false, err: "呼び名は 40 文字までです" };
+  const n = Number(input.partySize);
+  if (!Number.isInteger(n) || n < 1 || n > 20) return { ok: false, err: "人数は 1〜20 で入力してください" };
+  const base = rsvRequestArgsOf({ storeId: input.storeId, customerId: "guest", date: input.date, time: input.time, kind: input.kind, now: input.now });
+  if (!base.ok) return base;
+  return { ok: true, args: { p_store_id: input.storeId, p_guest_name: name, p_party_size: n, p_at: base.args.p_at, p_kind: input.kind } };
+}
+/** 一覧の名前＝顧客カルテ→呼び名（新規）→「お客様」 */
+export function rsvRowNameOf(r: { customers: RsvRequestRow["customers"]; guest_name?: string | null }): { name: string; isNew: boolean } {
+  const c = Array.isArray(r.customers) ? r.customers[0] : r.customers;
+  if (c?.name) return { name: /様$/.test(c.name) ? c.name : `${c.name} 様`, isNew: false };
+  if (r.guest_name) return { name: /様$/.test(r.guest_name) ? r.guest_name : `${r.guest_name} 様`, isNew: true };
+  return { name: "お客様", isNew: false };
+}
+export const RSV_NEW_BADGE = "新規";

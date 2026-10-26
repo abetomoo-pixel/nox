@@ -32,6 +32,7 @@ import PhotoCard from "./photo-card";
 import ContractAckGate from "./contract-ack-gate"; // ★0162 ★4（裁定326 追補7-6・便 M5-2）: 契約確認（店 ON かつ未記録のときだけ最上部）
 import { contractAckGateOf } from "@/lib/nox/mine/contract-ack";
 import AttendanceForm from "./attendance-form";
+import { LAST_PUNCH_PREV_NOTE, lastPunchPrevDayOf } from "@/lib/nox/mine/eta-chips"; // ★便 M-3
 import { mineReportStateOf } from "@/lib/nox/shift/cast-report"; // ★便 X13-H H-17 ③ // ★便 ON-3（I-4）: ack_at で「店が確認しました」
 import ContactForm from "./contact-form"; // ★便 ON-3（0176 ★4＝400）: 本人の連絡先
 import NormCard from "./norm-card";
@@ -190,11 +191,16 @@ export default async function MinePage() {
   // 客名は customers embed（cast は担当客のみ可視＝customers RLS）→不可視/フリー予約は guest_name フォールバック。
   const { data: rsv } = await supabase
     .from("reservations")
-    .select("id, reserved_at, guest_name, party_size, nom_type, memo, customers(name)")
+    .select("id, reserved_at, guest_name, party_size, nom_type, memo, customer_id, customers(name)") // ★便 M-4 ①: +customer_id
     .eq("status", "booked")
     .gte("reserved_at", `${bizToday}T06:00:00+09:00`)
     .order("reserved_at", { ascending: true });
   type RsvCustomer = { name: string } | { name: string }[] | null;
+  // ★便 M-4 ①（2026-10-26）: 自分指名の予約（RLS＝cast_id が自分の行だけ＝他人の予約は混ざらない）でも、お客様の担当が別のキャストだと customers の RLS で名前が見えず「お客様」になっていた
+  //   ＝自分の予約の行に限って、サーバで名前だけ引く（admin・予約の customer_id だけ・他の列は読まない）
+  const rsvCustIds = [...new Set(((rsv ?? []) as { customer_id: string | null; customers: RsvCustomer }[]).filter((r) => r.customer_id && !(Array.isArray(r.customers) ? r.customers[0]?.name : r.customers?.name)).map((r) => r.customer_id as string))];
+  const rsvCustName = new Map<string, string>();
+  if (rsvCustIds.length > 0) { const { data: cn } = await createAdminClient().from("customers").select("id, name").in("id", rsvCustIds); for (const c of (cn ?? []) as { id: string; name: string }[]) rsvCustName.set(c.id, c.name); }
   // 名前が取れたら「◯◯ 様」・取れない（担当外客=RLS 不可視かつ guest_name なし）は敬称を重ねず「お客様」。
   const rsvName = (customers: RsvCustomer, guest: string | null): string => {
     const c = Array.isArray(customers) ? customers[0] : customers;
@@ -256,7 +262,7 @@ export default async function MinePage() {
         <p className="nox-pstate">
           最終打刻:{" "}
           {last
-            ? `${last.type === "in" ? "出勤" : "退勤"}（${rsvWhen(last.punched_at as string)}）`
+            ? `${last.type === "in" ? "出勤" : "退勤"}（${rsvWhen(last.punched_at as string)}）${lastPunchPrevDayOf(bizDateOf(last.punched_at as string, cutoff), bizToday) ? LAST_PUNCH_PREV_NOTE : ""}` /* ★便 M-3: 営業日の切替前＝前日分 */
             : "なし"}
         </p>
         {/* ★裁定326-5（便 M2-1）: 当日の出勤・退勤時刻（M1 の状態表示は置き換えず追記）＋当月の勤怠一覧（折りたたみ・実働＝給与と同じ dayWorkedHours） */}
@@ -287,7 +293,7 @@ export default async function MinePage() {
         <h3>遅刻・当欠の連絡</h3>
         {myDohanSeats && <p className="sub" data-dohan-chip="1" style={{ margin: "0 0 6px", fontSize: 12.5 }}>{dohanMarkTextOf(myDohanSeats)}＝伝票の同伴（{DOHAN_LATE_EXEMPT_NOTE}）</p>}{/* ★便 PR-1 R-4（裁定417） */}
         {(() => { const st = mineReportStateOf((((att ?? []) as { date: string; status: string; eta: string | null; source: string | null; ack_at?: string | null }[]).find((a) => a.date === bizToday) ?? null) ? { cast_id: "", ...(((att ?? []) as { date: string; status: string; eta: string | null; source: string | null; ack_at?: string | null }[]).find((a) => a.date === bizToday)!) } : null); return st ? <p className="nox-pstate" data-mine-report="1" style={{ margin: "0 0 8px" }}>{st}</p> : null; })()}{/* ★便 X13-H H-17 ③ */}
-        <AttendanceForm defaultDate={bizToday} />
+        <AttendanceForm defaultDate={bizToday} startHm={(((shiftsAll ?? []) as ShiftLite[]).find((s) => s.date === bizToday && s.status === "confirmed")?.start_hm) ?? null} />{/* ★便 M-3: 予定開始（今日の確定シフト）からのチップ */}
       </section>
 
       {/* ★便 X13-G W-22 ②⑤: 出勤予定（今月／来月・確定と確認待ち・募集中は出さない）＋出勤ノルマの不足（旧・直近の節は廃止） */}
@@ -392,7 +398,7 @@ export default async function MinePage() {
           <div key={r.id as string} style={{ padding: "7px 0", borderBottom: "1px solid var(--line2)" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13 }}>
               <span style={{ ...t.num, fontWeight: 700 }}>{rsvWhen(r.reserved_at as string)}</span>
-              <span style={{ fontWeight: 700 }}>{rsvName(r.customers as RsvCustomer, r.guest_name as string | null)}</span>
+              <span style={{ fontWeight: 700 }}>{rsvName((r.customers as RsvCustomer) ?? (r.customer_id && rsvCustName.get(r.customer_id as string) ? { name: rsvCustName.get(r.customer_id as string)! } : null), r.guest_name as string | null)}</span>
               {r.party_size != null && <span style={{ color: "var(--sub)" }}>{r.party_size}名</span>}
               <span style={{
                 fontSize: 10.5, fontWeight: 800, borderRadius: 999, padding: "2px 9px",

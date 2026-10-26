@@ -18,6 +18,8 @@
 //  - 日跨ぎは「翌02:00」表示（器は 26:00 型のまま＝表示写像のみ）。
 //  - 不可の登録 UI（★モック不在＝申告済みの配置判断）: 日詳細バーに「出勤不可にする／解除」
 //    （cast_unavailable_set / remove・owner/manager）。
+import { notifyCast } from "@/lib/nox/people/notify"; // ★便 M-13: 追加・変更は本人へ通知
+import { shiftAddedBody, shiftChangedBody, shiftProposedBody } from "@/lib/nox/people/notify-text";
 import { useCallback, useEffect, useState } from "react";
 import HmInput from "@/components/ui/hm-input";
 import { hmRangeErrorOf } from "@/lib/nox/time/hhmm"; // ★裁定318（便 X-9-2）: 時刻入力の共通部品（blur で HH:MM に正規化）
@@ -305,11 +307,12 @@ export default function ShiftAddForm({
       const { data: sid, error } = await supabase.rpc("shift_wish_decide", { p_wish_id: e.wishId, p_accept: true });
       if (error) { notes.push(`${d}: 希望の採用に失敗（${rpcErrJa(error.message)}）`); continue; } // ★裁定345: 語＝採用
       okCount += 1;
-      if (e.start !== e.wishStart || e.end !== e.wishEnd) {
+      // ★便 M-11（Agoora 10/26）: 希望から取り込む日も「新規日の状態」に従う（時刻が変わる／状態が planned 以外のときは shift_set で時刻と状態を 1 回で）
+      if (e.start !== e.wishStart || e.end !== e.wishEnd || fStatus !== "planned") {
         const { error: e2 } = await supabase.rpc("shift_set", {
-          p_id: sid, p_cast_id: selCast.id, p_date: d, p_start_hm: e.start, p_end_hm: e.end, p_status: "planned",
+          p_id: sid, p_cast_id: selCast.id, p_date: d, p_start_hm: e.start, p_end_hm: e.end, p_status: fStatus,
         });
-        if (e2) notes.push(`${d}: 時刻の変更に失敗＝希望時刻（${e.wishStart}〜${fmtNext(e.wishEnd ?? "")}）のまま登録済みです`);
+        if (e2) notes.push(`${d}: 時刻／状態の変更に失敗＝希望時刻（${e.wishStart}〜${fmtNext(e.wishEnd ?? "")}）・採用（管理者確認）のまま登録済みです`);
       }
     }
 
@@ -325,6 +328,11 @@ export default function ShiftAddForm({
       else okCount += 1;
     }
 
+    // ★便 M-13／M-11（Agoora 10/26）: 新規・希望取り込みが採用・確定／確認待ち（キャスト確認）なら本人へ通知（cast_notifications＋LINE・公開済みの期間でも同じ）。時刻だけの編集は shift_changed
+    if (selCast && okCount > 0 && (fStatus === "confirmed" || fStatus === "proposed")) {
+      for (const [d, e] of [...newDays, ...wishDays]) await notifyCast(supabase, { castId: selCast.id, kind: fStatus === "confirmed" ? "shift_added" : "shift_proposed", body: fStatus === "confirmed" ? shiftAddedBody(d, e.start, e.end) : shiftProposedBody(d, e.start, e.end) });
+    }
+    if (selCast) for (const [d, e] of editDays) { const ex = existOf(d); if (ex && ex.status === "confirmed" && (ex.start_hm !== e.start || ex.end_hm !== e.end)) await notifyCast(supabase, { castId: selCast.id, kind: "shift_changed", body: shiftChangedBody(d, { start: ex.start_hm, end: ex.end_hm }, { start: e.start, end: e.end }) }); }
     setBusy(false);
     setToast(notes);
     if (hardErr) { setMsg(hardErr); return; }
@@ -362,6 +370,7 @@ export default function ShiftAddForm({
 
   return (
     <Modal onClose={onClose} maxWidth={980} scroll>
+      <div data-bulk-add="1" />{/* ★便 M-5: 390px の目印（.nox-modal-card:has([data-bulk-add])＝フルスクリーン） */}
       <div className="nox-modalhead">
         <h3 style={{ ...secTitle, margin: 0 }}>シフトを追加</h3>
         <button type="button" style={{ ...btnLight, padding: "2px 10px" }} onClick={onClose}>×</button>
@@ -509,7 +518,7 @@ export default function ShiftAddForm({
                       <label style={{ fontSize: 11 }}>開始<br />
                         <HmInput value={bulkStart} onChange={setBulkStart} maxHour={23} ariaLabel="開始（一括）" style={{ ...input, width: 76 }} /></label>
                       <label style={{ fontSize: 11 }}>終了<br />
-                        <HmInput value={bulkEnd} onChange={setBulkEnd} ariaLabel="終了（一括）" style={{ ...input, width: 76 }} /></label>
+                        <HmInput value={bulkEnd} onChange={setBulkEnd} ariaLabel="終了（一括）" style={{ ...input, width: 76 }} />{hm2min(bulkEnd) >= 1440 && <span className="num" style={{ fontSize: 10.5, color: "var(--sub)", marginLeft: 4 }} data-bulk-end-next="1">= {fmtNext(bulkEnd)}</span>}</label>{/* ★便 M-11 ②: 入力は 26:00 も受け、表示は翌02:00 */}
                       <button style={btnLight} onClick={applyAll}>全日に適用</button>
                     </div>
                     <div style={{ display: "grid", gap: 5, marginTop: 7 }}>
@@ -534,7 +543,7 @@ export default function ShiftAddForm({
                       <SegSelect value={fStatus} onChange={(v) => setFStatus(v)}
                         options={[["planned", "採用・確認待ち（管理者確認）"], ["proposed", "採用・確認待ち（キャスト確認）"], ["confirmed", "採用・確定"]] as const} />{/* ★裁定345: 4 段の語 */}
                       <span style={{ fontSize: 10, color: "var(--v2-muted)" }}>
-                        希望日は採用（管理者確認）として取り込み・登録済みの編集は元の状態を保ちます
+                        希望日もこの状態で取り込み・登録済みの編集は元の状態を保ちます{/* ★便 M-11 */}
                       </span>
                     </div>
                   </div>
@@ -557,10 +566,10 @@ export default function ShiftAddForm({
         </div>
       </div>
       {/* フッター（裁定112-H: 0件時 disabled・「保存して次のキャスト」は成功後に選択のみリセット） */}
-      <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "12px 16px", borderTop: "1px solid var(--line)" }}>
+      <div className="nox-bulkadd-foot" style={{ display: "flex", alignItems: "center", gap: 9, padding: "12px 16px", borderTop: "1px solid var(--line)" }}>
         <small style={{ color: "var(--sub)" }} className="num">{selCast?.name ?? "—"} ／ {selCount}日分</small>
-        <span style={{ marginLeft: "auto", display: "inline-flex", gap: 9 }}>
-          <button style={btnLight} onClick={onClose}>キャンセル</button>
+        <span className="nox-bulkadd-btns" style={{ marginLeft: "auto", display: "inline-flex", gap: 9 }}>
+          <button style={btnLight} className="nox-bulkadd-cancel" onClick={onClose}>キャンセル</button>
           <button style={{ ...btnLight, opacity: selCount === 0 || conflicts.length > 0 || busy || hmBad ? 0.45 : 1 }}
             disabled={selCount === 0 || conflicts.length > 0 || busy || hmBad}
             onClick={() => void save(true)}>保存して次のキャスト</button>

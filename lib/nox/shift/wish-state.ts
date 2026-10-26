@@ -58,7 +58,7 @@ export function wishStateTextOf(wish: WishStatusLike, shift: ShiftStatusLike, ca
 }
 
 /** 管理側の確定ボタンの語（裁定345）＝「代行確定」。キャスト本人の確定（shift_cast_confirm）は「確認する」のまま */
-export const PROXY_CONFIRM_LABEL = "代行確定";
+export const PROXY_CONFIRM_LABEL = "確定"; // ★便 M-12（裁定430 提案中）: 「代行確定」と管理者確認の確定を 1 つに＝「確定」
 
 /** /mine 直近のシフトの件数上限（裁定345: 7→14・残りは「すべて見る」） */
 export const MINE_RECENT_SHIFT_LIMIT = 14;

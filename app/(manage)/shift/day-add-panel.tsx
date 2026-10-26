@@ -7,6 +7,8 @@
 //   1行失敗＝行単位トースト・**部分成功時はモーダルを閉じず失敗行を残す**（バッファは破棄しない＝修正して再試行可）。
 //   割当（calendar）／配置（build）の2面で共有＝面で挙動を割らない。保存前クローズの破棄確認は親（closeDay）が担う
 //   （onDirtyChange でバッファ有無を親へ通知）。キャスト起点ウィザード（ShiftAddForm）は不触（名称のみ変更）。
+import { notifyCast } from "@/lib/nox/people/notify"; // ★便 M-11／M-13
+import { shiftAddedBody } from "@/lib/nox/people/notify-text";
 import { useEffect, useMemo, useState } from "react";
 import HmInput from "@/components/ui/hm-input"; // ★裁定318（便 X-9-2）: 時刻入力の共通部品（blur で HH:MM に正規化）
 import { HM_FORMAT_ERR, hmRangeErrorOf, normalizeHHMM } from "@/lib/nox/time/hhmm";
@@ -101,15 +103,15 @@ export default function DayAddPanel({
       if (!st || !en) { rest.push({ ...r, err: `${HM_FORMAT_ERR}・開始 00:00〜23:59・終了 00:00〜47:59` }); continue; }
       const { error } = await supabase.rpc("shift_set", {
         p_id: null, p_cast_id: r.castId, p_date: date, p_start_hm: st, p_end_hm: en,
-        p_status: "planned", p_override_reason: null,
+        p_status: "confirmed", p_override_reason: null, // ★便 M-11（Agoora 10/26）: 日モーダルの「＋ キャストを追加」も既定は採用・確定
       });
       if (error) rest.push({ ...r, err: rpcErrJa(error.message) });
-      else ok += 1;
+      else { ok += 1; void notifyCast(supabase, { castId: r.castId, kind: "shift_added", body: shiftAddedBody(date, st, en) }); } // ★便 M-13: 本人へ通知
     }
     setRows(rest);
     setBusy(false);
     if (ok > 0) await onSaved();
-    if (rest.length === 0) { setListOpen(false); setMsg(`${ok}件を仮シフトとして保存しました`); }
+    if (rest.length === 0) { setListOpen(false); setMsg(`${ok}件を採用・確定で保存しました（本人に通知）`); }
     else setMsg(`${ok}件を保存しました。${rest.length}件は保存できませんでした（下の行を直して、もう一度保存できます）`);
   }
 

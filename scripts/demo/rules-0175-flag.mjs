@@ -4,3 +4,4 @@ export const RULES_0175_APPLIED = true; // ★便 ON-1（2026-10-26）: 0175 v2�
 export const OKURI_4WAY_APPLIED = true;
 export const OKURI_TIERS_APPLIED = false; // ★裁定414 追補（0180）: flag.ts の鏡 // ★便 ON-1（2026-10-26）: 0177（sha16 e22bfcc3eb93625c）適用済み＝6 本の md5 が起草と一致→ true
 export const SEAT_MOVE_PRICING_APPLIED = false; // ★便 ON-4（裁定427・0182）: flag.ts の鏡
+export const MIG_0183_APPLIED = false; // ★便 M（裁定429・M-4・M-7・0183）: flag.ts の鏡

@@ -732,7 +732,7 @@ export function payOf(input: PayInput): PayResult {
     const o = canonOutcomeOf(input.rules0175, timePayRule);
     const backsTotal = honBack + jonaiBack + dohanBack + drinkBack + champBack + bottleBack + calculatedBack + salesBack + customTotal;
     const ap = canonApplyOf(o, { timePay: timePayRule, backsTotal, gross, salesSubtotal: input.rules0175.salesSubtotal });
-    canon = { ...o, backsDelta: ap.backsDelta, timeDelta: ap.timeDelta, bonus: ap.bonus, payPctDelta: ap.payPctDelta, grossBefore: gross, forecast: canonNextWageOf(input.rules0175, timePayRule, eplan.base || 0) }; // ★便 ON-4（C2-22）: 来期の時給見込み（金額に効かない）
+    canon = { ...o, backsDelta: ap.backsDelta, timeDelta: ap.timeDelta, bonus: ap.bonus, payPctDelta: ap.payPctDelta, grossBefore: gross, forecast: canonNextWageOf(input.rules0175, timePayRule, wd.wage || eplan.base || 0) }; // ★ON-4 live: 基準＝今期の決定時給（加重平均＝スライド・保証・履歴の結果）＝プランの基本ではない // ★便 ON-4（C2-22）: 来期の時給見込み（金額に効かない）
     gross = ap.gross;
   }
 

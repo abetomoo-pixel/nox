@@ -38,11 +38,12 @@ const ln = nextWageLineOf(f4);
 check("on4(1-4) 1 行の文＝「来期の時給見込み ¥2,100（今期の判定値 報酬率 45%・あと ¥125,001 で次の段）」＋小さく「見込み＝確定値ではありません」・スライドの無いプランは null", ln?.label === "来期の時給見込み ¥2,100（今期の判定値 報酬率 45%・あと ¥125,001 で次の段）" && (ln?.label2 ?? "").includes("見込み＝確定値ではありません") && nextWageOfPay({ eplan: { base: 2000, salesSlide: [], pointSlide: [] } }) === null && nextWageLineOf(null) === null, ln);
 const payNext = { eplan: { base: 2500, salesSlide: aceSlides, pointSlide: [] }, slideBasis: { apply: "next", months: [{ month: "2026-10", sales: 1296287, pts: 0 }] }, wdays: [{ sales: 600000 }, { sales: 623846 }] };
 const payCur = { ...payNext, slideBasis: { apply: "monthly", months: [{ month: "2026-10", sales: 855956, pts: 0 }] } };
-check("on4(1-5) 今期の値＝'next'（前月の累計で判定）は日次の合計（¥1,223,846）・それ以外は months の累計（¥855,956）・canon.forecast があればそれを優先", nextWageOfPay(payNext)?.judge === "売上 ¥1,223,846" && nextWageOfPay(payCur)?.judge === "売上 ¥855,956" && nextWageOfPay({ ...payCur, canon: { forecast: f1 } })?.axis === "pay_rate");
+const payMonthlyPrev = { ...payNext, slideBasis: { apply: "monthly", months: [{ month: "2026-10", prevMonth: "2026-09", sales: 1296287, pts: 0 }] } }; // ★ON-4 live: core が apply を monthly に書き換えた形（前月の累計で判定）
+check("on4(1-5) 今期の値＝'next'（前月の累計で判定・core が monthly に書き換えた形＝prevMonth≠month も）は日次の合計（¥1,223,846）・それ以外は months の累計（¥855,956）・canon.forecast があればそれを優先", nextWageOfPay(payNext)?.judge === "売上 ¥1,223,846" && nextWageOfPay(payMonthlyPrev)?.judge === "売上 ¥1,223,846" && nextWageOfPay(payCur)?.judge === "売上 ¥855,956" && nextWageOfPay({ ...payCur, canon: { forecast: f1 } })?.axis === "pay_rate");
 
 // ── (2) 配線 ──
 const pay = src("lib/nox/pay.ts"), bd = src("lib/nox/payroll/breakdown-lines.ts"), mp = src("app/mine/page.tsx"), ws = src("lib/nox/mine/wage-server.ts");
-check("on4(2-1) pay.ts＝canon.forecast＝canonNextWageOf（金額に効かない＝gross は ap.gross のまま）", pay.includes("forecast: canonNextWageOf(input.rules0175, timePayRule, eplan.base || 0) };") && pay.includes("gross = ap.gross;"));
+check("on4(2-1) pay.ts＝canon.forecast＝canonNextWageOf（金額に効かない＝gross は ap.gross のまま）", pay.includes("forecast: canonNextWageOf(input.rules0175, timePayRule, wd.wage || eplan.base || 0) };") && pay.includes("gross = ap.gross;"));
 const base = { wage: 2500, wHours: 100, timePay: 250000, honBack: 0, jonaiBack: 0, dohanBack: 0, ...payNext } as unknown as Parameters<typeof breakdownLinesOf>[0]["pay"];
 const live = breakdownLinesOf({ pay: base }).earn.find((l) => l.key === "next-wage");
 const frozen = breakdownLinesOf({ pay: base, frozen: true }).earn.find((l) => l.key === "next-wage");

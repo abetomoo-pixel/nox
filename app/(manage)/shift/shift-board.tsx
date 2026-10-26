@@ -316,12 +316,16 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
    // queue=希望の審査（承認待ち・件数バッジ） / roster=確定シフト一覧
   const [tab, setTab] = useState<ShiftTab>("today"); // ★裁定406: 7 キー（旧 5＋submit／publish）。初期値は URL（?tab=make&step=n）から mount 後に
   const [focusPeriodId, setFocusPeriodId] = useState<string | null>(null); // ★裁定406: 手順②〜④・確定シフトで選んでいる期間（URL の period）
+  const pendingAddCast = useRef<string | null>(null); // ★便 M-10: ?cast＝casts の読込後に追加モーダルのキャストへ
   const urlTabPending = useRef<ShiftTab | null>(null); // URL から読んだキーが state に反映されるまで URL に書かない（dev StrictMode の二重 effect で ?tab=today に戻る事故の防止）
   useEffect(() => {
     if (typeof window === "undefined") return;
     const sp = new URLSearchParams(window.location.search);
     if (sp.get("tab")) { const t0 = tabFromSearch(window.location.search); urlTabPending.current = t0; setTab(t0); }
     if (sp.get("period")) setFocusPeriodId(sp.get("period"));
+    // ★便 M-10（Agoora 確定 10/26 ⑧）: 勤怠／給与の「シフト無し出勤 → 当日追加配置」＝その日を今日タブで開き、追加モーダルを確定（confirmed）で開く（キャストは casts 読込後に選ぶ）
+    const d0 = sp.get("date");
+    if (d0 && /^\d{4}-\d{2}-\d{2}$/.test(d0)) { setTodayDate(d0); if (sp.get("add") === "1") { setAddDate(d0); setAddStatus("confirmed"); pendingAddCast.current = sp.get("cast"); setAddModal(true); } }
   }, []);
   useEffect(() => { // URL に写す（他のクエリは保持・GV-63 と同じ方針＝history.replaceState）
     if (typeof window === "undefined") return;
@@ -350,7 +354,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   // ★SC-1（裁定42）: 手動追加フォームは ShiftAddForm へ切り出した。
   //   親が持つのは「どの面から・どの日付・どの状態で開くか」だけ（フォームの6 state は子の内部）。
   const [addDate, setAddDate] = useState(bizToday);
-  const [addStatus, setAddStatus] = useState("planned");
+  const [addStatus, setAddStatus] = useState("confirmed"); // ★便 M-11／M-12 ④（Agoora 10/26）: 夜の店は店が決める＝新規の配置の既定は採用・確定
   // ★DP3 P2（2026-08-21・裁定 DP3-②）: 手動シフト追加をモーダルへ（モック `planShiftDialog`）。
   const [addModal, setAddModal] = useState(false);
   // ★裁定108: 手動追加は2段＝①CastPicker（addPicker）→②キャスト固定フォーム（addCast を確定して addModal）。
@@ -533,6 +537,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   useEffect(() => { void load(); }, [load]);
   useLiveReload(load); // ★便 GV-C C-12
   useEffect(() => { void loadAtt(attDate); }, [attDate, loadAtt]);
+  useEffect(() => { const id = pendingAddCast.current; if (!id) return; const c = casts.find((x) => x.id === id); if (c) { setAddCast(c); pendingAddCast.current = null; } }, [casts]); // ★便 M-10
   // ★便 PR-1 R-4（裁定417）: 同伴の正本＝伝票。表示日の営業日 [cutoff, 翌 cutoff) に同伴（is_dohan）の名簿行がある伝票（void 除く）→ cast → 席名。伝票で外せば印も消える
   const loadDohan = useCallback(async (d: string) => {
     const startIso = new Date(`${d}T${cutoff}:00+09:00`).toISOString(), endIso = new Date(`${addDays(d, 1)}T${cutoff}:00+09:00`).toISOString();
@@ -740,6 +745,8 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   //   期間・締切は据え置きで shift_period_set を再送する（新 RPC は要らない＝設計書 §3 と同じ筋）。
   async function setPeriodStatus(pe: Period, st: string) {
     setMsg(null);
+    // ★便 M-12 ①: 公開はどの段階からでも可＝公開時に確認ダイアログ 1 回（作成中→公開を直接許可）
+    if (st === "published" && !confirm(`${pe.start_date}〜${pe.end_date} をキャストに公開します（マイページに確定シフトが出ます）。よろしいですか？`)) return;
     const { error } = await supabase.rpc("shift_period_set", {
       p_id: pe.id, p_store_id: storeId, p_start_date: pe.start_date, p_end_date: pe.end_date,
       p_wish_deadline: pe.wish_deadline, p_status: st,
@@ -769,7 +776,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   const bulkErrJa = (m: string) => (m.includes("bad rows") || m.includes("concurrent change") ? "他の操作と競合しました。最新状態を確認してください" : rpcErrJa(m));
   async function confirmBulkShifts(ids: string[]) {
     if (ids.length === 0) return;
-    if (!confirm(`送り返したまま放置された ${ids.length}件をまとめて${PROXY_CONFIRM_LABEL}しますか？`)) return; // ★裁定345／380
+    if (!confirm(`確認待ちの ${ids.length}件をまとめて採用・確定しますか？`)) return; // ★便 M-12 ②（裁定345／380 の文言を統一）
     setMsg(null);
     let done = 0;
     for (const chunk of chunkOf(ids, 62)) {
@@ -1009,6 +1016,8 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   const recruitingPeriods = periodsAll.filter((p) => stageOfP(p) === "open");
   const placingPeriods = periodsAll.filter((p) => stageOfP(p) === "closed");
   const publishedPeriods = periodsAll.filter((p) => p.status === "published");
+  // ★便 M-12 ①（裁定430 提案中）: 段階は進行の目安＝配置・確定・公開はどの段階からでも可＝④の対象は公開前の期間すべて（作成中・募集中・締切）
+  const unpublishedPeriods = periodsAll.filter((p) => p.status !== "published");
   const focusOf = (list: Period[]) => list.find((p) => p.id === focusPeriodId) ?? list[0] ?? null;
   const periodDaysOf = (p: Period) => { const out: string[] = []; for (let d = p.start_date; d <= p.end_date && out.length < 62; d = ymdAddOf(d, 1)) out.push(d); return out; };
   const shortDaysOf = (p: Period) => periodDaysOf(p).filter((ymd) => ymd.slice(0, 7) === month && (() => { const st = dayStat(ymd); return st.required > 0 && st.assigned < st.required; })());
@@ -1253,7 +1262,8 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
 
   // ★裁定253 R12（2026-09-14）: 「未確定 n 件 → 確定する」導線。n＝表示月の proposed（castConfirm=false）または planned＋proposed（true）。
   //   押すと承認待ちタブへ切り替えるだけ（直接の一括確定はしない＝確認の場を経由させる）。0 件なら出さない。manager 以上のみ。
-  const unconfirmedN = shifts.filter((x) => x.date.slice(0, 7) === month && (x.status === "proposed" || (castConfirm && x.status === "planned"))).length;
+  const unconfirmedIds = shifts.filter((x) => x.date.slice(0, 7) === month && (x.status === "proposed" || x.status === "planned")).map((x) => x.id); // ★便 M-12 ②: 確認待ち（管理者確認／キャスト確認）の両方
+  const unconfirmedN = unconfirmedIds.length;
   // ★便 SH-UI-c2 C2-18 ⑤／C2-19 ④: スタッフ別マトリクス（① から ③ へ移設）。セル＝開始時刻（状態の色）・記号と出所（自動／手）の表示は出さない
   const staffMatrixJsx = (() => {
     const days = calCells.filter((d): d is string => d !== null);
@@ -1296,8 +1306,8 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   })();
   const confirmCta = isManagerUp && unconfirmedN > 0 ? (
     <div className="nox-actions nox-noprint" style={{ marginTop: 10, marginBottom: 10 }}>
-      <button type="button" style={btnDark} title={`承認待ちで内容を確認してから${PROXY_CONFIRM_LABEL}します`}
-        onClick={() => { setDayModal(""); setTab("queue"); }}>{PROXY_CONFIRM_LABEL}する（{unconfirmedN} 件）</button>{/* ★裁定345 */}
+      <button type="button" style={btnDark} title="この月の確認待ち（管理者確認／キャスト確認）をまとめて採用・確定します（62 件ずつ順に送ります）" data-confirm-all={unconfirmedN}
+        onClick={() => { setDayModal(""); void confirmBulkShifts(unconfirmedIds); }}>{PROXY_CONFIRM_LABEL}（{unconfirmedN} 件）</button>{/* ★便 M-12 ②: 切り替えるだけ→その場で確定（確認ダイアログ 1 回） */}
     </div>
   ) : null;
 
@@ -1505,7 +1515,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                   // ★SC-8 ⑦: 既定 status は日で分ける（面4 と同式）。裁定42「当日その場で足すのは
                   //   もう入る人」は今日にだけ当てはまり、先の日は「これから組む段」＝planned。
                   setAddDate(todayDate);
-                  setAddStatus(todayDate === bizToday ? "confirmed" : "planned");
+                  setAddStatus("confirmed"); // ★便 M-11: 先の日も既定は採用・確定
                   setAddCast(null); setAddModal(true); // ★0125: v6 モーダル直開き（左ペインでキャスト選択）
                 }}>＋ 当日追加配置</button>
             )}
@@ -1747,7 +1757,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
             <h2 style={secTitle}>時間帯別の充足</h2>
             {todayBands.length === 0 ? (
               <p style={{ fontSize: 12.5, color: "var(--v2-muted)" }}>
-                この曜日の必要人数が未設定です。「仮シフト」タブの「必要人数（曜日・時間帯別）」から設定できます。
+                この曜日の必要人数が未設定です。シフト作成→③配置 の「必要人数（曜日・時間帯別）」から設定できます。
               </p>
             ) : (
               <>
@@ -1850,8 +1860,8 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
         <section className="nox-cardtop" style={card} data-shift-place-head="1">
           <h2 style={{ ...secTitle, margin: "0 0 4px" }}>③ シフト配置</h2>
           <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 10px" }}>上で希望を処理し（承認／調整＝差し戻し（本人確認）か確定／見送り）、下のカレンダーで足りない日に人を置きます。自動配置はありません。</p>
-          {periodTabs(placingPeriods, "queue", "配置中の期間")}
-          <div className="nox-cta" style={{ marginTop: 10 }}><button type="button" style={t.btnPrimary56} data-shift-go-publish="1" onClick={() => { const p = focusOf(placingPeriods); if (p) openPeriodInStep(p, "publish"); else { setDayModal(""); setTab("publish"); } }}>④ 公開シフトへ</button></div>
+          {periodTabs(unpublishedPeriods, "queue", "公開前の期間")}{/* ★便 M-12 ①: 配置はどの段階からでも（作成中・募集中・締切） */}
+          <div className="nox-cta" style={{ marginTop: 10 }}><button type="button" style={t.btnPrimary56} data-shift-go-publish="1" onClick={() => { const p = focusOf(unpublishedPeriods); if (p) openPeriodInStep(p, "publish"); else { setDayModal(""); setTab("publish"); } }}>④ 公開シフトへ</button></div>
         </section>
       )}
       {tab === "queue" && (
@@ -1908,7 +1918,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                   {isManagerUp && (planned.length > 0 || proposed.length > 0) && (
                     <div className="nox-actions" style={{ display: "flex", justifyContent: "center", gap: 8, flexWrap: "wrap", marginBottom: 10 }} data-queue-sub="1">
                       {planned.length > 0 && <button style={btnLight} title="調整中（planned）の全件をキャストへ送り返します（確認待ち）" data-queue-sendback={planned.length} onClick={() => void proposeShifts(planned.map((x) => x.id))}>調整中を送り返す（{planned.length}）</button>}
-                      {proposed.length > 0 && <button style={btnLight} title={`送り返したまま放置された分をまとめて${PROXY_CONFIRM_LABEL}します（62件ずつ順に送ります）`} data-queue-proxy={proposed.length} onClick={() => void confirmBulkShifts(proposed.map((x) => x.id))}>放置分を{PROXY_CONFIRM_LABEL}（{proposed.length}）</button>}
+                      {(planned.length + proposed.length) > 0 && <button style={btnDark} title="確認待ち（管理者確認／キャスト確認）をまとめて採用・確定します（62件ずつ順に送ります）" data-queue-proxy={planned.length + proposed.length} onClick={() => void confirmBulkShifts([...planned, ...proposed].map((x) => x.id))}>この {planned.length + proposed.length} 件を確定</button>}
                     </div>
                   )}
                   <div style={{ display: "flex", alignItems: "center", gap: 7, overflowX: "auto", flexWrap: "wrap", marginBottom: 12 }}>
@@ -2011,6 +2021,8 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                           )}
                           {isManagerUp && r.kind === "planned" && (
                             <span className="nox-rowops">
+                              <button style={{ ...btnDark, opacity: closed ? 0.45 : 1 }} disabled={closed} data-queue-confirm-one={r.shift!.id}
+                                onClick={() => void confirmOne(r.shift!.id)}>{PROXY_CONFIRM_LABEL}</button>{/* ★便 M-12 ③: 管理者確認の行にも「確定」（調整・送り返す・削除の左） */}
                               <button style={{ ...btnLight, opacity: closed ? 0.45 : 1 }} disabled={closed}
                                 onClick={() => { setAdjTarget(r.shift!); setAStart(r.shift!.start_hm); setAEnd(r.shift!.end_hm); }}>調整</button>{/* ★裁定380: 調整して確定／送り返す（代行確定は送り返し放置分のみ＝planned には出さない） */}
                               <button style={{ ...btnLight, opacity: closed ? 0.45 : 1 }} disabled={closed}
@@ -2061,12 +2073,12 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
             配置ルールの「優先順位」seg（shift_rules は max_consec_days・min_month_min の2列のみ）／
             「AI最適化」の語（実体は説明可能な貪欲法＝裁定④の2鍵）。 */}
       {/* ★裁定406（便 SH-UI-b）④ 公開シフト＝配置中の期間の切替・「キャストに公開する」（shift_period_set published）・不足日の一覧（③ で配置する）。下に月カレンダー */}
-      {tab === "publish" && isManagerUp && (() => { const p = focusOf(placingPeriods.length ? placingPeriods : publishedPeriods); const sh = p ? shortDaysOf(p) : []; return (
+      {tab === "publish" && isManagerUp && (() => { const p = focusOf(unpublishedPeriods.length ? unpublishedPeriods : publishedPeriods); const sh = p ? shortDaysOf(p) : []; return (
         <section className="nox-cardtop" style={card} data-shift-publish="1">
           <h2 style={{ ...secTitle, margin: "0 0 4px" }}>④ 公開シフト{p && <span className="num" style={{ marginLeft: 8, fontSize: 13, fontWeight: 700, color: "var(--sub)" }} data-shift-publish-month="1">{periodMonthLabelOf(p.start_date, p.end_date)}</span>}</h2>{/* ★便 SH-UI-c2 C2-18 ④: 月名は期間の実日付から */}
           <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 10px" }}>公開するとキャストのマイページに確定シフトが出ます。不足のままでも公開できます。公開後の追加・外しは「確定シフト」から。</p>
-          {periodTabs(placingPeriods.length ? placingPeriods : publishedPeriods, "publish", placingPeriods.length ? "配置中の期間" : "公開済みの期間")}
-          {!placingPeriods.length && publishedPeriods.length > 0 && <p style={{ fontSize: 12, color: "var(--sub)", margin: "6px 0 0" }}>配置中の期間はありません（公開済みの期間を表示しています）。</p>}
+          {periodTabs(unpublishedPeriods.length ? unpublishedPeriods : publishedPeriods, "publish", unpublishedPeriods.length ? "公開前の期間" : "公開済みの期間")}
+          {!unpublishedPeriods.length && publishedPeriods.length > 0 && <p style={{ fontSize: 12, color: "var(--sub)", margin: "6px 0 0" }}>公開前の期間はありません（公開済みの期間を表示しています）。</p>}
           {p && (<>
             <div className="nox-cta" style={{ margin: "10px 0" }}>
               <button type="button" style={{ ...t.btnPrimary56, opacity: p.status === "published" ? 0.5 : 1 }} disabled={p.status === "published"} data-shift-publish-btn="1"
@@ -2102,7 +2114,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                     <button className={planView === "cal" ? "on" : ""} onClick={() => setPlanView("cal")}>月カレンダー</button>
                     <button className={planView === "staff" ? "on" : ""} onClick={() => setPlanView("staff")}>スタッフ別</button>
                   </div>
-                  <button style={btnDark} onClick={() => { setAddDate(month === bizToday.slice(0, 7) ? bizToday : `${month}-01`); setAddStatus("planned"); setAddCast(null); setAddModal(true); }}>＋ キャスト別にまとめて追加</button>
+                  <button style={btnDark} onClick={() => { setAddDate(month === bizToday.slice(0, 7) ? bizToday : `${month}-01`); setAddStatus("confirmed"); setAddCast(null); setAddModal(true); }}>＋ キャスト別にまとめて追加</button>
                 </span>
               </div>
             )}
@@ -2445,7 +2457,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
               <div className="nox-dslegend" data-day-legend="1"><span className="it"><span className="sw" data-day-state="fixed" />{dayStateLabelOf("fixed")}（/mine のシフト希望と同じ色）</span></div>
               <p className="nox-unpub-legend" style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "8px 0 0" }}><span className="nox-unpub-swatch" aria-hidden="true" />帯＝未確定（期間が未公開）</p>{/* ★306-5: 凡例（≤899 のみ） */}
               <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "10px 0 0", lineHeight: 1.7 }}>
-                このカレンダーには<b>確定だけ</b>を出しています（採用・確認待ちは「確定」タブの承認待ち）。
+                このカレンダーには<b>確定だけ</b>を出しています（採用・確認待ちは シフト作成→③配置 の承認待ち）。
                 セルは先頭3名まで。<b>日を押すとその日の全員が開きます</b>（時間の調整もそこから）。
               </p>
             </>
@@ -2497,7 +2509,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                               onClick={() => {
                                 const c = casts.find((x) => x.id === s.cast_id);
                                 if (!c) return;
-                                setAddCast(c); setAddStatus("planned"); setAddModal(true);
+                                setAddCast(c); setAddStatus("confirmed"); setAddModal(true); // ★便 M-11
                               }}>＋</button>
                             {/* ★N4（H30）: 確定行の削除＝shift_remove（出勤記録がある日は RPC が拒否） */}
                             <button style={{ ...btnLight, color: "var(--bad)" }} title="このシフトを削除します（出勤記録がある日は削除できません）"
@@ -2728,20 +2740,28 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                     </span>
                     <span className="num">{fmtWin(x.start_hm, x.end_hm)}</span>
                     <span style={{ fontSize: 10.5, color: "var(--v2-muted)" }}>{userNames.get(x.created_by) ?? "—"}</span>
-                    {isManagerUp && (
+                    {isManagerUp && (<>
                       <button style={{ ...btnLight, opacity: xClosed ? 0.45 : 1 }} disabled={xClosed}
                         title={xClosed ? "この日は定休日に設定されています" : undefined}
                         onClick={() => {
                           // ★C-12: 重ねない＝日詳細を閉じてから調整モーダルを開く（排他）。
                           setDayModal("");
                           setAdjTarget(x); setAStart(x.start_hm); setAEnd(x.end_hm);
-                        }}>時間を調整</button>
-                    )}
+                        }}>時刻変更</button>{/* ★便 M-13: 公開済みのまま変更＝本人へ通知（adjustShift の shift_changed） */}
+                      <button style={{ ...btnLight, color: "var(--bad)" }} data-roster-remove={x.id} onClick={() => { setDayModal(""); void removeShift(x); }}>外す</button>{/* ★便 M-13: 公開を戻さない・本人へ通知（shift_removed） */}
+                    </>)}
                   </div>
                 );
               })}
+              {isManagerUp && (/* ★便 M-13（Agoora 10/26）: 確定シフトから追加＝公開済みのまま・既定は採用・確定＋本人へ通知（confirmShift／shift_set confirmed の通知）・定休日はブロック */
+                <div style={{ marginTop: 10 }}>
+                  <button type="button" className="nox-addc" data-roster-add={selDate} disabled={isClosedDay(selDate)} style={{ opacity: isClosedDay(selDate) ? 0.45 : 1 }}
+                    title={isClosedDay(selDate) ? "この日は定休日です" : undefined}
+                    onClick={() => { setDayModal(""); setAddDate(selDate); setAddStatus("confirmed"); setAddCast(null); setAddModal(true); }}>＋ キャストを追加</button>
+                </div>
+              )}
               <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "10px 0 0", lineHeight: 1.7 }}>
-                ここには<b>確定だけ</b>を出しています（採用・確認待ちは「確定」タブの承認待ち）。
+                ここには<b>確定だけ</b>を出しています（採用・確認待ちは シフト作成→③配置 の承認待ち）。公開済みのまま追加・時刻変更・外すができ、本人に通知が届きます。
               </p>
             </div>
           </Modal>

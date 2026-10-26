@@ -11,6 +11,9 @@ import { createClient } from "@/lib/supabase/client";
 import { rpcErrJa } from "@/lib/nox/ui/rpc-err";
 import * as t from "@/lib/nox/ui/theme";
 import { normApplyErrOf, normReasonOf, type NormProposal } from "@/lib/nox/payroll/norm-proposal";
+import { useEffect } from "react";
+import { mig0183On } from "@/lib/nox/rules-0175/flag"; // ★便 M-7（0183）: 意思の保存
+import { normIntentBadgeOf, normIntentChangedOf, type NormIntent } from "@/lib/nox/payroll/norm-intent";
 
 export type NormProposalRow = { castId: string; castName: string; normProposal: NormProposal & { applied?: number } };
 const yen = (n: number) => `¥${n.toLocaleString("ja-JP")}`;
@@ -18,6 +21,10 @@ const yen = (n: number) => `¥${n.toLocaleString("ja-JP")}`;
 export default function NormProposals({ rows, runId, period, storeId, onDone }: { rows: NormProposalRow[]; runId: string | null; period: string; storeId: string; onDone: (text: string) => void | Promise<void> }) {
   const contractor = rows.filter((r) => r.normProposal.employment === "委託");
   const employee = rows.filter((r) => r.normProposal.employment === "雇用");
+  // ★便 M-7（0183）: 意思（適用／除外）＝norm_shortfall_intents（run × cast）。フラグ false の間は読まない（表が無い）
+  const [intents, setIntents] = useState<Map<string, NormIntent>>(new Map());
+  const reloadIntents = async () => { if (!mig0183On() || !runId) return; const { data } = await createClient().from("norm_shortfall_intents").select("cast_id, action, reason, detail, decided_at").eq("run_id", runId); setIntents(new Map(((data ?? []) as NormIntent[]).map((x) => [x.cast_id, x]))); };
+  useEffect(() => { void reloadIntents(); }, [runId]); // eslint-disable-line react-hooks/exhaustive-deps
   if (rows.length === 0) return null;
   const sum = (rs: NormProposalRow[]) => rs.reduce((s, r) => s + (r.normProposal.applied ? 0 : r.normProposal.proposed), 0);
   return (
@@ -26,20 +33,20 @@ export default function NormProposals({ rows, runId, period, storeId, onDone }: 
         <div>
           <strong style={{ color: "var(--champ)" }} data-norm-summary="1">ノルマ未達 {contractor.length} 名・提案額 合計 {yen(sum(contractor))}</strong>
           <span style={{ ...t.sub, marginLeft: 8 }}>委託キャストのみ。適用した分だけ精算調整の行になります（確定前の提案）。</span>
-          <div style={{ display: "grid", gap: 6, marginTop: 6 }}>{contractor.map((r) => <ProposalRow key={r.castId} r={r} runId={runId} period={period} storeId={storeId} onDone={onDone} />)}</div>
+          <div style={{ display: "grid", gap: 6, marginTop: 6 }}>{contractor.map((r) => <ProposalRow key={r.castId} r={r} runId={runId} period={period} storeId={storeId} onDone={onDone} intent={intents.get(r.castId) ?? null} onIntent={reloadIntents} />)}</div>
         </div>
       )}
       {employee.length > 0 && (
         <div>
           <strong style={{ color: "var(--champ)" }}>ノルマ未達の懲戒減給（雇用・労基法 91 条の上限内）</strong>
-          <div style={{ display: "grid", gap: 6, marginTop: 6 }}>{employee.map((r) => <ProposalRow key={r.castId} r={r} runId={runId} period={period} storeId={storeId} onDone={onDone} />)}</div>
+          <div style={{ display: "grid", gap: 6, marginTop: 6 }}>{employee.map((r) => <ProposalRow key={r.castId} r={r} runId={runId} period={period} storeId={storeId} onDone={onDone} intent={intents.get(r.castId) ?? null} onIntent={reloadIntents} />)}</div>
         </div>
       )}
     </div>
   );
 }
 
-function ProposalRow({ r, runId, period, storeId, onDone }: { r: NormProposalRow; runId: string | null; period: string; storeId: string; onDone: (text: string) => void | Promise<void> }) {
+function ProposalRow({ r, runId, period, storeId, onDone, intent = null, onIntent }: { r: NormProposalRow; runId: string | null; period: string; storeId: string; onDone: (text: string) => void | Promise<void>; intent?: NormIntent | null; onIntent?: () => void | Promise<void> }) {
   const supabase = createClient();
   const p = r.normProposal;
   const [open, setOpen] = useState(false);
@@ -66,6 +73,15 @@ function ProposalRow({ r, runId, period, storeId, onDone }: { r: NormProposalRow
       if (run.status !== "draft") { setBusy(false); setErr("当期の給与は確定済みのため適用できません"); return; }
       rid = run.id;
     }
+    // ★便 M-7（Agoora 確定 ⑥）: 意思だけ保存（金額は確定時に最新で再計算して精算調整に書く＝finalize route）
+    if (mig0183On()) {
+      const { error: eI } = await supabase.rpc("norm_shortfall_decide", { p_run_id: rid, p_cast_id: r.castId, p_action: "apply", p_reason: null, p_detail: { amount: n, proposed: p.proposed } });
+      setBusy(false);
+      if (eI) { setErr(rpcErrJa(eI.message)); return; }
+      setOpen(false); await onIntent?.();
+      await onDone(`${r.castName} のノルマ未達の${isEmp ? "懲戒減給" : "減額"}を「適用する」にしました（確定時に最新の額で精算調整に入ります・現在 ${yen(p.proposed)}）`);
+      return;
+    }
     const { error } = await supabase.rpc("payroll_adjustment_add", {
       p_run_id: rid, p_cast_id: r.castId, p_mode: "fixed", p_amount: n, p_rate_bp: null, p_before_withholding: true, p_show_detail: true,
       p_reason: normReasonOf(period, p.items), p_source: isEmp ? "sanction" : "settlement",
@@ -82,10 +98,12 @@ function ProposalRow({ r, runId, period, storeId, onDone }: { r: NormProposalRow
       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
         <b>{r.castName}</b>
         {p.applied ? <span className="nox-stpill ok">適用済み {yen(p.applied)}</span>
+          : intent ? (<><span className={`nox-stpill${intent.action === "apply" ? " ok" : ""}`} data-norm-intent={intent.action}>{normIntentBadgeOf(intent, p.proposed)}</span>
+              {normIntentChangedOf(intent, p.proposed) && <span style={{ fontSize: 12, color: "var(--gold2)", fontWeight: 700 }} data-norm-changed="1">{normIntentChangedOf(intent, p.proposed)}</span>}</>)
           : excluded ? <span className="nox-stpill">除外（{excluded}）</span>
           : usable ? <span className="num">提案 {yen(p.proposed)}{p.capped ? `（計算 ${yen(p.total)}）` : ""}</span>
           : <span style={{ color: "var(--sub)" }}>{p.note}</span>}
-        {!p.applied && !excluded && usable && <button type="button" className="nox-rowbtn" style={{ marginLeft: "auto" }} onClick={() => setOpen((v) => !v)} data-norm-open={r.castId}>{open ? "閉じる" : "内訳"}</button>}
+        {!p.applied && !excluded && !intent && usable && <button type="button" className="nox-rowbtn" style={{ marginLeft: "auto" }} onClick={() => setOpen((v) => !v)} data-norm-open={r.castId}>{open ? "閉じる" : "内訳"}</button>}
       </div>
       {open && (
         <div style={{ marginTop: 6, display: "grid", gap: 6 }}>
@@ -100,7 +118,14 @@ function ProposalRow({ r, runId, period, storeId, onDone }: { r: NormProposalRow
           ) : (
             <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
               <input value={reason} onChange={(e) => setReason(e.target.value)} maxLength={100} placeholder="除外の理由（必須）" style={{ ...t.input, flex: "1 1 200px" }} aria-label="除外の理由" />
-              <button type="button" style={t.btnGhost} disabled={!reason.trim()} onClick={() => { setExcluded(reason.trim()); setOpen(false); }} data-norm-exclude-ok={r.castId}>除外する</button>
+              <button type="button" style={t.btnGhost} disabled={!reason.trim()} onClick={() => void (async () => {
+                if (mig0183On() && runId) { // ★便 M-7: 除外も意思として保存（理由必須）
+                  const { error: eX } = await supabase.rpc("norm_shortfall_decide", { p_run_id: runId, p_cast_id: r.castId, p_action: "exclude", p_reason: reason.trim(), p_detail: { proposed: p.proposed } });
+                  if (eX) { setErr(rpcErrJa(eX.message)); return; }
+                  await onIntent?.();
+                }
+                setExcluded(reason.trim()); setOpen(false);
+              })()} data-norm-exclude-ok={r.castId}>除外する</button>
               <button type="button" style={t.btnGhost} onClick={() => setExcluding(false)}>戻る</button>
             </div>
           )}

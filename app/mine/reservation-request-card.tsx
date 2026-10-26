@@ -11,7 +11,8 @@ import Toast from "@/components/ui/toast";
 import Picker from "@/components/nox/picker";
 import SegSelect from "@/components/ui/seg-select";
 import { rpcErrJa } from "@/lib/nox/ui/rpc-err";
-import { RSV_KIND_OPTIONS, RSV_REQ_CANCEL_NOTE, RSV_REQ_EMPTY, RSV_REQ_SENT, RSV_REQ_STATUS_COLOR, RSV_REQ_STATUS_LABEL, rsvCustomerNameOf, rsvRequestArgsOf, rsvRequestRowsOf, rsvWhenLabelOf, type RsvRequestRow } from "@/lib/nox/mine/reservation-request";
+import { mig0183On } from "@/lib/nox/rules-0175/flag"; // ★便 M-4（0183）
+import { RSV_KIND_OPTIONS, RSV_REQ_CANCEL_NOTE, RSV_REQ_EMPTY, RSV_REQ_SENT, RSV_REQ_STATUS_COLOR, RSV_REQ_STATUS_LABEL, rsvCustomerNameOf, rsvRequestArgsOf, rsvRequestRowsOf, rsvWhenLabelOf, RSV_CUSTOMER_MODE_OPTIONS, RSV_NEW_BADGE, rsvGuestArgsOf, rsvRowNameOf, type RsvCustomerMode, type RsvRequestRow } from "@/lib/nox/mine/reservation-request";
 
 type Customer = { id: string; name: string; tel: string | null };
 const NOM_LABEL: Record<string, string> = { hon: "本指名", jonai: "場内", dohan: "同伴", free: "フリー" };
@@ -24,6 +25,10 @@ export default function ReservationRequestCard({ storeId, bizToday }: { storeId:
   const [date, setDate] = useState(bizToday);
   const [time, setTime] = useState("20:00");
   const [kind, setKind] = useState("hon");
+  // ★便 M-4（Agoora 確定 ⑤）: 新規のお客様（フリー入力＝呼び名＋人数）／既存客から（担当客）
+  const [mode, setMode] = useState<RsvCustomerMode>("existing");
+  const [guestName, setGuestName] = useState("");
+  const [partySize, setPartySize] = useState("1");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
@@ -33,22 +38,23 @@ export default function ReservationRequestCard({ storeId, bizToday }: { storeId:
     const { data: cs } = await supabase.from("customers").select("id, name, tel").eq("is_active", true).order("name");
     setCustomers((cs ?? []) as Customer[]);
     // 自分の申請＝requested_by_cast が入っている行（RLS＝cast_id が自分の行）
-    const { data: rs } = await supabase.from("reservations").select("id, reserved_at, nom_type, status, rejected_reason, customers(name)").not("requested_by_cast", "is", null).order("reserved_at", { ascending: false }).limit(40);
+    const { data: rs } = await supabase.from("reservations").select("id, reserved_at, nom_type, status, rejected_reason, guest_name, customers(name)").not("requested_by_cast", "is", null).order("reserved_at", { ascending: false }).limit(40);
     setRows(rsvRequestRowsOf((rs ?? []) as unknown as RsvRequestRow[]));
     setLoaded(true);
   }, []);
   useEffect(() => { void load(); }, [load]);
 
   async function submit() {
-    const a = rsvRequestArgsOf({ storeId, customerId, date, time, kind });
+    const guest = mig0183On() && mode === "guest";
+    const a = guest ? rsvGuestArgsOf({ storeId, guestName, partySize, date, time, kind }) : rsvRequestArgsOf({ storeId, customerId, date, time, kind });
     if (!a.ok) { setMsg(a.err); return; }
     setBusy(true); setMsg(null);
     const supabase = createClient();
-    const { error } = await supabase.rpc("reservation_request", a.args);
+    const { error } = await supabase.rpc(guest ? "reservation_request_guest" : "reservation_request", a.args); // ★便 M-4: 新規＝reservation_request_guest（0183）
     setBusy(false);
     if (error) { setMsg(rpcErrJa(error.message)); return; }
     setMsg(RSV_REQ_SENT);
-    setCustomerId("");
+    setCustomerId(""); setGuestName(""); setPartySize("1");
     await load();
   }
 
@@ -61,12 +67,24 @@ export default function ReservationRequestCard({ storeId, bizToday }: { storeId:
   return (
     <section className="nox-panel" aria-label="予約申請">
       <h3>指名・同伴の予約申請</h3>
-      {loaded && customers.length === 0 ? (
+      {mig0183On() && (/* ★便 M-4: 「既存客から／フリー入力」＝レジの新規予約と同じ切替 */
+        <div style={{ margin: "0 0 8px" }} data-rsv-mode={mode}><SegSelect value={mode} onChange={(v) => setMode(v as RsvCustomerMode)} options={RSV_CUSTOMER_MODE_OPTIONS} disabled={busy} ariaLabel="お客様" /></div>
+      )}
+      {loaded && customers.length === 0 && !(mig0183On() && mode === "guest") ? (
         <p style={{ fontSize: 12.5, color: "var(--sub)", margin: "6px 0 0" }}>{RSV_REQ_EMPTY}</p>
       ) : (
         <div style={{ display: "grid", gap: 8 }}>
+          {mig0183On() && mode === "guest" ? (
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }} data-rsv-guest="1">
+              <input value={guestName} onChange={(e) => setGuestName(e.target.value)} maxLength={40} placeholder="お客様の呼び名（例: 田中様）" style={{ ...input, flex: "1 1 180px" }} aria-label="お客様の呼び名" />
+              <input inputMode="numeric" value={partySize} onChange={(e) => setPartySize(e.target.value.replace(/[^0-9]/g, "").slice(0, 2))} style={{ ...input, width: 70 }} aria-label="人数" />
+              <span style={{ alignSelf: "center", fontSize: 12.5 }}>名</span>
+              <span style={{ flexBasis: "100%", fontSize: 11.5, color: "var(--sub)" }}>来店時にお店が顧客カルテに紐づけ、あなたの担当客に登録されます。</span>
+            </div>
+          ) : (
           <Picker dense items={customers.map((c) => ({ id: c.id, label: c.name, sublabel: c.tel ?? undefined }))} value={customerId || null}
             onPick={setCustomerId} onClear={() => setCustomerId("")} placeholder="担当客を検索" />
+          )}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
             <input type="date" value={date} min={bizToday} disabled={busy} onChange={(e) => setDate(e.target.value)} style={{ ...input, maxWidth: 156 }} aria-label="来店日" />
             <input type="time" value={time} disabled={busy} onChange={(e) => setTime(e.target.value)} style={{ ...input, maxWidth: 110 }} aria-label="来店予定時刻" />
@@ -85,7 +103,7 @@ export default function ReservationRequestCard({ storeId, bizToday }: { storeId:
             <div key={r.id} style={{ padding: "7px 0", borderBottom: "1px solid var(--line2)" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13 }}>
                 <span className="num" style={{ fontWeight: 700 }}>{rsvWhenLabelOf(r.reserved_at)}</span>
-                <span style={{ fontWeight: 700 }}>{rsvCustomerNameOf(r.customers)}</span>
+                {(() => { const nm = rsvRowNameOf(r as RsvRequestRow & { guest_name?: string | null }); return <span style={{ fontWeight: 700 }}>{nm.name}{nm.isNew && <span className="nox-stpill" style={{ marginLeft: 6, fontSize: 10 }} data-rsv-new="1">{RSV_NEW_BADGE}</span>}</span>; })()}{/* ★便 M-4: 新規客は呼び名＋「新規」 */}
                 <span style={{ color: "var(--sub)" }}>{NOM_LABEL[r.nom_type ?? ""] ?? ""}</span>
                 <span style={pill(r.status)}>{RSV_REQ_STATUS_LABEL[r.status] ?? r.status}</span>
               </div>

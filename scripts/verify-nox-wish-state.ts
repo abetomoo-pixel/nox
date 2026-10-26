@@ -30,7 +30,7 @@ const src = (p: string) => fs.readFileSync(p, "utf8");
   check("ws(2-1) 内訳: planned＝管理者確認・proposed＝ON キャスト確認待ち／OFF 店の確定待ち・shift なし＝店の操作待ち", wishStateDetailOf("accepted_wait", "planned", true) === "管理者確認" && wishStateDetailOf("accepted_wait", "proposed", true) === "キャスト確認待ち" && wishStateDetailOf("accepted_wait", "proposed", false) === "店の確定待ち" && wishStateDetailOf("accepted_wait", null, true) === "店の操作待ち");
   check("ws(2-2) 確認待ち以外は内訳 null", wishStateDetailOf("accepted_fixed", "confirmed", true) === null && wishStateDetailOf("pending", null, false) === null && wishStateDetailOf("rejected", null, true) === null);
   check("ws(2-3) wishStateTextOf: 「採用・確認待ち（キャスト確認待ち）」「採用・確定」「審査中」", wishStateTextOf("accepted", "proposed", true) === "採用・確認待ち（キャスト確認待ち）" && wishStateTextOf("accepted", "confirmed", true) === "採用・確定" && wishStateTextOf("pending", null, false) === "審査中");
-  check("ws(2-4) 直近の上限 14・代行確定の語", MINE_RECENT_SHIFT_LIMIT === 14 && PROXY_CONFIRM_LABEL === "代行確定");
+  check("ws(2-4) 直近の上限 14・確定の語（★便 M-12＝裁定430 提案中：代行確定を「確定」に統一）", MINE_RECENT_SHIFT_LIMIT === 14 && PROXY_CONFIRM_LABEL === "確定");
 }
 
 // ws(3)
@@ -55,14 +55,14 @@ const src = (p: string) => fs.readFileSync(p, "utf8");
   const sb = src("app/(manage)/shift/shift-board.tsx");
   // 「承認」の語が残るのは cast の打刻修正申請の決裁ボタン（裁定297-1・別機能）だけ＝シフトの確定ボタンには残らない
   const approveButtons = (sb.match(/confirm(Shift\(s\)|One\(r\.shift!\.id\))\}>承認<\/button>/g) ?? []).length;
-  check("ws(4-1) shift-board: シフトの「承認」ボタン 0・代行確定＝PROXY_CONFIRM_LABEL（行 2 箇所＝今日タブ＋proposed 行（★裁定380: planned 行は「調整して確定」へ）＋一括＋今日タブ CTA）", approveButtons === 0 && (sb.match(/\{PROXY_CONFIRM_LABEL\}<\/button>/g) ?? []).length === 2 && sb.includes("放置分を{PROXY_CONFIRM_LABEL}（{proposed.length}）") /* ★便 SH-UI-c2 C2-17: 副ボタン「放置分を代行確定（N）」 */ && sb.includes("{PROXY_CONFIRM_LABEL}する（{unconfirmedN} 件）"), `承認 ${approveButtons}`);
+  check("ws(4-1) shift-board: シフトの「承認」ボタン 0・代行確定＝PROXY_CONFIRM_LABEL（行 2 箇所＝今日タブ＋proposed 行（★裁定380: planned 行は「調整して確定」へ）＋一括＋今日タブ CTA）", approveButtons === 0 && (sb.match(/\{PROXY_CONFIRM_LABEL\}<\/button>/g) ?? []).length === 3 /* ★便 M-12 ③: 今日タブ＋proposed 行＋planned 行（確定を左に） */ && sb.includes("この {planned.length + proposed.length} 件を確定") /* ★便 M-12 ③: 上部の一括＝確認待ち（管理者確認／キャスト確認）の両方 */ && sb.includes("{PROXY_CONFIRM_LABEL}（{unconfirmedN} 件）") /* ★便 M-12 ②: 切り替えるだけ→その場で確定 */, `承認 ${approveButtons}`);
   check("ws(4-2) shift-board: SHIFT_ST_LABEL＝4 段の語・queue の段＝wishStateTextOf・キャスト希望は審査中・旧「承認済み（未確定）」なし",
     sb.includes("const SHIFT_ST_LABEL: Record<string, string> = { planned: WISH_STATE_LABEL.accepted_wait, proposed: WISH_STATE_LABEL.accepted_wait, confirmed: WISH_STATE_LABEL.accepted_fixed };")
     && sb.includes('stage: wishStateTextOf("accepted", x.status as "planned" | "proposed", castConfirm)') && sb.includes("stage: `${WISH_STATE_LABEL.pending}（キャスト希望）`") && !sb.includes('"承認済み（未確定）"'));
   check("ws(4-3) shift-board: 希望どおり採用＝即確定（shift_wish_decide の戻り id を shift_confirm_bulk 1 件へ・★裁定380: 店設定に依らない＝castConfirm は常に true）", sb.includes('const { data: sid, error } = await supabase.rpc("shift_wish_decide", { p_wish_id: wishId, p_accept: accept });') && sb.includes("if (!error && accept && typeof sid === \"string\") { // ★裁定380") && sb.includes('await supabase.rpc("shift_confirm_bulk", { p_shift_ids: [sid] });') && sb.includes("const castConfirm = true; // ★裁定380"));
   check("ws(4-4) ③ シフト配置（queue）は「シフト作成」の中・確定シフト＝roster（★裁定406 で「承認待ち」の語は手順名「シフト配置」へ）", VIEW_TABS.make.some(([k, l]) => k === "queue" && l === "シフト配置") && JSON.stringify(VIEW_TABS.fixed) === JSON.stringify([["roster", "確定シフト"]]));
   const af = src("app/(manage)/shift/shift-add-form.tsx");
-  check("ws(4-5) shift-add-form: 状態の語＝採用・確認待ち（管理者確認／キャスト確認）／採用・確定・取込の文言＝採用", af.includes('options={[["planned", "採用・確認待ち（管理者確認）"], ["proposed", "採用・確認待ち（キャスト確認）"], ["confirmed", "採用・確定"]] as const}') && af.includes("希望日は採用（管理者確認）として取り込み") && af.includes("希望の採用に失敗"));
+  check("ws(4-5) shift-add-form: 状態の語＝採用・確認待ち（管理者確認／キャスト確認）／採用・確定・取込の文言＝採用", af.includes('options={[["planned", "採用・確認待ち（管理者確認）"], ["proposed", "採用・確認待ち（キャスト確認）"], ["confirmed", "採用・確定"]] as const}') && af.includes("希望日もこの状態で取り込み") /* ★便 M-11: 希望の取り込みも選択中の状態に従う */ && af.includes("希望の採用に失敗"));
 }
 
 // ws(5)

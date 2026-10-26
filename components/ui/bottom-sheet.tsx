@@ -28,13 +28,13 @@ export default function BottomSheet({ onClose, title, actions, children, testId 
     <div role="presentation" data-sheet-overlay="1" onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 900, background: "rgba(0,0,0,.55)" }}>
       <div role="dialog" aria-modal="true" data-sheet={testId} onClick={(e) => e.stopPropagation()}
         style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: "90%", background: "var(--card)", color: "var(--ink)", borderRadius: "16px 16px 0 0", boxShadow: "0 -8px 30px rgba(0,0,0,.35)", display: "flex", flexDirection: "column", paddingBottom: "env(safe-area-inset-bottom)" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 14px 6px", borderBottom: "1px solid var(--line)" }}>
+        <div data-sheet-head="1" style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8, padding: "8px 14px 6px", borderBottom: "1px solid var(--line)" }}>{/* ★便 M-2: 操作が多いときは 2 段目に（閉じるは右上のまま） */}
           <span aria-hidden="true" style={{ position: "absolute", left: "50%", top: 6, width: 40, height: 4, marginLeft: -20, borderRadius: 2, background: "var(--line2)" }} />
-          <div style={{ fontSize: 13.5, fontWeight: 800, minWidth: 0, flex: 1, marginTop: 6, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</div>
-          <div style={{ display: "inline-flex", gap: 6, alignItems: "center", marginTop: 6 }}>{actions}</div>
-          <button type="button" data-sheet-close="1" onClick={onClose} style={{ marginTop: 6, minHeight: 40, padding: "0 12px", borderRadius: 8, border: "1px solid var(--line2)", background: "var(--card2)", color: "var(--ink)", fontWeight: 700, fontSize: 13 }}>閉じる</button>
+          <div style={{ order: 1, fontSize: 13.5, fontWeight: 800, minWidth: 0, flex: 1, marginTop: 6, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</div>
+          <button type="button" data-sheet-close="1" onClick={onClose} style={{ order: 2, marginTop: 6, minHeight: 40, padding: "0 12px", borderRadius: 8, border: "1px solid var(--line2)", background: "var(--card2)", color: "var(--ink)", fontWeight: 700, fontSize: 13 }}>閉じる</button>
+          {actions && <div data-sheet-actions="1" style={{ order: 3, flexBasis: "100%", display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginTop: 2 }}>{actions}</div>}
         </div>
-        <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "10px 14px 16px" }}>{children}</div>
+        <div style={{ flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden", padding: "10px 14px 16px" }}>{children}</div>
       </div>
     </div>
   );

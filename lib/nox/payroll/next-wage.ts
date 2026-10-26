@@ -31,7 +31,7 @@ export type NextWagePayLike = {
   canon?: { forecast?: NextWage | null } | null;
   eplan?: { base?: number; salesSlide?: Slide[]; pointSlide?: Slide[] } | null;
   plan?: { base?: number; salesSlide?: Slide[]; pointSlide?: Slide[] } | null;
-  slideBasis?: { apply?: string; months?: { month: string; sales: number; pts: number }[] } | null;
+  slideBasis?: { apply?: string; months?: { month: string; prevMonth?: string; sales: number; pts: number }[] } | null;
   wdays?: { sales?: number; pts?: number }[];
 };
 export function nextWageOfPay(p: NextWagePayLike | null | undefined, opts: { salesOn?: boolean; ptOn?: boolean } = {}): NextWage | null {
@@ -44,8 +44,10 @@ export function nextWageOfPay(p: NextWagePayLike | null | undefined, opts: { sal
   const cur = sb?.months?.length ? sb.months[sb.months.length - 1] : null;
   const fromDays = (k: "sales" | "pts") => (p.wdays ?? []).reduce((a, w) => a + Number(w[k] ?? 0), 0);
   // 'next'（前月の累計で判定）＝months の sales は前月の値＝今期の値は日次の合計。それ以外＝months の値（期首〜今日の累計）
-  const salesNow = sb?.apply === "next" || !cur ? fromDays("sales") : cur.sales;
-  const ptsNow = sb?.apply === "next" || !cur ? fromDays("pts") : cur.pts;
+  // ★ON-4 live: core は月次／半月で apply を monthly／half に書き換える＝「前月の累計で判定」は prevMonth ≠ month で見分ける（slide.ts slideBasisForPeriodOf）
+  const prevJudged = sb?.apply === "next" || (!!cur && !!cur.prevMonth && cur.prevMonth !== cur.month);
+  const salesNow = prevJudged || !cur ? fromDays("sales") : cur.sales;
+  const ptsNow = prevJudged || !cur ? fromDays("pts") : cur.pts;
   if ((opts.salesOn ?? true) && (plan.salesSlide?.length ?? 0) > 0) return slideNextWageOf({ base, slides: plan.salesSlide!, value: salesNow, axis: "sales" });
   if ((opts.ptOn ?? true) && (plan.pointSlide?.length ?? 0) > 0) return slideNextWageOf({ base, slides: plan.pointSlide!, value: ptsNow, axis: "pt" });
   return null;

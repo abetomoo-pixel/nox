@@ -25,13 +25,14 @@ import InvoicePanel from "./invoice-panel";
 import PaymentTaxPanel from "./payment-tax-panel";
 import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 import { exportPayrollCsvForRun, slipCastName } from "./export-csv"; // ★B5: CSV 出力と凍結名解決は月次一覧と共用
-import { missingOutSummaryOf, frozenRowsOf, runSummaryOf } from "@/lib/nox/payroll/view"; // ★N3（週末バックログ 4）: 表示だけの純関数（警告文・凍結行）
+import { missingOutSummaryOf, noShiftSummaryOf, frozenRowsOf, runSummaryOf } from "@/lib/nox/payroll/view"; // ★N3（週末バックログ 4）: 表示だけの純関数（警告文・凍結行）
 import SettlementModal from "@/components/nox/settlement-modal"; // ★0154 D4: 精算調整（委託・裁定293 追補1）
 import SanctionModal from "@/components/nox/sanction-modal";
 import NormProposals from "@/components/nox/norm-proposals"; // ★便 X13-I I-5: ノルマ未達の減額の提案
 import type { NormProposal } from "@/lib/nox/payroll/norm-proposal"; // ★0154 D5: 懲戒減給（雇用・労基法 91 条）
 import AdvanceOkuriForm from "@/components/nox/advance-okuri-form"; // ★裁定300-2: 前借り／送り実費の入口（cast・期固定・確定後は読取のみ）
-import { okuri4wayOn, rules0175On } from "@/lib/nox/rules-0175/flag"; // ★便 P175-prep P-2／P-7
+import { mig0183On, okuri4wayOn, rules0175On } from "@/lib/nox/rules-0175/flag";
+import { normFinalizeNoteOf, type NormIntent } from "@/lib/nox/payroll/norm-intent"; // ★便 M-7（0183） // ★便 P175-prep P-2／P-7
 import { cancelledLabelOf, isCancelledOf, type CancellableRow } from "@/lib/nox/rules-0175/cancelled"; // ★便 P175-prep P-2（裁定413 I-3）
 import { okuriModeOf, type OkuriMode } from "@/lib/nox/shift/okuri-mode"; // ★便 P175-prep P-7
 import { issueDateDefaultOf } from "@/lib/nox/payroll/advance-okuri";
@@ -54,6 +55,7 @@ type Row = {
   normProposal?: NormProposal & { applied?: number }; // ★便 X13-I I-5（preview が返す・提案がある行だけ）
   castId: string; castName: string; net: number; taxMode: string; anomalyCount: number;
   missingOutDates?: string[]; // ★N3 AV-4: 退勤の記録が無い勤務の営業日（preview が返す・表示のみ）
+  noShiftDates?: string[]; // ★便 M-10: シフト無し出勤（時給なし）
   frozen?: true; // ★N3 AV-2: 確定済み run の凍結値（payslips）から作った行＝プレビュー（再計算）ではない
   arDeductTotal?: number; arCarriedTotal?: number;
   advDeductTotal?: number; advCarriedTotal?: number; // F2e-2 前借り（繰越あり）
@@ -380,7 +382,11 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
   }
 
   async function finalize() {
-    if (!confirm(`${period} の給与を確定します。確定後はマスタ変更の影響を受けません。よろしいですか？`)) return;
+    // ★便 M-7（0183）: 確定の前の最終確認＝ノルマ未達の「適用」の意思（最新の提案額で精算調整に入る）
+    let normNote = "";
+    if (mig0183On() && runInfo?.id) { const { data: its } = await supabase.from("norm_shortfall_intents").select("cast_id, action, reason, detail, decided_at").eq("run_id", runInfo.id); const nf = normFinalizeNoteOf(rows ?? [], new Map(((its ?? []) as NormIntent[]).map((x) => [x.cast_id, x]))); if (nf) normNote = `
+${nf.text}`; }
+    if (!confirm(`${period} の給与を確定します。確定後はマスタ変更の影響を受けません。よろしいですか？${normNote}`)) return;
     setBusy(true);
     setMsg("");
     try {
@@ -826,6 +832,18 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
                   {mo.items.map((it) => <li key={`${it.castName}-${it.date}`}>{it.castName}: {it.md}</li>)}
                 </ul>
                 <a href="/shift" className="nox-link" style={{ display: "inline-block", marginTop: 4 }}>出勤板で退勤を記録する ›</a>
+              </details>
+            );
+          })()}
+          {/* ★便 M-10（Agoora 確定 10/26 ⑧）: シフト無し出勤＝時給なしの仕様は維持・要対応として件数と行（当日追加配置へ） */}
+          {(() => {
+            const ns = noShiftSummaryOf(rows);
+            return ns && (
+              <details className="nox-inset" style={{ padding: "8px 12px", marginBottom: 8, fontSize: 12.5 }} role="status" data-no-shift={ns.count}>
+                <summary style={{ cursor: "pointer", color: "var(--gold)" }}>△ {ns.text}（一覧を開く）</summary>
+                <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>
+                  {ns.items.map((it) => <li key={`${it.castId}-${it.date}`}>{it.castName}: {it.md} <a href={it.href} className="nox-link" data-no-shift-add={it.date}>当日追加配置 ›</a></li>)}
+                </ul>
               </details>
             );
           })()}

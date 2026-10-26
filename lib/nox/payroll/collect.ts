@@ -384,7 +384,7 @@ export async function loadPunch(admin: SupabaseClient, storeId: string, win: Pay
     (dohanDatesByCast.get(r.cast_id) ?? dohanDatesByCast.set(r.cast_id, new Set()).get(r.cast_id)!).add(bizDateOf(ck.started_at, win.cutoffHm));
   }
 
-  const result = new Map<string, { days: number; lateN: number; absentN: number; anomalyCount: number; missingOutDates: string[]; hoursByDate: Map<string, number>; shiftHoursByDate: Record<string, number>; attendanceDays: number; shortfallDays: ShortfallDay[] }>();
+  const result = new Map<string, { noShiftDates: string[]; days: number; lateN: number; absentN: number; anomalyCount: number; missingOutDates: string[]; hoursByDate: Map<string, number>; shiftHoursByDate: Record<string, number>; attendanceDays: number; shortfallDays: ShortfallDay[] }>();
   // 受給者判定（確認1・裁定）: final∈{ok,late}（確定シフトがある日に出勤）＝raw のみ（no_shift/absent）は含めない。
   const recipientsByDate = new Map<string, string[]>();
   const todayBiz = bizDateOf(new Date().toISOString(), win.cutoffHm); // ★X-13-27: 営業日の今日（store の cutoff）
@@ -420,7 +420,10 @@ export async function loadPunch(admin: SupabaseClient, storeId: string, win: Pay
       if (af.counted) anomalyCount += 1;
       if (af.missingOut) missingOutDates.push(d.bizDate); // ★N3 AV-4
     }
-    result.set(cid, { days, lateN, absentN, anomalyCount, missingOutDates, hoursByDate, shiftHoursByDate, attendanceDays, shortfallDays });
+    // ★便 M-10（Agoora 確定 10/26 ⑧）: シフト無し出勤＝in の打刻がある営業日で確定シフトが無い日（今日まで）。時給は付かない（仕様維持）＝要対応に出して当日追加配置で後追い
+    const shiftDates = new Set(raw.shifts.map((s) => s.date));
+    const noShiftDates = [...new Set(raw.punches.filter((p) => p.type === "in").map((p) => bizDateOf(p.punched_at, win.cutoffHm)))].filter((d) => !shiftDates.has(d) && d <= todayBiz).sort();
+    result.set(cid, { noShiftDates, days, lateN, absentN, anomalyCount, missingOutDates, hoursByDate, shiftHoursByDate, attendanceDays, shortfallDays });
   }
   // pooled 端数 +1 の順序を確定させるため cast_id 昇順にソート
   for (const [d, list] of recipientsByDate) recipientsByDate.set(d, list.sort());
@@ -828,6 +831,7 @@ export async function collectPeriod(
       absentN: p?.absentN ?? 0,
       anomalyCount: p?.anomalyCount ?? 0,
       missingOutDates: p?.missingOutDates ?? [], // ★N3 AV-4（表示のみ・fixture は省略可）
+      ...(p && p.noShiftDates.length ? { noShiftDates: p.noShiftDates } : {}), // ★便 M-10: シフト無し出勤（ある cast だけ＝凍結形・golden は不変）
       ...(p ? { shiftHoursByDate: p.shiftHoursByDate, attendanceDays: p.attendanceDays } : {}), // ★0154 D2
       ...(p && p.shortfallDays.length ? { shortfallDays: p.shortfallDays } : {}), // ★324-3（便 L-2-4）: 確定シフトがある日だけ
       ...(calcPeriodById.has(cid) ? { calcPeriod: calcPeriodById.get(cid) } : {}), // ★0154 D6

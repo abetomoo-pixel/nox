@@ -26,6 +26,19 @@ export function missingOutSummaryOf(rows: readonly { castName: string; missingOu
   return { count: items.length, text: `退勤の記録が無い勤務が ${items.length} 件`, items };
 }
 
+/** ★便 M-10（Agoora 確定 10/26 ⑧）: シフト無し出勤＝「シフト無し出勤 n 日（時給なし）」＋行（名前・日付・当日追加配置へのリンク） */
+export function noShiftSummaryOf(rows: readonly { castId: string; castName: string; noShiftDates?: readonly string[] }[]): { count: number; text: string; items: { castId: string; castName: string; date: string; md: string; href: string }[] } | null {
+  const items: { castId: string; castName: string; date: string; md: string; href: string }[] = [];
+  for (const r of rows) for (const d of r.noShiftDates ?? []) items.push({ castId: r.castId, castName: r.castName, date: d, md: fmtMD(d), href: noShiftAddHrefOf(d, r.castId) });
+  if (items.length === 0) return null;
+  items.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.castName.localeCompare(b.castName, "ja")));
+  return { count: items.length, text: `シフト無し出勤 ${items.length} 日（確定シフトが無い日の打刻＝時給なし・当日追加配置で時給が付きます）`, items };
+}
+/** 当日追加配置へ＝シフト板の今日タブをその日で開き、追加モーダルをそのキャストで開く */
+export const noShiftAddHrefOf = (date: string, castId: string): string => `/shift?tab=today&date=${date}&add=1&cast=${castId}`;
+/** 給与→勤怠「この月のシフトを開く」＝公開済みの期間がある月は確定シフト・無ければ シフト作成→③配置（同月） */
+export const shiftMonthHrefOf = (period: string, published: boolean): string => (published ? `/shift?tab=fixed&ym=${period}` : `/shift?tab=make&step=3&ym=${period}`);
+
 export type FrozenSlip = { cast_id: string; net: number; breakdown_json: { pay: PayrollCsvPay; extras?: { amount: number }[]; cast_name?: string } & Record<string, unknown> };
 export type FrozenRow = {
   castId: string; castName: string; net: number; taxMode: string; anomalyCount: number;

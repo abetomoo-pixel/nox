@@ -1,3 +1,4 @@
+import { mig0183On } from "@/lib/nox/rules-0175/flag"; // ★便 M-9（0183）
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getSessionRole } from "@/lib/nox/auth";
@@ -12,9 +13,11 @@ export default async function ShiftPage() {
   const supabase = await createClient();
   const { role } = await getSessionRole();
   // ★裁定381（GV-B W-10）: staff はシフト権限（memberships.can_shift）が無ければ /shift を開かない（/customers の can_crm と同型・真の防御は RLS／RPC）
+  let staffCanShift = false; // ★便 M-9（裁定429・Agoora 確定 ⑦）: シフト ON のスタッフ＝店長と同じ操作（RPC は 0183・フラグ true から）
   if (role === "staff") {
     const { data: canShift } = await supabase.rpc("auth_staff_can_shift");
     if (canShift !== true) redirect("/dashboard");
+    staffCanShift = true;
   }
   const { data: stores } = await supabase.from("stores").select("id, name, settings_json").order("name").limit(1);
   // 段P: photo_updated_at を追加（日詳細のアバターを写真にするため。null=写真なし＝頭文字にフォールバック）。
@@ -27,7 +30,7 @@ export default async function ShiftPage() {
     <ShiftBoard
       storeId={stores?.[0]?.id ?? ""}
       casts={casts ?? []}
-      isManagerUp={role === "owner" || role === "manager"}
+      isManagerUp={role === "owner" || role === "manager" || (mig0183On() && staffCanShift)}
       isOwner={role === "owner"}
       role={role ?? ""}
       cutoff={(() => {

@@ -36,6 +36,7 @@ export type PreviewRow = {
   extras: Extra[]; // #32 出勤インセンティブの attendance_bonus 行（無ければ空）
   anomalyCount: number;
   missingOutDates: string[]; // ★N3 AV-4: 退勤の記録が無い勤務（表示のみ）
+  noShiftDates?: string[]; // ★便 M-10: シフト無し出勤（時給なし・ある行だけ）
   calcPeriodStart?: string; calcPeriodEnd?: string; // ★0154 D6（294-8）: 計算期間（finalize が payslips.calc_period_* へ写す）
   taxMode: TaxMode;
   arDeducted: ArDeducted[]; // F2e-1: 今期天引きする receivable と額
@@ -287,6 +288,7 @@ export async function computePayrollDraft(
     rows.push({
       ...(np4 ? { normProposal: { ...np4, ...(npApplied > 0 ? { applied: npApplied } : {}) } } : {}),
       castId: c.castId, castName: c.castName, net, pay, extras, anomalyCount: c.anomalyCount, missingOutDates: c.missingOutDates ?? [], taxMode,
+      ...(c.noShiftDates?.length ? { noShiftDates: c.noShiftDates } : {}), // ★便 M-10
       ...(c.calcPeriod ? { calcPeriodStart: c.calcPeriod.start, calcPeriodEnd: c.calcPeriod.end } : {}), // ★0154 D6
       arDeducted, arCarried, arDeductTotal: arPlan.deduct, arCarriedTotal: arPlan.carriedTotal,
       advDeducted, advCarried, advDeductTotal: advPlan.deduct, advCarriedTotal: advPlan.carriedTotal,

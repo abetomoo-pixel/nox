@@ -22,6 +22,9 @@ import { payTotalsNoteOf, sumCastPayTotalsOf, yenCellOf } from "@/lib/nox/payrol
 import type { KintaiCast, KintaiSheet } from "@/lib/nox/payroll/kintai-sheet";
 import KintaiRow, { KintaiHead } from "@/components/nox/kintai-row";
 import KintaiEdit from "@/components/nox/kintai-edit";
+import { shiftMonthHrefOf } from "@/lib/nox/payroll/view";
+import { monthLastDayOf } from "@/lib/nox/month"; // ★便 M-10: この月のシフトを開く＝公開済みなら確定シフト・無ければ ③配置（同月）
+import { createClient } from "@/lib/supabase/client";
 
 type Sheet = KintaiSheet;
 type CastSheet = KintaiCast;
@@ -46,6 +49,14 @@ export default function AttendanceBoard({ stores, initialStoreId, initialPeriod,
   const [msg, setMsg] = useState<string | null>(null);
   const [edit, setEdit] = useState<{ mode: "edit"; row: AttendanceDayRow } | { mode: "add" } | null>(null);
   const [openCast, setOpenCast] = useState<string | null>(null); // ★C2-6 ⑤: 390px の合計表＝行を開いて残り
+  // ★便 M-10: 表示中の月に公開済み（published）の期間があるか（RLS＝店スコープ）
+  const [publishedMonth, setPublishedMonth] = useState(false);
+  useEffect(() => { void (async () => {
+    if (!storeId || !period) return;
+    const from = `${period}-01`, to = monthLastDayOf(period); // ★x13h(1-2): 末日は lib/nox/month
+    const { data } = await createClient().from("shift_periods").select("id").eq("store_id", storeId).eq("status", "published").lte("start_date", to).gte("end_date", from).limit(1);
+    setPublishedMonth((data ?? []).length > 0);
+  })(); }, [storeId, period]);
 
   const load = useCallback(async () => {
     if (!storeId || !period) return;
@@ -88,7 +99,7 @@ export default function AttendanceBoard({ stores, initialStoreId, initialPeriod,
   // ── ②1 人 1 か月の表（下に描く／狭い幅はシートの中身） ──
   const detailActions = sel && (
     <>
-      <Link href={`/shift?store=${storeId}&date=${sheet?.periodStart ?? `${period}-01`}`} className="nox-link" style={{ fontSize: 12, fontWeight: 700 }} data-kintai-shift-link="1">この月のシフトを開く</Link>
+      <Link href={shiftMonthHrefOf(period, publishedMonth)} style={{ ...t.btnGhost, ...t.btnSm, order: -1, textDecoration: "none", display: "inline-flex", alignItems: "center" }} data-kintai-shift-link={publishedMonth ? "fixed" : "make"}>この月のシフトを開く</Link>{/* ★便 M-10: 確定シフト（公開前は ③配置）の同月・ボタン風で左端 */}
       <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} data-kintai-csv="1" onClick={() => downloadCsv(sel)}>CSV</button>
       <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} data-kintai-print="1" onClick={() => window.print()}>印刷用</button>
       {canEdit && <button type="button" style={{ ...t.btnGold, ...t.btnSm }} data-kintai-add="1" onClick={() => setEdit({ mode: "add" })}>＋ 日を追加</button>}
@@ -96,11 +107,12 @@ export default function AttendanceBoard({ stores, initialStoreId, initialPeriod,
   );
   const detailTable = sel && (
     <>
+      <div className="nox-kintai-scroll" data-kintai-scroll="1" style={{ overflowX: "auto", maxWidth: "100%" }}>{/* ★便 M-2: 390px＝表だけ横スクロール（日付・出勤列が左にはみ出さない） */}
       <table className="nox-table nox-kintai-table" style={{ width: "100%" }}>
         <KintaiHead withPay={!!sel.pay} />
         <tbody>
           {visibleRowsOf(sel).map((r) => (
-            <KintaiRow key={r.bizDate} r={r} withBy withPay={!!sel.pay} onEdit={canEdit && rowEditableOf(r, finalized) ? (row) => setEdit({ mode: "edit", row }) : null} />
+            <KintaiRow key={r.bizDate} r={r} castId={sel.castId} withBy withPay={!!sel.pay} onEdit={canEdit && rowEditableOf(r, finalized) ? (row) => setEdit({ mode: "edit", row }) : null} />
           ))}
         </tbody>
         {sel.pay && (
@@ -112,6 +124,7 @@ export default function AttendanceBoard({ stores, initialStoreId, initialPeriod,
           </tfoot>
         )}
       </table>
+      </div>
       {sel.pay && <p style={{ ...t.sub, margin: "6px 0 0" }} data-kintai-identity={sel.pay.month.identityOk ? "ok" : "ng"}>日計＝時給分（その日の時給×実働）＋バック−罰金・減額。月でしか決まらない項目（スライド・源泉・固定控除・前借り・送り・売上バック・手当）は「月のまとめ」に。Σ日計＋月のまとめ＝給与画面の差引支給額{sel.pay.frozen ? "（確定時の凍結値）" : "（現時点）"}。</p>}
       {!sel.pay && <p style={{ ...t.sub, margin: "6px 0 0" }}>この月の給与の計算対象ではありません（プラン未設定か稼働なし）＝日別の金額は出ません。</p>}
     </>

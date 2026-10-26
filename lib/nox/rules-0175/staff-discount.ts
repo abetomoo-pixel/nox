@@ -24,8 +24,8 @@ export function discountActionOf(i: { role: "owner" | "manager" | "staff" | "cas
 }
 /** 手数料の方式＝店長・オーナー 3 択・スタッフは「上限内は即時」のときだけ 3 択（上限は RPC が見る）・キャストは店の率だけ */
 export function feeModesForRoleOf(role: string, level: StaffDiscountLevel): readonly PayFeeMode[] {
-  if (role === "owner" || role === "manager") return ["auto", "none", "manual"];
-  if (role === "staff" && level === 1) return ["auto", "none", "manual"];
+  if (role === "owner" || role === "manager") return ["auto", "rate", "manual", "none"]; // ★便 M-6: 4 択
+  if (role === "staff" && level === 1) return ["auto", "rate", "manual", "none"];
   return ["auto"];
 }
 /** 日報の内訳行「割引（スタッフ即時）」＝approvals.staff_direct の合計 */
