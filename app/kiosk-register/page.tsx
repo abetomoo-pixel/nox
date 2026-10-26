@@ -22,8 +22,9 @@ import CastAvatar from "@/components/ui/cast-avatar";
 import Modal from "@/components/ui/modal";
 import CastPicker from "@/components/nox/cast-picker";
 import { BILLING_LOCKED_MSG_KIOSK, isBillingLocked } from "@/lib/billing/messages";
-import { rules0175On } from "@/lib/nox/rules-0175/flag"; // ★追補 2 同乗 R-7
+import { mig0185On, rules0175On } from "@/lib/nox/rules-0175/flag"; // ★追補 2 同乗 R-7 ★QR 便: mig0185On
 import KioskUnlockPad from "@/components/nox/kiosk-unlock-pad"; // ★追補 2 同乗 R-7（裁定423 候補）: PIN だけ／QR で解除
+import { kioskIdleMsOf } from "@/lib/nox/rules-0175/kiosk-qr"; // ★QR 便: QR で開いた解除は無操作 3 分
 
 import { rpcErrJa as rpcErrJaCommon } from "@/lib/nox/ui/rpc-err"; // ★N2-2（2026-09-18）: 生の RPC 語の日本語化（写像に無い語は「処理できませんでした（コード: …）」）
 import Toast, { Message } from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
@@ -161,6 +162,7 @@ export default function KioskRegisterPage() {
   const phaseRef = useRef<Phase>("loading");
   phaseRef.current = phase;
   const markAction = () => { lastActionRef.current = Date.now(); };
+  const idleMsRef = useRef<number>(IDLE_MS); // ★QR 便（裁定423 変更）: QR で開いた解除＝3 分・PIN＝従来（15 分）
 
   const loadOperators = useCallback(async (): Promise<boolean> => {
     const { data, error } = await supabase.rpc("kiosk_operator_list");
@@ -200,10 +202,10 @@ export default function KioskRegisterPage() {
   useEffect(() => {
     const id = setInterval(() => {
       setNowMs(Date.now());
-      if (phaseRef.current === "register" && Date.now() - lastActionRef.current > IDLE_MS) {
-        lockToOperator("15分間操作がなかったためロックしました。PIN を入れ直してください。");
+      if (phaseRef.current === "register" && Date.now() - lastActionRef.current > idleMsRef.current) {
+        lockToOperator(`${Math.round(idleMsRef.current / 60_000)}分間操作がなかったためロックしました。PIN を入れ直すか、QR を読み直してください。`);
       }
-    }, 30_000);
+    }, 10_000);
     return () => clearInterval(id);
   }, [lockToOperator]);
 
@@ -277,6 +279,7 @@ export default function KioskRegisterPage() {
 
   // ★追補 2 同乗 R-7（裁定423 候補）: PIN だけ／QR での解除の成功＝kiosk_login と同じ後処理（操作担当のバー・レジへ）
   async function onUnlocked(j: { operator_name?: string; role?: string; idle_sec?: number; unlock_method?: string }) {
+    idleMsRef.current = j.unlock_method === "qr" ? kioskIdleMsOf("qr", j.idle_sec) : IDLE_MS;
     setSession({ name: j.operator_name ?? "", role: j.role ?? "" });
     setLockMsg(null); setMsg(null); setSeatMsg(null); setDetail(null); setPrintCard(null);
     markAction();
@@ -302,6 +305,7 @@ export default function KioskRegisterPage() {
       setPin("");
       return;
     }
+    idleMsRef.current = IDLE_MS;
     setSession({ name: j.operator_name ?? target.user_name, role: j.role ?? target.role });
     setLockMsg(null); setMsg(null); setSeatMsg(null); setDetail(null); setPrintCard(null);
     markAction();
@@ -563,7 +567,7 @@ export default function KioskRegisterPage() {
                 {session.name}（{ROLE_LABEL[session.role] ?? session.role}）
               </span>
               <span style={{ fontSize: 11.5, color: "var(--v2-muted)" }}>
-                無操作 <span className="num">{Math.max(0, idleMin)}</span> 分（15分で自動ロック）
+                無操作 <span className="num">{Math.max(0, idleMin)}</span> 分（{Math.round(idleMsRef.current / 60_000)}分で自動ロック）
               </span>
               <button onClick={() => void operatorLogout()} style={btnLight}>交代／離席</button>
             </div>
@@ -611,13 +615,13 @@ export default function KioskRegisterPage() {
           </div>
         )}
 
-        {phase === "operator" && rules0175On() && (/* ★追補 2 同乗 R-7（裁定423 候補）: 誰かを選ばず PIN だけ・QR で解除（カメラがある端末だけタブ） */
+        {phase === "operator" && rules0175On() && mig0185On() && (/* ★追補 2 同乗 R-7（裁定423 候補）: 誰かを選ばず PIN だけ・QR で解除。★QR 便: 本番の kiosk_unlock が 0175 の search_path と min(uuid) で失敗していた＝0185 で直すまでは従来の「操作担当を選んで PIN」（kiosk_login） */
           <>
             {lockMsg && <Toast msg={lockMsg} style={{ margin: "0 0 14px", textAlign: "center" }} />}
             <KioskUnlockPad onUnlocked={onUnlocked} />
           </>
         )}
-        {phase === "operator" && !rules0175On() && (
+        {phase === "operator" && !(rules0175On() && mig0185On()) && (
           <>
             {/* 段K2 先行 可読性: 見出し・案内は白（金は選択・主ボタン・バッジの3役のみ） */}
             <p style={{ textAlign: "center", fontSize: 15, color: "var(--v2-text)", fontWeight: 700, margin: "0 0 8px" }}>

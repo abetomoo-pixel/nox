@@ -4275,10 +4275,22 @@ suite＝demo-profiles 53（新規）・check-demo +1 段・x13 demo-flags pin �
 - **golden の差**＝なし（pay 130・payroll 234・T1b 5931／125802）＝区分を渡さない間は従来式・雇用の税額表は元々 0（撤去で差なし）。
 - **M-14 ①**: 勤怠の行の「退勤記録なし」「出勤記録なし」を押すと今日タブと同じ打刻の時刻修正（PunchCorrectionModal＝punch_correction_request＝修正前後と理由を audit）→保存で再読込（実働・時給分・日計を再計算）。営業日がまだ終わっていない日（今日）は「勤務中」（赤字ではない・退勤記録なしに数えない）。
 - **M-14 ②**: シフト無し出勤の行に「シフトとして確定」（既定＝打刻の出〜退・店の営業時間から選び直し・手入力）→shift_set（採用・確定・理由つき）→時給分が付く。行の「当日追加配置」リンクは置き換え（給与の要対応の一覧のリンクは従来のまま）。
-- **M-14 読取 1 行**: shift_set／punch_correction_request とも過去日を拒まない（日付の下限なし）・確定済みの期は punch_correction_request が受け付けて要対応に積む（裁定315）＝勤怠の画面は確定済みの月を開かない（rowEditableOf）＝0183 の相乗りは不要。
+- **M-14 読取 1 行**: shift_set／punch_correction_request とも過去日を拒まない（日付の下限なし）・確定済みの期は punch_correction_request が受け付けて要対応に積む（裁定315）＝勤怠の画面は確定済みの月を開かない（rowEditableOf）。**ただし shift_set は定休日を必ず拒む**（live ⑬ の LUNA あかり 10/04＝日曜＝定休日で「その日は定休日です」）＝**0183 ★5 に相乗り**（定休日に実際に出勤した過去日＝理由つきなら確定シフト・未来の定休日は従来どおり・本番 ROLLBACK で確認・0183 は 911 行・sha16 f7a98b59338ce400 に更新）。
+- **live ⑬（本番・LUNA オーナー・20:3x）**: 10/26（今日）の退＝「勤務中」（data-kintai-out-kind working）✓・10/04 の「シフト無し出勤」に「シフトとして確定」が出て押せる ✓・保存＝定休日のため拒否（0183 ★5 の後に時給分が付く）＝【未完】（0183 の手貼り待ち）。
 - **suite**＝verify-nox-432（12）・verify-nox-m14（5）（f0 141・142 段目・actions-center は 143 段目）・張替え p172(1-1)(1-6)・431(5-1)（源泉の基礎の行）・s-lane（fixture の今日 10/04＝勤務中・退勤記録なし 0・CSV も「勤務中」）・daily-pay dp(3-1)（同一 tx の now() で in と out が同時刻＝順序が不定の偶発の赤＝in を 1 秒前へ・教訓98 の型）。
 - **f0**＝run1 は daily-pay の偶発の赤（単独走 2 回目で緑）・run2 は s-lane（M-14 の正当な変更）→張替え後 run3 143 段 6,766 緑（19:56→20:09）・run4 143 段 6,766 緑（20:09→20:23）＝2 連緑・golden 不変（5931／125802・pay 130・payroll 234）・build 緑。
 - **【事後承認待ち】**: ①hostess を明示した委託キャストも結果は従来と同じ（凍結に区分と自動額のキーが増える）②指定額は「この期だけ」＝次の期は自動に戻る③社員の控除は支給後に引く（源泉の基礎は動かさない＝NOX は税額を計算しない）④スタッフの区分の変更は契約（staff_contracts）の行がある人だけ（契約の書込 RPC が無い）⑤M-14 の「シフトとして確定」の既定の時間は出の時刻を 0〜23 時に丸める。
+
+**QR 便（2026-10-26・裁定423 変更＝Agoora 確定 10/26 ⑫）＝台帳の現在地**: 前提＝HEAD 42fc5f9（裁定432・M-14）＝origin。DB 恒久変更 0（0185 は起草のみ）。
+- **向き**: キオスク（レジ端末）に QR（端末の秘密鍵の TOTP・30 秒で回る・端末×counter で 1 回限り・使用済みの次の QR を出す）＝中身は URL（origin/kq#noxq:端末.6 桁＝# の後＝サーバに送られない）→本人がログイン済みのスマホで読む（標準カメラでも /mine の「キオスクを開く（QR を読む）」→/kq のカメラでも）→「このキオスクを開きますか？」→kiosk_qr_claim→キオスクが kiosk_qr_poll（2 秒ごと・この画面の間だけ）で受け取り、本人の権限で開く（無操作 3 分で戻る＝kiosk-register の idleMsRef・サーバも auth_kiosk_operator が least(180, 店設定)）。
+- **権限**: PIN の解除と同じ式＝owner／admin／manager・スタッフはレジ権限・キャストはレジ権限かつ店のキャストのレジ操作 ≥1（OFF＝punch_only＝「打刻は出退勤の端末かスマホで」）。owner は org 内のどの店の端末も可・他は同じ店だけ。失敗 5 回で 10 分ロック（本人単位）。
+- **旧向きの撤去**: /mine の「キオスク用 QR」（全画面の QR）と部品 kiosk-qr-modal を削除・キオスクの解除パッドのカメラを撤去・0185 で my_qr_secret／kiosk_unlock_qr の本体を retired に（引数と ACL は不変）。PIN（4〜6 桁）は基本の入口として維持。
+- **本番の不具合（読取で発見）**: 0175 ★27 の 4 本（kiosk_unlock／kiosk_unlock_qr／my_qr_secret／totp_code_of）の search_path が `'public, extensions'`（1 つの名前）＝pgcrypto（crypt／hmac／gen_random_bytes）が見つからない・kiosk_unlock は min(uuid)（PG に無い）も＝**レジ端末の「PIN だけで解除」は本番で常に失敗していた**（BEGIN…ROLLBACK で再現）。0185 ⑤b で kiosk_unlock と totp_code_of を直す（live 逐語＋2 か所）。**0185 を貼るまではレジ端末を従来の「操作担当を選んで PIN」（kiosk_login＝本番で動く）に戻した**（rules0175On() && mig0185On() の間だけ新しい解除）。
+- **DB**＝0185 起草（表 kiosk_qr_keys／kiosk_qr_claims＝deny-all・RPC kiosk_qr_secret／kiosk_qr_claim／kiosk_qr_poll・auth_kiosk_operator・kiosk_unlock・totp_code_of・旧 2 本 retired）・mig-check OK（plpgsql 8）・本番 BEGIN…ROLLBACK 17/17・265 行・sha16 **a00055c966c294e1**・docs/demo/handpaste_0185.md。client はフラグ MIG_0185_APPLIED（false）配下＝/kq は 404・キオスクの QR タブと /mine の入口は出ない。
+- **suite**＝verify-nox-qr（13・f0 143 段目）・張替え p175prep（10-3）（11-3）（11-4）・p175prep（10-3）は 0185 までの解除の出し分け。
+- **f0**＝run1 は actions-center がログイン画面の水和待ちで赤（dev が編集途中の構文エラーと削除した部品をキャッシュ＝500）→dev を再起動・run2 144 段 6,779 緑（20:45→20:59）・run3 144 段 6,779 緑（20:59→21:14）＝2 連緑・golden 不変・build 緑。**運用の注意**＝actions-center は dev（3200）に依存＝ファイルの削除・大きな置換の後は dev を再起動してから f0。
+- **【未完】**: シフトのタイル（/kiosk-shift）は未実装のまま＝QR で開くのはレジ端末（kiosk-register）だけ。実機（iPhone で店の iPad の QR を読む）は 0185 の後。
+- **【事後承認待ち】**: ①QR の中身は URL（標準カメラで読める・トークンは # の後）②スマホ側は「開く」を 1 回押す（読んだだけでは開かない）③無操作 3 分は QR で開いたときだけ（PIN は従来の 15 分）④0185 までレジ端末は従来の操作担当選択に戻す（PIN だけの解除が本番で失敗していたため）⑤キオスクの QR の表示はタブ（PIN／QR）＝既定は PIN。
 
 ### 教訓122：主ボタン中央は f0 で機械判定する（2026-10-26・便 BTN）
 

@@ -35,7 +35,7 @@ export default function NoShiftConfirm({ castId, castName, row, bhRows, onClose,
     setBusy(true); setErr(null);
     const { error } = await createClient().rpc("shift_set", { p_id: null, p_cast_id: castId, p_date: row.bizDate, p_start_hm: s, p_end_hm: e, p_status: "confirmed", p_override_reason: "シフト無し出勤を勤怠から確定" });
     setBusy(false);
-    if (error) { setErr(/duplicate/.test(error.message) ? "この日にはすでにシフトがあります（画面を再読込してください）" : /closed day/.test(error.message) ? "その日は定休日です" : kintaiErrJa(error.message)); return; }
+    if (error) { setErr(/duplicate/.test(error.message) ? "この日にはすでにシフトがあります（画面を再読込してください）" : /closed day/.test(error.message) ? "その日は定休日のため、まだシフトにできません（定休日の出勤の確定は次の更新＝0183 で使えます）" : kintaiErrJa(error.message)); return; }
     await onSaved(`${castName} の ${md} をシフトとして確定しました（時給分が付きます）`);
   }
 

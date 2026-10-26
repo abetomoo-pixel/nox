@@ -28,3 +28,8 @@ let override0183: boolean | null = null;
 export function mig0183On(): boolean { return override0183 ?? MIG_0183_APPLIED; }
 export function __set0183ForTest(v: boolean | null): void { override0183 = v; }
 export function __setOkuriTiersForTest(v: boolean | null): void { overrideTiers = v; }
+/** ★QR 便（2026-10-26・裁定423 変更＝Agoora 確定 10/26 ⑫）: 0185（キオスクの QR の向きを逆に＝キオスクが QR を出す・スマホで読む）を Agoora が手貼りしたら true。false の間はキオスクは PIN だけ・/kq は 404・/mine の入口は出ない */
+export const MIG_0185_APPLIED = false;
+let override0185: boolean | null = null;
+export function mig0185On(): boolean { return override0185 ?? MIG_0185_APPLIED; }
+export function __set0185ForTest(v: boolean | null): void { override0185 = v; }
