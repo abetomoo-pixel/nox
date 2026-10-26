@@ -157,7 +157,7 @@ export const btnGhost: CSSProperties = { ...btnBase, border: "1px solid var(--pr
 // ★裁定238（2026-09-10）: リンク（別画面へ遷移するもの全部）＝青文字＋下線・枠なし・塗りなし。globals.css の .nox-link と同値（inline style 派生用）。
 export const link: CSSProperties = { color: "var(--primary)", textDecoration: "underline", textUnderlineOffset: 2, background: "none", border: "none", padding: 0, cursor: "pointer" };
 // モック `.btn.small`: height:30px; padding:0 10px（radius は .btn を継ぐ）
-export const btnSm: CSSProperties = { padding: "6px 10px", fontSize: 12, borderRadius: radius.btnSm };
+export const btnSm: CSSProperties = { padding: "6px 10px", fontSize: 12, borderRadius: radius.btnSm, minHeight: "var(--nox-btnsm-h, auto)" }; // ★便 GV-D #6: 600px 以下は 40px（globals.css の --nox-btnsm-h）＝タップの目安
 // ★レーン④c: フォームモーダル用の大きめ寸法（④b-3 で products-board のローカル定数として作ったもの）。
 //   カテゴリ側でも同じ形を使うため、複製せずここへ引き上げた（2画面で同じ「指で押せる寸法」を
 //   別々に持つと必ず片方だけ動いて食い違うため）。inputLg は input の宣言より後に置く（TDZ 回避）。

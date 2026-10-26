@@ -602,12 +602,12 @@ ${md.message}（入れずに確定すると控除 0 のまま確定します）`
           <span style={{ display: "inline-block", marginTop: 5 }}><PeriodSelect value={period} onChange={setPeriod} finalized={finalizedPeriodsOf(runPeriods)} runPeriods={runPeriods.map((r) => r.period)} /></span>{/* ★X-13-28（便 P168） */}
         </label>
         {/* ★0164（便 W5-2b・裁定334）: 締め日は月末固定・支払日は店設定 pay_day（翌月 N 日・表示と案内用）・内税表示の店は金額表記の印（計算は不変） */}
-        <span className="nox-tag" style={{ ...t.tag, fontSize: 11, whiteSpace: "nowrap", alignSelf: "flex-end" }} title="締め日（月末固定）と支払日（店舗設定 › 会計と運用）・金額表記">締め 月末・支払日 翌月 {storeOps.pay_day} 日{storeOps.tax_inclusive_display ? "・金額表記 内税" : ""}</span>
+        <span className="nox-tag" data-payroll-headtag="1" style={{ ...t.tag, fontSize: 11, whiteSpace: "nowrap", alignSelf: "flex-end" }} title="締め日（月末固定）と支払日（店舗設定 › 会計と運用）・金額表記">締め 月末・支払日 翌月 {storeOps.pay_day} 日{storeOps.tax_inclusive_display ? "・金額表記 内税" : ""}</span>
         {/* ★裁定324（0159・便 C-3）: 計算基準（実打刻／確定シフト）＝店設定を run の期の初日で解決（pay.ts と同じ payTimeBasisOf） */}
-        {(() => { const b: PayTimeBasis = payTimeBasisOf(storeSettings, `${period}-01`); return <span className="nox-tag" style={{ ...t.tag, fontSize: 11, whiteSpace: "nowrap", alignSelf: "flex-end" }} title="勤務時間の計算基準（店舗設定）">計算基準: {PAY_TIME_BASIS_SHORT[b]}</span>; })()}
+        {(() => { const b: PayTimeBasis = payTimeBasisOf(storeSettings, `${period}-01`); return <span className="nox-tag" data-payroll-headtag="1" style={{ ...t.tag, fontSize: 11, whiteSpace: "nowrap", alignSelf: "flex-end" }} title="勤務時間の計算基準（店舗設定）">計算基準: {PAY_TIME_BASIS_SHORT[b]}</span>; })()}
         {/* ★便 GV-C C-3（裁定388）: プレビューボタンは廃止（確定前は自動で計算）。確定前は「暫定」の帯 */}
         {!(runInfo && (runInfo.status === "finalized" || runInfo.status === "paid")) && (
-          <span className="nox-stpill warn" data-payroll-provisional="1" style={{ alignSelf: "flex-end" }}>暫定（確定前の見込み・{busy ? "計算中…" : "開くたびに再計算"}）</span>
+          <span className="nox-stpill warn" data-payroll-provisional="1" data-payroll-headtag="1" style={{ alignSelf: "flex-end" }}>暫定（確定前の見込み・{busy ? "計算中…" : "開くたびに再計算"}）</span>
         )}
       </section>
 

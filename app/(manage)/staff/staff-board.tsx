@@ -351,7 +351,10 @@ export default function StaffBoard({
                 </div>
               </div>
               <div className="nox-perms" onClick={(e) => e.stopPropagation()}>
-                {PERM_DEFS.map(([k, label]) => (
+                {PERM_DEFS.map(([k, label]) => (m.role !== "staff" || !m.is_active) ? (
+                  <span key={k} className={`nox-perm ro ${m[k] ? "on" : ""}`} data-perm-ro="1"
+                    title={m.role !== "staff" ? "オーナー/店長は役職で権限固定（フラグ対象外）" : "退店済み（権限は変えられません）"}>{label}</span>
+                ) : (
                   <button
                     key={k} type="button"
                     className={`nox-perm ${m[k] ? "on" : ""}`}

@@ -1691,7 +1691,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                                         onClick={() => void openOkuri(s.cast_id, io?.outHm ? "issueOnly" : "outAndIssue")}>送り{okuriIssued.has(s.cast_id) ? "済" : ""}</button>
                                     ) : null; })()}
                                     {view === "arrived" && (
-                                    <button type="button" style={{ ...btnDark, padding: "4px 12px", fontSize: 12, opacity: outOn ? 1 : 0.5 }}
+                                    <button type="button" data-gvd-out="1" style={{ ...btnDark, padding: "4px 12px", fontSize: 12, minHeight: 40, opacity: outOn ? 1 : 0.5 }}
                                       disabled={!outOn} title={ob.show ? ob.title : "出勤（出勤・遅刻・同伴）を記録すると押せます"}
                                       onClick={() => void outPressed(s.cast_id)}>退勤</button>
                                     )}

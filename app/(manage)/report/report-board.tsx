@@ -1026,7 +1026,7 @@ export default function ReportBoard({
         {/* ★B2-a（裁定202/203/204・D12/D14/D15）: 追加 KPI 行＝売掛 本日発生／未処理の入出金（日払い・送り代）／取消・返金（owner）。
             値は loadDayExtras の件数＋合計のみ（締めの集計式・RPC は不触）。立替は器なし＝対象外と注記（裁定203）。 */}
         {isManagerUp && (arNew || pending) && (
-          <div className="nox-repsum" style={{ gridTemplateColumns: `repeat(${isOwner ? 4 : 3}, 1fr)` }}>
+          <div className={`nox-repsum${isOwner ? "" : " three"}`} data-repsum-extra="1">{/* ★便 GV-D #2: 列数は class（390 は 2 列＝見出しが切れない） */}
             <div className="nox-rs">
               <div className="l">売掛 本日発生</div>
               <div className="v num">{arNew ? `${arNew.n}件` : "—"}</div>

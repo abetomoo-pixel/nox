@@ -7,7 +7,7 @@ import { useEffect, useRef, type ReactNode } from "react";
 import * as t from "@/lib/nox/ui/theme";
 import { ymFromSearch, ymLabelOf, ymSearchOf, ymShift } from "@/lib/nox/ui/month-nav";
 
-const btnLight: React.CSSProperties = { ...t.btnGhost, ...t.btnSm };
+const btnLight: React.CSSProperties = { ...t.btnGhost, ...t.btnSm, minWidth: 40, minHeight: 40 }; // ★便 GV-D #8: 月送りは 40×40（どの幅でも）
 
 export default function MonthNav({ ym, today, onChange, onToday, heading = "h3", sticky = false, note, right, disabled = false, suffix }: {
   /** 表示月 'YYYY-MM' */

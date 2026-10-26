@@ -972,7 +972,8 @@ body {
 .nox-repsum { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 12px; }
 /* E8-2 #3: 5枚版（日報 KPI）。≤641 は従来どおり2列へ畳む */
 .nox-repsum.five { grid-template-columns: repeat(5, 1fr); }
-@media (max-width: 641px) { .nox-repsum { grid-template-columns: repeat(2, 1fr); } .nox-repsum.five { grid-template-columns: repeat(2, 1fr); } }
+.nox-repsum.three { grid-template-columns: repeat(3, 1fr); } /* ★便 GV-D #2: 店長の追加 KPI（3 列）＝インラインをやめて class */
+@media (max-width: 641px) { .nox-repsum { grid-template-columns: repeat(2, 1fr); } .nox-repsum.five { grid-template-columns: repeat(2, 1fr); } .nox-repsum.three { grid-template-columns: repeat(2, 1fr); } }
 .nox-rs { background: var(--v2-panel2); border: 1px solid var(--v2-line); border-radius: 10px; padding: 10px; text-align: center; }
 .nox-rs .l { font-size: 10px; color: var(--v2-muted); }
 /* 金額は「読む情報」ゆえ白（金3役の原則） */
@@ -1000,6 +1001,15 @@ body {
 .nox-perm { font-size: 10px; border-radius: 4px; padding: 2px 8px; border: 1px solid var(--v2-line); color: var(--v2-muted); background: transparent; font-family: inherit; cursor: pointer; }
 .nox-perm.on { background: var(--primary-soft); border-color: var(--primary); color: var(--primary-hover); font-weight: 700; } /* ★夜間レーン */
 .nox-perm:disabled { cursor: default; opacity: .75; }
+/* ★便 GV-D #7: 役職で固定／退店済みの権限＝表示専用の灰ピル（青枠＝押せるボタンに見えない） */
+.nox-perm.ro { cursor: default; border-color: var(--v2-line); background: var(--v2-panel2, transparent); color: var(--v2-muted); }
+.nox-perm.ro.on { background: var(--v2-line); border-color: var(--v2-line); color: var(--v2-text); font-weight: 700; }
+/* ★便 GV-D #1・#5・#6（390 のタップの目安 40px）: 給与の期ヘッダーは折り返す・セグメント 40・btnSm 40 */
+@media (max-width: 600px) {
+  :root { --nox-btnsm-h: 40px; }
+  [data-payroll-headtag] { white-space: normal !important; max-width: 100%; }
+  .nox-seg button, .nox-seg a { min-height: 40px; display: inline-flex; align-items: center; justify-content: center; }
+}
 /* 監査（モック .atool/.arow/.tm/.act/.tgt） */
 .nox-atool { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
 .nox-arow { display: flex; gap: 10px; align-items: baseline; padding: 7px 0; border-bottom: 1px solid var(--v2-line); font-size: 12px; color: var(--v2-text); }
