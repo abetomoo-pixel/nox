@@ -652,7 +652,7 @@ export function payOf(input: PayInput): PayResult {
   const jonaiBack = eplan.jonaiBackMode === "rate"
     ? roundYen(((cast.jonaiShimeiAmt ?? 0) * (eplan.jonaiBackRate ?? 0)) / 100)
     : cast.jonai * eplan.jonaiBack;
-  const dohanBack = effDohan * eplan.dohanBack;
+  const dohanBack = input.rules0175?.dohanBandBack != null ? input.rules0175.dohanBandBack : effDohan * eplan.dohanBack; // ★便 ON-2（CANON ④）: 同伴バックの時間帯（plan_rate_bands）があるプランは帯の率×同伴伝票のキャスト分（無ければ従来の円／本＝golden 不変）
 
   // 商品バック（会計確定時に配分・集計済みの値を読む）
   const drinkBack = input.productBack.drink || 0;

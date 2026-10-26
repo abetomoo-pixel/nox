@@ -12,6 +12,8 @@ import { wageSpanLabelOf, wageSpansOf } from "./wage-spans"; // ★便 PR-1 R-2�
 
 export type BreakdownPayLike = {
   wage?: number; wHours?: number; timePay?: number;
+  /** ★便 ON-2（裁定418 CANON）: 報酬率の判定（pay.ts の canon＝rules0175 を渡した cast だけ）。行「報酬率 ○%→段」の元 */
+  canon?: { pct: number | null; tierIdx: number | null; direction: "up" | "hold" | "assess"; applied: boolean; upAmount: number; payPct: number; streak: number; windowN: number } | null;
   payRule?: { rule?: string; guaranteedHours?: number; fixedAmount?: number; calcDays?: number; periodDays?: number; perShiftAmount?: number; shiftCount?: number } | null;
   guarantee?: { spans: { from: string; to: string | null; base: number }[]; baseHours: number; basePay: number; guaHours: number; guaPay: number } | null;
   wdays?: { d: number; hours: number; hourly: number; basis: string; gua?: boolean }[]; // ★便 PR-1 R-2（裁定416）: 営業日ごとの時給＝区間行の元（凍結 pay にも入っている）
@@ -195,6 +197,12 @@ export function breakdownLinesOf(input: BreakdownInput): Breakdown {
       if (slidesOff && ln.amount === 0) continue;
       earn.push(ln);
     }
+  }
+  // ★便 ON-2（CANON ⑥⑦）: 報酬率（時給分 ÷ 売上小計）→段・方向（UP／維持／査定）・適用か提案か＝情報行（金額は時給の履歴側に積む＝ここでは 0）
+  if (p.canon && p.canon.pct !== null) {
+    const dirWord = p.canon.direction === "up" ? "UP" : p.canon.direction === "assess" ? "査定" : "維持";
+    const tierWord = p.canon.tierIdx !== null ? `段 ${p.canon.tierIdx + 1}` : "段なし";
+    earn.push({ key: "slide-rate", label: `報酬率 ${p.canon.pct}% → ${tierWord}（${dirWord}${p.canon.direction === "up" && p.canon.upAmount > 0 ? ` +${yen(p.canon.upAmount)}/h` : p.canon.direction === "assess" && p.canon.payPct < 100 ? ` 支給率 ${p.canon.payPct}%` : ""}）`, label2: `${p.canon.applied ? "適用済み" : "提案＝店が適用を選ぶ"}・連続 ${p.canon.streak}／${p.canon.windowN} 期`, amount: 0, info: true, amountText: "—" });
   }
   push("honBack", "本指名バック", z(p.honBack));
   push("jonaiBack", "場内指名バック", z(p.jonaiBack));

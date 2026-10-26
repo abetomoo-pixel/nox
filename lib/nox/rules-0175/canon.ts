@@ -100,7 +100,15 @@ export type CanonCtx = {
   salesSubtotal: number; normTiers: NormTier[]; weekTarget: number | null; periodDays: number; actual: { days: number; hours: number };
   joinedOn?: string | null; graceMonths: number; periodEnd: string;
   decided?: "apply" | "exclude" | null;   // ⑬ 提案→店が適用／除外（未決は適用しない＝提案のまま）
+  /** ★便 ON-2（CANON ④）: 同伴バック＝来店時刻の時間帯の率（plan_rate_bands target 'dohan_back'）×同伴伝票のそのキャスト分。帯が無いプラン＝undefined（従来の円／本） */
+  dohanBandBack?: number | null;
 };
+/** ★便 ON-2: 同伴伝票 1 件の帯バック＝share（伝票 total × 自分の分配率）× 帯の率（伝票の開始時刻の分・帯の外は 0）。円未満は四捨五入 */
+export function dohanBandBackOf(bands: readonly RateBand[], items: readonly { startMin: number; share: number }[]): number {
+  let sum = 0;
+  for (const it of items) { const v = bandValueOf(bands, "dohan_back", it.startMin); if (v && v.rate !== null) sum += Math.round(it.share * v.rate / 100); }
+  return sum;
+}
 export type CanonOutcome = {
   pct: number | null; tierIdx: number | null; direction: SlideDirection; streak: number; met: boolean; normMet: boolean; grace: boolean;
   windowN: number;   // ⑦ 移動窓の N（判定ログ＝窓の N 期の率・帯・適用した処理は slide_decisions.detail に＝P175 client）

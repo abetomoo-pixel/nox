@@ -89,7 +89,7 @@ check("p175(2-7) 就業規則チェック＝WAGE_CUT_RULE_APPLIED は rules0175O
 const prof = src("scripts/demo/profiles.mjs"), gen = src("scripts/demo/gen-demo.mjs");
 check("p175(2-8) payload＝profiles.canonOf は RULES_0175_APPLIED=false で null・okuriModeOf は OKURI_4WAY_APPLIED=false で PROFILES の値・gen-demo は CANON ? … : {} で畳む（6 店の payload は不変）",
   prof.includes("if (!RULES_0175_APPLIED || code !== \"muse\") return null;") && prof.includes("if (OKURI_4WAY_APPLIED) { if (code === \"lily\") return \"store\"; if (code === \"noir\") return \"none\"; }")
-  && (gen.match(/\.\.\.\(CANON \? \{/g) ?? []).length === 2);
+  && (gen.match(/\.\.\.\(CANON \? \{/g) ?? []).length === 3); // ★便 ON-2: 待遇プランの末尾（本指名 率・場内 500）の spread を足した＝3
 
 // ── (3) true の client 段（fixture） ──
 __setRules0175ForTest(true); __setOkuri4wayForTest(true);

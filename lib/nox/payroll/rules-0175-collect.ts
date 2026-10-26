@@ -3,6 +3,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { RateHistoryRow } from "@/lib/nox/rules-0175/rate-history";
 import type { CanonCtx, NormTier, PayRateTier, SlideDirection } from "@/lib/nox/rules-0175/canon";
+import { dohanBandBackOf, type RateBand } from "@/lib/nox/rules-0175/canon"; // ★便 ON-2（CANON ④）: 同伴バックの時間帯
+const nextDayOf = (ymd: string): string => { const d = new Date(ymd + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() + 1); return d.toISOString().slice(0, 10); }; // ★便 ON-2: 期末の翌日（営業日 06:00 まで）
 import { salesSubtotalModeOf } from "@/lib/nox/rules-0175/settings";
 
 export type Rules0175Store = { settings: Record<string, unknown> | null; plans: Map<string, { pay_rate_tiers: PayRateTier[]; slide_streak_n: number; reward_axis: string | null; assess_grace_months: number; slide_basis: string; slide_period: string }> };
@@ -36,12 +38,30 @@ export async function loadCanonCtx(admin: SupabaseClient, storeId: string, win: 
   const out = new Map<string, CanonCtx>();
   const planIds = [...new Set(casts.map((c) => c.planId).filter((x): x is string => !!x && store.plans.get(x)?.reward_axis === "pay_rate"))];
   if (planIds.length === 0) return out;
-  const [nt, sd, at] = await Promise.all([
+  const [nt, sd, at, rb, dn] = await Promise.all([
     admin.from("plan_norm_tiers").select("plan_id, week_days_min, week_days_max, days_required, hours_required").in("plan_id", planIds),
     admin.from("slide_decisions").select("plan_id, cast_id, period_key, direction, streak, applied_at, excluded_at").eq("store_id", storeId).in("plan_id", planIds),
     admin.from("availability_terms").select("membership_id, week_days_target").eq("store_id", storeId),
+    // ★便 ON-2（CANON ④）: 同伴バックの時間帯（plan_rate_bands target 'dohan_back'）
+    admin.from("plan_rate_bands").select("plan_id, target, from_min, to_min, value_amount, value_rate, priority").in("plan_id", planIds).eq("target", "dohan_back").eq("is_active", true),
+    // ★便 ON-2（CANON ④）: 期間内の指名行（同伴の印と分配率・伝票の開始時刻と total）＝同伴伝票のそのキャスト分＝total × 自分の weight ÷ Σweight（cast_sales_aggregate の prorate と同型）
+    admin.from("check_nominations").select("check_id, cast_id, ratio_weight, is_dohan, checks!inner(started_at, status, total, store_id)").eq("checks.store_id", storeId).not("checks.status", "in", "(void,merged)").gte("checks.started_at", `${win.periodStart}T00:00:00+09:00`).lt("checks.started_at", `${nextDayOf(win.periodEnd)}T06:00:00+09:00`),
   ]);
-  for (const r of [nt, sd, at]) if (r.error) throw new Error(`0175 ctx: ${r.error.message}`);
+  for (const r of [nt, sd, at, rb, dn]) if (r.error) throw new Error(`0175 ctx: ${r.error.message}`);
+  const bandsByPlan = new Map<string, RateBand[]>();
+  for (const b of (rb.data ?? []) as (RateBand & { plan_id: string })[]) (bandsByPlan.get(b.plan_id) ?? bandsByPlan.set(b.plan_id, []).get(b.plan_id)!).push({ target: b.target, from_min: b.from_min, to_min: b.to_min, value_amount: b.value_amount, value_rate: b.value_rate, priority: b.priority });
+  type Nom = { check_id: string; cast_id: string; ratio_weight: number | null; is_dohan: boolean | null; checks: { started_at: string; status: string; total: number | null } };
+  const noms = (dn.data ?? []) as unknown as Nom[];
+  const wSum = new Map<string, number>();
+  for (const n of noms) wSum.set(n.check_id, (wSum.get(n.check_id) ?? 0) + Math.max(0, n.ratio_weight ?? 0));
+  const dohanItemsByCast = new Map<string, { startMin: number; share: number }[]>();
+  for (const n of noms) {
+    if (!n.is_dohan) continue;
+    const tot = wSum.get(n.check_id) ?? 0; const w = Math.max(0, n.ratio_weight ?? 0);
+    const share = tot > 0 ? Math.round((n.checks.total ?? 0) * w / tot) : 0;
+    const d = new Date(n.checks.started_at); const jst = new Date(d.getTime() + 9 * 3600_000); const startMin = jst.getUTCHours() * 60 + jst.getUTCMinutes();
+    (dohanItemsByCast.get(n.cast_id) ?? dohanItemsByCast.set(n.cast_id, []).get(n.cast_id)!).push({ startMin, share });
+  }
   const tiersByPlan = new Map<string, NormTier[]>();
   for (const t of (nt.data ?? []) as (NormTier & { plan_id: string })[]) (tiersByPlan.get(t.plan_id) ?? tiersByPlan.set(t.plan_id, []).get(t.plan_id)!).push({ week_days_min: t.week_days_min, week_days_max: t.week_days_max, days_required: t.days_required, hours_required: Number(t.hours_required) });
   const weekByMem = new Map<string, number | null>();
@@ -58,6 +78,7 @@ export async function loadCanonCtx(admin: SupabaseClient, storeId: string, win: 
       salesSubtotal: c.salesSubtotal, normTiers: tiersByPlan.get(c.planId) ?? [], weekTarget: c.membershipId ? weekByMem.get(c.membershipId) ?? null : null,
       periodDays: win.periodDays, actual: { days: c.days, hours: c.hours }, joinedOn: c.joinedOn, graceMonths: plan.assess_grace_months, periodEnd: win.periodEnd,
       decided: cur?.applied_at ? "apply" : cur?.excluded_at ? "exclude" : null,
+      dohanBandBack: (bandsByPlan.get(c.planId)?.length ?? 0) > 0 ? dohanBandBackOf(bandsByPlan.get(c.planId)!, dohanItemsByCast.get(c.castId) ?? []) : undefined, // ★便 ON-2（CANON ④）
     });
   }
   return out;

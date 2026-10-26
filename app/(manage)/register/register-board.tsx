@@ -39,6 +39,7 @@ import { orderLines, twoClassSumsOf, payFeeRatesOf, payFeeNoteOf, payFeeKeyOf, s
 import { payFeeOf } from "@/lib/nox/register/p173"; // ★連続便 3 追補 P-8
 import { dueSettingsOf } from "@/lib/nox/rules-0175/rounding"; // ★便 SH-UI-c2 C2-16（裁定424 候補）: 丸めは凍結しない（フラグ true）
 import { rules0175On } from "@/lib/nox/rules-0175/flag"; // ★連続便 3 追補 P-8／P-10
+import { drinkCountBackOn } from "@/lib/nox/rules-0175/settings"; // ★便 ON-2（CANON ⑨）: ドリンクバック（本数）OFF の店
 import { PAY_FEE_MODE_LABEL, feeAmountArgOf, noteModeOf, payFeeModesFor, payFeeNoteWithModeOf, payFeeRowTextOf, type PayFeeMode } from "@/lib/nox/rules-0175/pay-fee"; // ★連続便 3 追補 P-8（裁定393 追補4）
 import { extCurrentOf } from "@/lib/nox/rules-0175/ext-pattern"; // ★連続便 3 追補 P-10（裁定408 系）
 import { discountActionOf, feeModesForRoleOf, staffDiscountCapOf, staffDiscountLevelOf } from "@/lib/nox/rules-0175/staff-discount"; // ★追補 2（裁定421 候補・0175 v2 ★24）
@@ -3332,7 +3333,7 @@ export default function RegisterBoard({
                     const n = tb.badgeOf(p.id);
                     return (
                       <button key={`recent-${p.id}`} type="button" className="nox-tile"
-                        onClick={() => { noteRecent(p.id); if (p.back_exempt_from_split === true) setDrinkPick({ mode: "product", product: p }); else tb.tap(p.id); }}>
+                        onClick={() => { noteRecent(p.id); if (p.back_exempt_from_split === true && drinkCountBackOn(storeSj)) setDrinkPick({ mode: "product", product: p }); else tb.tap(p.id); }}>{/* ★便 ON-2（CANON ⑨）: ドリンクバック OFF の店は「誰のドリンクか」を聞かない */}
                         {n > 0 && <span className="nox-tile-badge">+{n}</span>}
                         <span className="nox-tile-name">{p.name}</span>
                         <span className="nox-tile-price">{yen(p.price)}{taxMk && <small className="nox-taxmark">{exclTax ? "税抜" : "税込"}</small>}</span>
@@ -3355,7 +3356,7 @@ export default function RegisterBoard({
                     return (
                       <button key={p.id} type="button" className="nox-tile"
                         onClick={() => { noteRecent(p.id); // ★B3 裁定217: 最近使ったへ記録（表示補助・送る引数は不変）
-                          if (p.back_exempt_from_split === true)
+                          if (p.back_exempt_from_split === true && drinkCountBackOn(storeSj)) // ★便 ON-2（CANON ⑨）: OFF の店は聞かない
                             // E8-1 #8: キャストドリンク対象＝タップ時にキャスト指定モーダル（指定しない追加も可）
                             setDrinkPick({ mode: "product", product: p });
                           else tb.tap(p.id); }}>
@@ -3630,7 +3631,7 @@ export default function RegisterBoard({
                               style={{ ...btnLight, padding: "1px 7px", fontSize: 11 }}>取消</button>
                           )}
                         </span>
-                      ) : check?.status === "open" ? (
+                      ) : check?.status === "open" && drinkCountBackOn(storeSj) ? ( /* ★便 ON-2（CANON ⑨）: OFF の店は行の「誰のドリンクか」ボタンを出さない */
                         /* E8-1 ⑤: 行内 select → CastPicker モーダル（#8 のタップ時モーダルと共用）。
                            選択自体は制限しない＝指名外のキャストが運んだケースも実務では起きるため。 */
                         <button onClick={() => { setClaimMsg(null); setDrinkPick({ mode: "line", lineId: l.id }); }}

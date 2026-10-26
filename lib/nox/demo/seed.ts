@@ -218,7 +218,7 @@ export async function runDemoReset(admin: SupabaseClient, orgId: string, payload
 }
 
 export type DemoFinalizeStore = { store: string; status: "finalized" | "skipped" | "failed"; castCount?: number; ms: number; reason?: string };
-export type AfterResetResult = { closedDays?: { stores: number; shifts: number; wishes: number; reason?: string }; photos: { casts: number; users: number }; payroll: { period: string; stores: DemoFinalizeStore[]; ms: number; reason?: string }; fine?: { status: "added" | "skipped" | "failed"; reason?: string; ms: number } };
+export type AfterResetResult = { canon?: { plans: number; bands: number; tiers: number; reason?: string }; closedDays?: { stores: number; shifts: number; wishes: number; reason?: string }; photos: { casts: number; users: number }; payroll: { period: string; stores: DemoFinalizeStore[]; ms: number; reason?: string }; fine?: { status: "added" | "skipped" | "failed"; reason?: string; ms: number } };
 
 /**
  * 再生後の後処理（裁定276-4）:
@@ -257,6 +257,27 @@ export async function afterResetHooks(admin: SupabaseClient, orgId: string, _biz
   out.fine = await demoLateFineForAce(admin, orgId, _bizDate).catch((e) => ({ status: "failed" as const, reason: e instanceof Error ? e.message : String(e), ms: 0 }));
   // ★便 NR-1 B⑤（裁定428 候補・2026-10-26）: 定休日の曜日に入った shifts／shift_wishes を落とす（payload の日付は {$rel}＝曜日は reset 日で決まるため生成器では落とせない）。全デモ店・admin・失敗しても reset は成功扱い
   out.closedDays = await demoDropClosedDayShifts(admin, orgId).catch((e) => ({ stores: 0, shifts: 0, wishes: 0, reason: e instanceof Error ? e.message : String(e) }));
+  // ★便 ON-2（裁定418 CANON 型・2026-10-26）: reward_axis='pay_rate' のプラン（デモ MUSE）に同伴バックの時間帯（plan_rate_bands）と W 別規定（plan_norm_tiers）を入れる＝c_load に無い表（0175 v2 の新表）
+  out.canon = await demoCanonBandsFor(admin, orgId).catch((e) => ({ plans: 0, bands: 0, tiers: 0, reason: e instanceof Error ? e.message : String(e) }));
+  return out;
+}
+
+/** ★便 ON-2: CANON 型の店（reward_axis='pay_rate' のプラン）＝同伴バック 30／20／15%（20:00〜20:30／20:35〜21:00／21:05〜22:00・伝票の開始時刻）と W 別規定 3 段を plan ごとに入れ直す（デモ reset の後処理・既存行は消してから） */
+export const CANON_DOHAN_BANDS: readonly { from_min: number; to_min: number; value_rate: number }[] = [{ from_min: 1200, to_min: 1230, value_rate: 30 }, { from_min: 1235, to_min: 1260, value_rate: 20 }, { from_min: 1265, to_min: 1320, value_rate: 15 }];
+export const CANON_NORM_TIERS: readonly { week_days_min: number; week_days_max: number; days_required: number; hours_required: number }[] = [{ week_days_min: 1, week_days_max: 2, days_required: 6, hours_required: 30 }, { week_days_min: 3, week_days_max: 4, days_required: 12, hours_required: 60 }, { week_days_min: 5, week_days_max: 7, days_required: 18, hours_required: 90 }];
+export async function demoCanonBandsFor(admin: SupabaseClient, orgId: string): Promise<NonNullable<AfterResetResult["canon"]>> {
+  const out = { plans: 0, bands: 0, tiers: 0 };
+  const { data: plans, error } = await admin.from("comp_plans").select("id, store_id").eq("org_id", orgId).eq("reward_axis", "pay_rate");
+  if (error) throw new Error(`comp_plans: ${error.message}`);
+  const ids = ((plans ?? []) as { id: string; store_id: string }[]);
+  if (ids.length === 0) return out;
+  out.plans = ids.length;
+  for (const t of ["plan_rate_bands", "plan_norm_tiers"] as const) { const { error: eDel } = await admin.from(t).delete().in("plan_id", ids.map((p) => p.id)); if (eDel) throw new Error(`${t} delete: ${eDel.message}`); }
+  const bands = ids.flatMap((p) => CANON_DOHAN_BANDS.map((b, i) => ({ org_id: orgId, store_id: p.store_id, plan_id: p.id, target: "dohan_back", from_min: b.from_min, to_min: b.to_min, value_amount: null, value_rate: b.value_rate, priority: 100 + i, is_active: true })));
+  const tiers = ids.flatMap((p) => CANON_NORM_TIERS.map((t) => ({ org_id: orgId, store_id: p.store_id, plan_id: p.id, ...t })));
+  const { error: eB } = await admin.from("plan_rate_bands").insert(bands); if (eB) throw new Error(`plan_rate_bands: ${eB.message}`);
+  const { error: eT } = await admin.from("plan_norm_tiers").insert(tiers); if (eT) throw new Error(`plan_norm_tiers: ${eT.message}`);
+  out.bands = bands.length; out.tiers = tiers.length;
   return out;
 }
 
