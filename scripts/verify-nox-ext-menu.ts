@@ -197,7 +197,7 @@ async function main() {
     const l5 = await extLines(c1);
     check("段55(5) ★p_rule_id 省略＝checks スナップ既定で行が立つ（30分¥3000・qty=1・time_auto=false）",
       !e5 && l5.length === 1 && l5[0].unit_price_snapshot === 3000 && l5[0].qty === 1
-      && l5[0].line_total === 3000 && l5[0].name_snapshot === "延長料金(30分)" && l5[0].time_auto === false,
+      && l5[0].line_total === 3000 && l5[0].name_snapshot === "延長料金（延長 30分 ¥3000）" /* ★0175 ★23（便 ON-1 張替え）: パターン名を併記＝「延長料金（<パターン名>）」 */ && l5[0].time_auto === false,
       e5?.message ?? JSON.stringify(l5));
 
     // ═══ (6) p_rule_id 指定＝snap のメニューで行が立つ（複数メニューの実証）═══
@@ -206,7 +206,7 @@ async function main() {
     check("段55(6) ★p_rule_id 指定＝60分¥5000 の行（既定 30分¥2000 と併存＝1押し1行）",
       !e6 && l6.length === 2
       && l6[1].unit_price_snapshot === 5000 && l6[1].line_total === 5000
-      && l6[1].name_snapshot === "延長料金(60分)", e6?.message ?? JSON.stringify(l6));
+      && l6[1].name_snapshot === "延長料金（延長 60分 ¥5000）" /* ★0175 ★23 */, e6?.message ?? JSON.stringify(l6));
 
     // ═══ (7) snap 由来の凍結（★adversarial 対象）: live を改額しても snap の額で立つ ═══
     //   (2) で r60 は live 上 9999 へ改額済み＝live 参照なら 9999 で立つはず。snap 参照なら 5000。

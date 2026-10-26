@@ -4610,8 +4610,13 @@ async function main() {
         check("段31-c check_add_line 成功（uuid 返却・NOT NULL 充填）", !eLine && typeof lineId === "string", eLine?.message);
         const { data: chkRow } = await admin.from("checks").select("total").eq("id", accCheckId).single();
         const due = (chkRow?.total as number) ?? 0;
+        // ★便 ON-1（2026-10-26・0175 v2 ★25＝裁定420 の 3 段階）: set_store_cast_register(true) は「注文のみ（1）」＝cast の check_pay は forbidden→owner が sys_cast_register=2（会計まで）に上げると通る（settings_json は finally で厳密復元）
+        const { error: ePayLv1 } = await castTmp.rpc("check_pay", { p_check_id: accCheckId, p_method: "cash", p_amount: due, p_pay_group: "A", p_tendered: due, p_idem_key: randomUUID() });
+        check("段31-c ★25 注文のみ（sys_cast_register 1）の cast は check_pay forbidden", forbidden(ePayLv1), ePayLv1?.message ?? "通ってしまった");
+        const { error: eLv2 } = await owner.rpc("set_store_profile", { p_store_id: s31Store.id, p_patch: { sys_cast_register: 2 } });
+        check("段31-c ★25 owner が sys_cast_register=2（会計まで）に上げる（set_store_profile 白名単）", !eLv2, eLv2?.message);
         const { data: payId, error: ePay } = await castTmp.rpc("check_pay", { p_check_id: accCheckId, p_method: "cash", p_amount: due, p_pay_group: "A", p_tendered: due, p_idem_key: randomUUID() });
-        check("段31-c check_pay 成功（uuid 返却）", !ePay && typeof payId === "string", ePay?.message);
+        check("段31-c check_pay 成功（uuid 返却・会計まで＝2）", !ePay && typeof payId === "string", ePay?.message);
         const { data: closeId, error: eClose } = await castTmp.rpc("check_close", { p_check_id: accCheckId, p_idem_key: randomUUID() });
         check("段31-c check_close 成功（cast 会計フロー完走）", !eClose && closeId === accCheckId, eClose?.message);
         const { data: chkFin } = await admin.from("checks").select("status, total").eq("id", accCheckId).single();

@@ -27,7 +27,7 @@ function check(label: string, ok: boolean, detail?: string) { if (ok) pass++; el
 const MD5_PIN: Record<string, string> = {
   adv_issue: "f25d845d9cfad9f18bda4833eea6d9c2", // ★0158 ★1（裁定312）: 支払済み期は deduct_period＝翌月で発行（旧 b8568921）
   adv_cancel: "8ff4572b1670ac93f3c18f3ce4823c32",
-  transport_issue: "7740e3c4d0d079f386c222c96240479f",
+  transport_issue: "3a9b8a0dd41fa4592e4e82b296b7c9d2", // ★0177（裁定414・便 ON-1 張替え）: 4 方式＝行に mode を刻む（前 7740e3c4）
   transport_cancel: "5735aa45f3fe6568c36ccad0a0a4b6d1",
 };
 
@@ -72,8 +72,10 @@ async function main() {
       const noidem = await as(mgr, "select public.adv_issue_bulk($1, $2::jsonb, null) ids", [A1.id, items([ids3[0]])]);
       check("ib(1-5) amount 0 → 'bad amount'・[] → 'bad items'・idem null → 'bad idem'", !zero.ok && zero.err.includes("bad amount") && !empty.ok && empty.err.includes("bad items") && !noidem.ok && noidem.err.includes("bad idem"), [zero, empty, noidem].map(errOf).join(" | "));
       // (2) transport_issue_bulk
+      // ★0177（裁定414・便 ON-1 張替え）: flat の店も一括発行を受理する（mode='flat'）＝拒否の負系は 'none' の店（tx 内で書き換え→ROLLBACK で戻る）
+      await db.query("update public.stores set settings_json = jsonb_set(coalesce(settings_json, '{}'::jsonb), '{okuri_mode}', '\"none\"'::jsonb) where id = $1", [A1.id]);
       const flat = await as(mgr, "select public.transport_issue_bulk($1, $2::jsonb, $3) ids", [A1.id, items(ids3, 1500), randomUUID()]);
-      check(`ib(2-1) transport_issue_bulk＝A1 の okuri_mode ${A1.okuri ?? "(flat)"}: flat なら 'okuri not actual'（0 行）`, A1.okuri === "actual" ? flat.ok : (!flat.ok && flat.err.includes("okuri not actual") && (await nTr()) === 0), errOf(flat));
+      check("ib(2-1) transport_issue_bulk＝okuri_mode 'none' の店（tx 内）は 'okuri none'（0 行・★0177）", !flat.ok && flat.err.includes("okuri none") && (await nTr()) === 0, errOf(flat));
       await T.asPg();
       await db.query("update public.stores set settings_json = jsonb_set(coalesce(settings_json, '{}'::jsonb), '{okuri_mode}', '\"actual\"'::jsonb) where id = $1", [A1.id]); // tx 内＝ROLLBACK で戻る
       const k2 = randomUUID();

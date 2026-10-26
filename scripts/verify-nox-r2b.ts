@@ -293,8 +293,8 @@ async function main() {
         p_jonai_back_mode: "per_count", p_jonai_back_rate: null,
         p_dohan_back_mode: "rate", p_dohan_back_rate: 50,
       });
-      check("r2b(8) ★dohan rate ガードは封印のまま（'dohan rate requires R-2b'＝解錠は独立 mig・裁定76/100-B5）",
-        !!e && e.message.includes("dohan rate requires R-2b"), e?.message ?? "通ってしまった");
+      check("r2b(8) ★dohan rate ガードは 0175 v2 ★12 で解錠（R-2b 済み＝同伴 cast_id 必須・分母の行由来化）＝rate 50 が通る（便 ON-1 張替え・行は finally の name 削除で消える）",
+        !e, e?.message);
     }
 
     // ══ (12) weight 検証（mig0123 裁定110）＝0 許可・名簿あり∧全0 拒否・小数拒否・

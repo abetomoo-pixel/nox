@@ -37,9 +37,9 @@ const J = (x: unknown) => JSON.stringify(x);
 // ── (1) フラグ ──
 const flagTs = src("lib/nox/rules-0175/flag.ts"), flagMjs = src("scripts/demo/rules-0175-flag.mjs");
 const rx = (name: string, s: string) => { const m = new RegExp(`export const ${name} = (true|false);`).exec(s); return m ? m[1] : null; };
-check("p175(1-1) RULES_0175_APPLIED＝flag.ts と rules-0175-flag.mjs が同値・本便は false", rx("RULES_0175_APPLIED", flagTs) === String(RULES_0175_APPLIED) && rx("RULES_0175_APPLIED", flagMjs) === String(RULES_0175_APPLIED) && RULES_0175_APPLIED === false);
-check("p175(1-2) OKURI_4WAY_APPLIED＝同値・本便は false", rx("OKURI_4WAY_APPLIED", flagTs) === String(OKURI_4WAY_APPLIED) && rx("OKURI_4WAY_APPLIED", flagMjs) === String(OKURI_4WAY_APPLIED) && OKURI_4WAY_APPLIED === false);
-check("p175(1-3) 読み口＝rules0175On()／okuri4wayOn() は定数を返し、テスト用の上書きが効く", rules0175On() === false && okuri4wayOn() === false && (__setRules0175ForTest(true), rules0175On() === true) && (__setRules0175ForTest(null), rules0175On() === false));
+check("p175(1-1) RULES_0175_APPLIED＝flag.ts と rules-0175-flag.mjs が同値・便 ON-1（2026-10-26）から true", rx("RULES_0175_APPLIED", flagTs) === String(RULES_0175_APPLIED) && rx("RULES_0175_APPLIED", flagMjs) === String(RULES_0175_APPLIED) && RULES_0175_APPLIED === true);
+check("p175(1-2) OKURI_4WAY_APPLIED＝同値・便 ON-1（2026-10-26）から true", rx("OKURI_4WAY_APPLIED", flagTs) === String(OKURI_4WAY_APPLIED) && rx("OKURI_4WAY_APPLIED", flagMjs) === String(OKURI_4WAY_APPLIED) && OKURI_4WAY_APPLIED === true);
+check("p175(1-3) 読み口＝rules0175On()／okuri4wayOn() は定数を返し、テスト用の上書きが効く（ON-1 から定数は true）", rules0175On() === true && okuri4wayOn() === true && (__setRules0175ForTest(false), rules0175On() === false) && (__setRules0175ForTest(null), rules0175On() === true));
 const GATED_FILES = [
   "lib/nox/payroll/collect.ts", "app/(manage)/master/cast-comp/systems/systems-board.tsx", "app/(manage)/master/cast-comp/plan/plan-editor.tsx", "app/(manage)/casts/casts-board.tsx",
   "app/mine/page.tsx", "app/mine/wishes/wish-form.tsx", "app/(manage)/report/report-board.tsx", "app/(manage)/payroll/payroll-board.tsx", "components/nox/daily-pay-form.tsx", "app/(manage)/master/deduction-panel.tsx",
@@ -93,7 +93,7 @@ check("p175(2-8) payload＝profiles.canonOf は RULES_0175_APPLIED=false で nul
 
 // ── (3) true の client 段（fixture） ──
 __setRules0175ForTest(true); __setOkuri4wayForTest(true);
-check("p175(3-0) DB 段＝SKIP（0175／0176／0177 は未適用・手貼りは Agoora）", rules0175On() && okuri4wayOn());
+check("p175(3-0) DB 段＝verify-nox-0175-0176 の (3)(4)（便 ON-1 から実走・0175／0176／0177 は 10/26 手貼り済み）", rules0175On() && okuri4wayOn());
 // P-1 時給の履歴
 const hist: RateHistoryRow[] = [
   { kind: "base", rate: 1500, valid_from: "2026-01-01", valid_to: null },
@@ -268,7 +268,7 @@ check("p175(12-3) R-8 文言＝「管理者に昇格」「店長に昇格」「�
   check("p175(12-6) R-8 読取の記録＝owner を含む RPC 210／314（literal 226）・RLS 70＝auth_role() の写しで全部に効く（★28 で書き換えた関数は 6 本＋新設 3 本だけ）", r8.fnsOwner.length === 210 && Number(r8.fnTotal) === 314 && r8.polsOwner.length === 70 && Number(r8.ownerLiteralCount) === 226, J([r8.fnsOwner.length, r8.fnTotal, r8.polsOwner.length, r8.ownerLiteralCount]));
 }
 __setRules0175ForTest(null); __setOkuri4wayForTest(null);
-check("p175(3-9) 上書きを戻す＝false", !rules0175On() && !okuri4wayOn());
+check("p175(3-9) 上書きを戻す＝定数（ON-1 から true）", rules0175On() === RULES_0175_APPLIED && okuri4wayOn() === OKURI_4WAY_APPLIED);
 
 if (fails.length) { console.error(`verify:nox-p175prep FAIL ${fails.length}（pass ${pass}）\n` + fails.map((f) => ` - ${f}`).join("\n")); process.exit(1); }
-console.log(`verify:nox-p175prep OK ${pass} checks（DB 段 SKIP＝0175／0176／0177 未適用）`);
+console.log(`verify:nox-p175prep OK ${pass} checks（フラグ true＝便 ON-1・DB 段は verify-nox-0175-0176）`);

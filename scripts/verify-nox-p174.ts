@@ -107,7 +107,7 @@ async function live() {
     const r = (await db.query(`select proname, pronargs, pg_get_function_identity_arguments(oid) a from pg_proc where pronamespace='public'::regnamespace and proname in ('set_penalty_config','set_comp_plan','kiosk_staff_list','staff_punch')`)).rows as { proname: string; pronargs: number; a: string }[];
     const f = (n: string) => r.filter((x) => x.proname === n);
     check("p174(8-1) live: set_penalty_config 17 引数 1 本・set_comp_plan 30 引数 1 本（p_slide_apply）・kiosk_staff_list／staff_punch(uuid, text, text)",
-      f("set_penalty_config").length === 1 && f("set_penalty_config")[0].pronargs === 17 && f("set_comp_plan").length === 1 && f("set_comp_plan")[0].pronargs === 30 && f("set_comp_plan")[0].a.includes("p_slide_apply text")
+      f("set_penalty_config").length === 1 && f("set_penalty_config")[0].pronargs === 17 && f("set_comp_plan").length === 1 && f("set_comp_plan")[0].pronargs === 32 /* ★0175 v2: 30→32（p_slide_method／p_pt_rules・便 ON-1） */ && f("set_comp_plan")[0].a.includes("p_slide_apply text")
       && f("kiosk_staff_list").length === 1 && f("staff_punch").length === 1 && f("staff_punch")[0].a === "p_membership_id uuid, p_pin text, p_kind text", JSON.stringify(r.map((x) => [x.proname, x.pronargs])));
   } finally { await db.end(); }
 }

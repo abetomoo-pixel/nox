@@ -317,6 +317,12 @@ trial_register / trial_update / trial_hire / trial_reject /
 ### A11. デバイス（1本）
 kiosk_provision（新規 kiosk の追加＝拡大操作）
 
+### A11. 0175 v2／0176（21本・2026-10-26 本番適用・便 ON-1 で収載・規則A形でゲート内蔵・kiosk 腕なし）
+- 0175 v2（12本）: availability_set・cast_rate_history_add・comp_plan_ext_set・daily_pay_cancel・owner_transfer・plan_event_bonus_set・plan_norm_tier_set・plan_rate_band_set・set_cast_kind・set_membership_role・set_pricing_rule_vip・set_store_invoice_profile
+- 0175 v2（BZ-R 398／399・3本）: staff_payroll_run_set_status・store_wifi_add・store_wifi_remove
+- 0176（6本）: line_bind_token_create・notice_create_targets・set_store_line_config・shift_period_needs_set・staff_contract_set・staff_invite_create
+（対象 160→**181**・live 実測＝'billing locked' **181**・述語参照 182）
+
 ## B. 除外（99本）
 
 ### B(a) 構造除外＝authenticated 実行不可（service/内部・28本）→ ゲート不要（B7 回避型(1)）
@@ -458,6 +464,10 @@ staff_deactivate / kiosk_deactivate
 | cast_mynumber_discard | **法定履行**（マイナンバーの廃棄＝暗号文を null 上書き・廃棄日時／実行者／方法の 3 列＋audit reason・owner のみ・平文は触らない・裁定309-3／309 追補1 (e)） |
 | terms_accept | **開通前の同意**（店舗向け利用規約への同意記録＝terms_acceptances（org 単位・terms_version・accepted_by）・owner のみ・冪等・audit・課金ゲートより前に同意を取るため billing lock を見ない＝裁定351・mig0172） |
 | customer_anonymize | **法定履行**（顧客の匿名化＝name '削除済み顧客'・6 欄 null／false・anonymized_at・customer_notes 同時削除＝件数のみ audit・FK は残す・owner のみ・裁定309-4／309 追補1 (c)(d)） |
+
+### B(o). 0175 v2／0176／0177 新設の除外（32本・2026-10-26 便 ON-1 で収載）
+- 読取・本人・内部専用・service_role 専用＝ゲートなし: attendance_ack・attendance_contact_log・auth_cast_register_level・auth_role_raw・availability_list・bind_line・cast_notification_create・cast_notification_read・comp_plan_pay_rate_check・contact_change_confirm・get_line_secret・kiosk_lock・kiosk_unlock・kiosk_unlock_qr・line_push_log_write・line_push_month_summary・member_profile_confirm・member_profile_self_save・member_profile_store_save・my_qr_secret・norm_shortfall_decide・payroll_adjustment_cancel・pt_rules_check・set_line_secret・set_my_contact・set_store_line_limit・shift_cast_decline・shift_periods_auto_close・slide_decision_decide・slide_decision_propose・staff_invite_accept・totp_code_of
+（除外 154→**186**・全数 314→**367**）
 
 ## C. kiosk 腕を持つ対象（実装注意・18本）
 A1 の check_open / check_add_line / check_remove_line / check_add_seat / check_remove_seat /

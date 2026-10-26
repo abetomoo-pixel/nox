@@ -50,10 +50,10 @@ function check(label: string, ok: boolean, detail?: string) {
 }
 
 const T = "payroll_adjustments";
-const ADD_ARGS = "p_run_id uuid, p_cast_id uuid, p_mode text, p_amount integer, p_rate_bp integer, p_before_withholding boolean, p_show_detail boolean, p_reason text, p_source text, p_basis text, p_target_shift_id uuid"; // ★mig0154: +3（p_source default 'manual'・p_basis／p_target_shift_id default null＝既存 8 引数呼出は不変）
+const ADD_ARGS = "p_run_id uuid, p_cast_id uuid, p_mode text, p_amount integer, p_rate_bp integer, p_before_withholding boolean, p_show_detail boolean, p_reason text, p_source text, p_basis text, p_target_shift_id uuid, p_kind text, p_source_table text, p_source_id uuid"; // ★0175 v2 ★12（裁定410）: +3（p_kind／p_source_table／p_source_id default null・便 ON-1） // ★mig0154: +3（p_source default 'manual'・p_basis／p_target_shift_id default null＝既存 8 引数呼出は不変）
 const DEL_ARGS = "p_id uuid, p_reason text";
 const POLICY_QUAL = "((org_id = auth_org_id()) AND ((auth_role() = 'owner'::text) OR (store_id = auth_store_id())) AND (auth_role() = ANY (ARRAY['owner'::text, 'manager'::text])))";
-const COLS = ["id", "org_id", "store_id", "run_id", "cast_id", "mode", "amount", "rate_bp", "before_withholding", "show_detail", "reason", "created_by", "created_at", "source", "carry_from_payslip_id", "basis", "target_shift_id", "biz_date"]; // ★mig0159（324-4・追補1）: 末尾 biz_date（shortfall の営業日・null 可） // ★mig0148: source／carry_from_payslip_id・★mig0154: basis／target_shift_id
+const COLS = ["id", "org_id", "store_id", "run_id", "cast_id", "mode", "amount", "rate_bp", "before_withholding", "show_detail", "reason", "created_by", "created_at", "source", "carry_from_payslip_id", "basis", "target_shift_id", "biz_date", "kind", "source_table", "source_id", "cancelled_at", "cancelled_by", "cancel_reason"]; // ★0175 v2 ★12: +6（便 ON-1） // ★mig0159（324-4・追補1）: 末尾 biz_date（shortfall の営業日・null 可） // ★mig0148: source／carry_from_payslip_id・★mig0154: basis／target_shift_id
 const SYNC_ARGS = "p_run_id uuid"; // ★mig0148 payroll_carryover_sync
 
 // ── (0) 純関数 fixture（DB 非依存）──
@@ -334,10 +334,10 @@ async function main() {
   // ── (1) 表の形 ──
   {
     const cols = await q<{ column_name: string }>(`select column_name from information_schema.columns where table_schema='public' and table_name=$1 order by ordinal_position`, [T]);
-    check("pa(1-1) 列 18（★mig0148 で 13→15・★mig0154 で 15→17・★mig0159 biz_date で 17→18）", cols.length === 18, `${cols.length}`);
+    check("pa(1-1) 列 18（★mig0148 で 13→15・★mig0154 で 15→17・★mig0159 biz_date で 17→18）", cols.length === 24 /* ★0175 v2: 18→24（便 ON-1） */, `${cols.length}`);
     check("pa(1-2) 列名と順序", JSON.stringify(cols.map((c) => c.column_name)) === JSON.stringify(COLS), cols.map((c) => c.column_name).join(","));
     const cks = await q<{ conname: string; def: string }>(`select conname, pg_get_constraintdef(oid) as def from pg_constraint where conrelid=('public.' || $1)::regclass and contype='c' order by conname`, [T]);
-    check("pa(1-3) CHECK 6（★mig0148 で 3→4・★mig0154 basis_ck で 4→5・★mig0159 shortfall_ck で 5→6）", cks.length === 6, cks.map((c) => c.conname).join(","));
+    check("pa(1-3) CHECK 6（★mig0148 で 3→4・★mig0154 basis_ck で 4→5・★mig0159 shortfall_ck で 5→6）", cks.length === 9 /* ★0175 v2: +cancel_ck／kind_ck／source_table_ck（6→9・便 ON-1） */, cks.map((c) => c.conname).join(","));
     const def = (n: string) => cks.find((c) => c.conname === n)?.def ?? "";
     check("pa(1-4) CHECK mode ∈ fixed/rate", /mode = ANY \(ARRAY\['fixed'::text, 'rate'::text\]\)/.test(def("payroll_adjustments_mode_ck")), def("payroll_adjustments_mode_ck"));
     check("pa(1-5) CHECK amount 排他（fixed: amount≥0∧rate_bp null／rate: rate_bp 0..10000∧amount null）",
@@ -393,7 +393,7 @@ async function main() {
   {
     const fk = await q<{ conname: string; def: string }>(`select conname, pg_get_constraintdef(oid) as def from pg_constraint where conrelid=('public.' || $1)::regclass and contype='f' order by conname`, [T]);
     const defs = fk.map((f) => f.def);
-    check("pa(3-1) FK 7 本（★mig0148 で carry_from_payslip_id・★mig0154 で target_shift_id 追加）", fk.length === 7, fk.map((f) => f.conname).join(","));
+    check("pa(3-1) FK 7 本（★mig0148 で carry_from_payslip_id・★mig0154 で target_shift_id 追加）", fk.length === 8 /* ★0175 v2: +cancelled_by_fkey（便 ON-1） */, fk.map((f) => f.conname).join(","));
     check("pa(3-7) ★mig0148 carry_from_payslip_id→payslips ON DELETE SET NULL", defs.some((d) => d === "FOREIGN KEY (carry_from_payslip_id) REFERENCES payslips(id) ON DELETE SET NULL"), defs.join(" | "));
     check("pa(3-2) org_id→orgs", defs.some((d) => d === "FOREIGN KEY (org_id) REFERENCES orgs(id)"));
     check("pa(3-3) store_id→stores", defs.some((d) => d === "FOREIGN KEY (store_id) REFERENCES stores(id)"));

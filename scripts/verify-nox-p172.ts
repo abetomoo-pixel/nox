@@ -126,9 +126,9 @@ async function live() {
     const { rows: md } = await db.query(`select proname, left(md5(replace(prosrc, E'\\r', '')),8) m from pg_proc where pronamespace='public'::regnamespace and proname in ('daily_pay_issue','daily_pays_of_run','set_store_profile','staff_create','staff_update_profile','terms_accept','terms_accepted_version_ok','set_cast_dependents_form') order by 1`);
     const m = Object.fromEntries(md.map((r) => [r.proname as string, r.m as string]));
     check("p172(6-3) live: md5 pin 5 本（daily_pay_issue 94f989f9／daily_pays_of_run 37ff6ed0／set_store_profile 67e96c04／staff_create 8c2fef04／staff_update_profile b710ebae）・新設 3 本が各 1 定義",
-      m.daily_pay_issue === "94f989f9" && m.daily_pays_of_run === "37ff6ed0" && m.set_store_profile === "45012c75" /* ★0173: 白名単 +5（67e96c04→45012c75・便 P173） */ && m.staff_create === "8c2fef04" && m.staff_update_profile === "b710ebae" && md.length === 8, JSON.stringify(m));
+      m.daily_pay_issue === "df0d58ff" /* ★0175 v2: 6 引数（94f989f9→df0d58ff・便 ON-1） */ && m.daily_pays_of_run === "37ff6ed0" && m.set_store_profile === "23cd5573" /* ★0175: 白名単 +26（45012c75→23cd5573・便 ON-1）←★0173: +5（67e96c04→45012c75） */ && m.staff_create === "8c2fef04" && m.staff_update_profile === "b710ebae" && md.length === 8, JSON.stringify(m));
     const { rows: cnt } = await db.query(`select (select count(*) from pg_proc where pronamespace='public'::regnamespace)::int f, (select count(*) from pg_tables where schemaname='public')::int t, (select count(*) from pg_proc where pronamespace='public'::regnamespace and prosrc like '%billing locked%')::int g`);
-    check("p172(6-4) live: 関数 314・表 87・'billing locked' 160（★0173／0174・便 P173: 311→314・159→160）", cnt[0].f === 314 && cnt[0].t === 87 && cnt[0].g === 160, JSON.stringify(cnt[0]));
+    check("p172(6-4) live: 関数 314・表 87・'billing locked' 160（★0173／0174・便 P173: 311→314・159→160）", cnt[0].f === 367 && cnt[0].t === 104 && cnt[0].g === 181 /* ★0175 v2／0176／0177（便 ON-1）: 関数 314→367・表 87→104・gated 160→181 */, JSON.stringify(cnt[0]));
   } finally { await db.end().catch(() => {}); }
 }
 void live().then(() => {

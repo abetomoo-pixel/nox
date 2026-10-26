@@ -49,7 +49,7 @@ async function main() {
     try {
       await db.query("delete from public.daily_reports where store_id=$1 and biz_date=$2::date", [A1.id, today]);
       await db.query("update public.memberships set can_register = true where user_id=$1 and store_id=$2", [castU.id, A1.id]);
-      await db.query("update public.stores set settings_json = jsonb_set(coalesce(settings_json,'{}'::jsonb), '{cast_register_enabled}', '\"true\"'::jsonb) where id=$1", [A1.id]);
+      await db.query("update public.stores set settings_json = jsonb_set(coalesce(settings_json,'{}'::jsonb), '{cast_register_enabled}', '\"true\"'::jsonb) || '{\"sys_cast_register\": 1}'::jsonb where id=$1", [A1.id]); // ★0175 v2 ★25（裁定420・便 ON-1）: 3 段階 sys_cast_register（既存店は 0 が入っている）＝注文のみ（1）にしないと auth_cast_can_register が false
       const ff = await one<{ id: string }>("select id from public.feature_flags where store_id=$1 and key='reopen_flow'", [A1.id]);
       if (ff) await db.query("update public.feature_flags set enabled=true where id=$1", [ff.id]); else await db.query("insert into public.feature_flags (org_id, store_id, key, enabled) values ($1,$2,'reopen_flow',true)", [A1.org_id, A1.id]);
       const P1 = (await one<{ id: string }>("insert into public.products (org_id, store_id, type, name, price, back_mode, unit4_json, hon_pt) values ($1,$2,'bottle','ck-unit4 ボトル',5000,'unit4','{\"hon\":700,\"jonai\":400,\"dohan\":700,\"free\":250}'::jsonb,0) returning id", [A1.org_id, A1.id])).id;

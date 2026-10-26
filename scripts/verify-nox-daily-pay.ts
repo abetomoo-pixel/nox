@@ -133,7 +133,7 @@ async function main() {
       await reopen(castA);
       const p6 = await as(castU, "select public.punch_self('out', null, null) id");
       await db.query("update public.stores set settings_json = jsonb_set(settings_json, '{okuri_mode}', '\"actual\"'::jsonb, true) where id=$1", [A1.id]);
-      check("dp(3-3) flat の店: out 省略→okuri null（追補2 (a)）", (await okuriOf(p6)) === null, String(await okuriOf(p6)));
+      check("dp(3-3) flat の店: out 省略→okuri false（★0177 ★4＝便 ON-1 張替え: none 以外の 3 方式は送りを聞く＝省略は false・旧 追補2 (a) の null は none の店だけ）", (await okuriOf(p6)) === false, String(await okuriOf(p6)));
       const kioskUid = (await one<{ u: string }>("select gen_random_uuid() u")).u;
       await db.query("insert into public.kiosk_devices (org_id, store_id, auth_user_id, label, is_active, purpose) values ($1,$2,$3,'dp-punch',true,'punch')", [A1.org_id, A1.id, kioskUid]);
       const pinSet = await as(mgr, "select public.set_cast_pin($1, '1234') r", [castB]);

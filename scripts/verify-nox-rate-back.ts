@@ -365,7 +365,7 @@ async function main() {
       return error;
     };
     check("段45-4 CHECK 負系: hon mode='rate'＋rate null は拒否（排他）", !!(await insPlanNeg({ hon_back_mode: "rate", hon_back_rate: null })), "通ってしまった");
-    check("段45-4 CHECK 負系: hon mode='per_count'＋rate=50 は拒否（排他）", !!(await insPlanNeg({ hon_back_mode: "per_count", hon_back_rate: 50 })), "通ってしまった");
+    check("段45-4 CHECK 正系（★0175 v2 ★12＝CN-R ⑭ 併用・便 ON-1 張替え）: hon mode='per_count'＋rate=50 は通る（固定額＋率の併用・pair CHECK は rate のとき rate 必須だけ）", !(await insPlanNeg({ hon_back_mode: "per_count", hon_back_rate: 50 })), "拒否された");
     check("段45-4 CHECK 負系: hon rate=101 は拒否（0..100）", !!(await insPlanNeg({ hon_back_mode: "rate", hon_back_rate: 101 })), "通ってしまった");
     check("段45-4 CHECK 負系: hon mode='bogus' は拒否（2値）", !!(await insPlanNeg({ hon_back_mode: "bogus" })), "通ってしまった");
     check("段45-4 CHECK 負系: jonai mode='rate'＋rate null は拒否（jonai 同型）", !!(await insPlanNeg({ jonai_back_mode: "rate", jonai_back_rate: null })), "通ってしまった");
@@ -405,7 +405,7 @@ async function main() {
     const { error: eN2 } = await callPlan(base14(tgl, { p_hon_back_mode: "rate", p_hon_back_rate: null }));
     check("段45-4 RPC 負系: mode='rate'＋rate null 拒否（排他）", !!eN2, "通ってしまった");
     const { error: eN3 } = await callPlan(base14(tgl, { p_hon_back_mode: "per_count", p_hon_back_rate: 50 }));
-    check("段45-4 RPC 負系: mode='per_count'＋rate=50 拒否（排他）", !!eN3, "通ってしまった");
+    check("段45-4 RPC 正系（★0175 v2 ★12 併用・便 ON-1 張替え）: mode='per_count'＋rate=50 は通る", !eN3, eN3?.message);
     const { error: eN4 } = await callPlan(base14(tgl, { p_jonai_back_mode: "bogus" }));
     check("段45-4 RPC 負系: jonai mode 不正値 拒否", !!eN4, "通ってしまった");
     // 旧10引数呼び（DEFAULT 'per_count'）→ rate プランの mode が戻る＝既知挙動として固定（設計 v1・D3 で UI は14引数化済み）

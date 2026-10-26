@@ -324,8 +324,18 @@ async function main() {
         p_jonai_back_mode: "per_count", p_jonai_back_rate: null,
         p_dohan_back_mode: "rate", p_dohan_back_rate: 50,
       });
-      check("mig0115 ★dohan rate は 'dohan rate requires R-2b' で封印（解錠ガード）",
-        !!eR2b && eR2b.message.includes("dohan rate requires R-2b"), eR2b?.message ?? "通ってしまった");
+      check("mig0115 ★dohan rate の封印（'dohan rate requires R-2b'）は 0175 v2 ★12 で解錠＝rate 50 が通る（便 ON-1・2026-10-26 pin 張替え）", !eR2b, eR2b?.message);
+      { // 解錠後は per_count に戻して以降の段の前提（mode per_count）を保つ
+        const { error: eBack } = await owner.rpc("set_comp_plan", {
+          p_id: planV2, p_store_id: storeA1Id, p_name: PLANS[3], p_base: 5100,
+          p_hon_back: 4000, p_jonai_back: 1500, p_dohan_back: 4000,
+          p_sales_slide: [], p_point_slide: [], p_is_active: true,
+          p_hon_back_mode: "per_count", p_hon_back_rate: null,
+          p_jonai_back_mode: "per_count", p_jonai_back_rate: null,
+          p_dohan_back_mode: "per_count", p_dohan_back_rate: null,
+        });
+        check("mig0115 解錠後に per_count へ戻す（以降の段の前提）", !eBack, eBack?.message);
+      }
       // set_comp_component: owner 成功（guarantee_min/amount）＋audit 形
       const { data: cid, error: eC1 } = await owner.rpc("set_comp_component", {
         p_id: null, p_plan_id: planV2, p_kind: "guarantee_min", p_mode: "amount",

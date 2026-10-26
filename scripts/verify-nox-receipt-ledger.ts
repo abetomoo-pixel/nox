@@ -164,7 +164,8 @@ async function main() {
 
     // ═══ (5) void＝voided・再 void 無音・audit 1回 ═══
     {
-      const vid = r2b!.id;
+      if (!r2b) { check("段56(5) 前提: 分割発行 2 件目（r2b）が成功している", false, (e2b as { message?: string } | null)?.message ?? "null"); throw new Error(`r2b null: ${(e2b as { message?: string } | null)?.message}`); }
+      const vid = r2b.id;
       const { error: eV } = await mgr.rpc("receipt_issue_void", { p_issue_id: vid, p_note: "検証void" });
       const { data: row } = await admin.from("receipt_issues").select("voided, void_note").eq("id", vid).single();
       const { data: au1 } = await admin.from("audit_logs").select("id").eq("action", "receipt_issue_void").eq("target", `receipt_issues:${vid}`);
@@ -188,8 +189,8 @@ async function main() {
         && row?.store_name === origStoreName && row?.biz_date === "2031-05-10"
         && row?.issued_on === todayJst, JSON.stringify(row));
       const keys = Object.keys(row ?? {}).sort();
-      check("段56(9) ★PII 最小＝返却キーは5項目ちょうど（customer/cast/recipient を含まない）",
-        JSON.stringify(keys) === JSON.stringify(["amount", "biz_date", "issued_on", "serial_no", "store_name"]),
+      check("段56(9) ★PII 最小＝返却キーは 11 項目ちょうど（★0175 ★26 簡易インボイス＝宛名・但し書き・税率別内訳・発行者・支払方法・sha256 を追加＝便 ON-1 張替え・customer／cast の id・連絡先は含まない）",
+        JSON.stringify(keys) === JSON.stringify(["amount", "biz_date", "issued_hash", "issued_on", "issuer_snapshot", "payment_method", "proviso", "recipient", "serial_no", "store_name", "tax_breakdown"]),
         JSON.stringify(keys));
     }
 

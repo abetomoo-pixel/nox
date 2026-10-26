@@ -2,9 +2,9 @@
 //   RULES_0175_APPLIED＝false のあいだ: 新しい列・RPC・店設定キーは読まない／書かない・計算は従来経路（golden 不変）・店設定の新項目は出ない。
 //   P175（Agoora 手貼り＝verify_0175_0176.sql の ok 列が全部 true）の後に true へ＝1 行の変更（この定数だけ）。0177 の送り 4 方式も同じ場所に置く。
 //   suite（verify-nox-p175prep）は「false で golden 不変」「true の client 段を fixture で」の両方を見る＝値は関数で読み、テストから差し替えられる形にする。
-export const RULES_0175_APPLIED = false;
+export const RULES_0175_APPLIED = true; // ★便 ON-1（2026-10-26）: 0175 v2（sha16 3979b9fcf596acb7）を Agoora が 10/26 に手貼り＝verify_0175_0176.sql 全 true（関数数 367・表数 104）→ true
 /** ★裁定414（0177）: 送りの 4 方式（'store'／'none'）＝P177 後に true（deduction-panel・profiles・給与右パネルの送りセルが読む） */
-export const OKURI_4WAY_APPLIED = false;
+export const OKURI_4WAY_APPLIED = true; // ★便 ON-1（2026-10-26）: 0177（sha16 e22bfcc3eb93625c）適用済み＝6 本の md5 が起草と一致→ true
 
 /** 読み口（テストで上書きできる）。本番コードは必ずこの関数を通す＝grep で「眠らせた箇所」を数えられる */
 let override0175: boolean | null = null;

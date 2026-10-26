@@ -149,8 +149,10 @@ async function live() {
     // ★便 P173 再開（10/19）: 「適用時点の既存データ」の 6 行は店が使えば変わる（デモ reset・live 確認で ACE の会計前キープ／NOIR の既定の延長が入った）＝構造の行ではない
     //   → 8-1 から外す（mig を当てた時点の確認は handpaste の verify で済み）。使っても崩れない形だけ 8-2 で見る
     const DATA_ROWS = ["既存 bottle_keeps＝active 以外", "is_default_ext true の行", "set_frozen true の伝票", "thresholds 移行＝migrated/total", "slide_apply が null でないプラン", "スライド 4 段以上のプラン"];
-    const ng = r.rows.filter((x) => !x.ok && !DATA_ROWS.includes(x.k));
-    check("p173(8-1) live: verify_0173_0174.sql 31 行のうち構造の 25 行が ok（関数 314・表 87・gated 160・md5 24＋6・列・CHECK・index・policy・引数・ACL）＝適用時点のデータ 6 行は対象外", r.rows.length === 31 && r.rows.filter((x) => DATA_ROWS.includes(x.k)).length === 6 && ng.length === 0, ng.map((x) => `${x.mig} ${x.k} ${x.v}≠${x.expected}`).join(" / "));
+    // ★便 ON-1（2026-10-26）: 0175 v2／0176／0177 の本番適用で正当に変わった行（関数数・表数・gated 数・0175 が置換した関数の md5・set_comp_plan／check_pay の引数）は 8-1 から外す（現在値は verify_0175_0176.sql が見る）
+    const SUPERSEDED_ROWS = ["関数数（0173 のみ＝312）", "表数", "'billing locked' 関数数", "md5 pin 一致 24 本", "md5 不一致の関数名", "md5 pin 一致 6 本", "set_comp_plan 引数", "check_pay 引数"];
+    const ng = r.rows.filter((x) => !x.ok && !DATA_ROWS.includes(x.k) && !SUPERSEDED_ROWS.includes(x.k));
+    check("p173(8-1) live: verify_0173_0174.sql 31 行のうち構造の行が ok（★便 ON-1: 0175 以降で変わった 8 種の行は除外・関数 314・表 87・gated 160・md5 24＋6・列・CHECK・index・policy・引数・ACL）＝適用時点のデータ 6 行は対象外", r.rows.length === 31 && r.rows.filter((x) => DATA_ROWS.includes(x.k)).length === 6 && ng.length === 0, ng.map((x) => `${x.mig} ${x.k} ${x.v}≠${x.expected}`).join(" / "));
     const d = (await db.query(`select
         (select count(*) from public.comp_plan_components c join public.orgs o on o.id = c.org_id
           where not o.is_demo and c.kind = 'achievement_bonus' and exists (select 1 from jsonb_array_elements(c.params->'thresholds') e where not (e ? 'amount')))::int thr_ng`)).rows[0];

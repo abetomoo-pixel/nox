@@ -3,7 +3,7 @@
 // ★便 P175-prep P-4（裁定397＋413・0175 v2 ★9 availability／availability_terms・availability_set）: 基本の働き方の編集カード。
 //   曜日ごと 可／不可／相談＋時間帯・週の出勤日数の目安・適用開始日・メモ。雇用キャストの時間帯は店のみ（本人は表示＋メモで希望）。
 //   RULES_0175_APPLIED=false の間はどこにも mount されない（キャスト詳細と /mine が rules0175On() で出し分け）＝表も RPC も触らない。
-//   通知は audit だけ（RPC 側）。保存＝availability_set（p_rows 7 行・p_terms）。membership は cast_id から解く（memberships の active 行）。
+//   通知は audit だけ（RPC 側）。保存＝availability_set（p_rows 7 行・p_terms）。membership は casts.user_id → memberships（store・active）で解く（★便 ON-1）。
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
@@ -27,7 +27,10 @@ export default function AvailabilityEditor({ castId, storeId, employment, bySelf
   const timeEditable = canEditTimeOf(employment, bySelf);
 
   const load = useCallback(async () => {
-    const { data: m } = await supabase.from("memberships").select("id").eq("cast_id", castId).eq("is_active", true).limit(1).maybeSingle();
+    // ★便 ON-1（2026-10-26）: memberships に cast_id 列は無い（user × store）＝casts.user_id → memberships（store・active）で解く
+    const { data: cs } = await supabase.from("casts").select("user_id").eq("id", castId).maybeSingle();
+    const uid = (cs?.user_id as string | null | undefined) ?? null;
+    const { data: m } = uid ? await supabase.from("memberships").select("id").eq("user_id", uid).eq("store_id", storeId).eq("is_active", true).limit(1).maybeSingle() : { data: null };
     const mid = (m?.id as string | undefined) ?? null;
     setMembershipId(mid);
     if (!mid) { setLoaded(true); return; }

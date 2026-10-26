@@ -71,12 +71,13 @@ export async function loadCastMeta0175(admin: SupabaseClient, storeId: string, c
   const out = new Map<string, { membershipId: string | null; joinedOn: string | null }>();
   if (castIds.length === 0) return out;
   const [cs, ms] = await Promise.all([
-    admin.from("casts").select("id, joined_on").in("id", castIds as string[]),
-    admin.from("memberships").select("id, cast_id").eq("store_id", storeId).eq("is_active", true).in("cast_id", castIds as string[]),
+    admin.from("casts").select("id, user_id, joined_on").in("id", castIds as string[]),
+    admin.from("memberships").select("id, user_id").eq("store_id", storeId).eq("is_active", true), // ★便 ON-1（2026-10-26）: memberships に cast_id 列は無い（user × store）＝casts.user_id で結ぶ（本番 0175 後の初走で発覚）
   ]);
   if (cs.error) throw new Error(`casts(0175): ${cs.error.message}`);
   if (ms.error) throw new Error(`memberships(0175): ${ms.error.message}`);
-  for (const c of (cs.data ?? []) as { id: string; joined_on: string | null }[]) out.set(c.id, { membershipId: null, joinedOn: c.joined_on });
-  for (const m of (ms.data ?? []) as { id: string; cast_id: string }[]) out.set(m.cast_id, { ...(out.get(m.cast_id) ?? { joinedOn: null }), membershipId: m.id });
+  const memByUser = new Map<string, string>();
+  for (const m of (ms.data ?? []) as { id: string; user_id: string | null }[]) if (m.user_id) memByUser.set(m.user_id, m.id);
+  for (const c of (cs.data ?? []) as { id: string; user_id: string | null; joined_on: string | null }[]) out.set(c.id, { membershipId: (c.user_id && memByUser.get(c.user_id)) || null, joinedOn: c.joined_on });
   return out;
 }

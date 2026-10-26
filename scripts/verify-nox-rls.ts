@@ -1830,9 +1830,11 @@ async function main() {
     const { error: eAdvC } = await ca.rpc("adv_issue", { p_store_id: storeA1Id, p_cast_id: castIdA, p_amount: 1000, p_advanced_on: "2028-01-05", p_note: null });
     check("F2e-2 cast adv_issue 拒否", forbidden(eAdvC), eAdvC?.message ?? "通ってしまった");
 
-    // 送り実費: okuri_mode='flat'（既定）は transport_issue 拒否（構造的排他 L3'）→ owner が actual 切替で成功
-    const { error: eTrFlat } = await m.rpc("transport_issue", { p_store_id: storeA1Id, p_cast_id: castIdA, p_amount: 3000, p_biz_date: "2028-01-05", p_note: null });
-    check("F2e-2 transport_issue okuri flat 拒否（okuri not actual）", !!eTrFlat?.message?.includes("okuri not actual"), eTrFlat?.message ?? "通ってしまった");
+    // 送り実費: ★0177（裁定414・便 ON-1 で張替え）＝flat の店も transport_issue を受理（行に mode='flat'＝控除のみ）・'none' の店だけ 'okuri none' で拒否→ owner が actual 切替で成功（以降の行数の前提＝castA1a 1 行）
+    const { error: eModeN } = await owner.rpc("set_store_okuri_mode", { p_store_id: storeA1Id, p_mode: "none" });
+    check("F2e-2 owner set_store_okuri_mode='none' 成功（★0177 の 4 値）", !eModeN, eModeN?.message);
+    const { error: eTrNone } = await m.rpc("transport_issue", { p_store_id: storeA1Id, p_cast_id: castIdA, p_amount: 3000, p_biz_date: "2028-01-05", p_note: null });
+    check("F2e-2 transport_issue okuri none 拒否（okuri none・★0177）", !!eTrNone?.message?.includes("okuri none"), eTrNone?.message ?? "通ってしまった");
     const { error: eModeO } = await owner.rpc("set_store_okuri_mode", { p_store_id: storeA1Id, p_mode: "actual" });
     check("F2e-2 owner set_store_okuri_mode='actual' 成功", !eModeO, eModeO?.message);
     const { data: trA, error: eTrM } = await m.rpc("transport_issue", { p_store_id: storeA1Id, p_cast_id: castIdA, p_amount: 3000, p_biz_date: "2028-01-05", p_note: null });

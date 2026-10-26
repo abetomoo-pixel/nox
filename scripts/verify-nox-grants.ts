@@ -454,11 +454,11 @@ async function main() {
       const ix = await db.query(`select indexname, indexdef from pg_indexes where schemaname='public' and indexname in ('advances_store_idem_uidx','transport_store_idem_uidx') order by 1`);
       check("G9 0157 unique index 2 本＝advances_store_idem_uidx／transport_store_idem_uidx（(store_id, idem_key) WHERE idem_key IS NOT NULL）", ix.rowCount === 2 && ix.rows.every((r) => /USING btree \(store_id, idem_key\) WHERE \(idem_key IS NOT NULL\)$/.test(r.indexdef as string)), ix.rows.map((r) => r.indexname).join(","));
       const cc = await db.query(`select table_name, count(*)::int n, bool_or(column_name='idem_key') has_idem from information_schema.columns where table_schema='public' and table_name in ('advances','transport') group by 1 order by 1`);
-      check("G9 0157 列集合: advances 16 列／transport 15 列（idem_key を含む）", cc.rowCount === 2 && cc.rows[0].n === 16 && cc.rows[0].has_idem === true && cc.rows[1].n === 15 && cc.rows[1].has_idem === true, JSON.stringify(cc.rows));
+      check("G9 0157 列集合: advances 16 列／transport 16 列（idem_key を含む・★0177 +mode＝便 ON-1 張替え）", cc.rowCount === 2 && cc.rows[0].n === 16 && cc.rows[0].has_idem === true && cc.rows[1].n === 16 && cc.rows[1].has_idem === true, JSON.stringify(cc.rows));
       // ★0153（裁定305）: 列集合＝customers 18（+4）／bottle_keeps 15（+2）／check_lines 21（+customer_id）／check_customers 8・kind CHECK 11 値
       const c153 = await db.query(`select table_name, count(*)::int n from information_schema.columns where table_schema='public' and table_name in ('customers','bottle_keeps','check_lines','check_customers') group by 1 order by 1`);
       const n153 = Object.fromEntries(c153.rows.map((r) => [r.table_name, r.n]));
-      check("G9 0153 列集合: customers 18／bottle_keeps 16（★0158: +check_line_id）／check_lines 21／check_customers 8", n153.customers === 18 && n153.bottle_keeps === 16 && n153.check_lines === 21 && n153.check_customers === 8, JSON.stringify(n153));
+      check("G9 0153 列集合: customers 18／bottle_keeps 17（★0158: +check_line_id・★0175 +tag_label）／check_lines 22（★0175 +fee_rate）／check_customers 8", n153.customers === 18 && n153.bottle_keeps === 17 && n153.check_lines === 22 && n153.check_customers === 8, JSON.stringify(n153));
       const k153 = await db.query(`select pg_get_constraintdef(oid) d from pg_constraint where conname='check_lines_kind_check'`);
       check("G9 0153 check_lines_kind_check＝11 値（+keep_out）", (k153.rows[0]?.d as string).includes("'keep_out'") && ((k153.rows[0]?.d as string).match(/::text/g) || []).length === 11, k153.rows[0]?.d);
       // ★0155（裁定309-3）: cast_sensitive 11 列（+mynumber_deleted_at／mynumber_deleted_by／mynumber_deletion_method・別表なし）
@@ -467,7 +467,7 @@ async function main() {
       // ★0156（裁定309-6／8／9）: 列集合＝punches 14（+okuri）／daily_pays 12／payroll_run_deduction_overrides 10・新表 2 の policy＝select 1 本ずつ・unique（run_id, cast_id, deduction_id）
       const c156 = await db.query(`select table_name, count(*)::int n from information_schema.columns where table_schema='public' and table_name in ('punches','daily_pays','payroll_run_deduction_overrides') group by 1 order by 1`);
       const n156 = Object.fromEntries(c156.rows.map((r) => [r.table_name, r.n]));
-      check("G9 0156 列集合: punches 14（+okuri）／daily_pays 14（★0158: +settle_period・★0172: +kind）／payroll_run_deduction_overrides 10", n156.punches === 14 && n156.daily_pays === 14 && n156.payroll_run_deduction_overrides === 10, JSON.stringify(n156));
+      check("G9 0156 列集合: punches 15（+okuri・★0175 +geo_override）／daily_pays 17（★0158: +settle_period・★0172: +kind・★0175 +cancelled_at／cancelled_by／cancel_reason）／payroll_run_deduction_overrides 10", n156.punches === 15 && n156.daily_pays === 17 && n156.payroll_run_deduction_overrides === 10, JSON.stringify(n156));
       const p156 = await db.query(`select tablename, policyname, cmd from pg_policies where schemaname='public' and tablename in ('daily_pays','payroll_run_deduction_overrides') order by 1`);
       check("G9 0156 新表 2 の policy＝select 1 本ずつ（daily_pays_select／payroll_run_deduction_overrides_select）", p156.rowCount === 2 && p156.rows.every((r) => r.cmd === "SELECT") && p156.rows.map((r) => r.policyname).join(",") === "daily_pays_select,payroll_run_deduction_overrides_select", JSON.stringify(p156.rows));
       const u156 = await db.query(`select conname from pg_constraint where conname in ('payroll_run_deduction_overrides_uniq','daily_pays_idem_key_key','daily_pays_net_ck') order by 1`);
@@ -482,7 +482,7 @@ async function main() {
       const n158 = await db.query(`select table_name || '.' || column_name c, is_nullable from information_schema.columns where table_schema='public' and (table_name, column_name) in (('daily_pays','settle_period'),('bottle_keeps','check_line_id'),('transport','created_by')) order by 1`);
       check("G9 0158 列 3（bottle_keeps.check_line_id／daily_pays.settle_period／transport.created_by）＝すべて null 可", n158.rowCount === 3 && n158.rows.every((r) => r.is_nullable === "YES"), JSON.stringify(n158.rows));
       const t158 = await db.query(`select count(*)::int n from information_schema.columns where table_schema='public' and table_name='transport'`);
-      check("G9 0158 transport 15 列のまま（created_by は null 可に変えただけ）", t158.rows[0]?.n === 15, String(t158.rows[0]?.n));
+      check("G9 0158 transport 16 列（created_by は null 可に変えただけ・★0177 +mode）", t158.rows[0]?.n === 16, String(t158.rows[0]?.n));
       // ★0160（裁定326／追補1・2・起票95／96）: 列集合＝cast_quotas 11／cast_notice_reads 5／reservations 21（+4）／shift_wishes 13（+kind）／staff_shift_patterns 11（+disabled_from）・
       //   新表 2 の policy＝select 1 本ずつ・reservations_status_chk に pending／rejected・shift_wishes_hm_kind_ck（work＝時刻必須 is not null＝教訓100／off＝null）・cast_quotas_uq
       const c160 = await db.query(`select table_name, count(*)::int n from information_schema.columns where table_schema='public' and table_name in ('cast_quotas','cast_notice_reads','reservations','shift_wishes','staff_shift_patterns') group by 1 order by 1`);
