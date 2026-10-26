@@ -46,6 +46,7 @@ type Draft = {
   payTimeBasis: "punch" | "shift"; lateGraceMin: number | null; norms: boolean; okuriBase: number;
   billingMode: "table" | "individual" | "mixed"; cardFee: { on: boolean; rate: number }; receivablePolicy: ReceivablePolicy; flags: Record<string, boolean>; mine: MineSettings;
   prodSel?: Record<string, { on: boolean; name: string; price: number }>; ops?: OpsProfile; // ★便 W5-2a（331 ⑱・0164）
+  ob?: { holidays: number[]; taxRounding: "floor" | "round" | "ceil" }; // ★OB 便（定休日・端数の扱い）
   savedAt: string;
 };
 
@@ -94,6 +95,8 @@ export default function SetupWizard({ store, counts, orgFlags, isOwner }: {
   const [tel, setTel] = useState(store.current.receipt.tel);
   const [address, setAddress] = useState(store.current.receipt.address);
   const [hours, setHours] = useState<{ open: string; close: string; cutoff: string }>({ open: "20:00", close: "01:00", cutoff: "06:00" });
+  // ★OB 便（初期設定 v4）: 定休日（0＝日〜6＝土）・端数の扱い（既定＝店の現値＝新しい店は切り捨て＝現行の計算）
+  const [ob, setOb] = useState<{ holidays: number[]; taxRounding: "floor" | "round" | "ceil" }>(() => ({ holidays: [], taxRounding: ((store.current as { tax?: { tax_rounding?: string } }).tax?.tax_rounding as "floor" | "round" | "ceil" | undefined) ?? "floor" }));
   const [hoursTouched, setHoursTouched] = useState(false);
   const [seats, setSeats] = useState<SeatCounts | null>(null);
   // STEP 2〜3
@@ -161,6 +164,7 @@ export default function SetupWizard({ store, counts, orgFlags, isOwner }: {
           setPayTimeBasis(d.payTimeBasis); setLateGraceMin(d.lateGraceMin); setNorms(d.norms); setOkuriBase(d.okuriBase); setBillingMode(d.billingMode); setCardFee(d.cardFee);
           setReceivablePolicy(d.receivablePolicy); setFlags(d.flags); setMine(d.mine); setRestoredAt(d.savedAt);
           if (d.prodSel) setProdSel(d.prodSel); if (d.ops) setOps(d.ops); // ★便 W5-2a
+          if (d.ob) setOb(d.ob); // ★OB 便
         }
       }
     } catch { /* 下書きが壊れていれば無視（最初から） */ }
@@ -168,9 +172,9 @@ export default function SetupWizard({ store, counts, orgFlags, isOwner }: {
   }, [store.id]);
   useEffect(() => {
     if (!hydrated || !biz || run.completed) return;
-    const d: Draft = { step, visited, skipped, biz, features, storeName, tel, address, hours, hoursTouched, seats, pricing, includeProducts, plans, planIdx, payTimeBasis, lateGraceMin, norms, okuriBase, billingMode, cardFee, receivablePolicy, flags, mine, prodSel, ops, savedAt: new Date().toISOString() };
+    const d: Draft = { step, visited, skipped, biz, features, storeName, tel, address, hours, hoursTouched, seats, pricing, includeProducts, plans, planIdx, payTimeBasis, lateGraceMin, norms, okuriBase, billingMode, cardFee, receivablePolicy, flags, mine, prodSel, ops, ob, savedAt: new Date().toISOString() };
     try { window.localStorage.setItem(DRAFT_KEY(store.id), JSON.stringify(d)); } catch { /* 容量超過などは無視 */ }
-  }, [hydrated, run.completed, store.id, step, visited, skipped, biz, features, storeName, tel, address, hours, hoursTouched, seats, pricing, includeProducts, plans, planIdx, payTimeBasis, lateGraceMin, norms, okuriBase, billingMode, cardFee, receivablePolicy, flags, mine, prodSel, ops]);
+  }, [hydrated, run.completed, store.id, step, visited, skipped, biz, features, storeName, tel, address, hours, hoursTouched, seats, pricing, includeProducts, plans, planIdx, payTimeBasis, lateGraceMin, norms, okuriBase, billingMode, cardFee, receivablePolicy, flags, mine, prodSel, ops, ob]);
   function restart() {
     try { window.localStorage.removeItem(DRAFT_KEY(store.id)); } catch { /* noop */ }
     window.location.reload();
@@ -179,8 +183,8 @@ export default function SetupWizard({ store, counts, orgFlags, isOwner }: {
   const changedFlags = Object.keys(FLAG_LABELS).filter((k) => (orgFlags.find((f) => f.key === k)?.enabled ?? false) !== flags[k]).map((k) => ({ key: k, enabled: flags[k] }));
   const plan: PlanStep[] = useMemo(() => (biz && features && pricingEff)
     ? buildSetupPlan({ storeId: store.id, biz, features, storeName: storeName.trim() !== store.name ? storeName : null, tel, address, hours, seats: seatsEff, includeProducts, products: productsEff, pricing: pricingEff, plans: plansEff,
-      payTimeBasis, lateGraceMin, norms, okuriBase, billingMode, cardFee, receivablePolicy, mine, current: store.current, flags: changedFlags, ops }) // ★便 W5-2a: 選択した商品だけ・会計と運用の差分
-    : [], [biz, features, pricingEff, store, storeName, tel, address, hours, seatsEff, includeProducts, productsEff, plansEff, payTimeBasis, lateGraceMin, norms, okuriBase, billingMode, cardFee, receivablePolicy, mine, changedFlags, ops]);
+      payTimeBasis, lateGraceMin, norms, okuriBase, billingMode, cardFee, receivablePolicy, mine, current: store.current, flags: changedFlags, ops, ob }) // ★便 W5-2a: 選択した商品だけ・会計と運用の差分
+    : [], [biz, features, pricingEff, store, storeName, tel, address, hours, seatsEff, includeProducts, productsEff, plansEff, payTimeBasis, lateGraceMin, norms, okuriBase, billingMode, cardFee, receivablePolicy, mine, changedFlags, ops, ob]);
   const summary = planSummaryOf(plan);
 
   async function refreshCounts() {
@@ -356,6 +360,16 @@ export default function SetupWizard({ store, counts, orgFlags, isOwner }: {
                 <label style={{ display: "block" }}><span style={t.fieldLabel}>営業終了</span><br /><input type="time" value={hours.close} onChange={(e) => { setHoursTouched(true); setHours((h) => ({ ...h, close: e.target.value })); }} style={input} /></label>
                 <label style={{ display: "block" }}><span style={t.fieldLabel}>営業日の切替時刻</span><br /><input type="time" value={hours.cutoff} onChange={(e) => { setHoursTouched(true); setHours((h) => ({ ...h, cutoff: e.target.value })); }} style={input} /></label>
                 <div style={{ fontSize: 12, color: "var(--sub)", alignSelf: "center" }}>営業日の区切り: {bizNoteOf(hours.open, hours.close)}</div>
+              </div>
+              {/* ★OB 便（初期設定 v4）: 定休日（複数・無ければ選ばない）＝営業時間の曜日に定休日として保存（シフトの定休日・予約の受付も同じ） */}
+              <div style={{ marginTop: 10 }} data-setup-holidays="1">
+                <span style={t.fieldLabel}>定休日（複数選べます・無ければ選ばない）</span>
+                <div className="nox-seg" role="group" aria-label="定休日" style={{ marginTop: 4, width: "fit-content" }}>
+                  {["日", "月", "火", "水", "木", "金", "土"].map((d, i) => (
+                    <button key={d} type="button" className={ob.holidays.includes(i) ? "on" : ""} aria-pressed={ob.holidays.includes(i)}
+                      onClick={() => setOb((x) => ({ ...x, holidays: x.holidays.includes(i) ? x.holidays.filter((h) => h !== i) : [...x.holidays, i].sort() }))}>{d}</button>
+                  ))}
+                </div>
               </div>
               <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end", marginTop: 10 }}>
                 <NumField label="通常席" value={seatsEff.table_count} unit="卓" onChange={(n) => setSeats({ ...seatsEff, table_count: Math.max(0, n) })} width={90} />
@@ -537,6 +551,9 @@ export default function SetupWizard({ store, counts, orgFlags, isOwner }: {
           </Row>
           <Row title="給与の支払日" sub="翌月 1〜31 日・締め日は月末固定（表示と案内に使います）">
             <NumField label="支払日" value={Number(ops.pay_day) || 0} unit="日" width={70} onChange={(n) => setOps({ ...ops, pay_day: String(Math.max(1, Math.min(31, Math.round(n || 1)))) })} />
+          </Row>
+          <Row title="端数の扱い" sub="サービス料・税・手数料の 1 円未満（あとで料金の会計ルールから変更可）">{/* ★OB 便: set_store_tax_config の p_tax_rounding */}
+            <SegSelect value={ob.taxRounding} onChange={(v) => setOb((x) => ({ ...x, taxRounding: v as "floor" | "round" | "ceil" }))} options={[["floor", "切り捨て"], ["round", "四捨五入"], ["ceil", "切り上げ"]] as const} ariaLabel="端数の扱い" />
           </Row>
           <Row title="消費税の表示" sub="ON＝内税で表示（計算は変わりません）"><Switch on={ops.tax_inclusive_display} onChange={(v) => setOps({ ...ops, tax_inclusive_display: v })} label="消費税の表示（内税）" /></Row>
           <Row title="VIP 席を使う" sub="OFF にするとレジの卓席と席マスタに VIP を出しません"><Switch on={ops.use_vip} onChange={(v) => setOps({ ...ops, use_vip: v })} label="VIP 席を使う" /></Row>

@@ -282,6 +282,9 @@ export type SetupCurrent = {
   receipt: { address: string; tel: string; reg_no: string; footer: string }; // set_store_receipt_profile の現値（4 引数明示送信＝原則7）
   mine: MineSettings; // set_store_mine_settings の差分元
   ops?: OpsProfile; // ★0164（便 W5-2a）: 会計と運用（stores の列 7 つ）の現値＝差分だけ settings の patch に同乗
+  /** ★OB 便（初期設定 v4）: 税設定の現値（set_store_tax_config は 7 引数全値明示＝原則7）・送りの方式（settings_json.okuri_mode・無い＝未設定） */
+  tax?: { business_tax_status: string; price_display: string; invoice_status: string; invoice_reg_no: string | null; tax_rounding: string; card_surcharge_rate: number | null };
+  okuriMode?: string | null;
 };
 export type SetupSelection = {
   storeId: string;
@@ -306,6 +309,8 @@ export type SetupSelection = {
   current: SetupCurrent;
   flags?: Array<{ key: string; enabled: boolean }>;
   ops?: OpsProfile; // ★0164（便 W5-2a）: STEP 5「会計と運用」の入力（current.ops との差分だけを settings の patch に同乗・同じ set_store_profile）
+  /** ★OB 便（初期設定 v4）: 定休日（0＝日〜6＝土）・端数の扱い（サービス料・税・手数料）＝set_store_tax_config。未指定＝従来どおり */
+  ob?: { holidays: number[]; taxRounding: "floor" | "round" | "ceil" };
 };
 
 export function buildSetupPlan(sel: SetupSelection): PlanStep[] {
@@ -335,11 +340,24 @@ export function buildSetupPlan(sel: SetupSelection): PlanStep[] {
   if (Object.keys(minePatch).length > 0) {
     steps.push({ key: "mine", group: "settings", label: `キャストのスマホ画面（${Object.keys(minePatch).length} 項目）`, rpc: "set_store_mine_settings", args: { p_store_id: s, p_settings: minePatch } });
   }
+  // ★OB 便（初期設定 v4）: 税設定＝端数の扱い・インボイス（登録番号があれば登録・課税）＝set_store_tax_config（7 引数全値明示・変わるときだけ）
+  if (sel.ob && sel.current.tax) {
+    const t0 = sel.current.tax; const reg = /^T[0-9]{13}$/.test(sel.current.receipt.reg_no.trim()) ? sel.current.receipt.reg_no.trim() : null;
+    const inv = reg && t0.business_tax_status === "taxable" ? "registered" : "unregistered";
+    if (sel.ob.taxRounding !== t0.tax_rounding || inv !== t0.invoice_status || (reg ?? null) !== (t0.invoice_reg_no ?? null)) {
+      steps.push({ key: "tax_config", group: "settings", label: `税設定（端数 ${({ floor: "切り捨て", round: "四捨五入", ceil: "切り上げ" } as const)[sel.ob.taxRounding]}・インボイス ${inv === "registered" ? "登録" : "未登録"}）`, rpc: "set_store_tax_config",
+        args: { p_store_id: s, p_business_tax_status: t0.business_tax_status, p_price_display: t0.price_display, p_invoice_status: inv, p_invoice_reg_no: inv === "registered" ? reg : null, p_tax_rounding: sel.ob.taxRounding, p_card_surcharge_rate: t0.card_surcharge_rate } });
+    }
+  }
+  // ★OB 便（Agoora 確定 10/26）: 新しい店の既定＝送りは定額徴収（未設定の店だけ明示＝店のドライバーの定額）・ノルマを使う店は 4 軸（日数・同伴・売上・指名）
+  if (sel.ob && !sel.current.okuriMode) steps.push({ key: "okuri_mode", group: "settings", label: "送りの方式＝定額徴収（店のドライバーの定額）", rpc: "set_store_okuri_mode", args: { p_store_id: s, p_mode: "flat" } });
+  if (sel.ob && sel.norms) steps.push({ key: "norm_axes", group: "settings", label: "ノルマの軸＝日数・同伴・売上・指名の 4 軸", rpc: "set_store_norm_axes", args: { p_store_id: s, p_axes: { days: true, dohan: true, sales: true, shimei: true } } });
   // 2) 営業時間 7 曜日＋cutoff
   const close30 = to30h(sel.hours.open, sel.hours.close);
   for (let dow = 0; dow <= 6; dow++) {
-    steps.push({ key: `hours_${dow}`, group: "hours", label: `営業時間（${"日月火水木金土"[dow]}）${sel.hours.open}〜${close30}`, rpc: "set_store_business_hours",
-      args: { p_store_id: s, p_dow: dow, p_is_closed: false, p_open_hm: sel.hours.open, p_close_hm: close30 } });
+    const closed = (sel.ob?.holidays ?? []).includes(dow); // ★OB 便: 定休日
+    steps.push({ key: `hours_${dow}`, group: "hours", label: closed ? `営業時間（${"日月火水木金土"[dow]}）定休日` : `営業時間（${"日月火水木金土"[dow]}）${sel.hours.open}〜${close30}`, rpc: "set_store_business_hours",
+      args: { p_store_id: s, p_dow: dow, p_is_closed: closed, p_open_hm: closed ? null : sel.hours.open, p_close_hm: closed ? null : close30 } });
   }
   steps.push({ key: "cutoff", group: "hours", label: `営業日の切替時刻 ${sel.hours.cutoff}`, rpc: "set_store_biz_cutoff", args: { p_store_id: s, p_hm: sel.hours.cutoff } });
   // 3) 席（既存 0 のときだけ）

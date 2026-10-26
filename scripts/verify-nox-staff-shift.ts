@@ -297,7 +297,10 @@ async function main() {
       check("ss(6b) ★当日の wish_set は deadline_passed（既定＝3 日前 21:00）", has(wT.error, "deadline_passed"), wT.error?.message ?? "通ってしまった");
       const dl = await mgr.rpc("staff_deadline_set", { p_store_id: storeA1, p_days_before: 0, p_deadline_hm: "23:59", p_effective_from: today });
       check("ss(6c) manager の deadline_set（当日 23:59・今日から）が通る", !dl.error && typeof dl.data === "string", dl.error?.message);
-      const wT2 = await staff.rpc("staff_wish_set", { p_biz_date: today, p_pattern_id: P1, p_available: false, p_note: null });
+      // ★2026-10-27（夜間便の f0）: 締め切りの上限は営業日の 23:59（::time）＝暦日 0:00〜cutoff（06:00）の間は当日の締め切りがもう過ぎている＝その時間帯だけ翌営業日（版は 4 章の P1c）で確かめる（時計に依存しない）
+      const afterMidnight = (await db.query(`select (now() at time zone 'Asia/Tokyo') >= ($1::date + time '23:59') as p`, [today])).rows[0].p === true;
+      const wishDay = afterMidnight ? addDays(today, 1) : today;
+      const wT2 = await staff.rpc("staff_wish_set", { p_biz_date: wishDay, p_pattern_id: afterMidnight ? P1c : P1, p_available: false, p_note: null });
       check("ss(6d) ★deadlines 行（当日 23:59）で当日の wish_set が通る（effective_from 型の解決）", !wT2.error, wT2.error?.message);
       const wC = await cast.rpc("staff_wish_set", { p_biz_date: D5, p_pattern_id: P1, p_available: true, p_note: null });
       check("ss(6e) cast の wish_set は forbidden", has(wC.error, "forbidden"), wC.error?.message ?? "通ってしまった");

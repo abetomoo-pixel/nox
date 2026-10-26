@@ -53,7 +53,7 @@ const src = (p: string) => fs.readFileSync(p, "utf8");
   const wz = src("app/(manage)/setup/setup-wizard.tsx"), pg = src("app/(manage)/setup/page.tsx"), tp = src("lib/nox/setup/template-plan.ts");
   check("sw(1-1) STEP 5 に会計と運用（インボイス登録日 date／支払日 NumField／消費税の表示／VIP 席を使う／カウンターを使う／支払い方法／出退勤の打刻）・ops を buildSetupPlan へ・確認表に opsSummaryOf",
     wz.includes(">会計と運用 <span") && wz.includes('aria-label="インボイス登録日"') && wz.includes('label="支払日"') && wz.includes('label="消費税の表示（内税）"') && wz.includes('label="VIP 席を使う"') && wz.includes('label="カウンターを使う"')
-    && wz.includes("PAYMENT_METHOD_LABEL.map(") && wz.includes("PUNCH_METHOD_LABEL.map(") && wz.includes("flags: changedFlags, ops })") && wz.includes("／${opsSummaryOf(ops)}`]"));
+    && wz.includes("PAYMENT_METHOD_LABEL.map(") && wz.includes("PUNCH_METHOD_LABEL.map(") && wz.includes("flags: changedFlags, ops, ob })") && wz.includes("／${opsSummaryOf(ops)}`]"));
   check("sw(1-2) page が列 7 つの現値を渡す（ops: opsProfileOf）・template-plan が差分を settings の patch に同乗（opsPatchOf）・SetupSelection.ops／SetupCurrent.ops",
     pg.includes("ops: opsProfileOf(target as unknown as Record<string, unknown>)") && pg.includes("invoice_registered_on, pay_day, tax_inclusive_display, use_vip, use_counter, payment_methods, punch_methods")
     && tp.includes("...(sel.ops && sel.current.ops ? opsPatchOf(sel.ops, sel.current.ops) : {}) };") && tp.includes("ops?: OpsProfile; // ★0164（便 W5-2a）: STEP 5"));
@@ -62,7 +62,7 @@ const src = (p: string) => fs.readFileSync(p, "utf8");
     wz.includes("const [prodSel, setProdSel] = useState<Record<string, { on: boolean; name: string; price: number }>>({});") && wz.includes("const productsEff = useMemo(() => products.filter((p) => (prodSel[p.name]?.on ?? true)).map((p) => {")
     && wz.includes('aria-label="全部を選択"') && wz.includes("aria-label={`${p.name} を取り込む`}") && wz.includes("aria-label={`${p.name} の名前`}") && wz.includes("aria-label={`${p.name} の価格`}")
     && wz.includes("includeProducts, products: productsEff, pricing: pricingEff") && wz.includes("productOverrideArgs(store.id, productsEff, productRows)") && wz.includes("const pp = useMemo(() => productsPlanOf(productsEff), [productsEff]);")
-    && wz.includes("商品テンプレを取り込む（チェックした {pp.included.length} / {ppAll.included.length} 件") && wz.includes("mine, prodSel, ops, savedAt:") && wz.includes("if (d.prodSel) setProdSel(d.prodSel); if (d.ops) setOps(d.ops);"));
+    && wz.includes("商品テンプレを取り込む（チェックした {pp.included.length} / {ppAll.included.length} 件") && wz.includes("mine, prodSel, ops, ob, savedAt:") && wz.includes("if (d.prodSel) setProdSel(d.prodSel); if (d.ops) setOps(d.ops);"));
 }
 // fl(1)
 {
