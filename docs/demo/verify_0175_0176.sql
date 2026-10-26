@@ -8,7 +8,7 @@ with pins(name, md5) as (
       ('pt_rules_check','cc622435'),
       ('check_pay','798b9b99'),
       ('check_group_due','dc4163e6'),  -- ★0178（2026-10-26・closed の丸め NULL 修正）＝0178 適用後の値（適用前は ea7754a9）
-      ('receipt_issue','8f036095'),
+      ('receipt_issue','c564a8d7'),  -- ★0179（2026-10-26・v_old 未代入の修正）＝0179 適用後の値（適用前は 8f036095）
       ('set_store_profile','23cd5573'),
       ('set_comp_plan','e9143f01'),
       ('cast_sales_aggregate','8fb314c5'),
