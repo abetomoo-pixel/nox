@@ -7,7 +7,7 @@ with pins(name, md5) as (
   values
       ('pt_rules_check','cc622435'),
       ('check_pay','798b9b99'),
-      ('check_group_due','ea7754a9'),
+      ('check_group_due','dc4163e6'),  -- ★0178（2026-10-26・closed の丸め NULL 修正）＝0178 適用後の値（適用前は ea7754a9）
       ('receipt_issue','8f036095'),
       ('set_store_profile','23cd5573'),
       ('set_comp_plan','e9143f01'),
@@ -126,7 +126,7 @@ with pins(name, md5) as (
   union all select '0176', 'line_bind_tokens に authenticated／anon の付与 0', (select count(*) from information_schema.role_table_grants where grantee in ('authenticated','anon') and table_schema='public' and table_name='line_bind_tokens')::text, '0'
   union all select '0176', 'supabase_vault', (select count(*) from pg_extension where extname='supabase_vault')::text, '1'
   union all select 'both', 'md5 不一致の関数名（空＝全一致）', (select coalesce(string_agg(p.name, ',' order by p.name), '') from pins p left join pg_proc f on f.pronamespace='public'::regnamespace and f.proname = p.name and left(md5(replace(f.prosrc, E'\r', '')), 8) = p.md5 where f.oid is null), ''
-  union all select 'both', '関数数（0174 後 314＋20（0175 v2）＋23（0176）＝357）', (select count(*) from pg_proc where pronamespace='public'::regnamespace)::text, '357'
+  union all select 'both', '関数数（0174 後 314＋30（0175 v2 追補 2・3 込み）＋23（0176）＝367）', (select count(*) from pg_proc where pronamespace='public'::regnamespace)::text, '367'
   union all select 'both', '表数（0174 後 87＋8（0175 v2）＋9（0176）＝104）', (select count(*) from pg_tables where schemaname='public')::text, '104'
 )
 select mig, k, v, expected, (v = expected) as ok from r;
