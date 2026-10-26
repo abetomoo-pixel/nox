@@ -1,4 +1,7 @@
 import { redirect } from "next/navigation";
+import { okuriTiersOn } from "@/lib/nox/rules-0175/flag"; // ★裁定414 追補（0180）
+// ★裁定414 追補（0180）: okuri_tier はフラグ true のときだけ select（列が無い本番で落ちない）。string 型にして supabase-js の型パーサを通さない
+const CAST_LOGIN_COLS: string = okuriTiersOn() ? "id, name, user_id, photo_updated_at, is_active, store_id, left_on, rank_id, joined_on, kind, employment, employment_valid_from, shift_request_mode, okuri_tier" : "id, name, user_id, photo_updated_at, is_active, store_id, left_on, rank_id, joined_on, kind, employment, employment_valid_from, shift_request_mode";
 import { createClient } from "@/lib/supabase/server";
 import { getSessionRole } from "@/lib/nox/auth";
 import CastsBoard from "./casts-board";
@@ -25,14 +28,14 @@ export default async function CastsPage() {
   //   （RLS スコープは不変＝取れる範囲は従来どおり自店/自 org）。
   const { data: loginCasts } = await supabase
     .from("casts")
-    .select("id, name, user_id, photo_updated_at, is_active, store_id, left_on, rank_id, joined_on, kind, employment, employment_valid_from, shift_request_mode") // ★0154 D2／D6: 契約区分（報酬型の出し分け・区分変更）・★便 GV-C C-14f（裁定396）: 在籍区分
+    .select(CAST_LOGIN_COLS) // ★裁定414 追補（0180）: okuri_tier はフラグ true のときだけ（列が無い本番で落ちない） // ★0154 D2／D6: 契約区分（報酬型の出し分け・区分変更）・★便 GV-C C-14f（裁定396）: 在籍区分
     .order("name");
   // D2-4（mig0083/0085）: 指名ランクの割当 UI 用。RLS は owner/manager のみ返す（料率系と同スコープ）。
   const { data: ranks } = await supabase.from("cast_ranks")
     .select("id, name, is_active").order("sort_order").order("name");
   // ★裁定193（B1・K7）: メール未登録 KPI＝配下 cast の users.email（RLS 実測 2026-09-09: owner/manager とも配下 cast 分は可読）。
   //   読取のみ・1 クエリ。email は KPI の判定にだけ使い、画面には出さない。
-  const castUserIds = ((loginCasts ?? []) as { user_id: string | null }[]).map((c) => c.user_id).filter((v): v is string => !!v);
+  const castUserIds = ((loginCasts ?? []) as unknown as unknown as { user_id: string | null }[]).map((c) => c.user_id).filter((v): v is string => !!v);
   const { data: castUsers } = castUserIds.length
     ? await supabase.from("users").select("id, email").in("id", castUserIds)
     : { data: [] as { id: string; email: string | null }[] };
@@ -44,7 +47,7 @@ export default async function CastsPage() {
       stores={(stores ?? []) as { id: string; name: string; settings_json?: Record<string, unknown> | null }[]}
       myStoreId={(myStoreId as string | null) ?? ""}
       initialTrials={(trials ?? []) as Trial[]}
-      initialLoginCasts={(loginCasts ?? []) as CastLogin[]}
+      initialLoginCasts={(loginCasts ?? []) as unknown as CastLogin[]}
       ranks={(ranks ?? []) as { id: string; name: string; is_active: boolean }[]}
     />
   );
@@ -58,4 +61,4 @@ export type Trial = {
 
 // 段C2: 退店済み（is_active=false）も取ってフィルタで出し分けるため is_active/store_id を追加。
 // mig0074: left_on（退店日・date "YYYY-MM-DD"）。null=在籍中（CHECK casts_active_left_on_chk で is_active と一対一）。
-export type CastLogin = { kind?: string | null; /* ★便 GV-C C-14f（裁定396）: 在籍区分 */ employment?: "委託" | "雇用" | null; employment_valid_from?: string | null; shift_request_mode?: "shift" | "off_only" | null; /* ★裁定337（0167） */ id: string; name: string; user_id: string | null; photo_updated_at: string | null; is_active: boolean; store_id: string; left_on: string | null; rank_id: string | null; joined_on: string | null };
+export type CastLogin = { okuri_tier?: string | null; /* ★裁定414 追補（0180）: 送り区分＝フラグ true のときだけ select */ kind?: string | null; /* ★便 GV-C C-14f（裁定396）: 在籍区分 */ employment?: "委託" | "雇用" | null; employment_valid_from?: string | null; shift_request_mode?: "shift" | "off_only" | null; /* ★裁定337（0167） */ id: string; name: string; user_id: string | null; photo_updated_at: string | null; is_active: boolean; store_id: string; left_on: string | null; rank_id: string | null; joined_on: string | null };

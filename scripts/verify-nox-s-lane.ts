@@ -89,7 +89,7 @@ check("s4(7) 退勤の導線＝'none' 以外（/mine・kiosk の okuriSelfPlanOf
   && okuriEnabledOf("flat") && okuriEnabledOf("store") && !okuriEnabledOf("none") && okuriEnabledOf(undefined)
   && issueErrJa(400, "okuri none").includes("「なし」") && issueErrJa(400, "okuri not actual").includes("0177"));
 check("s4(8) 設定画面＝4 択（実費／定額／店負担／なし）・'store'／'none' は P 前は無効「0177 の適用後に選べます」・route は 4 値を受ける",
-  JSON.stringify(Object.values(OKURI_MODE_LABEL)) === JSON.stringify(["実費", "定額", "店負担", "なし"]) && okuriModeSelectableOf("store", false) === false && okuriModeSelectableOf("none", false) === false && okuriModeSelectableOf("flat", false) && okuriModeSelectableOf("store", true)
+  JSON.stringify(Object.values(OKURI_MODE_LABEL)) === JSON.stringify(["タクシー代の立替（レジ現金が出る）", "定額徴収", "店負担", "なし"]) /* ★裁定414 追補: 表示名 */ && okuriModeSelectableOf("store", false) === false && okuriModeSelectableOf("none", false) === false && okuriModeSelectableOf("flat", false) && okuriModeSelectableOf("store", true)
   && src("app/(manage)/master/deduction-panel.tsx").includes("okuriModeSelectableOf(m, okuri4wayOn())") && src("lib/nox/rules-0175/flag.ts").includes("export const OKURI_4WAY_APPLIED = true;") /* ★便 P175-prep P-7: フラグは flag.ts に一本化（pin 張替え）・便 ON-1（2026-10-26）から true */ && src("app/api/store/okuri-mode/route.ts").includes('mode !== "store" && mode !== "none"'));
 console.log("s4(DB) transport.mode／set_store_okuri_mode の 4 値／RPC の 'okuri none'＝0177 適用後に有効（今は skip）");
 // ── 便 SH-UI-a（2026-10-22）A-1 就業規則キー・A-2 ロゴ ──
@@ -142,7 +142,7 @@ console.log("s4(DB) transport.mode／set_store_okuri_mode の 4 値／RPC の 'o
   const byD = Object.fromEntries(rows.map((r) => [r.bizDate, r]));
   check("shc(1) C-1 行＝実働は dayWorkedHours（10/01 19:50→翌01:10＝5.3h・10/02 20:25→翌00:20＝3.9h）・遅刻（連絡あり 15:42）・早退・当欠・退勤記録なし（10/04）・未来日（10/05）・翌表記・送り 実費 1（cancelled 除外）・修正者",
     byD["2026-10-01"].hours === 5.3 && byD["2026-10-02"].hours === 3.9 && byD["2026-10-02"].late && byD["2026-10-02"].contactAt === "15:42" && byD["2026-10-02"].early && byD["2026-10-03"].absent && byD["2026-10-04"].missingOut && byD["2026-10-04"].hours === 0 && byD["2026-10-05"].future
-    && hm47Ja(byD["2026-10-01"].outHm) === "翌01:10" && byD["2026-10-01"].okuri.n === 1 && byD["2026-10-01"].okuri.modes[0] === "実費" && byD["2026-10-01"].corrections[0].by === "デモ 店長" && byD["2026-10-02"].note === "電車遅延", JSON.stringify(rows.map((r) => [r.bizDate, r.hours, r.final, r.late, r.absent, r.early, r.missingOut, r.contactAt])));
+    && hm47Ja(byD["2026-10-01"].outHm) === "翌01:10" && byD["2026-10-01"].okuri.n === 1 && byD["2026-10-01"].okuri.modes[0] === "タクシー代の立替（レジ現金が出る）" /* ★裁定414 追補: 表示名 */ && byD["2026-10-01"].corrections[0].by === "デモ 店長" && byD["2026-10-02"].note === "電車遅延", JSON.stringify(rows.map((r) => [r.bizDate, r.hours, r.final, r.late, r.absent, r.early, r.missingOut, r.contactAt])));
   const sum = attendanceSummaryOf(rows, "2026-10-04");
   const wd = wageDetail(rows.filter((r) => !r.future && r.hours > 0).map((r) => ({ d: Number(r.bizDate.slice(8)), hours: r.hours, sales: 0 })), { base: 2000 } as never, 0, 0);
   check("shc(2) C-2 ① 合計＝日数 3（ok 2＝退勤記録なしの日も in があれば数える＝給与と同じ・late 1・当欠は数えない・未来日は数えない）・実働＝給与の wHours と同じ丸め・遅刻 1・当欠 1・早退 1・送り 1・退勤記録なし 1",

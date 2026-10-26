@@ -22,3 +22,5 @@ export function backOf(code: string, row: { type?: string; category?: string | n
 export declare const TRIAL: Record<string, { base: number; gua: number; from: number; to: number; cast: string }>;
 export declare const BONUS_TIERS: { pct: number; amount: number }[]; // ★便 P173 T-2（起票110）
 export declare const EXT_PATTERNS: Record<string, { group: string; rows: { key: string; name: string; minutes: number; amount: number; isDefault: boolean }[] }>; // ★便 P174 T-7b
+export function okuriModeOf(code: string): "actual" | "flat" | "store" | "none" | null; // ★裁定414 追補
+export function canonOf(code: string): unknown;

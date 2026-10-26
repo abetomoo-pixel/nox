@@ -22,7 +22,7 @@ export const PROFILES = {
     shift: { base: 5, fri_sat: 6, fill: "short", pattern: [4, 5, 3, 5, 4, 6, 5] } },
   ace: { template: "cabaret", scale: "大（キャスト 7・月 485 伝票・客単価 1.9 万＝キャバクラの 2 店目・規模違い）", sys: { hourly: true, backs: true, norms: true, bonus: false, points: false, sales_slide: true }, // ★裁定348: 売上月次＋指名・商品バック＋売上・指名ノルマ＋送り実費（達成ボーナスは LILY へ）
     back: "unit4", u4: { hon: 0.10, jonai: 0.08, dohan: 0.08, free: 0.05 }, u4cast: { hon: 500, jonai: 400, dohan: 400, free: 300 }, food: false, price: "中〜高（セット 7,000〜8,000・指名 3,000・シャンパン 11,000〜110,000）",
-    basis: "punch", okuri: 1000, okuriMode: "actual", receivable: "customer_only", reopen: true, confirm: true, normAxes: ["sales", "shimei"], employment: "委託", dailyPay: false, wishMode: "shift",
+    basis: "punch", okuri: 1000, okuriMode: "flat", okuriTiers: [{ code: "near", name: "近距離", amount: 500 }, { code: "mid", name: "中距離", amount: 1000 }, { code: "far", name: "遠距離", amount: 1500 }] /* ★裁定414 追補: ACE＝定額徴収 3 段（0180 前は client が読まない） */, receivable: "customer_only", reopen: true, confirm: true, normAxes: ["sales", "shimei"], employment: "委託", dailyPay: false, wishMode: "shift",
     slideApply: "next", /* ★便 P173（裁定395 追補1）: ACE のプランは前期の実績で当期の時給（ひなの 10 月＝¥3,500）。他 5 店は null＝店設定（current） */
     showcase: "月次売上スライド（前期の実績で判定・ひなの 10 月＝時給 ¥3,500）・指名・商品バック・売上・指名ノルマ・送り実費",
     shift: { base: 4, fri_sat: 5, fill: "short", pattern: [3, 4, 4, 2, 5, 3, 4] } },

@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { okuriModeOf } from "@/lib/nox/shift/okuri-mode"; // ★裁定414（S-4）
+import { okuriModeOf, okuriFlatTiersOf } from "@/lib/nox/shift/okuri-mode"; // ★裁定414（S-4）・★裁定414 追補（0180）: 距離区分
 import { createClient } from "@/lib/supabase/server";
 import { getSessionRole } from "@/lib/nox/auth";
 import DeductionBoard from "./deduction-board";
@@ -29,6 +29,7 @@ export default async function CastCompDeductionPage() {
       casts={(casts ?? []) as { id: string; name: string }[]}
       okuriMode={okuriMode}
       okuriBase={okuriBase}
+      okuriTiers={okuriFlatTiersOf(sj as Record<string, unknown> | null)}
       settings={sj}
     />
   );

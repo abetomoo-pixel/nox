@@ -5,7 +5,7 @@
 //   'store'／'none' の値は 0177 適用（P）後に初めて現れる＝値が無い間は従来どおり（flat／actual）に動く。
 export type OkuriMode = "actual" | "flat" | "store" | "none";
 export const OKURI_MODES: readonly OkuriMode[] = ["actual", "flat", "store", "none"];
-export const OKURI_MODE_LABEL: Record<OkuriMode, string> = { actual: "実費", flat: "定額", store: "店負担", none: "なし" };
+export const OKURI_MODE_LABEL: Record<OkuriMode, string> = { actual: "タクシー代の立替（レジ現金が出る）", flat: "定額徴収", store: "店負担", none: "なし" }; // ★裁定414 追補（2026-10-26）: 実費立替の表示名＝「タクシー代の立替（レジ現金が出る）」・既定は定額徴収
 export const OKURI_MODE_NOTE: Record<OkuriMode, string> = {
   actual: "送り代を立て替えて渡し、同額を給与から控除します（日報の現金支払「送り立替」に載ります）",
   flat: "現金は動かず、退勤ごとに定額を給与から控除します（日報の現金支払には載せません）",
@@ -64,4 +64,36 @@ export function okuriBucketsOf(rows: readonly { amount: number; mode?: string | 
 }
 /** 設定画面の 4 択＝'store'／'none' は P（0177 適用）前は選べない（「適用後に選べます」） */
 export const OKURI_MODE_PENDING_NOTE = "0177 の適用後に選べます";
+
+// ★裁定414 追補（0180・2026-10-26）: 定額徴収の距離区分（最大 3 段・{code,name,amount}）＝stores.settings_json.okuri_flat_tiers・キャストの区分＝casts.okuri_tier（code）
+export type OkuriFlatTier = { code: string; name: string; amount: number };
+export const OKURI_FLAT_TIERS_MAX = 3;
+export const OKURI_TIERS_PENDING_NOTE = "0180 の適用後に使えます（それまでは 1 店 1 額の送りベース額）";
+/** 店設定の値→区分の配列（壊れた要素は捨てる・最大 3） */
+export function okuriFlatTiersOf(settings: Record<string, unknown> | null | undefined): OkuriFlatTier[] {
+  const v = settings?.okuri_flat_tiers;
+  if (!Array.isArray(v)) return [];
+  return v.filter((e): e is OkuriFlatTier => !!e && typeof e === "object" && typeof (e as OkuriFlatTier).code === "string" && typeof (e as OkuriFlatTier).name === "string" && typeof (e as OkuriFlatTier).amount === "number")
+    .slice(0, OKURI_FLAT_TIERS_MAX).map((e) => ({ code: e.code, name: e.name, amount: Math.max(0, Math.trunc(e.amount)) }));
+}
+/** 区分の額（code 一致）→無ければベース額（出勤日の送りの既定＝当日だけ変更可） */
+export function okuriTierAmountOf(tiers: readonly OkuriFlatTier[], code: string | null | undefined, base: number): number {
+  const t = code ? tiers.find((x) => x.code === code) : undefined;
+  return t ? t.amount : base;
+}
+/** 保存前の検査＝set_store_profile（0180 ★1）と同じ規則。null＝OK */
+export function okuriFlatTiersErrOf(tiers: readonly OkuriFlatTier[]): string | null {
+  if (tiers.length > OKURI_FLAT_TIERS_MAX) return `距離区分は ${OKURI_FLAT_TIERS_MAX} 段までです`;
+  const codes = new Set<string>();
+  for (const t of tiers) {
+    if (t.code.trim() === "" || t.code.length > 32) return "区分コードは 1〜32 文字で入力してください";
+    if (t.name.trim() === "" || t.name.length > 40) return "区分名は 1〜40 文字で入力してください";
+    if (!Number.isInteger(t.amount) || t.amount < 0) return "金額は 0 以上の整数で入力してください";
+    if (codes.has(t.code)) return "区分コードが重複しています";
+    codes.add(t.code);
+  }
+  return null;
+}
+/** 区分の表示（選択肢・キャスト詳細）＝「近距離（¥500）」 */
+export const okuriTierLabelOf = (t: OkuriFlatTier): string => `${t.name}（¥${t.amount.toLocaleString()}）`;
 export const okuriModeSelectableOf = (mode: OkuriMode, applied: boolean): boolean => applied || mode === "actual" || mode === "flat";

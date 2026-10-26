@@ -1394,7 +1394,7 @@ export default function ReportBoard({
                   <span style={{ fontWeight: 800, color: "var(--champ)" }}>現金支払の内訳（{bizDate}）</span>
                   <span>合計 <b className="num" data-payout-total="1" style={{ color: "var(--v2-text)" }}>¥{total.toLocaleString()}</b></span>
                 </div>
-                {cashPayoutRowsOf(payoutParts).map((r) => {
+                {cashPayoutRowsOf(payoutParts).filter((r) => r.key !== "okuri" || okuriCashOf(okuriMode)).map((r) => { /* ★裁定414 追補: 送りの行は実費立替（タクシー代の立替）の店だけ＝定額徴収・店負担・なしの店には出さない */
                   const ik = issueOf(r.key);
                   return (
                     <div key={r.key} className="nox-payoutrow" data-payout-row={r.key}>

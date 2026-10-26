@@ -27,7 +27,9 @@ import type { Trial, CastLogin } from "./page";
 import AdvanceOkuriForm from "@/components/nox/advance-okuri-form"; // ★裁定300-2: 前借り／送り実費の入口（cast 固定・共通部品・既存 RPC）
 import DailyPayForm from "@/components/nox/daily-pay-form"; // ★0156（裁定309-6・便 V-4）: 日払いの発行（cast 固定・daily_pay_issue・源泉プレビュー）
 import { issueDateDefaultOf } from "@/lib/nox/payroll/advance-okuri";
-import { okuriModeOf } from "@/lib/nox/shift/okuri-mode"; // ★裁定414（S-4）
+import { okuriModeOf, okuriFlatTiersOf, okuriTierLabelOf } from "@/lib/nox/shift/okuri-mode"; // ★裁定414（S-4）・追補（0180）: 送り区分
+import { okuriTiersOn } from "@/lib/nox/rules-0175/flag"; // ★裁定414 追補（0180）
+const CAST_RELOAD_COLS: string = okuriTiersOn() ? "id, name, user_id, photo_updated_at, is_active, store_id, left_on, rank_id, joined_on, kind, employment, employment_valid_from, shift_request_mode, okuri_tier" : "id, name, user_id, photo_updated_at, is_active, store_id, left_on, rank_id, joined_on, kind, employment, employment_valid_from, shift_request_mode";
 import { rules0175On } from "@/lib/nox/rules-0175/flag"; // ★便 P175-prep P-4
 import AvailabilityEditor from "@/components/nox/availability-editor"; // ★便 P175-prep P-4（裁定397＋413）: 基本の働き方
 import Picker from "@/components/nox/picker"; // ★裁定306-13: 待遇プランの候補（件数可変＝picker）
@@ -581,13 +583,22 @@ export default function CastsBoard({
   // ── F3g' castログイン招待（招待=未結線 / PW再発行=結線済み・POST /api/cast/invite） ──
   const reloadLoginCasts = useCallback(async () => {
     // mig0074: left_on を含め、page.tsx と同一の取得にする（.eq(is_active,true) を外す＝段C2 の在籍/退店タブ前提）。
-    const { data } = await supabase.from("casts").select("id, name, user_id, photo_updated_at, is_active, store_id, left_on, rank_id, joined_on, kind, employment, employment_valid_from, shift_request_mode").order("name"); // ★0154 D2／D6・★GV-C C-14f: 在籍区分
-    setLoginCasts((data ?? []) as CastLogin[]);
+    const { data } = await supabase.from("casts").select(CAST_RELOAD_COLS) /* ★裁定414 追補（0180）: okuri_tier はフラグ true のときだけ */.order("name"); // ★0154 D2／D6・★GV-C C-14f: 在籍区分
+    setLoginCasts((data ?? []) as unknown as CastLogin[]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // D2-4: 指名ランクの割当（set_cast_rank_of）。null=解除。失敗トークンは日本語化。
   // ★裁定337（0167・便 X-13d-2b）: シフト希望の方式＝キャスト個別の上書き（null＝店の既定に従う）。保存は set_cast_shift_request_mode（owner ∨ manager 自店・課金ゲート・監査）。
+  // ★裁定414 追補（0180）: 送り区分＝set_cast_okuri_tier（owner ∨ manager 自店・店の区分にある code だけ・null＝区分なし＝ベース額）
+  async function setOkuriTier(c: CastLogin, tier: string | null) {
+    setMsg(null); setBusy(true);
+    const { error } = await supabase.rpc("set_cast_okuri_tier", { p_cast_id: c.id, p_tier: tier });
+    setBusy(false);
+    if (error) { setMsg(error.message.includes("forbidden") ? "権限がありません" : error.message.includes("billing locked") ? "ご契約の状態により変更できません" : error.message.includes("bad tier") ? "区分の値が正しくありません（店設定の区分から選びます）" : error.message); return; }
+    setLoginCasts((rows) => rows.map((r) => (r.id === c.id ? { ...r, okuri_tier: tier } : r)));
+    setMsg(tier === null ? "送り区分を「区分なし（ベース額）」にしました" : `送り区分を「${okuriTiersOf(c.store_id).find((t) => t.code === tier)?.name ?? tier}」にしました`);
+  }
   async function setShiftMode(c: CastLogin, mode: "shift" | "off_only" | null) {
     setMsg(null);
     setBusy(true);
@@ -705,6 +716,7 @@ export default function CastsBoard({
   // ★GV-3（便 N1013b B-8）: 店の制度「ノルマ」の ON/OFF（sys_norms・欠損＝ON）＝今月のノルマの入力口の出し分け
   const normsOnOf = (sid: string) => isSystemOn(stores.find((st) => st.id === sid)?.settings_json ?? null, "sys_norms");
   // ★裁定300-2: 店の送り方式・ベース額（stores.settings_json＝page が同じクエリで渡す）
+  const okuriTiersOf = (sid: string) => okuriFlatTiersOf((stores.find((st) => st.id === sid)?.settings_json ?? null) as Record<string, unknown> | null); // ★裁定414 追補（0180）
   const okuriOf = (sid: string) => { const sj = stores.find((st) => st.id === sid)?.settings_json ?? null; return { mode: okuriModeOf(sj as Record<string, unknown> | null) /* ★裁定414: 4 方式 */, base: typeof sj?.okuri_base_amount === "number" ? (sj.okuri_base_amount as number) : 0 }; };
   const selTrial = sel?.kind === "trial" ? trials.find((tr) => tr.id === sel.id) ?? null : null;
 
@@ -1105,6 +1117,19 @@ export default function CastsBoard({
               </div>
               {/* ★裁定300-2／306-12（2026-09-25）: 前借り／送り実費の入口（このキャストに固定・共通部品・既存 RPC）＝「基本」タブ（次回シフトの下・機微情報注記の上）。
                   owner／manager のみ（page.tsx が他ロールを redirect 済み）。残高管理は 0156（300-4）。 */}
+              {/* ★裁定414 追補（0180）: 送り区分＝定額徴収の店で区分があるとき（フラグ true）。退勤の送りの既定額がこの区分の額になる */}
+              {okuriTiersOn() && okuriOf(selCast.store_id).mode === "flat" && okuriTiersOf(selCast.store_id).length > 0 && (
+                <div style={{ marginTop: 12, marginBottom: 12 }} data-cast-okuri-tier="1">
+                  <h3 style={{ ...secTitle, margin: "0 0 6px" }}>送り区分（定額徴収）</h3>
+                  <label style={{ fontSize: 12.5 }}>区分{" "}
+                    <select value={selCast.okuri_tier ?? ""} disabled={busy} aria-label="送り区分" onChange={(e) => void setOkuriTier(selCast, e.target.value || null)} style={{ ...t.input, width: "auto", padding: "6px 10px", fontSize: 13 }}>
+                      <option value="">区分なし（ベース額 ¥{okuriOf(selCast.store_id).base.toLocaleString()}）</option>
+                      {okuriTiersOf(selCast.store_id).map((tr) => <option key={tr.code} value={tr.code}>{okuriTierLabelOf(tr)}</option>)}
+                    </select>
+                  </label>
+                  <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "4px 0 0" }}>退勤時の送りはこの区分の額が既定（当日だけ変更可）。区分は店設定「控除・送り」で作ります。</p>
+                </div>
+              )}
               <div style={{ marginTop: 12, marginBottom: 12 }}>
                 <h3 style={{ ...secTitle, margin: "0 0 6px" }}>前借り／送り実費</h3>
                 <AdvanceOkuriForm storeId={selCast.store_id} casts={[]} castId={selCast.id} castName={selCast.name}

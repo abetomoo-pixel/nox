@@ -6,7 +6,7 @@
 //   ③ 注意事項＝モックの静的文言のみ移植（★「変更履歴」セクションは実装しない＝裁定6。
 //     履歴の実体は audit_logs（owner 限定）にあり、専用 UI は作らない）
 import { useState } from "react";
-import type { OkuriMode } from "@/lib/nox/shift/okuri-mode"; // ★裁定414（S-4）
+import type { OkuriMode, OkuriFlatTier } from "@/lib/nox/shift/okuri-mode"; // ★裁定414（S-4）・追補（0180）
 import * as t from "@/lib/nox/ui/theme";
 import Toast from "@/components/ui/toast";
 import Link from "next/link"; // ★便 NR-1: 罰金ひな形への案内
@@ -16,10 +16,11 @@ import { isSectionOn, type StoreSettings } from "@/lib/nox/store-systems"; // �
 
 const card: React.CSSProperties = t.card;
 
-export default function DeductionBoard({ storeId, isManagerUp, isOwner, casts, okuriMode, okuriBase, settings }: {
+export default function DeductionBoard({ storeId, isManagerUp, isOwner, casts, okuriMode, okuriBase, okuriTiers, settings }: {
   storeId: string; isManagerUp: boolean; isOwner: boolean;
   casts: { id: string; name: string }[];
   okuriMode: OkuriMode; okuriBase: number; // ★裁定414（S-4）: 4 方式
+  okuriTiers?: OkuriFlatTier[]; // ★裁定414 追補（0180）: 距離区分
   settings?: StoreSettings; // ★裁定269
 }) {
   const [msg, setMsg] = useState<string | null>(null);
@@ -50,6 +51,7 @@ export default function DeductionBoard({ storeId, isManagerUp, isOwner, casts, o
         isOwner={isOwner}
         initialOkuriMode={okuriMode}
         initialOkuriBase={okuriBase}
+        initialOkuriTiers={okuriTiers}
         bizCutoffHm={typeof (settings as Record<string, unknown> | undefined)?.biz_cutoff_hm === "string" ? ((settings as Record<string, unknown>).biz_cutoff_hm as string) : "06:00"} // ★302-1: 一括発行の「当日（営業日）」
       />)}{/* ★裁定269-4: deductionPanel */}
 

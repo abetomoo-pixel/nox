@@ -7,9 +7,9 @@ import IssueBulkForm from "@/components/nox/issue-bulk-form"; // ★裁定302-1�
 
 import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 type Cast = { id: string; name: string };
-import { OKURI_MODES, OKURI_MODE_LABEL, OKURI_MODE_NOTE, OKURI_MODE_PENDING_NOTE, okuriAsks, okuriModeSelectableOf, type OkuriMode } from "@/lib/nox/shift/okuri-mode"; // ★裁定414（S-4）: 4 方式
+import { OKURI_MODES, OKURI_MODE_LABEL, OKURI_MODE_NOTE, OKURI_MODE_PENDING_NOTE, okuriAsks, okuriModeSelectableOf, type OkuriMode, OKURI_FLAT_TIERS_MAX, OKURI_TIERS_PENDING_NOTE, okuriFlatTiersErrOf, okuriTierLabelOf, type OkuriFlatTier } from "@/lib/nox/shift/okuri-mode"; // ★裁定414（S-4）: 4 方式
 // ★裁定414: 'store'／'none' は 0177 の適用（P）後に有効化＝それまでは「適用後に選べます」で無効。★便 P175-prep P-7: フラグは flag.ts の 1 か所（okuri4wayOn）
-import { okuri4wayOn } from "@/lib/nox/rules-0175/flag";
+import { okuri4wayOn, okuriTiersOn } from "@/lib/nox/rules-0175/flag";
 
 // F2e-2 天引き運用パネル: 送り方式(okuri_mode)トグル(owner のみ)＋前借り/送り実費 発行フォーム(manager+)。
 // 排他は okuri_mode で構造的に担保（flat 店では送り実費発行を RPC が弾く＝ここでも actual のときだけ有効化）。
@@ -21,7 +21,7 @@ export default function DeductionPanel({
   casts,
   isOwner,
   initialOkuriMode,
-  initialOkuriBase,
+  initialOkuriBase, initialOkuriTiers,
   bizCutoffHm = "06:00",
 }: {
   storeId: string;
@@ -29,6 +29,8 @@ export default function DeductionPanel({
   isOwner: boolean;
   initialOkuriMode: OkuriMode;
   initialOkuriBase: number;
+  /** ★裁定414 追補（0180）: 定額徴収の距離区分（最大 3 段）。フラグ false＝出さない */
+  initialOkuriTiers?: OkuriFlatTier[];
   /** 営業日切替（settings_json.biz_cutoff_hm）＝一括発行の「当日」判定 */
   bizCutoffHm?: string;
 }) {
@@ -40,6 +42,19 @@ export default function DeductionPanel({
   const [baseInput, setBaseInput] = useState(initialOkuriBase > 0 ? String(initialOkuriBase) : "");
   const [baseBusy, setBaseBusy] = useState(false);
   const [baseMsg, setBaseMsg] = useState("");
+  // ★裁定414 追補（0180）: 距離区分 3 段（code／name／amount）＝set_store_profile の patch {okuri_flat_tiers}
+  const [tiers, setTiers] = useState<OkuriFlatTier[]>(initialOkuriTiers ?? []);
+  const [tiersBusy, setTiersBusy] = useState(false);
+  const [tiersMsg, setTiersMsg] = useState("");
+  async function saveTiers() {
+    const err = okuriFlatTiersErrOf(tiers);
+    if (err) { setTiersMsg(`エラー: ${err}`); return; }
+    setTiersBusy(true); setTiersMsg("");
+    const { error } = await supabase.rpc("set_store_profile", { p_store_id: storeId, p_patch: { okuri_flat_tiers: tiers } });
+    setTiersMsg(error ? `エラー: ${error.message.includes("bad key") ? OKURI_TIERS_PENDING_NOTE : error.message}` : `距離区分を保存しました（${tiers.length} 段）`);
+    setTiersBusy(false);
+  }
+  const setTier = (i: number, k: keyof OkuriFlatTier, v: string) => setTiers((ts) => ts.map((t, j) => (j === i ? { ...t, [k]: k === "amount" ? Math.max(0, Math.trunc(Number(v.replace(/[^0-9]/g, "")) || 0)) : v } : t)));
 
   async function saveBase() {
     const v = baseInput === "" ? 0 : Number(baseInput);
@@ -117,6 +132,34 @@ export default function DeductionPanel({
           </div>
         )}
       </section>
+
+      {/* ★裁定414 追補（0180・2026-10-26）: 定額徴収の距離区分（最大 3 段）＝退勤の送りの既定額をキャストの区分の額に（当日だけ変更可）。フラグ true かつ定額徴収の店だけ */}
+      {okuriTiersOn() && okuriMode === "flat" && (
+        <section className="nox-cardtop" style={{ ...card, marginTop: 14 }} data-okuri-tiers="1">
+          <h3 style={h3}>送りの距離区分（定額徴収・最大 {OKURI_FLAT_TIERS_MAX} 段）</h3>
+          <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 8px" }}>キャスト詳細の「送り区分」で区分を割り当てると、退勤時の送りはその額が既定になります（当日の金額は発行時に変更できます）。区分なしのキャストは送りベース額です。</p>
+          {isOwner ? (
+            <>
+              {tiers.map((tr, i) => (
+                <div key={i} className="nox-okuri-tier-row" data-okuri-tier-row={i} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", padding: "4px 0" }}>
+                  <input value={tr.code} onChange={(e) => setTier(i, "code", e.target.value)} placeholder="コード（例: near）" aria-label={`区分 ${i + 1} のコード`} style={{ ...inp, width: 110 }} maxLength={32} disabled={tiersBusy} />
+                  <input value={tr.name} onChange={(e) => setTier(i, "name", e.target.value)} placeholder="区分名（例: 近距離）" aria-label={`区分 ${i + 1} の名前`} style={{ ...inp, width: 140 }} maxLength={40} disabled={tiersBusy} />
+                  <input type="number" min={0} step={1} value={tr.amount} onChange={(e) => setTier(i, "amount", e.target.value)} aria-label={`区分 ${i + 1} の金額（円）`} style={{ ...inp, width: 100 }} disabled={tiersBusy} /> 円
+                  <button type="button" onClick={() => setTiers((ts) => ts.filter((_, j) => j !== i))} disabled={tiersBusy} style={btn} aria-label={`区分 ${i + 1} を削除`}>削除</button>
+                </div>
+              ))}
+              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 6 }}>
+                <button type="button" onClick={() => setTiers((ts) => [...ts, { code: "", name: "", amount: 0 }])} disabled={tiersBusy || tiers.length >= OKURI_FLAT_TIERS_MAX} style={btn} data-okuri-tier-add="1">＋ 区分を追加</button>
+                <button type="button" onClick={() => void saveTiers()} disabled={tiersBusy} style={btnOn} data-okuri-tiers-save="1">保存</button>
+              </div>
+              {tiersMsg && <Toast msg={tiersMsg} style={{ margin: "6px 0 0" }} />}
+            </>
+          ) : (
+            <p style={{ fontSize: 12, color: "var(--sub)", margin: 0 }}>{tiers.length ? tiers.map(okuriTierLabelOf).join("／") : "区分なし（送りベース額）"}　※区分の編集は owner のみ可能です。</p>
+          )}
+        </section>
+      )}
+      {!okuriTiersOn() && okuriMode === "flat" && isOwner && <p style={{ fontSize: 12, color: "var(--sub)", margin: "8px 0 0" }} data-okuri-tiers-pending="1">距離区分（最大 3 段）は {OKURI_TIERS_PENDING_NOTE}</p>}
 
       {/* ★裁定302-1／302-3（2026-09-25・mig0157）: 前借り／送り実費の一括発行＝チェックボックス一覧型（出勤者が上・行ごと金額・共通メモ・1 回の発行＝1 tx）＋当日の発行済み一覧。
           送り実費は送り方式が「実費」のときだけ有効（RPC が二重防御）・ベース額をプリフィル（mig0042） */}
