@@ -38,8 +38,12 @@ export type AttendanceDayRow = {
   okuri: { n: number; modes: string[] };
   /** 備考＝連絡の本文・罰金の有無 */
   note: string;
-  /** 退勤記録なし（in あり・out なし＝給与の不整合と同じ） */
+  /** 退勤記録なし（in あり・out なし＝給与の不整合と同じ）。★便 M-14: 営業日がまだ終わっていない日（今日）は含めない＝working */
   missingOut: boolean;
+  /** ★便 M-14: 出勤記録なし（out だけある過去日） */
+  missingIn?: boolean;
+  /** ★便 M-14: 勤務中（今日・in あり・out なし＝赤字ではなく「勤務中」） */
+  working?: boolean;
   /** 営業日の今日より後（未来日＝合計に数えない） */
   future: boolean;
   /** 判定（final＝S3 対応表の後）＝日数の定義（ok／late を数える＝給与の days と同じ） */
@@ -136,7 +140,9 @@ export function attendanceDayRowsOf(input: AttendanceSheetInput): AttendanceDayR
       late: !!d && d.final.type === "late" && !future, absent: !!d && d.final.type === "absent" && !future, early: !!d && d.raw.out.type === "early" && !future,
       contactAt: att && att.source === "self" && (att.status === "late" || att.status === "absent") ? jstHm(att.updated_at) : null,
       hours, basis, okuri: { n: trs.length, modes: [...new Set(trs.map((t) => OKURI_MODE_LABEL[((t.mode ?? "actual") as OkuriMode)] ?? String(t.mode)))] },
-      note: noteParts.join("・"), missingOut: !!d && !future && d.raw.in.type !== "no_shift" && d.raw.in.type !== "absent" && d.raw.out.type === "noout" && !!inHm, future,
+      note: noteParts.join("・"), missingOut: !!d && !future && bizDate !== input.todayBiz && d.raw.in.type !== "no_shift" && d.raw.in.type !== "absent" && d.raw.out.type === "noout" && !!inHm, future,
+      missingIn: !future && bizDate !== input.todayBiz && !inHm && !!outHm, // ★便 M-14
+      working: bizDate === input.todayBiz && !!inHm && !outHm, // ★便 M-14
       final: d ? d.final.type : null,
       inPunchId: idsByDate.get(bizDate)?.inId ?? null, outPunchId: idsByDate.get(bizDate)?.outId ?? null, shiftId: sh?.id ?? null, // ★C2-2
       cancelled: !inHm && !outHm && !sh && corr.some((c) => c.after === null), // ★C2-2 ③
@@ -170,7 +176,7 @@ export function sheetRowCellsOf(r: AttendanceDayRow, opts: { withBy?: boolean; w
   return [
     r.bizDate,
     r.shift ? `${r.shift.start}–${hm47Ja(r.shift.end)}` : "",
-    hm47Ja(r.inHm), r.missingOut ? "退勤記録なし" : hm47Ja(r.outHm),
+    hm47Ja(r.inHm), kintaiOutCellOf(r).text, /* ★便 M-14: 画面と同じ（今日＝勤務中・過去日＝退勤記録なし） */
     r.corrections.map((c) => correctionTextOf(c, opts.withBy ?? true)).join(" / "),
     flagsTextOf(r),
     r.hours > 0 ? String(r.hours) : "",
@@ -224,4 +230,30 @@ export function kintaiEditPlanOf(r: Pick<AttendanceDayRow, "bizDate" | "inHm" | 
   if ((next.outHm ?? null) !== (r.outHm ?? null) && !(next.outHm === null && !r.outPunchId)) corrections.push({ kind: "out", punchId: r.outPunchId, afterIso: next.outHm ? isoOfBizHm(r.bizDate, next.outHm) : null });
   const attendance = next.status && (next.status !== cur.status || (next.reason ?? "") !== (cur.reason ?? "")) ? { status: next.status, reason: next.reason } : null;
   return { corrections, attendance };
+}
+
+/** ★便 M-14 ②: シフト無し出勤を「シフトとして確定」する時間の候補＝打刻の出〜退（0-23 域に丸め）・店の枠（その曜日の営業時間） */
+export function noShiftSpanOptionsOf(r: Pick<AttendanceDayRow, "bizDate" | "inHm" | "outHm">, bh: readonly { dow: number; is_closed: boolean; open_hm: string | null; close_hm: string | null }[]): { key: "punch" | "store"; label: string; start: string; end: string }[] {
+  const out: { key: "punch" | "store"; label: string; start: string; end: string }[] = [];
+  const m = (hm: string) => Number(hm.slice(0, 2)) * 60 + Number(hm.slice(3, 5));
+  const hm = (n: number) => `${String(Math.floor(n / 60)).padStart(2, "0")}:${String(n % 60).padStart(2, "0")}`;
+  if (r.inHm) {
+    const s = Math.min(m(r.inHm), 23 * 60 + 59);
+    const e = r.outHm ? Math.max(m(r.outHm), s + 60) : s + 5 * 60;
+    out.push({ key: "punch", label: "打刻の出〜退", start: hm(s), end: hm(Math.min(e, 47 * 60 + 59)) });
+  }
+  const [y, mo, d] = r.bizDate.split("-").map(Number);
+  const dow = new Date(Date.UTC(y, mo - 1, d)).getUTCDay();
+  const row = bh.find((x) => x.dow === dow);
+  if (row && !row.is_closed && row.open_hm && row.close_hm) {
+    const s = m(row.open_hm.slice(0, 5)); let e = m(row.close_hm.slice(0, 5)); if (e <= s) e += 24 * 60;
+    out.push({ key: "store", label: "店の営業時間", start: hm(s), end: hm(Math.min(e, 47 * 60 + 59)) });
+  }
+  return out;
+}
+/** ★便 M-14 ①: 退のセル＝勤務中（今日）／退勤記録なし（過去日＝押すと時刻修正）／時刻 */
+export function kintaiOutCellOf(r: Pick<AttendanceDayRow, "missingOut" | "working" | "outHm">): { text: string; kind: "working" | "missing" | "plain" } {
+  if (r.working) return { text: "勤務中", kind: "working" };
+  if (r.missingOut) return { text: "退勤記録なし", kind: "missing" };
+  return { text: hm47Ja(r.outHm), kind: "plain" };
 }

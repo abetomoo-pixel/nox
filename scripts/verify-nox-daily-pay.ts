@@ -120,6 +120,7 @@ async function main() {
       const reopen = async (castId: string) => { await db.query("insert into public.punches (org_id, store_id, cast_id, type, source, punched_at, created_at) values ($1,$2,$3,'in','self', clock_timestamp(), clock_timestamp())", [A1.org_id, A1.id, castId]); };
       const p1 = await as(castU, "select public.punch_self('in', null, null) id");
       const p2 = await as(castU, "select public.punch_self('out', null, null, true) id");
+      if (p1.ok && p1.rows) await db.query("update public.punches set punched_at = punched_at - interval '1 second' where id = $1", [p1.rows[0].id]); // ★便 431 続き（教訓98 の型）: 同一 tx の now() で in と out が同時刻＝順序が不定（f0 で偶発の赤）→ in を 1 秒前へ
       const p3 = await as(castU, "select public.punch_self('out', null, null) id");
       await reopen(castA);
       const p3b = await as(castU, "select public.punch_self('out', null, null) id");

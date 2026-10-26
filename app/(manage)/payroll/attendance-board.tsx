@@ -22,6 +22,9 @@ import { payTotalsNoteOf, sumCastPayTotalsOf, yenCellOf } from "@/lib/nox/payrol
 import type { KintaiCast, KintaiSheet } from "@/lib/nox/payroll/kintai-sheet";
 import KintaiRow, { KintaiHead } from "@/components/nox/kintai-row";
 import KintaiEdit from "@/components/nox/kintai-edit";
+import PunchCorrectionModal from "@/components/nox/punch-correction-modal"; // ★便 M-14 ①: 今日タブの時刻修正と同じ部品（修正前後と理由を audit＝punch_correction_request）
+import NoShiftConfirm from "@/components/nox/no-shift-confirm"; // ★便 M-14 ②
+import type { BusinessHourRow } from "@/lib/nox/business-hours";
 import { shiftMonthHrefOf } from "@/lib/nox/payroll/view";
 import { monthLastDayOf } from "@/lib/nox/month"; // ★便 M-10: この月のシフトを開く＝公開済みなら確定シフト・無ければ ③配置（同月）
 import { createClient } from "@/lib/supabase/client";
@@ -48,7 +51,15 @@ export default function AttendanceBoard({ stores, initialStoreId, initialPeriod,
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [edit, setEdit] = useState<{ mode: "edit"; row: AttendanceDayRow } | { mode: "add" } | null>(null);
-  const [openCast, setOpenCast] = useState<string | null>(null); // ★C2-6 ⑤: 390px の合計表＝行を開いて残り
+  const [openCast, setOpenCast] = useState<string | null>(null);
+  const [fix, setFix] = useState<{ row: AttendanceDayRow; kind: "in" | "out" } | null>(null); // ★便 M-14 ①
+  const [nsConfirm, setNsConfirm] = useState<AttendanceDayRow | null>(null); // ★便 M-14 ②
+  const [bhRows, setBhRows] = useState<BusinessHourRow[]>([]); // ★便 M-14 ②: 店の枠（営業時間）
+  useEffect(() => { void (async () => {
+    if (!storeId) return;
+    const { data } = await createClient().from("store_business_hours").select("dow, is_closed, open_hm, close_hm").eq("store_id", storeId);
+    setBhRows((data ?? []) as BusinessHourRow[]);
+  })(); }, [storeId]); // ★C2-6 ⑤: 390px の合計表＝行を開いて残り
   // ★便 M-10: 表示中の月に公開済み（published）の期間があるか（RLS＝店スコープ）
   const [publishedMonth, setPublishedMonth] = useState(false);
   useEffect(() => { void (async () => {
@@ -112,7 +123,8 @@ export default function AttendanceBoard({ stores, initialStoreId, initialPeriod,
         <KintaiHead withPay={!!sel.pay} />
         <tbody>
           {visibleRowsOf(sel).map((r) => (
-            <KintaiRow key={r.bizDate} r={r} castId={sel.castId} withBy withPay={!!sel.pay} onEdit={canEdit && rowEditableOf(r, finalized) ? (row) => setEdit({ mode: "edit", row }) : null} />
+            <KintaiRow key={r.bizDate} r={r} castId={sel.castId} withBy withPay={!!sel.pay} onEdit={canEdit && rowEditableOf(r, finalized) ? (row) => setEdit({ mode: "edit", row }) : null}
+              onFix={canEdit && rowEditableOf(r, finalized) ? (row, kind) => setFix({ row, kind }) : null} onConfirmShift={canEdit && rowEditableOf(r, finalized) ? (row) => setNsConfirm(row) : null} />
           ))}
         </tbody>
         {sel.pay && (
@@ -218,6 +230,15 @@ export default function AttendanceBoard({ stores, initialStoreId, initialPeriod,
         <KintaiEdit storeId={storeId} castId={sel.castId} castName={sel.castName} row={edit.mode === "edit" ? edit.row : null}
           periodStart={sheet.periodStart} periodEnd={sheet.periodEnd} todayBiz={sheet.todayBiz} existingDates={visibleRowsOf(sel).map((r) => r.bizDate)}
           onClose={() => setEdit(null)} onSaved={onSaved} />
+      )}
+      {fix && sel && (/* ★便 M-14 ①: 退勤／出勤記録なし→時刻修正（今日タブと同じ部品・保存で再読込＝実働・時給分・日計を再計算） */
+        <PunchCorrectionModal castId={sel.castId} castName={sel.castName} biz={fix.row.bizDate} kind={fix.kind}
+          punchId={fix.kind === "out" ? fix.row.outPunchId : fix.row.inPunchId} punchAtIso={null}
+          shiftStartHm={fix.row.shift?.start ?? null} shiftEndHm={fix.row.shift?.end ?? null} term="勤務時間"
+          onClose={() => setFix(null)} onDone={(text) => { setFix(null); void onSaved(text); }} />
+      )}
+      {nsConfirm && sel && (/* ★便 M-14 ②: シフト無し出勤→シフトとして確定（採用・確定・時給分が付く） */
+        <NoShiftConfirm castId={sel.castId} castName={sel.castName} row={nsConfirm} bhRows={bhRows} onClose={() => setNsConfirm(null)} onSaved={(m) => { setNsConfirm(null); return onSaved(m); }} />
       )}
     </div>
   );
