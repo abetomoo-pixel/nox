@@ -33,3 +33,12 @@ export function CalLegend({ style }: { style?: CSSProperties }) {
     </div>
   );
 }
+
+/** ★便 M2 M-15（Agoora 確定 10/27）: 390 の凡例＝カレンダーの下に 1 行（進行状況の色帯＝セル上端の帯と同じ色）。≤430 だけ表示・それより広い画面は CalLegend のまま */
+export function CalLegendLine() {
+  return (
+    <div className="nox-callegend-line" data-cal-legend-line="1">
+      {LEGEND_STAGE.map(([k, l]) => <span key={k}><i className={`nox-calband stg-${k}`} aria-hidden="true" />{l}</span>)}
+    </div>
+  );
+}

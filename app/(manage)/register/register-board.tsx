@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import MoneyInput from "@/components/ui/money-input"; // ★便 X-11-6: 金額欄の共通部品（数字のみ・3 桁区切り・右に「円」）
 import SegSelect from "@/components/ui/seg-select";
 import { createClient } from "@/lib/supabase/client";
@@ -15,6 +15,7 @@ import GroupedNumberInput from "@/components/ui/grouped-number-input"; // ★便
 import { renderSVG } from "uqr"; // R2-c: 領収書公開 URL の QR（依存ゼロの軽量ライブラリ・裁定 R2-13）
 import { taxOf } from "@/lib/nox/receipt";
 import Modal from "@/components/ui/modal";
+import { lateIdsOf } from "@/lib/nox/register/cast-picker-order"; // ★便 M2 M-18
 import CastPicker, { pickerDefaultChipOf, nomKindBadgesOf } from "@/components/nox/cast-picker"; // ★裁定384（GV-B W-14）: 既定チップ
 import Picker from "@/components/nox/picker"; // ★裁定272-2 追補（紹介料の紹介者＝裁定259 の picker）
 import { useTapBatch } from "@/lib/nox/ui/use-tap-batch";
@@ -421,6 +422,9 @@ export default function RegisterBoard({
   const [attendIds, setAttendIds] = useState<Set<string>>(new Set());
   // ★裁定322（便 X-11-5）: 当日の確定シフトがある cast（③未出勤（シフトあり）の判定）。attendance と同じ effect で読む（読取 +1・表示専用）
   const [shiftIds, setShiftIds] = useState<Set<string>>(new Set());
+  const [outIds, setOutIds] = useState<Set<string>>(new Set()); // ★便 M2 M-18: 当日の最終打刻が out（退勤）
+  const [lateEta, setLateEta] = useState<Map<string, string>>(new Map()); // ★便 M2 M-18（補遺）: 遅刻連絡（attendance late＋eta）＝「遅刻連絡 見込み HH:MM」
+  const [todayShifts, setTodayShifts] = useState<{ cast_id: string; start_hm: string }[]>([]); // ★便 M2 M-18: 遅刻の判定（開始を過ぎて打刻なし）
   // ★B3 裁定210（#64）: cast_ranks（読取 1）→ cast id → ランク名。RLS で 0 行のロール（staff）は空 Map＝要素非表示
   const [rankNames, setRankNames] = useState<Map<string, string>>(new Map());
   // 営業日切替（settings_json.biz_cutoff_hm・既存の stores 読取から拾う＝新規クエリ 0）
@@ -856,6 +860,15 @@ export default function RegisterBoard({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storeId]);
 
+  // ★便 M2 M-18: 遅刻＝今日の確定シフトの開始を過ぎて in／out 打刻が無い人（営業日の分＝締めの時刻より前は +1440）。表示専用
+  const lateIds = useMemo(() => {
+    const jst = new Date(Date.now() + 9 * 3600_000); const [ch, cm] = (cutoffHm || "06:00").split(":").map(Number);
+    let nowMin = jst.getUTCHours() * 60 + jst.getUTCMinutes(); if (nowMin < ch * 60 + cm) nowMin += 1440;
+    const late = lateIdsOf(todayShifts, nowMin, todayIds, outIds);
+    for (const id of lateEta.keys()) if (!todayIds.has(id) && !outIds.has(id)) late.add(id); // ★便 M2 M-18（補遺）: 遅刻連絡は打刻まで遅刻（赤）
+    return late;
+  }, [todayShifts, todayIds, outIds, cutoffHm, lateEta]);
+
   // E8-1 ⑤: 本日出勤の近似（最終打刻 'in'）。読取1本・表示専用。
   useEffect(() => {
     let alive = true;
@@ -866,6 +879,7 @@ export default function RegisterBoard({
       const last = new Map<string, string>();
       for (const p of data ?? []) last.set(p.cast_id as string, p.type as string);
       if (alive) setTodayIds(new Set([...last].filter(([, ty]) => ty === "in").map(([id]) => id)));
+      if (alive) setOutIds(new Set([...last].filter(([, ty]) => ty === "out").map(([id]) => id))); // ★便 M2 M-18
     })();
     return () => { alive = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -877,11 +891,13 @@ export default function RegisterBoard({
     let alive = true;
     void (async () => {
       const d = bizDateOf(new Date().toISOString(), cutoffHm);
-      const { data } = await supabase.from("attendance").select("cast_id")
+      const { data } = await supabase.from("attendance").select("cast_id, status, eta")
         .eq("store_id", storeId).eq("date", d).in("status", ATTEND_PRESENT);
       if (alive) setAttendIds(new Set((data ?? []).map((r) => r.cast_id as string)));
-      const { data: sh } = await supabase.from("shifts").select("cast_id").eq("store_id", storeId).eq("date", d).eq("status", "confirmed");
+      if (alive) setLateEta(new Map(((data ?? []) as { cast_id: string; status: string; eta: string | null }[]).filter((r) => r.status === "late").map((r) => [r.cast_id, r.eta ?? ""]))); // ★便 M2 M-18（補遺）
+      const { data: sh } = await supabase.from("shifts").select("cast_id, start_hm").eq("store_id", storeId).eq("date", d).eq("status", "confirmed");
       if (alive) setShiftIds(new Set((sh ?? []).map((r) => r.cast_id as string)));
+      if (alive) setTodayShifts(((sh ?? []) as { cast_id: string; start_hm: string }[])); // ★便 M2 M-18
     })();
     return () => { alive = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2000,7 +2016,7 @@ export default function RegisterBoard({
           {/* ★裁定384（GV-B W-14）: 既定タブ＝担当中→出勤中→すべて・担当中が 1 人だけなら選択済みにして「追加」1 タップ */}
           <CastPicker
             casts={casts} photoUrls={photoUrls} seatedIds={seatedIds} todayIds={todayIds}
-            attendIds={attendIds} servingIds={servingIds} rankNames={rankNames} chips grouped shiftIds={shiftIds}
+            attendIds={attendIds} servingIds={servingIds} rankNames={rankNames} chips grouped shiftIds={shiftIds} lateIds={lateIds} outIds={outIds} lateEta={lateEta}
             defaultChip={pickerDefaultChipOf({ seated: seatedIds.size, working: attendIds.size + todayIds.size })}
             selectedIds={seatedIds.size === 1 ? seatedIds : undefined}
             seatedBadges={nomKindBadgesOf(nomKinds, seatedIds)} /* ★便 X13-G W-4: 担当中タブ＝この伝票での区分 */
@@ -2852,7 +2868,7 @@ export default function RegisterBoard({
           {/* ★B3 裁定209〜211（#64・R43）: 候補一覧に出勤中／接客中／打刻・ランク名（cast_ranks が読めたロールのみ） */}
           <CastPicker
             casts={casts} photoUrls={photoUrls} seatedIds={seatedIds} todayIds={todayIds}
-            attendIds={attendIds} servingIds={servingIds} rankNames={rankNames} grouped shiftIds={shiftIds}
+            attendIds={attendIds} servingIds={servingIds} rankNames={rankNames} grouped shiftIds={shiftIds} lateIds={lateIds} outIds={outIds} lateEta={lateEta}
             selectedIds={seatedIds} badges={nomKindBadgesOf(nomKinds, seatedIds)} dense /* ★便 S（S-6 ①）: 名簿の人＝本／場内／フリーの印（名簿の種別・課金行に依らない） */
             chips chipSet="two" defaultChip="working" servingSeat={servingSeat} /* ★便 S（S-6 ①）: 一覧は常に出す・チップ＝出勤中（既定）／全員・他卓＝「着卓中（B2）」。旧 pickerDefaultChipOf は R34 帰属モーダル側に残す */
             onPick={(id) => {

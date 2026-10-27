@@ -32,7 +32,7 @@ export default function MasterSubnav() {
   }, [pathname, sp]);
   const search = sp?.toString() ? `?${sp.toString()}` : "";
   const cur = resolveMasterNav(pathname, search, hash);
-  const tabs = cur?.page.tabs ?? [];
+  const tabs = cur?.page.ownTabs ? [] : cur?.page.tabs ?? []; // ★便 M2 M-16: ページ自身がタブ列を持つ入口（キオスク端末）はタブ行を出さない＝二重を防ぐ
 
   return (
     <>

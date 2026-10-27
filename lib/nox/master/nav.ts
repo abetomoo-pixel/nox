@@ -10,7 +10,7 @@
 //   - 入口のタブが 2 つ未満 → タブ行そのものを出さない
 //   - 現在パスがどの入口にも一致しない → resolveMasterNav が null＝パンくずは「マスタ」のみ（/master・/master/cast-comp 概要・/master/stock）
 export type MasterNavTab = { label: string; href: string; aliases?: readonly string[] };
-export type MasterNavPage = { label: string; href: string; desc: string; tabs?: MasterNavTab[]; ownerOnly?: boolean };
+export type MasterNavPage = { label: string; href: string; desc: string; tabs?: MasterNavTab[]; ownerOnly?: boolean; ownTabs?: boolean }; // ★便 M2 M-16: ownTabs＝ページ自身がタブ列を持つ（サブナビはタブ行を出さない＝二重を防ぐ・tabs はパンくずと hash の解決にだけ使う）
 export type MasterNavGroup = { key: string; label: string; desc: string; pages: MasterNavPage[] };
 
 export const MASTER_NAV: MasterNavGroup[] = [
@@ -56,8 +56,8 @@ export const MASTER_NAV: MasterNavGroup[] = [
     label: "スタッフ・システム",
     desc: "端末・権限・情報の取り扱い",
     pages: [
-      { label: "端末・印刷", href: "/master/system", desc: "打刻・レジ端末、レシート・プリンタ", ownerOnly: true,
-        tabs: [{ label: "打刻・レジ端末", href: "/master/system#devices" }, { label: "操作担当PIN", href: "/master/system#pins" }, { label: "レシート・プリンタ", href: "/master/system#receipts" }] },
+      { label: "キオスク端末", href: "/master/system", desc: "打刻・レジ端末、操作担当PIN、レシート・プリンタ", ownerOnly: true, ownTabs: true, // ★便 M2 M-16（Agoora 確定 10/27）: 名称＝キオスク端末・タブはページ側の 1 行だけ
+        tabs: [{ label: "キオスク端末", href: "/master/system#devices" }, { label: "操作担当PIN", href: "/master/system#pins" }, { label: "レシート・プリンタ", href: "/master/system#receipts" }] },
       // ★MC2: 権限・情報管理＝キャスト会計の許可（報酬設定から移動・既存 page）／データ管理（店舗情報から分離・?tab=data）／機密情報（保護画面への導線）
       { label: "権限・情報管理", href: "/master/cast-comp/register", desc: "キャスト会計の許可・データ管理",
         tabs: [{ label: "キャスト会計の許可", href: "/master/cast-comp/register" }, { label: "データ管理", href: "/master/store-profile?tab=data" }, { label: "機密情報", href: "/master/system#secrets" }] },

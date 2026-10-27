@@ -37,7 +37,8 @@ import { mdDowOf } from "@/lib/nox/shift/staff-place";
 // ★便 AU2／AU3（2026-09-24・週末バックログ 2／3）: 計画期間の進行段・期間ごとの帯と地色・確定シフトの「未確定」印・月セルの名前合成（純関数）
 import { PERIOD_STAGES, effectiveStageOf, isUnpublishedDay, periodBandText, periodStageOf, stageIndexOf } from "@/lib/nox/shift/period-stage";
 import { PERIOD_LEGEND, periodCellClassOf, periodCellStageOf, unprocessedWishIdsOf, wishRowsOf } from "@/lib/nox/shift/period-cell"; // ★便 SH-UI-b2 B2-1（★便 SH-UI-c2 C2-19: セルの class は CalCell へ）
-import { CalCell, CalLegend } from "@/components/nox/shift-cal-cell"; // ★便 SH-UI-c2 C2-19: 日セルと凡例（③④・確定シフトタブで共通）
+import { CalCell, CalLegend, CalLegendLine } from "@/components/nox/shift-cal-cell"; // ★便 M2 M-15: CalLegendLine＝390 の凡例 1 行
+import {} from "@/components/nox/shift-cal-cell"; // ★便 SH-UI-c2 C2-19: 日セルと凡例（③④・確定シフトタブで共通）
 import { fillOf as calFillOf, noPlacingTextOf, periodMonthLabelOf, queueHeadTextOf, queueTotalTextOf, shortDaysInPeriodsOf } from "@/lib/nox/shift/cal-cell"; // ★便 SH-UI-c2 C2-17／C2-18／C2-19／B2-3: 日セルの地色＝期間の状態・提出一覧の行から希望を処理
 import { cellNamesOf } from "@/lib/nox/shift/cell-names";
 // ★0125（裁定112-A）: 自動配置 UI は撤去（autoAssign import ごと）。RPC/器（shift_auto_apply 等）は残置。
@@ -52,6 +53,7 @@ import { notifyCast } from "@/lib/nox/people/notify"; // ★便 ON-3（0176 ★5
 import { notifRefOf, remindNoticeDefaultOf, remindWishBody, shiftAddedBody, shiftChangedBody, shiftProposedBody, shiftRemovedBody } from "@/lib/nox/people/notify-text";
 import { PERIOD_NEEDS_NOTE, emptyPeriodNeedsForm, periodNeedRequiredOf, periodNeedRowsOf, periodNeedsChipOf, periodNeedsErrorOf, periodNeedsFormOf, type PeriodNeedRow, type PeriodNeedsForm } from "@/lib/nox/shift/period-needs"; // ★便 ON-3（0176 ★5 (a)）: 期間ごとの必要人数
 import { declineTextOf } from "@/lib/nox/shift/decline"; // ★便 ON-3（0176 ★5 (c)・裁定406）: 辞退の印
+import { bandOptionsOf, periodShortOf } from "@/lib/nox/shift/half-hour"; // ★便 M2 M-16: 必要人数の時間帯＝30 分刻みの選択肢
 import HmInput from "@/components/ui/hm-input"; // ★裁定318（便 X-9-2）: 時刻入力の共通部品（blur で HH:MM に正規化）
 import { HM_FORMAT_ERR, hmRangeErrorOf, normalizeHHMM } from "@/lib/nox/time/hhmm";
 import OkuriOutDialog from "@/components/nox/okuri-out-dialog";
@@ -389,6 +391,12 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   const [nAllDay, setNAllDay] = useState(false);
   const [nFrom, setNFrom] = useState("20:00");
   const [nTo, setNTo] = useState("24:00");
+  // ★便 M2 M-16（補遺）: 曜日を変えたら開始／終了をその曜日の営業時間の範囲に寄せる（選択肢に無い値を持たない）
+  useEffect(() => {
+    const o = bandOptionsOf(bhRows, nDow);
+    if (!o.from.includes(nFrom)) setNFrom(o.from[0]);
+    if (!o.to.includes(nTo)) setNTo(o.to[o.to.length - 1]);
+  }, [bhRows, nDow]); // eslint-disable-line react-hooks/exhaustive-deps -- 値の補正だけ（nFrom／nTo の変化では動かさない）
   const [nReq, setNReq] = useState(3);
 
   const castName = (id: string) => casts.find((c) => c.id === id)?.name ?? "?";
@@ -1771,7 +1779,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                       いまは1日ぶんの人数だけを見ています（何時が足りないかは分かりません）。
                       時間帯ごとに必要人数を登録すると、この欄が時間帯別に分かれます。
                     </p>
-                    <button style={{ ...btnLight, marginTop: 8 }} onClick={gotoNeeds}>時間帯を設定する</button>
+                    <div className="nox-actions" style={{ marginTop: 8 }}><button style={btnLight} onClick={gotoNeeds}>時間帯を設定する</button></div>{/* ★便 M2 M-16: 中央 */}
                   </div>
                 )}
               </>
@@ -2165,6 +2173,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                 );
               })}
             </div>
+            <CalLegendLine />{/* ★便 M2 M-15: 390 は凡例をカレンダーの下に 1 行 */}
             </>) : staffMatrixJsx}
             <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "8px 0 0" }}>
               セル＝地色は必要人数の充足・右上は期間の進行・中央は確定/必要人数（時間帯バンドのピーク値）。必要人数は下の「必要人数（曜日・時間帯別）」設定を参照します。
@@ -2245,11 +2254,16 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
             <label style={{ fontSize: 12.5, color: "var(--sub)", display: "flex", alignItems: "center", gap: 4 }}>
               <input type="checkbox" checked={nAllDay} onChange={(e) => setNAllDay(e.target.checked)} />終日
             </label>
+            <span className="nox-bandform-br" aria-hidden="true" />{/* ★便 M2 M-16（補遺）: 390 は「曜日／終日」と「開始〜終了・人数・追加」の 2 段 */}
             {!nAllDay && (
               <>
-                <HmInput value={nFrom} onChange={setNFrom} ariaLabel="開始" style={{ ...input, width: 64 }} placeholder="20:00" />
+                <select value={nFrom} onChange={(e) => setNFrom(e.target.value)} aria-label="開始" style={{ ...input, width: "auto" }} data-band-from="1">{/* ★便 M2 M-16（Agoora 確定 10/27）: 30 分刻みの選択式（翌表記は 0189 の後） */}
+                  {bandOptionsOf(bhRows, nDow).from.map((v) => <option key={v} value={v}>{v}</option>)}{/* ★便 M2 M-16（補遺）: 範囲＝その曜日の店の営業時間 */}
+                </select>
                 <span style={{ fontSize: 13, color: "var(--sub)" }}>〜</span>
-                <HmInput value={nTo} onChange={setNTo} ariaLabel="終了" style={{ ...input, width: 64 }} placeholder="24:00" />
+                <select value={nTo} onChange={(e) => setNTo(e.target.value)} aria-label="終了" style={{ ...input, width: "auto" }} data-band-to="1">
+                  {bandOptionsOf(bhRows, nDow).to.map((v) => <option key={v} value={v}>{v}</option>)}
+                </select>
               </>
             )}
             <span style={{ fontSize: 12.5, color: "var(--sub)" }}>必要</span>
@@ -2259,7 +2273,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
               disabled={!nAllDay && (hmRangeErrorOf(nFrom) !== null || hmRangeErrorOf(nTo) !== null)} onClick={addNeed}>追加</button>{/* ★318 追補: 範囲外は非活性 */}
           </div>
           <p style={{ fontSize: 11, color: "var(--sub)", margin: "8px 0 0" }}>
-            人数の変更はフォーカスアウトで保存。時間は 00:00〜24:00（例 20:00〜24:00）。
+            人数の変更はフォーカスアウトで保存。時間は 30 分刻みで 00:00〜24:00（例 20:00〜24:00）。
             同じ曜日で時間帯が重なる設定はできません（同じ開始時刻は上書き）。
           </p>
         </section>
@@ -2310,9 +2324,8 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
         {[...periods, ...(pNewId && !periods.some((p) => p.id === pNewId) ? periodsAll.filter((p) => p.id === pNewId) : [])].map((p) => (
           <div key={p.id} className="nox-periodcard" style={p.id === pNewId ? { outline: "1px solid var(--gold)", outlineOffset: -1, borderRadius: 8 } : undefined}>{/* ★306-7: ≤899px は「開始〜終了」「希望締切・状態」の縦 2 段・「編集」「削除」は横書きの小ボタンを右端に横並び */}
             <div className="pc-main">
-              <span className="num">{p.start_date} 〜 {p.end_date}</span>
+              <span className="num nox-period-short" data-period-short="1" title={`${p.start_date} 〜 ${p.end_date}・希望締切 ${p.wish_deadline ?? "—"}`}>{periodShortOf(p.start_date, p.end_date, p.wish_deadline)}</span>{/* ★便 M2 M-16（補遺）: 「10/26〜11/1・締切 10/21」で折り返さない */}
               <span className="pc-sub">
-                <span style={{ fontSize: 12, color: "var(--sub)" }}>希望締切 <span className="num">{p.wish_deadline ?? "—"}</span></span>
                 <span className={`nox-stpill ${p.status === "published" ? "ok" : ""}`}>{PERIOD_ST_LABEL[p.status] ?? p.status}</span>
                 {periodNeedsChipOf(periodNeeds, p.id) && <span className="nox-stpill" data-period-needs-chip="1">{periodNeedsChipOf(periodNeeds, p.id)}</span>}{/* ★便 ON-3（0176 ★5 (a)） */}
               </span>
@@ -2454,6 +2467,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                 })}
               </div>
 
+              <CalLegendLine />{/* ★便 M2 M-15: 390 は凡例をカレンダーの下に 1 行（上端の色帯の意味） */}
               <div className="nox-dslegend" data-day-legend="1"><span className="it"><span className="sw" data-day-state="fixed" />{dayStateLabelOf("fixed")}（/mine のシフト希望と同じ色）</span></div>
               <p className="nox-unpub-legend" style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "8px 0 0" }}><span className="nox-unpub-swatch" aria-hidden="true" />帯＝未確定（期間が未公開）</p>{/* ★306-5: 凡例（≤899 のみ） */}
               <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "10px 0 0", lineHeight: 1.7 }}>
@@ -2675,7 +2689,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                 ShiftAddForm へ送る旧導線（裁定44-4）は撤去＝キャスト起点はウィザード「＋ キャスト別にまとめて追加」へ。
                 ★status は planned（仮シフトの面＝これから組む段）＝今日タブの confirmed とは意図が違う。 */}
             {isManagerUp && (
-              <DayAddPanel date={selDate} casts={casts} photoUrls={photoUrls} bhRows={bhRows}
+              <DayAddPanel date={selDate} casts={casts} photoUrls={photoUrls} bhRows={bhRows} wishes={wishAll} closed={isClosedDay(selDate)}
                 assignedCastIds={shiftsOn(selDate).map((s) => s.cast_id)}
                 onSaved={async () => { setMsg("仮シフトを保存しました"); await load(); }}
                 onDirtyChange={setDayDirty} />
@@ -2754,10 +2768,15 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                 );
               })}
               {isManagerUp && (/* ★便 M-13（Agoora 10/26）: 確定シフトから追加＝公開済みのまま・既定は採用・確定＋本人へ通知（confirmShift／shift_set confirmed の通知）・定休日はブロック */
-                <div style={{ marginTop: 10 }}>
-                  <button type="button" className="nox-addc" data-roster-add={selDate} disabled={isClosedDay(selDate)} style={{ opacity: isClosedDay(selDate) ? 0.45 : 1 }}
-                    title={isClosedDay(selDate) ? "この日は定休日です" : undefined}
-                    onClick={() => { setDayModal(""); setAddDate(selDate); setAddStatus("confirmed"); setAddCast(null); setAddModal(true); }}>＋ キャストを追加</button>
+                <div style={{ marginTop: 10 }} data-roster-add={selDate}>{/* ★便 M2 M-19（Agoora 確定 10/27）: その日専用のシート＝DayAddPanel（キャスト選択→店の営業時間の時刻→既定 採用・確定→本人へ通知）・月全体のまとめて追加は開かない */}
+                  {isClosedDay(selDate) ? (
+                    <button type="button" className="nox-addc" disabled style={{ opacity: 0.45 }} title="この日は定休日です">＋ キャストを追加（定休日）</button>
+                  ) : (
+                    <DayAddPanel date={selDate} casts={casts} photoUrls={photoUrls} bhRows={bhRows} wishes={wishAll} closed={isClosedDay(selDate)}
+                      assignedCastIds={shiftsOn(selDate).map((s) => s.cast_id)}
+                      onSaved={async () => { setMsg("確定シフトに追加しました"); await load(); }}
+                      onDirtyChange={setDayDirty} />
+                  )}
                 </div>
               )}
               <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "10px 0 0", lineHeight: 1.7 }}>
@@ -2792,7 +2811,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                 裁定42 の confirmed は「当日その場で足すのは もう入る人」が根拠＝今日タブ限定なので
                 ここには当たらない。★裁定121: 追加はこの面で完結（DayAddPanel＝割当面と共通・ShiftAddForm へ送らない）。 */}
             {isManagerUp && (
-              <DayAddPanel date={selDate} casts={casts} photoUrls={photoUrls} bhRows={bhRows}
+              <DayAddPanel date={selDate} casts={casts} photoUrls={photoUrls} bhRows={bhRows} wishes={wishAll} closed={isClosedDay(selDate)}
                 assignedCastIds={shiftsOn(selDate).map((s) => s.cast_id)}
                 onSaved={async () => { setMsg("仮シフトを保存しました"); await load(); }}
                 onDirtyChange={setDayDirty} />

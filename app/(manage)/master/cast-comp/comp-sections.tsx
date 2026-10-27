@@ -887,10 +887,10 @@ export function NormTab({ casts, norms, isManagerUp, setMsg, reload, plans = [],
           {casts.map((c) => { const n = normOf(c.id); const r = resolvedOf(c.id, n); return (
             <tr key={c.id} className={picked.has(c.id) ? "on" : undefined} onClick={isManagerUp ? () => toggle(c.id) : undefined} style={isManagerUp ? { cursor: "pointer" } : undefined}>
               {isManagerUp && <td onClick={(e) => e.stopPropagation()}><input type="checkbox" checked={picked.has(c.id)} onChange={() => toggle(c.id)} aria-label={`${c.name} を選択`} disabled={busy} /></td>}
-              <td>{c.name}</td>
-              <td className="num">{n ? n.period : period}</td>
+              <td className="nox-norm-name">{c.name}</td>
+              <td className="num nox-norm-period">{n ? n.period : period}</td>{/* ★便 M2（BTN 追記・Agoora 10/26 夜）: 390 のカードでは期間を出さない（表の上の期間で分かる） */}
               {axisCols.map((k) => (/* ★裁定347: 上書き（cast_norms）＝濃・継承（プラン既定）＝薄＋title・なし＝— */
-                <td key={k} className="num" data-source={r.source[k] ?? "none"} title={r.source[k] === "plan" ? "プランの既定（継承）" : r.source[k] === "override" ? "個別の上書き" : undefined}
+                <td key={k} className="num" data-short={NORM_AXIS_LABEL[k]} data-source={r.source[k] ?? "none"} title={r.source[k] === "plan" ? "プランの既定（継承）" : r.source[k] === "override" ? "個別の上書き" : undefined}
                   style={r.source[k] === "plan" ? { color: "var(--sub)", opacity: 0.75 } : r.source[k] === "override" ? { fontWeight: 700 } : undefined}>{fmt(r.value[k])}</td>
               ))}
             </tr>
@@ -902,7 +902,7 @@ export function NormTab({ casts, norms, isManagerUp, setMsg, reload, plans = [],
       {isManagerUp ? (
         <>
           <div className="nox-inset" style={{ padding: "10px 12px" }}>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+            <div className="nox-normbulk" style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>{/* ★便 M2（BTN 追記）: 390 は 2 つ横並び・各 50%（「変えない」が切れない幅） */}
               {axes.days && <label style={{ fontSize: 12 }}>日数(日) {cell("days", bulk.days)}</label>}
               {axes.dohan && <label style={{ fontSize: 12 }}>同伴(回) {cell("dohan", bulk.dohan)}</label>}
               {axes.sales && <label style={{ fontSize: 12 }}>売上(円) {cell("sales", bulk.sales)}</label>}

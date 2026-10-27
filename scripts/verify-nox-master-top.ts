@@ -25,9 +25,9 @@ const groups = MASTER_NAV.map((g) => g.label);
 const entries = MASTER_NAV.flatMap((g) => g.pages);
 check("mt(1-1) 4 群＝商品・料金／キャスト・報酬／店舗・運用／スタッフ・システム・入口 9（商品管理／料金・会計／報酬設定／紹介者・紹介料／店舗設定／席・卓／営業時間・定休日／端末・印刷／権限・情報管理）",
   JSON.stringify(groups) === JSON.stringify(["商品・料金", "キャスト・報酬", "店舗・運用", "スタッフ・システム"]) && masterEntryCount() === 9
-  && JSON.stringify(entries.map((p) => p.label)) === JSON.stringify(["商品管理", "料金・会計", "報酬設定", "紹介者・紹介料", "店舗設定", "席・卓", "営業時間・定休日", "端末・印刷", "権限・情報管理"]), JSON.stringify(entries.map((p) => p.label)));
-check("mt(1-2) 在庫（/master/stock）はナビに無い（alias にも無い）・端末・印刷だけ ownerOnly・紹介者は /master/referrers 1 回・入口と全タブ・alias の URL は /master 配下のみ（新 route 0）",
-  !masterHasHref("/master/stock") && entries.filter((p) => p.ownerOnly).map((p) => p.label).join() === "端末・印刷" && entries.filter((p) => p.href === "/master/referrers").length === 1
+  && JSON.stringify(entries.map((p) => p.label)) === JSON.stringify(["商品管理", "料金・会計", "報酬設定", "紹介者・紹介料", "店舗設定", "席・卓", "営業時間・定休日", "キオスク端末", "権限・情報管理"]), JSON.stringify(entries.map((p) => p.label)));
+check("mt(1-2) 在庫（/master/stock）はナビに無い（alias にも無い）・キオスク端末だけ ownerOnly・紹介者は /master/referrers 1 回・入口と全タブ・alias の URL は /master 配下のみ（新 route 0）",
+  !masterHasHref("/master/stock") && entries.filter((p) => p.ownerOnly).map((p) => p.label).join() === "キオスク端末" && entries.filter((p) => p.href === "/master/referrers").length === 1
   && entries.every((p) => p.href.startsWith("/master/") && (p.tabs ?? []).every((t) => t.href.startsWith("/master/") && (t.aliases ?? []).every((a) => a.startsWith("/master/")))));
 const tabsOf = (label: string) => entries.find((p) => p.label === label)?.tabs ?? [];
 check("mt(1-3) タブ構成（MC2）: 商品管理 2・料金・会計 3（?tab=master／rules／checkout）・報酬設定 3（待遇プラン／控除・送り／ノルマ＝仮置きは無い）・店舗設定 3（利用機能 ?tab=features（alias 2＝報酬制度ページ・system#features）／店舗情報 ?tab=info／LINE 連携 ?tab=line＝ON-3）・端末・印刷 3・権限・情報管理 3（キャスト会計の許可／データ管理 ?tab=data／機密情報 #secrets）",
@@ -35,7 +35,7 @@ check("mt(1-3) タブ構成（MC2）: 商品管理 2・料金・会計 3（?tab=
   && tabsOf("報酬設定").map((t) => t.label).join() === "待遇プラン,控除・送り,ノルマ設定（店）" /* ★GV-63（便 P173） */
   && tabsOf("店舗設定").map((t) => `${t.label}:${t.href}`).join() === "利用機能:/master/store-profile?tab=features,店舗情報:/master/store-profile?tab=info,LINE 連携:/master/store-profile?tab=line" /* ★便 ON-3（0176 ★1 401）: 3 本目 */
   && JSON.stringify(tabsOf("店舗設定")[0].aliases) === JSON.stringify(["/master/cast-comp/systems", "/master/system#features"])
-  && tabsOf("端末・印刷").length === 3 && tabsOf("権限・情報管理").map((t) => `${t.label}:${t.href}`).join() === "キャスト会計の許可:/master/cast-comp/register,データ管理:/master/store-profile?tab=data,機密情報:/master/system#secrets"
+  && tabsOf("キオスク端末").length === 3 && tabsOf("権限・情報管理").map((t) => `${t.label}:${t.href}`).join() === "キャスト会計の許可:/master/cast-comp/register,データ管理:/master/store-profile?tab=data,機密情報:/master/system#secrets"
   && entries.find((p) => p.label === "権限・情報管理")?.href === "/master/cast-comp/register", JSON.stringify(entries.map((p) => [p.label, (p.tabs ?? []).map((t) => t.href)])));
 
 // (2) 旧 URL の解決
@@ -51,10 +51,10 @@ check("mt(2-2) 解決の形（MC2）: categories→商品管理/商品カテゴ�
   && lab("/master/cast-comp/systems") === "店舗・運用/店舗設定/利用機能" && lab("/master/system#features") === "店舗・運用/店舗設定/利用機能" && lab("/master/store-profile") === "店舗・運用/店舗設定/利用機能"
   && lab("/master/store-profile?tab=info") === "店舗・運用/店舗設定/店舗情報" && lab("/master/store-profile?tab=data") === "スタッフ・システム/権限・情報管理/データ管理"
   && lab("/master/cast-comp/register") === "スタッフ・システム/権限・情報管理/キャスト会計の許可" && lab("/master/system#secrets") === "スタッフ・システム/権限・情報管理/機密情報"
-  && lab("/master/cast-comp/norma") === "キャスト・報酬/報酬設定/ノルマ設定（店）" /* ★GV-63（便 P173） */ && lab("/master/system") === "スタッフ・システム/端末・印刷/打刻・レジ端末" && lab("/master/seats") === "店舗・運用/席・卓/-",
+  && lab("/master/cast-comp/norma") === "キャスト・報酬/報酬設定/ノルマ設定（店）" /* ★GV-63（便 P173） */ && lab("/master/system") === "スタッフ・システム/キオスク端末/キオスク端末" && lab("/master/seats") === "店舗・運用/席・卓/-",
   [lab("/master/cast-comp/systems"), lab("/master/system#features"), lab("/master/store-profile"), lab("/master/store-profile?tab=info"), lab("/master/store-profile?tab=data"), lab("/master/cast-comp/register"), lab("/master/system#secrets"), lab("/master/system")].join(" | "));
-check("mt(2-3) ナビ未登録＝null: /master・/master/cast-comp（概要）・/master/stock／hash 不一致（/master/system#nope）は端末・印刷でタブ null／?tab 不一致（/master/store-profile?tab=x）は店舗設定でタブ null",
-  r("/master") === null && r("/master/cast-comp") === null && r("/master/stock") === null && lab("/master/system#nope") === "スタッフ・システム/端末・印刷/-" && lab("/master/store-profile?tab=x") === "店舗・運用/店舗設定/-",
+check("mt(2-3) ナビ未登録＝null: /master・/master/cast-comp（概要）・/master/stock／hash 不一致（/master/system#nope）はキオスク端末でタブ null／?tab 不一致（/master/store-profile?tab=x）は店舗設定でタブ null",
+  r("/master") === null && r("/master/cast-comp") === null && r("/master/stock") === null && lab("/master/system#nope") === "スタッフ・システム/キオスク端末/-" && lab("/master/store-profile?tab=x") === "店舗・運用/店舗設定/-",
   [lab("/master/system#nope"), lab("/master/store-profile?tab=x")].join(" | "));
 
 // (3) 検索

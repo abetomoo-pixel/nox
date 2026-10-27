@@ -147,7 +147,7 @@ check("ms(2-10) 裁定318: normalizeHHMM（2000→20:00・20:00・9:30→09:30�
   && HM_FORMAT_ERR === "時刻の形式が不正です（例 2000・20:00）" && messageKindOf(HM_FORMAT_ERR) === "error"
   && hmSrc.includes('inputMode="numeric"') && hmSrc.includes("onBlur=") && hmSrc.includes("normalizeHHMM(e.target.value, maxHour)")
   && !/HH:MM（00:00〜47:59）で入力してください|HH:MM 形式で入力してください/.test(fs.readFileSync("lib/nox/shift/punch-correction.ts", "utf8") + shiftSrc)
-  && (shiftSrc.match(/<HmInput /g) ?? []).length === 6); // ★裁定380（便 GV-B）: 希望の調整モーダル（開始／終了）で +2
+  && (shiftSrc.match(/<HmInput /g) ?? []).length === 4); // ★裁定380（便 GV-B）: 希望の調整モーダル（開始／終了）で +2 ★便 M2 M-16: 必要人数の時間帯は 30 分刻みの選択式へ（−2）
 // ★裁定317（便 X-9-3）: 送りの既定額の順（店設定→直近の送り→空欄必須）・金額の検査・文言の種別・shift-board は「送り」→ダイアログ→punch_proxy(p_okuri true)→transport_issue_bulk(idem＝punch id)
 const okuriDlgSrc = fs.readFileSync("components/nox/okuri-out-dialog.tsx", "utf8");
 const reportSrc2 = fs.readFileSync("app/(manage)/report/report-board.tsx", "utf8");
@@ -162,7 +162,7 @@ check("ms(2-11) 裁定317: okuriDefaultAmountOf の順・okuriAmountOf・文言�
   && okuriDlgSrc.includes("確定して退勤") && reportSrc2.includes("記録済み {okuriIssued.n} 件・合計") /* ★裁定414: 「記録」 */ && reportSrc2.includes("確認して締める"));
 
 // ★裁定318 追補（2026-09-29・便 X-10-3）: 入力マスク（数字のみ・最大 4 桁・2 桁で ':'・5 桁目無視・貼り付けも同形・全角）と範囲外のその場判定・送信非活性
-const hmUsers = ["components/nox/punch-correction-modal.tsx", "app/mine/punch-correction-form.tsx", "app/mine/attendance-form.tsx", "app/mine/wishes/wish-form.tsx", "app/(manage)/shift/day-add-panel.tsx", "app/(manage)/shift/shift-add-form.tsx", "app/(manage)/shift/shift-board.tsx"];
+const hmUsers = ["components/nox/punch-correction-modal.tsx", "app/mine/punch-correction-form.tsx", "app/mine/wishes/wish-form.tsx", "app/(manage)/shift/shift-add-form.tsx", "app/(manage)/shift/shift-board.tsx"]; // ★便 M2 M-16／M-19: attendance-form（遅刻の見込み）と day-add-panel（日モーダルの追加）は 30 分刻みの選択式へ
 check("ms(2-12) 裁定318 追補: maskHHMM（2→2・20→20:・203→20:3・2030→20:30・20301→20:30・貼り付け 20:30／２０３０／9:30→09:30・英字は落とす）・削除（20:→2・20:3→20）・範囲外の文言（時／分・開始欄は 23 まで）・全経路で送信非活性",
   maskHHMM("2", "") === "2" && maskHHMM("20", "2") === "20:" && maskHHMM("20:3", "20:") === "20:3" && maskHHMM("20:30", "20:3") === "20:30" && maskHHMM("20:301", "20:30") === "20:30"
   && maskHHMM("20:30", "") === "20:30" && maskHHMM("２０３０", "") === "20:30" && maskHHMM("9:30", "") === "09:30" && maskHHMM("ab1c2", "") === "12:" && maskHHMM("", "2") === ""
@@ -200,11 +200,11 @@ check("ms(2-14) 裁定321／X-11-2b: 候補（伝票の顧客は外す・最近�
 const cpSrc = fs.readFileSync("components/nox/cast-picker.tsx", "utf8");
 const ord = castPickerOrder([{ id: "1", name: "れい" }, { id: "2", name: "あい" }, { id: "3", name: "かな" }, { id: "4", name: "さき" }, { id: "5", name: "うた" }, { id: "6", name: "えま" }],
   { seatedIds: new Set(["4"]), servingIds: new Set(["1"]), punchedInIds: new Set(["3", "4", "6"]), shiftIds: new Set(["2", "3"]) });
-check("ms(2-15) 裁定322: castPickerOrder（①さき・れい→②えま・かな→③あい→④うた）・working は①②・折りたたみの文言・CastPicker は grouped で lib の並びを使い既定チップ＝出勤中・register の 2 面に適用",
-  JSON.stringify(ord.map((c) => c.name)) === JSON.stringify(["さき", "れい", "えま", "かな", "あい", "うた"]) && JSON.stringify(ord.map((c) => c.group)) === JSON.stringify([1, 1, 2, 2, 3, 4]) && ord.filter((c) => c.working).length === 4
+check("ms(2-15) 裁定322→★便 M2 M-18: castPickerOrder（待機中 えま・かな→着卓中 さき・れい→出勤予定 あい→退勤／休み うた）・working は待機中・着卓中・折りたたみの文言・CastPicker は grouped で lib の並びと状態の文字を使い既定チップ＝出勤中・register の 2 面に適用",
+  JSON.stringify(ord.map((c) => c.name)) === JSON.stringify(["えま", "かな", "さき", "れい", "あい", "うた"]) && JSON.stringify(ord.map((c) => c.group)) === JSON.stringify([1, 1, 2, 2, 3, 5]) && ord.filter((c) => c.working).length === 4
   && offDutyToggleLabelOf(2, false) === "未出勤を表示（2 人）" && offDutyToggleLabelOf(2, true) === "未出勤を隠す（2 人）"
-  && cpSrc.includes("castPickerOrder(base,") && cpSrc.includes('grouped && chips ? "working" : ""') && cpSrc.includes("offDutyToggleLabelOf(offDuty.length, offOpen)") && cpSrc.includes('"未出勤"')
-  && (regSrc.match(/ grouped shiftIds=\{shiftIds\}/g) ?? []).length === 2 && regSrc.includes('from("shifts").select("cast_id")'));
+  && cpSrc.includes("castPickerOrder(base,") && cpSrc.includes('grouped && chips ? "working" : ""') && cpSrc.includes("offDutyToggleLabelOf(offDuty.length, offOpen)") && cpSrc.includes("castStatusLabelOf(c.id, sets)")
+  && (regSrc.match(/ grouped shiftIds=\{shiftIds\}/g) ?? []).length === 2 && regSrc.includes('from("shifts").select("cast_id, start_hm")'));
 // ★便 X-11-6: 金額欄の共通化（数字のみ・3 桁区切り・値は整数・右に「円」・ラベルは「金額」）
 const MONEY_USERS = ["components/nox/advance-okuri-form.tsx", "components/nox/issue-bulk-form.tsx", "components/nox/daily-pay-form.tsx", "app/(manage)/shift/incentive-panel.tsx", "app/(manage)/payroll/payroll-board.tsx",
   "app/(manage)/payroll/payment-panel.tsx", "components/nox/okuri-out-dialog.tsx", "components/nox/settlement-modal.tsx", "components/nox/sanction-modal.tsx", "app/(manage)/report/report-board.tsx", "app/(manage)/register/register-board.tsx",

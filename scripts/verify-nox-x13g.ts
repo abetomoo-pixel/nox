@@ -140,7 +140,7 @@ check("x13g(20) W-19 ① customers-keep の snapshot は検証 org の範囲・�
     ln?.label === "出勤ノルマ 20 日｜出勤済み 8 日＋確定 6 日＝14 日｜あと 6 日不足" && ln?.pendingLabel === "確認待ち 3 日を含めると あと 3 日" && daysNormLineOf({ target: null, worked: 1, fixedDays: 0, pendingDays: 0 }) === null
     && daysNormLineOf({ target: 5, worked: 3, fixedDays: 2, pendingDays: 1 })?.achieved === true && src("app/mine/wishes/page.tsx").includes('data-wish-days-norm="1"'), JSON.stringify(ln));
   const af = src("app/mine/attendance-form.tsx");
-  check("x13g(24) W-22 ③④ 送信は中央・placeholder「見込み 21:30」・/mine のランキングは売上が既定（get_cast_sales_rank・指名は切替）", af.includes('placeholder="見込み 21:30"') && af.includes('margin: "4px auto 0"') && mp.includes('rpc("get_cast_sales_rank"') && mp.includes('href="/mine/ranking?axis=nom"'));
+  check("x13g(24) W-22 ③④ 送信は中央・見込みは選択式（★便 M2 M-16: 旧 placeholder「見込み 21:30」）・/mine のランキングは売上が既定（get_cast_sales_rank・指名は切替）", af.includes('<option value="">見込みを選ぶ</option>') && af.includes('margin: "4px auto 0"') && mp.includes('rpc("get_cast_sales_rank"') && mp.includes('href="/mine/ranking?axis=nom"'));
 }
 // W-23／W-18 ⑦
 {

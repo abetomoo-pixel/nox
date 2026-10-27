@@ -20,6 +20,7 @@ import * as t from "@/lib/nox/ui/theme";
 import { SegmentTabs } from "@/components/ui/responsive-kit"; // ★裁定378（GV-B W-8）
 import CastPicker, { type PickerBadge } from "@/components/nox/cast-picker";
 import { useNarrow } from "@/components/ui/bottom-sheet"; // ★便 SH-UI-c2 C2-20 ①: 1,024px の出し分け
+import { bizDateOf } from "@/lib/nox/biz-date"; // ★便 M2 M-18: 予約の日付が今日（営業日）か
 import { castBadgesOf } from "@/lib/nox/register/reservation-badges"; // ★便 SH-UI-c2 C2-20 ③
 import { businessHoursStatus, fmtHoursLabel, type BusinessHourRow } from "@/lib/nox/business-hours";
 import Picker from "@/components/nox/picker";
@@ -399,17 +400,26 @@ export default function ReservationPanel({
     if (!storeId || !badgeDate) return;
     let alive = true;
     void (async () => {
-      const [{ data: sh }, { data: at }, { data: nm }] = await Promise.all([
+      // ★便 M2 M-18: 予約の日付が今日（営業日）のときだけ、今の着卓・打刻（待機中・退勤）・遅刻を使う
+      const bizToday = bizDateOf(new Date().toISOString(), cutoffHm);
+      const isToday = badgeDate === bizToday;
+      const [{ data: sh }, { data: at }, { data: nm }, { data: pu }] = await Promise.all([
         supabase.from("shifts").select("cast_id, start_hm").eq("store_id", storeId).eq("date", badgeDate).eq("status", "confirmed"),
         supabase.from("attendance").select("cast_id, status").eq("store_id", storeId).eq("date", badgeDate),
         supabase.from("check_nominations").select("cast_id, ended_at, checks!inner(status, seat_id, store_id)").eq("checks.status", "open").eq("checks.store_id", storeId).is("ended_at", null),
+        isToday ? supabase.from("punches").select("cast_id, type, punched_at").gte("punched_at", new Date(Date.now() - 20 * 3600_000).toISOString()).order("punched_at") : Promise.resolve({ data: [] as { cast_id: string; type: string }[] }),
       ]);
+      const last = new Map<string, string>(); for (const p of (pu ?? []) as { cast_id: string; type: string }[]) last.set(p.cast_id, p.type);
+      const jst = new Date(Date.now() + 9 * 3600_000); const [ch, cm] = (cutoffHm || "06:00").split(":").map(Number);
+      let nowMin = jst.getUTCHours() * 60 + jst.getUTCMinutes(); if (nowMin < ch * 60 + cm) nowMin += 1440;
+      const today = isToday ? { punchedIn: new Set([...last].filter(([, ty]) => ty === "in").map(([id]) => id)), out: new Set([...last].filter(([, ty]) => ty === "out").map(([id]) => id)), nowMin } : null;
       if (!alive) return;
       const seatNameOf = (id: string | null | undefined) => (id ? seats.find((x) => x.id === id)?.name ?? null : null);
       setCastBadges(castBadgesOf({
         shifts: ((sh ?? []) as { cast_id: string; start_hm: string }[]),
         attendance: ((at ?? []) as { cast_id: string; status: string }[]),
-        seated: ((nm ?? []) as { cast_id: string; checks: { seat_id: string | null } | { seat_id: string | null }[] | null }[]).map((x) => ({ castId: x.cast_id, seatName: seatNameOf((Array.isArray(x.checks) ? x.checks[0] : x.checks)?.seat_id) })),
+        today,
+        seated: ((isToday ? (nm ?? []) : []) as unknown as { cast_id: string; checks: { seat_id: string | null } | { seat_id: string | null }[] | null }[]).map((x) => ({ castId: x.cast_id, seatName: seatNameOf((Array.isArray(x.checks) ? x.checks[0] : x.checks)?.seat_id) })),
       }));
     })();
     return () => { alive = false; };
@@ -700,15 +710,12 @@ export default function ReservationPanel({
       )}
       <section className="nox-cardtop" style={{ ...card, ...(wide && editRow ? { display: "none" } : {}) }} data-rsv-new-form="1">
         <h2 style={secTitle}>新規予約</h2>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
-          <span style={t.fieldLabel}>日付</span>
-          <input type="date" value={fDate} onChange={(e) => setFDate(e.target.value)} style={{ ...input, maxWidth: 156 }} />
-          <span style={t.fieldLabel}>時刻</span>
-          <input type="time" value={fTime} onChange={(e) => setFTime(e.target.value)} style={{ ...input, maxWidth: 110 }} />
-          <span style={t.fieldLabel}>人数</span>
-          <input type="number" min={1} value={fPeople} onChange={(e) => setFPeople(Number(e.target.value))} style={{ ...input, width: 60 }} />
-          {hoursNote(fHours)}
+        <div className="nox-rsv-dtp" data-rsv-dtp="1" style={{ marginBottom: 8 }}>{/* ★便 M2 M-18（補遺）: 390 は「日付・時刻・人数」を 1 段（3 列・ラベルは上） */}
+          <label><span style={t.fieldLabel}>日付</span><input type="date" value={fDate} onChange={(e) => setFDate(e.target.value)} style={input} /></label>
+          <label><span style={t.fieldLabel}>時刻</span><input type="time" value={fTime} onChange={(e) => setFTime(e.target.value)} style={input} /></label>
+          <label><span style={t.fieldLabel}>人数</span><input type="number" min={1} value={fPeople} onChange={(e) => setFPeople(Number(e.target.value))} style={input} /></label>
         </div>
+        {hoursNote(fHours) && <div style={{ marginBottom: 8 }}>{hoursNote(fHours)}</div>}
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
           <span style={t.fieldLabel}>客</span>
           <label style={{ fontSize: 12.5, display: "flex", gap: 4, alignItems: "center" }}>

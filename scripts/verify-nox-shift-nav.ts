@@ -51,8 +51,8 @@ check("sn(2-4) 306-2: 「配置を組む」に募集期間の注記（recruitNot
 check("sn(2-5) 306-4: /mine は outOfPeriodNoteOf(active.size, periods, month) を注記に・案内文は right", wf.includes("note={outOfPeriodNoteOf(active.size, periods, month)}") && wf.includes("right={<span"));
 
 // (3) 崩れ
-check("sn(3-1) 306-3／306-8: 配置ツールは .nox-plantools（build と roster の 2 箇所）・CSS ≤899 は column・seg は width 100%・ボタンは width 100%",
-  (sb.match(/className="nox-plantools"|className="nox-noprint nox-plantools"/g) || []).length === 2 && /@media \(max-width: 899px\) \{\s*\.nox-plantools \{ margin-left: 0; width: 100%; flex-direction: column;/.test(css) && css.includes(".nox-plantools .nox-seg { width: 100%; display: flex; }") && css.includes(".nox-plantools > button { width: 100%; }"));
+check("sn(3-1) 306-3／306-8: 配置ツールは .nox-plantools（build と roster の 2 箇所）・CSS ≤899 は seg が全幅 1 行・ボタンは次の行に横並び（★便 M2 M-15: CSV／印刷は横並び各 50%）",
+  (sb.match(/className="nox-plantools"|className="nox-noprint nox-plantools"/g) || []).length === 2 && css.includes(".nox-plantools { margin-left: 0; width: 100%; flex-wrap: wrap; align-items: stretch; }") && css.includes(".nox-plantools .nox-seg { flex: 1 1 100%; display: flex; }") && css.includes(".nox-plantools > button { flex: 1 1 0; min-width: 0; }"));
 check("sn(3-2) 306-5: 未確定＝.nox-cald--unpub（≤899 は border-top 3px・.nox-cald-unpub は非表示）・凡例「帯＝未確定」（≤899 のみ）・絶対配置のバッジ 0",
   sb.includes('unpublished ? "nox-cald--unpub" : ""') && sb.includes('<span className="nox-cald-unpub">未確定</span>') && sb.includes("帯＝未確定（期間が未公開）") && !sb.includes('position: "absolute", top: 3, right: 5')
   && css.includes(".nox-cald.nox-cald--unpub { border-top: 3px solid var(--gold2); }") && css.includes(".nox-cald .nox-cald-unpub { display: none; }") && css.includes(".nox-unpub-legend { display: block; }"));

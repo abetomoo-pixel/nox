@@ -2301,10 +2301,11 @@ body {
 .nox-monthnav .nox-monthnav-note { flex-basis: 100%; font-size: 10.5px; color: var(--v2-muted); }
 .nox-plantools { margin-left: auto; display: inline-flex; gap: 8px; align-items: center; }
 @media (max-width: 899px) {
-  .nox-plantools { margin-left: 0; width: 100%; flex-direction: column; align-items: stretch; }
-  .nox-plantools .nox-seg { width: 100%; display: flex; }
+  /* ★便 M2 M-15（Agoora 確定 10/27）: CSV／印刷は横並び＝セグメントは 1 行（全幅）・ボタンは次の行に 2 つ並べる */
+  .nox-plantools { margin-left: 0; width: 100%; flex-wrap: wrap; align-items: stretch; }
+  .nox-plantools .nox-seg { flex: 1 1 100%; display: flex; }
   .nox-plantools .nox-seg > button { flex: 1 1 0; white-space: nowrap; }
-  .nox-plantools > button { width: 100%; }
+  .nox-plantools > button { flex: 1 1 0; min-width: 0; }
 }
 .nox-cald .nox-cald-unpub { display: block; font-size: 8.5px; line-height: 1.4; color: var(--v2-muted); text-align: left; }
 .nox-unpub-legend { display: none; }
@@ -2325,6 +2326,20 @@ body {
 .nox-periodform .pf-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .nox-periodform .pf-acts { display: flex; justify-content: flex-end; gap: 8px; }
 @media (max-width: 899px) { .nox-periodform .pf-acts { flex-direction: column; } .nox-periodform .pf-acts > button { width: 100%; } } /* ★裁定308-1: 「作成」は幅いっぱいの 1 行 */
+/* ★便 M2 M-18（補遺）: 新規予約の「日付・時刻・人数」＝1 段の 3 列（ラベルは上）・広い画面は従来の幅 */
+.nox-rsv-dtp { display: grid; grid-template-columns: minmax(0, 156px) minmax(0, 110px) minmax(0, 70px); gap: 8px; align-items: end; }
+.nox-rsv-dtp > label { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.nox-rsv-dtp input { width: 100%; min-width: 0; box-sizing: border-box; }
+@media (max-width: 599px) { .nox-rsv-dtp { grid-template-columns: 1.5fr 1.1fr 0.7fr; gap: 6px; } }
+/* ★便 M2 M-16（補遺）: 必要人数の追加フォームは 390 で 2 段（改行用の空要素）・期間一覧の短い日付は折り返さない */
+.nox-bandform-br { display: none; }
+@media (max-width: 599px) { .nox-bandform-br { display: block; flex-basis: 100%; height: 0; } }
+.nox-period-short { white-space: nowrap; }
+/* ★便 M2 M-16（Agoora 確定 10/27）: 期間作成の日付欄（開始・終了・希望締切）は 390 で全幅（ラベルの下に欄） */
+@media (max-width: 899px) {
+  .nox-periodform .pf-row > label:has(> input[type="date"]) { flex: 1 1 100%; display: flex; flex-direction: column; gap: 4px; }
+  .nox-periodform .pf-row > label > input[type="date"] { width: 100%; box-sizing: border-box; }
+}
 .nox-sscell-narrow { display: none; }
 @media (max-width: 899px) {
   .nox-sscell-wide { display: none !important; }
@@ -2589,6 +2604,20 @@ body {
 .nox-callegend-sw { width: 14px; height: 14px; border-radius: 3px; display: inline-block; }
 .nox-callegend-sw.fill-ok { background: var(--cal-ok-bg); } .nox-callegend-sw.fill-warn { background: var(--cal-warn-bg); } .nox-callegend-sw.fill-ng { background: var(--cal-ng-bg); } .nox-callegend-sw.fill-none { background: var(--cal-none-bg); }
 @media (max-width: 430px) { .nox-callegend { grid-template-columns: 1fr; } .nox-cald.nox-cald2 { min-height: 58px; } .nox-cald2 .nox-cald-ctr { font-size: 11px; } .nox-cald-bd { font-size: 7.5px; padding: 1px 3px; } }
+/* ★便 M2 M-15: 凡例 1 行（≤430 だけ）＝色帯の見本＋語・CalLegend の「進行状況（右上バッジ）」列は 390 では出さない */
+.nox-callegend-line { display: none; }
+.nox-calband { display: inline-block; width: 14px; height: 5px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
+.nox-calband.stg-draft { background: var(--stg-draft-bg); } .nox-calband.stg-open { background: var(--stg-open-bg); } .nox-calband.stg-closed { background: var(--stg-closed-bg); } .nox-calband.stg-published { background: var(--stg-published-bg); } .nox-calband.stg-none { background: var(--stg-none-bg); }
+@media (max-width: 430px) {
+  .nox-callegend-line { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 10.5px; color: var(--sub); margin: 8px 0 0; }
+  .nox-callegend [data-cal-legend-col="stage"] { display: none; }
+}
+/* ★便 M2 M-15（Agoora 確定 10/27）: 390 の月カレンダー＝進行のバッジはセルの上端の色帯（文字は出さない・色は凡例と同じ）・日付は左上（帯の下）。凡例（.nox-callegend）のバッジは文字のまま */
+@media (max-width: 430px) {
+  .nox-cald.nox-cald2 { padding-top: 17px; overflow: hidden; }
+  .nox-cald.nox-cald2 .nox-cald-bd { left: 0; right: 0; top: 0; height: 5px; padding: 0; border-radius: 0; font-size: 0; line-height: 0; color: transparent; }
+  .nox-cald.nox-cald2 .nox-cald-n { left: 5px; top: 6px; font-weight: 700; }
+}
 .nox-cald.pst-open { background: var(--primary-soft); }
 .nox-cald.pst-closed { background: var(--warning-soft); }
 .nox-cald.pst-published { background: rgba(77,195,125,.14); }
@@ -2740,6 +2769,20 @@ html, body { overflow-x: hidden; }
   .nox-rwrap table td[colspan] { flex: 0 0 100%; }
 }
 .nox-rwrap table th { writing-mode: horizontal-tb !important; white-space: nowrap; }
+/* ★便 M2（BTN 追記・Agoora 10/26 夜）: キャスト別の目標の表＝見出しと値の列を同じ揃え（右）・同じ幅。390 のカードは 1 行＝「名前　日数 12・同伴 4」（見出し語「キャスト」「期間」は出さない・採用した軸だけ・未設定は —）。まとめて入力の数値欄は 2 つ横並び・各 50% */
+.nox-normtable th.num, .nox-normtable td.num { width: 7.5em; text-align: right; }
+@media (max-width: 599px) {
+  .nox-rwrap table.nox-normtable tr { flex-wrap: wrap; gap: 2px 6px; } /* 軸が多くて 390 に収まらないときだけ折り返す */
+  .nox-rwrap table.nox-normtable td.nox-norm-period { display: none; }
+  .nox-rwrap table.nox-normtable td.nox-norm-name { flex: 1 1 auto; font-weight: 700; }
+  .nox-rwrap table.nox-normtable td.nox-norm-name::before { content: none; }
+  .nox-rwrap table.nox-normtable td[data-short] { width: auto; white-space: nowrap !important; }
+  .nox-rwrap table.nox-normtable td[data-short]::before { content: attr(data-short) " "; margin-right: 0; }
+  .nox-rwrap table.nox-normtable td[data-short] ~ td[data-short]::before { content: "・" attr(data-short) " "; }
+  .nox-normbulk { display: grid !important; grid-template-columns: 1fr 1fr; gap: 8px !important; }
+  .nox-normbulk > label { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .nox-normbulk > label > input { width: 100% !important; min-width: 0; box-sizing: border-box; }
+}
 /* 382: FieldStack＝ラベル上・入力下（children が複数なら 1 行） */
 .nox-fieldstack { display: grid; gap: 4px; margin-bottom: 12px; }
 .nox-fieldstack > .l { font-size: 12px; color: var(--sub); font-weight: 700; }

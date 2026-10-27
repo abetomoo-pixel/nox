@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import HmInput from "@/components/ui/hm-input"; // ★裁定318（便 X-9-2）: 時刻入力の共通部品（blur で HH:MM に正規化）
 import { HM_FORMAT_ERR, hmRangeErrorOf, normalizeHHMM } from "@/lib/nox/time/hhmm";
 import SegSelect from "@/components/ui/seg-select";
 import { useRouter } from "next/navigation";
@@ -9,6 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 
 import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
+import { etaOptionsOf } from "@/lib/nox/shift/half-hour"; // ★便 M2 M-16（補遺）
 import { ETA_CHIP_MINUTES, etaChipLabelOf, etaOfChip } from "@/lib/nox/mine/eta-chips"; // ★便 M-3（Agoora 確定 ④）: 見込みは予定開始からのチップ＋その他
 // cast セルフ連絡は遅刻/当欠のみ（RPC 側でも enforce＝attendance_set_self）。
 export default function AttendanceForm({ defaultDate, startHm = null }: { defaultDate: string; startHm?: string | null }) {
@@ -56,7 +56,10 @@ export default function AttendanceForm({ defaultDate, startHm = null }: { defaul
         </span>
       )}
       {status === "late" && (etaMode === "other" || !startHm) && (
-        <HmInput placeholder="見込み 21:30" value={eta} onChange={setEta} ariaLabel="出勤見込み" style={{ ...input, width: 170 }} />
+        <select value={eta} onChange={(e) => setEta(e.target.value)} aria-label="出勤見込み" style={{ ...input, width: 170 }} data-eta-select="1">{/* ★便 M2 M-16（補遺）: 「その他」も 30 分刻みの選択式（24 時を超えたら翌） */}
+          <option value="">見込みを選ぶ</option>
+          {etaOptionsOf(startHm).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
       )}
       <input
         placeholder="理由（任意）"

@@ -132,7 +132,7 @@ export default function MineSettingsPanel({ stores, isOwner = false }: { stores:
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap", borderTop: "1px solid var(--line2)", padding: "8px 0" }} data-cast-register-device="1">
         <div style={{ minWidth: 0, flex: "1 1 240px" }}>
           <div style={rowLabel}>操作端末</div>
-          <p style={rowDesc}>「店端末のみ」＝端末・印刷で登録済みのレジ端末からだけ（未登録の店は自分のスマホ扱い）。「自分のスマホからも」＝キャスト本人のログインからもレジを開けます。レジ使用が ON のときだけ効きます</p>
+          <p style={rowDesc}>「店端末のみ」＝キオスク端末で登録済みのレジ端末からだけ（未登録の店は自分のスマホ扱い）。「自分のスマホからも」＝キャスト本人のログインからもレジを開けます。レジ使用が ON のときだけ効きます</p>
         </div>
         <SegSelect value={castReg.device} onChange={(v) => void setCastRegDevice(v === "own_phone" ? "own_phone" : "store_device")}
           options={(["store_device", "own_phone"] as const).map((v) => [v, CAST_REGISTER_DEVICE_LABEL[v]] as const)} disabled={castRegBusy || !loaded || !isOwner || !castReg.enabled} ariaLabel="操作端末" />

@@ -12,18 +12,21 @@
 import { useMemo, useState } from "react";
 import CastAvatar from "@/components/ui/cast-avatar";
 import * as t from "@/lib/nox/ui/theme";
-import { castPickerOrder, offDutyToggleLabelOf, type CastPickGroup } from "@/lib/nox/register/cast-picker-order";
+import { castPickerOrder, castStatusOf, castStatusLabelOf, lateContactLabelOf, CAST_STATUS_LABEL, CAST_STATUS_ORDER, CAST_STATUS_TONE, offDutyToggleLabelOf, type CastPickGroup, type CastStatus } from "@/lib/nox/register/cast-picker-order"; // ★便 M2 M-18: 状態 5 つ（待機中・着卓中・出勤予定・遅刻・退勤／休み）
 import { ROSTER_CHIPS, servingLabelOf } from "@/lib/nox/register/seat-roster"; // ★便 S（S-6 ①）: チップ 出勤中／全員・他卓の「着卓中（B2）」
 
 export type PickerCast = { id: string; name: string };
 
 // E8-1d: 種別付きバッジ（本指名=gold／場内=gold2／同伴・フリー=muted）。呼び出し側が判定して渡す＝
 //   本部品は表示のみ（判定ロジックを持たない）。エントリがある id は「着卓中」の代わりにこれを出す。
-export type PickerBadge = { label: string; tone: "gold" | "gold2" | "muted" };
+export type PickerBadge = { label: string; tone: "gold" | "gold2" | "muted" | "ok" | "blue" | "bad"; order?: number }; // ★便 M2 M-18: ok＝待機中（緑）・blue＝出勤予定（青）・bad＝遅刻（赤）・order＝並び（あれば名前順の前に効く）
 const BADGE_STYLE: Record<PickerBadge["tone"], { color: string; borderColor: string }> = {
   gold: { color: "var(--gold)", borderColor: "rgba(212, 175, 55, .5)" },
   gold2: { color: "var(--gold2)", borderColor: "rgba(201, 162, 74, .45)" },
   muted: { color: "var(--sub)", borderColor: "var(--line2)" },
+  ok: { color: "var(--ok)", borderColor: "rgba(119, 186, 131, .45)" },
+  blue: { color: "var(--primary)", borderColor: "rgba(79, 140, 255, .45)" },
+  bad: { color: "var(--bad)", borderColor: "rgba(217, 138, 138, .5)" },
 };
 
 /** ★便 X13-G W-4: この伝票での指名区分（本指名／場内／フリー）→ 担当中タブのチップ（色は既存トークン 3 種） */
@@ -44,7 +47,7 @@ export function pickerDefaultChipOf(i: { seated: number; working: number }): "se
 }
 
 export default function CastPicker({
-  casts, photoUrls, seatedIds, todayIds, attendIds, servingIds, shiftIds, rankNames, chips = false, grouped = false,
+  casts, photoUrls, seatedIds, todayIds, attendIds, servingIds, shiftIds, lateIds, outIds, lateEta, rankNames, chips = false, grouped = false,
   selectedIds, badges, seatedBadges, onPick, size = 44, dense = false, defaultChip, servingSeat, chipSet,
 }: {
   /** ★便 S（S-6 ①）: 他卓に着いている人の卓名（cast_id → 「B2」）＝ラベル「着卓中（B2）」。無い id は「着卓中」 */
@@ -68,6 +71,11 @@ export default function CastPicker({
   servingIds?: Set<string>;
   /** ★裁定322: 当日の確定シフトがある id（③未出勤（シフトあり）の判定） */
   shiftIds?: Set<string>;
+  /** ★便 M2 M-18: 遅刻（シフトの開始を過ぎても打刻なし）・退勤（最終打刻 out）＝grouped の状態に使う */
+  lateIds?: Set<string>;
+  outIds?: Set<string>;
+  /** ★便 M2 M-18（補遺）: 遅刻連絡の見込み（cast_id → HH:MM・空＝見込みなし）＝「遅刻連絡 見込み HH:MM」 */
+  lateEta?: Map<string, string>;
   /** ★B3 裁定210（#64）: ランク名（cast_ranks が読めた id だけ・無い id／ロールでは要素を出さない） */
   rankNames?: Map<string, string>;
   /** ★B3 裁定212（R34）: チップ＝絞込。★裁定322: grouped では［出勤中］（既定）［担当中］［すべて］ */
@@ -92,15 +100,15 @@ export default function CastPicker({
     if (grouped) {
       // ★裁定322: ①〜④の群 → 名前順（種別バッジのある id は名簿＝①に含める）
       const seated = new Set<string>([...(seatedIds ?? []), ...(badges ? [...badges.keys()] : [])]);
-      return castPickerOrder(base, { seatedIds: seated, servingIds, punchedInIds: todayIds, shiftIds })
+      return castPickerOrder(base, { seatedIds: seated, servingIds, punchedInIds: todayIds, shiftIds, lateIds, outIds })
         .filter((c) => chip === "" || chip === "working" ? true : chip === "seated" ? (seatedIds?.has(c.id) ?? false) : c.working);
     }
     // ★0121（裁定107 段1-(1)）: grouped でない面は名前順で固定（選択・着卓・出勤は枠色とバッジのみ）
     return base
       .filter((c) => chip === "" || (chip === "attend" ? (attendIds?.has(c.id) ?? false) : (seatedIds?.has(c.id) ?? false)))
-      .sort((a, b) => a.name.localeCompare(b.name, "ja"))
+      .sort((a, b) => (badges?.get(a.id)?.order ?? 9) - (badges?.get(b.id)?.order ?? 9) || a.name.localeCompare(b.name, "ja")) // ★便 M2 M-18: バッジに並び（order）があれば状態の順→名前順
       .map((c) => ({ ...c, group: 1 as CastPickGroup, working: true }));
-  }, [casts, needle, chip, grouped, attendIds, seatedIds, servingIds, todayIds, shiftIds, badges]);
+  }, [casts, needle, chip, grouped, attendIds, seatedIds, servingIds, todayIds, shiftIds, lateIds, outIds, badges]);
   const working = grouped ? sorted.filter((c) => c.working) : sorted;
   const offDuty = grouped ? sorted.filter((c) => !c.working) : [];
   // 「出勤中」チップでは未出勤を出さない（検索中は探せるように出す）。それ以外は折りたたみ（検索中は開く）
@@ -117,7 +125,12 @@ export default function CastPicker({
     const off = grouped && !c.working;
     // ★B3 裁定209/211: 状態語の優先＝着卓中（自伝票）＞接客中（他卓）＞出勤中＞打刻。★裁定322: grouped では in 打刻あり＝「出勤中」・③④＝「未出勤」
     // ★便 X13-G W-4: grouped（レジ）では「接客中」も「着卓中」に統一
-    const stateLabel = seated ? "着卓中" : serving ? (grouped ? servingLabelOf(servingSeat?.get(c.id)) : "接客中") : grouped ? (today ? "出勤中" : off ? "未出勤" : attend ? "出勤中" : null) : attend ? "出勤中" : today ? "打刻" : null; // ★便 S（S-6 ①）: 他卓＝「着卓中（B2）」
+    // ★便 M2 M-18: grouped（レジ）は状態 5 つ＝待機中（緑）・着卓中（金）・出勤予定（青）・遅刻（赤）・退勤／休み（グレー）
+    const sets = { seatedIds, servingIds, punchedInIds: todayIds, shiftIds, lateIds, outIds };
+    const status = grouped ? castStatusOf(c.id, sets) : null;
+    const etaLabel = status === "late" && lateEta?.has(c.id) ? lateContactLabelOf(lateEta.get(c.id)) : null; // ★便 M2 M-18（補遺）
+    const stateLabel = seated ? "着卓中" : serving ? (grouped ? servingLabelOf(servingSeat?.get(c.id)) : "接客中") : grouped ? etaLabel ?? castStatusLabelOf(c.id, sets) : attend ? "出勤中" : today ? "打刻" : null; // ★便 S（S-6 ①）: 他卓＝「着卓中（B2）」
+    const stateTone = status ? BADGE_STYLE[CAST_STATUS_TONE[status]] : null;
     const badge = badges?.get(c.id) ?? (chip === "seated" ? seatedBadges?.get(c.id) ?? null : null);
     return (
       <button
@@ -153,8 +166,10 @@ export default function CastPicker({
           <span style={{
             ...t.tag, fontSize: 9.5, padding: "1px 7px",
             // 着卓中／接客中＝gold2 系・出勤中／打刻＝ok 系・未出勤＝muted（既存の色の範囲内・新色なし）
-            color: (seated || serving) ? "var(--gold2)" : off ? "var(--sub)" : "var(--ok)",
-            borderColor: (seated || serving) ? "rgba(201, 162, 74, .45)" : off ? "var(--line2)" : "rgba(119, 186, 131, .45)",
+            ...(stateTone ?? {
+              color: (seated || serving) ? "var(--gold2)" : off ? "var(--sub)" : "var(--ok)",
+              borderColor: (seated || serving) ? "rgba(201, 162, 74, .45)" : off ? "var(--line2)" : "rgba(119, 186, 131, .45)",
+            }),
           }}>
             {stateLabel}
           </span>
@@ -176,6 +191,13 @@ export default function CastPicker({
         aria-label="キャストを検索"
         style={{ ...t.input, width: "100%", maxWidth: 260, marginBottom: 8 }}
       />
+      {grouped && (/* ★便 M2 M-18（補遺）: キャスト一覧の上に凡例 1 行（状態の色＝既存トークン・並びも同じ順） */
+        <div data-cast-status-legend="1" style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 8 }}>
+          {(Object.keys(CAST_STATUS_ORDER) as CastStatus[]).map((k) => (
+            <span key={k} style={{ ...t.tag, fontSize: 9.5, padding: "1px 7px", ...BADGE_STYLE[CAST_STATUS_TONE[k]] }}>{k === "off" ? "退勤／休み" : CAST_STATUS_LABEL[k]}</span>
+          ))}
+        </div>
+      )}
       {chips && (
         <div className="nox-seg" style={{ display: "inline-flex", marginBottom: 8 }}>
           {chipOptions.map(([k, label]) => (

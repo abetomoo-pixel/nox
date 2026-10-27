@@ -80,6 +80,7 @@ export default function StaffBoard({
 
   // 編集対象（行クリックで選択）
   const [sel, setSel] = useState<Mem | null>(null);
+  const [transferTo, setTransferTo] = useState<Mem | null>(null); // ★便 M2 事後承認 A 15-③（Agoora 確定 10/27）: オーナーの譲渡＝確認ダイアログを 1 段（相手の名前・「譲渡する」）
   const [eName, setEName] = useState("");
   const [eStore, setEStore] = useState("");
   const [eEmail, setEEmail] = useState(""); // ★裁定267-2: メール（ログイン ID）変更＝owner のみ・POST /api/staff/update-email
@@ -457,6 +458,9 @@ export default function StaffBoard({
                 {ownerOnlyNoteOf(roleRaw) && <span style={{ ...t.sub, fontSize: 11 }} data-owner-only-note="1">管理者の任命・解除は{ownerOnlyNoteOf(roleRaw)}</span>}
               </span>
             )}
+            {roleRaw === "owner" && sel.is_active && !isSelf(sel) && rules0175On() && (sel.role === "admin" || sel.role === "manager") && (/* ★便 M2 A 15-③: オーナーの譲渡＝オーナー本人だけ・相手は有効な管理者／店長（owner_transfer と同じ条件） */
+              <button style={btnGhost} disabled={busy} data-owner-transfer={sel.id} onClick={() => { setTransferTo(sel); setSel(null); }}>オーナーを譲渡</button>
+            )}
             {isOwner && sel.is_active && !isSelf(sel) && !rules0175On() && (
               <button style={btnGhost} disabled={busy} onClick={async () => {
                 const to = sel.role === "staff" ? "manager" : "staff";
@@ -471,6 +475,24 @@ export default function StaffBoard({
                 setSel(null);
               }}>再雇用（復帰）</button>
             )}
+          </div>
+        </Modal>
+      )}
+
+      {transferTo && (/* ★便 M2 A 15-③: 譲渡の確認（DB 変更なし＝owner_transfer を呼ぶだけ・1 回で移る） */
+        <Modal onClose={() => !busy && setTransferTo(null)} maxWidth={420}>
+          <div data-owner-transfer-confirm={transferTo.id}>
+            <h3 style={{ margin: "0 0 10px" }}>オーナーを譲渡しますか？</h3>
+            <p style={{ margin: "0 0 6px", fontSize: 14 }}>譲渡する相手：<b>{users[transferTo.user_id]?.name ?? "—"}</b>（{roleLabelOf(transferTo.role)}）</p>
+            <p style={{ ...t.sub, fontSize: 12.5, lineHeight: 1.7, margin: "0 0 14px" }}>譲渡するとすぐに相手がオーナーになり、あなたは管理者になります。店舗の解約・オーナーの変更・NOX の契約と請求・管理者の任命と解除は、新しいオーナーだけが行えます。元に戻すには新しいオーナーに譲渡し直してもらいます。</p>
+            <div className="nox-actions">
+              <button style={btnGhost} disabled={busy} onClick={() => setTransferTo(null)}>やめる</button>
+              <button style={btnGold} disabled={busy} data-owner-transfer-go="1" onClick={async () => {
+                const ok = await rpc("オーナーを譲渡", "owner_transfer", { p_membership_id: transferTo.id });
+                setTransferTo(null);
+                if (ok) window.location.reload(); // 自分の役割が管理者に変わる＝画面の権限を読み直す
+              }}>譲渡する</button>
+            </div>
           </div>
         </Modal>
       )}
