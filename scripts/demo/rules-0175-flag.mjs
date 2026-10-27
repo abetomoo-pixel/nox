@@ -2,8 +2,8 @@
 //   suite（verify:nox-p175prep）が flag.ts と同値であることを pin する＝片方だけ true にできない。
 export const RULES_0175_APPLIED = true; // ★便 ON-1（2026-10-26）: 0175 v2（sha16 3979b9fcf596acb7）を Agoora が 10/26 に手貼り＝verify_0175_0176.sql 全 true（関数数 367・表数 104）→ true
 export const OKURI_4WAY_APPLIED = true;
-export const OKURI_TIERS_APPLIED = false; // ★裁定414 追補（0180）: flag.ts の鏡 // ★便 ON-1（2026-10-26）: 0177（sha16 e22bfcc3eb93625c）適用済み＝6 本の md5 が起草と一致→ true
-export const SEAT_MOVE_PRICING_APPLIED = false; // ★便 ON-4（裁定427・0182）: flag.ts の鏡
-export const MIG_0183_APPLIED = false; // ★便 M（裁定429・M-4・M-7・0183）: flag.ts の鏡
-export const MIG_0185_APPLIED = false; // ★QR 便（裁定423 変更・0185）: flag.ts の鏡
-export const MIG_0186_APPLIED = false; // ★便 W-10（0186）: flag.ts の鏡
+export const OKURI_TIERS_APPLIED = true; // ★裁定414 追補（0180）: flag.ts の鏡（★便 0180 2026-10-27 手貼り後 true）
+export const SEAT_MOVE_PRICING_APPLIED = true; // ★便 ON-4（裁定427・0182）: flag.ts の鏡
+export const MIG_0183_APPLIED = true; // ★便 M（裁定429・M-4・M-7・0183）: flag.ts の鏡
+export const MIG_0185_APPLIED = true; // ★QR 便（裁定423 変更・0185）: flag.ts の鏡
+export const MIG_0186_APPLIED = true; // ★便 W-10（0186）: flag.ts の鏡

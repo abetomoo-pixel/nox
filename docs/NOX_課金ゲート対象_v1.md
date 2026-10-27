@@ -323,6 +323,12 @@ kiosk_provision（新規 kiosk の追加＝拡大操作）
 - 0176（6本）: line_bind_token_create・notice_create_targets・set_store_line_config・shift_period_needs_set・staff_contract_set・staff_invite_create
 （対象 160→**181**・live 実測＝'billing locked' **181**・述語参照 182）
 
+### A12. 0180／0183／0186（4本・2026-10-27 本番適用・手貼り 0180〜0186 の締めで収載・規則A形でゲート内蔵・kiosk 腕なし）
+- 0180: set_cast_okuri_tier
+- 0183: reservation_request_guest
+- 0186: flag_unset・set_store_special_day
+（対象 181→**185**・live 実測＝'billing locked' **185**・述語参照 186）
+
 ## B. 除外（99本）
 
 ### B(a) 構造除外＝authenticated 実行不可（service/内部・28本）→ ゲート不要（B7 回避型(1)）
@@ -468,6 +474,14 @@ staff_deactivate / kiosk_deactivate
 ### B(o). 0175 v2／0176／0177 新設の除外（32本・2026-10-26 便 ON-1 で収載）
 - 読取・本人・内部専用・service_role 専用＝ゲートなし: attendance_ack・attendance_contact_log・auth_cast_register_level・auth_role_raw・availability_list・bind_line・cast_notification_create・cast_notification_read・comp_plan_pay_rate_check・contact_change_confirm・get_line_secret・kiosk_lock・kiosk_unlock・kiosk_unlock_qr・line_push_log_write・line_push_month_summary・member_profile_confirm・member_profile_self_save・member_profile_store_save・my_qr_secret・norm_shortfall_decide・payroll_adjustment_cancel・pt_rules_check・set_line_secret・set_my_contact・set_store_line_limit・shift_cast_decline・shift_periods_auto_close・slide_decision_decide・slide_decision_propose・staff_invite_accept・totp_code_of
 （除外 154→**186**・全数 314→**367**）
+
+### B(p). 0183／0185／0186 新設の除外（11本・2026-10-27 手貼り 0180〜0186 の締めで収載）
+- 給与の清算（B(e) と同じ原則＝過去労働の清算はゲートなし）: payroll_employee_deductions_set・payroll_withholding_override_set・set_withholding_kind・withholding_payment_cancel
+- 内部専用（4 ロール revoke）: payroll_period_locked_of・payroll_subject_store_of
+- キオスクの QR（端末／本人の解除＝kiosk_unlock と同じ扱い）: kiosk_qr_claim・kiosk_qr_poll・kiosk_qr_secret
+- 監査の記録: audit_export_record
+- 特別日の削除: remove_store_special_day（★特別日の設定のほうはゲートあり＝A12・揃えるかは次の mig の候補・台帳「手貼り 0180〜0186 の締め」）
+（除外 186→**197**・全数 367→**382**）
 
 ## C. kiosk 腕を持つ対象（実装注意・18本）
 A1 の check_open / check_add_line / check_remove_line / check_add_seat / check_remove_seat /

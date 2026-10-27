@@ -50,7 +50,7 @@ check("qr(4-2) PIN（4〜6 桁）は維持＝kiosk_unlock・QR のタブは mig0
 
 // ⑤ フラグ
 const fl = src("lib/nox/rules-0175/flag.ts"), fm = src("scripts/demo/rules-0175-flag.mjs");
-check("qr(5-1) フラグ MIG_0185_APPLIED＝false（mjs と同値）・読み口 mig0185On", /export const MIG_0185_APPLIED = false;/.test(fl) && /export const MIG_0185_APPLIED = false;/.test(fm) && fl.includes("export function mig0185On(): boolean { return override0185 ?? MIG_0185_APPLIED; }"));
+check("qr(5-1) フラグ MIG_0185_APPLIED＝false（mjs と同値）・読み口 mig0185On", /export const MIG_0185_APPLIED = true;/.test(fl) && /export const MIG_0185_APPLIED = true;/.test(fm) /* ★便 0185（2026-10-27）手貼り後 true */ && fl.includes("export function mig0185On(): boolean { return override0185 ?? MIG_0185_APPLIED; }"));
 
 // 0185 の形（起草ファイルがあるときだけ）
 const P = "supabase/migrations/0185_kiosk_qr_reverse.sql";

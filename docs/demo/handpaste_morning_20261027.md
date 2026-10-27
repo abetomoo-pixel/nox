@@ -1,5 +1,17 @@
 # 明朝の手貼り一覧（Agoora 向け・2026-10-27 朝・0180〜0186）
 
+> **全 7 本 適用済み（2026-10-27）**＝Agoora が 0185→0180→0181→0182→0183→0184→0186 の順に貼り、各 verify は全行が期待どおり（下の表）。CC の照合＝sha16・行数・関数本体の md5 が全関数で一致・関数数 367→382（+15）・表 104→110・新設／作り直しの RPC を BEGIN…ROLLBACK で実際に呼んで実行時エラー 0・NOX-VERIFY の残留 0・フラグ 7 本すべて true（詳細＝台帳「手貼り 0180〜0186 の締め」）。
+>
+> | 順 | mig | Agoora の verify（返り値の要点） |
+> |---|---|---|
+> | 1 | 0185 | tables rls 2 true・table grants 0・rpc 3 本 authenticated あり・retired 2 true・operator qr 180 true・search_path fixed true・qr_secret left 0 |
+> | 2 | 0180 | md5 okuri_today_summary d1b5ca84・set_cast_okuri_tier 719129cd・set_store_profile ffc76412（★あり・authenticated）・okuri_tier text null 可＋CHECK・白名単 true |
+> | 3 | 0181 | md5 check_open 9869c236（★あり・proacl {postgres,service_role,authenticated}） |
+> | 4 | 0182 | service_pre 1・move_seat／group_due has 0182 true・group_due acl に authenticated なし・move_seat acl に authenticated あり・md5 875291c8／837b2d11 |
+> | 5 | 0183 | can_shift 句 11・guest fn 1・rtc has 0183 true・intents 1・432 tables 2・rpc 3・kind cols 2・intents grant SELECT・RLS 3 表 true・ACL 6 本（内部 2 本は postgres のみ） |
+> | 6 | 0184 | daily_pay_issue integer true・acl authenticated あり・md5 31094062 |
+> | 7 | 0186 | special table rls true・grant SELECT・rpc 5＝5・closed-day 0186＝2・ACL 5 本・needed cols 10/10・withholding_payments has store_id 0・dup groups 0 |
+
 **結論 3 行**
 1. 本番 ref **hiqbfagmkrdpmlqhkmsu** の SQL Editor に、下の表の順に 1 本ずつ全文を貼って Run（どれも `begin;`〜`commit;` の単一トランザクション・冒頭に貼り先証明）。**0185 を最優先**（レジ端末の「PIN だけで解除」が本番で失敗している＝今は従来の操作担当選択で動かしている）。
 2. 各 Run の後に、そのファイルの末尾 **===== verify =====** を貼って返った行を CC へ（期待値は表の右端・詳しくは各 handpaste_018n.md）。Success の表示だけでは適用の証明にならない（恒久注意28）。

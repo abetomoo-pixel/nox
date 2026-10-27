@@ -28,7 +28,7 @@ check("414b(1-5) okuriTierLabelOf＝「近距離（¥500）」・okuriCashOf は
 // (2) フラグ
 const flagTs = src("lib/nox/rules-0175/flag.ts"), flagMjs = src("scripts/demo/rules-0175-flag.mjs");
 const rx = (s: string) => /export const OKURI_TIERS_APPLIED = (true|false);/.exec(s)?.[1] ?? null;
-check("414b(2-1) OKURI_TIERS_APPLIED＝flag.ts と鏡が同値・本便は false（0180 手貼り前）・okuriTiersOn() は上書きできる", rx(flagTs) === String(OKURI_TIERS_APPLIED) && rx(flagMjs) === String(OKURI_TIERS_APPLIED) && OKURI_TIERS_APPLIED === false && okuriTiersOn() === false && (__setOkuriTiersForTest(true), okuriTiersOn() === true) && (__setOkuriTiersForTest(null), okuriTiersOn() === false));
+check("414b(2-1) OKURI_TIERS_APPLIED＝flag.ts と鏡が同値・★便 0180（2026-10-27）手貼り後は true・okuriTiersOn() は上書きできる", rx(flagTs) === String(OKURI_TIERS_APPLIED) && rx(flagMjs) === String(OKURI_TIERS_APPLIED) && OKURI_TIERS_APPLIED === true && okuriTiersOn() === true && (__setOkuriTiersForTest(false), okuriTiersOn() === false) && (__setOkuriTiersForTest(null), okuriTiersOn() === true));
 
 // (3) 配線
 const dp = src("app/(manage)/master/deduction-panel.tsx"), cb = src("app/(manage)/casts/casts-board.tsx"), cp = src("app/(manage)/casts/page.tsx"), rb = src("app/(manage)/report/report-board.tsx"), prof = src("scripts/demo/profiles.mjs"), gen = src("scripts/demo/gen-demo.mjs"), ddp = src("app/(manage)/master/cast-comp/deduction/page.tsx");

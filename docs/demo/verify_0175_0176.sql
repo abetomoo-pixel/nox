@@ -7,9 +7,9 @@ with pins(name, md5) as (
   values
       ('pt_rules_check','cc622435'),
       ('check_pay','798b9b99'),
-      ('check_group_due','dc4163e6'),  -- ★0178（2026-10-26・closed の丸め NULL 修正）＝0178 適用後の値（適用前は ea7754a9）
+      ('check_group_due','875291c8'),  -- ★0182（2026-10-27 手貼り）dc4163e6→875291c8 ←  -- ★0178（2026-10-26・closed の丸め NULL 修正）＝0178 適用後の値（適用前は ea7754a9）
       ('receipt_issue','c564a8d7'),  -- ★0179（2026-10-26・v_old 未代入の修正）＝0179 適用後の値（適用前は 8f036095）
-      ('set_store_profile','23cd5573'),
+      ('set_store_profile','ffc76412'),  -- ★0180（2026-10-27 手貼り）23cd5573→ffc76412
       ('set_comp_plan','e9143f01'),
       ('cast_sales_aggregate','8fb314c5'),
       ('payroll_adjustment_add','9a089cad'),
@@ -32,7 +32,7 @@ with pins(name, md5) as (
       ('bottle_keep_update','90c8f859'),
       ('check_set_ext_rule','4e8676fc'),
       ('check_extension_add','00bafe19'),
-      ('check_open','c67dcab6'),
+      ('check_open','9869c236'),  -- ★0181（2026-10-27 手貼り）c67dcab6→9869c236
       ('approval_direct','2ce967be'),
       ('approval_request','9049a0a3'),
       ('auth_cast_register_level','d5df4c21'),
@@ -40,12 +40,12 @@ with pins(name, md5) as (
       ('set_store_cast_register','054fc34f'),
       ('nox_receipt_public','85635e1c'),
       ('set_store_invoice_profile','6be5700a'),
-      ('auth_kiosk_operator','4bb8e31e'),
-      ('kiosk_unlock','a3d47b6d'),
+      ('auth_kiosk_operator','1ef44a8b'),  -- ★0185（2026-10-27 手貼り）4bb8e31e→1ef44a8b
+      ('kiosk_unlock','8b59f23d'),  -- ★0185 a3d47b6d→8b59f23d
       ('kiosk_lock','7c8a87bc'),
       ('totp_code_of','35a695cf'),
-      ('my_qr_secret','fbe0f51e'),
-      ('kiosk_unlock_qr','2877fedd'),
+      ('my_qr_secret','02f364d4'),  -- ★0185（retired）fbe0f51e→02f364d4
+      ('kiosk_unlock_qr','02f364d4'),  -- ★0185（retired）2877fedd→02f364d4
       ('auth_role','52bcdc2c'),
       ('auth_role_raw','2ecfa162'),
       ('terms_accept','30b78afb'),
@@ -56,7 +56,7 @@ with pins(name, md5) as (
       ('staff_pin_status','aa641edc'),
       ('set_staff_pin','f246470c'),
       ('attendance_set','031e9e21'),
-      ('daily_pay_issue','df0d58ff'),
+      ('daily_pay_issue','31094062'),  -- ★0184（2026-10-27 手貼り）df0d58ff→31094062
       ('comp_plan_pay_rate_check','a2bd4f02'),
       ('comp_plan_ext_set','ba30d4dd'),
       ('plan_rate_band_set','a1db0579'),

@@ -57,7 +57,7 @@ check("w10(0186) 0186＝単一トランザクション・貼り先証明・表 s
   && ["set_store_special_day(uuid, date, text, text, text, text)", "remove_store_special_day(uuid, date)", "flag_unset(text, uuid, text)", "withholding_payment_cancel(text, text, text)", "audit_export_record(date, date, text, integer, text)"].every((f) => m.includes(`grant execute on function public.${f} to authenticated;`))
   && (m.match(/if v_sp is not null then return v_sp = 'closed'; end if;/g) ?? []).length === 2));
 // フラグ
-check("w10(flag) MIG_0186_APPLIED＝false（mjs と同値）", /export const MIG_0186_APPLIED = false;/.test(src("lib/nox/rules-0175/flag.ts")) && /export const MIG_0186_APPLIED = false;/.test(src("scripts/demo/rules-0175-flag.mjs")));
+check("w10(flag) MIG_0186_APPLIED＝true（★2026-10-27 手貼り後・mjs と同値）", /export const MIG_0186_APPLIED = true;/.test(src("lib/nox/rules-0175/flag.ts")) && /export const MIG_0186_APPLIED = true;/.test(src("scripts/demo/rules-0175-flag.mjs")));
 
 if (fails.length) { console.error(`verify:nox-w10 FAIL ${fails.length}（pass ${pass}）\n` + fails.map((f) => ` - ${f}`).join("\n")); process.exit(1); }
 console.log(`verify:nox-w10 OK ${pass} checks（W-10 準備中の作る 8・消す 17）`);
