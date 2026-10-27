@@ -23,7 +23,7 @@ permissions:
 jobs:
   build:
     name: typecheck / lint / verify:ci
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04   # 2026-10-27: ubuntu-latest の Ubuntu 26 切替（10/19〜）と CI 失敗の時期が一致＝24.04 に固定
     steps:
       - name: Checkout
         uses: actions/checkout@v4
