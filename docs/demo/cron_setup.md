@@ -52,6 +52,18 @@ route 側の応答＝`{ ok, count, retry, results: [{ org, ok, mode, chunks }] }
 | nox-demo-reset-muse／luna／noir／ace／lily／nest | 21:05／07／09／11／13／15 | 06:05〜06:15 | 店ごとに `?org=<code>`（営業日切替 06:00 の後） |
 | nox-demo-reset-retry | 21:35 | 06:35 | `?retry=1`＝demo_reset_at がその営業日でない org だけ |
 
+**job の一覧（本番・2026-10-27 時点・時刻順）**
+
+| 順 | job | schedule（UTC） | JST | 内容 | 手順 |
+|---|---|---|---|---|---|
+| 1 | nox-demo-entries-purge | 15 20 * * * | 05:15 | demo_entries の 30 日超を削除 | §1〜§4 |
+| 2〜7 | nox-demo-reset-muse／luna／noir／ace／lily／nest | 5／7／9／11／13／15 21 * * * | 06:05〜06:15 | デモ 6 店の reset（店ごと） | §1〜§4 |
+| 8 | nox-shift-periods-close | 20 21 * * * | 06:20 | 希望の締切を過ぎた募集中の期間を配置中へ（shift_periods_auto_close） | docs/demo/cron_shift_periods_close.sql（2026-10-27 Agoora 手貼り） |
+| 9 | nox-demo-reset-retry | 35 21 * * * | 06:35 | 未 reset の org だけやり直し | §1〜§4 |
+| — | nox-shift-auto-confirm | */15 * * * * | 15 分ごと | シフトの自動確定 | §6 |
+
+**注**: 新しい cron は demo-reset の後（21:16 UTC 以降）かつ 21:35 の retry の前に置く（reset の途中に別の処理を挟まない・retry が後始末できる順）。
+
 ## 5. 止め方・戻し方
 
 - 一時停止: `update cron.job set active=false where jobname like 'nox-demo-reset%';`

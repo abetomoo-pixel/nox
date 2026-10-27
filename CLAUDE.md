@@ -76,6 +76,7 @@
 - 内部専用 RPC は anon かつ authenticated の両方で BLOCKED を assert。
 - `verify:nox-grants` は Postgres 直結（SUPABASE_DB_URL）で grant/ACL/RLS 有効を introspection
   （「public 全体で authenticated=SELECT のみ」のスキーマ全体ガード＝テーブルが増えても自動回帰）。
+- **f0 を途中で止めたら、次の f0 の前に NOX-VERIFY の残留を見る（教訓123）**：止めた suite の finally（掃除）は走らず行が残り、次の f0 で別の suite が件数違いで赤になる（2026-10-27 anon-guard 段24 の顧客 2 行）。参照 0 を確かめてから消す。
 - **`seed:f0` は dev 専用・本番環境では実行しない**（verify 用 org/ユーザー NOX-VERIFY-* を nox-dev に常設）。
 
 ## コミット規約
