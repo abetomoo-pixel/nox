@@ -39,7 +39,8 @@ const DENY_GUARDED: Record<string, string> = {
   "staff/invite": "app/api/staff/invite/route.ts", // ★便 ON-3（0176 ★2 I-1）: 登録→招待＝staff/create と同じ柵（裁定273-6）
   "line/secret": "app/api/line/secret/route.ts", // ★便 ON-3（0176 ★1 401）: Vault へ書く＝デモは 403
   "line/push": "app/api/line/push/route.ts", // ★便 ON-3: 外部送信＝デモ org は 204（送らない・台帳にも書かない）
-  "line/notice": "app/api/line/notice/route.ts", // ★便 W-10 #21: お知らせの LINE＝デモ org は送らない（demo: true を返す・台帳にも書かない）
+  "line/notice": "app/api/line/notice/route.ts",
+  "auth/invite-accept": "app/api/auth/invite-accept/route.ts", // ★便 OB-2 ⑧（2026-10-29）: 招待で入ったオーナーのパスワード設定＝デモ auth／デモ org は 403・client は auth.updateUser を呼ばない // ★便 W-10 #21: お知らせの LINE＝デモ org は送らない（demo: true を返す・台帳にも書かない）
 };
 // B) セッション無し（差し込みなし）
 const DENY_NO_SESSION = new Set<string>([

@@ -148,7 +148,7 @@ check("x13g(20) W-19 ① customers-keep の snapshot は検証 org の範囲・�
   check("x13g(25) W-23 キャストの打刻＝使わない（self／kiosk OFF・proxy ON）／使う（self／kiosk ON・proxy は今のまま）・/mine と /kiosk の出し分け・店舗設定と初期設定に同じ項目",
     castPunchOffOf(off) && off.proxy && !castPunchOffOf(on) && on.self && on.kiosk && on.proxy && !castPunchOffOf({ self: false, proxy: true, kiosk: true })
     && src("app/mine/page.tsx").includes('data-cast-punch-off="1"') && src("app/kiosk/page.tsx").includes('data-kiosk-cast-off="1"') && src("app/api/kiosk/punch-methods/route.ts").includes('rpc("auth_kiosk_store_id")')
-    && src("app/(manage)/master/store-profile-panel.tsx").includes('data-cast-punch="1"') && src("app/(manage)/setup/setup-wizard.tsx").includes('<Row title="キャストの打刻" sub={CAST_PUNCH_OFF_NOTE}>'));
+    && src("app/(manage)/master/store-profile-panel.tsx").includes('data-cast-punch="1"') && src("app/(manage)/setup/setup-wizard.tsx").includes('ariaLabel="打刻できる場所"') /* ★便 OB-2（v5）: 初期設定の打刻＝「店の端末だけ／本人のスマホからも」（punch_methods.self） */);
   const sys = ["muse", "luna", "noir", "ace", "lily", "nest"].map((c) => (JSON.parse(src(`docs/demo/payload/${c}.json`)).tables.stores[0] as Record<string, unknown>).settings_json as Record<string, unknown>);
   check("x13g(26) W-18 ⑦ 6 店とも精算調整・控除 ON（送り・前借りを使う）・LUNA pt・NOIR 売上スライド・NEST ノルマはデータ側を合わせる", sys.every((x) => x.sys_penalties === true) && sys[1].sys_points === false && sys[2].sys_sales_slide === false && sys[5].sys_norms === false /* 裁定348 の組合せは保つ＝データ側を合わせた */);
 }

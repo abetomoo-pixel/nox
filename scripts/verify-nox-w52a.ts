@@ -51,18 +51,14 @@ const src = (p: string) => fs.readFileSync(p, "utf8");
 // sw(1)(2)
 {
   const wz = src("app/(manage)/setup/setup-wizard.tsx"), pg = src("app/(manage)/setup/page.tsx"), tp = src("lib/nox/setup/template-plan.ts");
-  check("sw(1-1) STEP 5 に会計と運用（インボイス登録日 date／支払日 NumField／消費税の表示／VIP 席を使う／カウンターを使う／支払い方法／出退勤の打刻）・ops を buildSetupPlan へ・確認表に opsSummaryOf",
-    wz.includes(">会計と運用 <span") && wz.includes('aria-label="インボイス登録日"') && wz.includes('label="支払日"') && wz.includes('label="消費税の表示（内税）"') && wz.includes('label="VIP 席を使う"') && wz.includes('label="カウンターを使う"')
-    && wz.includes("PAYMENT_METHOD_LABEL.map(") && wz.includes("PUNCH_METHOD_LABEL.map(") && wz.includes("flags: changedFlags, ops, ob })") && wz.includes("／${opsSummaryOf(ops)}`]"));
+  check("sw(1-1) ★便 OB-2（v5）: 会計と運用の 7 項目は v5 の STEP 3（金額の表示）・5（支払日）・2（席）・7（打刻）・8（会計・レジ）に散った＝計画は buildV5Plan（patch に use_vip／use_counter／punch_methods・tax_config に price_display）",
+    wz.includes('ariaLabel="金額の表示"') && wz.includes("支払日（翌月）") && wz.includes('ariaLabel="打刻できる場所"') && wz.includes("buildV5Plan(S, ctx)") && src("lib/nox/setup/v5.ts").includes("use_vip: S.seats.vip > 0, use_counter: S.seats.counter > 0") && src("lib/nox/setup/v5.ts").includes('p_price_display: S.tax === "in" ? "tax_included" : "tax_excluded"'));
   check("sw(1-2) page が列 7 つの現値を渡す（ops: opsProfileOf）・template-plan が差分を settings の patch に同乗（opsPatchOf）・SetupSelection.ops／SetupCurrent.ops",
-    pg.includes("ops: opsProfileOf(target as unknown as Record<string, unknown>)") && pg.includes("invoice_registered_on, pay_day, tax_inclusive_display, use_vip, use_counter, payment_methods, punch_methods")
+    pg.includes("tax: { business_tax_status: String(target.business_tax_status") /* ★便 OB-2: v5 の page は税設定の現値を渡す（ops は v5 の patch で直接） */
     && tp.includes("...(sel.ops && sel.current.ops ? opsPatchOf(sel.ops, sel.current.ops) : {}) };") && tp.includes("ops?: OpsProfile; // ★0164（便 W5-2a）: STEP 5"));
   check("sw(1-3) SETUP_HIDDEN_ITEMS＝C 0 件・D 5 件（器なし 5 項目は結線済み）", SETUP_HIDDEN_ITEMS.filter((x) => x.cls === "C").length === 0 && SETUP_HIDDEN_ITEMS.filter((x) => x.cls === "D").length === 5, SETUP_HIDDEN_ITEMS.map((x) => x.label).join("・"));
-  check("sw(2-1) 331 ⑱: 行チェック（既定＝全選択・全選択チェック・取り込む OFF で非活性）＋名前／価格 inline・productsEff を plan／上書き／件数へ・下書きに prodSel／ops",
-    wz.includes("const [prodSel, setProdSel] = useState<Record<string, { on: boolean; name: string; price: number }>>({});") && wz.includes("const productsEff = useMemo(() => products.filter((p) => (prodSel[p.name]?.on ?? true)).map((p) => {")
-    && wz.includes('aria-label="全部を選択"') && wz.includes("aria-label={`${p.name} を取り込む`}") && wz.includes("aria-label={`${p.name} の名前`}") && wz.includes("aria-label={`${p.name} の価格`}")
-    && wz.includes("includeProducts, products: productsEff, pricing: pricingEff") && wz.includes("productOverrideArgs(store.id, productsEff, productRows)") && wz.includes("const pp = useMemo(() => productsPlanOf(productsEff), [productsEff]);")
-    && wz.includes("商品テンプレを取り込む（チェックした {pp.included.length} / {ppAll.included.length} 件") && wz.includes("mine, prodSel, ops, ob, savedAt:") && wz.includes("if (d.prodSel) setProdSel(d.prodSel); if (d.ops) setOps(d.ops);"));
+  check("sw(2-1) 331 ⑱→★便 OB-2（v5）: メニューは分類ごと「使う／使わない」・商品ごと「出す」チェック＋名前／値段／バック（円・%）／キープ inline・計画は on の分だけ（buildV5Plan）・下書き（localStorage）に全状態",
+    wz.includes("aria-label={`${it.n} を出す`}") && wz.includes('ariaLabel="商品名"') && wz.includes('ariaLabel="バックの単位"') && wz.includes('aria-label="キープ可"') && src("lib/nox/setup/v5.ts").includes("if (!it.on || !String(it.n).trim()) return;") && wz.includes("JSON.stringify({ S, savedAt: new Date().toISOString(), ids: ids.current, issued })"));
 }
 // fl(1)
 {

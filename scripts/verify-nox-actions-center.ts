@@ -25,6 +25,7 @@ const OWNER_PAGES = [
   "/payroll", "/payroll?tab=attendance",
   "/shift?tab=today", "/shift?tab=make", "/shift?tab=roster", "/shift?tab=queue", "/shift?tab=submit", "/shift?tab=publish",
   "/register", "/report",
+  ...Array.from({ length: 9 }, (_, i) => `/setup?step=${i + 1}&type=cabaret`), // ★便 OB-2（2026-10-29）: 初期設定 v5 の 9 STEP（主ボタン中央＝.nox-actions）
 ];
 const CAST_PAGES = ["/mine", "/mine/wishes"];
 const ONLY = process.env.NOX_UI_ONLY ?? null; // 例 NOX_UI_ONLY=/master/cast-comp/norma（1 画面だけ・オーナー）

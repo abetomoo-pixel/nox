@@ -60,7 +60,7 @@ check("ms(1b-6) rpcErrJa: 0156 の新語 6 語が利用者向けの日本語に�
 // (2) 許可列挙型 pin（素の描画 0）
 // 除外: 共通部品自身／kiosk の打刻結果画面（app/kiosk/page.tsx L233 `{result.message}`＝全画面の結果表示・裁定11 の kiosk 面＝メッセージ枠ではない）
 // ★便 ON-3（2026-10-26・0176）: 公開面の白地ページ 2 つ（招待の受諾 /i/[token]・LIFF の橋 /liff/[storeId]）＝アプリのテーマ外（/r/[token] と同じ白地黒字）で Message／Toast（var(--bad) 等）が使えない＝role=alert の div
-const EXCLUDE = new Set(["components/ui/toast.tsx", "app/kiosk/page.tsx", "app/i/[token]/accept-form.tsx", "app/liff/[storeId]/liff-bridge.tsx"]);
+const EXCLUDE = new Set(["components/ui/toast.tsx", "app/kiosk/page.tsx", "app/i/[token]/accept-form.tsx", "app/liff/[storeId]/liff-bridge.tsx", "app/auth/set-password/page.tsx" /* ★便 OB-2 ⑧: 招待の戻り先＝公開面（白地）＝accept-form と同型 */]);
 const ROOTS = ["app", "components"];
 const RAW = /<(p|span|div|small|b|strong)[^>]*>\{[A-Za-z]*(msg|Msg|err|Err|error|Error|notice|Notice|message|Message)[A-Za-z]*\}<\/\1>/g;
 // ★便 AB-2: オブジェクトのプロパティ経由（{msg.text}／{result.message} 等）の素の描画も検出（U の識別子条件を素通りした register-board の 4 箇所ほか）
