@@ -1,0 +1,570 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>NOX 初期設定 v5（iPad 向け・裁定414〜437 反映）</title>
+<style>
+:root{
+  --bg:#0e0e0d;--s1:#1a1916;--s2:#23211d;--s3:#2c2a25;--line:#3d3a33;--line2:#55514a;
+  --text:#f3efe6;--muted:#c4bdaf;--dim:#9a9387;--gold:#e0c27a;
+  --blue:#2f6fd6;--bluetext:#9cc4ff;--bluebg:#16263d;--blueline:#4f86d9;
+  --ok:#2f7a47;--okbg:#17261b;--oktext:#bfe3c8;--warnbg:#33280f;--warntext:#f3d58e;
+  color-scheme:dark;box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){color-scheme:dark}}
+:root[data-theme="dark"]{color-scheme:dark}
+html{scroll-padding-top:calc(env(safe-area-inset-top,0px) + 150px)}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:"Hiragino Sans","Noto Sans JP","Yu Gothic UI",system-ui,sans-serif;font-size:16px;line-height:1.55}
+button,input,select{font:inherit;font-size:16px;color:inherit}
+button{cursor:pointer}
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:10;background:rgba(14,14,13,.97);border-bottom:1px solid var(--line)}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:rgba(14,14,13,.97)}
+.bar{max-width:1200px;margin:0 auto;padding:12px 24px 8px;display:flex;align-items:center;gap:14px}
+.mark{width:38px;height:38px;border:1px solid var(--gold);border-radius:10px;display:grid;place-items:center;color:var(--gold);font:19px Georgia,serif;flex:none}
+.bar h1{margin:0;font-size:18px}.bar .sub{font-size:13px;color:var(--muted)}
+.bar .save{margin-left:auto;font-size:13px;color:var(--muted)}
+.steps{max-width:1200px;margin:0 auto;padding:0 24px 12px;display:grid;grid-template-columns:repeat(9,minmax(0,1fr));gap:6px;list-style:none}
+.steps button{width:100%;min-height:52px;display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:12px;border:1px solid var(--line);background:var(--s1);color:var(--muted);text-align:left}
+.steps .n{flex:none;width:26px;height:26px;border-radius:50%;border:1px solid var(--line2);display:grid;place-items:center;font-size:13px}
+.steps .t{font-size:14px;line-height:1.2}
+.steps button.done{color:var(--oktext);border-color:#2f5a3a;background:var(--okbg)}
+.steps button.done .n{background:var(--ok);border-color:var(--ok);color:#fff}
+.steps button[aria-current="step"]{background:var(--gold);border-color:var(--gold);color:#17140c;font-weight:700}
+.steps button[aria-current="step"] .n{background:#17140c;border-color:#17140c;color:var(--gold)}
+main{max-width:1200px;margin:0 auto;padding:22px 24px 140px;display:flex;flex-direction:column;gap:18px}
+.head h2{margin:0 0 4px;font-size:26px}.head p{margin:0;color:var(--muted);font-size:15px}
+.card{background:var(--s1);border:1px solid var(--line);border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:16px}
+.card h3{margin:0;font-size:19px}.card .lead{margin:-10px 0 0;color:var(--muted);font-size:14px}
+.grid{display:grid;gap:12px}
+.g2{grid-template-columns:repeat(2,minmax(0,1fr))}.g3{grid-template-columns:repeat(3,minmax(0,1fr))}.g4{grid-template-columns:repeat(4,minmax(0,1fr))}.g5{grid-template-columns:repeat(5,minmax(0,1fr))}
+.field{display:flex;flex-direction:column;gap:6px}.field>span{font-size:14px;color:var(--muted)}
+input[type=text],input[type=number],input[type=time],select{width:100%;min-height:48px;background:var(--bg);border:1px solid var(--line2);border-radius:10px;padding:10px 12px}
+.unit{display:flex;align-items:stretch;border:1px solid var(--line2);border-radius:10px;overflow:hidden;background:var(--bg)}
+.unit input{border:0;border-radius:0;min-width:0;text-align:right}
+.unit em{font-style:normal;display:flex;align-items:center;padding:0 10px;color:var(--muted);font-size:14px;border-left:1px solid var(--line);white-space:nowrap;background:var(--s2)}
+.unit .pre{border-left:0;border-right:1px solid var(--line)}
+.choice{position:relative;min-height:120px;border:1px solid var(--line);border-radius:14px;background:var(--s2);padding:16px;text-align:left;display:flex;flex-direction:column;gap:6px;color:var(--text)}
+.choice b{font-size:17px}.choice small{font-size:14px;color:var(--muted)}
+.choice .price{margin-top:auto;padding-top:8px;border-top:1px solid var(--line);font-size:14px}
+.choice[aria-pressed="true"]{border:2px solid var(--blueline);background:var(--bluebg);padding:15px}
+.choice[aria-pressed="true"]::after{content:"選択中";position:absolute;top:12px;right:12px;font-size:12px;background:var(--blue);color:#fff;border-radius:999px;padding:2px 10px}
+.seg{display:inline-flex;flex-wrap:wrap;border:1px solid var(--line2);border-radius:12px;overflow:hidden;background:var(--bg)}
+.seg button{min-height:46px;padding:8px 14px;border:0;background:transparent;color:var(--muted);font-size:15px;border-right:1px solid var(--line)}
+.seg button:last-child{border-right:0}
+.seg button[aria-pressed="true"]{background:var(--blue);color:#fff;font-weight:700}
+.seg button[aria-pressed="true"][data-v="off"],.seg button[aria-pressed="true"][data-v="none"]{background:#4a4740;color:#fff}
+.row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.opt{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:14px;align-items:center;padding:14px 16px;border:1px solid var(--line);border-radius:12px;background:var(--s2)}
+.opt b{font-size:16px;display:block}.opt small{font-size:14px;color:var(--muted);display:block}
+.opt.dimmed b,.opt.dimmed small{color:var(--dim)}
+.state{font-size:13px;color:var(--muted);margin-top:4px;text-align:right}
+.rule{border:1px solid var(--line);border-radius:14px;background:var(--s2);overflow:hidden}
+.rule .rh{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.rule .rh b{font-size:17px}.rule .rh small{color:var(--muted);font-size:14px}
+.rule .rb{padding:16px;display:flex;flex-direction:column;gap:14px}
+.prio{width:30px;height:30px;border-radius:8px;border:1px solid var(--line2);display:grid;place-items:center;font-size:14px;color:var(--muted)}
+.ext{display:grid;grid-template-columns:auto minmax(0,1fr) minmax(0,1fr) auto auto;gap:10px;align-items:center}
+.ext .lab{font-size:14px;color:var(--muted);min-width:70px}
+.radio{display:flex;align-items:center;gap:6px;font-size:14px;color:var(--muted);white-space:nowrap}
+.radio input,.ck input{width:22px;height:22px}
+.tier{display:grid;grid-template-columns:40px minmax(0,1fr) auto minmax(0,1fr) auto;gap:10px;align-items:center}
+.tier .k{font-size:14px;color:var(--muted)}
+.menu-cat{border:1px solid var(--line);border-radius:14px;background:var(--s2);overflow:hidden}
+.menu-cat .mh{display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid var(--line)}
+.menu-cat .mh b{font-size:17px;margin-right:auto}
+.mrow{display:grid;grid-template-columns:44px minmax(0,2fr) minmax(0,1.2fr) minmax(0,1.2fr) auto auto;gap:10px;align-items:center;padding:8px 14px;border-bottom:1px solid #2c2a25}
+.mrow:last-child{border-bottom:0}
+.mrow.off{opacity:.5}
+.mrow .hd{font-size:13px;color:var(--muted)}
+.ck{display:flex;justify-content:center}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1px solid var(--line2);border-radius:8px;padding:4px 10px;font-size:14px;background:var(--bg)}
+.chip.vip{border-color:#6b5626;color:var(--warntext)}
+.srow{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,.9fr) minmax(0,1.3fr) minmax(0,.9fr) minmax(0,1fr) minmax(0,.8fr) minmax(0,1.1fr) minmax(0,.9fr) auto;gap:10px;align-items:end;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--s2)}
+.btn{min-height:52px;padding:12px 28px;border-radius:12px;border:0;background:var(--blue);color:#fff;font-weight:700;font-size:17px}
+.btn2{min-height:46px;padding:9px 16px;border-radius:12px;border:1px solid var(--blueline);background:transparent;color:var(--bluetext);font-size:15px}
+.btn3{min-height:46px;padding:9px 14px;border-radius:12px;border:1px solid var(--line2);background:var(--s2);color:var(--text);font-size:15px}
+.note{font-size:14px;color:var(--muted);margin:0}
+.info{border:1px solid #4a5f80;background:#141c28;border-radius:12px;padding:12px 14px;font-size:14px;color:#cfdcef}
+.warn{border:1px solid #6b5626;background:var(--warnbg);border-radius:12px;padding:12px 14px;font-size:14px;color:var(--warntext)}
+.foot{position:fixed;left:0;right:0;bottom:0;z-index:10;background:rgba(14,14,13,.97);border-top:1px solid var(--line);padding:14px 24px calc(14px + env(safe-area-inset-bottom,0px))}
+.foot .in{max-width:1200px;margin:0 auto;display:flex;justify-content:center;align-items:center;gap:12px;position:relative}
+.foot .pos{position:absolute;left:0;font-size:14px;color:var(--muted)}
+.review{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.rv{background:var(--s2);border:1px solid var(--line);border-radius:14px;padding:16px}
+.rv .rt{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.rv h4{margin:0;font-size:17px}
+.rv dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:15px}
+.rv dt{color:var(--muted)}.rv dd{margin:0;text-align:right}
+.done-card{text-align:center;padding:48px 20px}
+.done-card .ckm{width:64px;height:64px;border-radius:50%;background:var(--ok);display:grid;place-items:center;margin:0 auto 12px;font-size:32px;color:#fff}
+.hidden{display:none !important}
+@media (max-width: 1100px){
+  .steps{grid-template-columns:repeat(9,minmax(112px,1fr));overflow-x:auto}
+  .g5{grid-template-columns:repeat(3,minmax(0,1fr))}.g4{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .srow{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+@media (max-width: 700px){
+  .bar{padding:10px 14px}.steps{padding:0 14px 10px}main{padding:18px 14px 150px}
+  .g2,.g3,.g4,.g5,.review,.srow{grid-template-columns:1fr}
+  .ext{grid-template-columns:1fr 1fr}.ext .lab{grid-column:1/-1}
+  .tier{grid-template-columns:32px 1fr}.tier .k{grid-column:2}
+  .mrow{grid-template-columns:36px 1fr 1fr}.mrow .hd{display:none}
+  .foot .pos{position:static}.foot .in{flex-wrap:wrap}
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="bar">
+    <div class="mark" aria-hidden="true">N</div>
+    <div><h1>NOX 初期設定</h1><div class="sub">あとからすべて変更できます</div></div>
+    <div class="save" id="saved">入力は自動で保存されます</div>
+  </div>
+  <ol class="steps" id="steps" aria-label="初期設定の手順"></ol>
+</header>
+<main id="main"></main>
+<div class="foot" id="foot"><div class="in">
+  <span class="pos" id="pos"></span>
+  <button type="button" class="btn3" id="back">戻る</button>
+  <button type="button" class="btn" id="next">次へ</button>
+</div></div>
+
+<script>
+(function(){
+  var STEPS=["お店","席・卓","料金","メニュー","キャスト待遇","スタッフ","シフト・勤怠","会計・レジ","確認"];
+  var TYPES=[
+    {id:"cabaret",name:"キャバクラ",desc:"セット・指名・同伴中心",price:"セット ¥7,000／60分"},
+    {id:"girlsbar",name:"ガールズバー",desc:"チャージ＋ドリンク中心",price:"チャージ ¥3,000／60分"},
+    {id:"snack",name:"スナック",desc:"セット＋ボトル中心",price:"セット ¥5,000／90分"},
+    {id:"lounge",name:"ラウンジ",desc:"セット＋VIP・高単価",price:"セット ¥8,000／60分"},
+    {id:"bar",name:"バー",desc:"チャージ＋商品会計",price:"チャージ ¥1,000〜"}
+  ];
+  var WD=["日","月","火","水","木","金","土"];
+  function R(name,when,set,min,ext,seat){return {name:name,when:when,set:set,min:min,ext:ext,seat:seat||"全席"}}
+  function pad(t){return t.length===4?"0"+t:t}
+  function normRule(x){
+    var m=/(\d{1,2}:\d{2})〜(?:翌)?(\d{1,2}:\d{2}|LAST)/.exec(x.when||"");
+    var from=S.shop.open,to=S.shop.close;
+    if(m){from=pad(m[1]);to=m[2]==="LAST"?S.shop.close:pad(m[2]);if(from==="24:00")from="00:00"}
+    var seat={"全席":"all","VIP":"vip","カウンター":"counter","テーブル":"table"}[x.seat]||x.seat||"all";
+    x.from=from;x.to=to;x.seat=seat;x.days=x.days||WD.filter(function(d){return S.shop.holidays.indexOf(d)<0});return x}
+  function M(cat,items){return {cat:cat,on:true,items:items.map(function(x){return {n:x[0],p:x[1],b:x[2]||0,keep:!!x[3],on:true,byKind:false,bj:null,bf:null}})}}
+  var MENU={
+    cabaret:[M("キャストドリンク",[["Cast Drink S",1100,550],["Cast Drink M",1650,825],["Cast Drink L",2200,1100]]),M("ビール",[["生ビール",880]]),M("ウイスキー",[["ハイボール",880],["山崎（ボトル）",22000,2200,1],["響（ボトル）",27500,2750,1]]),M("サワー",[["レモンサワー",880]]),M("焼酎",[["黒霧島（ボトル）",5500,550,1],["吉四六（ボトル）",8800,880,1]]),M("スパークリング",[["カフェ・ド・パリ",11000,1100]]),M("シャンパン",[["モエ",22000,2200],["ヴーヴ・クリコ",27500,2750],["ドン・ペリニヨン",66000,6600],["アルマンド",110000,11000]]),M("ソフトドリンク",[["ウーロン茶",660],["コーラ",660]]),M("軽食",[["ミックスナッツ",880],["フルーツ盛り",3300]])],
+    lounge:[M("キャストドリンク",[["Cast Drink S",1500,750],["Cast Drink M",2200,1100],["Cast Drink L",3300,1650]]),M("ビール",[["生ビール",1100]]),M("ウイスキー",[["ハイボール",1100],["山崎（ボトル）",33000,3300,1],["響（ボトル）",38500,3850,1]]),M("焼酎",[["森伊蔵（ボトル）",33000,3300,1]]),M("シャンパン",[["モエ",27500,2750],["ヴーヴ・クリコ",33000,3300],["ドン・ペリニヨン",77000,7700],["アルマンド",132000,13200]]),M("ソフトドリンク",[["ウーロン茶",880],["コーラ",880]]),M("軽食",[["チョコレート",1650],["フルーツ盛り",5500]])],
+    girlsbar:[M("キャストドリンク",[["キャストドリンク",1000,500],["キャストショット",1000,500]]),M("ショット",[["テキーラ",1000,300]]),M("ビール",[["ビール",800]]),M("ウイスキー",[["ハイボール",800]]),M("サワー",[["レモンサワー",800],["カシスオレンジ",800]]),M("焼酎",[["鏡月（ボトル）",4000,400,1]]),M("ソフトドリンク",[["ウーロン茶",500],["コーラ",500]])],
+    snack:[M("ボトル",[["鏡月（ボトル）",4000,0,1],["二階堂（ボトル）",5000,0,1],["角瓶（ボトル）",6000,0,1]]),M("割物",[["割物セット",1000],["氷",500]]),M("ママ・キャストドリンク",[["ママドリンク",1000,500],["キャストドリンク",1000,500]]),M("ビール",[["ビール",700]]),M("ソフトドリンク",[["ウーロン茶",500]]),M("カラオケ",[["カラオケ 1 曲",100]]),M("おつまみ",[["乾き物",500]])],
+    bar:[M("カクテル",[["ジントニック",1200],["モスコミュール",1200]]),M("ウイスキー",[["ハイボール",900],["ウイスキー（ショット）",1200]]),M("ビール",[["ビール",900]]),M("ワイン",[["グラスワイン",1000]]),M("ソフトドリンク",[["ジンジャーエール",600]]),M("フード",[["ナッツ",800],["チーズ盛り合わせ",1500]])]
+  };
+  var TPL={
+    cabaret:{rules:[R("平日アーリー","20:00〜21:00",5000,60,[[30,2500,1]]),R("通常","21:00〜翌2:00",7000,60,[[30,3500,1],[60,7000,0]]),R("VIP","20:00〜翌2:00",10000,60,[[30,5000,1]],"VIP")],
+      fees:{hon:3000,jo:2000,dohan:3000},svc:20,svcVip:25,join:"join",seats:{counter:0,table:10,vip:2},
+      pay:{base:3000,slide:"sales",norma:true,bonus:true},back:{hon:1000,jo:500,dohan:1500,drink:50,bottle:10},reg:false,vip:[true,5000,2500]},
+    girlsbar:{rules:[R("通常チャージ","全時間帯",3000,60,[[30,1500,1]],"カウンター"),R("深夜帯","24:00〜LAST",3500,60,[[30,1800,1]],"カウンター")],
+      fees:{hon:1000,jo:0,dohan:2000},svc:10,join:"extend",seats:{counter:10,table:2,vip:0},
+      pay:{base:1500,slide:"none",norma:false,bonus:false},back:{hon:500,jo:0,dohan:1000,drink:50,bottle:10},reg:true,vip:[false,3000,1500]},
+    snack:{rules:[R("通常セット","全時間帯",5000,90,[[30,2000,1]])],
+      fees:{hon:0,jo:0,dohan:0},svc:10,join:"extend",seats:{counter:8,table:3,vip:0},
+      pay:{base:2000,slide:"none",norma:false,bonus:false},back:{hon:0,jo:0,dohan:0,drink:50,bottle:0},reg:true,vip:[false,3000,1500]},
+    lounge:{rules:[R("通常","20:00〜翌2:00",8000,60,[[30,4000,1]]),R("VIP","20:00〜翌2:00",12000,60,[[30,6000,1]],"VIP")],
+      fees:{hon:3000,jo:2000,dohan:5000},svc:20,svcVip:30,join:"join",seats:{counter:0,table:8,vip:3},
+      pay:{base:4000,slide:"sales",norma:true,bonus:true},back:{hon:1500,jo:500,dohan:2000,drink:50,bottle:10},reg:false,vip:[true,8000,4000]},
+    bar:{rules:[R("チャージ","全時間帯",1000,0,[])],
+      fees:{hon:0,jo:0,dohan:0},svc:0,join:"extend",seats:{counter:10,table:2,vip:0},
+      pay:{base:1200,slide:"none",norma:false,bonus:false},back:{hon:0,jo:0,dohan:0,drink:30,bottle:0},reg:true,vip:[false,0,0]}
+  };
+  var S={step:0,done:{},type:null,
+    shop:{name:"CLUB NOX",addr:"東京都新宿区",open:"20:00",close:"02:00",cut:"06:00",holidays:["日"]},
+    seats:{counter:0,table:10,vip:2,tp:"A",cp:"C",vp:"V"},
+    rules:[],fees:{},svc:0,svcVip:0,tax:"in",join:"join",vip:{on:false,mode:"table",amt:5000,per:"set",ext:2500},
+    menu:[],
+    pay:{base:3000,trial:3500,trialDays:3,slide:"none",norma:false,bonus:false},back:{},
+    slideTiers:[[800000,3000],[1200000,3500],[1600000,4500]],slidePeriod:"month",drinkBack:true,kindRate:{hon:100,jo:50,free:30},pt:{hon:1,jo:.5,dohan:2,salesPer:10000},
+    normaAxes:{days:true,dohan:true,hon:true,sales:true},normaGoal:{days:15,hon:30,dohan:4,sales:800000},
+    normaPen:{days:{m:"per",a:2000},hon:{m:"per",a:1000},dohan:{m:"per",a:1500},sales:{m:"per",a:1000}},bonusMode:"max",
+    payroll:{period:"month",close:"末日",payday:10,whtCast:"hostess",whtStaff:"none",advance:true,settle:false,okuriMode:"fixed",okuri:1000,okuriTiers:[500,1000,1500],mypage:"net"},
+    staff:[{n:"",role:"店長",perm:"manager",shiftOk:true,kind:"正社員",basis:"月給",amt:300000,pin:""}],
+    shift:{mode:"want",due:3,auto:24,need:[0,4,4,4,4,5,5]},punch:{judge:"soft",how:"device",round:1,gate:true},
+    reg:{kiosk:true,castReg:"off",uri:true},cardfee:10,cashOff:false,cashRate:10,cashBase:"total",
+    receipt:{name:"",tno:"",tadashi:"御飲食代として"},round:"round",
+    dirty:false,storeMode:"first",copySrc:"honten",copyWhat:{price:true,menu:true,pay:true,shift:true,reg:true,seats:false,staff:false},copied:false,
+    salesSplit:"prorate",castTab:"one",hasStores:false,mine:{rank:true,rankOthers:"self",drink:false,fix:false,resv:true,late:true,norma:true,bonus:true},casts:[],castForm:{g:"",n:"",st:"在籍",kind:"業務委託",plan:"基本プラン",tel:"",mail:"",pin:"",dist:"mid",invite:true},csvRows:[],
+    float:50000,devReg:false,devName:"レジ iPad",firstShift:{from:"2026-10-26",to:"2026-11-01",due:"2026-10-22",start:true}};
+  var $=function(id){return document.getElementById(id)};
+  function yen(n){return Number(n||0).toLocaleString("ja-JP")}
+  function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
+  function kindVal(it,k){var r=S.kindRate[k]/100;return it.bt==="pct"?Math.round(it.b*r*10)/10:Math.round(it.b*r)}
+  function typeName(){var t=TYPES.filter(function(x){return x.id===S.type})[0];return t?t.name:"—"}
+  function clone(o){return JSON.parse(JSON.stringify(o))}
+  function applyType(id){
+    var t=clone(TPL[id]);S.type=id;
+    S.rules=t.rules.map(normRule);S.fees=t.fees;S.svc=t.svc;S.svcVip=t.svcVip||t.svc;S.join=t.join;
+    S.seats.counter=t.seats.counter;S.seats.table=t.seats.table;S.seats.vip=t.seats.vip;
+    S.pay.base=t.pay.base;S.pay.trial=t.pay.base+500;S.pay.slide=t.pay.slide;S.pay.norma=t.pay.norma;S.pay.bonus=t.pay.bonus;
+    S.back=t.back;S.reg.castReg=t.reg?"pay":"off";S.vip.on=t.vip[0];S.vip.amt=t.vip[1];S.vip.ext=t.vip[2];
+    S.menu=clone(MENU[id]);
+    S.menu.forEach(function(c){var champ=/シャンパン|スパークリング/.test(c.cat);c.items.forEach(function(it){if(champ){it.bt="pct";it.b=S.back.bottle}else{it.bt="yen"}})});
+  }
+  function seg(key,opts,val){return '<div class="seg" role="group" data-seg="'+key+'">'+opts.map(function(o){return '<button type="button" data-v="'+o[0]+'" aria-pressed="'+(String(val)===String(o[0]))+'">'+o[1]+'</button>'}).join("")+'</div>'}
+  function onoff(key,val){return '<div>'+seg(key,[["on","ON"],["off","OFF"]],val?"on":"off")+'<div class="state">'+(val?"ON・この店で使う":"OFF・この店では使わない")+'</div></div>'}
+  function money(path,val,unit,pre){return '<div class="unit">'+(pre?'<em class="pre">¥</em>':'')+'<input type="number" inputmode="decimal" data-path="'+path+'" value="'+val+'">'+(unit?'<em>'+unit+'</em>':'')+'</div>'}
+  function txt(path,val,ph){return '<input type="text" data-path="'+path+'" value="'+esc(val)+'"'+(ph?' placeholder="'+esc(ph)+'"':'')+'>'}
+
+  // 1 お店
+  function s1(){
+    var CW=[["price","料金"],["menu","メニュー"],["pay","キャスト待遇"],["shift","シフト・勤怠"],["reg","会計・レジ"],["seats","席・卓"],["staff","スタッフ"]];
+    return '<div class="head"><h2>お店について</h2><p>業態を選ぶと、席・料金・メニュー・待遇・会計の初期値がその業態の一般的な形で入ります。</p></div>'+
+    '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;border:1px dashed #5a554a;border-radius:10px;padding:8px 12px;font-size:13px;color:var(--dim)">モック用（実画面では自動判定）：この会社に既存のお店が'+seg("hasStores",[["off","ない（1 店舗目）"],["on","ある（2 店舗目以降）"]],S.hasStores?"on":"off")+'</div>'+
+    (S.hasStores?'<section class="card"><h3>どのお店の設定ですか</h3>'+seg("storeMode",[["first","はじめから設定"],["copy","既存のお店からコピー"]],S.storeMode)+
+    (S.storeMode==="copy"?'<div class="grid g2"><label class="field"><span>コピー元のお店</span><select data-path="copySrc"><option value="honten"'+(S.copySrc==="honten"?" selected":"")+'>CLUB NOX（本店・キャバクラ）</option><option value="2go"'+(S.copySrc==="2go"?" selected":"")+'>CLUB NOX 2号店（キャバクラ）</option></select></label><div></div></div>'+
+      '<div class="field"><span>コピーする内容（席・卓とスタッフはお店ごとに違うので、既定は外しています）</span><div class="chips">'+CW.map(function(c){return '<label class="chip" style="display:flex;align-items:center;gap:8px;padding:8px 12px"><input type="checkbox" data-ck="copyWhat.'+c[0]+'"'+(S.copyWhat[c[0]]?" checked":"")+' style="width:20px;height:20px">'+c[1]+'</label>'}).join("")+'</div></div>'+
+      '<div class="row" style="justify-content:center"><button type="button" class="btn2" data-docopy="1">'+(S.copied?"もう一度コピーする":"コピーして始める")+'</button></div>'+
+      (S.copied?'<div class="info">コピー元の設定を入れました。各ステップで違う所だけ直してください（店舗名・住所はこのお店のものを入れます）。</div>':''):'')+'</section>':'')+
+    '<section class="card"><h3>お店のタイプ</h3><p class="lead">選び直すときは、入力した内容を入れ替えるか確認します。</p>'+
+    '<div class="grid g5">'+TYPES.map(function(t){return '<button type="button" class="choice" data-type="'+t.id+'" aria-pressed="'+(S.type===t.id)+'"><b>'+t.name+'</b><small>'+t.desc+'</small><span class="price">'+t.price+'</span></button>'}).join("")+'</div>'+
+    (S.type?'':'<p class="note">タイプを選ぶと「次へ」が押せます。</p>')+'</section>'+
+    '<section class="card"><h3>店舗の基本情報</h3>'+
+    '<div class="grid g2"><label class="field"><span>店舗名</span>'+txt("shop.name",S.shop.name)+'</label><label class="field"><span>住所</span>'+txt("shop.addr",S.shop.addr)+'</label></div>'+
+    '<div class="grid g3"><label class="field"><span>営業開始</span><input type="time" data-path="shop.open" value="'+S.shop.open+'"></label><label class="field"><span>営業終了（翌日も可）</span><input type="time" data-path="shop.close" value="'+S.shop.close+'"></label><label class="field"><span>営業日の切替時刻</span><input type="time" data-path="shop.cut" value="'+S.shop.cut+'"></label></div>'+
+    '<div class="field"><span>定休日（複数選べます・無ければ選ばない）</span><div class="seg" role="group" aria-label="定休日">'+["日","月","火","水","木","金","土"].map(function(d){return '<button type="button" data-hol="'+d+'" aria-pressed="'+(S.shop.holidays.indexOf(d)>=0)+'">'+d+'</button>'}).join("")+'</div></div>'+
+    '<p class="note">営業日の切替時刻＝この時刻までの売上・出勤は前日の営業日として数えます。</p></section>';
+  }
+  // 2 席・卓
+  function seatNames(){var s=S.seats,a=[];
+    for(var i=1;i<=s.counter;i++)a.push([s.cp+i,""]);
+    for(i=1;i<=s.table;i++)a.push([s.tp+i,""]);
+    for(i=1;i<=s.vip;i++)a.push([s.vp+i,"vip"]);return a}
+  function s2(){var s=S.seats,list=seatNames();
+    return '<div class="head"><h2>席・卓</h2><p>レジで開く単位です。数を入れると名前を自動で付けます（あとで 1 つずつ名前を変えられます）。</p></div>'+
+    '<section class="card"><h3>席の数</h3><div class="grid g3">'+
+    '<div class="field"><span>カウンター（席）</span>'+money("seats.counter",s.counter,"席")+'<span>名前の頭</span>'+txt("seats.cp",s.cp)+'</div>'+
+    '<div class="field"><span>テーブル（卓）</span>'+money("seats.table",s.table,"卓")+'<span>名前の頭</span>'+txt("seats.tp",s.tp)+'</div>'+
+    '<div class="field"><span>VIP 席（卓）</span>'+money("seats.vip",s.vip,"卓")+'<span>名前の頭</span>'+txt("seats.vp",s.vp)+'</div></div>'+
+    '<div class="field"><span>作られる席（'+list.length+'）</span><div class="chips">'+list.map(function(x){return '<span class="chip'+(x[1]?' vip':'')+'">'+esc(x[0])+'</span>'}).join("")+'</div></div>'+
+    '<p class="note">VIP 席は、料金で「VIP」のルールと VIP 料金が使われます。</p></section>';
+  }
+  function seatOpts(v){var o=[["all","全席"]];if(S.seats.counter>0)o.push(["counter","カウンター"]);if(S.seats.table>0)o.push(["table","テーブル"]);if(S.seats.vip>0)o.push(["vip","VIP"]);if(!o.some(function(x){return x[0]===v}))o.push([v,{counter:"カウンター",table:"テーブル",vip:"VIP"}[v]+"（席がありません）"]);
+    return o.map(function(x){return '<option value="'+x[0]+'"'+(x[0]===v?" selected":"")+'>'+x[1]+'</option>'}).join("")}
+  // 3 料金
+  function s3(){
+    var r=S.rules.map(function(x,i){
+      return '<div class="rule"><div class="rh"><span class="prio">'+(i+1)+'</span><div style="flex:1;min-width:200px">'+txt("rules."+i+".name",x.name,"ルール名")+'</div>'+(S.rules.length>1?'<button type="button" class="btn3" data-delrule="'+i+'">このルールを削除</button>':'')+'</div><div class="rb">'+
+      '<div class="grid g4"><label class="field"><span>開始</span><input type="time" data-path="rules.'+i+'.from" value="'+x.from+'"></label><label class="field"><span>終了（翌日も可）</span><input type="time" data-path="rules.'+i+'.to" value="'+x.to+'"></label><label class="field" style="grid-column:span 2"><span>席種</span><select data-path="rules.'+i+'.seat">'+seatOpts(x.seat)+'</select></label></div>'+
+      '<div class="field"><span>曜日</span><div class="seg" role="group" aria-label="曜日">'+WD.map(function(d){return '<button type="button" data-rday="'+i+'.'+d+'" aria-pressed="'+(x.days.indexOf(d)>=0)+'">'+d+'</button>'}).join("")+'</div></div>'+
+      '<div class="grid g3"><label class="field"><span>'+(x.min?'セット料金':'チャージ')+'</span>'+money("rules."+i+".set",x.set,x.min?"／"+x.min+"分":"",true)+'</label>'+
+      (x.min?'<label class="field"><span>セット時間</span>'+money("rules."+i+".min",x.min,"分")+'</label>':'<div></div>')+'<div></div></div>'+
+      (x.min?'<div><div class="field"><span>延長パターン（最大 3・既定を 1 つ）</span></div>'+x.ext.map(function(e,j){
+        return '<div class="ext" style="margin-top:8px"><span class="lab">パターン'+(j+1)+'</span>'+money("rules."+i+".ext."+j+".0",e[0],"分")+money("rules."+i+".ext."+j+".1",e[1],"円",true)+'<label class="radio"><input type="radio" name="def'+i+'" data-def="'+i+'.'+j+'"'+(e[2]?' checked':'')+'>既定</label>'+(x.ext.length>1?'<button type="button" class="btn3" data-delext="'+i+'.'+j+'">削除</button>':'<span></span>')+'</div>'}).join("")+
+        (x.ext.length<3?'<button type="button" class="btn2" style="margin-top:10px" data-addext="'+i+'">＋ 延長パターンを追加</button>':'')+'</div>':'')+
+      '</div></div>'}).join("");
+    var f=S.fees,v=S.vip,unitV=v.mode==="table"?"円／卓":"円／人";
+    return '<div class="head"><h2>料金</h2><p>'+typeName()+'の一般的な料金で入っています。金額はそのまま直せます。</p></div>'+
+    '<section class="card"><h3>セット料金のルール</h3><p class="lead">時間帯・曜日・席種ごと。上ほど優先されます。</p>'+r+
+    '<button type="button" class="btn2" data-addrule="1" style="align-self:center">＋ ルールを追加</button></section>'+
+    '<section class="card"><div class="row"><h3 style="margin-right:auto">VIP 料金</h3>'+onoff("vip.on",v.on)+'</div>'+
+    (v.on?seg("vip.mode",[["table","卓ごと（1 卓あたり）"],["person","人ごと（お客様 1 人あたり）"]],v.mode)+
+      '<div class="field"><span>かかるタイミング</span>'+seg("vip.per",[["set","セットごと（延長にもかかる）"],["once","入店時に 1 回だけ"]],v.per)+'</div>'+
+      '<div class="grid g3"><label class="field"><span>VIP 料金'+(v.per==="set"?"（セット時間あたり）":"")+'</span>'+money("vip.amt",v.amt,unitV,true)+'</label>'+(v.per==="set"?'<label class="field"><span>延長 1 回あたり</span>'+money("vip.ext",v.ext,unitV,true)+'</label>':'')+'</div>'+
+      '<p class="note">'+(v.mode==="table"?"人数に関係なく卓にかかります。":"お客様の人数分かかり、途中で増えたら増えた分も足します。")+'</p>':'')+'</section>'+
+    '<section class="card"><h3>指名・同伴</h3><div class="grid g3">'+
+    '<label class="field"><span>本指名料</span>'+money("fees.hon",f.hon,"円",true)+'</label>'+
+    '<label class="field"><span>場内指名料</span>'+money("fees.jo",f.jo,"円",true)+'</label>'+
+    '<label class="field"><span>同伴料</span>'+money("fees.dohan",f.dohan,"円",true)+'</label></div><p class="note">0 円の項目はレジに出ません。</p></section>'+
+    '<section class="card"><h3>サービス料・税・人数の増減</h3>'+
+    '<div class="grid g3"><label class="field"><span>サービス料（全席）</span>'+money("svc",S.svc,"%")+'</label>'+(S.seats.vip>0?'<label class="field"><span>サービス料（VIP 席）</span>'+money("svcVip",S.svcVip,"%")+'</label>':'<div></div>')+'<div class="field"><span>金額の表示</span>'+seg("tax",[["in","税込で表示"],["out","税抜で表示"]],S.tax)+'</div></div>'+
+    '<p class="note">サービス料と税率・延長パターンは開卓のときに固まります（途中で設定を変えても開いている卓は変わりません）。端数の丸めだけは会計の時点の設定で掛かります。</p>'+
+    '<div class="field"><span>セット時間が過ぎてからお客様が増えたとき</span>'+seg("join",[["join","合流セット（セット料金を足す）"],["extend","延長だけ"]],S.join)+'</div>'+
+    '<p class="note">人数が減ってもセット料金は引き直しません。</p></section>';
+  }
+  // 4 メニュー
+  function s4(){
+    var cnt=S.menu.reduce(function(a,c){return a+(c.on?c.items.filter(function(i){return i.on}).length:0)},0);
+    return '<div class="head"><h2>メニュー</h2><p>'+typeName()+'でよく出る商品を入れています。使わない物はチェックを外すだけ。値段・バックはそのまま直せます。</p></div>'+
+    '<div class="info">いま '+cnt+' 品がレジに出ます。キャストのバックは商品ごとに「円（固定額）」か「%（値段に対する率）」を選べます。初期値はキャストドリンク・ボトル＝円、シャンパン＝%。次の「キャスト待遇」の率で入れ直せます。「キープ」はボトルキープできる商品です。バックは<b>本指名のとき</b>の値で、場内・フリーは「キャスト待遇」の割合（本指名 '+S.kindRate.hon+'／場内 '+S.kindRate.jo+'／フリー '+S.kindRate.free+'%）を掛けます。違う商品だけ「区分ごと」を押して個別に。</div>'+
+    S.menu.map(function(c,ci){
+      return '<section class="menu-cat"><div class="mh"><b>'+esc(c.cat)+'</b>'+seg("menu."+ci+".on",[["on","使う"],["off","使わない"]],c.on?"on":"off")+'</div>'+
+      (c.on?'<div class="mrow"><span class="hd" style="text-align:center">出す</span><span class="hd">商品名</span><span class="hd">値段</span><span class="hd">キャストのバック（本指名・円／%）</span><span class="hd">キープ</span><span></span></div>'+
+        c.items.map(function(it,ii){var p="menu."+ci+".items."+ii;
+          return '<div class="mrow'+(it.on?'':' off')+'"><label class="ck"><input type="checkbox" data-ck="'+p+'.on"'+(it.on?' checked':'')+' aria-label="'+esc(it.n)+' を出す"></label>'+txt(p+".n",it.n)+money(p+".p",it.p,"",true)+'<div class="unit">'+(it.bt==="pct"?'':'<em class="pre">¥</em>')+'<input type="number" inputmode="decimal" data-path="'+p+'.b" value="'+it.b+'" aria-label="'+esc(it.n)+' のバック"><select data-path="'+p+'.bt" aria-label="バックの単位" style="width:auto;min-height:0;border:0;border-left:1px solid var(--line);border-radius:0;background:var(--s2);padding:0 8px"><option value="yen"'+(it.bt!=="pct"?' selected':'')+'>円</option><option value="pct"'+(it.bt==="pct"?' selected':'')+'>%</option></select></div>'+'<label class="ck"><input type="checkbox" data-ck="'+p+'.keep"'+(it.keep?' checked':'')+' aria-label="キープ"></label><span style="display:flex;gap:6px"><button type="button" class="btn3" data-bykind="'+ci+'.'+ii+'" aria-pressed="'+(!!it.byKind)+'"'+(it.byKind?' style="border-color:var(--blueline);color:var(--bluetext)"':'')+'>区分ごと</button><button type="button" class="btn3" data-delitem="'+ci+'.'+ii+'" aria-label="'+esc(it.n)+' を削除">削除</button></span></div>'+
+          (it.byKind?'<div class="mrow kind" style="grid-template-columns:44px minmax(0,2fr) minmax(0,1.2fr) minmax(0,1.2fr) auto auto;background:var(--bg)"><span></span><span class="hd" style="align-self:center">　↳ 場内指名／フリーのとき（'+(it.bt==="pct"?"%":"円")+'）</span><div class="unit">'+(it.bt==="pct"?'':'<em class="pre">¥</em>')+'<input type="number" inputmode="decimal" data-path="'+p+'.bj" value="'+(it.bj==null?kindVal(it,"jo"):it.bj)+'" aria-label="場内のバック"><em>場内</em></div><div class="unit">'+(it.bt==="pct"?'':'<em class="pre">¥</em>')+'<input type="number" inputmode="decimal" data-path="'+p+'.bf" value="'+(it.bf==null?kindVal(it,"free"):it.bf)+'" aria-label="フリーのバック"><em>フリー</em></div><span></span><span></span></div>':'')}).join("")+
+        '<div style="padding:10px 14px;text-align:center"><button type="button" class="btn2" data-additem="'+ci+'">＋ '+esc(c.cat)+'に商品を追加</button></div>':'')+'</section>'}).join("")+
+    '<div class="row" style="justify-content:center"><input type="text" id="newCat" placeholder="新しいカテゴリ名" style="max-width:280px"><button type="button" class="btn2" data-addcat="1">＋ カテゴリを追加</button></div>';
+  }
+  // 5 キャスト待遇
+  function s5(){
+    var p=S.pay,b=S.back;
+    var tiers=S.slideTiers.map(function(t,i){
+      return '<div class="tier"><span class="k">'+(i+1)+'段</span>'+money("slideTiers."+i+".0",t[0],p.slide==="point"?"pt":(p.slide==="rate"?"%":"円"),p.slide==="sales")+'<span class="k">→ 時給</span>'+money("slideTiers."+i+".1",t[1],"円",true)+'<button type="button" class="btn3" data-deltier="'+i+'">削除</button></div>'}).join("");
+    var axes=[["days","出勤日数","不足 1 日ごと","円／日","日／月"],["hon","本指名","不足 1 件ごと","円／件","件／月"],["dohan","同伴","不足 1 回ごと","円／回","回／月"],["sales","売上","不足 1 万円ごと","円／1 万円","円／月"]];
+    var pr=S.payroll;
+    return '<div class="head"><h2>キャスト待遇</h2><p>使う仕組みを選び、選んだものだけ数字を入れます。細かい設定はあとでマスタの待遇プランから。</p></div>'+
+    '<section class="card"><h3>時給</h3><div class="grid g3"><label class="field"><span>基本時給（在籍）</span>'+money("pay.base",p.base,"円／時",true)+'</label><label class="field"><span>体験入店の時給</span>'+money("pay.trial",p.trial,"円／時",true)+'</label><label class="field"><span>体験入店の日数</span>'+money("pay.trialDays",p.trialDays,"日")+'</label></div>'+
+    '<p class="note">体入で登録したキャストは、この時給（保証）で日数分働き、本採用で基本時給とスライドに切り替わります。</p></section>'+
+    '<section class="card"><h3>バック</h3><p class="lead">指名・同伴は 1 本（1 回）あたりの額。ドリンク・ボトルは値段に対する率の既定です。商品ごとに「円」か「%」をメニューで選べます。</p>'+
+    '<div class="opt"><span><b>ドリンクの本数バック</b><small>ON＝キャストドリンク 1 杯ごとに下の率で返す。OFF＝本数では返さず、ドリンクの売上を売上小計に含めて指名率・スライドで返す（「誰のドリンクか」はレジに出ません）。</small></span>'+onoff("drinkBack",S.drinkBack)+'</div><div class="grid g5">'+
+    '<label class="field"><span>本指名</span>'+money("back.hon",b.hon,"円／本",true)+'</label>'+
+    '<label class="field"><span>場内指名</span>'+money("back.jo",b.jo,"円／本",true)+'</label>'+
+    '<label class="field"><span>同伴</span>'+money("back.dohan",b.dohan,"円／本",true)+'</label>'+
+    (S.drinkBack?'<label class="field"><span>キャストドリンク</span>'+money("back.drink",b.drink,"%")+'</label>':'<div class="field"><span>キャストドリンク</span><span class="note" style="min-height:48px;display:flex;align-items:center">本数バックは OFF</span></div>')+
+    '<label class="field"><span>ボトル・シャンパン</span>'+money("back.bottle",b.bottle,"%")+'</label></div>'+
+    '<div class="row" style="justify-content:center"><button type="button" class="btn2" data-reback="1">この率でメニューのバックを入れ直す</button></div>'+
+    '<div class="field"><span>指名の区分ごとの割合（メニューのバックは「本指名のとき」の値。場内・フリーはこの割合を掛けます）</span><div class="grid g3">'+
+    '<label class="field"><span>本指名</span>'+money("kindRate.hon",S.kindRate.hon,"%")+'</label>'+
+    '<label class="field"><span>場内指名</span>'+money("kindRate.jo",S.kindRate.jo,"%")+'</label>'+
+    '<label class="field"><span>フリー（指名なし）</span>'+money("kindRate.free",S.kindRate.free,"%")+'</label></div></div>'+
+    '<p class="note">例：シャンパン 10%・本指名 100／場内 50／フリー 30 → 本指名 10%・場内 5%・フリー 3%。商品ごとに違う店は、メニューの行の「区分ごと」で個別に入れられます。</p></section>'+
+    '<section class="card"><h3>時給スライド</h3><p class="lead">時給を決めるスライドは 1 つだけ選びます。</p>'+
+    seg("pay.slide",[["sales","売上スライド"],["point","ポイントスライド"],["rate","報酬率スライド"],["none","使用しない"]],p.slide)+
+    (p.slide==="rate"?'<p class="note">報酬率＝決定した報酬（時給分）÷売上小計（税・サービス料前・割引前）。率が低いほど店の取り分が多いので、低い率の段ほど時給を上げる形で入れます。</p>':'')+
+    (p.slide!=="none"?'<div class="field"><span>判定の単位</span>'+seg("slidePeriod",[["month","月単位（前月の実績で今月の時給）"],["half","半月単位（前の半月の実績で次の半月）"]],S.slidePeriod)+'</div>'+
+      '<p class="note">判定は「期」ごと。段の変更は自動では確定せず、給与の「要対応」に提案として出て店が適用／除外します。</p>'+
+      '<div style="display:flex;flex-direction:column;gap:8px">'+tiers+'</div>'+(S.slideTiers.length<10?'<button type="button" class="btn2" data-addtier="1" style="align-self:center">＋ 段を追加（最大 10）</button>':''):'')+'</section>'+
+    (p.slide==="point"?'<section class="card"><h3>ポイントの付け方</h3><p class="lead">本指名・同伴などに pt を付け、期間の合計で時給を決めます。</p><div class="grid g4">'+
+      '<label class="field"><span>本指名 1 本</span>'+money("pt.hon",S.pt.hon,"pt")+'</label><label class="field"><span>場内指名 1 本</span>'+money("pt.jo",S.pt.jo,"pt")+'</label><label class="field"><span>同伴 1 件</span>'+money("pt.dohan",S.pt.dohan,"pt")+'</label><label class="field"><span>指名売上 1pt あたり</span>'+money("pt.salesPer",S.pt.salesPer,"円",true)+'</label></div><p class="note">商品ごとの pt は商品マスタで付けます。</p></section>':'')+
+    '<section class="card"><div class="row"><h3 style="margin-right:auto">ノルマ</h3>'+onoff("pay.norma",p.norma)+'</div>'+
+    (p.norma?'<p class="lead">使う軸だけ ON にして、目標と未達のときの減額（罰金）を入れます。目標は店の既定です（プランやキャストごとに変えられます）。</p><div style="display:flex;flex-direction:column;gap:10px">'+
+      axes.map(function(a){var on=S.normaAxes[a[0]],pn=S.normaPen[a[0]];
+        return '<div class="opt'+(on?'':' dimmed')+'"><span><b>'+a[1]+'</b>'+(on?'<div class="row" style="margin-top:10px"><span class="note">目標</span><div style="width:200px">'+money("normaGoal."+a[0],S.normaGoal[a[0]],a[4],a[0]==="sales")+'</div><span class="note">未達のとき</span>'+seg("normaPen."+a[0]+".m",[["per",a[2]],["fixed","定額"]],pn.m)+'<div style="width:200px">'+money("normaPen."+a[0]+".a",pn.a,pn.m==="per"?a[3]:"円",true)+'</div></div>':'<small>使わない</small>')+'</span>'+seg("normaAxes."+a[0],[["on","ON"],["off","OFF"]],on?"on":"off")+'</div>'}).join("")+'</div>'+
+      '<div class="warn">未達の減額は自動では引きません。給与の「要対応」に提案として出て、店が適用／除外を決めてから確定します。業務委託のキャストは契約書に根拠があることが前提。雇用のキャストは就業規則に根拠があり、労働基準法 91 条の上限（1 回の額が平均賃金の 1 日分の半額・合計が賃金総額の 1 割）の中でだけ適用されます。</div>':'')+'</section>'+
+    '<section class="card"><div class="row"><h3 style="margin-right:auto">達成ボーナス</h3>'+onoff("pay.bonus",p.bonus)+'</div>'+
+    (p.bonus?'<div class="field"><span>段を複数作ったとき</span>'+seg("bonusMode",[["max","届いた一番上の段だけ"],["sum","届いた段をすべて合計"]],S.bonusMode)+'</div>':'')+'</section>'+
+    '<section class="card"><h3>売上の数え方（1 卓に指名が複数いるとき）</h3><p class="lead">売上スライド・ノルマ・ランキング・売上歩合のすべてに使います。</p>'+
+    seg("salesSplit",[["prorate","分配率で分ける（本指名どうしで等分・伝票ごとに変更可）"],["equal","指名した全員で等分（場内も含む）"]],S.salesSplit)+
+    '<p class="note">例：売上 ¥60,000・本指名 A さん＋場内 B さん → 分配率＝A ¥60,000・B ¥0（レジで率を変えれば変わる）／全員で等分＝A・B とも ¥30,000。</p></section>'+
+    '<section class="card"><h3>給与の締め・支払い</h3><div class="grid g3">'+
+    '<div class="field"><span>給与の期間</span>'+seg("payroll.period",[["month","月ごと"],["half","半月ごと"],["daily","日ごと（日払いの店）"]],pr.period)+'</div>'+
+    '<label class="field"><span>締め日</span><select data-path="payroll.close">'+["末日","15日","20日","25日"].map(function(d){return '<option'+(pr.close===d?' selected':'')+'>'+d+'</option>'}).join("")+'</select></label>'+
+    '<label class="field"><span>支払日（翌月）</span>'+money("payroll.payday",pr.payday,"日")+'</label></div>'+
+    '<div class="opt"><span><b>源泉徴収の区分（既定）</b><small>人ごとに給与の画面で変えられます。雇用（社員・アルバイト）は「給与」＝NOX は税額を計算せず、社会保険料・源泉所得税・住民税を入れた分だけ差し引きます。</small>'+
+      '<div class="grid g2" style="margin-top:10px"><div class="field"><span>委託キャスト</span>'+seg("payroll.whtCast",[["hostess","ホステス報酬（10.21%・1 日 5,000 円×日数を控除）"],["none","対象外"]],pr.whtCast)+'</div><div class="field"><span>委託スタッフ</span>'+seg("payroll.whtStaff",[["none","対象外"],["other","その他の報酬（10.21%・100 万円超は 20.42%）"]],pr.whtStaff)+'</div></div><small>区分と額は顧問税理士・社労士にご確認ください。</small></span><span></span></div>'+
+    '<div class="opt"><span><b>前払（仮払）</b><small>その日に現金で先に渡し、月の給与から差し引きます。源泉はその場では引きません。</small></span>'+onoff("payroll.advance",pr.advance)+'</div>'+
+    '<div class="opt'+(pr.period==="daily"?'':' dimmed')+'"><span><b>日次精算（日払いの店だけ）</b><small>その日の分を確定して払い、源泉は 1 日分（5,000 円控除）で計算します。給与の期間が「日ごと」の店だけ使えます（月ごと・半月ごとの店で使うと控除が二重になるため）。</small></span>'+(pr.period==="daily"?onoff("payroll.settle",pr.settle):'<span class="note">給与の期間が日ごとのときだけ</span>')+'</div>'+
+    '<div class="field"><span>送り（キャストを送る費用の扱い）</span>'+seg("payroll.okuriMode",[["fixed","定額を給与から引く（店のドライバー）"],["actual","タクシー代を店が立て替えて給与から引く"],["store","店負担（引かない）"],["none","送りなし"]],pr.okuriMode)+'</div>'+
+    (pr.okuriMode==="fixed"?'<div class="grid g3"><label class="field"><span>近距離（1 回）</span>'+money("payroll.okuriTiers.0",pr.okuriTiers[0],"円",true)+'</label><label class="field"><span>中距離（1 回）</span>'+money("payroll.okuriTiers.1",pr.okuriTiers[1],"円",true)+'</label><label class="field"><span>遠距離（1 回）</span>'+money("payroll.okuriTiers.2",pr.okuriTiers[2],"円",true)+'</label></div><p class="note">キャストごとに距離区分を固定し、出勤日ごとに当日だけ変えられます。</p>':'')+
+    '<p class="note">遅刻・当欠の精算調整は「控除・送り」であとから設定できます。源泉は精算調整やノルマ未達を引く前の額で計算し、整数で丸めます。</p></section>'+
+    '<section class="card"><h3>キャストのマイページに出すもの</h3><p class="lead">キャストが自分のスマホで見る画面です。打刻とシフト希望はいつも出ます。</p>'+
+    '<div class="opt"><span><b>給与明細</b><small>確定した給与をどこまで見せるか。</small></span>'+seg("payroll.mypage",[["none","出さない"],["net","手取りと期間だけ"],["full","明細まで"]],pr.mypage)+'</div>'+
+    (p.norma?'<div class="opt"><span><b>ノルマの進捗</b><small>今月の目標と実績のバー。</small></span>'+onoff("mine.norma",S.mine.norma)+'</div>':'')+
+    '<div class="opt"><span><b>ランキング</b><small>売上・指名の順位。金額は出しません。</small>'+(S.mine.rank?'<div style="margin-top:8px">'+seg("mine.rankOthers",[["self","自分の順位だけ"],["top","上位の名前も出す"]],S.mine.rankOthers)+'</div>':'')+'</span>'+onoff("mine.rank",S.mine.rank)+'</div>'+
+    '<div class="opt"><span><b>ドリンクの申告</b><small>キャストが自分でドリンクを申告し、店が承認すると給与に入ります。レジで注文を入れる店は不要。</small></span>'+onoff("mine.drink",S.mine.drink)+'</div>'+
+    '<div class="opt"><span><b>打刻の修正申請</b><small>出退勤の押し忘れを本人が申請できます（店の承認後に反映）。</small></span>'+onoff("mine.fix",S.mine.fix)+'</div>'+
+    '<div class="opt"><span><b>遅刻・当欠の連絡</b><small>出勤見込みや理由を店に送れます。</small></span>'+onoff("mine.late",S.mine.late)+'</div>'+
+    '<div class="opt"><span><b>指名・同伴の予約申請</b><small>担当のお客様の予約を申請し、店の承認で予約になります。</small></span>'+onoff("mine.resv",S.mine.resv)+'</div>'+
+    '<div class="opt"><span><b>出勤ボーナス</b><small>その日に出た人への加算を本人に見せます。</small></span>'+onoff("mine.bonus",S.mine.bonus)+'</div></section>';
+  }
+  // 6 スタッフ
+  function s6(){
+    return '<div class="head"><h2>スタッフ</h2><p>店長・黒服・キッチンなど、キャスト以外で働く人です。あとで招待メールを送ってログインしてもらいます。</p></div>'+
+    '<section class="card"><h3>スタッフの登録</h3><div style="display:flex;flex-direction:column;gap:10px">'+
+    S.staff.map(function(s,i){var p="staff."+i;
+      return '<div class="srow"><label class="field"><span>名前</span>'+txt(p+".n",s.n,"例：佐藤 健一")+'</label>'+
+      '<label class="field"><span>職種</span><select data-path="'+p+'.role">'+["店長","黒服","キッチン","送りドライバー","その他"].map(function(r){return '<option'+(s.role===r?' selected':'')+'>'+r+'</option>'}).join("")+'</select></label>'+
+      '<label class="field"><span>権限</span><select data-path="'+p+'.perm">'+[["manager","店長（取消・割引・締め解除まで）"],["staff","スタッフ"]].map(function(r){return '<option value="'+r[0]+'"'+(s.perm===r[0]?' selected':'')+'>'+r[1]+'</option>'}).join("")+'</select></label>'+
+      (s.perm==="staff"?'<label class="row" style="gap:8px;min-height:48px;align-self:end"><input type="checkbox" data-ck="'+p+'.shiftOk"'+(s.shiftOk?' checked':'')+' style="width:22px;height:22px"><span>シフトを組める</span></label>':'<div></div>')+
+      '<label class="field"><span>雇用形態</span><select data-path="'+p+'.kind">'+["正社員","契約社員","アルバイト","業務委託"].map(function(r){return '<option'+(s.kind===r?' selected':'')+'>'+r+'</option>'}).join("")+'</select></label>'+
+      '<label class="field"><span>給与</span><select data-path="'+p+'.basis">'+["時給","月給","日給"].map(function(r){return '<option'+(s.basis===r?' selected':'')+'>'+r+'</option>'}).join("")+'</select></label>'+
+      '<label class="field"><span>金額</span>'+money(p+".amt",s.amt,"円",true)+'</label>'+
+      '<label class="field"><span>PIN（4〜6 桁）</span>'+txt(p+".pin",s.pin||"","空なら自動")+'</label>'+
+      '<button type="button" class="btn3" data-delstaff="'+i+'" aria-label="この行を削除">削除</button></div>'}).join("")+'</div>'+
+    '<button type="button" class="btn2" data-addstaff="1" style="align-self:center">＋ スタッフを追加</button>'+
+    '<p class="note">名前が空の行は登録されません。スタッフがいないお店は空のままで大丈夫です。メールアドレスや電話は、あとでスタッフ管理から入れます。「シフトを組める」スタッフは店長と同じシフトの操作ができます。業務委託のスタッフの源泉区分は既定「対象外」（給与の画面で変えられます）。</p></section>';
+  }
+  // 7 シフト・勤怠
+  function s7(){
+    var W=["日","月","火","水","木","金","土"];
+    return '<div class="head"><h2>シフト・勤怠</h2><p>シフトの集め方と、打刻のルールです。</p></div>'+
+    '<section class="card"><h3>シフトの集め方</h3>'+seg("shift.mode",[["want","出たい日を出してもらう（シフト希望）"],["off","休みだけ出してもらう（休み希望のみ）"],["store","店が決めて本人に通知する"]],S.shift.mode)+
+    '<p class="note">'+({off:"休みを出していない日は「出られる日」として、シフト配置の候補になります。",want:"出たい日と時間を出してもらい、店が承認してシフトにします。",store:"店が配置した時点で確定し、本人に通知します。希望は集めません（連絡は遅刻・当欠だけ）。"}[S.shift.mode])+'</p>'+
+    '<p class="note">店が配置したシフトは既定で「確定」です。確定後に足した分も本人に通知されます。定休日には配置できません（特別営業日を入れたときだけ）。</p>'+
+    (S.shift.mode==="store"?'':'<div class="grid g3"><label class="field"><span>希望の締切（期間の何日前）</span>'+money("shift.due",S.shift.due,"日前")+'</label><label class="field"><span>送り返した時間の自動確定</span>'+money("shift.auto",S.shift.auto,"時間後")+'</label><div></div></div>')+'</section>'+
+    '<section class="card"><h3>最初のシフト期間</h3><p class="lead">初期設定が終わったら、この期間の希望を集め始めます（シフト画面で直せます）。</p>'+
+    '<div class="grid g3"><label class="field"><span>開始日</span><input type="date" data-path="firstShift.from" value="'+S.firstShift.from+'" style="min-height:48px;background:var(--bg);border:1px solid var(--line2);border-radius:10px;padding:10px 12px"></label><label class="field"><span>終了日</span><input type="date" data-path="firstShift.to" value="'+S.firstShift.to+'" style="min-height:48px;background:var(--bg);border:1px solid var(--line2);border-radius:10px;padding:10px 12px"></label><label class="field"><span>希望の締切</span><input type="date" data-path="firstShift.due" value="'+S.firstShift.due+'" style="min-height:48px;background:var(--bg);border:1px solid var(--line2);border-radius:10px;padding:10px 12px"></label></div>'+
+    '<label class="row" style="gap:10px"><input type="checkbox" data-ck="firstShift.start"'+(S.firstShift.start?" checked":"")+' style="width:22px;height:22px"><span>初期設定の完了と同時に募集を始める</span></label></section>'+
+    '<section class="card"><h3>曜日別の必要人数</h3><p class="lead">シフト作成で「足りない日」を出すのに使います。定休日は 0 になります。時間帯ごと（30 分刻み）に分けるのはシフト画面であとから。</p>'+
+    '<div class="grid" style="grid-template-columns:repeat(7,minmax(0,1fr))">'+W.map(function(w,i){var hol=S.shop.holidays.indexOf(w)>=0;return '<label class="field" style="text-align:center"><span>'+w+(hol?'（休）':'')+'</span><div class="unit"><input type="number" min="0" data-path="shift.need.'+i+'" value="'+(hol?0:S.shift.need[i])+'" style="text-align:center"'+(hol?' disabled':'')+'><em>人</em></div></label>'}).join("")+'</div></section>'+
+    '<section class="card"><h3>打刻</h3>'+
+    '<div class="field"><span>打刻できる場所</span>'+seg("punch.how",[["device","店の端末（キオスク）だけ"],["any","本人のスマホからも"]],S.punch.how)+'</div>'+
+    (S.punch.how==="any"?'<div class="field"><span>条件に合わないとき</span>'+seg("punch.judge",[["hard","打刻させない"],["soft","打刻して記録だけ残す"]],S.punch.judge)+'</div>':'')+
+    '<div class="opt"><span><b>出勤していない人はレジを使えない</b><small>キャスト・スタッフが自分のスマホからレジ（開卓・注文・会計）を使えるのは、出勤の打刻があって退勤する前だけ。店長以上は対象外（操作は記録に残ります）。店の端末を置かないお店は OFF にできます。</small></span>'+onoff("punch.gate",S.punch.gate)+'</div>'+
+    '<div class="field"><span>勤務時間の丸め</span>'+seg("punch.round",[[1,"丸めない"],[5,"5分"],[15,"15分"],[30,"30分"]],S.punch.round)+'</div></section>';
+  }
+  // 8 会計・レジ
+  function s8(){var r=S.reg,rc=S.receipt;
+    return '<div class="head"><h2>会計・レジ</h2><p>レジの使い方・支払い・領収書の設定です。</p></div>'+
+    '<section class="card"><h3>使う機能</h3>'+
+    '<div class="opt"><span><b>店の端末（キオスク）</b><small>入口やレジに置く共用の iPad。打刻のほか、本人を選んで PIN を入れると、その人の権限でレジ・シフト・在庫・日報が使えます（給与・マスタ・顧客・分析は出ません）。端末ごとに専用のアカウントを発行し、初回ログインの端末に固定されます。</small></span>'+onoff("reg.kiosk",r.kiosk)+'</div>'+
+    '<div class="opt"><span><b>売掛</b><small>ツケ払い。回収はレジから。</small></span>'+onoff("reg.uri",r.uri)+'</div>'+
+    '<div class="opt"><span><b>キャストのレジ使用</b><small>自分の卓だけ・自分のスマホから。伝票の取消・割引・手数料カットは店長以上のまま。</small></span>'+seg("reg.castReg",[["off","使わない"],["order","注文まで"],["pay","会計まで"]],r.castReg)+'</div>'+
+    '<div class="opt"><span><b>スタッフの割引・手数料カット</b><small>スタッフ権限の人がレジで割引や手数料カットをするとき。</small></span>'+seg("reg.staffDisc",[["approve","店長の承認を待つ"],["limit","上限内なら即時"],["no","できない"]],r.staffDisc||"approve")+'</div></section>'+
+    (r.kiosk?'<section class="card"><h3>店の端末</h3><p class="lead">いま使っているこの iPad を店の端末として登録します（端末ごとに専用アカウント・初回ログインの端末に固定）。ほかの端末はあとでマスタ › キオスク端末から足せます。</p>'+
+      (S.devReg?'<div class="opt" style="background:var(--okbg);border-color:#2f5a3a"><span><b style="color:var(--oktext)">✓ この端末を「'+esc(S.devName)+'」として登録しました</b></span><button type="button" class="btn3" data-devreg="1">登録を外す</button></div>':
+        '<div class="grid g3"><label class="field"><span>端末の名前</span>'+txt("devName",S.devName)+'</label></div><div class="row" style="justify-content:center"><button type="button" class="btn2" data-devreg="1">この iPad を店の端末として登録</button></div>')+'</section>':'')+
+    '<section class="card"><h3>締め</h3><div class="grid g3"><label class="field"><span>釣銭準備金（毎日の締めの基準額）</span>'+money("float",S.float,"円",true)+'</label></div><p class="note">日報の締めで「レジ内の現金予定額」の起点になります。</p></section>'+
+    '<section class="card"><h3>カード手数料・現金割引</h3><p class="lead">カードで払うとき上乗せする率の既定値。会計のたびに「店の率／率を指定（±0.5%）／額を指定／なし」から選べます。</p>'+
+    '<div class="opt"><span><b>現金割引</b><small>現金で払うお客様に割引する店の設定。領収書・日報・分析に割引額が出ます。</small>'+(S.cashOff?'<div class="row" style="margin-top:10px"><div style="width:160px">'+money("cashRate",S.cashRate,"% OFF")+'</div>'+seg("cashBase",[["total","合計（税・サ込み）から"],["sub","小計（税・サ前）から"]],S.cashBase)+'</div>':'')+'</span>'+onoff("cashOff",S.cashOff)+'</div>'+
+    '<div class="grid g3"><label class="field"><span>カード</span>'+money("cardfee",S.cardfee,"%")+'</label><label class="field"><span>端数の扱い（サービス料・税・手数料・割引）</span><select data-path="round">'+[["round","四捨五入"],["floor","切り捨て"],["ceil","切り上げ"]].map(function(o){return '<option value="'+o[0]+'"'+(S.round===o[0]?' selected':'')+'>'+o[1]+'</option>'}).join("")+'</select></label><div></div></div>'+
+    '<p class="note">手数料はキャストの売上・ノルマ・歩合には入りません。割引は引いてから端数を丸めます。</p></section>'+
+    '<section class="card"><h3>領収書</h3><div class="grid g3">'+
+    '<label class="field"><span>発行者名（店名・会社名）</span>'+txt("receipt.name",rc.name||S.shop.name)+'</label>'+
+    '<label class="field"><span>インボイス登録番号</span>'+txt("receipt.tno",rc.tno,"T から始まる 13 桁")+'</label>'+
+    '<label class="field"><span>但し書きの既定</span>'+txt("receipt.tadashi",rc.tadashi)+'</label></div>'+
+    '<p class="note">領収書はレジから電子（お客様の URL・90 日）でも紙でも出せます。登録番号があれば簡易インボイス（税率別の内訳付き）になり、無いお店は空のままで発行できます。</p></section>';
+  }
+  function mins(t){var a=String(t).split(":");return (+a[0])*60+(+a[1]||0)}
+  function span(f,t){var a=mins(f),b=mins(t);if(b<=a)b+=1440;return [a,b]}
+  function checks(){
+    var W=[],biz=span(S.shop.open,S.shop.close);
+    S.rules.forEach(function(r,i){
+      var sp=span(r.from,r.to),a=sp[0],b=sp[1];if(a<biz[0]-60&&a+1440<=biz[1]){a+=1440;b+=1440}
+      if(a<biz[0]||b>biz[1])W.push([2,"料金ルール「"+r.name+"」の時間（"+r.from+"〜"+r.to+"）が営業時間（"+S.shop.open+"〜"+S.shop.close+"）からはみ出しています"]);
+      if(!r.days.length)W.push([2,"料金ルール「"+r.name+"」の曜日が選ばれていません"]);
+      if(r.seat==="vip"&&S.seats.vip<1)W.push([2,"料金ルール「"+r.name+"」は VIP 席向けですが、VIP 席がありません"]);
+      for(var j=i+1;j<S.rules.length;j++){var q=S.rules[j];
+        if(q.seat===r.seat&&q.days.some(function(d){return r.days.indexOf(d)>=0})){var s2=span(q.from,q.to);if(s2[0]<sp[1]&&sp[0]<s2[1])W.push([2,"「"+r.name+"」と「"+q.name+"」の時間が重なっています（上のルールが優先されます）"])}}});
+    if(S.vip.on&&S.seats.vip<1)W.push([1,"VIP 料金を使う設定ですが、VIP 席が 0 卓です"]);
+    S.menu.forEach(function(c){if(!c.on)return;c.items.forEach(function(it){if(!it.on)return;
+      if(!String(it.n).trim())W.push([3,c.cat+"に名前が空の商品があります"]);
+      else if(!(+it.p>0))W.push([3,"「"+it.n+"」の値段が 0 円です"]);
+      if(it.bt==="pct"&&+it.b>100)W.push([3,"「"+it.n+"」のバックが 100% を超えています"]);})});
+    if(S.pay.slide!=="none"){for(var k=1;k<S.slideTiers.length;k++){var asc=S.pay.slide!=="rate";if(asc?(+S.slideTiers[k][0]<=+S.slideTiers[k-1][0]):(+S.slideTiers[k][0]>=+S.slideTiers[k-1][0]))W.push([4,"時給スライドの "+(k+1)+" 段目の順番が前の段と逆です（"+(asc?"昇順":"報酬率は降順")+"にしてください）"])}}
+    if(+S.pay.trial<+S.pay.base)W.push([4,"体験入店の時給が基本時給より低くなっています"]);
+    if(+S.kindRate.jo>+S.kindRate.hon||+S.kindRate.free>+S.kindRate.jo)W.push([4,"商品バックの割合が 本指名 ≥ 場内 ≥ フリー の順になっていません"]);
+    if(S.punch.how==="device"&&!S.devReg)W.push([7,"打刻を「店の端末だけ」にしていますが、店の端末が登録されていません"]);
+    if(S.punch.gate&&!S.devReg)W.push([6,"「出勤していない人はレジを使えない」が ON ですが、打刻する店の端末が登録されていません（端末を置かないお店は OFF に）"]);
+    if(S.firstShift.from>S.firstShift.to)W.push([6,"最初のシフト期間の終了日が開始日より前です"]);
+    return W;
+  }
+  // 9 確認
+  function s9(){
+    var p=S.pay,r=S.reg,pr=S.payroll;
+    function box(i,title,rows){return '<div class="rv"><div class="rt"><h4>'+title+'</h4><button type="button" class="btn3" data-go="'+i+'">直す</button></div><dl>'+rows.map(function(x){return '<dt>'+x[0]+'</dt><dd>'+x[1]+'</dd>'}).join("")+'</dl></div>'}
+    var menuCnt=S.menu.reduce(function(a,c){return a+(c.on?c.items.filter(function(i){return i.on}).length:0)},0);
+    var slideLabel={sales:"売上スライド",point:"ポイントスライド",rate:"報酬率スライド",none:"使用しない"}[p.slide];
+    var W=checks();
+    return '<div class="head"><h2>確認</h2><p>この内容で始めます。あとからマスタでいつでも変えられます。</p></div>'+
+    (W.length?'<section class="card" style="border-color:#6b5626"><h3>要確認 '+W.length+' 件<span class="note" style="margin-left:10px">このまま始められます</span></h3><div style="display:flex;flex-direction:column;gap:8px">'+W.map(function(w){return '<div class="opt" style="background:var(--warnbg);border-color:#6b5626"><span><b style="color:var(--warntext)">'+w[1]+'</b></span><button type="button" class="btn3" data-go="'+w[0]+'">直す</button></div>'}).join("")+'</div></section>':'<div class="info">入力の抜けや食い違いは見つかりませんでした。</div>')+
+    '<div class="review">'+
+    box(0,"お店",[["タイプ",typeName()],["店舗名",esc(S.shop.name)],["営業時間",S.shop.open+"〜"+S.shop.close],["定休日",S.shop.holidays.length?S.shop.holidays.join("・"):"なし"]])+
+    box(1,"席・卓",[["カウンター",S.seats.counter+" 席"],["テーブル",S.seats.table+" 卓"],["VIP",S.seats.vip+" 卓"]])+
+    box(2,"料金",[["ルール",S.rules.length+" 件"],["VIP",S.vip.on?((S.vip.mode==="table"?"卓ごと":"人ごと")+" ¥"+yen(S.vip.amt)+(S.vip.per==="set"?"／セット":"（1 回）")):"使わない"],["本指名・場内・同伴","¥"+yen(S.fees.hon)+"・¥"+yen(S.fees.jo)+"・¥"+yen(S.fees.dohan)],["サービス料",S.svc+"%"+(S.seats.vip>0&&S.svcVip!==S.svc?"（VIP "+S.svcVip+"%）":"")]])+
+    box(3,"メニュー",[["レジに出す商品",menuCnt+" 品"],["カテゴリ",S.menu.filter(function(c){return c.on}).length+" 個"]])+
+    box(4,"キャスト待遇",[["基本時給／体入","¥"+yen(p.base)+"／¥"+yen(p.trial)+"（"+p.trialDays+" 日）"],["バック（本指名・同伴）","¥"+yen(S.back.hon)+"・¥"+yen(S.back.dohan)],["商品バックの割合（本／場内／フリー）",S.kindRate.hon+"／"+S.kindRate.jo+"／"+S.kindRate.free+"%"+(S.menu.some(function(c){return c.items.some(function(i){return i.byKind})})?"（個別あり）":"")],["時給スライド",slideLabel+(p.slide!=="none"?"（"+S.slideTiers.length+" 段・"+(S.slidePeriod==="half"?"半月":"月")+"単位）":"")],["ノルマ",p.norma?"使う":"使わない"],["給与",({month:"月",half:"半月",daily:"日"}[pr.period])+"ごと"+(pr.period==="daily"?"":"・"+pr.close+"締め・翌月 "+pr.payday+" 日払い")],["源泉（委託キャスト）",pr.whtCast==="hostess"?"ホステス報酬":"対象外"],["送り",{fixed:"定額 ¥"+yen(pr.okuriTiers[0])+"〜¥"+yen(pr.okuriTiers[2]),actual:"タクシー代の立替",store:"店負担",none:"なし"}[pr.okuriMode]]])+
+    box(5,"スタッフ",[["登録",S.staff.filter(function(s){return s.n}).length+" 人"]])+
+    box(6,"シフト・勤怠",[["集め方",S.shift.mode==="want"?"シフト希望":"休み希望のみ"],["必要人数（日〜土）",S.shift.need.map(function(n,i){return S.shop.holidays.indexOf(["日","月","火","水","木","金","土"][i])>=0?0:n}).join("・")],["最初の期間",S.firstShift.from.slice(5).replace("-","/")+"〜"+S.firstShift.to.slice(5).replace("-","/")+(S.firstShift.start?"（完了時に募集開始）":"")],["打刻",{device:"店の端末だけ",any:"本人のスマホからも"}[S.punch.how]],["レジは出勤中だけ",S.punch.gate?"ON":"OFF"]])+
+    box(7,"会計・レジ",[["キャストのレジ使用",{off:"使わない",order:"注文まで",pay:"会計まで"}[r.castReg]],["カード手数料",S.cardfee+"%"],["現金割引",S.cashOff?S.cashRate+"%（"+(S.cashBase==="total"?"合計":"小計")+"から）":"なし"],["領収書",S.receipt.tno?"登録番号あり":"登録番号なし"],["店の端末",S.devReg?esc(S.devName):"未登録"],["釣銭準備金","¥"+yen(S.float)]])+'</div>';
+  }
+  function sDone(){
+    var f=S.castForm,tab=S.castTab;
+    var head='<section class="card done-card" style="padding:28px 20px"><div class="ckm" aria-hidden="true">✓</div><h2 style="margin:0 0 6px">初期設定が完了しました</h2><p class="note">続けてキャストを登録しましょう。あとからでも登録できます。店の端末では本人を選んで PIN、または端末の画面の QR を自分のスマホで読んでも入れます。</p>'+(S.firstShift.start?'<div class="info" style="margin-top:12px;text-align:left">シフト '+S.firstShift.from.slice(5).replace("-","/")+'〜'+S.firstShift.to.slice(5).replace("-","/")+' の希望の受付を始めました（締切 '+S.firstShift.due.slice(5).replace("-","/")+'）。招待したキャストから提出できます。</div>':'')+'</section>';
+    var tabs='<div class="row" style="justify-content:center">'+seg("castTab",[["one","1 人ずつ登録"],["csv","CSV で一括登録"]],tab)+'</div>';
+    var plans=["基本プラン","体験入店"];
+    var one='<section class="card"><h3>キャストを 1 人ずつ登録</h3><div class="grid g3">'+
+      '<label class="field"><span>源氏名（必須）</span>'+txt("castForm.g",f.g,"例：ひなの")+'</label>'+
+      '<label class="field"><span>本名</span>'+txt("castForm.n",f.n,"支払調書・源泉に使います")+'</label>'+
+      '<div class="field"><span>在籍区分</span>'+seg("castForm.st",[["在籍","在籍"],["体入","体験入店"]],f.st)+'</div>'+
+      '<div class="field"><span>契約区分</span>'+seg("castForm.kind",[["業務委託","業務委託"],["雇用","雇用"]],f.kind)+'</div>'+
+      '<label class="field"><span>待遇プラン</span><select data-path="castForm.plan">'+plans.map(function(p){return '<option'+(f.plan===p?" selected":"")+'>'+p+'</option>'}).join("")+'</select></label>'+
+      '<label class="field"><span>電話</span>'+txt("castForm.tel",f.tel)+'</label>'+
+      '<label class="field"><span>メール（ログインの招待に使います）</span>'+txt("castForm.mail",f.mail)+'</label>'+
+      '<label class="field"><span>PIN（店の端末で本人を選んだ後に入れる・4〜6 桁）</span>'+txt("castForm.pin",f.pin,"空なら自動で振ります")+'</label>'+
+      (S.payroll.okuriMode==="fixed"?'<div class="field"><span>送りの距離区分</span>'+seg("castForm.dist",[["near","近"],["mid","中"],["far","遠"]],f.dist)+'</div>':'')+
+      '<label class="row" style="gap:10px;align-self:end;min-height:48px"><input type="checkbox" data-ck="castForm.invite"'+(f.invite?" checked":"")+' style="width:22px;height:22px"><span>メールがあれば招待を送る</span></label></div>'+
+      '<p class="note">体験入店を選ぶと、待遇プランは「体験入店」（時給 ¥'+yen(S.pay.trial)+'・'+S.pay.trialDays+' 日）になります。源泉の区分は契約区分から既定で入ります（業務委託＝'+(S.payroll.whtCast==="hostess"?"ホステス報酬":"対象外")+'・雇用＝給与）。給与の画面で人ごとに変えられます。</p>'+
+      '<div class="row" style="justify-content:center"><button type="button" class="btn" data-addcast="1"'+(String(f.g).trim()?'':' disabled')+'>登録して次の人へ</button></div></section>';
+    var csv='<section class="card"><h3>CSV で一括登録</h3><p class="lead">今の名簿を表計算ソフトで CSV にして取り込みます。1 行目は見出しです。</p>'+
+      '<div class="field"><span>列（この順番）</span><div class="unit" style="padding:12px;font-family:ui-monospace,monospace;font-size:14px;display:block">源氏名,本名,在籍区分,契約区分,待遇プラン,電話,メール,PIN,送り距離</div></div>'+
+      '<p class="note">在籍区分＝在籍／体入、契約区分＝業務委託／雇用、待遇プラン＝基本プラン／体験入店（空なら在籍区分から自動）、PIN＝4〜6 桁（空なら自動で振る）、送り距離＝近／中／遠（空なら中）。メールがある人には招待を送ります。</p>'+
+      '<div class="row" style="justify-content:center"><button type="button" class="btn3" data-copytpl="1">見出し行をコピー</button><label class="btn2" style="display:inline-flex;align-items:center;cursor:pointer">CSV ファイルを選ぶ<input type="file" accept=".csv,text/csv" id="csvFile" style="display:none"></label></div>'+
+      (S.csvRows.length?'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:14px"><thead><tr>'+["","源氏名","本名","在籍区分","契約区分","待遇プラン","電話","メール","PIN","送り距離"].map(function(h){return '<th style="text-align:left;color:var(--muted);font-weight:400;padding:8px;border-bottom:1px solid var(--line)">'+h+'</th>'}).join("")+'</tr></thead><tbody>'+
+        S.csvRows.map(function(r){return '<tr><td style="padding:8px;border-bottom:1px solid var(--line)">'+(r.err?'<span style="color:var(--warntext)">'+esc(r.err)+'</span>':'✓')+'</td>'+r.c.map(function(v){return '<td style="padding:8px;border-bottom:1px solid var(--line)">'+esc(v)+'</td>'}).join("")+'</tr>'}).join("")+'</tbody></table></div>'+
+        '<div class="row" style="justify-content:center"><button type="button" class="btn" data-importcsv="1">'+S.csvRows.filter(function(r){return !r.err}).length+' 人を登録する</button></div>':'')+'</section>';
+    var list='<section class="card"><h3>登録したキャスト（'+S.casts.length+' 人）</h3>'+(S.casts.length?'<div class="chips">'+S.casts.map(function(c){return '<span class="chip">'+esc(c.g)+'・'+c.st+'・'+c.kind+'・PIN '+c.pin+(c.inv?'・招待済み':'')+'</span>'}).join("")+'</div>':'<p class="note">まだいません。</p>')+
+      '<div class="row" style="justify-content:center"><button type="button" class="btn3" data-go="0">設定を見直す</button>'+(S.casts.length?'<button type="button" class="btn3" data-printpin="1">PIN の一覧を印刷</button>':'')+'<button type="button" class="btn2">ホームへ</button></div></section>';
+    return head+tabs+(tab==="one"?one:csv)+list;
+  }
+  function genPin(){return String(Math.floor(1000+Math.random()*9000))}
+  function parseCsv(text){var lines=text.replace(/\r/g,"").split("\n").filter(function(l){return l.trim()});if(!lines.length)return[];
+    if(/源氏名/.test(lines[0]))lines.shift();
+    return lines.map(function(l){var c=[],cur="",q=false;for(var i=0;i<l.length;i++){var ch=l[i];if(ch==='"'){q=!q;continue}if(ch===","&&!q){c.push(cur);cur="";continue}cur+=ch}c.push(cur);
+      while(c.length<9)c.push("");c=c.slice(0,9).map(function(v){return v.trim()});
+      if(!c[2])c[2]="在籍";if(!c[3])c[3]="業務委託";if(!c[4])c[4]=c[2]==="体入"?"体験入店":"基本プラン";
+      var err=!c[0]?"源氏名が空":(["在籍","体入"].indexOf(c[2])<0?"在籍区分が不正":(["業務委託","雇用"].indexOf(c[3])<0?"契約区分が不正":""));if(!err&&c[7]&&!/^\d{4,6}$/.test(c[7]))err="PIN は 4〜6 桁の数字";if(!err&&c[8]&&["近","中","遠"].indexOf(c[8])<0)err="送り距離は 近／中／遠";
+      return {c:c,err:err}})}
+
+  var VIEWS=[s1,s2,s3,s4,s5,s6,s7,s8,s9];
+  function renderSteps(){
+    $("steps").innerHTML=STEPS.map(function(n,i){var cur=S.step===i,done=S.done[i]&&!cur;
+      return '<li><button type="button" data-step="'+i+'" class="'+(done?"done":"")+'"'+(cur?' aria-current="step"':'')+(i>0&&!S.type?' disabled style="opacity:.5"':'')+'><span class="n">'+(done?"✓":(i+1))+'</span><span class="t">'+n+'</span></button></li>'}).join("");
+  }
+  function render(){
+    renderSteps();
+    $("main").innerHTML=S.step===9?sDone():VIEWS[S.step]();
+    $("foot").classList.toggle("hidden",S.step===9);
+    $("pos").textContent=(S.step+1)+" / "+STEPS.length;
+    $("back").style.visibility=S.step===0?"hidden":"visible";
+    $("next").textContent=S.step===8?"この内容で始める":"次へ："+STEPS[S.step+1];
+    $("next").disabled=S.step===0&&!S.type;
+  }
+  function go(i){S.step=i;render();window.scrollTo({top:0,behavior:"smooth"})}
+  function getObj(path){var k=path.split("."),o=S;for(var i=0;i<k.length-1;i++)o=o[k[i]];return [o,k[k.length-1]]}
+  function setPath(path,v){var a=getObj(path);a[0][a[1]]=v}
+  function flash(){S.dirty=true;var s=$("saved");s.textContent="保存しました";clearTimeout(flash.t);flash.t=setTimeout(function(){s.textContent="入力は自動で保存されます"},1200)}
+  function rebuildBack(){var b=S.back;S.menu.forEach(function(c){var rate=/キャスト|ママ|ショット/.test(c.cat)?b.drink:(/シャンパン|スパークリング|ボトル|ウイスキー|焼酎/.test(c.cat)?b.bottle:0);
+    c.items.forEach(function(it){if(/キャスト|ママ|ショット/.test(c.cat)||it.keep||/シャンパン|スパークリング/.test(c.cat))it.b=it.bt==="pct"?rate:Math.round(it.p*rate/100)})})}
+
+  $("steps").addEventListener("click",function(e){var b=e.target.closest("button[data-step]");if(!b||b.disabled)return;go(+b.dataset.step)});
+  $("back").addEventListener("click",function(){if(S.step>0)go(S.step-1)});
+  $("next").addEventListener("click",function(){S.done[S.step]=true;go(S.step+1)});
+  $("main").addEventListener("input",function(e){var t=e.target;if(!t.dataset.path)return;setPath(t.dataset.path,t.type==="number"?Number(t.value):t.value);flash();
+    if(/^seats\./.test(t.dataset.path)){clearTimeout(render.t);render.t=setTimeout(function(){var pos=t.dataset.path,c=t.selectionStart;render();var el=document.querySelector('[data-path="'+pos+'"]');if(el){el.focus()}},400)}});
+  $("main").addEventListener("change",function(e){var t=e.target;
+    if(t.id==="csvFile"&&t.files&&t.files[0]){var rd=new FileReader();rd.onload=function(){S.csvRows=parseCsv(String(rd.result));render()};rd.readAsText(t.files[0],"UTF-8");return}
+    if(t.dataset.path==="castForm.g"){render();return}
+    if(t.dataset.path&&t.tagName==="SELECT"){setPath(t.dataset.path,t.value);flash();if(/\.bt$/.test(t.dataset.path))render()}
+    if(t.dataset.ck){setPath(t.dataset.ck,t.checked);flash();render()}
+    if(t.dataset.def){var a=t.dataset.def.split("."),rule=S.rules[+a[0]];rule.ext.forEach(function(x,j){x[2]=j===+a[1]?1:0});flash()}});
+  $("main").addEventListener("click",function(e){
+    var b=e.target.closest("button");if(!b)return;
+    if(b.dataset.hol){var h=S.shop.holidays,hi=h.indexOf(b.dataset.hol);if(hi>=0)h.splice(hi,1);else h.push(b.dataset.hol);flash();render();return}
+    if(b.dataset.type){var nt=b.dataset.type,nm=TYPES.filter(function(x){return x.id===nt})[0].name;
+      if(S.type&&S.type!==nt&&S.dirty){if(confirm("入力した席・料金・メニュー・待遇を「"+nm+"」の初期値に入れ替えますか？\nキャンセルすると、入力はそのままで業態だけ「"+nm+"」になります。")){applyType(nt);S.dirty=false}else{S.type=nt}}
+      else{applyType(nt);S.dirty=false}
+      render();return}
+    if(b.dataset.rday){var rd=b.dataset.rday.split("."),rl=S.rules[+rd[0]],di=rl.days.indexOf(rd[1]);if(di>=0)rl.days.splice(di,1);else rl.days.push(rd[1]);flash();render();return}
+    if(b.dataset.docopy){applyType("cabaret");S.copied=true;S.shop.name="";S.shop.addr="";if(!S.copyWhat.seats){S.seats.counter=0;S.seats.table=0;S.seats.vip=0}if(!S.copyWhat.staff)S.staff=[];
+      if(!S.copyWhat.menu)S.menu=[];S.dirty=false;render();return}
+    if(b.dataset.addcast){var f=S.castForm;if(!String(f.g).trim())return;S.casts.push({g:f.g,st:f.st,kind:f.kind,pin:/^\d{4,6}$/.test(f.pin)?f.pin:genPin(),dist:f.dist,inv:!!(f.invite&&String(f.mail).trim())});S.castForm={g:"",n:"",st:"在籍",kind:f.kind,plan:"基本プラン",tel:"",mail:"",pin:"",dist:"mid",invite:f.invite};render();var el=document.querySelector('[data-path="castForm.g"]');if(el)el.focus();return}
+    if(b.dataset.copytpl){try{navigator.clipboard.writeText("源氏名,本名,在籍区分,契約区分,待遇プラン,電話,メール,PIN,送り距離");b.textContent="コピーしました"}catch(err){b.textContent="コピーできませんでした"}return}
+    if(b.dataset.importcsv){S.csvRows.filter(function(r){return !r.err}).forEach(function(r){S.casts.push({g:r.c[0],st:r.c[2],kind:r.c[3],pin:r.c[7]||genPin(),inv:!!r.c[6]})});S.csvRows=[];render();return}
+    if(b.dataset.go){go(+b.dataset.go);return}
+    var sg=b.closest("[data-seg]");
+    if(sg){var key=sg.dataset.seg,v=b.dataset.v;
+      if(v==="on"||v==="off")v=v==="on";else if(/^\d+$/.test(v))v=+v;
+      setPath(key,v);
+      if(key==="pay.slide")S.slideTiers=v==="point"?[[10,3500],[20,4000],[30,4500],[50,5000]]:(v==="rate"?[[40,3000],[30,3500],[20,4500]]:[[800000,3000],[1200000,3500],[1600000,4500]]);
+      flash();render();return}
+    if(b.dataset.delrule){if(S.rules.length>1&&confirm(S.rules[+b.dataset.delrule].name+" を削除しますか？")){S.rules.splice(+b.dataset.delrule,1);render()}return}
+    if(b.dataset.delext){var de=b.dataset.delext.split("."),rr=S.rules[+de[0]],wd=rr.ext[+de[1]][2];rr.ext.splice(+de[1],1);if(wd&&rr.ext.length)rr.ext[0][2]=1;render();return}
+    if(b.dataset.addext){var r=S.rules[+b.dataset.addext];r.ext.push([60,r.set,0]);render();return}
+    if(b.dataset.addrule){S.rules.push(normRule(R("新しいルール","",S.rules[0]?S.rules[0].set:5000,60,[[30,2500,1]])));render();return}
+    if(b.dataset.addtier){var last=S.slideTiers[S.slideTiers.length-1]||[0,S.pay.base];S.slideTiers.push([Math.round(last[0]*1.25),last[1]+500]);render();return}
+    if(b.dataset.deltier){if(S.slideTiers.length>1){S.slideTiers.splice(+b.dataset.deltier,1);render()}return}
+    if(b.dataset.additem){S.menu[+b.dataset.additem].items.push({n:"",p:0,b:0,keep:false,on:true});render();return}
+    if(b.dataset.bykind){var bk=b.dataset.bykind.split("."),bi=S.menu[+bk[0]].items[+bk[1]];bi.byKind=!bi.byKind;if(!bi.byKind){bi.bj=null;bi.bf=null}render();return}
+    if(b.dataset.delitem){var di=b.dataset.delitem.split(".");S.menu[+di[0]].items.splice(+di[1],1);render();return}
+    if(b.dataset.addcat){var nm=($("newCat").value||"").trim();if(!nm)return;S.menu.push({cat:nm,on:true,items:[{n:"",p:0,b:0,keep:false,on:true}]});render();return}
+    if(b.dataset.reback){rebuildBack();flash();var t=b.textContent;b.textContent="メニューのバックを入れ直しました";setTimeout(function(){b.textContent=t},1500);return}
+    if(b.dataset.devreg){S.devReg=!S.devReg;flash();render();return}
+    if(b.dataset.printpin){window.print();return}
+    if(b.dataset.addstaff){S.staff.push({n:"",role:"黒服",perm:"staff",shiftOk:false,kind:"アルバイト",basis:"時給",amt:1500,pin:""});render();return}
+    if(b.dataset.delstaff){S.staff.splice(+b.dataset.delstaff,1);render();return}
+  });
+  render();
+})();
+</script>
+</body>
+</html>
