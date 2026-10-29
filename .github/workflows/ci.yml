@@ -44,6 +44,8 @@ jobs:
         run: npm run lint
 
       # A群のみ＝pay / shift-time / punch-match / receipt / payroll-csv（env も DB も不要）。
+      # ★2026-10-29（Agoora 確定 10/27（6））: punch-match の DB 段 (9)（0154・SUPABASE_DB_URL）は verify:nox-punch-match-db へ分離＝pure の組は DB なしで完結するものだけ。
+      #   本番 DB の接続先を GitHub の secrets に入れる直し方はしない。DB を要する検査は手元の f0（verify:nox-punch-match-db を含む）で行う。
       # 玲奈ゴールデン（wage=5931）と 3ゲートのうち pay83 / receipt52 はここで恒久回帰する。
       - name: Verify (pure suites)
         run: npm run verify:ci
