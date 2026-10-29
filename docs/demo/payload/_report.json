@@ -660,7 +660,7 @@
    "sha256": "3fc80a6706776304bcf29b09fc1b1143e5d1dacb04385fc718c176afc31157df"
   },
   "lily": {
-   "bytes": 5795430,
+   "bytes": 5795418,
    "rows": 9839,
    "tables": 46,
    "checks": 1181,
@@ -794,7 +794,7 @@
      ]
     }
    ],
-   "sha256": "bb36153bce1f72502a1e7752473732566577c877df8e5b16f5acc5f589247303"
+   "sha256": "64d501d466a0fb1ac5ad9130c8b2e65ff0c948c6a727da50d32ee9e7ee7d85cc"
   },
   "nest": {
    "bytes": 5773490,

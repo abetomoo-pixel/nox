@@ -10,9 +10,9 @@ import * as t from "@/lib/nox/ui/theme";
 import { ResponsiveTable } from "@/components/ui/responsive-kit";
 import { Message } from "@/components/ui/toast";
 import { staffContractLineOf, hmOf, staffHoursOf, staffMonthRangeOf, staffPayOf, type StaffContract, type StaffPunch } from "@/lib/nox/staff/pay";
-import { mig0183On } from "@/lib/nox/rules-0175/flag"; // ★裁定432（0183 ★4）
+import { mig0183On, mig0188On } from "@/lib/nox/rules-0175/flag"; // ★裁定432（0183 ★4）
 import Withholding432Panel from "@/components/nox/withholding-432-panel";
-import { WITHHOLDING_ADVICE_NOTE, WITHHOLDING_KINDS, WITHHOLDING_KIND_LABEL, WITHHOLDING_KIND_SHORT, defaultWithholdingKindOf, withholdingKindOf, type EmployeeDeductionKind, type EmployeeDeductionRow } from "@/lib/nox/payroll/withholding-kind";
+import { WITHHOLDING_ADVICE_NOTE, WITHHOLDING_KIND_LABEL, WITHHOLDING_KIND_SELECT_NOTE, WITHHOLDING_KIND_SHORT, PAYMENT_REPORT_NOTE, defaultWithholdingKindOf, withholdingKindChoices, withholdingKindOf, type EmployeeDeductionKind, type EmployeeDeductionRow } from "@/lib/nox/payroll/withholding-kind";
 
 type Mem = { id: string; user_id: string; store_id: string; role: string; is_active: boolean };
 type UserRow = { id: string; name: string | null };
@@ -39,7 +39,7 @@ export default function StaffWorkPanel({ scope, stores }: { scope: "store" | "me
     const { from, to } = staffMonthRangeOf(month);
     const [mm, cc, pp] = await Promise.all([
       supabase.from("memberships").select("id, user_id, store_id, role, is_active").in("role", ["staff", "manager"]),
-      supabase.from("staff_contracts").select("membership_id, contract_kind, hourly, fixed_allowance, tax_class, withholding_rate"),
+      mig0188On() ? supabase.from("staff_contracts").select("membership_id, contract_kind, hourly, fixed_allowance, tax_class") : supabase.from("staff_contracts").select("membership_id, contract_kind, hourly, fixed_allowance, tax_class, withholding_rate"), // ★0188（裁定434）: withholding_rate を読まない（源泉は区分で）
       supabase.from("staff_punches").select("membership_id, biz_date, kind, punched_at").gte("biz_date", from).lte("biz_date", to).order("punched_at"),
     ]);
     const e = mm.error ?? cc.error ?? pp.error;
@@ -115,9 +115,10 @@ export default function StaffWorkPanel({ scope, stores }: { scope: "store" | "me
                   <label style={{ ...t.fieldLabel, display: "block", marginBottom: 6 }}>源泉区分{" "}
                     <select value={w432.kind[r.m.id] ?? ""} onChange={(e) => void setKind(r.m.id, e.target.value)} style={{ ...t.input, width: "auto", minHeight: 40 }} aria-label="源泉区分">
                       <option value="">既定（{WITHHOLDING_KIND_SHORT[defaultWithholdingKindOf({ subject: "staff", contractKind: r.contract?.contract_kind })]}）</option>
-                      {WITHHOLDING_KINDS.map((k) => <option key={k} value={k}>{WITHHOLDING_KIND_LABEL[k]}</option>)}
+                      {withholdingKindChoices().map((k) => <option key={k} value={k}>{WITHHOLDING_KIND_LABEL[k]}</option>)}{/* ★0188（裁定434 ①）: none／hostess／other_204／manual */}
                     </select>
                   </label>
+                  {mig0188On() && <p style={{ ...t.sub, margin: "0 0 6px" }} data-withholding-kind-note="1">{WITHHOLDING_KIND_SELECT_NOTE}{PAYMENT_REPORT_NOTE[r.kind] ? "・" + PAYMENT_REPORT_NOTE[r.kind] : ""}</p>}{/* ★0188（裁定434 ②③） */}
                   {kindMsg && <Message kind={kindMsg.includes("エラー") ? "error" : "success"} style={{ margin: "0 0 6px" }}>{kindMsg}</Message>}
                   <Withholding432Panel key={`${r.m.id}-${month}`} period={month} subjectKind="staff" subjectId={r.m.id} kind={r.kind}
                     auto={r.pay.withholdingAuto ?? r.pay.withholding} override={typeof r.pay.withholdingOverride === "number" ? r.pay.withholdingOverride : null}
@@ -133,7 +134,7 @@ export default function StaffWorkPanel({ scope, stores }: { scope: "store" | "me
         <div style={{ marginTop: 12 }}>
           {/* ★便 P174 T-7（356）: 確定（staff_payroll_runs）は書込 RPC が無い＝0175＝押せないボタンは置かず状況だけ（教訓25） */}
           <p style={{ fontSize: 12.5, margin: "0 0 4px" }} data-staff-pay-run={run ? run.status : "none"}>この月の確定: <b>{run ? (run.status === "finalized" ? "確定済み" : run.status === "paid" ? "支払済み" : run.status) : "未確定（見込み）"}</b></p>
-          <p style={{ ...t.sub, margin: "6px 0 0", lineHeight: 1.6 }}>打刻は店の端末（キオスク）から。支給見込みは雇用＝時給×実働（月給は月額）、委託＝源泉 10.21% を引いた額です。{mig0183On() ? `行を押すと源泉区分・額の指定・社員の控除を入れられます。${WITHHOLDING_ADVICE_NOTE}` : ""}</p>
+          <p style={{ ...t.sub, margin: "6px 0 0", lineHeight: 1.6 }}>打刻は店の端末（キオスク）から。支給見込みは雇用＝時給×実働（月給は月額）、委託＝{mig0188On() ? "源泉区分（既定は対象外＝源泉なし・ホステス等なら 10.21%）で計算した額" : "源泉 10.21% を引いた額"}です。{mig0183On() ? `行を押すと源泉区分・額の指定・社員の控除を入れられます。${WITHHOLDING_ADVICE_NOTE}` : ""}</p>
         </div>
       )}
     </section>

@@ -53,7 +53,7 @@ import { notifyCast } from "@/lib/nox/people/notify"; // ★便 ON-3（0176 ★5
 import { notifRefOf, remindNoticeDefaultOf, remindWishBody, shiftAddedBody, shiftChangedBody, shiftProposedBody, shiftRemovedBody } from "@/lib/nox/people/notify-text";
 import { PERIOD_NEEDS_NOTE, emptyPeriodNeedsForm, periodNeedRequiredOf, periodNeedRowsOf, periodNeedsChipOf, periodNeedsErrorOf, periodNeedsFormOf, type PeriodNeedRow, type PeriodNeedsForm } from "@/lib/nox/shift/period-needs"; // ★便 ON-3（0176 ★5 (a)）: 期間ごとの必要人数
 import { declineTextOf } from "@/lib/nox/shift/decline"; // ★便 ON-3（0176 ★5 (c)・裁定406）: 辞退の印
-import { bandOptionsOf, periodShortOf } from "@/lib/nox/shift/half-hour"; // ★便 M2 M-16: 必要人数の時間帯＝30 分刻みの選択肢
+import { bandHmLabelOf, bandMinLabelOf, bandOptionsOf, periodShortOf } from "@/lib/nox/shift/half-hour"; // ★便 M2 M-16: 必要人数の時間帯＝30 分刻みの選択肢
 import HmInput from "@/components/ui/hm-input"; // ★裁定318（便 X-9-2）: 時刻入力の共通部品（blur で HH:MM に正規化）
 import { HM_FORMAT_ERR, hmRangeErrorOf, normalizeHHMM } from "@/lib/nox/time/hhmm";
 import OkuriOutDialog from "@/components/nox/okuri-out-dialog";
@@ -115,7 +115,7 @@ const PERIOD_ST_LABEL: Record<string, string> = { draft: "作成中", open: "募
 const PERIOD_ST_OPTIONS = Object.entries(PERIOD_ST_LABEL) as ReadonlyArray<readonly [string, string]>; // ★306-7: 状態は SegSelect（4 択）に統一＝picker を使わない
 
 const bandLabel = (n: { from_min: number; to_min: number }) =>
-  n.from_min === 0 && n.to_min === 1440 ? "終日" : `${min2hm(n.from_min)}〜${min2hm(n.to_min)}`;
+  n.from_min === 0 && n.to_min === 1440 ? "終日" : `${bandMinLabelOf(n.from_min)}〜${bandMinLabelOf(n.to_min)}`; // ★0189: 24:00 超は「翌02:00」
 type BandStat = Need & { assigned: number; fill: Fill };
 // E8-4 #2: 時間帯別充足バー（今日タブ・日詳細で共用）。バー幅は assigned/required の頭打ち100%。
 function BandBars({ stats }: { stats: BandStat[] }) {
@@ -2258,11 +2258,11 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
             {!nAllDay && (
               <>
                 <select value={nFrom} onChange={(e) => setNFrom(e.target.value)} aria-label="開始" style={{ ...input, width: "auto" }} data-band-from="1">{/* ★便 M2 M-16（Agoora 確定 10/27）: 30 分刻みの選択式（翌表記は 0189 の後） */}
-                  {bandOptionsOf(bhRows, nDow).from.map((v) => <option key={v} value={v}>{v}</option>)}{/* ★便 M2 M-16（補遺）: 範囲＝その曜日の店の営業時間 */}
+                  {bandOptionsOf(bhRows, nDow).from.map((v) => <option key={v} value={v}>{bandHmLabelOf(v)}</option>)}{/* ★便 M2 M-16（補遺）: 範囲＝その曜日の店の営業時間 ★0189: 翌表記 */}
                 </select>
                 <span style={{ fontSize: 13, color: "var(--sub)" }}>〜</span>
                 <select value={nTo} onChange={(e) => setNTo(e.target.value)} aria-label="終了" style={{ ...input, width: "auto" }} data-band-to="1">
-                  {bandOptionsOf(bhRows, nDow).to.map((v) => <option key={v} value={v}>{v}</option>)}
+                  {bandOptionsOf(bhRows, nDow).to.map((v) => <option key={v} value={v}>{bandHmLabelOf(v)}</option>)}{/* ★0189: 翌 24:00（2880）まで */}
                 </select>
               </>
             )}

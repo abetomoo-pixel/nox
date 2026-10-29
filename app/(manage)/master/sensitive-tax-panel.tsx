@@ -22,8 +22,8 @@ import * as t from "@/lib/nox/ui/theme";
 import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 import Modal from "@/components/ui/modal"; // ★0155（裁定309-3・便 S-3）: 廃棄の確認ダイアログ
 import { rpcErrJa } from "@/lib/nox/ui/rpc-err"; // ★0155: 'no mynumber'／'bad reason'／'forbidden' の日本語化
-import { mig0183On } from "@/lib/nox/rules-0175/flag"; // ★裁定432
-import { WITHHOLDING_ADVICE_NOTE, WITHHOLDING_KINDS, WITHHOLDING_KIND_LABEL, WITHHOLDING_KIND_SHORT } from "@/lib/nox/payroll/withholding-kind"; // ★裁定432
+import { mig0183On, mig0188On } from "@/lib/nox/rules-0175/flag"; // ★裁定432
+import { WITHHOLDING_ADVICE_NOTE, WITHHOLDING_KIND_LABEL, WITHHOLDING_KIND_SELECT_NOTE, WITHHOLDING_KIND_SHORT, PAYMENT_REPORT_NOTE, withholdingKindChoices, withholdingKindOf, defaultWithholdingKindOf } from "@/lib/nox/payroll/withholding-kind"; // ★裁定432 ★0188（裁定434）: 4 区分＋注記
 type Cast = { id: string; name: string };
 type Store = { id: string; name: string };
 
@@ -348,8 +348,9 @@ export default function SensitiveTaxPanel({ casts, stores, isOwner }: { casts: C
                 <label style={label} data-withholding-kind-select="1">源泉区分<br />
                   <select value={whKind} onChange={(e) => setWhKind(e.target.value)} style={{ ...input, width: "auto", minHeight: 40 }} aria-label="源泉区分">
                     <option value="">既定（{mode === "雇用" ? WITHHOLDING_KIND_SHORT.manual : WITHHOLDING_KIND_SHORT.hostess}）</option>
-                    {WITHHOLDING_KINDS.map((k) => <option key={k} value={k}>{WITHHOLDING_KIND_LABEL[k]}</option>)}
+                    {withholdingKindChoices().map((k) => <option key={k} value={k}>{WITHHOLDING_KIND_LABEL[k]}</option>)}{/* ★0188（裁定434 ①）: none／hostess／other_204／manual */}
                   </select>
+                  {mig0188On() && <span style={{ display: "block", fontSize: 11, color: "var(--sub)", marginTop: 2 }} data-withholding-kind-note="1">{WITHHOLDING_KIND_SELECT_NOTE}{PAYMENT_REPORT_NOTE[withholdingKindOf(whKind, defaultWithholdingKindOf({ subject: "cast", taxMode: mode }))] ? "・" + PAYMENT_REPORT_NOTE[withholdingKindOf(whKind, defaultWithholdingKindOf({ subject: "cast", taxMode: mode }))] : ""}</span>}{/* ★0188（裁定434 ②③） */}
                   <span style={{ display: "block", fontSize: 11, color: "var(--sub)", marginTop: 2 }}>{WITHHOLDING_ADVICE_NOTE}</span>
                 </label>
               )}
