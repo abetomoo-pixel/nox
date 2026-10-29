@@ -54,6 +54,7 @@ async function main() {
       const bizToday = (await one<{ d: string }>("select public.biz_date_of($1, now())::text d", [A1.id])).d;
       const period = bizToday.slice(0, 7);
       await db.query("update public.stores set settings_json = jsonb_set(jsonb_set(jsonb_set(coalesce(settings_json,'{}'::jsonb), '{okuri_mode}', '\"actual\"'::jsonb, true), '{okuri_base_amount}', '1500'::jsonb, true), '{ar_enabled}', 'true'::jsonb, true) where id=$1", [A1.id]);
+      await db.query("update public.stores set settings_json = coalesce(settings_json,'{}'::jsonb) || '{\"settlement_cycle\":\"daily\"}'::jsonb where id=$1", [A1.id]); // ★0188（裁定434 ④）: settlement（既定の p_kind）は daily の店だけ＝A1 を daily に（tx 内＝ROLLBACK で戻る）
       await db.query("insert into public.cast_tax_profiles (cast_id, org_id, store_id, mode) values ($1,$2,$3,'雇用') on conflict (cast_id) do update set mode='雇用'", [castB, A1.org_id, A1.id]);
       await db.query("delete from public.cast_tax_profiles where cast_id=$1", [castA]);
       const runDraft = (await one<{ id: string }>("insert into public.payroll_runs (org_id, store_id, period, status, created_by) values ($1,$2,$3,'draft',$4) returning id", [A1.org_id, A1.id, period, owner.id])).id;

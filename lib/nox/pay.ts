@@ -275,6 +275,8 @@ export type PayInput = {
   withholdingKind?: WithholdingKind;
   withholdingOverride?: number | null;
   employeeDeductions?: readonly EmployeeDeductionRow[];
+  /** ★0188（裁定433 ①）: 源泉の税率表の行を選ぶ支払日（YYYY-MM-DD・省略＝今日）。率は 2 世代とも 10.21%＝golden 不変 */
+  withholdingPayDate?: string | null;
 };
 
 // ★裁定98: sanction（制裁控除）の二層ガード結果。
@@ -791,7 +793,10 @@ export function payOf(input: PayInput): PayResult {
   const dailyAdvance = input.dailyAdvanceGross ?? 0;
   const taxBase = Math.max(0, gross - adj.before - dailySettlement);
   const wkind = input.withholdingKind ?? null; // ★裁定432: 区分を渡したときだけ区分の式（hostess＝従来の委託と同値・other_fee＝定率・manual／none＝0）
-  const withholdingAuto = wkind ? autoWithholdingOf(wkind, taxBase, input.periodDays) : withholdingOf(taxBase, input.periodDays, input.taxMode, input.taxClass);
+  // ★0188（裁定434 ④・T17 ②）: 二重控除の除外＝日次精算（settlement）は settlement_cycle='daily' の店だけ（RPC が拒否）。daily の店は日次で完結（課税ベースから除外＝上の dailySettlement）・
+  //   それ以外の店は前払（advance）だけ＝課税ベースを変えず支給後控除だけ。したがって月次の 5,000 円×日数の控除と日次の 5,000 円×1 日が同じ期で重なることは無い。
+  //   区分の自動額は税率表（withholding-rates.ts）を支払日で引く（withholdingPayDate・省略＝今日）。
+  const withholdingAuto = wkind ? autoWithholdingOf(wkind, taxBase, input.periodDays, input.withholdingPayDate) : withholdingOf(taxBase, input.periodDays, input.taxMode, input.taxClass);
   const withholdingFull = wkind ? effectiveWithholdingOf(wkind, withholdingAuto, input.withholdingOverride) : withholdingAuto;
   const empDedLines = wkind === "manual" ? employeeDeductionLinesOf(input.employeeDeductions) : []; // ★裁定432 ③: 社員の控除＝入れた分だけ
   const empDed = employeeDeductionsTotalOf(empDedLines);

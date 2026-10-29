@@ -490,6 +490,10 @@ staff_deactivate / kiosk_deactivate
 - 内部専用（4 ロール revoke・延長パターンの凍結メニュー）: ext_menu_build・ext_menu_pick
 （除外 197→**198**・全数 382→**384**）
 
+### B(r). 0188 新設の除外（2本・2026-10-29 手貼り・0188／0189 フラグ true 便）
+- 内部専用（4 ロール revoke・源泉の税率表の読み口と税額の整数計算＝日払いの発行と紹介料の支払から呼ぶ）: withholding_rate_of・withholding_calc
+（除外 198→**200**・全数 384→**386**・0189 は set_staffing_need の差し替えだけ＝本数不変）
+
 ## C. kiosk 腕を持つ対象（実装注意・18本）
 A1 の check_open / check_add_line / check_remove_line / check_add_seat / check_remove_seat /
 check_move_seat / check_set_nominations / check_time_charge_apply / check_shimei_add / check_dohan_add /

@@ -138,7 +138,7 @@ export function whLabelOf(taxMode: string | null | undefined): string {
 }
 /** ★裁定432: 区分があればその名（hostess＝ホステス報酬／other_fee＝報酬・料金）・指定額なら「（指定額）」。区分が無い旧データは whLabelOf のまま */
 export function whLabel432Of(p: { taxMode?: string | null; withholdingKind?: string; withholdingOverride?: number }): string {
-  const base = p.withholdingKind === "hostess" ? "源泉（ホステス報酬）" : p.withholdingKind === "other_fee" ? "源泉（報酬・料金）" : whLabelOf(p.taxMode);
+  const base = p.withholdingKind === "hostess" ? "源泉（ホステス報酬）" : p.withholdingKind === "other_fee" ? "源泉（報酬・料金）" : p.withholdingKind === "other_204" ? "源泉（その他 204 条）" : whLabelOf(p.taxMode); // ★0188（裁定434）: other_204
   return typeof p.withholdingOverride === "number" ? `${base.replace(/）$/, "")}・指定額）` : base;
 }
 

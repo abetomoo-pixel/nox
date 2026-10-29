@@ -18,6 +18,7 @@ import { buildPayrollCsv } from "../lib/nox/payroll/csv";
 import { totalDeductionsOf } from "../lib/nox/payroll/adjust";
 import { staffPayOf } from "../lib/nox/staff/pay";
 import { REINA_INPUT } from "./fixtures-pay";
+import { mig0188On } from "../lib/nox/rules-0175/flag"; // ★0188
 
 let pass = 0; const fails: string[] = [];
 const check = (label: string, ok: boolean, detail?: unknown) => { if (ok) pass++; else fails.push(`${label}${detail !== undefined ? `: ${JSON.stringify(detail)}` : ""}`); };
@@ -26,7 +27,7 @@ const J = JSON.stringify;
 
 // ① 区分
 check("432(1-1) 既定＝cast 委託→hostess・雇用→manual／staff contractor→other_fee・employee／parttime→manual・保存値があればそれ（不正は既定）",
-  defaultWithholdingKindOf({ subject: "cast", taxMode: "委託" }) === "hostess" && defaultWithholdingKindOf({ subject: "cast", taxMode: "雇用" }) === "manual" && defaultWithholdingKindOf({ subject: "staff", contractKind: "contractor" }) === "other_fee"
+  defaultWithholdingKindOf({ subject: "cast", taxMode: "委託" }) === "hostess" && defaultWithholdingKindOf({ subject: "cast", taxMode: "雇用" }) === "manual" && defaultWithholdingKindOf({ subject: "staff", contractKind: "contractor" }) === (mig0188On() ? "none" : "other_fee") /* ★0188（裁定434 ②）: 委託スタッフの既定 none */
   && defaultWithholdingKindOf({ subject: "staff", contractKind: "parttime" }) === "manual" && withholdingKindOf("none", "hostess") === "none" && withholdingKindOf("table", "hostess") === "hostess" && withholdingKindOf(null, "manual") === "manual");
 check("432(1-2) 自動額＝hostess は従来の委託と同じ（5,000×日数を引いて 1021÷10000）・other_fee は定率（控除なし）・manual／none は 0",
   autoWithholdingOf("hostess", 300000, 31) === withholdingOf(300000, 31, "委託") && autoWithholdingOf("other_fee", 100000, 31) === withholding1021Of(100000) && autoWithholdingOf("other_fee", 100000, 31) === 10210 && autoWithholdingOf("manual", 300000, 31) === 0 && autoWithholdingOf("none", 300000, 31) === 0);

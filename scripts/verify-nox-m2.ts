@@ -40,7 +40,7 @@ check("m2(15-2) CSV／印刷は横並び（≤899＝セグメントは全幅 1 �
 // ── M-16 ──
 check("m2(16-1) 時間帯の選択肢＝30 分刻み 00:00〜24:00（49 個）・開始は 23:30 まで・終了は 00:30 から",
   HALF_HOUR_HMS.length === 49 && HALF_HOUR_HMS[0] === "00:00" && HALF_HOUR_HMS[1] === "00:30" && HALF_HOUR_HMS[47] === "23:30" && HALF_HOUR_HMS[48] === "24:00"
-  && sb.includes("{bandOptionsOf(bhRows, nDow).from.map((v) => <option key={v} value={v}>{v}</option>)}") && sb.includes("{bandOptionsOf(bhRows, nDow).to.map((v) => <option key={v} value={v}>{v}</option>)}")
+  && sb.includes("{bandOptionsOf(bhRows, nDow).from.map((v) => <option key={v} value={v}>{bandHmLabelOf(v)}</option>)}") && sb.includes("{bandOptionsOf(bhRows, nDow).to.map((v) => <option key={v} value={v}>{bandHmLabelOf(v)}</option>)}") /* ★0189: 翌表記 */
   && sb.includes('data-band-from="1"') && sb.includes('data-band-to="1"') && sb.includes("時間は 30 分刻みで 00:00〜24:00"));
 check("m2(16-2) 期間作成の日付欄は ≤899 で全幅（ラベルの下に欄）・「時間帯を設定する」は .nox-actions（中央）",
   css.includes('.nox-periodform .pf-row > label:has(> input[type="date"]) { flex: 1 1 100%; display: flex; flex-direction: column; gap: 4px; }')
@@ -79,8 +79,8 @@ check("m2(18-6) 配線＝CastPicker は grouped で状態の文字と色（castS
 {
   const bh = [{ dow: 5, is_closed: false, open_hm: "20:00:00", close_hm: "01:00:00" }, { dow: 1, is_closed: false, open_hm: "19:00:00", close_hm: "23:30:00" }, { dow: 0, is_closed: true, open_hm: null, close_hm: null }];
   const fri = bandOptionsOf(bh, 5), mon = bandOptionsOf(bh, 1), sun = bandOptionsOf(bh, 0);
-  check("m2(16-4) 時間帯の範囲＝その曜日の店の営業時間（翌日またぎは 24:00 まで＝翌は 0189 の後）・定休日／行なしは全範囲・曜日を変えたら範囲に寄せる",
-    fri.from[0] === "20:00" && fri.from.at(-1) === "23:30" && fri.to.at(-1) === "24:00" && mon.from[0] === "19:00" && mon.to.at(-1) === "23:30" && sun.from.length === 48
+  check("m2(16-4) 時間帯の範囲＝その曜日の店の営業時間（翌日またぎは翌 01:00＝25:00 まで＝★0189 の翌表記）・定休日／行なしは全範囲（翌 24:00 まで＝96）・曜日を変えたら範囲に寄せる",
+    fri.from[0] === "20:00" && fri.from.at(-1) === "24:30" && fri.to.at(-1) === "25:00" && mon.from[0] === "19:00" && mon.to.at(-1) === "23:30" && sun.from.length === 96
     && sb.includes("if (!o.from.includes(nFrom)) setNFrom(o.from[0]);") && !sb.includes("20:0C"), { fri, mon: mon.to.at(-1) });
   const eo = etaOptionsOf("23:00");
   check("m2(16-5) 390 の必要人数フォームは 2 段（曜日／終日・開始〜終了・人数・追加）・M-3 の「その他」も 30 分刻みの選択式（24 時超えは翌）・期間一覧は「10/26〜11/1・締切 10/21」で折り返さない",

@@ -15,7 +15,7 @@ export type StaffContract = {
   hourly: number;
   fixed_allowance: number;
   tax_class: "甲" | "乙" | null;
-  withholding_rate: number; // %（委託・既定 0＝T11 待ち）
+  withholding_rate?: number; // %（委託・既定 0＝T11 待ち）★0188（裁定434）: フラグ true では読まない（列は残るが画面から消す＝源泉は区分 withholding_kind で・委託スタッフの既定 none）
 };
 export type StaffPunch = { membership_id: string; biz_date: string; kind: "in" | "out"; punched_at: string };
 
@@ -76,7 +76,7 @@ export function staffPayOf(contract: StaffContract, days: readonly StaffDayHours
   const fixed = employment ? contract.fixed_allowance : contract.hourly > 0 ? 0 : contract.fixed_allowance * workDays;
   const gross = timePay + fixed;
   // ★便 X13-H H-12 ③: 委託＝源泉 10.21%（率が未設定＝0 の契約も 10.21% で見込み）・雇用＝甲欄／乙欄（見込みは源泉 0＝確定時に計算）
-  const rate = employment ? 0 : contract.withholding_rate > 0 ? contract.withholding_rate : STAFF_CONTRACTOR_RATE;
+  const rate = employment ? 0 : (contract.withholding_rate ?? 0) > 0 ? (contract.withholding_rate ?? 0) : STAFF_CONTRACTOR_RATE;
   const withholding = employment ? 0 : rate === STAFF_CONTRACTOR_RATE ? withholding1021Of(gross) : floorYen((gross * Math.round(rate * 100)) / 10000); // ★裁定431 ②: 10.21% は整数（1021÷10000）
   const withholdingNote = employment ? `給与所得（${contract.tax_class ?? "乙"}欄・見込みは源泉 0）` : `委託（${rate}%）`;
   if (opts) { // ★裁定432（0183 ★4・フラグ配下）: 区分で計算（other_fee＝10.21% 定率・控除なし／manual＝計算しない・控除を手入力／none＝0）・指定額はその期だけ

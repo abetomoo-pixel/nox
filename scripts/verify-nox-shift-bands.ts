@@ -137,12 +137,12 @@ async function main() {
 
     // ═══ (6) bad band ═══
     const { error: e6a } = await owner.rpc("set_staffing_need", {
-      p_store_id: sA2, p_dow: 5, p_required: 1, p_from_min: 1441, p_to_min: 1442,
+      p_store_id: sA2, p_dow: 5, p_required: 1, p_from_min: 1441, p_to_min: 2881, /* ★0189: to ≤ 2880（翌 24:00）＝2881 が bad band（1442 は通る） */
     });
     const { error: e6b } = await owner.rpc("set_staffing_need", {
       p_store_id: sA2, p_dow: 5, p_required: 1, p_from_min: 500, p_to_min: 500,
     });
-    check("段52(6) to>1440 は 'bad band'", has(e6a, "bad band"), e6a?.message ?? "通ってしまった");
+    check("段52(6) to>2880（★0189）は 'bad band'", has(e6a, "bad band"), e6a?.message ?? "通ってしまった");
     check("段52(6) from>=to は 'bad band'", has(e6b, "bad band"), e6b?.message ?? "通ってしまった");
 
     // ═══ (7) 旧3引数呼び＝終日バンド互換 ═══
