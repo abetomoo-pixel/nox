@@ -1,4 +1,4 @@
-# 0187 手貼り案内（Agoora 向け・2026-10-27 起草・便 CASH＋便 EXT＋remove_store_special_day の課金ゲート）
+# 0187 手貼り案内（Agoora 向け・2026-10-27 起草・便 CASH＋便 EXT＋remove_store_special_day の課金ゲート・**事後承認 ② 反映済み＝10/27 夜**）
 
 **結論 3 行**
 1. 本番 ref **hiqbfagmkrdpmlqhkmsu** の SQL Editor で、まず下の **事前確認 SQL** を貼って Run → `missing` が空（0 行）なら、**supabase/migrations/0187_cash_ext_menu.sql** の全文を貼って Run（1 本だけ）。
@@ -7,16 +7,16 @@
 
 | 項目 | 値 |
 |---|---|
-| ファイル | supabase/migrations/0187_cash_ext_menu.sql（2,011 行・169,173 B・LF・CR 0） |
-| sha256 | 先頭 16 桁 **fcb5ff0b6894e67d** |
-| 翻訳元 | live pg_get_functiondef（2026-10-27 16:0x／17:3x・0180〜0186 適用後）＋生成器 docs/tmp/gen_0187.cjs（手打ちなし＝関数本体は live の写し＋アンカー置換） |
+| ファイル | supabase/migrations/0187_cash_ext_menu.sql（2,011 行・169,581 B・LF・CR 0） |
+| sha256 | 先頭 16 桁 **15037e893c142cad**（② 反映前＝fcb5ff0b6894e67d は無効） |
+| 翻訳元 | live pg_get_functiondef（2026-10-27 16:0x／17:3x・0180〜0186 適用後・**10/27 夜に本番と再照合＝13 本 SAME**）＋生成器 docs/tmp/gen_0187.cjs（手打ちなし＝関数本体は live の写し＋アンカー置換） |
 | 構文検査 | scripts/mig-check.mjs＝parse ok（statements 22）・$function$ の対応 ok（11 本）・sql の ext_menu_pick ok（plpgsql 10 本は下の試走で本番の構文検査を兼ねる） |
-| 試走 | 本番で BEGIN…ROLLBACK（docs/tmp/t0187_rollback.mts・NOX-VERIFY-A1）＝**15/15 OK**・関数数 382→384 |
+| 試走 | 本番で BEGIN…ROLLBACK（docs/tmp/t0187_rollback.mts・NOX-VERIFY-A1）＝**20/20 OK**（② の境界値 5 本を追加・10/27 夜）・関数数 382→384・残留 0 |
 | 営業中に貼ってよいか | **営業時間外**（上の 2.） |
 
 **中身**
 - ★1 便 EXT（Agoora 確定 10/27（2））: 開卓時に凍結する延長パターン＝その営業日の曜日・席種の行を**時間帯を問わず全部**（各行に時間帯 band）。延長を足すとき＝その延長の開始時刻の時間帯に合う行（時間帯つき→選択中のパターン→既定）。手動で行を指定したときはその行。自動延長はブロックごと。席移動（VIP）の再凍結も同じ形。**0187 前に開いている伝票（旧い凍結）は従来どおり**。新設の内部ヘルパー 2 本（ext_menu_build／ext_menu_pick）。
-- ★2 便 CASH（Agoora 確定 10/27＋補遺・T15 の回答待ちの仮置き）: 現金割引の基準＝店設定 pay_discount_base（**合計から＝既定**／小計から）。合計から＝税・サ込みの残額×率を**最後に**引く・小計から＝税・サの前の小計から引いてから税・サ。**今の過大な割引（サ・税まで縮む）を直す**。入金ごとの上書き（率を指定／額を指定／なし）＝check_pay に引数 2 つ（DROP→CREATE）。**入金済みの伝票の額は変えない**（過去の行を書き換えない・再計算しない）。
+- ★2 便 CASH（Agoora 確定 10/27＋補遺・T15 の回答待ちの仮置き）: 現金割引の基準＝店設定 pay_discount_base（**合計から＝既定**／小計から）。合計から＝税・サ込みの残額×率を**最後に**引く（**事後承認 ②＝丸めた合計から割引を引き、店の丸め規則でもう一度丸める＝お支払額が丸め単位の倍数**）・小計から＝税・サの前の小計から引いてから税・サ。**今の過大な割引（サ・税まで縮む）を直す**。入金ごとの上書き（率を指定／額を指定／なし）＝check_pay に引数 2 つ（DROP→CREATE）。**入金済みの伝票の額は変えない**（過去の行を書き換えない・再計算しない）。
 - ★3 remove_store_special_day に課金ゲート（set_store_special_day と揃える）。
 
 ## 事前確認 SQL（貼る前・SELECT のみ）＝ plpgsql が参照する列と関数の存在
@@ -57,23 +57,23 @@ select 'missing', string_agg(x, ', ') from (
 | md5 check_move_seat | bcb9276a |
 | md5 check_extension_add | e08c0d83 |
 | md5 check_time_charge_apply | 020c079d |
-| md5 check_group_due | 7948247d |
-| md5 check_pay | 08933d4c |
+| md5 check_group_due | e1f58187 |
+| md5 check_pay | c2f2b8a6 |
 | md5 set_store_profile | 4cf860c3 |
 | md5 referral_recalc | b4a8291b |
 | md5 remove_store_special_day | 7201f28a |
 
 （md5＝本体の CR を除いた md5 の先頭 8 桁。試走で本番の定義から取った値）
 
-## 試走で確かめたこと（docs/tmp/t0187_rollback.mts・15/15）
+## 試走で確かめたこと（docs/tmp/t0187_rollback.mts・20/20）
 - 回帰＝直近 400 伝票の pay_group ごとの due が適用前後で同じ（入金済み・旧い凍結とも額を変えない）。
 - EXT① 凍結は時間帯を問わず全行（別の曜日・VIP は入らない）・全行に band。② 手動の既定＝今の時間帯の行（開卓時の既定より時間帯の行）。③ 行の指定＝その行。④ 旧い凍結＝従来の ext_fee。⑤ 自動延長＝ブロックの開始時刻の時間帯（#1 既定 ¥2,000／#2・#3 時間帯の行 ¥1,500）。⑥ 自動延長・旧い凍結＝全ブロック従来。⑦ 席移動（旧い凍結の伝票・卓→VIP）＝VIP の再凍結は新しい形・既定は VIP の行。
-- CASH① 合計から＝小計 10,000・サ 30%・外税 10%＝14,300 → 現金 10% 1,430 を最後に引く＝12,870（従来の過大 12,255 にならない）。② 小計から＝1,000 を引いてから税・サ＝12,870。③ 丸め 100 円切捨＝合計から 12,870／小計から 12,800。④ 額を指定 1,000・額 0＝割引なし。⑤ 率を指定 5%＝715・率 101＝bad disc_rate・残額超え＝bad disc_amount。⑥ 店設定 pay_discount_base＝total／subtotal・不正値は bad pay_discount_base。
+- CASH① 合計から＝小計 10,000・サ 30%・外税 10%＝14,300 → 現金 10% 1,430 を最後に引く＝12,870（従来の過大 12,255 にならない）。② 小計から＝1,000 を引いてから税・サ＝12,870。③ 丸め 100 円切捨＝合計から 12,800（14,300−1,430＝12,870→切捨・事後承認 ②）／小計から 12,800。**③b〜③f（② の境界値）**＝切上 100 円 12,870→12,900・丸め前が倍数でない 14,428（表示 14,400）×5%＝720→14,400−720→切捨 13,600（丸め前から引く 13,700 ではない）・一部入金 4,350 の後の現金 10%＝残額 9,950×10%＝995→13,305→切捨 13,300→残 8,950（8,951 は exceeds balance）・率 100＝お支払額 0→入金 1 は exceeds balance・小計から切捨 100 で小計 10,090→割引 1,009→12,985→12,900。④ 額を指定 1,000・額 0＝割引なし。⑤ 率を指定 5%＝715・率 101＝bad disc_rate・残額超え＝bad disc_amount。⑥ 店設定 pay_discount_base＝total／subtotal・不正値は bad pay_discount_base。
 - remove_store_special_day の課金ゲート・anon は check_pay を BLOCKED・内部 2 本は anon も authenticated も BLOCKED。
 
 ## 適用後に CC がやること
 1. 本番の読取で照合（sha16・md5 11 本がファイルと一致・関数数 382→384・check_pay の引数 13 の 1 本・proacl）。試走と同じ t0187 を mig を流さずに本番の定義で（BEGIN…ROLLBACK・残留 0）。
-2. 0187 を収蔵（未追跡→追跡）・フラグ **MIG_0187_APPLIED** を true（client＝入金モーダルの割引欄・店設定「支払方法の調整」と割引対象・延長のご案内・M-17 の赤字の額）・pin 張替え（関数数・課金ゲートの名簿＝内部 2 本は B 側・md5）・f0 2 連・golden 不変。
+2. 0187 を収蔵（未追跡→追跡）・フラグ **MIG_0187_APPLIED** を true（client＝入金モーダルの割引欄・店設定「支払方法の調整」と割引対象・延長のご案内・M-17 の赤字の額・TS の鏡＝check-calc／receipt も「丸めた合計−割引→丸め」の順）・pin 張替え（関数数・課金ゲートの名簿＝内部 2 本は B 側・md5）・f0 2 連・golden 不変。
 3. live＝デモ MUSE（現金 10%）の割引行が「現金割引 10%」で合計から引かれる・小計からに切り替えて同じ伝票の形・延長のご案内（今の時間帯の延長だけ・タップで追加）・席移動で VIP の延長額・主ボタン中央・390。
 
 **Success 表示は適用の証明にならない（恒久注意28）＝verify の返り値を貼ってから次へ。**

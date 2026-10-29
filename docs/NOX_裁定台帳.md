@@ -4794,11 +4794,12 @@ docs/NOX_専門家確認事項_2026-08-27.md に「2026-10-26 追補」＝税理
 
 ### 0187 起草（2026-10-27 夜・便 CASH＋便 EXT＋remove_store_special_day の課金ゲート）
 
-**起草のみ・DB 恒久変更 0・手貼り待ち**＝supabase/migrations/0187_cash_ext_menu.sql（2,011 行・sha16 **fcb5ff0b6894e67d**・LF）・手貼り案内＝docs/demo/handpaste_0187.md（事前確認 SQL・verify の期待値・営業時間外に貼る）・生成器＝docs/tmp/gen_0187.cjs（live の定義＋アンカー置換・手打ちなし）・試走＝docs/tmp/t0187_rollback.mts（本番 BEGIN…ROLLBACK 15/15・関数数 382→384）。
+**起草のみ・DB 恒久変更 0・手貼り待ち**＝supabase/migrations/0187_cash_ext_menu.sql（2,011 行・sha16 **15037e893c142cad**＝事後承認 ② 反映後・LF・反映前の fcb5ff0b6894e67d は無効）・手貼り案内＝docs/demo/handpaste_0187.md（事前確認 SQL・verify の期待値・営業時間外に貼る）・生成器＝docs/tmp/gen_0187.cjs（live の定義＋アンカー置換・手打ちなし）・試走＝docs/tmp/t0187_rollback.mts（本番 BEGIN…ROLLBACK 15/15・関数数 382→384）。
 - **便 EXT**: 凍結＝その営業日の曜日・席種の延長パターンを時間帯を問わず全行（band つき）＝新設 ext_menu_build（内部）。延長を足すとき＝延長の開始時刻の時間帯に合う行＝新設 ext_menu_pick（内部）＝**時間帯つき→選択中のパターン→既定→メニューの順**（★開卓時の ext_rule_id は自動の既定＝これを先にすると時間帯の行が選ばれない＝CC 判断で時間帯を先に＝【事後承認待ち】①）。手動で行を指定＝その行・自動延長＝ブロックごと（長さは選択中のパターンに揃える）・席移動（VIP）の再凍結も同じ形・**旧い凍結（band キーなし）は従来どおり**（試走④⑥⑦）。
 - **便 CASH**: 店設定 pay_discount_base（total＝合計から・既定／subtotal＝小計から）。合計から＝新しい fee_kind **pay_discount_total**（check_group_due が丸め後の合計から最後に引く）・小計から＝従来の pay_discount（税・サの前）。今の過大な割引を直す（試走① 12,870・従来は 12,255）。check_pay に p_disc_rate／p_disc_amount（DROP→CREATE・ACL を戻す）。紹介料の母数・席移動の凍結サ料の母数は合計からの割引を入れない（referral_recalc／check_move_seat）。receipt_issue は不変（受領額を税区分の構成比で按分＝割引後の額で正しい）。**入金済みの伝票の額は変えない**（試走の回帰＝直近 400 伝票の due が適用前後で同じ）。
 - **remove_store_special_day** に課金ゲート。
-- 【事後承認待ち】①延長の行の選び方の順（上）②合計からの割引は丸めの**後**に引く（合計が丸め単位の倍数にならないことがある＝例 12,870）③小計からの割引は未入金分の比で按分（併用の後の入金でも小計からの割合）④入金ごとの上書きの権限は client で手数料と同じ（なし・指定は店長以上）。
+- 事後承認 4 点＝**決着（Agoora 10/27）**: ①延長の行の選び方の順（時間帯→選択中→既定）＝承認・③小計からの割引は未入金分の比で按分＝承認・④入金ごとの上書き（なし・指定）は店長以上＝承認・**②合計からの割引＝「丸めの後に引く」を「割引を引いてから店の丸め規則で丸める」に変更**（お支払額が丸め単位の倍数になる）。
+- **② の反映（2026-10-27 夜）**: check_group_due の返り＝`check_round_amount(greatest(0, check_round_amount(合計) − 合計からの割引), unit, mode)`＝丸めた合計（画面の合計）から割引を引き、店の丸め規則でもう一度丸める（外税・内税の 2 経路とも）。割引額の計算（check_pay＝残額×率）は不変。生成器 gen_0187.cjs のアンカー 5 か所＋試走 t0187_rollback.mts の ③ 期待値を 12,870→12,800 に張替え・境界値 5 本追加（③b 切上 100 円＝12,900／③c 丸め前が倍数でない 14,428→表示 14,400×5%＝720→13,600＝丸め前から引く 13,700 ではない／③d 一部入金 4,350 の後の現金 10%＝995→13,300→残 8,950・8,951 は exceeds balance／③e 率 100＝お支払額 0→入金 1 は exceeds balance／③f 小計から切捨 100＝10,090→12,900）。再生成＝sha16 **15037e893c142cad**（2,011 行・169,581 B・LF）・mig-check parse ok（statements 22・$function$ 11 本）・生成器の入力と本番の定義を再照合＝13 本 SAME（関数 382）・本番 BEGIN…ROLLBACK **20/20**（既存伝票 400 組の due 不変・関数数 382→384）・残留 0（試走ルール 0・行 0・A1 open 0・check_pay 11 引数のまま）。md5 の張替え＝check_group_due 7948247d→**e1f58187**・check_pay 08933d4c→**c2f2b8a6**（コメントの文言だけ・本体の計算は不変）・他 9 本は不変。handpaste_0187.md を更新。TS の鏡（check-calc.ts／receipt.ts）は 0187 の client 便で同じ順に揃える。
 
 ### Agoora 確定 10/27（6）＝CI の直し方・0187 の起草の条件（2026-10-27 夕・便 M2 の報告を受けて）
 
