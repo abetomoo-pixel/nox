@@ -101,7 +101,7 @@ check("x13g(13) W-13（差し替え）精算調整・控除が OFF の店はタ�
 check("x13g(16) W-16 ひな形の表＝900px 未満は 1 ひな形 1 カード", src("components/nox/settlement-presets-editor.tsx").includes('className="nox-presettable"') && css.includes(".nox-presettable td.c-del { grid-column: 2; grid-row: 1;"));
 check("x13g(17) W-17 お客様に請求するカード手数料＝pay_fee_rates.card を節の中の保存ボタンで（インボイスの誤りで止めない）・見出しで区別・未保存の印・入金画面の見込み行",
   pr.includes('rpc("set_store_profile", { p_store_id: storeId, p_patch: { pay_fee_rates: { ...feeRatesSaved, card: feeNow } } })') && pr.includes("カード手数料（お客様に請求・伝票に加算）") && pr.includes("カード手数料（店の負担・日報の集計用）")
-  && pr.includes('data-unsaved="tax"') && pr.includes('data-field-err="reg"') && reg.includes('data-pay-card-total="1"') /* ★便 X13-H H-14: 手数料の行は「カードでのお支払額」に統合 */);
+  && pr.includes('data-unsaved="tax"') && pr.includes('data-field-err="reg"') && reg.includes('data-pay-card-total={grossMode ? "1" : undefined}') /* ★便 X13-H H-14: 手数料の行は「カードでのお支払額」に統合・★0187 便 2 M-17: 受け取る額の枠（data-pay-receive）に統合＝カードのときだけ data-pay-card-total */);
 // W-18
 {
   const ace = JSON.parse(src("docs/demo/payload/ace.json")) as { tables: Record<string, Record<string, unknown>[]> };

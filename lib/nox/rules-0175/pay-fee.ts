@@ -42,3 +42,18 @@ export function payFeeRowTextOf(n: { fee: number; rate: number; mode: PayFeeMode
   const yen = "¥" + n.fee.toLocaleString();
   return n.mode === "auto" ? `手数料 ${yen}（${n.rate}%）` : n.mode === "rate" ? `手数料 ${yen}（指定 ${n.rate}%）` : n.mode === "none" ? `手数料 ${yen}（なし）` : `手数料 ${yen}（指定）`;
 }
+
+// ── ★便 2 M-17 追補（2026-10-29・Agoora）: 「率を指定」の既定＝店の率・−／＋は 0.5% 刻み・0〜20%（長押しで連続＝C2-8 と同じ部品）・直接入力も残す ──
+export const FEE_RATE_STEP = 0.5;
+export const FEE_RATE_MIN = 0;
+export const FEE_RATE_MAX = 20;
+/** 率を指定の実効値＝入力が空／不正なら店の率（既定）。小数 1 桁 */
+export const feeRateEffectiveOf = (rateIn: number | null, storeRate: number): number => Math.round((rateIn ?? storeRate) * 10) / 10;
+/** −／＋の 1 段＝0.5% 刻み・0〜20% に丸める（空欄からは店の率を起点に） */
+export function feeRateStepOf(rateIn: number | null, dir: 1 | -1, storeRate: number): number {
+  const cur = feeRateEffectiveOf(rateIn, storeRate);
+  const next = Math.round((cur + dir * FEE_RATE_STEP) * 10) / 10;
+  return Math.min(FEE_RATE_MAX, Math.max(FEE_RATE_MIN, next));
+}
+/** 率の文字列（入力欄に戻す形＝"10"・"7.5"） */
+export const feeRateTextOf = (r: number): string => String(Math.round(r * 10) / 10);

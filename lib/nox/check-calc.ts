@@ -132,7 +132,8 @@ export type CheckDueSettings = CheckRoundSettings & {
 
 export function groupDueFull(lines: DueLine[], s: CheckDueSettings, referralCustomer = 0): number {
   const bx = lines.filter((l) => l.kind !== "discount").reduce((a, l) => a + l.line_total, 0) + referralCustomer; // ★0152: 客負担の紹介料を加算（DB v_bx）
-  const disc = lines.filter((l) => l.kind === "discount").reduce((a, l) => a + l.line_total, 0);
+  const disc = lines.filter((l) => l.kind === "discount" && l.fee_kind !== "pay_discount_total").reduce((a, l) => a + l.line_total, 0); // ★0187（便 CASH）: 「合計から」の割引（fee_kind 'pay_discount_total'）は小計から引かない＝最後に引く（DB v_disc と同式）
+  const post = lines.filter((l) => l.kind === "discount" && l.fee_kind === "pay_discount_total").reduce((a, l) => a + l.line_total, 0); // ★0187: 「合計から」の割引（DB v_post）
   const net = Math.max(0, bx - disc);
   if (net === 0) return 0;
   // ★0173（裁定393・便 P173）: 支払手数料の行（fee_kind 'pay_fee'）はサ料の母数から除く＝DB check_group_due の v_pf と同じ（pay_fee 無しなら 1 バイト同値）
@@ -147,23 +148,28 @@ export function groupDueFull(lines: DueLine[], s: CheckDueSettings, referralCust
     const trnd = s.tax_rounding ?? "floor";
     const base10 = Math.max(0, bx10 - disc) + sv;
     const tax = taxRound((base10 * 10) / 100, trnd) + taxRound((bx8 * 8) / 100, trnd);
-    return roundAmount(net + sv + tax, s.round_unit, s.round_mode);
+    return postOf(roundAmount(net + sv + tax, s.round_unit, s.round_mode), post, s);
   }
-  if (payFee > 0) return roundAmount(net + roundYen(((net - payFee) * s.service_rate) / 100), s.round_unit, s.round_mode); // ★0173: 手数料行はサ料なし
-  return groupDue(net, s); // 内税/exempt＝従来式（1バイト同値）
+  if (payFee > 0) return postOf(roundAmount(net + roundYen(((net - payFee) * s.service_rate) / 100), s.round_unit, s.round_mode), post, s); // ★0173: 手数料行はサ料なし
+  return postOf(groupDue(net, s), post, s); // 内税/exempt＝従来式（1バイト同値）
 }
+/** ★0187（便 CASH・事後承認 ② Agoora 10/27）: 「合計から」の割引＝丸めた合計から引いてから店の丸め規則でもう一度丸める（DB check_group_due の最後の式と同式・post 0 なら 1 バイト同値） */
+const postOf = (pre: number, post: number, s: CheckRoundSettings): number => (post > 0 ? roundAmount(Math.max(0, pre - post), s.round_unit, s.round_mode) : pre);
 
 // ── ★便 X13-G W-14／W-15（2026-10-21）: 表示用の内訳＝groupDueFull と同じ式を分解しただけ（計算は変えない・合計は必ず groupDueFull と一致） ──
 //   外税＝小計（税抜）→ サービス料（税抜）→ 消費税（外税）→ 端数調整 → 合計（税込）。内税／免税＝合計（税込）と「うち消費税」（receipt の taxOf と同式＝floor(合計×10/110)）。
-export type DueBreakdown = { excluded: boolean; net: number; service: number; tax: number; rounding: number; due: number; payFee: number };
+export type DueBreakdown = { excluded: boolean; net: number; service: number; tax: number; rounding: number; due: number; payFee: number; postDiscount: number /* ★0187: 「合計から」の割引 */; postRounding: number /* ★0187: 引いてからもう一度丸めた差 */ };
 export function dueBreakdownOf(lines: DueLine[], s: CheckDueSettings, referralCustomer = 0): DueBreakdown {
   const due = groupDueFull(lines, s, referralCustomer);
+  const post = lines.filter((l) => l.kind === "discount" && l.fee_kind === "pay_discount_total").reduce((a, l) => a + l.line_total, 0); // ★0187（便 CASH）: 「合計から」の割引
+  const pre = post > 0 ? groupDueFull(lines.filter((l) => !(l.kind === "discount" && l.fee_kind === "pay_discount_total")), s, referralCustomer) : due; // 割引前の合計（丸め後）＝post 0 なら due
+  const postRounding = post > 0 ? due - (pre - post) : 0; // ★0187（事後承認 ②）: 引いてからもう一度丸めた差
   const bx = lines.filter((l) => l.kind !== "discount").reduce((a, l) => a + l.line_total, 0) + referralCustomer;
-  const disc = lines.filter((l) => l.kind === "discount").reduce((a, l) => a + l.line_total, 0);
+  const disc = lines.filter((l) => l.kind === "discount" && l.fee_kind !== "pay_discount_total").reduce((a, l) => a + l.line_total, 0);
   const net = Math.max(0, bx - disc);
   const payFee = lines.filter((l) => l.kind !== "discount" && l.fee_kind === "pay_fee").reduce((a, l) => a + l.line_total, 0);
   const excluded = (s.price_display ?? "tax_included") === "tax_excluded" && (s.business_tax_status ?? "taxable") === "taxable";
-  if (net === 0) return { excluded, net: 0, service: 0, tax: 0, rounding: 0, due: 0, payFee };
+  if (net === 0) return { excluded, net: 0, service: 0, tax: 0, rounding: 0, due: 0, payFee, postDiscount: 0, postRounding: 0 };
   const service = roundYen(((net - payFee) * s.service_rate) / 100);
   if (excluded) {
     const catOf = (l: DueLine) => l.tax_category ?? "taxable_10";
@@ -171,8 +177,8 @@ export function dueBreakdownOf(lines: DueLine[], s: CheckDueSettings, referralCu
     const bx8 = lines.filter((l) => l.kind !== "discount" && catOf(l) === "taxable_8").reduce((a, l) => a + l.line_total, 0);
     const trnd = s.tax_rounding ?? "floor";
     const tax = taxRound(((Math.max(0, bx10 - disc) + service) * 10) / 100, trnd) + taxRound((bx8 * 8) / 100, trnd);
-    return { excluded, net, service, tax, rounding: due - (net + service + tax), due, payFee };
+    return { excluded, net, service, tax, rounding: pre - (net + service + tax), due, payFee, postDiscount: post, postRounding };
   }
   const taxIn = (s.business_tax_status ?? "taxable") === "taxable" ? Math.floor((due * 10) / 110) : 0;
-  return { excluded, net, service, tax: taxIn, rounding: due - (net + service), due, payFee };
+  return { excluded, net, service, tax: taxIn, rounding: pre - (net + service), due, payFee, postDiscount: post, postRounding };
 }

@@ -117,9 +117,9 @@ async function main() {
 
   // ── H-14
   const rbd = src("app/(manage)/register/register-board.tsx");
-  check("x13h(8-1) 入金の上の枠＝カード（加算あり）だけ「カードでのお支払額 ¥n（残額 ¥a＋手数料 ¥b）」・均等割りは「1 人分 ¥n（手数料込み）」・旧の手数料行は撤去",
-    rbd.includes('data-pay-card-total="1"') && rbd.includes("カードでのお支払額 {yen(grossDefault)}（残額 {yen(balance)}＋手数料 {yen(grossDefault - balance)}）") && rbd.includes("1 人分 {yen(grossN)}（手数料込み）")
-    && rbd.includes("{grossMode && balance > 0 && (") && !rbd.includes('data-pay-fee-line="1"'));
+  check("x13h(8-1) 入金の上の枠＝カード（加算あり）は「カードでのお支払額 ¥n」＋内訳「残額 ¥a＋手数料 ¥b（n%）」・均等割りは「1 人分（手数料込み）」・旧の手数料行は撤去（★0187 便 2 M-17 で「受け取る額」の枠に統合＝payReceiveOf・data-pay-card-total はカードのときだけ）",
+    rbd.includes('data-pay-card-total={grossMode ? "1" : undefined}') && rbd.includes('{oneOf !== null ? "1 人分（手数料込み）" : rc.label}') && rbd.includes("const rc = payReceiveOf({ method: payMethod, balance: balance0, newBalance: balance, fee: feeAmt, feeText, disc: discPrev?.disc ?? 0, discText });")
+    && !rbd.includes('data-pay-fee-line="1"') && !rbd.includes('data-pay-fee="1"'));
   // ── H-15／H-16（裁定410）
   const { DEFAULT_SETTLEMENT_PRESETS, SELECTABLE_TARGETS, penaltyAmountErrOf, penaltyArgsOf } = await import("../lib/nox/payroll/settlement");
   const pe2 = src("components/nox/settlement-presets-editor.tsx"), nb = src("app/(manage)/master/cast-comp/deduction/deduction-board.tsx"); // ★便 NR-1: 閾値パネル（ひな形を開く）は控除・送りタブへ

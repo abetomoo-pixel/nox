@@ -167,7 +167,8 @@ export function buildReceiptXml(input: ReceiptInput): string {
   //   店負担（'store'）は請求に乗らない。行としては印字せず、初回セット行に合算（裁定298-4）。
   const refAmt = input.referral && input.referral.burden === "customer" ? Math.max(0, input.referral.amount) : 0;
   const gross = lines.filter((l) => l.kind !== "discount").reduce((s, l) => s + l.line_total, 0) + refAmt;
-  const discount = lines.filter((l) => l.kind === "discount").reduce((s, l) => s + l.line_total, 0);
+  const discount = lines.filter((l) => l.kind === "discount" && l.fee_kind !== "pay_discount_total").reduce((s, l) => s + l.line_total, 0); // ★0187（便 CASH）: 「合計から」の割引は小計から引かない（下で最後に引く・無ければ従来と 1 バイト同値）
+  const postDiscount = lines.filter((l) => l.kind === "discount" && l.fee_kind === "pay_discount_total").reduce((s, l) => s + l.line_total, 0); // ★0187: 税・サ込みの合計から最後に引く割引
   const net = Math.max(0, gross - discount);
   const payFee = lines.filter((l) => l.kind !== "discount" && l.fee_kind === "pay_fee").reduce((s, l) => s + l.line_total, 0); // ★0173（裁定393）
   const service = Math.round(((net - payFee) * serviceRate) / 100); // ★0173: round((v_net - v_pf) * v_rate / 100.0) と同式（pay_fee 無しなら同値）
@@ -186,7 +187,7 @@ export function buildReceiptXml(input: ReceiptInput): string {
   // 内税税額（表示用・請求額には含まれない）。exempt は税表示なし。
   const tax = isExcluded ? tax10 + tax8 : isExempt ? 0 : taxOf(groupDue, ts.tax_rounding);
   // 端数調整＝記録値 groupDue と順算の差（外税は税が請求額の一部＝差分に算入）
-  const rounding = groupDue - (net + service + (isExcluded ? tax : 0));
+  const rounding = groupDue - (net + service + (isExcluded ? tax : 0) - postDiscount); // ★0187（便 CASH・事後承認 ②）: 「合計から」の割引を引いてからもう一度丸めた差まで含む（post 0 なら従来と同値）
 
   const slipNo = `${check.id.replace(/-/g, "").slice(0, 8)}-${payGroup}`;
   const sep = "-".repeat(WIDTH);
@@ -241,6 +242,7 @@ export function buildReceiptXml(input: ReceiptInput): string {
     line(padLine("消費税(10%)", yen(tax10)));
     if (bx8 > 0) line(padLine("消費税(8%)", yen(tax8)));
   }
+  if (postDiscount > 0) line(padLine("割引(合計から)", `-${yen(postDiscount)}`)); // ★0187（便 CASH）: 税・サ込みの合計から最後に引く割引（行名は明細にも出る）
   t.push(`<text dw="true" dh="true"/>`);
   line(padLine("合計", yen(groupDue)));
   t.push(`<text dw="false" dh="false"/>`);

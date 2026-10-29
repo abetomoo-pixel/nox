@@ -75,7 +75,7 @@ check("p173(6-3) payFeeRatesOf: 欠損／不正＝0・整数 0〜100 だけ・pa
   const baseEx = groupDueFull([{ kind: "drink", line_total: 10000, tax_category: "taxable_10" }], sEx);
   const withFeeEx = groupDueFull([{ kind: "drink", line_total: 10000, tax_category: "taxable_10" }, { kind: "charge", fee_kind: "pay_fee", line_total: 1000, tax_category: "taxable_10" }], sEx);
   check("p173(6-4) groupDueFull: 手数料行はサ料の母数から除く（内税: 11,000＋サ料 1,000＝12,000／外税: 税は乗る）・無ければ従来と同値", base === 11000 && withFee === 12000 && baseEx === 12100 && withFeeEx === 13200, `${base}/${withFee}/${baseEx}/${withFeeEx}`); }
-check("p173(6-5) receipt: サ料＝round((net − payFee)×率)・register: p_fee_key・入金モーダルの 1 行（data-pay-fee）・393 の率がある店は旧 card_surcharge 導線を出さない", src("lib/nox/receipt.ts").includes("((net - payFee) * serviceRate) / 100") && reg.includes("p_fee_key: payFeeKeyOf(payMethod)") && reg.includes('data-pay-fee="1"') && reg.includes("surchargeRate !== null && payFeeRates.card === 0 &&"));
+check("p173(6-5) receipt: サ料＝round((net − payFee)×率)・register: p_fee_key・入金モーダルの 1 行（★0187 便 2 M-17 で data-pay-fee の内訳は受け取る額の枠 data-pay-receive に統合）・393 の率がある店は旧 card_surcharge 導線を出さない", src("lib/nox/receipt.ts").includes("((net - payFee) * serviceRate) / 100") && reg.includes("p_fee_key: payFeeKeyOf(payMethod)") && reg.includes('data-pay-receive="1"') && !reg.includes('data-pay-fee="1"') && reg.includes("surchargeRate !== null && payFeeRates.card === 0 &&"));
 check("p173(6-6) store-profile: 手数料率 3 欄（data-pay-fee-rates・pay_fee_rates を object で patch）・report: 「カード決済手数料（店負担）」「手数料（客負担）」のラベル併存（393 追補1）", spp.includes('data-pay-fee-rates="1"') && spp.includes("out.pay_fee_rates = Object.fromEntries(") && rb.includes('"カード決済手数料（店負担）"') && rb.includes('"手数料（客負担）"') && rb.includes("pay_fee_total"));
 
 // ── (7) payload

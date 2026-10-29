@@ -848,6 +848,10 @@ async function main() {
       const { data: stA1 } = await adm.from("stores").select("id").eq("name", STORE_A1).single();
       await adm.from("shifts").delete().eq("store_id", stA1!.id).in("date", ["2026-07-15", "2026-07-16"]);
       await adm.from("shift_wishes").delete().eq("store_id", stA1!.id).in("date", ["2026-07-15", "2026-07-16"]);
+      // ★教訓125（2026-10-29）: 0176 の shift_periods_auto_close（cron nox-shift-periods-close・毎朝 06:20）が fixture の 7 月の期間（open・締切 2026-07-05）を closed にする
+      //   →shift_wish_submit が period_not_open→本段が null で異常終了（10/29 の f0 で発覚＝10/28 の cron 初回以降）。fixture の状態に依存する段は冒頭で自ら整える＝open に戻す（seed:f0 と同じ状態・cron は翌朝また閉じる）
+      const { error: ePo } = await adm.from("shift_periods").update({ status: "open" }).eq("store_id", stA1!.id).eq("start_date", "2026-07-01");
+      check("F1d 前提＝fixture の 7 月の期間を open に戻す（cron の auto_close 対策・教訓125）", !ePo, ePo?.message);
     }
     // ── castA1a: セルフ経路 ──
     const c = await signIn("castA1a");
@@ -922,6 +926,7 @@ async function main() {
     const c = await signIn("managerA1");
     const { data: shiftId, error: eDec } = await c.rpc("shift_wish_decide", { p_wish_id: wishId, p_accept: true });
     check("F1d wish_decide(accept) が shifts を自動生成", !eDec && typeof shiftId === "string", eDec?.message);
+    if (!shiftId) throw new Error(`F1d: shift が作れなかった＝以降の段は検査できない（wish_submit: ${wishId ? "ok" : "失敗"}・decide: ${eDec?.message ?? "null"}）`); // ★教訓125: null で TypeError に落とさず原因を出して止める
     const { data: sRow } = await c.from("shifts").select("status, wish_id, cast_id, start_hm, end_hm").eq("id", shiftId).single();
     check("F1d 生成 shift = planned・wish_id 来歴・内容一致",
       sRow?.status === "planned" && sRow?.wish_id === wishId && sRow?.cast_id === castIdA && sRow?.start_hm === "20:00" && sRow?.end_hm === "26:00",
