@@ -45,12 +45,12 @@ let override0187: boolean | null = null;
 export function mig0187On(): boolean { return override0187 ?? MIG_0187_APPLIED; }
 export function __set0187ForTest(v: boolean | null): void { override0187 = v; }
 /** ★0188（裁定433 税率表＋裁定434 源泉区分 4 つ・2026-10-29 起草）: Agoora が手貼りしたら true。false の間＝区分 other_204 の選択肢・税率表の読取・日払いの種別の出し分け（settlement は daily の店だけ）・pay.ts の税率表参照は出さない／読まない */
-export const MIG_0188_APPLIED = false;
+export const MIG_0188_APPLIED = true; // ★2026-10-29: 0188（sha16 d9fceaa24e2e93ac）を Agoora が手貼り＝verify 全行一致（md5 5 本・calc 4 値・CHECK 4 区分・表 6 行 SELECT のみ）・mig を流さない t0188 14/14（関数 386・表 111）→ true
 let override0188: boolean | null = null;
 export function mig0188On(): boolean { return override0188 ?? MIG_0188_APPLIED; }
 export function __set0188ForTest(v: boolean | null): void { override0188 = v; }
 /** ★0189（M-16 の翌表記＝staffing_needs の時間帯を翌 24:00 まで・2026-10-29 起草）: Agoora が手貼りしたら true。false の間＝必要人数の時間帯の選択肢は 24:00 まで（翌の選択肢を出さない） */
-export const MIG_0189_APPLIED = false;
+export const MIG_0189_APPLIED = true; // ★2026-10-29: 0189（sha16 c6a8dab6a32a6c81）を Agoora が手貼り＝verify 全行一致（md5 b394d912・CHECK to_min ≤ 2880・50 行 bad 0・ACL 3 ロール）・mig を流さない t0189 4/4→ true
 let override0189: boolean | null = null;
 export function mig0189On(): boolean { return override0189 ?? MIG_0189_APPLIED; }
 export function __set0189ForTest(v: boolean | null): void { override0189 = v; }
