@@ -4820,6 +4820,15 @@ docs/NOX_専門家確認事項_2026-08-27.md に「2026-10-26 追補」＝税理
 
 **起草のみ・DB 恒久変更 0・手貼り待ち**＝supabase/migrations/0189_staffing_needs_next_day.sql（73 行・5,947 B・sha16 **c6a8dab6a32a6c81**・LF）・手貼り案内＝docs/demo/handpaste_0189.md（営業中でも可）・生成器＝docs/tmp/gen_0189.cjs（live 照合 SAME）・mig-check parse ok（statements 8）・試走＝docs/tmp/t0189_rollback.mts（本番 BEGIN…ROLLBACK **4/4**・残留 0）・md5 set_staffing_need **b394d912**。フラグ **MIG_0189_APPLIED=false** を追加。範囲＝staffing_needs の CHECK（to_min ≤ 2880）と set_staffing_need の検証だけ（既存 50 行は満たす・overlap／upsert 不変・shift_period_needs_set は対象外）。client（フラグ true）＝half-hour.ts bandOptionsOf の翌側の選択肢。
 
+### 0187 適用欄（2026-10-29・Agoora 手貼り＝便 2 の続き）
+
+手貼り＝Agoora 2026-10-29（sha16 **15037e893c142cad**＝supabase/migrations の収蔵版と同一・verify の返り値 17 行＝handpaste_0187.md の期待値と**全行一致**。「has 0187 (8 fns)＝9」は見出しの 8 が古いだけ＝対象 9 関数すべてに ★0187 の注記が入る設計）。CC の適用後読取（SELECT のみ）＝関数数 382→**384**・★0187 を持つ関数 11 本（9＋内部 2・余分なし）・md5 11 本すべてファイルと一致・check_pay 13 引数 1 本・ACL に anon なし・check_lines の CHECK に pay_discount_total。mig を流さない t0187（本番の定義で BEGIN…ROLLBACK）＝**20/20**・残留 0。
+- フラグ＝**MIG_0187_APPLIED=true**（flag.ts 1 行）。pin 張替え＝verify-nox-0187（A-1／E-1＝true）・課金ゲートの正本 docs/NOX_課金ゲート対象_v1.md（A13＝remove_store_special_day を B(p) から移動・B(q)＝内部 2 本 ext_menu_build／ext_menu_pick）・verify-nox-billing（対象 186・除外 198・ゲート済み 186・述語 187・形 186）・verify-nox-store-systems（白名単 69 キー＝pay_discount_base）。handpaste_0187.md の期待値の注記を 9 に直した。
+- 収蔵＝0187_cash_ext_menu.sql を追跡へ（適用＋検証確認後＝規約）。
+- pin 張替え 2 件目（f0 1 走目で発覚）＝verify-nox-0158（s-3／t-1 関数 384・m-1 set_store_profile md5 ffc76412→4cf860c3）・verify-nox-p172（6-4 関数 384・ゲート 186・md5）・verify-nox-0175-0176（1-3 check_pay 11→13 引数）。後段の suite（0175-0176〜actions-center 188）を単独で全部緑にしてから f0 2 連。
+- **CI 完了（2026-10-29・Agoora 確定 10/27（6））**＝verify-nox-punch-match の DB 段 (9)（0154・SUPABASE_DB_URL・pg tx ROLLBACK）を **verify:nox-punch-match-db** へ分離（f0 に組込み＝144 段）。pure 側は純関数 75 本（env なしで緑）。洗い出し＝verify:ci の 5 本（pay／shift-time／punch-match／receipt／payroll-csv）＋typecheck／lint のうち DB／env／dev サーバに依存していたのは punch-match の (9) だけ。本番 DB の接続先を secrets に入れない・SKIP で 0 終了する形にしない（ci.yml は注記のみ）。**Actions b2f6a3b＝success**（直前の 7707c0a／c9f40e7／2ab7001 は failure）。punch-match-db は f0 と同時に走らせると 9-17（ROLLBACK 後の残留＝実行前と同値）が件数ずれで赤＝f0 は同一 DB で 1 本ずつ（単独走＝18/18 緑）。
+- **裁定436 の前提の読取（2026-10-29・相談役の依頼）**: ①お金の RPC（check_open／check_add_line／check_pay／check_close／product_stock_add／daily_report_close）は当日の打刻を見ない（punches／attendance の参照 0）。取れる既存＝punches（キャスト）／staff_punches（スタッフ）＋staff_shift_biz_today／biz_date_of・TS は punch-io.ts。ゲートは RPC 側（on_duty_of の内部ヘルパーを冒頭に・店長以上は免除）。②端末の識別＝kiosk_devices.auth_user_id だけ（device_id／cookie／UA なし・kiosk_sessions.device_id は端末行の id）＝0190 の見立て＝device_fp・bound_at・bound_ua・unbound_at／by＋kiosk_device_bind／unbind＋kiosk_* で fp 照合。③退店＝cast_leave（casts.is_active＋left_on）／staff_deactivate（memberships.is_active）だけ＝auth の失効・ban・staff_pin の削除なし（auth_* が is_active を見るので RLS／RPC は閉じる・kiosk_login も is_active を見る＝PIN は実質無効）。
+
 ### 0187 起草（2026-10-27 夜・便 CASH＋便 EXT＋remove_store_special_day の課金ゲート）
 
 **起草のみ・DB 恒久変更 0・手貼り待ち**＝supabase/migrations/0187_cash_ext_menu.sql（2,011 行・sha16 **15037e893c142cad**＝事後承認 ② 反映後・LF・反映前の fcb5ff0b6894e67d は無効）・手貼り案内＝docs/demo/handpaste_0187.md（事前確認 SQL・verify の期待値・営業時間外に貼る）・生成器＝docs/tmp/gen_0187.cjs（live の定義＋アンカー置換・手打ちなし）・試走＝docs/tmp/t0187_rollback.mts（本番 BEGIN…ROLLBACK 15/15・関数数 382→384）。
@@ -4925,6 +4934,15 @@ DB 変更 0 の見込み。要れば 0190 起草のみ。」
 ② /kiosk 配下でだけ別の manifest（/kiosk/manifest.webmanifest：name「NOX レジ端末」・short_name「NOX レジ」・start_url「/kiosk」・display standalone・scope「/kiosk」・アイコンは本店と色違い）を <link rel="manifest"> で配信。apple-touch-icon も同様。本店の manifest は変えない。
 ③ live：iPad Safari で /kiosk を開き「ホーム画面に追加」→ アイコン名が「NOX レジ端末」・起動で /kiosk が開く・端末ログインの状態が保たれる。」
 **K-0 ① の読取（2026-10-29・CC）**: 固有で残すもの＝端末ログイン（page.tsx:192–220／592–616・kiosk_operator_list・店は DB の auth_kiosk_register_store_id()）・PIN 解除と本人（:59–60／111–124／273–315／618–674・kiosk_login／kiosk_unlock／QR・role は返値の role・Session は state だけ）・交代／離席（:317–321／177–190・kiosk_lock／kiosk_logout）・自動ロック（:70 IDLE_MS 15 分・:200–210 ローカル tick・QR は kioskIdleMsOf 3 分）・店舗の固定（client は store_id を持たない＝毎 RPC で DB 判定・store_id を返す kiosk RPC は無い）。撤去対象 ≈ 955 行／残す ≈ 295 行。**前提**＝RegisterBoard の props（seats／products／categories／casts／isManagerUp／showReserve／storeId）と board 本体の多数の select は「ログイン中の人の RLS」依存＝端末ユーザーでは 0 行→**同じ部品で描くには端末ユーザーに店スコープの行を見せる鍵（kiosk_sessions を鍵にした RLS か kiosk_* 読取 RPC の拡張）＝0190 起草が前提**。approval_decide／check_void／receipt_issue 等の kiosk 腕は未確認・board に onSessionLost／onAction の props なし・裁定420 の 3 段階は settings_json の RLS 由来。
+**裁定436（提案中・相談役 2026-10-29）＝K-5 打刻ゲート・端末の束縛・退店の失効＝0190 起草＋client（MIG_0190_APPLIED＝false の配下）・本文（逐語）**: 「K-5 裁定436（打刻ゲート・端末の束縛・退店の失効）＝0190 起草＋client（MIG_0190_APPLIED＝false の配下）:
+① 0190（起草のみ・handpaste_0190.md・本番 BEGIN…ROLLBACK 試走・live 照合）:
+ a.（差し替え・相談役 2026-10-29）on_duty_of の assert を置くのはレジの RPC だけ＝check_open／check_add_line／check_pay／check_close（延長・席移動・割引など check_* の経路で伝票を動かすものも同じ冒頭）。product_stock_add／daily_report_close には置かない。店長以上は免除・免除で通した操作は audit に 'off_duty_exempt'。store_profiles.duty_gate（既定 true）が false の店は assert しない。
+ b. kiosk_devices に device_fp text・bound_at・bound_ua・unbound_at・unbound_by。kiosk_device_bind（初回ログインで束縛・別 fp は 'device bound' で拒否）／kiosk_device_unbind（オーナー・audit）。kiosk_* の RPC は auth.uid()＋p_device_fp の一致を見る。既存の 1 台（CLUB NOX 入口タブレット）は次のログインで束縛（移行）。
+ c. cast_leave／staff_deactivate の中で staff_pin の削除・kiosk_sessions の終了（end_reason 'retired'）。auth 側（admin.auth.admin.signOut 全セッション＋ban）は route で RPC の後に呼ぶ。
+② client：端末は localStorage に device_fp を持ち kiosk ログインと kiosk_* の呼び出しに付ける。マスタ › キオスク端末の一覧に「束縛中の端末（UA・束縛日）」と「端末を解除」（M-29 の再発行・無効化と同じ列）。店舗設定 › 利用機能に「打刻ゲート」のスイッチ（既定 ON・説明 1 行・キオスク端末が 0 台の店には注意）。退店の確認ダイアログに「ログイン・PIN は即時に無効になります」。ゲートで弾かれたときの文言＝「出勤の打刻がありません。店の端末で打刻してから操作してください」。
+③（差し替え・相談役 2026-10-29）suite：打刻 fixture はレジの経路だけに足す（打刻なし→403・打刻後→通る・店長以上は通って audit に印・duty_gate=false は通る）。在庫・日報の suite は現状のまま。端末の束縛（別 fp 拒否・解除後に再束縛）・退店で PIN と kiosk_sessions が消える。golden 不変。
+④ 台帳：裁定436 本文（相談役案＋店設定 duty_gate 既定 ON）・0190 の sha16・handpaste。」
+**裁定436 本文（相談役 2026-10-29 の差し替え）**: 「打刻ゲートの対象はレジ（伝票を動かす操作）のみ。在庫・日報は対象外」。
 **M-29（相談役 2026-10-29・便 M3 に追加・まず読取）＝本文（逐語）**: 「M-29 キオスク端末の発行（本番 CLUB NOX で「レジ」2 台目が 409 already provisioned・発行時の認証情報を後から取り戻せない）:
 ① 読取：端末の発行 RPC の上限の規則（店舗×用途で 1 台か・無効化済みを数えるか）・無効化→再発行で新しい認証情報が出るか・0185 の PIN 解除が複数端末で成り立つかを報告。
 ② 設計（相談役案・DB 変更があれば 0190 起草のみ）：上限＝店舗×用途ごとに 3 台（無効は数えない・プランで変更可）。一覧の操作に「認証情報を再発行」を追加＝旧い認証情報は即時無効・新しい ID／PASS を発行時と同じモーダルで 1 回だけ表示・監査ログに「端末の認証情報を再発行」。「無効化」はそのまま。
@@ -7750,4 +7768,4 @@ anon-guard 段28 が無差別 `limit(1)` でそれを拾い 'bad amount'/BV=unde
 
 - **次の M＝M-30**（M-15〜M-19＝Agoora 確定 10/27・M-20〜M-23＝同（3）・M-24＝同（4）・M-25／M-26／M-28／M-29＝Agoora 確定 10/29 で収載済み・M-27 は欠番＝M-17 追補を便 2 に同乗させたため）。
 - **次の教訓＝126**（125＝cron と suite の fixture・2026-10-29）。
-- **次の裁定＝436**（433＝提案中・本文収載済み・434＝2026-10-27 確定・435＝提案中＝便 K キオスクの機能拡張・2026-10-29 本文収載済み）。
+- **次の裁定＝437**（433＝提案中・本文収載済み・434＝2026-10-27 確定・435＝提案中＝便 K キオスクの機能拡張・436＝提案中＝K-5 打刻ゲート・端末の束縛・退店の失効（0190）・2026-10-29 本文収載済み）。

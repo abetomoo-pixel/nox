@@ -50,7 +50,7 @@ select 'missing', string_agg(x, ', ') from (
 | helpers 2 (acl postgres only) | 2 |
 | check_pay args | **13**（1 本だけ＝旧い 11 引数は DROP 済み） |
 | check_pay acl | {postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}（並びは違ってよい・anon なし） |
-| has 0187 (8 fns) | 8（check_group_due／referral_recalc を含む・check_open〜remove_store_special_day のうち ★0187 の語を持つ本数） |
+| has 0187 (8 fns) | **9**（見出しの 8 は古い＝対象 9 関数すべてに ★0187 の注記が入る・内部 2 本を足して ★0187 は 11 本） |
 | md5 ext_menu_build | 52acaa4a |
 | md5 ext_menu_pick | 6600a25c |
 | md5 check_open | c9f322fd |
