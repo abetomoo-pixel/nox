@@ -1,4 +1,5 @@
 "use client";
+import StepBtn from "@/components/ui/step-button"; // ★便 2 M-17 追補: C2-8 の −／＋を共通部品に
 
 // 在庫（棚卸し＋履歴）＝④d-2（裁定N・案X）。旧「在庫の入出庫」フォーム（自由 delta＋自由理由）は撤去し、
 // 入荷は商品一覧の行「入荷」モーダルに一本化済み（④c 裁定L）。このページは
@@ -44,17 +45,7 @@ const numWheelBlur = (e: React.WheelEvent<HTMLInputElement>) => { (e.currentTarg
 
 const PAGE = 50;
 
-/** ★便 SH-UI-c2 C2-8: −／＋＝押すと 1・長押しで連続（400ms 後に 120ms ごと）。タップ目安 40px */
-function StepBtn({ label, onStep, disabled, testId }: { label: string; onStep: () => void; disabled?: boolean; testId?: string }) {
-  const timer = useRef<{ t: ReturnType<typeof setTimeout> | null; i: ReturnType<typeof setInterval> | null }>({ t: null, i: null });
-  const stop = () => { if (timer.current.t) clearTimeout(timer.current.t); if (timer.current.i) clearInterval(timer.current.i); timer.current = { t: null, i: null }; };
-  const start = () => { stop(); timer.current.t = setTimeout(() => { timer.current.i = setInterval(onStep, 120); }, 400); };
-  return (
-    <button type="button" className="nox-st-btn" aria-label={label === "−" ? "1 減らす" : "1 増やす"} disabled={disabled} data-stocktake-step={testId}
-      onClick={onStep} onPointerDown={start} onPointerUp={stop} onPointerLeave={stop} onPointerCancel={stop} onContextMenu={(e) => e.preventDefault()}
-      style={{ width: 40, height: CTL_H, borderRadius: 8, border: "1px solid var(--line2)", background: "var(--card2)", color: "var(--ink)", fontSize: 16, fontWeight: 800, touchAction: "manipulation", userSelect: "none" }}>{label}</button>
-  );
-}
+// ★便 SH-UI-c2 C2-8 の −／＋（押すと 1・長押しで連続）＝★便 2 M-17 追補（2026-10-29）で components/ui/step-button に共通化（手数料の率の ± と同じ部品）
 
 type StockLog = {
   id: string; product_id: string; delta: number; reason: string | null; by_user_id: string | null; at: string;

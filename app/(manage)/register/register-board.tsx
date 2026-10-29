@@ -8,8 +8,10 @@ import { opsProfileOf } from "@/lib/nox/store/ops-profile"; // ★0164（便 W5-
 import { groupDueFull, timeStatusOf } from "@/lib/nox/check-calc";
 import { bizDateOf } from "@/lib/nox/biz-date"; // ★B3 裁定209: attendance の営業日判定（純関数）
 import { checkCustHeadOf } from "@/lib/nox/register/line-groups"; // ★便 X13-G W-3
-import { openEstimateOf, taxMarkOf, type EstimateRule, type EstimateStore } from "@/lib/nox/register/open-estimate"; // ★便 X13-G W-14／W-15
+import { bizClockOf, openEstimateOf, taxMarkOf, type EstimateRule, type EstimateStore } from "@/lib/nox/register/open-estimate"; // ★便 X13-G W-14／W-15
 import { dueBreakdownOf } from "@/lib/nox/check-calc"; // ★便 X13-G W-15: 合計の内訳（表示だけ）
+import { discountArgsOf, discountRateTextOf, payDiscountBaseOf, payDiscountKeyOf, payDiscountModesFor, payDiscountPreviewOf, payDiscountRatesOf, payDiscountRowTextOf, payReceiveOf, PAY_DISCOUNT_BASE_SHORT } from "@/lib/nox/rules-0175/pay-discount"; // ★0187（便 CASH・M-17・2026-10-27 夜）: 入金ごとの割引と受け取る額（フラグ配下）
+import { extGuideLabelOf, extGuidePriceOf, extGuideRowsOf, type ExtSnapItem } from "@/lib/nox/register/ext-guide"; // ★0187（便 EXT）: 延長のご案内（お客様向け全画面・フラグ配下）
 import ReceiptPrintSheet from "@/components/nox/receipt-print"; // ★便 GV-C C-13: 領収書の印字実体（共用）
 import GroupedNumberInput from "@/components/ui/grouped-number-input"; // ★便 X13-G W-12 ④: 3 桁区切りの入力欄
 import { renderSVG } from "uqr"; // R2-c: 領収書公開 URL の QR（依存ゼロの軽量ライブラリ・裁定 R2-13）
@@ -39,10 +41,11 @@ import { BILLING_LOCKED_MSG, isBillingLocked } from "@/lib/billing/messages";
 import { orderLines, twoClassSumsOf, payFeeRatesOf, payFeeNoteOf, payFeeKeyOf, setFrozenNoteOf, cardGrossSplitOf, cardGrossDefaultOf, type PayFeeKey } from "@/lib/nox/register/p173"; // ★便 P173（0173 の client＝裁定385／386／389／391／393）
 import { payFeeOf } from "@/lib/nox/register/p173"; // ★連続便 3 追補 P-8
 import { dueSettingsOf } from "@/lib/nox/rules-0175/rounding"; // ★便 SH-UI-c2 C2-16（裁定424 候補）: 丸めは凍結しない（フラグ true）
-import { rules0175On, seatMovePricingOn } from "@/lib/nox/rules-0175/flag"; // ★連続便 3 追補 P-8／P-10 // ★便 ON-4（裁定427・0182）: 席移動の料金はフラグ
+import { mig0187On, rules0175On, seatMovePricingOn } from "@/lib/nox/rules-0175/flag"; // ★連続便 3 追補 P-8／P-10 // ★便 ON-4（裁定427・0182）: 席移動の料金はフラグ
 import { seatKindChangeOf, seatMoveConfirmTextOf } from "@/lib/nox/register/seat-move"; // ★便 ON-4（裁定427＝C2-23）: 席種が変わる移動の確認文
 import { drinkCountBackOn } from "@/lib/nox/rules-0175/settings"; // ★便 ON-2（CANON ⑨）: ドリンクバック（本数）OFF の店
-import { PAY_FEE_MODE_LABEL, feeAmountArgOf, feeRateInputOf, payFeeModeButtonLabelOf, noteModeOf, payFeeModesFor, payFeeNoteWithModeOf, payFeeRowTextOf, type PayFeeMode } from "@/lib/nox/rules-0175/pay-fee"; // ★連続便 3 追補 P-8（裁定393 追補4）
+import { PAY_FEE_MODE_LABEL, feeAmountArgOf, feeRateEffectiveOf, feeRateInputOf, feeRateStepOf, feeRateTextOf, payFeeModeButtonLabelOf, noteModeOf, payFeeModesFor, payFeeNoteWithModeOf, payFeeRowTextOf, type PayFeeMode } from "@/lib/nox/rules-0175/pay-fee"; // ★連続便 3 追補 P-8（裁定393 追補4）
+import StepBtn from "@/components/ui/step-button"; // ★便 2 M-17 追補: 率の −／＋（長押しで連続＝C2-8 と同じ部品）
 import { extCurrentOf } from "@/lib/nox/rules-0175/ext-pattern"; // ★連続便 3 追補 P-10（裁定408 系）
 import { discountActionOf, feeModesForRoleOf, staffDiscountCapOf, staffDiscountLevelOf } from "@/lib/nox/rules-0175/staff-discount"; // ★追補 2（裁定421 候補・0175 v2 ★24）
 import { receiptDescDefaultOf } from "@/lib/nox/rules-0175/invoice-receipt"; // ★追補 2 同乗 R-6（裁定422 候補）
@@ -644,7 +647,12 @@ export default function RegisterBoard({
   const [payTendered, setPayTendered] = useState("");
   // ★連続便 3 追補 P-8（裁定393 追補4・0175 v2 ★21）: 手数料の方式（店の率／なし／額を指定）＝RULES_0175_APPLIED=false では常に "auto" 扱い・引数も送らない
   const [feeMode, setFeeMode] = useState<PayFeeMode>("auto");
+  const [discMode, setDiscMode] = useState<PayFeeMode>("auto"); // ★0187（便 CASH・事後承認 ④）: 入金ごとの割引の方式（店の率／率を指定／額を指定／なし＝なし・指定は店長以上）
+  const [discManual, setDiscManual] = useState(""); const [discRateIn, setDiscRateIn] = useState("");
+  const [extGuide, setExtGuide] = useState(false); // ★0187（便 EXT）: 延長のご案内（お客様向け全画面）
+  const [extGuideConfirm, setExtGuideConfirm] = useState<{ item: ExtSnapItem; duration: number; price: number } | null>(null);
   const [storeSj, setStoreSj] = useState<Record<string, unknown>>({}); // ★追補 2: 店設定（割引・手数料カットの段階）
+  const payDiscountRates = payDiscountRatesOf(storeSj); const payDiscountBase = payDiscountBaseOf(storeSj); // ★0187（便 CASH）: 店設定の割引率と基準（フラグ true のときだけ UI と引数に使う）
   const roleKey = isManagerUp ? "manager" : "staff"; // ★追補 2: レジの操作者（cast 本人のセッションは isManagerUp=false＝staff 扱いだが RPC が cast を弾く）
   const [feeManual, setFeeManual] = useState("");
   const [feeRateIn, setFeeRateIn] = useState(""); // ★便 M-6: 率を指定の入力（% 小数 1 桁）
@@ -1613,7 +1621,7 @@ export default function RegisterBoard({
   }
 
   // E8-1 ④: モーダルから呼ぶため成功可否を返す（送る引数は不変・失敗時はモーダルを閉じない）
-  async function pay(over?: { amount: number; tendered: number | null; balance?: number }): Promise<boolean> { // ★便 GV-C C-1（裁定387）: 1 欄の入金（額は残額まで・現金はお預かり）
+  async function pay(over?: { amount: number; tendered: number | null; balance?: number; balance0?: number }): Promise<boolean> { // ★便 GV-C C-1（裁定387）: 1 欄の入金（額は残額まで・現金はお預かり）
     if (!check) return false;
     if (dayBlocked()) return false; // ★C層③: 締め済み日の先回り（RPC の関所が本体）
     if (!(await tb.flush())) return false; // money 系: 保留を先に確定（失敗＝中止・入金前提）
@@ -1628,15 +1636,16 @@ export default function RegisterBoard({
       p_idem_key: crypto.randomUUID(),
       p_method_detail: detail,
       p_fee_key: payFeeKeyOf(payMethod), // ★便 P173（裁定393）: 手数料率のキー（cash／ar は null＝対象外・率 0 の店は RPC が 0）
-      ...(rules0175On() ? { p_fee_amount: feeAmountArgOf(feeMode, /^\d+$/.test(feeManual) ? Number(feeManual) : null, over?.balance ?? (over ? over.amount : payAmount), { rate: feeRateInputOf(feeRateIn), amount: over ? over.amount : payAmount }) } : {}), // ★便 M-6: 率を指定＝額に換算 // ★連続便 3 追補 P-8: 0175 v2 の 11 引数目（フラグ false＝従来の 8 引数のまま）
+      ...(rules0175On() ? { p_fee_amount: feeAmountArgOf(feeMode, /^\d+$/.test(feeManual) ? Number(feeManual) : null, over?.balance ?? (over ? over.amount : payAmount), { rate: feeRateEffectiveOf(feeRateInputOf(feeRateIn), payFeeRates[payFeeKeyOf(payMethod) ?? "other"]), amount: over ? over.amount : payAmount }) } : {}), // ★便 M-6: 率を指定＝額に換算・★M-17 追補 ①: 空欄＝店の率 // ★連続便 3 追補 P-8: 0175 v2 の 11 引数目（フラグ false＝従来の 8 引数のまま）
+      ...(mig0187On() && payDiscountKeyOf(payMethod) && payDiscountRates[payDiscountKeyOf(payMethod)!] > 0 ? discountArgsOf(discMode, /^\d+$/.test(discManual) ? Number(discManual) : null, feeRateInputOf(discRateIn), over?.balance0 ?? over?.balance ?? (over ? over.amount : payAmount)) : {}), // ★0187（便 CASH）: 入金ごとの割引の上書き＝p_disc_rate／p_disc_amount（割引の率がある方法だけ＝欄が出ている方法だけ・店の率＝送らない・額の上限は割引前の残額・フラグ false＝11 引数のまま）
     });
     const paidAmt = over ? over.amount : payAmount;
-    const feeN = rules0175On() && feeMode !== "auto" ? payFeeNoteWithModeOf(payMethod, paidAmt, payFeeRates, feeMode, /^\d+$/.test(feeManual) ? Number(feeManual) : null, over?.balance ?? paidAmt, feeRateInputOf(feeRateIn)) : payFeeNoteOf(payMethod, paidAmt, payFeeRates); // ★便 P173: 表示用（権威は RPC＝due の増分）・★P-8: 方式を反映
+    const feeN = rules0175On() && feeMode !== "auto" ? payFeeNoteWithModeOf(payMethod, paidAmt, payFeeRates, feeMode, /^\d+$/.test(feeManual) ? Number(feeManual) : null, over?.balance ?? paidAmt, feeRateEffectiveOf(feeRateInputOf(feeRateIn), payFeeRates[payFeeKeyOf(payMethod) ?? "other"])) : payFeeNoteOf(payMethod, paidAmt, payFeeRates); // ★便 P173: 表示用（権威は RPC＝due の増分）・★P-8: 方式を反映
     // R-1a 段2（裁定61）: 入力額をそのまま出す（サーバへ送った額そのもの＝再計算なし・select 不要）
     setMsg(error
       ? { to: MSG_PAY, text: rpcErrJaCommon(error.message), kind: "bad" }
       : { to: MSG_PAY, text: `${yen(paidAmt)} を入金しました${feeN ? `（${payFeeLabelJa(feeN.key)} ${noteModeOf(feeN) !== "auto" ? PAY_FEE_MODE_LABEL[noteModeOf(feeN)] : `${feeN.rate}%`}＝${yen(feeN.fee)} を伝票に追加・お客様から ${yen(feeN.receive)}）` : ""}`, kind: "ok" });
-    if (!error) { setPayTendered(""); setPayDetail(""); setFeeMode("auto"); setFeeManual(""); }
+    if (!error) { setPayTendered(""); setPayDetail(""); setFeeMode("auto"); setFeeManual(""); setDiscMode("auto"); setDiscManual(""); setDiscRateIn(""); }
     await loadCheck(check.id);
     return !error;
   }
@@ -1752,6 +1761,8 @@ export default function RegisterBoard({
     return { g, bx, disc, net, due, paid, remaining: Math.max(0, due - paid) };
   });
   const allCovered = groups.length > 0 && groupInfo.every((gi) => gi.paid >= gi.due);
+  // ★0187（便 EXT・Agoora 確定 10/27（2））: 延長のご案内の行＝今の時間帯に合う延長時間（長さごとに 1 行・時間帯つき→選択中→既定）。旧い凍結（band なし）・フラグ false＝[]（ボタンを出さない）
+  const extGuideRows = check && mig0187On() ? extGuideRowsOf((check.ext_menu_snap ?? []) as ExtSnapItem[], bizClockOf(new Date(nowMs), cutoffHm).min, (check as { ext_rule_id?: string | null }).ext_rule_id ?? null) : [];
   // 段0R 第1陣: planA .sumrow（注文タブの伝票サマリ）用の伝票全体合計。
   // ★会計タブ「会計（伝票グループ別）」が描いている groupInfo を group 横断で足すだけ＝
   //   小計 bx / 割引 disc / 請求（サ料込）due はテーブルの各列と同一値。新しい計算はしていない。
@@ -2162,7 +2173,14 @@ export default function RegisterBoard({
         const gi = groupInfo.find((x) => x.g === g);
         const due = gi?.due ?? 0;
         const paid = gi?.paid ?? 0;
-        const balance = gi?.remaining ?? 0;
+        const balance0 = gi?.remaining ?? 0; // ★0187（便 CASH）: 割引前の残額
+        // ★0187（便 CASH・事後承認 ①〜④）: 割引の率がある方法（店設定 pay_discount_rates）＝割引欄を出し、残額は割引後（check_pay の割引額＋check_group_due の鏡＝権威は RPC）。フラグ false＝従来（RPC が自動で割引行を立てる・欄なし・残額は割引前）
+        const discKey = payDiscountKeyOf(payMethod); const discRate0 = discKey ? payDiscountRates[discKey] : 0;
+        const discOn = mig0187On() && discKey !== null && discRate0 > 0;
+        const discMode0: PayFeeMode = discOn ? discMode : "auto";
+        const discManualN = /^\d+$/.test(discManual) ? Number(discManual) : null; const discRateN = feeRateInputOf(discRateIn);
+        const discPrev = discOn ? payDiscountPreviewOf({ method: payMethod, mode: discMode0, storeRate: discRate0, rateIn: discRateN, manual: discManualN, base: payDiscountBase, due, paid, lines: lines.filter((l) => l.pay_group === g), settings: dueSettingsOf(check, estStore, rules0175On()), referralCustomer: g === "A" && referral?.burden === "customer" ? referral.amount : 0 }) : null;
+        const balance = discPrev ? discPrev.newBalance : balance0; // 割引後の残額＝入金額の上限・既定値・お釣り・均等割りの基準
         // ★便 GV-C C-1（裁定387）: 入金は 1 欄＝現金は「お預かり」（入金額は残額まで自動・差額はお釣り）／現金以外は「入金額」（既定＝残額・超えた分は入金しない）。
         //   送る p_amount は常に残額まで（check_pay の 'exceeds balance' に当てない＝超過エラーを出さない）・p_tendered は現金のお預かり。手数料（393）は入金額に掛かる。
         const isCash = payMethod === "cash";
@@ -2170,7 +2188,8 @@ export default function RegisterBoard({
         const feeMode0: PayFeeMode = rules0175On() ? feeMode : "auto"; // ★連続便 3 追補 P-8: フラグ false＝常に店の率
         const feeManualN = /^\d+$/.test(feeManual) ? Number(feeManual) : null;
         const feeRateN = feeRateInputOf(feeRateIn); // ★便 M-6
-        const cardRate = payMethod === "card" && feeMode0 === "auto" ? payFeeRates.card : payMethod === "card" && feeMode0 === "rate" ? (feeRateN ?? 0) : 0; // ★便 M-6: 率を指定も入金額の既定（残額＋手数料）に連動
+        const feeRateEff = payFeeKeyOf(payMethod) ? feeRateEffectiveOf(feeRateN, payFeeRates[payFeeKeyOf(payMethod)!]) : 0; // ★M-17 追補 ①: 率を指定の実効値＝空欄／不正は店の率（入力・±はその場で反映）
+        const cardRate = payMethod === "card" && feeMode0 === "auto" ? payFeeRates.card : payMethod === "card" && feeMode0 === "rate" ? feeRateEff : 0; // ★便 M-6: 率を指定も入金額の既定（残額＋手数料）に連動
         const grossMode = cardRate > 0;
         const grossDefault = grossMode ? cardGrossDefaultOf(balance, cardRate) : 0;
         const grossN = grossMode ? Math.max(0, Math.min(payCardGross ?? grossDefault, grossDefault)) : 0;
@@ -2180,7 +2199,7 @@ export default function RegisterBoard({
         const effAmount = grossSplit ? grossSplit.applied : Math.min(enteredN, balance);
         const amtValid = Number.isInteger(effAmount) && effAmount > 0;
         const change = isCash ? Math.max(0, enteredN - balance) : 0;
-        const feeNote = feeMode0 === "auto" ? payFeeNoteOf(payMethod, amtValid ? effAmount : 0, payFeeRates) : payFeeNoteWithModeOf(payMethod, amtValid ? effAmount : 0, payFeeRates, feeMode0, feeManualN, balance, feeRateN); // ★便 P173（裁定393）: 1 行表示（率 0 は null）・★P-8: なし／指定
+        const feeNote = feeMode0 === "auto" ? payFeeNoteOf(payMethod, amtValid ? effAmount : 0, payFeeRates) : payFeeNoteWithModeOf(payMethod, amtValid ? effAmount : 0, payFeeRates, feeMode0, feeManualN, balance, feeRateEff); // ★便 P173（裁定393）: 1 行表示（率 0 は null）・★P-8: なし／指定・★M-17 追補 ①: 率は実効値
         const presets = Array.from(new Set([balance, Math.ceil(balance / 1000) * 1000, Math.ceil(balance / 5000) * 5000, Math.ceil(balance / 10000) * 10000]))
           .filter((v) => v >= balance && v > 0).sort((a, b) => a - b).slice(0, 4);
         const setEntered = (n: number) => (isCash ? setPayTendered(n > 0 ? String(n) : "") : grossMode ? setPayCardGross(n) : setPayAmount(n));
@@ -2202,17 +2221,30 @@ export default function RegisterBoard({
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, color: "var(--sub)", marginBottom: 3 }}>
                 <span>既入金</span><span style={t.num}>{yen(paid)}</span>
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                <span style={{ fontWeight: 800 }}>残額</span>
-                <span style={{ ...t.num, fontSize: 20, fontWeight: 900, color: balance > 0 ? "var(--bad)" : "var(--ok)" }}>{yen(balance)}</span>
-              </div>
-              {grossMode && balance > 0 && (/* ★便 X13-H H-14: カード（お客様へ加算あり）＝残額の直下に太字 1 行（旧「カード手数料 n%＋¥…」を統合・現金／その他では出さない・残額の定義は不変）。均等割りの 1 人分のときは同じ場所に */
-                <div data-pay-card-total="1" className="num" style={{ fontSize: 14, fontWeight: 800, marginTop: 6, textAlign: "right", overflowWrap: "anywhere", lineHeight: 1.5 }}>
-                  {paySplitN && grossN === Math.ceil(grossDefault / paySplitN)
-                    ? <>1 人分 {yen(grossN)}（手数料込み）</>
-                    : <>カードでのお支払額 {yen(grossDefault)}（残額 {yen(balance)}＋手数料 {yen(grossDefault - balance)}）</>}
-                </div>
-              )}
+              {(() => { /* ★M-17 追補 ②④（Agoora 2026-10-29）: 方法を選んだら集計に「カード手数料 ¥b（n%）」／「割引 ¥c（n%・合計から）」の行＝残額はその分を足し引き（なし＝行を消して元の残額へ）。率の入力・±にその場で追随 */
+                const feeK = payFeeKeyOf(payMethod);
+                const feeRow = rules0175On() && feeK && payFeeRates[feeK] > 0 ? { amt: grossMode ? grossDefault - balance : (feeNote?.fee ?? 0), text: feeMode0 === "auto" ? `${payFeeRates[feeK]}%` : feeMode0 === "rate" ? `指定 ${feeRateTextOf(feeRateEff)}%` : feeMode0 === "none" ? "なし" : "指定" } : null;
+                const discRow = discPrev ? { amt: discPrev.disc, text: `${discMode0 === "manual" ? "指定" : discMode0 === "none" ? "なし" : `${discountRateTextOf(discPrev.rate)}%`}・${PAY_DISCOUNT_BASE_SHORT[payDiscountBase]}` } : null;
+                return (<>
+                  {feeRow && <div data-pay-summary-fee="1" style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, color: "var(--sub)", marginBottom: 3 }}><span>{payFeeLabelJa(feeK!)}（{feeRow.text}）</span><span className="num" style={t.num}>{yen(feeRow.amt)}</span></div>}
+                  {discRow && <div data-pay-summary-disc="1" style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, color: "var(--sub)", marginBottom: 3 }}><span>割引（{discRow.text}）</span><span className="num" style={t.num}>−{yen(discRow.amt)}</span></div>}
+                </>); })()}
+              {(() => { /* ★M-17（Agoora 確定 10/27＋補遺）: 大きな赤字＝選んだ方法で受け取る額（カード＝残額＋手数料／現金＝残額−現金割引／その他＝残額）・ラベルは方法ごと・下に小さく内訳（手数料・割引の欄に即時追随・丸め直しの差も出す）。従来の「残額」行・旧の手数料の内訳・長い説明行はここに統合（1,280／390 とも 1 つの枠） */
+                const fm = feeNote ? noteModeOf(feeNote) : "auto";
+                const feeAmt = grossMode ? grossDefault - balance : (feeNote ? feeNote.fee : 0);
+                const feeText = feeNote && (feeNote.fee > 0 || fm !== "auto") ? (fm === "auto" ? `${feeNote.rate}%` : fm === "rate" ? `指定 ${feeNote.rate}%` : fm === "none" ? "なし" : "指定") : null;
+                const discText = discPrev && (discPrev.disc > 0 || discMode0 !== "auto") ? `割引 ¥${discPrev.disc.toLocaleString()}（${discMode0 === "manual" ? "指定" : discMode0 === "none" ? "なし" : `${discountRateTextOf(discPrev.rate)}%`}・${PAY_DISCOUNT_BASE_SHORT[payDiscountBase]}）` : null; // ★M-17 追補 ④: 「残額 ¥a−割引 ¥c（n%・合計から／小計から）」
+                const rc = payReceiveOf({ method: payMethod, balance: balance0, newBalance: balance, fee: feeAmt, feeText, disc: discPrev?.disc ?? 0, discText });
+                const oneOf = paySplitN && grossMode && grossN === Math.ceil(grossDefault / paySplitN) ? grossN : null; // ★便 X13-H H-14: 均等割りの 1 人分（手数料込み）
+                return (
+                  <div data-pay-receive="1" data-pay-card-total={grossMode ? "1" : undefined} data-pay-receive-method={payMethod} style={{ marginTop: 4 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
+                      <span style={{ fontWeight: 800 }}>{oneOf !== null ? "1 人分（手数料込み）" : rc.label}</span>
+                      <span className="num" style={{ ...t.num, fontSize: 26, fontWeight: 900, color: rc.amount > 0 ? "var(--bad)" : "var(--ok)" }}>{yen(oneOf ?? rc.amount)}</span>
+                    </div>
+                    {rc.note && <div data-pay-receive-note="1" className="num" style={{ fontSize: 11.5, color: "var(--sub)", textAlign: "right", overflowWrap: "anywhere", lineHeight: 1.5 }}>{rc.note}</div>}
+                  </div>
+                ); })()}
             </div>
             {/* 支払方法（NOX 4値・台帳#36）
                 ★DP1 P2 b#39（裁定 DP1-⑧）: モックは「現金／カード／併用」の3択だが、
@@ -2249,7 +2281,7 @@ export default function RegisterBoard({
                 ...(payMethodsOn.emoney ? [["emoney", OPS_METHOD_LABEL.emoney]] : []), ...(payMethodsOn.qr ? [["qr", OPS_METHOD_LABEL.qr]] : []), ["other", METHOD_LABEL.other]] as [string, string][]).map(([v, l]) => (
                 <button key={v} type="button"
                   style={payMethod === v ? { ...t.btnGold, justifyContent: "center", padding: "12px" } : { ...t.btnGhost, justifyContent: "center", padding: "12px" }}
-                  onClick={() => { setPayMethod(v); setPayCardGross(null); setPaySplitN(null); if (!DETAIL_METHODS.has(v)) setPayDetail(""); }}>
+                  onClick={() => { setPayMethod(v); setPayCardGross(null); setPaySplitN(null); if (!DETAIL_METHODS.has(v)) setPayDetail(""); setDiscMode("auto"); setDiscManual(""); setDiscRateIn(""); /* ★0187: 方法を替えたら割引の方式は既定へ（前の方法の指定を持ち越さない） */ }}>
                   {l}
                 </button>
               ))}
@@ -2263,13 +2295,33 @@ export default function RegisterBoard({
                     <span role="radiogroup" aria-label="手数料の方式" style={{ display: "inline-flex", gap: 4 }}>
                       {(rules0175On() ? feeModesForRoleOf(roleKey, staffDiscountLevelOf(storeSj)) : payFeeModesFor(isManagerUp)).map((m) => (/* ★追補 2（裁定421 候補）: スタッフは「上限内は即時」のときだけ なし／指定（上限は RPC） */
                         <button key={m} type="button" data-fee-mode-opt={m} style={{ ...btnLight, padding: "4px 10px", ...(feeMode0 === m ? { border: "1px solid var(--gold)", color: "var(--champ)", background: "var(--goldface)" } : {}) }}
-                          onClick={() => { setFeeMode(m); setPayCardGross(null); }}>{payFeeModeButtonLabelOf(m, rate)}</button>
+                          onClick={() => { setFeeMode(m); setPayCardGross(null); if (m === "rate") setFeeRateIn(feeRateTextOf(rate)); /* ★M-17 追補 ①: 率を指定の既定＝店の率 */ }}>{payFeeModeButtonLabelOf(m, rate)}</button>
                       ))}
                     </span>
-                    {feeMode0 === "rate" && <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><input inputMode="decimal" value={feeRateIn} onChange={(e) => setFeeRateIn(e.target.value.replace(/[^0-9.]/g, "").slice(0, 5))} aria-label="手数料の率" placeholder={String(rate)} data-fee-rate-input="1" style={{ ...t.input, width: 80 }} />%</span>}{/* ★便 M-6: 率を指定＝入金額×率を額に換算（p_fee_amount） */}
+                    {feeMode0 === "rate" && <span data-fee-rate-stepper="1" style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>{/* ★M-17 追補 ①: −／＋＝0.5% 刻み・0〜20%・長押しで連続（C2-8 と同じ部品）・直接入力も残す・入力はその場で手数料に反映 */}
+                      <StepBtn label="−" ariaLabel="手数料の率を 0.5% 下げる" testId="dec" dataAttr="data-fee-rate-step" className="nox-step-btn" onStep={() => { setFeeRateIn(feeRateTextOf(feeRateStepOf(feeRateInputOf(feeRateIn), -1, rate))); setPayCardGross(null); }} />
+                      <input inputMode="decimal" value={feeRateIn} onChange={(e) => { setFeeRateIn(e.target.value.replace(/[^0-9.]/g, "").slice(0, 5)); setPayCardGross(null); }} aria-label="手数料の率" placeholder={String(rate)} data-fee-rate-input="1" style={{ ...t.input, width: 64, textAlign: "center" }} />%
+                      <StepBtn label="＋" ariaLabel="手数料の率を 0.5% 上げる" testId="inc" dataAttr="data-fee-rate-step" className="nox-step-btn" onStep={() => { setFeeRateIn(feeRateTextOf(feeRateStepOf(feeRateInputOf(feeRateIn), 1, rate))); setPayCardGross(null); }} />
+                    </span>}{/* ★便 M-6: 率を指定＝入金額×率を額に換算（p_fee_amount） */}
                     {feeMode0 === "manual" && <input inputMode="numeric" value={feeManual} onChange={(e) => setFeeManual(e.target.value.replace(/[^0-9]/g, "").slice(0, 7))} aria-label="手数料の額" placeholder={`上限 ${balance.toLocaleString()}`} style={{ ...t.input, width: 120 }} />}
+                    <span data-pay-fee-notes="1" style={{ width: "100%", fontSize: 10.5, color: "var(--sub)", lineHeight: 1.6 }}>手数料は伝票の行として残り、キャストの売上・ノルマ・歩合には含めません。併用時はこの方法で入金する分だけに掛かります。</span>{/* ★M-17 追補 ③: 末尾の枠の注記 2 行をここへ */}
                   </div>
                 ); })()}
+            {discOn && discPrev && (() => { /* ★0187（便 CASH・Agoora 確定 10/27 補遺）: 「現金」など割引の率がある方法を選んだ直下に割引欄＝M-6 のカード手数料と同じ部品（店の率／率を指定／額を指定／なし）。なし・指定は店長以上（事後承認 ④）。権威は RPC（check_pay の p_disc_rate／p_disc_amount） */
+              return (
+                <div className="nox-inset" data-pay-disc-mode={discMode0} data-pay-disc-row="1" style={{ padding: "8px 12px", marginTop: 0, marginBottom: 10, fontSize: 12.5, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                  <span className="num" style={{ flex: "1 1 150px", fontWeight: 700 }}>{payDiscountRowTextOf(discPrev)}</span>
+                  <span role="radiogroup" aria-label="割引の方式" style={{ display: "inline-flex", gap: 4 }}>
+                    {payDiscountModesFor(isManagerUp).map((m) => (
+                      <button key={m} type="button" data-disc-mode-opt={m} style={{ ...btnLight, padding: "4px 10px", ...(discMode0 === m ? { border: "1px solid var(--gold)", color: "var(--champ)", background: "var(--goldface)" } : {}) }}
+                        onClick={() => { setDiscMode(m); setPayCardGross(null); }}>{payFeeModeButtonLabelOf(m, discRate0)}</button>
+                    ))}
+                  </span>
+                  {discMode0 === "rate" && <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><input inputMode="decimal" value={discRateIn} onChange={(e) => setDiscRateIn(e.target.value.replace(/[^0-9.]/g, "").slice(0, 5))} aria-label="割引の率" placeholder={String(discRate0)} data-disc-rate-input="1" style={{ ...t.input, width: 80 }} />%</span>}
+                  {discMode0 === "manual" && <input inputMode="numeric" value={discManual} onChange={(e) => setDiscManual(e.target.value.replace(/[^0-9]/g, "").slice(0, 7))} aria-label="割引の額" placeholder={`上限 ${balance0.toLocaleString()}`} data-disc-manual-input="1" style={{ ...t.input, width: 120 }} />}
+                  <span style={{ width: "100%", fontSize: 10.5, color: "var(--sub)" }}>割引対象＝{PAY_DISCOUNT_BASE_SHORT[payDiscountBase]}（店設定「支払方法の調整」）。割引は伝票の行として残ります。</span>
+                </div>
+              ); })()}
             {/* ★DP1 P2 b#39: 併用の導線（表示のみ・新しい state も RPC も無い）。 */}
             <p style={{ fontSize: 11, color: "var(--sub)", margin: "0 0 12px", lineHeight: 1.7 }}>
               <b style={{ color: "var(--v2-text)" }}>併用</b>（現金＋カードなど）は、方法を選んで
@@ -2311,22 +2363,14 @@ export default function RegisterBoard({
                   ))}
                 </div>
               )}
-              <span style={{ fontSize: 11, color: "var(--sub)", marginTop: 4, display: "block", lineHeight: 1.6 }}>
-                {isCash ? `入金額は残額（${yen(balance)}）まで自動。多くお預かりした分はお釣りです。` : grossMode ? `既定は残額＋カード手数料（${yen(grossDefault)}）。一部だけ受け取るときは減らしてください。` : `既定は残額（${yen(balance)}）。一部だけ受け取るときは減らしてください（残額を超える分は入金しません）。`}
-              </span>
+              {/* ★M-17: 従来の長い説明行（入金額は残額まで自動…・既定は残額＋カード手数料…）は上の「受け取る額」の内訳に統合して撤去 */}
               {grossSplit && (
                 <span data-pay-gross-split="1" className="num" style={{ fontSize: 13, fontWeight: 700, marginTop: 4, display: "block" }}>
                   うち 残額への充当 {yen(grossSplit.applied)}／カード手数料 {yen(grossSplit.fee)}
                 </span>
               )}
               {/* ★便 P173（裁定393）: 支払方法別の手数料（お客様負担）＝入金額×率（1 円未満四捨五入）・伝票に行「カード手数料 n%」・お客様からもらう額＝入金額＋手数料（均等割りも手数料込み）。権威は RPC（due の増分） */}
-              {feeNote && !grossMode && (
-                <div className="nox-inset" data-pay-fee="1" style={{ padding: "8px 12px", marginTop: 8, fontSize: 12.5, display: "flex", flexDirection: "column", gap: 3 }}>
-                  <span style={{ display: "flex", justifyContent: "space-between" }}><span>{payFeeLabelJa(feeNote.key)} {noteModeOf(feeNote) !== "auto" ? PAY_FEE_MODE_LABEL[noteModeOf(feeNote)] : `${feeNote.rate}%`}（お客様負担）</span><span className="num">{yen(feeNote.fee)}</span></span>
-                  <span style={{ display: "flex", justifyContent: "space-between", fontWeight: 800 }}><span>お客様からもらう額</span><span className="num">{yen(feeNote.receive)}</span></span>
-                  <span style={{ fontSize: 10.5, color: "var(--sub)" }}>手数料は伝票の行として残り、キャストの売上・ノルマ・歩合には含めません。併用時はこの方法で入金する分だけに掛かります。</span>
-                </div>
-              )}
+              {/* ★M-17: 旧の手数料の内訳（お客様からもらう額の 3 行）は上の「受け取る額」に統合して撤去 */}
             </label>
             {isCash && (
               <div className="nox-inset" data-pay-change="1" style={{ padding: "12px 14px", marginBottom: 12 }}>
@@ -2352,7 +2396,7 @@ export default function RegisterBoard({
             <button
               style={t.btnPrimary56} data-pay-submit="1"
               disabled={!amtValid}
-              onClick={async () => { const ok = await pay({ amount: effAmount, tendered: isCash ? enteredN : null, balance }); if (ok) setPayModal(false); }}>
+              onClick={async () => { const ok = await pay({ amount: effAmount, tendered: isCash ? enteredN : null, balance, balance0 }); if (ok) setPayModal(false); }}>
               入金する（{amtValid ? yen(grossMode ? grossN : (feeNote && noteModeOf(feeNote) !== "auto" ? feeNote.receive : effAmount)) : "—"}）{/* ★P-8: なし／指定はお客様からもらう額 */}
             </button>
           </Modal>
@@ -2665,6 +2709,35 @@ export default function RegisterBoard({
           <button type="button" className="nox-qrfull-x" onClick={() => setQrFull(null)}>閉じる</button>
         </div>
       )}
+      {/* ★0187（便 EXT・Agoora 確定 10/27 補遺）: 延長のご案内＝お客様に見せる全画面（大きな文字・税・サービス料・人数・丸め込み＝会計と同じ関数・内部情報なし・閉じるで戻る）。行をタップ→確認 1 回→check_extension_add(p_rule_id)。自動延長の店は表示だけ */}
+      {extGuide && check && (() => {
+        const units = check.time_per === "person" ? (check.people ?? 1) : 1;
+        const glA = lines.filter((l) => l.pay_group === "A"); const refA = referral?.burden === "customer" ? referral.amount : 0;
+        const sA = dueSettingsOf(check, estStore, rules0175On());
+        const canAdd = timeMode === "manual" && check.status === "open" && payments.length === 0;
+        return (
+          <div className="nox-extguide" role="dialog" aria-modal="true" aria-label="延長のご案内" data-ext-guide="1">
+            <h2 className="nox-extguide-h">延長のご案内</h2>
+            <p className="nox-extguide-sub">{units > 1 ? `${units}名さま・` : ""}税・サービス料込みの金額です</p>
+            <div className="nox-extguide-rows">
+              {extGuideRows.map(({ item, duration }) => { const price = extGuidePriceOf(glA, sA, refA, item.amount, units); return (
+                <button key={item.rule_id} type="button" className="nox-extguide-row" data-ext-guide-row={duration} disabled={!canAdd} onClick={() => setExtGuideConfirm({ item, duration, price })}>
+                  <span className="d">{extGuideLabelOf(duration)}</span><span className="p">{yen(price)}</span>
+                </button>); })}
+            </div>
+            {!canAdd && <p className="nox-extguide-sub">{timeMode !== "manual" ? "延長は自動で加算されます" : "入金後は延長を追加できません"}</p>}
+            {extGuideConfirm && (
+              <div className="nox-extguide-confirm" role="alertdialog" aria-label="延長の確認">
+                <p>{extGuideLabelOf(extGuideConfirm.duration)} {yen(extGuideConfirm.price)} を追加しますか？</p>
+                <div className="nox-actions">
+                  <button type="button" className="nox-extguide-x" onClick={() => setExtGuideConfirm(null)}>やめる</button>
+                  <button type="button" className="nox-extguide-ok" data-ext-guide-ok="1" onClick={() => { const id = extGuideConfirm.item.rule_id; setExtGuideConfirm(null); setExtGuide(false); void addExtension(id, "time"); }}>追加する</button>
+                </div>
+              </div>
+            )}
+            <div className="nox-actions"><button type="button" className="nox-extguide-x" data-ext-guide-close="1" onClick={() => { setExtGuideConfirm(null); setExtGuide(false); }}>閉じる</button></div>
+          </div>
+        ); })()}
       {/* R2-c: 正式領収書の印字実体（画面非表示・印刷時のみ＝.nox-print-only。白地黒字は帳票専用）。
           発行済み（rcptIssued）を1枚=1ページで印字。R-番号・発行日＋取引日併記（R2-12）・
           適格請求書事項（登録番号・内税10%＝ePOS 既在項目と同型）・公開 URL の QR。 */}
@@ -2738,6 +2811,9 @@ export default function RegisterBoard({
           })()}
           {/* ★便 X-8-7 (a)（裁定306 の型）: 2 段目＝延長／合計／伝票取消（／合算）。PC は display: contents＝従来の 1 行の並びのまま・≤899px は 100% 幅の 1 段（横はみ出し 0） */}
           <div className="nox-backbar-row2">
+          {mig0187On() && check.status === "open" && extGuideRows.length > 0 && (/* ★0187（便 EXT）: 延長のご案内（お客様向け全画面）＝延長パターンがある店だけ */
+            <button type="button" style={btnLight} data-ext-guide-open="1" onClick={() => { setExtGuideConfirm(null); setExtGuide(true); }}>延長のご案内</button>
+          )}
           {/* ★便 P173（裁定385 追補・0173）: 自動延長の店＝既定パターンを自動適用（選択は出さない）・切替は「延長パターン ▾」（snap 2 件以上）＝check_set_ext_rule（確定ブロックの差額引き直し） */}
           {timeMode === "auto" && check.status === "open" && (check.ext_menu_snap?.length ?? 0) >= 2 && (() => {
             const menu = check.ext_menu_snap ?? [];
@@ -3303,6 +3379,9 @@ export default function RegisterBoard({
                   延長を追加（{yen(check.ext_fee * (check.time_per === "person" ? (check.people ?? 1) : 1))} / {check.ext_min}分{(() => { const c = rules0175On() ? extCurrentOf(check.ext_menu_snap, (check as { ext_rule_id?: string | null }).ext_rule_id ?? null, check.ext_min, check.ext_fee) : null; return c && (check.ext_menu_snap?.length ?? 0) >= 2 ? `・${c.label}` : ""; })()}）{/* ★連続便 3 追補 P-10 */}
                 </button>
               </div>
+            )}
+            {mig0187On() && extGuideRows.length > 0 && (/* ★0187（便 EXT）: お客様に見せる全画面＝今の時間帯の延長時間を全部・タップで追加（確認 1 回）・主ボタン中央 */
+              <div className="nox-actions" style={{ marginTop: 8 }}><button type="button" style={btnLight} data-ext-guide-open="1" onClick={() => { setExtGuideConfirm(null); setExtGuide(true); }}>延長のご案内（お客様向け）</button></div>
             )}
             {/* R-1a 段2: 描画点＝時間料金（手動）カード。延長の**完了文言**（金額つき）。
                 エラーは従来どおり下の timeMsg＝役割を混ぜない。 */}

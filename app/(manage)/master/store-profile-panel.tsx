@@ -19,6 +19,8 @@ import MoneyInput from "@/components/ui/money-input";
 import SegSelect from "@/components/ui/seg-select";
 import { rpcErrJa } from "@/lib/nox/ui/rpc-err";
 import { JOIN_MODE_LABEL, PAY_FEE_KEYS, PAY_FEE_KEY_LABEL, joinModeOf, payFeeRatesOf, type JoinMode, type PayFeeKey } from "@/lib/nox/register/p173"; // ★便 P173（裁定386／393・0173）
+import { mig0187On } from "@/lib/nox/rules-0175/flag"; // ★0187（便 CASH）
+import { PAY_ADJUST_LABEL, PAY_ADJUST_MODES, PAY_DISCOUNT_BASE_LABEL, discountRateInputOf, payAdjustHasDisc, payAdjustHasFee, payAdjustModeOf, payDiscountBaseOf, payDiscountRatesOf, type PayAdjustMode, type PayDiscountBase, type PayDiscountKey } from "@/lib/nox/rules-0175/pay-discount"; // ★0187（便 CASH・Agoora 確定 10/27）: 支払方法の調整（なし／カード手数料／現金割引／両方）と割引対象
 import { PAY_TIME_BASIS_LABEL, payTimeBasisApplyNoteOf, payTimeBasisApplyOf, payTimeBasisViewOf, type PayTimeBasis, type PayTimeBasisView } from "@/lib/nox/payroll/time-basis"; // ★裁定324（0159・便 C-1）: 勤務時間の計算基準 // ★裁定317（0158・便 AB-6）: 送りの基本額（okuri_base_amount・0〜99,999 の整数・空欄＝未設定＝0 を送る）
 type Store = { id: string; name: string };
 // ★0164（裁定331 C 5 項目＋裁定334・便 W5-2a・2026-10-13）: 「会計と運用」節＝stores の列 7 つ（settings_json ではない）を同じ set_store_profile の patch で保存。
@@ -27,8 +29,8 @@ type Store = { id: string; name: string };
 import { OPS_DEFAULT, PAYMENT_METHOD_LABEL, PUNCH_METHOD_LABEL, opsPatchErrorOf, opsPatchOf, opsProfileOf, type OpsProfile, castPunchOffOf, castPunchMethodsOf, CAST_PUNCH_OFF_NOTE } from "@/lib/nox/store/ops-profile"; // 純関数＝lib（setup page（server）と共用）
 import { MID_PAY_OPTIONS, SETTLEMENT_CYCLE_OPTIONS, midPayOf, settlementCycleOf } from "@/lib/nox/payroll/settlement-cycle"; // ★0172（裁定349・便 P172）: 店設定 2 キー
 import { SHIFT_AUTO_CONFIRM_OPTIONS, autoConfirmHoursOf } from "@/lib/nox/shift/auto-confirm"; // ★0172（裁定380・便 P172）: 自動確定時間
-type Profile = { name: string; short: string; store_code: string; display_name: string; shift_cast_confirm: boolean; customer_purpose: string; customer_retention_years: string; ar_enabled: boolean; okuri_base_amount: string; okuri_actual: boolean; ops: OpsProfile; settlement_cycle: string; mid_pay: string; shift_auto_confirm_hours: string; join_mode: JoinMode; pay_fee: Record<PayFeeKey, string> }; // ★便 P173: join_mode（386）・pay_fee（393・％の文字列・空＝0） // ★0153（裁定305-11／293-4）: 利用目的・保持年数（1〜10・既定 5）・★0172（裁定349／380）: 精算方式・途中払い・自動確定時間
-const EMPTY: Profile = { name: "", short: "", store_code: "", display_name: "", shift_cast_confirm: false, customer_purpose: "", customer_retention_years: "5", ar_enabled: false, okuri_base_amount: "", okuri_actual: false, settlement_cycle: "monthly", mid_pay: "none", shift_auto_confirm_hours: "0", ops: OPS_DEFAULT, join_mode: "join_set", pay_fee: { card: "", emoney: "", other: "" } };
+type Profile = { pay_disc_cash: string; pay_disc_base: PayDiscountBase; pay_disc_rates_raw: Record<PayDiscountKey, number>; /* ★0187（便 CASH） */ name: string; short: string; store_code: string; display_name: string; shift_cast_confirm: boolean; customer_purpose: string; customer_retention_years: string; ar_enabled: boolean; okuri_base_amount: string; okuri_actual: boolean; ops: OpsProfile; settlement_cycle: string; mid_pay: string; shift_auto_confirm_hours: string; join_mode: JoinMode; pay_fee: Record<PayFeeKey, string> }; // ★便 P173: join_mode（386）・pay_fee（393・％の文字列・空＝0） // ★0153（裁定305-11／293-4）: 利用目的・保持年数（1〜10・既定 5）・★0172（裁定349／380）: 精算方式・途中払い・自動確定時間
+const EMPTY: Profile = { pay_disc_cash: "", pay_disc_base: "total", pay_disc_rates_raw: { cash: 0, card: 0, other: 0 }, name: "", short: "", store_code: "", display_name: "", shift_cast_confirm: false, customer_purpose: "", customer_retention_years: "5", ar_enabled: false, okuri_base_amount: "", okuri_actual: false, settlement_cycle: "monthly", mid_pay: "none", shift_auto_confirm_hours: "0", ops: OPS_DEFAULT, join_mode: "join_set", pay_fee: { card: "", emoney: "", other: "" } };
 
 const secTitle: React.CSSProperties = t.cardTitle;
 const input: React.CSSProperties = { ...t.input, width: "100%", padding: "8px 10px", fontSize: 13 };
@@ -45,6 +47,7 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
   const [cur, setCur] = useState<Profile>(EMPTY);   // サーバ現値
   const [form, setForm] = useState<Profile>(EMPTY); // 入力中
   const [loaded, setLoaded] = useState(false);
+  const [adj, setAdj] = useState<PayAdjustMode>("none"); // ★0187（便 CASH）: 支払方法の調整（なし／カード手数料／現金割引／両方）＝読み込み時に現値から決める
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   // ★裁定324（0159・便 C-1）: 勤務時間の計算基準（owner／manager）＝現在値・予約値・適用日は settings_json・当店の payroll_runs の有無で 'now'／'next'
@@ -75,8 +78,10 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
       settlement_cycle: settlementCycleOf(sj), mid_pay: midPayOf(sj), shift_auto_confirm_hours: String(autoConfirmHoursOf(sj)), // ★0172（裁定349／380）: 欠損＝既定（monthly／none／0）
       join_mode: joinModeOf(sj), // ★便 P173（裁定386）: 欠損＝join_set
       pay_fee: (() => { const r = payFeeRatesOf(sj); return { card: r.card ? String(r.card) : "", emoney: r.emoney ? String(r.emoney) : "", other: r.other ? String(r.other) : "" }; })(), // ★便 P173（裁定393）: 欠損＝0（空欄）
+      pay_disc_cash: (() => { const r = payDiscountRatesOf(sj); return r.cash ? String(r.cash) : ""; })(), pay_disc_base: payDiscountBaseOf(sj), pay_disc_rates_raw: payDiscountRatesOf(sj), // ★0187（便 CASH）: 現金割引の率・基準・他キーの現値（patch で丸ごと送るため）
     };
     setCur(p); setForm(p); setLoaded(true);
+    setAdj(payAdjustModeOf({ feeOn: PAY_FEE_KEYS.some((k) => p.pay_fee[k] !== ""), discOn: p.pay_disc_cash !== "" })); // ★0187
     const v = payTimeBasisViewOf(sj); setTb(v); setTbPick(v.next ?? v.current); setTbMsg(null); // ★324
     const { count } = await supabase.from("payroll_runs").select("id", { count: "exact", head: true }).eq("store_id", storeSel); // ★324: runs の有無（新規 fetch はこの 1 回）
     setTbRuns(count ?? 0);
@@ -101,6 +106,11 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
     // ★便 P173（裁定386／393・0173 set_store_profile 白名単）: join_mode（文字列 2 値）・pay_fee_rates（object・整数 0〜100・空欄＝0）
     if (form.join_mode !== cur.join_mode) out.join_mode = form.join_mode;
     if (PAY_FEE_KEYS.some((k) => form.pay_fee[k] !== cur.pay_fee[k])) out.pay_fee_rates = Object.fromEntries(PAY_FEE_KEYS.map((k) => [k, form.pay_fee[k].trim() === "" ? 0 : Number(form.pay_fee[k])]));
+    // ★0187（便 CASH・MIG_0187_APPLIED）: 現金割引の率（pay_discount_rates＝他キーの現値ごと丸ごと・小数 1 桁）と基準（pay_discount_base）＝フラグ false の間は送らない（pay_discount_base が白名単に無い）
+    if (mig0187On()) {
+      if (form.pay_disc_cash !== cur.pay_disc_cash) out.pay_discount_rates = { ...form.pay_disc_rates_raw, cash: discountRateInputOf(form.pay_disc_cash) ?? -1 };
+      if (form.pay_disc_base !== cur.pay_disc_base) out.pay_discount_base = form.pay_disc_base;
+    }
     return out;
   };
   const dirty = Object.keys(patchOf()).length > 0;
@@ -112,6 +122,7 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
     if ("customer_retention_years" in patch && (!Number.isInteger(patch.customer_retention_years) || (patch.customer_retention_years as number) < 1 || (patch.customer_retention_years as number) > 10)) { setMsg("保持年数は 1〜10 の整数で入力してください"); return; }
     if ("customer_purpose" in patch && String(patch.customer_purpose).length > 200) { setMsg("利用目的は 200 文字までです"); return; }
     if ("okuri_base_amount" in patch && (!Number.isInteger(patch.okuri_base_amount) || (patch.okuri_base_amount as number) < 0 || (patch.okuri_base_amount as number) > 99999)) { setMsg("送りの基本額は 0〜99,999 の整数で入力してください"); return; }
+    if ("pay_discount_rates" in patch && ((patch.pay_discount_rates as { cash: number }).cash < 0)) { setMsg("現金割引の率は 0〜100（小数 1 桁まで）で入力してください"); return; } // ★0187（便 CASH）: RPC の 'bad pay_discount_rates' を先回り
     // ★0164（便 W5-2a）: 会計と運用＝RPC の 'bad pay_day'／'bad payment_methods'／'bad punch_methods' と同じ条件を先回り（二重防御の外側）
     { const e = opsPatchErrorOf(patch); if (e) { setMsg(e); return; } }
     setBusy(true); setMsg(null);
@@ -210,7 +221,28 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
               <span style={{ display: "block", fontSize: 11.5, color: "var(--sub)", marginTop: 4 }}>セット料金は引き直しません（減った場合も同じ）。合流セット＝増えた人数分のセット料金を 1 行追加。</span>
             </label>}
             {/* ★便 P173（裁定393・0173）: 支払方法別の手数料（お客様負担）＝入金額×率・伝票に行・日報に合計 1 行・キャスト売上には含めない。既存店は欠損＝0（新規店の初期値はカード 10%） */}
-            {on("profile") && <div style={{ minWidth: 0 }} data-pay-fee-rates="1">
+            {on("profile") && mig0187On() && <div style={{ minWidth: 0, gridColumn: "1 / -1" }} data-pay-adjust="1">{/* ★0187（便 CASH・Agoora 確定 10/27）: 支払方法の調整＝なし／カード手数料／現金割引／両方。現金割引の率と割引対象（合計から＝既定／小計から＝税理士 T15 の回答待ちの仮置き） */}
+              <span style={label}>支払方法の調整<span style={{ fontWeight: 400, marginLeft: 6 }}>お客様への手数料の上乗せ・現金のときの割引</span></span>
+              <span className="nox-seg" role="radiogroup" aria-label="支払方法の調整" style={{ display: "inline-flex", flexWrap: "wrap" }}>
+                {PAY_ADJUST_MODES.map((m) => (
+                  <button key={m} type="button" className={adj === m ? "on" : ""} data-pay-adjust-opt={m} disabled={busy || !loaded} style={{ fontWeight: 800, fontSize: 12, padding: "6px 12px" }}
+                    onClick={() => { setAdj(m); setForm((f) => ({ ...f, pay_fee: payAdjustHasFee(m) ? f.pay_fee : { card: "", emoney: "", other: "" }, pay_disc_cash: payAdjustHasDisc(m) ? f.pay_disc_cash : "" })); }}>{PAY_ADJUST_LABEL[m]}</button>
+                ))}
+              </span>
+              {payAdjustHasDisc(adj) && <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 2fr)", gap: 8, marginTop: 8 }}>
+                <label style={{ display: "block", minWidth: 0, fontSize: 12 }}>現金割引の率（％）
+                  <input type="number" min={0} max={100} step={0.1} inputMode="decimal" value={form.pay_disc_cash} disabled={busy || !loaded} aria-label="現金割引の率" data-pay-disc-cash="1"
+                    onChange={(e) => setForm((f) => ({ ...f, pay_disc_cash: e.target.value.replace(/[^0-9.]/g, "").slice(0, 5) }))} style={{ ...input, marginTop: 2 }} placeholder="10" />
+                </label>
+                <label style={{ display: "block", minWidth: 0, fontSize: 12 }}>割引対象
+                  <select value={form.pay_disc_base} disabled={busy || !loaded} onChange={(e) => setForm((f) => ({ ...f, pay_disc_base: e.target.value === "subtotal" ? "subtotal" : "total" }))} style={{ ...input, marginTop: 2 }} aria-label="割引対象" data-pay-disc-base="1">
+                    {(["total", "subtotal"] as PayDiscountBase[]).map((v) => <option key={v} value={v}>{PAY_DISCOUNT_BASE_LABEL[v]}</option>)}
+                  </select>
+                </label>
+                <span style={{ gridColumn: "1 / -1", fontSize: 11.5, color: "var(--sub)", lineHeight: 1.6 }}>合計から＝税・サービス料込みの残額×率を最後に引き、店の端数処理で丸めます（既定・税理士の確認待ちの仮置き）。小計から＝税・サービス料の前の小計から引いてから税・サービス料。入金のたびに「率を指定／額を指定／なし」で上書きできます（店長以上）。</span>
+              </div>}
+            </div>}
+            {on("profile") && (!mig0187On() || payAdjustHasFee(adj)) && <div style={{ minWidth: 0 }} data-pay-fee-rates="1">
               <span style={label}>支払方法別の手数料（お客様負担）<span style={{ fontWeight: 400, marginLeft: 6 }}>％・0 は手数料なし（モーダルに出ません）</span></span>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8, marginTop: 4 }}>
                 {PAY_FEE_KEYS.map((k) => (

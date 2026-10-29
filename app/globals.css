@@ -3003,3 +3003,23 @@ input[type="date"]::-webkit-date-and-time-value, input[type="time"]::-webkit-dat
   .nox-normax-save { justify-content: center; flex-direction: column; }
   .nox-normax-save > button { width: 100%; max-width: 320px; }
 }
+
+/* ★0187 便 EXT（2026-10-27 夜・Agoora 確定 10/27 補遺）: 延長のご案内＝お客様に見せる全画面（白地・大きな文字・内部情報なし・閉じるで戻る）。.nox-qrfull と同じ流儀の白地（帳票・お客様向けの例外） */
+.nox-extguide { position: fixed; inset: 0; z-index: 3000; background: #fff; color: #111; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; padding: 24px 16px; overflow: auto; }
+.nox-extguide-h { font-size: 32px; font-weight: 900; margin: 0; letter-spacing: .04em; }
+.nox-extguide-sub { font-size: 16px; color: #555; margin: 0; text-align: center; }
+.nox-extguide-rows { display: grid; grid-template-columns: 1fr; gap: 12px; width: min(560px, 100%); }
+.nox-extguide-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; border: 2px solid #222; border-radius: 14px; background: #fff; color: #111; padding: 18px 22px; font: inherit; font-size: 26px; font-weight: 800; cursor: pointer; min-height: 72px; }
+.nox-extguide-row:disabled { cursor: default; opacity: .92; }
+.nox-extguide-row .p { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.nox-extguide-confirm { border: 2px solid #222; border-radius: 14px; padding: 18px 22px; font-size: 20px; font-weight: 800; width: min(560px, 100%); text-align: center; }
+.nox-extguide-confirm p { margin: 0 0 12px; }
+.nox-extguide .nox-actions { display: flex; justify-content: center; gap: 12px; width: min(560px, 100%); }
+.nox-extguide-x { border: 1px solid #222; background: #fff; color: #111; border-radius: 10px; padding: 12px 28px; font: inherit; font-size: 16px; font-weight: 700; cursor: pointer; min-height: 48px; }
+.nox-extguide-ok { border: 1px solid #111; background: #111; color: #fff; border-radius: 10px; padding: 12px 28px; font: inherit; font-size: 16px; font-weight: 800; cursor: pointer; min-height: 48px; }
+@media (max-width: 600px) { .nox-extguide { gap: 14px; } .nox-extguide-h { font-size: 26px; } .nox-extguide-row { font-size: 22px; padding: 14px 16px; min-height: 60px; } .nox-extguide-confirm { font-size: 18px; } }
+@media print { .nox-extguide { display: none; } }
+
+/* ★便 2 M-17 追補（2026-10-29）: 手数料の率の −／＋（C2-8 の−／＋と同じ部品・タップ目安 40px） */
+.nox-step-btn { width: 40px; height: 34px; border-radius: 8px; border: 1px solid var(--line2); background: var(--card2); color: var(--ink); font-size: 16px; font-weight: 800; touch-action: manipulation; user-select: none; cursor: pointer; }
+.nox-step-btn:disabled { opacity: .45; cursor: default; }
