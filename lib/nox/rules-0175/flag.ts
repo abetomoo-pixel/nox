@@ -40,7 +40,7 @@ export function mig0186On(): boolean { return override0186 ?? MIG_0186_APPLIED; 
 export function __set0186ForTest(v: boolean | null): void { override0186 = v; }
 /** ★0187（便 CASH＋便 EXT・2026-10-27 夜）: 0187（現金割引の基準＝合計から／小計から・check_pay の p_disc_rate／p_disc_amount・延長パターンの凍結を全行に）を Agoora が手貼りしたら true。
  *  false の間＝入金モーダルの割引欄・店設定「支払方法の調整」・延長のご案内・M-17 の割引の内訳は出ない（割引は RPC が従来どおり自動で立てる）・check_pay に p_disc_* を送らない（旧 11 引数のまま） */
-export const MIG_0187_APPLIED = false;
+export const MIG_0187_APPLIED = true; // ★2026-10-29: 0187（sha16 15037e893c142cad）を Agoora が手貼り＝verify 全一致（md5 11 本・関数 382→384・check_pay 13 引数・★0187 11 本）・mig を流さない t0187 20/20→ true
 let override0187: boolean | null = null;
 export function mig0187On(): boolean { return override0187 ?? MIG_0187_APPLIED; }
 export function __set0187ForTest(v: boolean | null): void { override0187 = v; }

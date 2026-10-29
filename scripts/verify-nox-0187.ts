@@ -34,7 +34,7 @@ const J = JSON.stringify;
 async function main() {
 
 // ── (A) フラグ ──
-check("0187(A-1) MIG_0187_APPLIED＝false（手貼りの後に 1 行で true）・mig0187On はテストで差し替えられる", MIG_0187_APPLIED === false && mig0187On() === false && (__set0187ForTest(true), mig0187On() === true) && (__set0187ForTest(null), mig0187On() === false));
+check("0187(A-1) MIG_0187_APPLIED＝true（2026-10-29 手貼り後＝sha16 15037e893c142cad・verify 全一致）・mig0187On はテストで差し替えられる", MIG_0187_APPLIED === true && mig0187On() === true && (__set0187ForTest(false), mig0187On() === false) && (__set0187ForTest(null), mig0187On() === true));
 
 // ── (B) 便 CASH の鏡 ──
 const S: CheckDueSettings = { service_rate: 30, round_unit: 1, round_mode: "down", business_tax_status: "taxable", price_display: "tax_excluded", tax_rounding: "floor" };
@@ -191,7 +191,7 @@ const SNAP: ExtSnapItem[] = [
   const rb = src("app/(manage)/register/register-board.tsx"), sp = src("app/(manage)/master/store-profile-panel.tsx"), css = src("app/globals.css"), fl = src("lib/nox/rules-0175/flag.ts");
   check("0187(E-1) check_pay の引数＝フラグ true かつ割引キーのある方法だけ p_disc_rate／p_disc_amount（店の率＝送らない・上限は割引前の残額 balance0）・成功時に方式を既定へ戻す",
     rb.includes("...(mig0187On() && payDiscountKeyOf(payMethod) && payDiscountRates[payDiscountKeyOf(payMethod)!] > 0 ? discountArgsOf(discMode, /^\\d+$/.test(discManual) ? Number(discManual) : null, feeRateInputOf(discRateIn), over?.balance0 ?? over?.balance ?? (over ? over.amount : payAmount)) : {}),") && rb.includes('setDiscMode("auto"); setDiscManual(""); setDiscRateIn(""); /* ★0187: 方法を替えたら割引の方式は既定へ')
-    && rb.includes('setDiscMode("auto"); setDiscManual(""); setDiscRateIn("");') && rb.includes("tendered: isCash ? enteredN : null, balance, balance0 })") && fl.includes("export const MIG_0187_APPLIED = false;"));
+    && rb.includes('setDiscMode("auto"); setDiscManual(""); setDiscRateIn("");') && rb.includes("tendered: isCash ? enteredN : null, balance, balance0 })") && fl.includes("export const MIG_0187_APPLIED = true; // ★2026-10-29: 0187（sha16 15037e893c142cad）"));
   check("0187(E-2) 入金モーダル＝割引欄はフラグ true かつ店の率 > 0 の方法（discOn）だけ・M-6 と同じ部品（4 択・率／額の入力・店長以上）・残額は割引後（balance＝newBalance）・割引対象の注記",
     rb.includes("const discOn = mig0187On() && discKey !== null && discRate0 > 0;") && rb.includes("const balance = discPrev ? discPrev.newBalance : balance0;") && rb.includes('data-pay-disc-row="1"') && rb.includes("{payDiscountModesFor(isManagerUp).map((m) => (")
     && rb.includes('data-disc-rate-input="1"') && rb.includes('data-disc-manual-input="1"') && rb.includes("割引対象＝{PAY_DISCOUNT_BASE_SHORT[payDiscountBase]}") && rb.includes("settings: dueSettingsOf(check, estStore, rules0175On())"));
@@ -236,6 +236,6 @@ const SNAP: ExtSnapItem[] = [
 }
 
 if (fails.length) { console.log(`verify:nox-0187 FAIL ${fails.length} / pass ${pass}`); for (const f of fails) console.log(" - " + f.slice(0, 1500)); process.exit(1); }
-console.log(`verify:nox-0187 OK ${pass} checks（便 2＝0187 の client・MIG_0187_APPLIED=false 配下・CASH の鏡・M-17・EXT の鏡＝本番の延長パターンで突合）`);
+console.log(`verify:nox-0187 OK ${pass} checks（便 2＝0187 の client・MIG_0187_APPLIED=true（2026-10-29 手貼り後）・CASH の鏡・M-17・EXT の鏡＝本番の延長パターンで突合）`);
 }
 void main();

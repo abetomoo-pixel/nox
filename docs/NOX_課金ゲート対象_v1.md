@@ -329,6 +329,10 @@ kiosk_provision（新規 kiosk の追加＝拡大操作）
 - 0186: flag_unset・set_store_special_day
 （対象 181→**185**・live 実測＝'billing locked' **185**・述語参照 186）
 
+### A13. 0187（1本・2026-10-29 本番適用・便 2 で収載・規則A形でゲート内蔵・kiosk 腕なし）
+- 0187: remove_store_special_day（★set_store_special_day と揃えた＝B(p) から移動・0186 締めの候補）
+（対象 185→**186**・live 実測＝'billing locked' **186**・述語参照 187）
+
 ## B. 除外（99本）
 
 ### B(a) 構造除外＝authenticated 実行不可（service/内部・28本）→ ゲート不要（B7 回避型(1)）
@@ -480,8 +484,11 @@ staff_deactivate / kiosk_deactivate
 - 内部専用（4 ロール revoke）: payroll_period_locked_of・payroll_subject_store_of
 - キオスクの QR（端末／本人の解除＝kiosk_unlock と同じ扱い）: kiosk_qr_claim・kiosk_qr_poll・kiosk_qr_secret
 - 監査の記録: audit_export_record
-- 特別日の削除: remove_store_special_day（★特別日の設定のほうはゲートあり＝A12・揃えるかは次の mig の候補・台帳「手貼り 0180〜0186 の締め」）
-（除外 186→**197**・全数 367→**382**）
+（除外 186→**197**・全数 367→**382**・特別日の削除 remove_store_special_day は 2026-10-29 の 0187 で A13 へ）
+
+### B(q). 0187 新設の除外（2本・2026-10-29 手貼り・便 2）
+- 内部専用（4 ロール revoke・延長パターンの凍結メニュー）: ext_menu_build・ext_menu_pick
+（除外 197→**198**・全数 382→**384**）
 
 ## C. kiosk 腕を持つ対象（実装注意・18本）
 A1 の check_open / check_add_line / check_remove_line / check_add_seat / check_remove_seat /
