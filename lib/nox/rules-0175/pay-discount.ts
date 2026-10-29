@@ -102,14 +102,14 @@ export function payReceiveLabelOf(method: string): string {
   if (method === "qr") return "QR 決済でのお支払額";
   return "残額";
 }
-/** 受け取る額と内訳＝残額＋手数料−割引（割引で丸め直した差は「丸め」として出す）。内訳なし（手数料 0・割引 0・方式が既定）は note null */
-export function payReceiveOf(i: { method: string; balance: number; newBalance: number; fee: number; feeText: string | null; disc: number; discText: string | null }): { label: string; amount: number; note: string | null } {
+/** 受け取る額と内訳＝残額＋手数料−割引。割引で残額が「残額−割引」とずれる分＝合計から（既定）は丸め直し（「丸め」）・小計からはサ・税が割引分だけ減る（「サ・税の減り」）。内訳なし（手数料 0・割引 0・方式が既定）は note null */
+export function payReceiveOf(i: { method: string; balance: number; newBalance: number; fee: number; feeText: string | null; disc: number; discText: string | null; base?: PayDiscountBase }): { label: string; amount: number; note: string | null } {
   const yen = (n: number) => "¥" + Math.abs(n).toLocaleString();
   const parts: string[] = [];
   if (i.feeText !== null) parts.push(`＋手数料 ${yen(i.fee)}（${i.feeText}）`);
   if (i.discText !== null) parts.push(`−${i.discText}`);
   const roundDiff = i.newBalance - (i.balance - i.disc);
-  if (i.disc > 0 && roundDiff !== 0) parts.push(`${roundDiff < 0 ? "−" : "＋"}丸め ${yen(roundDiff)}`);
+  if (i.disc > 0 && roundDiff !== 0) parts.push(`${roundDiff < 0 ? "−" : "＋"}${i.base === "subtotal" ? "サ・税の減り" : "丸め"} ${yen(roundDiff)}`); // ★live 10/29: 小計からは丸めではなくサ・税の減り
   const amount = Math.max(0, i.newBalance + i.fee);
   return { label: payReceiveLabelOf(i.method), amount, note: parts.length ? `残額 ${yen(i.balance)}${parts.join("")}` : null };
 }

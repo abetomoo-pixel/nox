@@ -2234,7 +2234,7 @@ export default function RegisterBoard({
                 const feeAmt = grossMode ? grossDefault - balance : (feeNote ? feeNote.fee : 0);
                 const feeText = feeNote && (feeNote.fee > 0 || fm !== "auto") ? (fm === "auto" ? `${feeNote.rate}%` : fm === "rate" ? `指定 ${feeNote.rate}%` : fm === "none" ? "なし" : "指定") : null;
                 const discText = discPrev && (discPrev.disc > 0 || discMode0 !== "auto") ? `割引 ¥${discPrev.disc.toLocaleString()}（${discMode0 === "manual" ? "指定" : discMode0 === "none" ? "なし" : `${discountRateTextOf(discPrev.rate)}%`}・${PAY_DISCOUNT_BASE_SHORT[payDiscountBase]}）` : null; // ★M-17 追補 ④: 「残額 ¥a−割引 ¥c（n%・合計から／小計から）」
-                const rc = payReceiveOf({ method: payMethod, balance: balance0, newBalance: balance, fee: feeAmt, feeText, disc: discPrev?.disc ?? 0, discText });
+                const rc = payReceiveOf({ method: payMethod, balance: balance0, newBalance: balance, fee: feeAmt, feeText, disc: discPrev?.disc ?? 0, discText, base: payDiscountBase });
                 const oneOf = paySplitN && grossMode && grossN === Math.ceil(grossDefault / paySplitN) ? grossN : null; // ★便 X13-H H-14: 均等割りの 1 人分（手数料込み）
                 return (
                   <div data-pay-receive="1" data-pay-card-total={grossMode ? "1" : undefined} data-pay-receive-method={payMethod} style={{ marginTop: 4 }}>
