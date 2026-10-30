@@ -14,6 +14,10 @@
 //     参照先を保全・誤操作時は unban で復旧可・真の防御は kiosk_devices.is_active＝RPC 毎回照合）。
 // GET: owner 専用の端末一覧（kiosk_devices は deny-all のため owner でも直 SELECT 不可＝
 //   この route が admin で読んで返す唯一の管理用読み口。master のキオスク管理セクションが使う）。
+// ★0190（裁定436 ①b／便 K ⑦ M-29 ⑤・2026-10-30）:
+//   GET は device_fp を生では返さず bound（boolean）＋bound_at／bound_ua を返す（端末の固定の列・解除は kiosk_device_unbind を panel が直接呼ぶ）。
+//   reactivate: kiosk_reactivate RPC（owner・無効の端末だけ・上限 3 台）→ 同じ updateUserById で unban＋新 PW＝reissue と同じ形で 1 回だけ返す（deactivate の ban の鏡像）。
+//   delete: kiosk_delete RPC（owner・無効の端末だけ・kiosk_sessions を先に消す・audit）→ admin.deleteUser（失敗は warn で返す＝行は消えているので再実行は不要・孤児はログ）。
 import { NextResponse } from "next/server";
 import { randomInt } from "node:crypto";
 import { createClient } from "@/lib/supabase/server";
@@ -62,11 +66,15 @@ export async function GET() {
       // ★0109: last_seen_at＝打刻端末の最終アクセス（kiosk_punch 成功経路のみ更新）。
       //   0108 でレジ端末（kiosk_login）側にも入っており、両用途とも同じ列を読む。
       //   ★last_ip は返さない（モックの端末表に IP 列が無い＝裁定 2026-08-28）。
-      .select("id, store_id, label, purpose, is_active, created_at, last_seen_at")
+      //   ★0190: device_fp／bound_at／bound_ua＝端末の固定（fp そのものは client に返さない＝bound の boolean に写す）。
+      .select("id, store_id, label, purpose, is_active, created_at, last_seen_at, device_fp, bound_at, bound_ua")
       .eq("org_id", g.orgId)
       .order("created_at", { ascending: false });
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    return NextResponse.json({ devices: data ?? [] });
+    const devices = ((data ?? []) as Array<Record<string, unknown>>).map(({ device_fp, ...rest }) => ({
+      ...rest, bound: !!device_fp, bound_at: (rest.bound_at as string | null) ?? null, bound_ua: (rest.bound_ua as string | null) ?? null,
+    }));
+    return NextResponse.json({ devices });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });
   }
@@ -131,9 +139,55 @@ export async function POST(req: Request) {
       return NextResponse.json({ device_id: deviceId, login_email: au.user?.email ?? "", initial_password: password, reissued: true });
     }
 
+    // ── reactivate 分岐（★0190 M-29 ⑤: 無効化した端末を「再発行して有効化」＝kiosk_reactivate（is_active=true・上限 3 台・audit）→ auth は unban＋新 PW を同じ updateUserById で。
+    //    レスポンスは reissue と同じ形（reissued:true）＝panel は同じ 1 回だけのモーダルを出す）──
+    if (body.action === "reactivate") {
+      const deviceId = body.deviceId;
+      if (typeof deviceId !== "string" || !UUID_RE.test(deviceId))
+        return NextResponse.json({ error: "deviceId required (uuid)" }, { status: 400 });
+      const { data: dev } = await admin.from("kiosk_devices").select("auth_user_id, is_active").eq("id", deviceId).eq("org_id", g.orgId).single();
+      if (!dev?.auth_user_id) return NextResponse.json({ error: "not found" }, { status: 404 });
+      const { error: eRpc } = await g.supabase.rpc("kiosk_reactivate", { p_device_id: deviceId });
+      if (eRpc) {
+        const m = eRpc.message;
+        const status = m.includes("forbidden") ? 403 : m.includes("not found") ? 404 : m.includes("already active") ? 409 : m.includes("device limit") ? 409 : m.includes("billing locked") ? 423 : 500;
+        return NextResponse.json({ error: m }, { status });
+      }
+      // auth 側: deactivate の ban（876000h）を解いて新しい PW（旧 PW は無効化時に ban 済み＝生きていても使えない）。失敗＝is_active は true に戻っているので再実行（reissue）で PW だけ出し直せる
+      const password = genPassword();
+      const { data: au, error: eUp } = await admin.auth.admin.updateUserById(dev.auth_user_id as string, { ban_duration: "none", password });
+      if (eUp) {
+        console.error(`[kiosk/provision] reactivate: auth unban／PW 更新失敗（device は有効化済み・「認証情報を再発行」でリトライ可） auth_user_id=${dev.auth_user_id} error=${eUp.message}`);
+        return NextResponse.json({ error: `auth update failed: ${eUp.message}` }, { status: 500 });
+      }
+      return NextResponse.json({ device_id: deviceId, login_email: au.user?.email ?? "", initial_password: password, reissued: true, reactivated: true });
+    }
+
+    // ── delete 分岐（★0190 M-29 ⑤: 無効化済みの端末を削除＝kiosk_delete（kiosk_sessions→kiosk_devices・audit 'kiosk_delete'）→ auth user を deleteUser。
+    //    deleteUser の失敗は warn で返す（行は既に消えている＝参照先が無いので孤児はログに残して握り潰さない・deactivate の ban が効いたまま）──
+    if (body.action === "delete") {
+      const deviceId = body.deviceId;
+      if (typeof deviceId !== "string" || !UUID_RE.test(deviceId))
+        return NextResponse.json({ error: "deviceId required (uuid)" }, { status: 400 });
+      const { data: dev } = await admin.from("kiosk_devices").select("auth_user_id").eq("id", deviceId).eq("org_id", g.orgId).single();
+      if (!dev?.auth_user_id) return NextResponse.json({ error: "not found" }, { status: 404 });
+      const { error: eRpc } = await g.supabase.rpc("kiosk_delete", { p_device_id: deviceId });
+      if (eRpc) {
+        const m = eRpc.message;
+        const status = m.includes("forbidden") ? 403 : m.includes("not found") ? 404 : m.includes("still active") ? 409 : m.includes("billing locked") ? 423 : 500;
+        return NextResponse.json({ error: m }, { status });
+      }
+      const { error: eDel } = await admin.auth.admin.deleteUser(dev.auth_user_id as string);
+      if (eDel) {
+        console.error(`[kiosk/provision] delete: auth user 削除失敗（kiosk_devices 行は削除済み＝auth 孤児が残存） auth_user_id=${dev.auth_user_id} error=${eDel.message}`);
+        return NextResponse.json({ deleted: true, auth_deleted: false, warn: `auth delete failed: ${eDel.message}` });
+      }
+      return NextResponse.json({ deleted: true, auth_deleted: true });
+    }
+
     // ── provision 分岐 ──
     if (body.action !== "provision")
-      return NextResponse.json({ error: "action must be provision, deactivate or reissue" }, { status: 400 });
+      return NextResponse.json({ error: "action must be provision, deactivate, reissue, reactivate or delete" }, { status: 400 });
     const storeId = body.storeId;
     if (typeof storeId !== "string" || !UUID_RE.test(storeId))
       return NextResponse.json({ error: "storeId required (uuid)" }, { status: 400 });
@@ -176,7 +230,7 @@ export async function POST(req: Request) {
       const m = eRpc.message;
       const status = m.includes("forbidden")
         ? 403
-        : m.includes("already provisioned")
+        : m.includes("already provisioned") || m.includes("device limit") // ★0190: 上限 3 台（店舗×用途・無効は数えない）
           ? 409
           : m.includes("bad")
             ? 400

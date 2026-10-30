@@ -14,7 +14,7 @@ import Toast, { Message, type MessageKind } from "@/components/ui/toast";
 import { rpcErrJa, isRpcMissingError } from "@/lib/nox/ui/rpc-err";
 import SegSelect from "@/components/ui/seg-select"; // ★0154 D6: 契約区分
 import { WITHHOLDING_KIND_LABEL, WITHHOLDING_KIND_SELECT_NOTE, WITHHOLDING_KIND_SHORT, defaultWithholdingKindOf, withholdingKindChoices, withholdingKindOf } from "@/lib/nox/payroll/withholding-kind"; // ★便 M3 M-21
-import { mig0183On, mig0188On } from "@/lib/nox/rules-0175/flag"; // ★便 M3 M-21
+import { mig0183On, mig0188On, mig0190On } from "@/lib/nox/rules-0175/flag"; // ★便 M3 M-21 // ★0190（裁定436 ①c）: 退店の失効（route）
 import { NOTE_EMPLOYMENT, NOTE_LABOR, amountKeyOf, laborNoteNeeded, nextPeriodStartOf, overridesWithRule, payRuleLabelOf, payRuleOptionsOf, ruleOfOverrides, type Employment } from "@/lib/nox/cast/pay-rule"; // ★0154 D2／D6
 import type { PayRule } from "@/lib/nox/pay";
 // ★夜間便 N4（裁定282-2／282-3／287-3・0151 ★3）: 保証時給の表示用純関数（DB を知らない）
@@ -526,7 +526,16 @@ export default function CastsBoard({
     const { error } = await supabase.rpc(kind === "leave" ? "cast_leave" : "cast_rejoin",
       kind === "leave" ? { p_cast_id: c.id, p_left_on: null } : { p_cast_id: c.id });
     const key = Object.keys(LEAVE_MSG).find((k) => (error?.message ?? "").includes(k));
-    setMsg(error ? (key ? LEAVE_MSG[key] : `${label}に失敗: ${error.message}`) : `${label}しました`);
+    // ★0190（裁定436 ①c）: RPC 成功の後に auth の失効（退店＝ban・復活＝unban）を route に頼む。RPC 側は staff_pin の削除と kiosk_sessions の終了を済ませている。
+    //   route の失敗は退店を止めない（is_active=false が真の防御・再実行で ban し直せる）＝注記を足すだけ
+    let retireNote = "";
+    if (!error && mig0190On()) {
+      try {
+        const res = await fetch("/api/auth/retire", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ kind: "cast", id: c.id, mode: kind === "leave" ? "ban" : "unban" }) });
+        if (!res.ok) retireNote = "（ログインの失効は後で再実行できます）";
+      } catch { retireNote = "（ログインの失効は後で再実行できます）"; }
+    }
+    setMsg(error ? (key ? LEAVE_MSG[key] : `${label}に失敗: ${error.message}`) : `${label}しました${retireNote}`);
     setBusy(false);
     await reloadLoginCasts();
   }

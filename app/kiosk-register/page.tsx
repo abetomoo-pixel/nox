@@ -1,109 +1,48 @@
 "use client";
 
 // K レジ用キオスク（裁定11/15・mig0056〜0059 と対・タブレット常設前提）。
-// 認証2層: ①端末＝Supabase auth（register kiosk アカウント・users/memberships 非連動）
-//          ②操作担当＝kiosk_login（membership 選択＋PIN 4桁＝staff_pin・サーバ側 kiosk_sessions）。
-// 画面ガードは利便のみ＝kiosk_operator_list が 0行なら「レジ端末ではない」を表示するだけで、
-// 真の防御は RPC（会計12本の kiosk 腕＝0057/0058・読取2本の正ガード＝0059）。
-// 読取は 0059 の kiosk_register_state / kiosk_check_detail の2本のみ（直テーブル SELECT なし＝RLS 0行）。
-// ★UI 契約（0059 (b)）: state/detail をタイマー自動ポーリングしない（読取だけで滑走 idle が
-//   延命され 15分失効が死ぬため）。読取は操作起点のみ。idle 表示と自動ロックはローカル時計のみで行い、
-//   タイマーから RPC は一切呼ばない（サーバ側 15分失効は独立に効く＝forbidden で operator 選択へ戻る）。
-// void・割引承認・ボトルキープは kiosk 非対象（裁定11 確定①②＋顧客系非開示）＝UI からも出さない。
+// ★0190 フラグ true 便（K-0・裁定435 追補・2026-10-30）: キオスクのレジは本店の register-board と**同一部品**。
+//   この画面は「包み」だけ＝端末ログイン（端末アカウント k-〜）・端末の束縛（kiosk_device_bind）・操作担当の解除（人を選ぶ→PIN 4〜6 桁＝裁定437・QR は近道）・
+//   交代／離席（kiosk_lock）・無操作の自動ロック（3 分・店設定 kiosk_idle_sec）・操作担当のバー。レジ本体（開卓・注文・指名・会計・締め）は RegisterBoard を同じ props で描く。
+//   写し（旧 1,253 行の register-board 写経）は撤去＝改修が追いつかない写しを置かない（教訓126 候補）。
+//   読取＝RegisterBoard が直読みする 29 表に 0190 の kiosk 腕（<t>_select_kiosk＝端末の店 × 操作担当あり）・書込＝会計 RPC の kiosk 腕（0057/0058）＋打刻ゲート（assert_on_duty）。
+//   セッション失効（サーバ側 15 分／店設定）＝RPC が 'forbidden'（RegisterBoard は「権限がありません」を出す）→ 操作担当のバーの「交代／離席」で選び直す。ローカルの自動ロック（3 分）が先に効く。
+// 認証2層: ①端末＝Supabase auth（register kiosk アカウント・users/memberships 非連動）②操作担当＝kiosk_login（membership 選択＋PIN＝staff_pin・サーバ側 kiosk_sessions）。
+// 画面ガードは利便のみ＝kiosk_operator_list が 0行なら「レジ端末ではない」を表示するだけで、真の防御は RPC と RLS の kiosk 腕。
+// ★UI 契約（0059 (b)）: タイマーから RPC は一切呼ばない（idle 表示と自動ロックはローカル時計のみ）。
 import { useCallback, useEffect, useRef, useState } from "react";
-import SegSelect from "@/components/ui/seg-select";
 import { createClient } from "@/lib/supabase/client";
-import { groupDue, timeStatusOf } from "@/lib/nox/check-calc";
-import { useTapBatch } from "@/lib/nox/ui/use-tap-batch";
-import { groupProducts } from "@/lib/nox/ui/product-groups";
 import * as t from "@/lib/nox/ui/theme";
-import { defaultWeights, redistribute, renormalizeKeepZeros } from "@/lib/nox/nom-shares";
 import CastAvatar from "@/components/ui/cast-avatar";
-import Modal from "@/components/ui/modal";
-import CastPicker from "@/components/nox/cast-picker";
-import { BILLING_LOCKED_MSG_KIOSK, isBillingLocked } from "@/lib/billing/messages";
-import { mig0185On, rules0175On } from "@/lib/nox/rules-0175/flag"; // ★追補 2 同乗 R-7 ★QR 便: mig0185On
-import KioskUnlockPad from "@/components/nox/kiosk-unlock-pad"; // ★追補 2 同乗 R-7（裁定423 候補）: PIN だけ／QR で解除
+import RegisterBoard from "@/app/(manage)/register/register-board"; // ★K-0: 本店のレジと同一部品
+import { mig0185On, mig0190On, rules0175On } from "@/lib/nox/rules-0175/flag";
+import KioskQrDisplay from "@/components/nox/kiosk-qr-display"; // ★QR 便（0185）: QR は近道として残す（裁定437）
 import { kioskIdleMsOf } from "@/lib/nox/rules-0175/kiosk-qr"; // ★QR 便: QR で開いた解除は無操作 3 分
+import { kioskIdleSecOf } from "@/lib/nox/rules-0175/kiosk";
+import { bindErrJa, browserDeviceFp } from "@/lib/nox/kiosk/device-fp"; // ★0190（裁定436 ①b）: 端末の束縛
+import { seatsVisibleOf } from "@/lib/nox/floor-kinds"; // ★0164（便 W5-2a）: register/page.tsx と同じ席の出し分け
+import Toast, { Message } from "@/components/ui/toast";
 
-import { rpcErrJa as rpcErrJaCommon } from "@/lib/nox/ui/rpc-err"; // ★N2-2（2026-09-18）: 生の RPC 語の日本語化（写像に無い語は「処理できませんでした（コード: …）」）
-import Toast, { Message } from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 type OpRow = { membership_id: string; user_name: string; role: string; has_pin: boolean };
-type StateSeat = { id: string; name: string; kind: string | null };
-// 純増⑦（0059 v2）: products.category_id / categories 配列 / checks.started_at が追加された
-// mig0082: sort_order＝カテゴリ内の並び順。RPC 側の order by で既に整列済みだが、
-//   groupProducts（register と共有）が同じ規則で並べ直せるよう実値を受け取る＝二重保険。
-//   ★0082 未適用の環境では undefined になり name 順へ縮退する（0081 client 実装と同じ挙動）。
-type StateProduct = { id: string; name: string; type: string; price: number; category_id: string | null; sort_order?: number };
-type StateCategory = { id: string; name: string; sort_order: number };
-type StateCast = { id: string; name: string };
-// R-A5（0089 E節）: state.checks へ加算的キー4つ（卓タイルの時間ステータス用スナップ）
-type StateCheck = { id: string; seat_id: string; extra_seat_ids: string[]; total: number; started_at: string; set_min: number; ext_min: number; time_per: string; people: number | null };
-type RegState = { seats: StateSeat[]; products: StateProduct[]; categories: StateCategory[]; casts: StateCast[]; checks: StateCheck[]; ar_enabled?: boolean }; // ★0156（起票84）: kiosk_register_state に 'ar_enabled'（0156 適用前は undefined＝売掛を出す＝従来）
-// R-A5（0089 F節）: check へスナップ5値を追加（伝票ヘッダの時間ステータス＋延長ボタンのラベル用）
-type DetailCheck = {
-  id: string; seat_id: string; status: string; people: number | null; nom_type: string;
-  started_at: string; total: number; service_rate: number; round_unit: number; round_mode: string;
-  set_min: number; set_fee: number; ext_min: number; ext_fee: number; time_per: string;
-};
-type DetailLine = { id: string; kind: string; pay_group: string; name_snapshot: string; unit_price_snapshot: number; qty: number; line_total: number };
-type DetailPayment = { id: string; pay_group: string; method: string; amount: number; tendered: number | null; method_detail: string | null };
-// ★R-2b: kiosk_check_detail は 0119 不触＝nom_kind/is_dohan を返さない（optional・返れば読む防御形）。
-type DetailNom = { cast_id: string; ratio_weight: number; nom_kind?: "hon" | "jonai" | "free"; is_dohan?: boolean };
-type Detail = {
-  check: DetailCheck; time_mode: string; lines: DetailLine[]; payments: DetailPayment[];
-  nominations: DetailNom[]; extra_seat_ids: string[]; paid_total: number; balance: number;
-};
-// mig0089 行分離: 返り値は line_id → set_line_id/ext_line_id（額0/blocks0 の側は null）
-type TimeCalc = { elapsed_min: number; units: number; blocks: number; set_c: number; ext_c: number; total: number; set_line_id: string | null; ext_line_id: string | null };
 type Phase = "loading" | "login" | "denied" | "operator" | "pin" | "register";
 type Session = { name: string; role: string };
+// register/page.tsx と同じ形（server の select を kiosk セッションで＝0190 の kiosk 腕で読める）
+type Seat = { id: string; name: string; kind: string | null; store_id: string };
+type Product = { id: string; name: string; type: string; price: number; category_id: string | null; reorder_point: number | null; sort_order: number; back_exempt_from_split: boolean; track_stock?: boolean };
+type Category = { id: string; name: string; sort_order: number };
+type Cast = { id: string; name: string; photo_updated_at: string | null; rank_id?: string | null };
+type BoardData = { seats: Seat[]; products: Product[]; categories: Category[]; casts: Cast[]; storeId: string };
 
-const yen = (n: number) => "¥" + n.toLocaleString();
-const METHOD_LABEL: Record<string, string> = { cash: "現金", card: "カード", ar: "売掛", other: "その他" };
-const DETAIL_METHODS = new Set(["card", "other"]);
-const NOM_LABEL: Record<string, string> = { hon: "本指名", jonai: "場内", dohan: "同伴", free: "フリー" };
-// 段B: 商品タイルの type 別見出し（products.type＝drink/champ/bottle・既存カラム）・滞在経過は started_at から算出。
-// 純増⑦: type 別の見出し/順序は lib/nox/ui/product-groups へ移設（カテゴリ未登録時のフォールバックとして同居）
-const elapsedMin = (started: string, now: number) => Math.max(0, Math.floor((now - new Date(started).getTime()) / 60000));
-const ROLE_LABEL: Record<string, string> = { owner: "オーナー", manager: "店長", staff: "スタッフ" };
-const IDLE_MS = 15 * 60_000; // サーバ側 15分失効（確定④）のローカル鏡像＝表示と自動ロックのみ
-
-// B1/B2 席操作エラーの日本語化（register-board 写経）
-function seatErrJa(msg: string | undefined): string {
-  if (!msg) return "不明なエラー";
-  if (msg.includes("seat occupied")) return "その席は使用中です";
-  if (msg.includes("home seat")) return "主席は解除できません（席移動を使ってください）";
-  if (msg.includes("not open")) return "締められています";
-  if (msg.includes("same seat")) return "同じ席です";
-  if (msg.includes("inactive seat")) return "無効な席です";
-  if (msg.includes("bad seat")) return "席の指定が不正です";
-  if (msg.includes("forbidden")) return "権限がありません";
-  return msg;
-}
-// B4 時間料金エラーの日本語化（register-board 写経）
-function timeErrJa(msg: string | undefined): string {
-  if (!msg) return "不明なエラー";
-  if (msg.includes("has payments")) return "入金後は時間料金を反映できません（訂正は責任者へ）";
-  if (msg.includes("not open")) return "この伝票は締められています（反映できません）";
-  if (msg.includes("bad time settings")) return "店の時間料金設定が不正です（マスタで確認してください）";
-  if (msg.includes("auto mode")) return "自動計算の店です（時間料金は自動で反映されます）"; // R-A5: check_extension_add の manual 専用ガード
-  if (isBillingLocked(msg)) return BILLING_LOCKED_MSG_KIOSK;
-  if (msg.includes("forbidden")) return "権限がありません";
-  return msg;
-}
+const ROLE_LABEL: Record<string, string> = { owner: "オーナー", manager: "店長", staff: "スタッフ", cast: "キャスト", admin: "管理者" };
+const IDLE_MS = 3 * 60_000; // ★K-0: 無操作 3 分で自動ロック（店設定 kiosk_idle_sec があればそれ）＝サーバ側失効のローカル鏡像・表示と自動ロックのみ
+const PIN_MIN = 4, PIN_MAX = 6; // ★裁定437（0191）: PIN 4〜6 桁
 
 const bigBtn: React.CSSProperties = {
   border: "1px solid var(--line2)", borderRadius: 14, background: "linear-gradient(180deg,var(--card2),var(--card))",
-  color: "var(--ink)", fontSize: 18, fontWeight: 800, padding: "18px 10px", cursor: "pointer",
-  fontFamily: "inherit",
+  color: "var(--ink)", fontSize: 18, fontWeight: 800, padding: "18px 10px", cursor: "pointer", fontFamily: "inherit",
 };
-const keyBtn: React.CSSProperties = {
-  ...bigBtn, fontSize: 26, padding: 0, height: 72, fontVariantNumeric: "tabular-nums",
-};
+const keyBtn: React.CSSProperties = { ...bigBtn, fontSize: 26, padding: 0, height: 72, fontVariantNumeric: "tabular-nums" };
 const card: React.CSSProperties = t.card;
-const input: React.CSSProperties = { ...t.input, width: "auto" };
-const btnDark: React.CSSProperties = { ...t.btnGold, ...t.btnSm };
 const btnLight: React.CSSProperties = { ...t.btnGhost, ...t.btnSm };
 
 export default function KioskRegisterPage() {
@@ -113,6 +52,7 @@ export default function KioskRegisterPage() {
   const [loginPw, setLoginPw] = useState("");
   const [loginErr, setLoginErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [bindMsg, setBindMsg] = useState<string | null>(null); // ★0190: 端末の束縛の案内（'device bound'＝denied）
 
   const [operators, setOperators] = useState<OpRow[]>([]);
   const [target, setTarget] = useState<OpRow | null>(null);
@@ -120,41 +60,9 @@ export default function KioskRegisterPage() {
   const [pinMsg, setPinMsg] = useState<string | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [lockMsg, setLockMsg] = useState<string | null>(null);
-
-  const [state, setState] = useState<RegState | null>(null);
-  const [detail, setDetail] = useState<Detail | null>(null);
-  const [msg, setMsg] = useState<string | null>(null);
-  const [seatMsg, setSeatMsg] = useState<string | null>(null);
-  const [timeCalc, setTimeCalc] = useState<TimeCalc | null>(null);
-  const [timeMsg, setTimeMsg] = useState<string | null>(null);
-  const [printCard, setPrintCard] = useState<{ checkId: string; groups: string[] } | null>(null);
-  const [printMsg, setPrintMsg] = useState<Record<string, string>>({});
-  // レジ時間UX R1（register-board 同型）: 開卓モーダル（人数は任意＝空欄なら null 送信）
-  const [openSeatTarget, setOpenSeatTarget] = useState<StateSeat | null>(null);
-  const [openPeople, setOpenPeople] = useState("");
-  const [openBusy, setOpenBusy] = useState(false);
-
-  // フォーム状態（register-board 写経）
-  // ★0124（裁定111 判断C）: kiosk は種別・同伴を読めない（detail 不返却＝#45）ため**送らない**。
-  //   キー欠落＝既存値保持の新意味論で、保存しても DB の種別・同伴・ended は変化しない
-  //   （旧「表示中の free で置き換わる」既存バグの是正）。nomKinds/nomDohan は防御形の表示専用。
-  const [nomKinds, setNomKinds] = useState<Record<string, "hon" | "jonai" | "free">>({});
-  const [nomDohan, setNomDohan] = useState<Record<string, boolean>>({});
-  const [nomWeights, setNomWeights] = useState<Record<string, number>>({});
-  const [prodGroup, setProdGroup] = useState("A"); // 段B: タイル追加先の伝票グループ（既定 A）
-  // 段0R 第3陣: カテゴリチップの絞り込み（""=すべて）。register 8c07e5b と同一＝表示のみ・取得も RPC も不変。
-  const [catFilter, setCatFilter] = useState("");
-  const [cName, setCName] = useState("");
-  const [cPrice, setCPrice] = useState(0);
-  const [cKind, setCKind] = useState("charge"); // R-A2: 既定から set を外す（セットは 0089 で自動化＝手打ち封じ）
-  const [cGroup, setCGroup] = useState("A");
-  const [payGroup, setPayGroup] = useState("A");
-  const [payMethod, setPayMethod] = useState("cash");
-  const [payAmount, setPayAmount] = useState(0);
-  const [payTendered, setPayTendered] = useState("");
-  const [payDetail, setPayDetail] = useState("");
-  // ★0155（裁定309-10・便 S-5）: 伝票の顧客名＋active キープのボトル名のみ（kiosk_check_keeps＝305-4 と同一露出・電話・メモ・誕生日は返らない＝裁定11 の例外を本 RPC に限定）。表示のみ。
-  const [kioskKeeps, setKioskKeeps] = useState<{ customer_id: string; pos: number; name: string; bottle_names: string[] }[] | null>(null);
+  const [showQr, setShowQr] = useState(false);
+  const [board, setBoard] = useState<BoardData | null>(null);
+  const [boardErr, setBoardErr] = useState<string | null>(null);
 
   // ローカル idle（表示＋自動ロックのみ・★このタイマーから RPC は呼ばない＝0059 (b) 契約）
   const lastActionRef = useRef<number>(Date.now());
@@ -162,7 +70,8 @@ export default function KioskRegisterPage() {
   const phaseRef = useRef<Phase>("loading");
   phaseRef.current = phase;
   const markAction = () => { lastActionRef.current = Date.now(); };
-  const idleMsRef = useRef<number>(IDLE_MS); // ★QR 便（裁定423 変更）: QR で開いた解除＝3 分・PIN＝従来（15 分）
+  const idleMsRef = useRef<number>(IDLE_MS); // ★QR 便（裁定423 変更）: QR で開いた解除＝3 分・PIN＝店設定（既定 3 分）
+  const storeIdleMsRef = useRef<number>(IDLE_MS);
 
   const loadOperators = useCallback(async (): Promise<boolean> => {
     const { data, error } = await supabase.rpc("kiosk_operator_list");
@@ -173,40 +82,56 @@ export default function KioskRegisterPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ★0190（裁定436 ①b）: 端末ログインの直後に端末自身が kiosk_device_bind(fp, ua) を呼ぶ＝未束縛なら束縛・同じ fp なら last_seen・別の fp は 'device bound'
+  const bindDevice = useCallback(async (): Promise<boolean> => {
+    if (!mig0190On()) return true;
+    const fp = browserDeviceFp();
+    if (!fp) { setBindMsg("ブラウザの保存領域が使えないため、端末の固定ができません（プライベートモードを解除してください）"); return true; }
+    const { error } = await supabase.rpc("kiosk_device_bind", { p_device_fp: fp, p_ua: typeof navigator === "undefined" ? null : navigator.userAgent.slice(0, 200) });
+    if (error) { setBindMsg(bindErrJa(error.message)); return !error.message.includes("device bound"); }
+    setBindMsg(null);
+    return true;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 店設定の無操作秒数（punch-methods API＝端末の店を admin で 1 列・失敗は既定 3 分）
+  const loadIdleSec = useCallback(async () => {
+    try {
+      const r = await fetch("/api/kiosk/punch-methods");
+      const j = r.ok ? ((await r.json()) as { idleSec?: number }) : null;
+      storeIdleMsRef.current = kioskIdleSecOf(j && typeof j.idleSec === "number" ? { kiosk_idle_sec: j.idleSec } : null, IDLE_MS / 1000) * 1000;
+    } catch { storeIdleMsRef.current = IDLE_MS; }
+  }, []);
+
   // 操作担当選択へ戻す（セッション失効・交代・ローカル idle 到達の共通経路）
   const lockToOperator = useCallback((reason: string | null) => {
-    setSession(null); setDetail(null); setState(null); setTarget(null); setPin("");
+    setSession(null); setBoard(null); setBoardErr(null); setTarget(null); setPin(""); setShowQr(false);
     setLockMsg(reason); setPhase("operator");
     void loadOperators(); // 操作起点（ロック直後の一覧再取得＝has_pin 変化も拾う）
   }, [loadOperators]);
-
-  // forbidden＝サーバ側セッション失効（idle/logout/権限）→ operator へ戻す。それ以外は false。
-  const sessionLostIf = useCallback((e: { message?: string } | null): boolean => {
-    if (e?.message?.includes("forbidden")) {
-      lockToOperator("セッションが切れました。操作担当を選び直してください。");
-      return true;
-    }
-    return false;
-  }, [lockToOperator]);
 
   useEffect(() => {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { setPhase("login"); return; }
+      if (!(await bindDevice())) { setPhase("denied"); return; } // ★0190: 別の端末に固定済み
+      void loadIdleSec();
       setPhase((await loadOperators()) ? "operator" : "denied");
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ローカル時計 tick（30秒）＝idle 表示と自動ロックのみ。★RPC 呼出なし（grep ゲート対象）。
+  // ローカル時計 tick（10秒）＝idle 表示と自動ロックのみ。★RPC 呼出なし（grep ゲート対象）。
   useEffect(() => {
     const id = setInterval(() => {
       setNowMs(Date.now());
       if (phaseRef.current === "register" && Date.now() - lastActionRef.current > idleMsRef.current) {
-        lockToOperator(`${Math.round(idleMsRef.current / 60_000)}分間操作がなかったためロックしました。PIN を入れ直すか、QR を読み直してください。`);
+        void (rules0175On() ? supabase.rpc("kiosk_lock", { p_reason: "idle" }) : Promise.resolve()).then(() => undefined, () => undefined); // ★サーバ側セッションも閉じる（タイマー起点の唯一の書込＝ロックのため・読取はしない）
+        lockToOperator(`${Math.round(idleMsRef.current / 60_000)}分間操作がなかったためロックしました。操作担当を選び直すか、QR を読み直してください。`);
       }
     }, 10_000);
     return () => clearInterval(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lockToOperator]);
 
   async function doDeviceLogin(e: React.FormEvent) {
@@ -215,348 +140,106 @@ export default function KioskRegisterPage() {
     const { error } = await supabase.auth.signInWithPassword({ email: loginEmail.trim(), password: loginPw });
     if (error) { setLoginErr("ログインIDまたはパスワードが違います"); setBusy(false); return; }
     setLoginPw("");
+    if (!(await bindDevice())) { setPhase("denied"); setBusy(false); return; } // ★0190: 別の端末に固定済み
+    void loadIdleSec();
     setPhase((await loadOperators()) ? "operator" : "denied");
     setBusy(false);
   }
 
-  // ── 0059 読取（操作起点のみ）──
-  const refreshState = useCallback(async (): Promise<void> => {
-    const { data, error } = await supabase.rpc("kiosk_register_state");
-    if (error) { sessionLostIf(error); return; }
-    setState(data as RegState);
+  // ── レジ本体の props（register/page.tsx と同じ select＝0190 の kiosk 腕で端末の店の行だけ読める） ──
+  const loadBoard = useCallback(async (): Promise<void> => {
+    setBoardErr(null);
+    const [{ data: seatsAll }, { data: storeRows }, { data: products }, { data: categories }, { data: casts }] = await Promise.all([
+      supabase.from("seats").select("id, name, kind, store_id").eq("is_active", true).order("sort_order"),
+      supabase.from("stores").select("id, use_vip, use_counter"),
+      supabase.from("products").select("id, name, type, price, category_id, reorder_point, sort_order, back_exempt_from_split, track_stock").eq("is_active", true).order("type"),
+      supabase.from("product_categories").select("id, name, sort_order").eq("is_active", true).order("sort_order").order("name"),
+      supabase.from("casts").select("id, name, photo_updated_at, rank_id").eq("is_active", true).order("name"),
+    ]);
+    const stores = (storeRows ?? []) as { id: string; use_vip: boolean; use_counter: boolean }[];
+    const storeId = stores[0]?.id ?? "";
+    if (!storeId) { setBoardErr("この端末の店を読めませんでした（0190 の kiosk 腕が無いか、操作担当のセッションが切れています）。操作担当を選び直してください。"); return; }
+    setBoard({
+      seats: seatsVisibleOf((seatsAll ?? []) as Seat[], stores),
+      products: (products ?? []) as Product[],
+      categories: (categories ?? []) as Category[],
+      casts: (casts ?? []) as Cast[],
+      storeId,
+    });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionLostIf]);
+  }, []);
 
-  const loadDetail = useCallback(async (checkId: string): Promise<void> => {
-    const { data, error } = await supabase.rpc("kiosk_check_detail", { p_check_id: checkId });
-    if (error) {
-      if (!sessionLostIf(error)) setMsg(error.message.includes("not found") ? "伝票が見つかりません" : error.message);
-      return;
-    }
-    const d = data as Detail;
-    setDetail(d);
-    setTimeCalc(null); setTimeMsg(null);
-    // ★0155（裁定309-10）: 顧客・キープの読取（+1・失敗は空扱い＝伝票操作は止めない）
-    const { data: kk } = await supabase.rpc("kiosk_check_keeps", { p_check_id: checkId });
-    setKioskKeeps((kk ?? []) as { customer_id: string; pos: number; name: string; bottle_names: string[] }[]);
-    const w: Record<string, number> = {};
-    const ks: Record<string, "hon" | "jonai" | "free"> = {};
-    const ds: Record<string, boolean> = {};
-    for (const n of d.nominations) {
-      w[n.cast_id] = n.ratio_weight;
-      ks[n.cast_id] = n.nom_kind ?? "free"; // detail が kinds を返すようになれば自動で正値
-      ds[n.cast_id] = n.is_dohan ?? false;
-    }
-    setNomWeights(renormalizeKeepZeros(w)); setNomKinds(ks); setNomDohan(ds); // ★裁定110: 0 行温存で Σ=100 表示
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionLostIf]);
-
-  // 段B タップ注文: 商品タイル連打を束ねて check_add_line(p_qty=N) を1回（直列 flush・単一 pending・権威はサーバ）。
-  const commitLine = useCallback(
-    async (pid: string, qty: number): Promise<{ error: { message?: string } | null }> => {
-      if (!detail) return { error: { message: "伝票がありません" } };
-      const { error } = await supabase.rpc("check_add_line", {
-        p_check_id: detail.check.id, p_product_id: pid, p_qty: qty, p_kind: null,
-        p_pay_group: prodGroup || "A", p_name: null, p_unit_price: null,
-      });
-      if (error) sessionLostIf(error); // forbidden＝セッション失効→operator へ（それ以外は無害）
-      return { error };
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [detail, prodGroup, sessionLostIf],
-  );
-  const reloadCurrent = useCallback(async () => {
-    if (detail) { await loadDetail(detail.check.id); await refreshState(); }
-  }, [detail, loadDetail, refreshState]);
-  const tb = useTapBatch(commitLine, reloadCurrent, (m) => setMsg(m));
-
-  // ── 操作担当（PIN セッション）──
+  // ── 操作担当（PIN セッション）＝人を選ぶ→PIN（裁定437） ──
   function pickOperator(o: OpRow) {
     if (!o.has_pin) return;
     setTarget(o); setPin(""); setPinMsg(null); setPhase("pin");
   }
-  function keyIn(d: string) { setPin((p) => (p.length >= 4 ? p : p + d)); }
+  function keyIn(d: string) { setPin((p) => (p.length >= PIN_MAX ? p : p + d)); }
 
-  // ★追補 2 同乗 R-7（裁定423 候補）: PIN だけ／QR での解除の成功＝kiosk_login と同じ後処理（操作担当のバー・レジへ）
-  async function onUnlocked(j: { operator_name?: string; role?: string; idle_sec?: number; unlock_method?: string }) {
-    idleMsRef.current = j.unlock_method === "qr" ? kioskIdleMsOf("qr", j.idle_sec) : IDLE_MS;
-    setSession({ name: j.operator_name ?? "", role: j.role ?? "" });
-    setLockMsg(null); setMsg(null); setSeatMsg(null); setDetail(null); setPrintCard(null);
+  async function enterRegister(s: Session) {
+    setSession(s);
+    setLockMsg(null); setShowQr(false);
     markAction();
     setPhase("register");
-    await refreshState();
+    await loadBoard();
   }
+
+  // ★QR 便（0185）: QR での解除の成功＝kiosk_login と同じ後処理（操作担当のバー・レジへ）
+  async function onUnlocked(j: { operator_name?: string; role?: string; idle_sec?: number; unlock_method?: string }) {
+    idleMsRef.current = j.unlock_method === "qr" ? kioskIdleMsOf("qr", j.idle_sec) : IDLE_MS;
+    await enterRegister({ name: j.operator_name ?? "", role: j.role ?? "" });
+  }
+
+  // ★0190 K-1（裁定437）: 5 回失敗で 10 分ロック（RPC）＝ロックされたら店長以上のお知らせ欄に 1 行（route＝端末アカウントのセッションで・失敗しても画面は止めない）
+  function notifyLocked(o: OpRow, lockedUntil: string | undefined) {
+    if (!mig0190On()) return;
+    void fetch("/api/kiosk/lock-notice", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ membership_id: o.membership_id, locked_until: lockedUntil ?? null }) }).catch(() => undefined);
+  }
+
   async function doPinLogin() {
-    if (!target || pin.length !== 4 || busy) return;
+    if (!target || pin.length < PIN_MIN || busy) return;
     setBusy(true); setPinMsg(null);
-    const { data, error } = await supabase.rpc("kiosk_login", { p_membership_id: target.membership_id, p_pin: pin });
+    const { data, error } = await supabase.rpc("kiosk_login", { p_membership_id: target.membership_id, p_pin: pin, ...(mig0190On() ? { p_device_fp: browserDeviceFp() } : {}) }); // ★0190: 端末の印を添える
     setBusy(false);
-    if (error) { setPinMsg("この端末は現在使用できません（店に確認してください）"); return; }
-    const j = data as { ok: boolean; reason?: string; operator_name?: string; role?: string; locked_until?: string };
+    if (error) {
+      setPinMsg(error.message.includes("device bound") ? bindErrJa(error.message) : "この端末は現在使用できません（店に確認してください）");
+      setPin("");
+      return;
+    }
+    const j = data as { ok: boolean; reason?: string; operator_name?: string; role?: string; locked_until?: string; idle_sec?: number };
     if (!j.ok) {
-      if (j.reason === "wrong_pin" || j.reason === "bad_pin") setPinMsg("PINが違います");
+      if (j.reason === "wrong_pin" || j.reason === "bad_pin") setPinMsg(j.reason === "bad_pin" ? `PIN は ${PIN_MIN}〜${PIN_MAX} 桁の数字です` : "PINが違います");
       else if (j.reason === "locked") {
         const until = j.locked_until
           ? new Date(j.locked_until).toLocaleTimeString("ja-JP", { timeZone: "Asia/Tokyo", hour: "2-digit", minute: "2-digit" })
           : "";
-        setPinMsg(`ロック中です${until ? `（${until} 頃に解除）` : ""}`);
+        setPinMsg(`失敗が続いたためロック中です${until ? `（${until} 頃に解除）` : ""}。店長に知らせました`);
+        notifyLocked(target, j.locked_until);
       } else if (j.reason === "no_pin") setPinMsg("PINが設定されていません（マスタ管理で設定してください）");
       else setPinMsg("ログインできませんでした（選び直してください）");
       setPin("");
       return;
     }
-    idleMsRef.current = IDLE_MS;
-    setSession({ name: j.operator_name ?? target.user_name, role: j.role ?? target.role });
-    setLockMsg(null); setMsg(null); setSeatMsg(null); setDetail(null); setPrintCard(null);
-    markAction();
-    setPhase("register");
-    await refreshState();
+    idleMsRef.current = storeIdleMsRef.current;
+    await enterRegister({ name: j.operator_name ?? target.user_name, role: j.role ?? target.role });
   }
 
   // 交代/離席（サーバ側セッションも明示終了）
   async function operatorLogout() {
     markAction();
-    await (rules0175On() ? supabase.rpc("kiosk_lock", { p_reason: "manual" }) : supabase.rpc("kiosk_logout")).then(() => undefined, () => undefined); // ★追補 2 同乗 R-7: 終了理由（manual）を残す（フラグ false＝従来の kiosk_logout）
+    await (rules0175On() ? supabase.rpc("kiosk_lock", { p_reason: "manual" }) : supabase.rpc("kiosk_logout")).then(() => undefined, () => undefined); // ★追補 2 同乗 R-7: 終了理由（manual）
     lockToOperator("操作担当を交代してください。");
   }
 
-  // ── 会計操作（register-board 写経・各操作後に 0059 で再読取＝操作起点）──
-  const openBySeat = (seatId: string): StateCheck | undefined =>
-    (state?.checks ?? []).find((c) => c.seat_id === seatId || c.extra_seat_ids.includes(seatId));
-
-  async function openSeat(seat: StateSeat) {
-    markAction();
-    if (!(await tb.flush())) return; // 別 check へ切替前に保留を現 check へ確定（失敗＝中止）
-    setMsg(null); setSeatMsg(null);
-    const existing = openBySeat(seat.id);
-    if (existing) { await loadDetail(existing.id); return; }
-    // レジ時間UX R1（裁定29・register-board 同型）: フリー卓は即 open せず開卓モーダルへ
-    //   （誤タップ開栓の防止・「何が始まるか」の明示）。nom_type は従来どおり 'free'。
-    setOpenPeople("");
-    setOpenSeatTarget(seat);
-  }
-
-  // レジ時間UX R1: 開卓の確定（check_open は既存 RPC・kiosk 腕＝0057(3)。p_people は空欄なら null＝従来と同値）。
-  async function confirmOpenSeat() {
-    const seat = openSeatTarget;
-    if (!seat || openBusy) return;
-    markAction();
-    const raw = openPeople.trim();
-    const n = raw === "" ? null : Number(raw);
-    if (n !== null && (!Number.isInteger(n) || n <= 0)) { setMsg("人数は正の整数で入力してください（空欄可）"); return; }
-    setOpenBusy(true);
-    const { data, error } = await supabase.rpc("check_open", { p_seat_id: seat.id, p_people: n, p_nom_type: "free" });
-    setOpenBusy(false);
-    if (error) { if (!sessionLostIf(error)) setMsg(rpcErrJaCommon(error.message)); return; }
-    setOpenSeatTarget(null);
-    await refreshState();
-    await loadDetail(data as string);
-  }
-
-  async function saveNoms() {
-    if (!detail) return;
-    markAction();
-    if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止）
-    setMsg(null);
-    // ★裁定110 A2-(4): w=0 の行も送る（0＝按分なしの名簿の一員・名簿から落とさない）。
-    // ★0124（裁定111 判断C）: nom_kind/is_dohan/ended/dohan_count は**キーごと送らない**＝
-    //   キー欠落＝既存値保持（kiosk は現在値を読めないため・送ると free 落ち＝派生取消が走る）。
-    const list = Object.entries(nomWeights).map(([cast_id, weight]) => ({ cast_id, weight }));
-    const { error } = await supabase.rpc("check_set_nominations", {
-      p_check_id: detail.check.id, p_nominations: list,
-    });
-    if (error && sessionLostIf(error)) return;
-    setMsg(error ? rpcErrJaCommon(error.message) : "指名を保存しました");
-    await loadDetail(detail.check.id);
-  }
-
-  // （段B: 商品プルダウンの addProductLine は廃止＝タイル tap→tb.flush の check_add_line に置換）
-
-  async function addCustomLine() {
-    if (!detail || !cName) return;
-    markAction();
-    if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止）
-    setMsg(null);
-    const { error } = await supabase.rpc("check_add_line", {
-      p_check_id: detail.check.id, p_product_id: null, p_qty: 1, p_kind: cKind,
-      p_pay_group: cGroup || "A", p_name: cName, p_unit_price: cPrice,
-    });
-    if (error && sessionLostIf(error)) return;
-    setMsg(error ? rpcErrJaCommon(error.message) : null);
-    setCName(""); setCPrice(0);
-    await loadDetail(detail.check.id);
-    await refreshState();
-  }
-
-  async function removeLine(lineId: string) {
-    if (!detail) return;
-    markAction();
-    if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止）
-    setMsg(null);
-    const { error } = await supabase.rpc("check_remove_line", { p_line_id: lineId });
-    if (error && sessionLostIf(error)) return;
-    setMsg(error ? rpcErrJaCommon(error.message) : null);
-    await loadDetail(detail.check.id);
-    await refreshState();
-  }
-
-  async function applyTimeCharge() {
-    if (!detail) return;
-    markAction();
-    if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止）
-    setTimeMsg(null);
-    const { data, error } = await supabase.rpc("check_time_charge_apply", { p_check_id: detail.check.id });
-    if (error) { if (!sessionLostIf(error)) setTimeMsg(timeErrJa(error.message)); return; }
-    await loadDetail(detail.check.id); // timeCalc は loadDetail でクリアされるため下で再設定
-    setTimeCalc(data as TimeCalc);
-    await refreshState();
-  }
-
-  // R-A5（0089・register-board 同型）: manual 店の延長ボタン＝check_extension_add（1押し=1行）。
-  async function addExtension() {
-    if (!detail) return;
-    markAction();
-    if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止）
-    setTimeMsg(null);
-    const { error } = await supabase.rpc("check_extension_add", { p_check_id: detail.check.id });
-    if (error) { if (!sessionLostIf(error)) setTimeMsg(timeErrJa(error.message)); return; }
-    await loadDetail(detail.check.id);
-    await refreshState();
-  }
-
-  // レジ時間UX R3（裁定29・register-board 同型）: 伝票を開いた時点で1回だけ自動反映（kiosk は
-  //   会計タブを持たない全面ビュー＝「伝票表示」が manage の pay タブ入場に相当）。
-  //   前置き＝open ∧ 入金0 ∧ time_mode='auto'。発火は check.id につき1回＝apply→loadDetail の
-  //   参照替えで再発火しないよう ref キーで抑止。伝票を閉じて開き直すと再反映（＝経過分へ更新）。
-  //   ★0059(b) 契約維持: 発火は卓タップ（操作起点）のみ・タイマーから RPC は呼ばない。
-  const autoTimeKeyRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (!detail) { autoTimeKeyRef.current = null; return; }
-    if (autoTimeKeyRef.current === detail.check.id) return;
-    autoTimeKeyRef.current = detail.check.id;
-    if (detail.check.status === "open" && detail.time_mode === "auto" && detail.payments.length === 0) {
-      void applyTimeCharge();
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [detail]);
-
-  // B1/B2 席操作（kiosk は reservations を読めない＝予約 soft 警告なし・拒否系は RPC が握る）
-  async function addSeat(seatId: string) {
-    if (!detail || !seatId) return;
-    markAction();
-    if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止）
-    setSeatMsg(null);
-    const { error } = await supabase.rpc("check_add_seat", { p_check_id: detail.check.id, p_seat_id: seatId });
-    if (error) { if (!sessionLostIf(error)) setSeatMsg(seatErrJa(error.message)); return; }
-    setSeatMsg("相席（同一会計）に追加しました。");
-    await loadDetail(detail.check.id);
-    await refreshState();
-  }
-  async function removeSeat(seatId: string) {
-    if (!detail) return;
-    markAction();
-    if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止）
-    setSeatMsg(null);
-    const { error } = await supabase.rpc("check_remove_seat", { p_check_id: detail.check.id, p_seat_id: seatId });
-    if (error) { if (!sessionLostIf(error)) setSeatMsg(seatErrJa(error.message)); return; }
-    setSeatMsg("相席を解除しました。");
-    await loadDetail(detail.check.id);
-    await refreshState();
-  }
-  async function moveSeat(seatId: string) {
-    if (!detail || !seatId) return;
-    markAction();
-    if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止）
-    setSeatMsg(null);
-    const { error } = await supabase.rpc("check_move_seat", { p_check_id: detail.check.id, p_to_seat_id: seatId });
-    if (error) { if (!sessionLostIf(error)) setSeatMsg(seatErrJa(error.message)); return; }
-    setSeatMsg("席を移動しました。");
-    await loadDetail(detail.check.id);
-    await refreshState();
-  }
-
-  async function pay() {
-    if (!detail) return;
-    markAction();
-    if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止・入金前提）
-    setMsg(null);
-    const dtl = DETAIL_METHODS.has(payMethod) && payDetail.trim() ? payDetail.trim() : null;
-    const { error } = await supabase.rpc("check_pay", {
-      p_check_id: detail.check.id, p_method: payMethod, p_amount: payAmount,
-      p_pay_group: payGroup || "A",
-      p_tendered: payMethod === "cash" && payTendered ? Number(payTendered) : null,
-      p_idem_key: crypto.randomUUID(),
-      p_method_detail: dtl,
-    });
-    if (error && sessionLostIf(error)) return;
-    setMsg(error ? rpcErrJaCommon(error.message) : "入金しました");
-    setPayTendered(""); setPayDetail("");
-    await loadDetail(detail.check.id);
-  }
-
-  async function closeCheck() {
-    if (!detail) return;
-    markAction();
-    if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止・締め前提）
-    setMsg(null);
-    const { error } = await supabase.rpc("check_close", { p_check_id: detail.check.id, p_idem_key: crypto.randomUUID() });
-    if (error) { if (!sessionLostIf(error)) setMsg(rpcErrJaCommon(error.message)); return; }
-    setMsg(`会計完了 ${yen(detail.check.total)}`);
-    // F4b: クローズ後のレシート印刷（printer 無効店は enqueue が 'printer disabled' を返す＝そのまま表示）
-    const gs = Array.from(new Set(detail.lines.map((l) => l.pay_group))).sort();
-    setPrintCard({ checkId: detail.check.id, groups: gs });
-    setPrintMsg({});
-    setDetail(null);
-    await refreshState();
-  }
-
-  async function enqueuePrint(checkId: string, g: string) {
-    markAction();
-    const { data, error } = await supabase.rpc("print_enqueue", { p_check_id: checkId, p_pay_group: g });
-    if (error) {
-      if (sessionLostIf(error)) return;
-      setPrintMsg((m) => ({ ...m, [g]: error.message.includes("printer disabled") ? "プリンタが無効です" : `失敗: ${error.message}` }));
-      return;
-    }
-    const r = data as { is_reprint: boolean; already_queued: boolean };
-    setPrintMsg((m) => ({
-      ...m,
-      [g]: r.already_queued ? "印刷待ちに追加済みです" : r.is_reprint ? "印刷します（再発行）" : "印刷します",
-    }));
-  }
-
-  // 段B: 伝票詳細シート（≤900）の背景タップで閉じる＝保留を確定してから閉じる（失敗＝中止・シート維持）
-  async function closeDetail() {
-    if (!(await tb.flush())) return;
-    setDetail(null);
-  }
-
-  // group 集計（register-board 写経・権威はサーバ＝check_pay/close が最終判定）
-  const lines = detail?.lines ?? [];
-  const payments = detail?.payments ?? [];
-  const groups = Array.from(new Set(lines.map((l) => l.pay_group))).sort();
-  const groupInfo = groups.map((g) => {
-    const gl = lines.filter((l) => l.pay_group === g);
-    const bx = gl.filter((l) => l.kind !== "discount").reduce((a, l) => a + l.line_total, 0);
-    const disc = gl.filter((l) => l.kind === "discount").reduce((a, l) => a + l.line_total, 0);
-    const net = Math.max(0, bx - disc);
-    const due = detail ? groupDue(net, detail.check) : 0;
-    const paid = payments.filter((p) => p.pay_group === g).reduce((a, p) => a + p.amount, 0);
-    return { g, bx, disc, net, due, paid, remaining: Math.max(0, due - paid) };
-  });
-
-  const seats = state?.seats ?? [];
-  const emptySeats = seats.filter((s) => !openBySeat(s.id));
   const idleMin = Math.floor((nowMs - lastActionRef.current) / 60_000);
+  const isManagerUp = session ? session.role === "owner" || session.role === "manager" || session.role === "admin" : false;
 
   return (
-    <main className="nox-dark nox-kiosk" style={{ ...t.loginBg, minHeight: "100dvh", position: "relative", padding: 20 }}>
+    <main className="nox-dark nox-kiosk" style={{ ...t.loginBg, minHeight: "100dvh", position: "relative", padding: 20 }} onPointerDown={phase === "register" ? markAction : undefined} onKeyDown={phase === "register" ? markAction : undefined}>
       <div style={{ maxWidth: phase === "register" ? 1100 : 720, margin: "0 auto", paddingTop: 20 }}>
-        {/* 段K2 先行: 操作者バーの整理（モック .khead）＝端末名/モードを左、操作者と交代を右に集約。
-            ★出す情報は現行と同一（名前・ロール・無操作分・交代ボタン）＝並べ方だけを変えた。
-            操作中の表示は「読む情報（名前）」ゆえ白（金3役の原則）。 */}
+        {/* 操作者バー（モック .khead）＝端末名/モードを左、操作者と交代を右に集約。「〇〇さんとして操作中・ロック」 */}
         {phase === "register" && session ? (
-          <div className="nox-khead">
+          <div className="nox-khead" data-kiosk-operator-bar="1">
             <div>
               <div className="store">NOX — レジ端末</div>
               <div className="mode">キオスクモード / レジ</div>
@@ -564,12 +247,12 @@ export default function KioskRegisterPage() {
             <div className="op">
               <CastAvatar name={session.name} size={32} variant="flat" />
               <span style={{ color: "var(--v2-text)", fontWeight: 700 }}>
-                {session.name}（{ROLE_LABEL[session.role] ?? session.role}）
+                {session.name}さんとして操作中（{ROLE_LABEL[session.role] ?? session.role}）
               </span>
               <span style={{ fontSize: 11.5, color: "var(--v2-muted)" }}>
                 無操作 <span className="num">{Math.max(0, idleMin)}</span> 分（{Math.round(idleMsRef.current / 60_000)}分で自動ロック）
               </span>
-              <button onClick={() => void operatorLogout()} style={btnLight}>交代／離席</button>
+              <button onClick={() => void operatorLogout()} style={btnLight} data-kiosk-lock="1">ロック（交代／離席）</button>
             </div>
           </div>
         ) : (
@@ -592,7 +275,7 @@ export default function KioskRegisterPage() {
         {phase === "login" && (
           <form onSubmit={doDeviceLogin} className="nox-lcardtop" style={{ ...t.lcard, maxWidth: 430, margin: "0 auto" }}>
             <h1 style={{ fontSize: 16, fontWeight: 800, margin: "0 0 10px" }}>レジ端末ログイン</h1>
-            <p style={{ ...t.sub, margin: "0 0 12px" }}>店に発行されたレジ端末アカウント（k-〜）でログインしてください。</p>
+            <p style={{ ...t.sub, margin: "0 0 12px" }}>店に発行されたレジ端末アカウント（k-〜）でログインしてください。初回ログインの端末に固定されます。</p>
             <label style={t.fieldLabel}>ログインID</label>
             <input value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} required autoComplete="username"
               style={{ ...t.input, marginTop: 5, marginBottom: 12 }} />
@@ -608,27 +291,22 @@ export default function KioskRegisterPage() {
 
         {phase === "denied" && (
           <div className="nox-cardtop" style={{ ...card, textAlign: "center" }}>
-            <p style={{ fontSize: 15, fontWeight: 700, margin: "0 0 6px" }}>このアカウントはレジ端末ではありません</p>
-            <p style={{ ...t.sub, margin: 0 }}>レジ用の端末アカウント（オーナーがマスタ管理で用途「レジ」を発行）でログインし直してください。</p>
+            <p style={{ fontSize: 15, fontWeight: 700, margin: "0 0 6px" }}>{bindMsg && bindMsg.includes("固定されています") ? "この端末では使えません" : "このアカウントはレジ端末ではありません"}</p>
+            <p style={{ ...t.sub, margin: 0 }} data-kiosk-bind-msg={bindMsg ? "1" : "0"}>{bindMsg ?? "レジ用の端末アカウント（オーナーがマスタ管理で用途「レジ」を発行）でログインし直してください。"}</p>
             <button onClick={async () => { await supabase.auth.signOut(); setPhase("login"); }}
               style={{ ...btnLight, marginTop: 14 }}>ログアウト</button>
           </div>
         )}
 
-        {phase === "operator" && rules0175On() && mig0185On() && (/* ★追補 2 同乗 R-7（裁定423 候補）: 誰かを選ばず PIN だけ・QR で解除。★QR 便: 本番の kiosk_unlock が 0175 の search_path と min(uuid) で失敗していた＝0185 で直すまでは従来の「操作担当を選んで PIN」（kiosk_login） */
+        {phase === "operator" && (
           <>
-            {lockMsg && <Toast msg={lockMsg} style={{ margin: "0 0 14px", textAlign: "center" }} />}
-            <KioskUnlockPad onUnlocked={onUnlocked} />
-          </>
-        )}
-        {phase === "operator" && !(rules0175On() && mig0185On()) && (
-          <>
-            {/* 段K2 先行 可読性: 見出し・案内は白（金は選択・主ボタン・バッジの3役のみ） */}
+            {/* ★K-1（裁定437）: 人を選ぶ→PIN（PIN だけの解除は撤去）。見出し・案内は白（金は選択・主ボタン・バッジの3役のみ） */}
             <p style={{ textAlign: "center", fontSize: 15, color: "var(--v2-text)", fontWeight: 700, margin: "0 0 8px" }}>
-              操作担当を選んでください
+              操作する人を選んでください
             </p>
             {lockMsg && <Toast msg={lockMsg} style={{ margin: "0 0 14px", textAlign: "center" }} />}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 12 }}>
+            {bindMsg && <Message kind="warn" style={{ margin: "0 0 14px" }}>{bindMsg}</Message>}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 12 }} data-kiosk-operators="1">
               {operators.map((o) => (
                 <button key={o.membership_id} onClick={() => pickOperator(o)} disabled={!o.has_pin}
                   style={{ ...bigBtn, opacity: o.has_pin ? 1 : 0.35, cursor: o.has_pin ? "pointer" : "not-allowed" }}>
@@ -639,18 +317,28 @@ export default function KioskRegisterPage() {
                 </button>
               ))}
             </div>
+            {phase === "operator" && rules0175On() && mig0185On() && (/* ★QR 便（0185）: QR は近道として残す（裁定437）＝押したときだけ QR を出す（秘密鍵・poll はその間だけ） */
+              <div style={{ marginTop: 18, textAlign: "center" }} data-kiosk-qr-shortcut="1">
+                {!showQr
+                  ? <button style={btnLight} onClick={() => setShowQr(true)}>QR で解除（スマホの NOX で読む）</button>
+                  : (<div className="nox-cardtop" style={{ ...card, maxWidth: 420, margin: "0 auto" }}>
+                      <KioskQrDisplay onUnlocked={onUnlocked} />
+                      <button style={{ ...btnLight, marginTop: 12 }} onClick={() => setShowQr(false)}>閉じる</button>
+                    </div>)}
+              </div>
+            )}
           </>
         )}
 
         {phase === "pin" && target && (
-          <div style={{ maxWidth: 380, margin: "0 auto" }}>
+          <div style={{ maxWidth: 380, margin: "0 auto" }} data-kiosk-pin="1">
             <p style={{ textAlign: "center", fontSize: 17, fontWeight: 800, margin: "0 0 4px" }}>{target.user_name}</p>
-            <p style={{ textAlign: "center", ...t.sub, margin: "0 0 14px" }}>PIN（4桁）を入力してください</p>
+            <p style={{ textAlign: "center", ...t.sub, margin: "0 0 14px" }}>PIN（{PIN_MIN}〜{PIN_MAX}桁）を入力してください</p>
             <div style={{ display: "flex", justifyContent: "center", gap: 14, marginBottom: 18 }}>
-              {[0, 1, 2, 3].map((i) => (
+              {Array.from({ length: PIN_MAX }, (_, i) => (
                 <span key={i} style={{
                   width: 18, height: 18, borderRadius: 999,
-                  border: "1px solid var(--line2)",
+                  border: `1px solid ${i < PIN_MIN ? "var(--line2)" : "var(--line)"}`,
                   background: i < pin.length ? "var(--gold)" : "transparent",
                 }} />
               ))}
@@ -664,8 +352,8 @@ export default function KioskRegisterPage() {
               <button style={{ ...keyBtn, fontSize: 20, color: "var(--sub)" }} onClick={() => setPin((p) => p.slice(0, -1))}>⌫</button>
             </div>
             {pinMsg && <Toast msg={pinMsg} style={{ margin: "12px 0 0", textAlign: "center" }} />}
-            <button disabled={pin.length !== 4 || busy} onClick={() => void doPinLogin()}
-              style={{ ...t.btnGold, width: "100%", marginTop: 16, padding: "16px 0", fontSize: 18, fontWeight: 900, borderRadius: 14, opacity: pin.length === 4 ? 1 : 0.4 }}>
+            <button disabled={pin.length < PIN_MIN || busy} onClick={() => void doPinLogin()}
+              style={{ ...t.btnGold, width: "100%", marginTop: 16, padding: "16px 0", fontSize: 18, fontWeight: 900, borderRadius: 14, opacity: pin.length >= PIN_MIN ? 1 : 0.4 }}>
               ログイン
             </button>
             <button onClick={() => { setTarget(null); setPin(""); setPhase("operator"); }}
@@ -674,576 +362,13 @@ export default function KioskRegisterPage() {
         )}
 
         {phase === "register" && (
-          /* 動線改修v3 追随（案B・選択駆動ビュー切替）: 正本 nox-kiosk-mock-planB-viewswitch.html。
-             ★state は既存の detail 1本のみ＝連打束ね・0059 読取（卓タップ時・非ポーリング）・会計 RPC は不変。
-             未選択＝フロア全幅／選択＝伝票全面（フロアは描画しない）＝2列を常時確保しない（v2R の grid 教訓）。 */
-          <div className="nox-kmain">
-            {/* レジ時間UX R1（裁定29・register-board 同型）: 開卓モーダル＝フリー卓タップ→即 open を廃止。 */}
-            {openSeatTarget && (
-              <Modal onClose={() => { if (!openBusy) setOpenSeatTarget(null); }}>
-                <h3 style={{ ...t.cardTitle, margin: "0 0 6px" }}>{openSeatTarget.name} を開卓</h3>
-                <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 12px", lineHeight: 1.7 }}>
-                  開卓するとセット時間が始まり、伝票が作成されます。
-                </p>
-                <label style={{ ...t.fieldLabel, display: "block", marginBottom: 14 }}>
-                  人数（任意・空欄可）
-                  <input
-                    type="number" min={1} value={openPeople} placeholder="例: 2"
-                    onChange={(e) => setOpenPeople(e.target.value)}
-                    style={{ ...t.input, width: 110, display: "block", marginTop: 5 }}
-                  />
-                </label>
-                <div className="nox-actions" style={{ display: "flex", gap: 8 }}>
-                  <button style={btnLight} disabled={openBusy} onClick={() => setOpenSeatTarget(null)}>やめる</button>
-                  <button style={{ ...t.btnGold, fontWeight: 800 }} disabled={openBusy} onClick={() => void confirmOpenSeat()}>
-                    開卓（セット開始）
-                  </button>
-                </div>
-              </Modal>
-            )}
-            {!detail ? (
-            /* ── フロアビュー（全幅）＝レシート印刷カードはこちらに残置（会計完了→復帰後に見える）── */
-            <>
-            {printCard && (
-              <section className="nox-cardtop" style={{ ...card, width: "100%" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                  {/* E6: t.cardTitle の再発明（13.5/800）を本定数へ。白文字（v2-text）と margin はローカル上書き＝算出値不変 */}
-                  <h2 style={{ ...t.cardTitle, color: "var(--v2-text)", margin: 0 }}>
-                    レシート印刷（伝票 {printCard.checkId.replace(/-/g, "").slice(0, 8)}）
-                  </h2>
-                  {printCard.groups.map((g) => (
-                    <span key={g} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                      <button style={btnDark} onClick={() => void enqueuePrint(printCard.checkId, g)}>
-                        {printCard.groups.length > 1 ? `グループ${g} を印刷` : "レシート印刷"}
-                      </button>
-                      {/* E6: E1 取り残しの旧パレットリテラル2箇所（§11-5 残置分）を E4 辞書どおり是正
-                          （#C9A24A→--gold・#23232B→--card2＝E5a の register-board 同型ピルと同じ扱い）。
-                          新 gold は旧値より明るい＝コントラストは上がる方向。ピル手組み自体は同型の
-                          register-board:1236 と同じく維持（状態色が動的なため t.tag 化は E5a 裁定踏襲）。 */}
-                      {printMsg[g] && (
-                        <span style={{
-                          fontSize: 11, fontWeight: 700, borderRadius: 999, padding: "2px 9px",
-                          color: printMsg[g].startsWith("失敗") || printMsg[g].includes("無効") ? "var(--bad)" : "var(--gold)",
-                          background: "var(--card2)", border: "1px solid var(--line2)", whiteSpace: "nowrap",
-                        }}>{printMsg[g]}</span>
-                      )}
-                    </span>
-                  ))}
-                  <button style={{ ...btnLight, marginLeft: "auto" }} onClick={() => setPrintCard(null)}>閉じる</button>
-                </div>
-              </section>
-            )}
-
-            {/* 卓一覧（state.checks＝0059。更新ボタン＝操作起点の再読取・自動ポーリングはしない） */}
-            <section className="nox-cardtop nox-floorview" style={card}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <h2 style={{ ...t.cardTitle, margin: 0 }}>卓</h2>
-                <span style={{ fontSize: 11.5, color: "var(--v2-muted)" }}>
-                  使用中 <span className="num" style={{ color: "var(--v2-text)" }}>{(state?.checks ?? []).length}</span> / {seats.length}卓
-                </span>
-                <button onClick={() => { markAction(); void refreshState(); }} style={{ ...btnLight, marginLeft: "auto", padding: "4px 12px", fontSize: 12 }}>更新</button>
-              </div>
-              {/* 段K2 先行: 縦積みリスト → register と同系のタイルグリッド（タップ標的は .nox-kiosk 側 CSS で拡大）。
-                  ★着卓キャスト顔と低在庫「残N」は出さない＝kiosk_register_state（0059）が指名も在庫も返さないため
-                    （0059 契約 非改変の裁定維持）。onClick は openSeat のままで挙動不変。 */}
-              {/* ★DP1 P2 b#9（従属波及）: manage の /register と同基準でフロアだけ 8/4/2 列へ。 */}
-              <div className="nox-seatgrid floor" style={{ marginTop: 10 }}>
-                {seats.map((s) => {
-                  const oc = openBySeat(s.id);
-                  const isPrimary = oc?.seat_id === s.id;
-                  const hostName = oc && !isPrimary ? seats.find((h) => h.id === oc.seat_id)?.name ?? "他卓" : null;
-                  return (
-                    <button
-                      key={s.id}
-                      onClick={() => void openSeat(s)}
-                      className={["nox-seat", oc ? "busy" : ""].filter(Boolean).join(" ")}
-                    >
-                      <div className="nm">{s.name}</div>
-                      <div className="kind">{s.kind ?? " "}</div>
-                      {/* 純増⑦: floor 滞在タイマー（0059 v2 の started_at＋ローカル時計 tick のみ＝
-                          タイマーから RPC は呼ばない＝0059(b) 契約維持。register-board floor と同表示）。 */}
-                      {oc ? (
-                        isPrimary ? (
-                          <>
-                            <div className="stay num">
-                              {oc.started_at ? `滞在 ${elapsedMin(oc.started_at, nowMs)}分` : "使用中"}
-                            </div>
-                            {/* R-A5（0089 E節）: 常時カウントダウン（両モード共通・manage R-A4 同型・表示専用） */}
-                            {oc.started_at && oc.set_min != null && (() => {
-                              const ts = timeStatusOf(new Date(oc.started_at).getTime(), nowMs, oc.set_min, oc.ext_min);
-                              const toNext = Math.max(0, Math.ceil((ts.nextAtMs - nowMs) / 60_000));
-                              return ts.inSet ? (
-                                <div className="stay num">あと {ts.remainMin} 分で延長</div>
-                              ) : (
-                                <div className="stay num" style={{ color: "var(--bad)", fontWeight: 700 }}>延長 {ts.blocks} 回目・次まであと {toNext} 分</div>
-                              );
-                            })()}
-                            <div className="amt num">{yen(oc.total)}</div>
-                          </>
-                        ) : (
-                          <div className="stay">{hostName} と同一会計</div>
-                        )
-                      ) : (
-                        <div className="empty">空席</div>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-              {msg && <Toast msg={msg} style={{ margin: "10px 0 0" }} />}
-            </section>
-            </>
-            ) : (
-            /* ── 伝票ビュー（全面）＝正本 .checkview。読取は 0059 detail のまま（卓タップ時・非ポーリング）── */
-            <div className="nox-checkview">
-              {/* backbar（sticky）＝「← フロア」は既存 closeDetail の再利用（新規ロジックなし）。
-                  従来の 伝票（卓名）h2 と nox-dtotal は backbar へ移した（register 4ea7f17 と同型）。
-                  取消（void）はレジ端末に出さない＝裁定11 確定①（責任者操作）のまま。 */}
-              <div className="nox-backbar">
-                <button type="button" className="nox-backbtn" onClick={() => void closeDetail()}>← フロア</button>
-                <span className="t">{seats.find((s) => s.id === detail.check.seat_id)?.name ?? "—"}</span>
-                <span style={{ fontSize: 13, color: "var(--v2-muted)" }}>{NOM_LABEL[detail.check.nom_type]}</span>
-                {detail.check.status === "open" && (
-                  <span className="stay">滞在 <span className="num">{elapsedMin(detail.check.started_at, nowMs)}</span> 分</span>
-                )}
-                {/* R-A5（0089 F節）: 伝票ヘッダの時間ステータス（両モード共通・manage R2/R-A4 同型・表示専用） */}
-                {detail.check.status === "open" && (() => {
-                  const ts = timeStatusOf(new Date(detail.check.started_at).getTime(), nowMs, detail.check.set_min, detail.check.ext_min);
-                  const next = new Date(ts.nextAtMs).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" });
-                  return ts.inSet ? (
-                    <span className="stay">セット中 残り <span className="num">{ts.remainMin}</span> 分</span>
-                  ) : (
-                    <span className="stay" style={{ color: "var(--bad)", fontWeight: 700 }}>
-                      延長 <span className="num">{ts.blocks}</span> 回目（次 {next}）
-                    </span>
-                  );
-                })()}
-                <span className="total num"><small>合計</small>{yen(detail.check.total)}</span>
-              </div>
-
-              {/* planB .checkcols＝左 1.4fr（指名・席・時間料金・商品）／右 1fr（明細・会計）。
-                  ★各カードの表示条件・中身は不変＝収容先だけ変更。kiosk はタブが無く右カラム（明細・会計）が
-                  常に出るため split 常時＝空列は生じない（v2R の grid 教訓）。 */}
-              <div className="nox-checkcols split">
-                <div>
-
-                {/* ★0155（裁定309-10・便 S-5）: 顧客・キープ＝kiosk_check_keeps の表示のみ（顧客名＋active キープのボトル名）。
-                    電話・メモ・誕生日はこの端末に出さない（現状維持）。キープを出す操作・顧客の追加は管理画面のレジで行う。 */}
-                <div className="nox-cardtop" style={card}>
-                  <h3 style={t.cardTitle}>顧客・キープ</h3>
-                  {kioskKeeps === null ? (
-                    <p style={{ fontSize: 12, color: "var(--sub)", margin: 0 }}>読み込み中…</p>
-                  ) : kioskKeeps.length === 0 ? (
-                    <p style={{ fontSize: 12, color: "var(--sub)", margin: 0, lineHeight: 1.7 }}>この伝票に顧客は登録されていません。顧客の追加・キープ出しは管理画面のレジで行ってください。</p>
-                  ) : (
-                    <div style={{ display: "grid", gap: 6 }}>
-                      {kioskKeeps.map((k) => (
-                        <div key={k.customer_id} style={{ display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap", fontSize: 13 }}>
-                          <span style={{ fontWeight: 700, color: "var(--v2-text)" }}>{k.name}</span>
-                          {k.pos === 0 && <span className="nox-stpill">代表</span>}
-                          <span style={{ fontSize: 12, color: "var(--sub)" }}>
-                            {k.bottle_names.length === 0 ? "キープなし" : `キープ: ${k.bottle_names.join("・")}`}
-                          </span>
-                        </div>
-                      ))}
-                      <p style={{ fontSize: 11, color: "var(--sub)", margin: "4px 0 0" }}>キープを出す操作は管理画面のレジで行ってください。</p>
-                    </div>
-                  )}
-                </div>
-
-                {/* 指名 */}
-                <div className="nox-cardtop" style={card}>
-                  <h3 style={t.cardTitle}>指名の分配率</h3>
-                  {/* ★裁定105: %＝金額按分のみ（分母は伝票内全行）。本数は種別ごと1人1件＝DB 既定。 */}
-                  <p style={{ fontSize: 11, color: "var(--sub)", margin: "0 0 6px", lineHeight: 1.7 }}>
-                    売上・バック金額の按分比率（指名本数には影響しません）。
-                  </p>
-                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-                    {/* ★R-2b（裁定100）: 卓1値の種別プルダウンを廃止＝下の行ごとに 種別＋同伴（裁定40 の
-                        「二段動作＝誤操作ガード」は行内プルダウンとして維持）。 */}
-                  </div>
-                  <p style={{ fontSize: 11, color: "var(--sub)", margin: "0 0 8px", lineHeight: 1.7 }}>
-                    ※種別・同伴はこの端末では表示・変更できません（保存しても変わりません＝分配率のみ反映）。
-                    種別・同伴の確認・変更は管理画面のレジで行ってください。
-                  </p>
-                  {/* E8-1 ⑤（register-board 同型）: 按分チップ → CastPicker。
-                      ★裁定110: 名簿＝キーの存在（w=0 も一員）。追加＝既定分配（本 100% 等分→場内→フリー）・
-                      解除＝キー削除＋残り正規化（全 0 なら既定分配で復旧）。 */}
-                  <CastPicker
-                    casts={state?.casts ?? []}
-                    seatedIds={new Set(Object.keys(nomWeights))}
-                    selectedIds={new Set(Object.keys(nomWeights))}
-                    dense
-                    onPick={(id) => setNomWeights((prev) => {
-                      if (prev[id] !== undefined) {
-                        const next = { ...prev };
-                        delete next[id];
-                        const anyPos = Object.values(next).some((w) => w > 0);
-                        return anyPos ? renormalizeKeepZeros(next) : defaultWeights(Object.keys(next), nomKinds);
-                      }
-                      return defaultWeights([...Object.keys(prev), id], { ...nomKinds, [id]: nomKinds[id] ?? "free" });
-                    })}
-                  />
-                  {/* ★裁定110 A2-(5): 自動補完で Σ は常に 100 */}
-                  <p style={{ fontSize: 11, color: "var(--sub)", margin: "6px 0 0" }}>
-                    合計 <b className="num" style={{ color: "var(--ok)" }}>{Object.values(nomWeights).reduce((a, w) => a + w, 0)}%</b>
-                  </p>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 10 }}>
-                    {(state?.casts ?? []).filter((ca) => nomWeights[ca.id] !== undefined).map((ca) => {
-                      // ★0121（裁定107）: free の weight=1 固定を撤去＝全行に重み入力（「均等」表示なし）。
-                      const k = nomKinds[ca.id] ?? "free";
-                      const d = nomDohan[ca.id] ?? false;
-                      return (
-                      <span key={ca.id} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, flexWrap: "wrap" }}>
-                        <b>{ca.name}</b>
-                        {/* ★0124（裁定111 判断C）: 種別 select・同伴チェックを撤去＝kiosk は現在値を読めず
-                            （detail 不返却＝#45）、送らない以上は変更 UI が誤操作の温床になるため。
-                            バッジは detail が kinds を返すようになれば（#45）自動で正値表示＝防御形は維持。 */}
-                        {/* ★裁定105: 本数は種別ごと1人1件（％非依存）＝種別バッジ＋「1件」・同伴は別バッジ */}
-                        {k !== "free" && (
-                          <span style={{ ...t.tag, fontSize: 10, padding: "1px 6px", color: "var(--champ)" }}>
-                            {k === "hon" ? "本指名" : "場内"} <span className="num">1件</span>
-                          </span>
-                        )}
-                        {d && (
-                          <span style={{ ...t.tag, fontSize: 10, padding: "1px 6px", color: "var(--champ)" }}>
-                            同伴 <span className="num">1件</span>
-                          </span>
-                        )}
-                        {/* ★裁定110 A2-(5): 0%＝按分なし（本数は種別どおり・金額の取り分だけ 0） */}
-                        {(nomWeights[ca.id] ?? 0) === 0 && (
-                          <span style={{ ...t.tag, fontSize: 10, padding: "1px 6px", color: "var(--sub)", borderColor: "var(--line2)" }}>
-                            按分なし
-                          </span>
-                        )}
-                        <input
-                          type="number" min={0} max={100} value={nomWeights[ca.id] ?? 0} aria-label={`${ca.name} の分配率`}
-                          onChange={(e) => setNomWeights((prev) => redistribute(prev, ca.id, Number(e.target.value)))}
-                          style={{ ...input, width: 52, padding: "6px 6px", textAlign: "right" }}
-                        />
-                      </span>
-                      );
-                    })}
-                    <div className="nox-actions"><button onClick={() => void saveNoms()} style={btnDark}>保存</button></div>{/* ★裁定244 */}
-                  </div>
-                </div>
-
-                {/* B1/B2 席（相席・席移動）＝open のみ。kiosk は予約が読めない＝soft 警告なし（拒否系は RPC） */}
-                {detail.check.status === "open" && (
-                  <div className="nox-cardtop" style={card}>
-                    <h3 style={t.cardTitle}>席</h3>
-                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
-                      <span style={{ fontSize: 12, color: "var(--sub)" }}>現在</span>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: "var(--v2-text)" }}>
-                        {seats.find((s) => s.id === detail.check.seat_id)?.name ?? "—"}
-                        <span style={{ fontSize: 11, color: "var(--sub)", fontWeight: 400 }}> （主席）</span>
-                      </span>
-                      {detail.extra_seat_ids.map((sid) => (
-                        <span key={sid} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 13, color: "var(--ink)" }}>
-                          ＋{seats.find((s) => s.id === sid)?.name ?? "他卓"}（同一会計）
-                          <button onClick={() => void removeSeat(sid)} title="相席を解除"
-                            style={{ ...btnLight, padding: "1px 7px", fontSize: 12, color: "var(--bad)", border: "1px solid var(--bad)" }}>×</button>
-                        </span>
-                      ))}
-                    </div>
-                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                      <select value="" onChange={(e) => { if (e.target.value) void addSeat(e.target.value); }} style={{ ...input, maxWidth: 200 }}>
-                        <option value="">相席（同一会計）に席を追加</option>
-                        {emptySeats.map((s) => <option key={s.id} value={s.id}>{s.name}{s.kind ? `（${s.kind}）` : ""}</option>)}
-                      </select>
-                      <select value="" onChange={(e) => { if (e.target.value) void moveSeat(e.target.value); }} style={{ ...input, maxWidth: 200 }}>
-                        <option value="">席移動（移動先を選択）</option>
-                        {emptySeats.map((s) => <option key={s.id} value={s.id}>{s.name}{s.kind ? `（${s.kind}）` : ""}</option>)}
-                      </select>
-                    </div>
-                    {seatMsg && <Toast msg={seatMsg} style={{ margin: "8px 0 0" }} />}
-                  </div>
-                )}
-
-                {/* B4 時間制（自動）＝time_mode='auto' かつ open。内訳は返値 jsonb（0059 は料金表スナップ非開示）
-                    ★レジ時間UX R3（裁定29）: 手動ボタン廃止＝伝票を開いた時点で自動反映（register-board 同型）。 */}
-                {detail.time_mode === "auto" && detail.check.status === "open" && (
-                  <div className="nox-cardtop" style={card}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                      <h3 style={{ ...t.cardTitle, margin: 0 }}>時間料金（自動）</h3>
-                      <span style={{ fontSize: 12, color: "var(--sub)" }}>
-                        経過 <span style={t.num}>{Math.max(0, Math.floor((nowMs - new Date(detail.check.started_at).getTime()) / 60000))}</span> 分
-                        （着席 {new Date(detail.check.started_at).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}）
-                      </span>
-                    </div>
-                    <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "8px 0 0", lineHeight: 1.7 }}>
-                      {payments.length > 0
-                        ? "入金済みのため時間料金は凍結されています（訂正は責任者へ）。"
-                        : "伝票を開いた時点の経過分で自動反映されます。"}
-                    </p>
-                    {timeCalc && (
-                      <p style={{ fontSize: 12, color: "var(--ink)", margin: "10px 0 0" }}>
-                        経過 <span style={t.num}>{timeCalc.elapsed_min}</span> 分・単位 <span style={t.num}>{timeCalc.units}</span>・
-                        延長 <span style={t.num}>{timeCalc.blocks}</span> 回 → セット <span style={t.num}>{yen(timeCalc.set_c)}</span>＋
-                        延長 <span style={t.num}>{yen(timeCalc.ext_c)}</span> ＝ 合計 <span style={{ ...t.num, fontWeight: 700, color: "var(--v2-text)" }}>{yen(timeCalc.total)}</span>
-                      </p>
-                    )}
-                    {timeMsg && <Toast msg={timeMsg} style={{ margin: "8px 0 0" }} />}
-                  </div>
-                )}
-
-                {/* R-A5（0089・register-board 同型）: manual 店の時間料金カード＝延長1押し=1行。
-                    auto 店では非表示（RPC 側 'auto mode' 拒否と二重防御）。取消は明細の行削除。 */}
-                {detail.time_mode === "manual" && detail.check.status === "open" && (
-                  <div className="nox-cardtop" style={card}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                      <h3 style={{ ...t.cardTitle, margin: 0 }}>時間料金（手動）</h3>
-                      <span style={{ fontSize: 12, color: "var(--sub)" }}>
-                        経過 <span style={t.num}>{Math.max(0, Math.floor((nowMs - new Date(detail.check.started_at).getTime()) / 60000))}</span> 分
-                        （着席 {new Date(detail.check.started_at).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}）
-                      </span>
-                    </div>
-                    <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "8px 0", lineHeight: 1.7 }}>
-                      セット料金は開卓時に明細へ入っています。延長はお客様に確認のうえボタンで追加してください
-                      （1回押すごとに1行・取り消しは明細の削除）。
-                    </p>
-                    <div className="nox-actions">{/* ★裁定244: 節直下の実行＝中央 */}
-                      <button onClick={() => void addExtension()} style={btnDark} disabled={payments.length > 0}
-                        title={payments.length > 0 ? "入金後は追加できません" : ""}>
-                        延長を追加（{yen(detail.check.ext_fee * (detail.check.time_per === "person" ? (detail.check.people ?? 1) : 1))} / {detail.check.ext_min}分）
-                      </button>
-                    </div>
-                    {timeMsg && <Toast msg={timeMsg} style={{ margin: "8px 0 0" }} />}
-                  </div>
-                )}
-
-                {/* 明細追加 */}
-                <div className="nox-cardtop" style={card}>
-                  {/* ★DP1 P2 b#18（従属波及）: モック `.sectionhead`＝見出し＋説明文の2段組。 */}
-                  <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
-                    <div>
-                      <h3 style={{ ...t.cardTitle, margin: 0 }}>注文・セット料金</h3>
-                      <p style={{ margin: "3px 0 0", fontSize: 11.5, color: "var(--sub)", lineHeight: 1.6 }}>
-                        商品をタップすると明細に追加されます。セット料金は開卓時に自動で入ります。
-                      </p>
-                    </div>
-                    <span style={{ fontSize: 12, color: "var(--sub)", marginLeft: "auto" }}>伝票グループ</span>
-                    <input value={prodGroup} onChange={(e) => setProdGroup(e.target.value)} aria-label="伝票グループ" style={{ ...input, width: 40 }} />
-                  </div>
-                  {/* 純増⑦: カテゴリ別タイル（0059 v2 の categories・sort_order 順＋末尾に未分類）。
-                      カテゴリ未登録なら type 別へフォールバック（register-board と同一ロジック＝共有フック）。 */}
-                  {/* 段0R 第3陣: モック .cats＝カテゴリチップ（register 8c07e5b の写経）。★表示の絞り込みだけで、
-                      タップ注文（連打束ね→行追加 RPC）の挙動と送る引数は1文字も変えていない。
-                      「すべて」で全群を出す＝従来の見え方（全カテゴリ縦並び）も残る。1群以下ならチップを出さない。 */}
-                  {(() => {
-                    const gs = groupProducts(state?.products ?? [], state?.categories ?? []);
-                    return gs.length > 1 ? (
-                      <div className="nox-cats">
-                        <button type="button" className={`nox-cat${catFilter === "" ? " on" : ""}`}
-                          onClick={() => setCatFilter("")}>すべて</button>
-                        {gs.map((g) => (
-                          <button key={g.key} type="button" className={`nox-cat${catFilter === g.key ? " on" : ""}`}
-                            onClick={() => setCatFilter(g.key)}>{g.label}</button>
-                        ))}
-                      </div>
-                    ) : null;
-                  })()}
-                  {groupProducts(state?.products ?? [], state?.categories ?? []).filter((g) => catFilter === "" || g.key === catFilter).map((g) => {
-                    const items = g.items;
-                    return (
-                      <div key={g.key} style={{ marginBottom: 10 }}>
-                        <div style={{ fontSize: 11.5, fontWeight: 800, color: "var(--sub)", margin: "0 0 6px" }}>{g.label}</div>
-                        <div className="nox-tilegrid">
-                          {items.map((p) => {
-                            const n = tb.badgeOf(p.id);
-                            return (
-                              <button key={p.id} type="button" className="nox-tile" onClick={() => tb.tap(p.id)}>
-                                {n > 0 && <span className="nox-tile-badge">+{n}</span>}
-                                <span className="nox-tile-name">{p.name}</span>
-                                <span className="nox-tile-price">{yen(p.price)}</span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  })}
-                  {(state?.products ?? []).length === 0 && <p style={{ fontSize: 12.5, color: "var(--sub)", margin: "0 0 8px" }}>商品が未登録です。</p>}
-                  {/* カスタム明細（kind/名称/価格）＝据置 */}
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 4 }}>
-                    {/* R-A2（0089）: 種別から「セット」を除去＝開卓時の自動行と手打ちの二重計上を封じる */}
-                    <SegSelect value={cKind} onChange={(v) => setCKind(v)}
-            options={[["charge", "料金"], ["time", "延長"], ["custom", "その他"]] as const} />
-                    <input placeholder="名称（例 貸切料金）" value={cName} onChange={(e) => setCName(e.target.value)} style={{ ...input, width: 170 }} />
-                    <input type="number" min={0} value={cPrice} onChange={(e) => setCPrice(Number(e.target.value))} style={{ ...input, width: 90 }} />
-                    <span style={{ fontSize: 12, color: "var(--sub)" }}>伝票</span>
-                    <input value={cGroup} onChange={(e) => setCGroup(e.target.value)} style={{ ...input, width: 40 }} />
-                    <button onClick={() => void addCustomLine()} style={btnDark}>追加</button>
-                  </div>
-                </div>
-                </div>
-                <div>
-
-                {/* 明細 */}
-                <div className="nox-cardtop" style={card}>
-                  <h3 style={t.cardTitle}>明細</h3>
-                  {/* 段K2: 明細行の余白と字をモック .line（padding 9px・font-size 14px）に合わせる＝
-                      タブレットで指が当たりやすく読みやすい。★kiosk のこのテーブルだけ（register 側は不変）。
-                      列も値の出し方も削除ボタンの挙動も1文字も変えていない。 */}
-                  <div className="nox-tablewrap plain">{/* ★M1 第 2 レーン（裁定251・2026-09-18）: 横スクロール容器 */}
-                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
-                    <tbody>
-                      {lines.map((l) => {
-                        const isDisc = l.kind === "discount"; // 承認割引（責任者画面で適用されたもの＝表示のみ）
-                        return (
-                          <tr key={l.id} style={{ borderBottom: "1px solid var(--v2-line)" }}>
-                            <td style={{ padding: "9px 6px", color: "var(--v2-muted)" }}>[{l.pay_group}]</td>
-                            <td style={{ padding: "9px 6px", color: isDisc ? "var(--bad)" : "var(--v2-text)" }}>{l.name_snapshot}</td>
-                            <td style={{ ...t.num, padding: "9px 6px", textAlign: "right", color: "var(--v2-muted)" }}>{isDisc ? "" : `${yen(l.unit_price_snapshot)} × ${l.qty}`}</td>
-                            <td style={{ ...t.num, padding: "9px 6px", textAlign: "right", color: isDisc ? "var(--bad)" : "var(--v2-text)" }}>
-                              {isDisc ? `−${yen(l.line_total)}` : yen(l.line_total)}
-                            </td>
-                            <td style={{ padding: "9px 6px" }}>
-                              {isDisc ? (
-                                <span style={{ fontSize: 11, color: "var(--sub)" }}>承認割引</span>
-                              ) : (
-                                <button
-                                  onClick={() => void removeLine(l.id)}
-                                  disabled={payments.length > 0 || detail.check.status !== "open"}
-                                  title={payments.length > 0 ? "入金後の訂正は責任者へ" : ""}
-                                  style={{ ...btnLight, padding: "2px 8px", fontSize: 12 }}
-                                >
-                                  削除
-                                </button>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                  </div>
-                </div>
-
-                {/* 会計（割引・無料の申請/適用は責任者画面のみ＝裁定11 確定②） */}
-                <div className="nox-cardtop" style={card}>
-                  {/* ★DP1 P2 b#38（従属波及・裁定 DP1-⑧）: manage の /register と同基準で会計3段を**表示だけ**出す。
-                      ★check_pay / check_close の呼び出し・引数・金額計算・順序は1文字も変えていない＝
-                        段は既存の payments と groupInfo から導出して描くだけ（新 state も新分岐も無い）。 */}
-                  {(() => {
-                    const covered = groups.length > 0 && !groupInfo.some((gi) => gi.paid < gi.due);
-                    const step = !covered && payments.length === 0 ? 1 : !covered ? 2 : 3;
-                    const STEPS = [[1, "請求を確認"], [2, "入金"], [3, "会計を締める"]] as const;
-                    return (
-                      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6, marginBottom: 12 }}>
-                        {STEPS.map(([n, label]) => (
-                          <div key={n} style={{
-                            display: "flex", alignItems: "center", gap: 7, padding: "7px 10px",
-                            borderRadius: 7, fontSize: 12, fontWeight: 700,
-                            border: `1px solid ${n === step ? "var(--gold)" : "var(--line)"}`,
-                            background: n === step ? "var(--goldbg)" : "transparent",
-                            color: n === step ? "var(--gold2)" : n < step ? "var(--v2-text)" : "var(--sub)",
-                          }}>
-                            <span className="num" style={{ fontWeight: 900 }}>{n < step ? "✓" : n}</span>{label}
-                          </div>
-                        ))}
-                      </div>
-                    );
-                  })()}
-                  <h3 style={{ ...t.cardTitle, margin: "0 0 4px" }}>① 請求を確認（伝票グループ別）</h3>
-                  <div className="nox-tablewrap plain">{/* ★M1 第 2 レーン（裁定251・2026-09-18）: 横スクロール容器 */}
-                  <table style={{ borderCollapse: "collapse", fontSize: 13, marginBottom: 10 }}>
-                    <thead>
-                      <tr>
-                        <th style={t.th}>伝票</th>
-                        <th style={t.th}>小計</th>
-                        <th style={t.th}>割引</th>
-                        <th style={t.th} data-due-head="1">{(detail.check as { price_display?: string | null; business_tax_status?: string | null }).price_display === "tax_excluded" && ((detail.check as { business_tax_status?: string | null }).business_tax_status ?? "taxable") === "taxable" ? "請求（税・サ込）" : "請求（サ込・内税）"}</th>{/* ★便 SH-UI-c2 C2-12 */}
-                        <th style={t.th}>入金済</th>
-                        <th style={t.th}>残額</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {groupInfo.map((gi) => (
-                        <tr key={gi.g}>
-                          <td style={t.td}>{gi.g}</td>
-                          <td style={{ ...t.td, ...t.num }}>{yen(gi.bx)}</td>
-                          <td style={{ ...t.td, ...t.num, color: gi.disc > 0 ? "var(--bad)" : "var(--sub)" }}>{gi.disc > 0 ? `−${yen(gi.disc)}` : "—"}</td>
-                          <td style={{ ...t.td, ...t.num, fontWeight: 700, color: "var(--v2-text)" }}>{yen(gi.due)}</td>
-                          <td style={{ ...t.td, ...t.num }}>{yen(gi.paid)}</td>
-                          <td style={{ ...t.td, ...t.num, color: gi.remaining > 0 ? "var(--bad)" : "var(--ok)" }}>{yen(gi.remaining)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  </div>
-                  {detail.check.status === "open" && (
-                  <>
-                  <h3 style={{ ...t.cardTitle, margin: "14px 0 4px" }}>② 入金</h3>
-                  {/* ★DP1 P2 b#39（従属波及）: モックの「併用」は方法の3つ目ではなく「分けて払う」操作＝
-                      NOX は payments を複数行にすることで既に実現できている。4値（cash/card/ar/other）は
-                      payments_method_check・check_pay の検証・daily_report_aggregate の名指し集計に直結＝減らさない。 */}
-                  <p style={{ margin: "0 0 8px", fontSize: 11.5, color: "var(--sub)", lineHeight: 1.7 }}>
-                    併用（現金＋カードなど）は、入金額を減らして入金し、残額をもう一度別の方法で入金します。
-                  </p>
-                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
-                      <span style={{ fontSize: 12, color: "var(--sub)" }}>伝票</span>
-                      <input value={payGroup} onChange={(e) => setPayGroup(e.target.value)} style={{ ...input, width: 40 }} />
-                      <select
-                        value={payMethod}
-                        onChange={(e) => { setPayMethod(e.target.value); if (!DETAIL_METHODS.has(e.target.value)) setPayDetail(""); }}
-                        style={input}
-                      >
-                        {/* ★0156（起票84・便 V-7）: 店設定 ar_enabled=false（kiosk_register_state が返す）なら「売掛」を描画しない＝管理画面のレジ（0155 便 S-2）と同じ条件 */}
-                        {Object.entries(METHOD_LABEL).filter(([v]) => v !== "ar" || state?.ar_enabled !== false).map(([v, l]) => (
-                          <option key={v} value={v}>{l}</option>
-                        ))}
-                      </select>
-                      <input
-                        type="number" min={1} value={payAmount}
-                        onChange={(e) => setPayAmount(Number(e.target.value))}
-                        style={{ ...input, width: 110 }}
-                      />
-                      {payMethod === "cash" && (
-                        <input placeholder="お預かり" value={payTendered}
-                          onChange={(e) => setPayTendered(e.target.value)} style={{ ...input, width: 100 }} />
-                      )}
-                      {DETAIL_METHODS.has(payMethod) && (
-                        <input placeholder="内訳（任意）例: stera端末 / PayPay" value={payDetail} maxLength={50}
-                          onChange={(e) => setPayDetail(e.target.value)} style={{ ...input, width: 200 }} />
-                      )}
-                      <button onClick={() => void pay()} style={btnDark}>入金</button>
-                    </div>
-                  </>
-                  )}
-                  <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-                    {payments.map((p) => (
-                      <span key={p.id} style={{ ...t.num, fontSize: 12, color: "var(--sub)" }}>
-                        [{p.pay_group}] {METHOD_LABEL[p.method]}{p.method_detail ? `（${p.method_detail}）` : ""} {yen(p.amount)}
-                        {p.tendered != null ? `（預 ${yen(p.tendered)}・釣 ${yen(p.tendered - p.amount)}）` : ""}
-                      </span>
-                    ))}
-                  </div>
-                  {detail.check.status === "open" && (
-                    /* planB モック .payrow＝大ボタン2列（padding 15px・15px）。締めるは従来と同一の
-                       onClick/disabled/文言のまま。「← フロア」は backbar と同じ既存 closeDetail の再利用
-                       ＝保留の連打束ねを flush してから戻る挙動も同一（新規ロジックなし）。 */
-                    <>
-                    <h3 style={{ ...t.cardTitle, margin: "14px 0 4px" }}>③ 会計を締める</h3>
-                    <div className="nox-payrow">
-                      <button
-                        onClick={() => void closeCheck()}
-                        disabled={groups.length === 0 || groupInfo.some((gi) => gi.paid < gi.due)}
-                        style={{ ...t.btnGold, padding: 15, fontSize: 15, fontWeight: 800,
-                                 opacity: groups.length === 0 || groupInfo.some((gi) => gi.paid < gi.due) ? 0.4 : 1 }}
-                      >
-                        会計を締める（クローズ）
-                      </button>
-                      <button onClick={() => void closeDetail()} style={{ ...t.btnGhost, padding: 15, fontSize: 15 }}>
-                        ← フロア
-                      </button>
-                    </div>
-                    </>
-                  )}
-                </div>
-                </div>
-              </div>
-            </div>
+          <div className="nox-kmain" data-kiosk-register-board="1">
+            {boardErr && <Message kind="error" style={{ margin: "0 0 12px" }}>{boardErr}</Message>}
+            {!board && !boardErr && <p style={{ textAlign: "center", color: "var(--sub)" }}>読み込み中…</p>}
+            {board && (
+              /* ★K-0: 本店の register-board と同一部品・同じ props。予約タブは出さない（顧客の個人情報はキオスクに出さない＝裁定435） */
+              <RegisterBoard seats={board.seats} products={board.products} categories={board.categories} casts={board.casts}
+                isManagerUp={isManagerUp} showReserve={false} storeId={board.storeId} />
             )}
           </div>
         )}

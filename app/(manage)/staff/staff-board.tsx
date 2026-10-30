@@ -20,7 +20,7 @@ import { rpcErrJa } from "@/lib/nox/ui/rpc-err";
 // ★0162（裁定329／329 追補1・便 M5-1）: スタッフ写真＝キャストと同じ bucket・同じ縮小・u_{user_id}.jpg。登録／差替え＝uploadUserPhoto・削除＝storage.remove → clear_user_photo
 import { resolveOrgId } from "@/lib/nox/cast-photo";
 import { photoActionLabelOf, removeUserPhoto, signUserPhotos, uploadUserPhoto } from "@/lib/nox/staff-photo";
-import { mig0183On, rules0175On } from "@/lib/nox/rules-0175/flag"; // ★追補 3 R-8 // ★便 M-9（0183）
+import { mig0183On, mig0190On, rules0175On } from "@/lib/nox/rules-0175/flag"; // ★追補 3 R-8 // ★便 M-9（0183） // ★0190（裁定436 ①c）: 在籍解除の失効（route）
 import { ownerOnlyNoteOf, roleChangeTargetsOf, roleChangeTextOf, roleLabelOf, rolePillKindOf, staffListRolesOf } from "@/lib/nox/rules-0175/roles";
 import { INVITE_STATE_LABEL, LOGIN_METHOD_NOTE, LOGIN_METHOD_OPTIONS, inviteErrJa, inviteExpiryTextOf, inviteFormErrorOf, inviteStateOf, type LoginMethod } from "@/lib/nox/people/invite"; // ★便 ON-3（0176 ★2 I-1）: 登録→招待の 2 段
 import { LINE_BIND_NOTE, liffBindUrlOf } from "@/lib/nox/line/liff-endpoint"; // ★便 ON-3（0176 ★1 401）: LINE 連携のリンク
@@ -188,6 +188,17 @@ export default function StaffBoard({
     setBusy(false);
     await load();
     return !error;
+  }
+  // ★0190（裁定436 ①c）: 在籍解除＝ban／再雇用＝unban を route に頼む（RPC 成功の後だけ・RPC 側は staff_pin の削除と kiosk_sessions の終了を済ませている）。
+  //   失敗は在籍解除を止めない（memberships.is_active=false が真の防御・再実行で ban し直せる）＝メッセージに注記を足すだけ
+  async function retireAuth(membershipId: string, mode: "ban" | "unban") {
+    if (!mig0190On()) return;
+    let ok = false;
+    try {
+      const res = await fetch("/api/auth/retire", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ kind: "staff", id: membershipId, mode }) });
+      ok = res.ok;
+    } catch { ok = false; }
+    if (!ok) setMsg((m) => `${m ?? ""}（ログインの失効は後で再実行できます）`);
   }
 
   // トグル＝規約7: 4フラグとも明示 boolean を常に全送信（部分更新しない）
@@ -452,7 +463,8 @@ export default function StaffBoard({
               // ★裁定146（裁定120 適用）: 在籍解除＝取り消し困難な操作＝Danger 系トークン（--bad 系は警告面用・値は同系）
               <button style={{ ...btnGhost, color: "var(--danger)", border: "1px solid var(--danger-bd)" }} disabled={busy} onClick={async () => {
                 if (!confirm(`${users[sel.user_id]?.name ?? ""} の在籍を解除しますか？（ログイン権限が即時に失効します・削除はされません）`)) return;
-                await rpc("在籍を解除", "staff_deactivate", { p_membership_id: sel.id });
+                const ok = await rpc("在籍を解除", "staff_deactivate", { p_membership_id: sel.id });
+                if (ok) await retireAuth(sel.id, "ban"); // ★0190（裁定436 ①c）
                 setSel(null);
               }}>在籍を解除</button>
             )}
@@ -481,7 +493,8 @@ export default function StaffBoard({
             )}
             {!sel.is_active && (
               <button style={btnGold} disabled={busy} onClick={async () => {
-                await rpc("再雇用", "staff_reactivate", { p_membership_id: sel.id });
+                const ok = await rpc("再雇用", "staff_reactivate", { p_membership_id: sel.id });
+                if (ok) await retireAuth(sel.id, "unban"); // ★0190（裁定436 ①c）: 再雇用＝ban を解く
                 setSel(null);
               }}>再雇用（復帰）</button>
             )}

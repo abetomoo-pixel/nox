@@ -117,6 +117,7 @@ const C3_ERR_JA: [string, string][] = [
   ["merge_conflict:cast", "同じキャストの指名が両方の伝票にあるため合算できません（先に片方の指名を外してください）"],
   ["merge_conflict:pay_group", "会計グループ A 以外の明細があるため合算できません（先にグループを A に戻してください）"],
   ["reason_required", "理由は 1〜200 字で入力してください"],
+  ["off duty", "出勤してからレジを開けます（店の端末で出勤の打刻をしてください）"], // ★0190（裁定436 ①a）: 打刻ゲート＝25 本の check_*／approval_* が返す（tb.flush の生文も含め全経路が c3ErrJa を通る）
 ];
 const c3ErrJa = (m: string) => C3_ERR_JA.find(([k]) => m.includes(k))?.[1] ?? m;
 const MSG_PAY = "pay";
@@ -248,6 +249,7 @@ function apErrJa(msg: string | undefined): string {
   if (msg.includes("bad type")) return "種別が不正です";
   if (msg.includes("bad amount")) return "割引額の指定が不正です";
   if (msg.includes("bad reason")) return "理由は200字以内で入力してください";
+  if (msg.includes("off duty")) return "出勤してからレジを開けます"; // ★0190（裁定436 ①a）: approval_request／approval_direct の打刻ゲート
   if (msg.includes("forbidden")) return "権限がありません";
   return msg;
 }
@@ -260,6 +262,7 @@ function timeErrJa(msg: string | undefined): string {
   if (msg.includes("bad time settings")) return "店の時間料金設定が不正です（マスタで確認してください）";
   if (msg.includes("auto mode")) return "自動計算の店です（時間料金は会計タブで自動反映されます）"; // R-A3: check_extension_add の manual 専用ガード
   if (isBillingLocked(msg)) return BILLING_LOCKED_MSG;
+  if (msg.includes("off duty")) return "出勤してからレジを開けます"; // ★0190（裁定436 ①a）: check_time_charge_apply／check_extension_add の打刻ゲート
   if (msg.includes("forbidden")) return "権限がありません";
   return msg;
 }
@@ -273,6 +276,7 @@ function seatErrJa(msg: string | undefined): string {
   if (msg.includes("same seat")) return "同じ席です";
   if (msg.includes("inactive seat")) return "無効な席です";
   if (msg.includes("bad seat")) return "席の指定が不正です";
+  if (msg.includes("off duty")) return "出勤してからレジを開けます"; // ★0190（裁定436 ①a）: check_add_seat／remove_seat／move_seat の打刻ゲート
   if (msg.includes("forbidden")) return "権限がありません";
   return msg;
 }
@@ -995,7 +999,8 @@ export default function RegisterBoard({
     if (error) {
       setMsg({ to: MSG_DETAIL, kind: "bad",
         // ★C③-20 追随: 写像にない想定外エラー（unique 違反等の生文言）は汎用文言で包む＝生文言は残す（隠さない）
-        text: error.message.includes("forbidden") ? "合算できません（同じ伝票・別の店の伝票・権限のいずれか）"
+        text: error.message.includes("off duty") ? "出勤してからレジを開けます" // ★0190（裁定436 ①a）: check_merge の打刻ゲート
+          : error.message.includes("forbidden") ? "合算できません（同じ伝票・別の店の伝票・権限のいずれか）"
           : C3_ERR_JA.some(([k]) => error.message.includes(k)) ? error.message
           : `合算できませんでした: ${error.message}` });
       return;
@@ -1046,6 +1051,7 @@ export default function RegisterBoard({
     if (error) {
       setMsg({ to: MSG_FLOOR, kind: "bad", text: error.message.includes("bad rule")
         ? "選択した料金ルールが使えません（無効化された可能性があります・自動で開卓し直してください）"
+        : error.message.includes("off duty") ? "出勤してからレジを開けます（店の端末で出勤の打刻をしてください）" // ★0190（裁定436 ①a）: check_open の打刻ゲート（店長以上は免除・店設定 duty_gate=false は不問）
         : error.message });
       return;
     }
@@ -1167,6 +1173,7 @@ export default function RegisterBoard({
     if (m.includes("bad cast")) return "このお店のキャストを選んでください";
     if (m.includes("not open")) return "この伝票は会計済みまたは取消済みです";
     if (m.includes("has payments")) return "入金後は指名料・同伴料を変更できません（入金を取り消してから操作してください）";
+    if (m.includes("off duty")) return "出勤してからレジを開けます"; // ★0190（裁定436 ①a）: check_set_nominations の打刻ゲート
     if (m.includes("forbidden")) return "権限がありません";
     return m;
   };
@@ -1186,6 +1193,7 @@ export default function RegisterBoard({
           : m.includes("has payments") ? "入金後は付け替えできません（訂正は取消から）"
           : m.includes("not open") ? "この伝票は締められています"
           : isBillingLocked(m) ? BILLING_LOCKED_MSG
+          : m.includes("off duty") ? "出勤してからレジを開けます" // ★0190（裁定436 ①a）: check_line_set_group の打刻ゲート
           : m.includes("forbidden") ? "権限がありません" : m);
       return;
     }
@@ -1529,6 +1537,7 @@ export default function RegisterBoard({
           : m.includes("has payments") ? "入金後は人数を変更できません（訂正は取消から）"
           : m.includes("not open") ? "この伝票は締められています"
           : isBillingLocked(m) ? BILLING_LOCKED_MSG
+          : m.includes("off duty") ? "出勤してからレジを開けます" // ★0190（裁定436 ①a）: check_set_people の打刻ゲート
           : m.includes("forbidden") ? "権限がありません" : m);
       return;
     }

@@ -17,7 +17,9 @@ import { Message } from "@/components/ui/toast"; // ★裁定281（便 U）: メ
 import { okuriSelfPlanOf, OKURI_PENDING_NOTE, type OkuriSelfPlan } from "@/lib/nox/shift/okuri-self";
 import { okuriOutTextOf, okuriRecordedTextOf } from "@/lib/nox/shift/okuri-mode"; // ★裁定414（S-4）: 方式の 1 文・「記録」
 import { rpcErrJa } from "@/lib/nox/ui/rpc-err"; // ★裁定327（0161・便 M1-4）: 順序検査の拒否 3 語は端末にも同じ和文
-import { rules0175On } from "@/lib/nox/rules-0175/flag"; // ★追補 2 同乗 R-7
+import { mig0190On, rules0175On } from "@/lib/nox/rules-0175/flag"; // ★追補 2 同乗 R-7 ★0190: mig0190On
+import { bindErrJa, browserDeviceFp } from "@/lib/nox/kiosk/device-fp"; // ★0190（裁定436 ①b）: 端末の束縛＝ログイン直後に kiosk_device_bind
+import { KIOSK_FEATURE_READY } from "@/lib/nox/rules-0175/kiosk"; // ★0190（裁定435）: 5 タイル（シフト・在庫・日報は案内画面）
 import { KIOSK_FEATURE_HREF, KIOSK_FEATURE_LABEL, type KioskFeature } from "@/lib/nox/rules-0175/kiosk"; // ★追補 2 同乗 R-7（裁定423 候補）
 type KRow = { cast_id: string; cast_name: string; has_pin: boolean; staff?: boolean }; // ★便 P174 T-6（355）: staff＝true は cast_id に membership_id（スタッフ群）
 type SRow = { membership_id: string; user_name: string; role: string; has_pin: boolean; last_kind: string | null; last_at: string | null }; // ★便 P174 T-6: kiosk_staff_list（0174 ★5）
@@ -54,6 +56,19 @@ export default function KioskPage() {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [okuriPlan, setOkuriPlan] = useState<OkuriSelfPlan | null>(null);
   const [castPunchOff, setCastPunchOff] = useState(false); // ★便 X13-G W-23 ①: キャストの打刻を使わない店＝キャスト群を出さない（スタッフ群は今のまま）
+  const [bindMsg, setBindMsg] = useState<string | null>(null); // ★0190: 端末の束縛（'device bound'＝別の端末に固定済み→denied）
+
+  // ★0190（裁定436 ①b）: 端末ログインの直後に端末自身が kiosk_device_bind(fp, ua) を呼ぶ＝未束縛なら束縛・同じ fp なら last_seen・別の fp は 'device bound'（この端末では使えない）
+  const bindDevice = useCallback(async (): Promise<boolean> => {
+    if (!mig0190On()) return true;
+    const fp = browserDeviceFp();
+    if (!fp) { setBindMsg("ブラウザの保存領域が使えないため、端末の固定ができません（プライベートモードを解除してください）"); return true; }
+    const { error } = await supabase.rpc("kiosk_device_bind", { p_device_fp: fp, p_ua: typeof navigator === "undefined" ? null : navigator.userAgent.slice(0, 200) });
+    if (error) { setBindMsg(bindErrJa(error.message)); return !error.message.includes("device bound"); }
+    setBindMsg(null);
+    return true;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // kiosk_cast_list が唯一の読み口: 1行以上=キオスク端末（他ロール/非端末は 0行＝fail-closed）
   const loadList = useCallback(async (): Promise<boolean> => {
@@ -73,6 +88,7 @@ export default function KioskPage() {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { setPhase("login"); return; }
+      if (!(await bindDevice())) { setPhase("denied"); return; } // ★0190: 別の端末に固定済み
       setPhase((await loadList()) ? "select" : "denied");
     })();
     return () => { if (timerRef.current) clearTimeout(timerRef.current); };
@@ -85,6 +101,7 @@ export default function KioskPage() {
     const { error } = await supabase.auth.signInWithPassword({ email: loginEmail.trim(), password: loginPw });
     if (error) { setLoginErr("ログインIDまたはパスワードが違います"); setBusy(false); return; }
     setLoginPw("");
+    if (!(await bindDevice())) { setPhase("denied"); setBusy(false); return; } // ★0190: 別の端末に固定済み
     setPhase((await loadList()) ? "select" : "denied");
     setBusy(false);
   }
@@ -204,8 +221,8 @@ export default function KioskPage() {
 
         {phase === "denied" && (
           <div className="nox-cardtop" style={{ ...t.card, textAlign: "center" }}>
-            <p style={{ fontSize: 15, fontWeight: 700, margin: "0 0 6px" }}>このアカウントはキオスク端末ではありません</p>
-            <p style={{ ...t.sub, margin: 0 }}>端末アカウント（オーナーがマスタ管理で発行）でログインし直してください。</p>
+            <p style={{ fontSize: 15, fontWeight: 700, margin: "0 0 6px" }}>{bindMsg && bindMsg.includes("固定されています") ? "この端末では使えません" : "このアカウントはキオスク端末ではありません"}</p>
+            <p style={{ ...t.sub, margin: 0 }} data-kiosk-bind-msg={bindMsg ? "1" : "0"}>{bindMsg ?? "端末アカウント（オーナーがマスタ管理で発行）でログインし直してください。"}</p>{/* ★0190: 'device bound' の案内 */}
             <button onClick={async () => { await supabase.auth.signOut(); setPhase("login"); }}
               style={{ ...t.btnGhost, marginTop: 14 }}>ログアウト</button>
           </div>
@@ -217,7 +234,7 @@ export default function KioskPage() {
               <div data-kiosk-tiles="1" style={{ display: "grid", gridTemplateColumns: `repeat(${kioskTiles.length}, 1fr)`, gap: 12, margin: "0 0 18px" }}>
                 {kioskTiles.map((k) => (k === "punch"
                   ? <span key={k} style={{ ...bigBtn, textAlign: "center", padding: "18px 0", fontSize: 18, borderColor: "var(--gold)", color: "var(--gold)" }}>{KIOSK_FEATURE_LABEL[k]}</span>
-                  : <a key={k} href={KIOSK_FEATURE_HREF[k]} style={{ ...bigBtn, textAlign: "center", padding: "18px 0", fontSize: 18, textDecoration: "none" }}>{KIOSK_FEATURE_LABEL[k]}</a>))}
+                  : <a key={k} href={KIOSK_FEATURE_HREF[k]} data-kiosk-tile={k} data-kiosk-tile-ready={KIOSK_FEATURE_READY[k] ? "1" : "0"} style={{ ...bigBtn, textAlign: "center", padding: "18px 0", fontSize: 18, textDecoration: "none", opacity: KIOSK_FEATURE_READY[k] ? 1 : 0.75 }}>{KIOSK_FEATURE_LABEL[k]}</a>))}{/* ★0190（裁定435）: 5 タイル＝シフト・在庫・日報は案内画面（K client 第 2 便で本体） */}
               </div>
             )}
             <p style={{ textAlign: "center", fontSize: 15, color: "var(--champ)", fontWeight: 700, margin: "0 0 16px" }}>

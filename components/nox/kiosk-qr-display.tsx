@@ -9,6 +9,10 @@ import { renderSVG } from "uqr";
 import { createClient } from "@/lib/supabase/client";
 import { Message } from "@/components/ui/toast"; // ★裁定281: メッセージ表示の共通部品
 import { kioskQrDisplayCounterOf, kioskQrTokenOf, kioskQrUrlOf, totpCodeOf, totpCounterOf, totpRemainSecOf, TOTP_STEP_SEC } from "@/lib/nox/rules-0175/kiosk-qr";
+import { mig0190On } from "@/lib/nox/rules-0175/flag"; // ★0190（裁定436 ①b）: 端末の印を kiosk_qr_secret／kiosk_qr_poll に添える
+import { browserDeviceFp } from "@/lib/nox/kiosk/device-fp";
+/** ★0190: 端末の印（フラグ false のときは引数ごと送らない＝旧署名のまま） */
+const fpArg = (): { p_device_fp: string | null } | Record<string, never> => (mig0190On() ? { p_device_fp: browserDeviceFp() } : {});
 
 export type KioskQrUnlocked = { membership_id?: string; operator_name?: string; role?: string; idle_sec?: number; unlock_method?: string };
 
@@ -23,7 +27,7 @@ export default function KioskQrDisplay({ onUnlocked }: { onUnlocked: (r: KioskQr
 
   useEffect(() => {
     let alive = true;
-    void createClient().rpc("kiosk_qr_secret", { p_rotate: false }).then(({ data, error }) => {
+    void createClient().rpc("kiosk_qr_secret", { p_rotate: false, ...fpArg() }).then(({ data, error }) => {
       if (!alive) return;
       if (error || !data) { setErr("QR を用意できませんでした（この端末はレジ端末として登録されていません）"); return; }
       setSecret(data as { device_id: string; secret_hex: string });
@@ -57,7 +61,7 @@ export default function KioskQrDisplay({ onUnlocked }: { onUnlocked: (r: KioskQr
     const id = setInterval(async () => {
       if (busy || doneRef.current) return;
       busy = true;
-      const { data, error } = await supabase.rpc("kiosk_qr_poll");
+      const { data, error } = await supabase.rpc("kiosk_qr_poll", { ...fpArg() });
       busy = false;
       if (!alive || error || !data) return;
       const r = data as { ok: boolean; name?: string; role?: string; membership_id?: string; idle_sec?: number; unlock_method?: string; counter?: number };

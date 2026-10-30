@@ -9,6 +9,11 @@
 //   ★「最近の操作」の写像: audit after_json（= kiosk_devices 行）から purpose を読んで
 //     「打刻端末を発行」「レジ端末を発行」「端末を無効化」へ日本語化。
 //     ★「端末を有効化」の action は live に存在しない（kiosk_provision / kiosk_deactivate の2種のみ）＝出さない。
+//     ★0190（2026-10-30）: kiosk_reactivate／kiosk_delete／kiosk_device_unbind／kiosk_device_bind が増えた＝「端末を有効化」「端末を削除」「端末の固定を解除」「端末を固定」。
+//
+// ★0190（裁定436 ①b／便 K ⑦ M-29 ⑤）: 列「端末の固定」（固定済＋「固定を解除」＝kiosk_device_unbind を owner セッションで直接／未固定）・
+//   無効化した端末の操作＝「再発行して有効化」（route action reactivate＝reissue と同じ 1 回だけのモーダル）／「削除」（route action delete・Danger）・上限 3 台＝kioskDeviceLimit()。
+//   フラグ false の間は従来どおり（列なし・注記のまま・上限 1 台の文言）。
 //
 // 発行/無効化は POST /api/kiosk/provision、一覧は GET 同 route
 // （kiosk_devices は deny-all＝owner でも直 SELECT 不可のため route が唯一の管理用読み口）。
@@ -21,10 +26,12 @@ import Modal from "@/components/ui/modal";
 
 import { Message } from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 import { useIsDemo } from "@/lib/nox/demo/context"; // ★便 M3 M-28 ③
-import { kioskErrJa, KIOSK_DEVICE_LIMIT } from "@/lib/nox/kiosk/device-errors"; // ★便 M3 M-29 ③: 英語の生文を日本語に
+import { kioskErrJa, kioskDeviceLimit } from "@/lib/nox/kiosk/device-errors"; // ★便 M3 M-29 ③: 英語の生文を日本語に // ★0190: 上限は kioskDeviceLimit()（3 台）
+import { mig0190On } from "@/lib/nox/rules-0175/flag"; // ★0190（裁定436 ①b／M-29 ⑤）: 端末の固定の列・再発行して有効化・削除
 type Store = { id: string; name: string };
-type Device = { id: string; store_id: string; label: string | null; purpose: string; is_active: boolean; created_at: string; last_seen_at: string | null };
-type ProvisionResult = { device_id: string; login_email: string; initial_password: string; reissued?: boolean };
+// ★0190: bound＝device_fp の有無（route が boolean に写す・fp そのものは来ない）・bound_at／bound_ua＝初回ログインで束縛した日時と UA
+type Device = { id: string; store_id: string; label: string | null; purpose: string; is_active: boolean; created_at: string; last_seen_at: string | null; bound: boolean; bound_at: string | null; bound_ua: string | null };
+type ProvisionResult = { device_id: string; login_email: string; initial_password: string; reissued?: boolean; reactivated?: boolean };
 const PURPOSE_LABEL: Record<string, string> = { punch: "打刻", register: "レジ" };
 const ROLE_LABEL: Record<string, string> = { owner: "オーナー", manager: "店長", staff: "スタッフ" };
 
@@ -68,7 +75,7 @@ export default function KioskDevicePanel({ stores }: { stores: Store[] }) {
   useEffect(() => {
     let alive = true;
     void supabase.from("audit_logs").select("id, action, target, at, after_json, actor_user_id")
-      .in("action", ["kiosk_provision", "kiosk_deactivate"])
+      .in("action", ["kiosk_provision", "kiosk_deactivate", "kiosk_reactivate", "kiosk_delete", "kiosk_device_unbind", "kiosk_device_bind"]) // ★0190: 有効化・削除・固定の解除・固定（端末自身が bind＝audit_log_write_service）
       .order("at", { ascending: false }).limit(10)
       .then(({ data }) => { if (alive) setKioskAudit((data ?? []) as typeof kioskAudit); });
     // actor → ロール名（memberships はこの owner の可視範囲・active のみ採用）
@@ -156,6 +163,49 @@ export default function KioskDevicePanel({ stores }: { stores: Store[] }) {
     } catch (e) { setMsg(`通信エラー: ${(e as Error).message}`); } finally { setBusy(false); }
   }
 
+  // ★0190（裁定436 ①b）: 端末の固定を解除＝kiosk_device_unbind（owner・device_fp を null に・audit）。次のログインで端末が kiosk_device_bind で固定し直す。
+  //   route を介さず owner セッションで RPC を直接呼ぶ（admin 権限は要らない＝RPC の org／owner 照合が本体）。
+  async function unbind(d: Device) {
+    if (busy) return;
+    if (!confirm(`${storeName(d.store_id)} のキオスク端末（${d.label ?? PURPOSE_LABEL[d.purpose] ?? d.purpose}）の固定を解除しますか？（次にログインした端末に固定し直されます）`)) return;
+    setBusy(true); setMsg("");
+    try {
+      const { error } = await supabase.rpc("kiosk_device_unbind", { p_device_id: d.id });
+      if (error) { setMsg(kioskErrJa(500, error.message, PURPOSE_LABEL[d.purpose] ?? d.purpose)); return; }
+      setMsg("端末の固定を解除しました（次のログインで固定し直されます）");
+      await reload();
+    } catch (e) { setMsg(`通信エラー: ${(e as Error).message}`); } finally { setBusy(false); }
+  }
+
+  // ★0190 M-29 ⑤: 無効化した端末を「再発行して有効化」＝route action reactivate（kiosk_reactivate→unban＋新 PW）。結果は reissue と同じモーダル（PW は 1 回だけ）
+  async function reactivate(d: Device) {
+    if (busy) return;
+    if (!confirm(`${storeName(d.store_id)} のキオスク端末（${d.label ?? PURPOSE_LABEL[d.purpose] ?? d.purpose}）を再発行して有効化しますか？（新しいパスワードを 1 回だけ表示します・上限は店舗×用途ごとに ${kioskDeviceLimit()} 台）`)) return;
+    setBusy(true); setMsg("");
+    try {
+      const res = await fetch("/api/kiosk/provision", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "reactivate", deviceId: d.id }) });
+      const j = await res.json();
+      if (!res.ok) { setMsg(kioskErrJa(res.status, j.error, PURPOSE_LABEL[d.purpose] ?? d.purpose)); return; }
+      setIssued({ ...(j as ProvisionResult), purpose: d.purpose === "register" ? "register" : "punch" }); setCopied(false);
+      setMsg("端末を有効化しました（新しいパスワードはこの画面だけ）");
+      await reload();
+    } catch (e) { setMsg(`通信エラー: ${(e as Error).message}`); } finally { setBusy(false); }
+  }
+
+  // ★0190 M-29 ⑤: 無効化済みの端末を削除＝route action delete（kiosk_delete→auth deleteUser）。履歴は audit_logs（'kiosk_delete'・before_json に行）に残る
+  async function deleteDevice(d: Device) {
+    if (busy) return;
+    if (!confirm(`${storeName(d.store_id)} のキオスク端末（${d.label ?? PURPOSE_LABEL[d.purpose] ?? d.purpose}）を削除しますか？（端末アカウントも消えます・履歴は監査ログに残ります）`)) return;
+    setBusy(true); setMsg("");
+    try {
+      const res = await fetch("/api/kiosk/provision", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "delete", deviceId: d.id }) });
+      const j = await res.json();
+      if (!res.ok) { setMsg(kioskErrJa(res.status, j.error, PURPOSE_LABEL[d.purpose] ?? d.purpose)); return; }
+      setMsg("端末を削除しました");
+      await reload();
+    } catch (e) { setMsg(`通信エラー: ${(e as Error).message}`); } finally { setBusy(false); }
+  }
+
   async function copyIssued() {
     if (!issued) return;
     await navigator.clipboard.writeText(`${issued.login_email}\n${issued.initial_password}`);
@@ -168,8 +218,15 @@ export default function KioskDevicePanel({ stores }: { stores: Store[] }) {
     if (a.action === "kiosk_provision") {
       return p === "register" ? "レジ端末を発行" : p === "punch" ? "打刻端末を発行" : "端末を発行";
     }
+    // ★0190: 有効化・削除・固定の解除・固定（端末自身）
+    if (a.action === "kiosk_reactivate") return "端末を有効化";
+    if (a.action === "kiosk_delete") return "端末を削除";
+    if (a.action === "kiosk_device_unbind") return "端末の固定を解除";
+    if (a.action === "kiosk_device_bind") return "端末を固定";
     return "端末を無効化";
   };
+  // ★0190: 列＝端末／用途／端末の固定（フラグ true のみ）／最終アクセス／状態／操作
+  const columns = mig0190On() ? ["端末", "用途", "端末の固定", "最終アクセス", "状態", "操作"] : ["端末", "用途", "最終アクセス", "状態", "操作"];
   const actorLabel = (uid: string | null): string => {
     const role = uid ? roleByUser[uid] : undefined;
     return role ? (ROLE_LABEL[role] ?? role) : "—";
@@ -189,14 +246,14 @@ export default function KioskDevicePanel({ stores }: { stores: Store[] }) {
             <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 12 }}>
               <thead>
                 <tr style={{ textAlign: "left", borderBottom: "1px solid var(--line2)" }}>
-                  {["端末", "用途", "最終アクセス", "状態", "操作"].map((h) => (
+                  {columns.map((h) => (
                     <th key={h} style={{ padding: 6, color: "var(--sub)", fontWeight: 700, whiteSpace: "nowrap" }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {devices.length === 0 && (
-                  <tr><td colSpan={5} style={{ padding: 8, color: "var(--sub)" }} data-kiosk-empty={isDemo ? "demo" : "none"}>{isDemo ? "デモ環境では端末を発行できません" : "（発行済みの端末はありません）"}</td></tr>
+                  <tr><td colSpan={columns.length} style={{ padding: 8, color: "var(--sub)" }} data-kiosk-empty={isDemo ? "demo" : "none"}>{isDemo ? "デモ環境では端末を発行できません" : "（発行済みの端末はありません）"}</td></tr>
                 )}{/* ★便 M3 M-28 ③ */}
                 {devices.map((d) => (
                   <tr key={d.id} style={{ borderBottom: "1px solid var(--line)" }}>
@@ -213,6 +270,17 @@ export default function KioskDevicePanel({ stores }: { stores: Store[] }) {
                       </span>
                     </td>
                     <td style={{ padding: 6, whiteSpace: "nowrap" }}>{PURPOSE_LABEL[d.purpose] ?? d.purpose}</td>
+                    {/* ★0190（裁定436 ①b）: 端末の固定＝初回ログインで端末が device_fp を束縛（kiosk_device_bind）。別の端末からは 'device bound'。解除は owner（kiosk_device_unbind）＝次のログインで固定し直す */}
+                    {mig0190On() && (
+                      <td style={{ padding: 6, whiteSpace: "nowrap" }} data-kiosk-bound={d.bound ? "1" : "0"}>
+                        {d.bound ? (
+                          <span style={{ display: "inline-flex", gap: 6, alignItems: "center", flexWrap: "wrap" }} title={d.bound_ua ?? undefined}>
+                            <span>固定済{d.bound_at ? `（${relTime(d.bound_at)}）` : ""}</span>
+                            <button style={btn} disabled={busy} onClick={() => void unbind(d)} data-kiosk-unbind={d.id}>固定を解除</button>
+                          </span>
+                        ) : <span style={{ color: "var(--sub)" }}>未固定（初回ログインで固定）</span>}
+                      </td>
+                    )}
                     {/* ★最終アクセス（モックの5列構成・相対表記）: 打刻端末は kiosk_punch 成功時（mig0109）・
                         レジ端末は kiosk_login 成功時（mig0108）に last_seen_at が入る。未打刻/未ログインは null＝「—」。
                         IP は出さない（モックの端末表に列が無い＝裁定 2026-08-28。API も返していない）。 */}
@@ -227,14 +295,20 @@ export default function KioskDevicePanel({ stores }: { stores: Store[] }) {
                           <button style={btn} disabled={busy} onClick={() => void deactivate(d)}>無効化</button>
                         </span>
                       )}
-                      {!d.is_active && <span style={{ fontSize: 11, color: "var(--sub)" }} data-kiosk-inactive-ops="0190">再発行して有効化・削除＝0190 の後</span>}{/* ★便 M3 M-29 ⑤: RPC が無い（kiosk_reactivate／kiosk_delete＝0190）＝置かない */}
+                      {!d.is_active && mig0190On() && (/* ★0190 M-29 ⑤: 無効化した端末＝「再発行して有効化」（kiosk_reactivate＋unban＋新 PW）／「削除」（kiosk_delete＋deleteUser・Danger＝staff-board の在籍を解除と同じ色） */
+                        <span style={{ display: "inline-flex", gap: 6, flexWrap: "wrap" }}>
+                          <button style={btn} disabled={busy} onClick={() => void reactivate(d)} data-kiosk-reactivate={d.id}>再発行して有効化</button>
+                          <button style={{ ...btn, color: "var(--danger)", border: "1px solid var(--danger-bd)" }} disabled={busy} onClick={() => void deleteDevice(d)} data-kiosk-delete={d.id}>削除</button>
+                        </span>
+                      )}
+                      {!d.is_active && !mig0190On() && <span style={{ fontSize: 11, color: "var(--sub)" }} data-kiosk-inactive-ops="0190">再発行して有効化・削除＝0190 の後</span>}{/* ★便 M3 M-29 ⑤: RPC が無い（kiosk_reactivate／kiosk_delete＝0190）＝置かない（フラグ false の間だけ） */}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-          {msg && (/^(端末を無効化しました|認証情報を再発行しました)/.test(msg) ? <div style={{ margin: "8px 0 0" }}><Message kind="success">{msg}</Message></div> : <div style={{ margin: "8px 0 0" }}><Message kind="error">{msg}</Message></div>)}{/* ★便 M3 M-29: 成功＝緑の帯・失敗＝赤 */}
+          {msg && (/^(端末を無効化しました|認証情報を再発行しました|端末を有効化しました|端末を削除しました|端末の固定を解除しました)/.test(msg) ? <div style={{ margin: "8px 0 0" }}><Message kind="success">{msg}</Message></div> : <div style={{ margin: "8px 0 0" }}><Message kind="error">{msg}</Message></div>)}{/* ★便 M3 M-29: 成功＝緑の帯・失敗＝赤 */}
         </section>
 
         {/* ── 右: 発行カード＋最近の操作 ── */}
@@ -243,7 +317,7 @@ export default function KioskDevicePanel({ stores }: { stores: Store[] }) {
             <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
               <h3 style={h3}>端末アカウントを発行</h3>
             </div>
-            <p style={sub}>認証情報は発行時に一度だけ表示されます（上限＝店舗×用途ごとに {KIOSK_DEVICE_LIMIT} 台・0190 で 3 台）</p>
+            <p style={sub}>認証情報は発行時に一度だけ表示されます（上限＝店舗×用途ごとに {kioskDeviceLimit()} 台）</p>{/* ★0190: 3 台（無効は数えない） */}
             <p style={{ ...t.alert, fontSize: 11.5, margin: "0 0 10px" }}>
               安全な運用：端末ごとに専用アカウントを発行し、共有しないでください。
             </p>
@@ -296,7 +370,7 @@ export default function KioskDevicePanel({ stores }: { stores: Store[] }) {
       {/* 発行結果モーダル（PW は一度だけ表示＝cast 招待と同パターン） */}
       {issued && (
         <Modal onClose={() => setIssued(null)}>
-            <h3 style={h3}>{issued.reissued ? "認証情報を再発行しました" : "キオスク端末を発行しました"}</h3>
+            <h3 style={h3}>{issued.reactivated ? "端末を再発行して有効化しました" : issued.reissued ? "認証情報を再発行しました" : "キオスク端末を発行しました"}</h3>{/* ★0190: reactivate も同じモーダル */}
             <div style={{ display: "grid", gap: 6, marginBottom: 10 }}>
               <div style={t.bdRow}><span style={t.bdKey}>ログインID</span><span style={{ ...t.bdVal, wordBreak: "break-all" }}>{issued.login_email}</span></div>
               <div style={t.bdRow}><span style={t.bdKey}>初期パスワード</span><span style={{ ...t.bdVal, color: "var(--champ)", letterSpacing: 1 }}>{issued.initial_password}</span></div>
