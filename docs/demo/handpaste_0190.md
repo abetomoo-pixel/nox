@@ -1,9 +1,9 @@
-# 0190 手貼り案内（Agoora 向け・2026-10-29 起草・裁定436＝K-5 打刻ゲート／端末の束縛／退店の失効＋便 K ⑥〜⑧＝RLS kiosk 腕／M-29 上限 3 台・再発行して有効化・削除／K-1 ロック 10 分）
+# 0190 事後照合の記録（★手貼り済み扱い・2026-10-30・裁定436＝K-5 打刻ゲート／端末の束縛／退店の失効＋便 K ⑥〜⑧＝RLS kiosk 腕／M-29 上限 3 台・再発行して有効化・削除／K-1 ロック 10 分）
 
 **結論 3 行**
-1. 本番 ref **hiqbfagmkrdpmlqhkmsu** の SQL Editor で、まず下の **事前確認 SQL** を貼って Run → `missing` が空（0 行）なら、**supabase/migrations/0190_duty_gate_device_bind.sql** の全文を貼って Run（1 本だけ）。**順番＝0190 → 0191**（0191 の set_store_profile は 0190 の後に CC が live から再生成＝0190 の verify を CC へ返してから 0191 へ）。
-2. **営業時間外に貼る**（レジの check_* 25 本の CREATE OR REPLACE が続く間は伝票の書き込みが一瞬失敗しうる・キオスクの入口 4 本は DROP→CREATE＝その数秒は端末の解除が失敗する・RLS ポリシー 29 本の追加は一瞬）。
-3. Success の後に **末尾 ===== verify =====** を貼り、返った行を CC へ（期待値は下の表）。Success の表示だけでは適用の証明にならない（恒久注意28）。
+1. 0190 は **Agoora の手貼りではなく、2026-10-30 12:08〜12:13 に CC の docs/tmp/t0190_verify_rows.mts（verify 期待値の採取）が本番 ref hiqbfagmkrdpmlqhkmsu に COMMIT した**（切り出しの起点が 9 行目の見出しコメント「===== verify =====」に当たり、本体＋commit; を含む全文を流した＝教訓128）。12:16 の計測（関数 393）で検知・12:20 報告。
+2. **相談役裁定（Agoora 2026-10-30 12:3x）＝適用済みとして受け入れる（例外）**。down は実行しない（案＝docs/tmp/0190_down_draft.sql）。DB の DDL は触らない。根拠＝事後照合で本番の 40 関数の prosrc md5 が supabase/migrations/0190_duty_gate_device_bind.sql（sha16 6a73e1109a39b996）と **40／40 一致**・_select_kiosk 29・kiosk_devices 5 列・index・end_reason CHECK・下の verify 51 行が期待値と差 0（DDL の xid 2121215＝1 トランザクション）。
+3. **貼らないこと**。残りは ①duty_gate を 7 店で OFF（台帳 便 K ①の UPDATE＝Agoora が SQL Editor で）②0191 を新 CC で live から再生成→handpaste_0191.md 更新→手貼り ③0190 のフラグ true 便（K client）。
 
 | 項目 | 値 |
 |---|---|
@@ -11,8 +11,8 @@
 | sha256 | 先頭 16 桁 **6a73e1109a39b996** |
 | 翻訳元 | live pg_get_functiondef（2026-10-29・0189 適用後）＋生成器 docs/tmp/gen_0190.cjs（裁定436）→ docs/tmp/gen_0190_k.cjs（便 K ⑥〜⑧の後処理）＝手打ちなし（関数本体は live の写し＋アンカー置換・新設は生成器の文字列） |
 | 構文検査 | scripts/mig-check.mjs＝parse ok・$function$ の対応 ok（39 本×2）・plpgsql 39 本は試走で本番の構文検査を兼ねる |
-| 試走 | 本番で BEGIN…ROLLBACK（docs/tmp/t0190_rollback.mts・NOX-VERIFY-A1）＝**ok 18／ng 0（2026-10-30 12:04・docs/tmp/t0190_rollback.mts＝打刻ゲート cast／staff／manager 免除／duty_gate OFF・端末の束縛・退店・白名単・ACL・⑥ RLS 29・⑦ 上限 3／再発行して有効化／削除・⑧ ロック 10 分）**・関数数 386→393・残留 0 |
-| 営業中に貼ってよいか | **不可（営業時間外）** |
+| 試走 | 本番で BEGIN…ROLLBACK（docs/tmp/t0190_rollback.mts・NOX-VERIFY-A1＝この走は無傷・残留 0）＝**ok 18／ng 0（2026-10-30 12:04・docs/tmp/t0190_rollback.mts＝打刻ゲート cast／staff／manager 免除／duty_gate OFF・端末の束縛・退店・白名単・ACL・⑥ RLS 29・⑦ 上限 3／再発行して有効化／削除・⑧ ロック 10 分）**・関数数 386→393・残留 0 |
+| 営業中に貼ってよいか | （貼らない＝適用済み） |
 
 **中身**
 - ★1 打刻ゲート（裁定436 ①a 差し替え＝レジだけ）: 内部ヘルパー duty_gate_of／on_duty_of／assert_on_duty（4 ロール revoke）・レジの check_*＋approval 25 本の冒頭（課金ゲート行の直後）に assert_on_duty（店長以上は免除＝audit 'off_duty_exempt'・店設定 duty_gate=false なら何もしない・在庫／日報は対象外）。
@@ -23,7 +23,7 @@
 - ★7 M-29: kiosk_provision の上限＝店舗×用途ごとに **3 台**（無効は数えない・'device limit'）・部分ユニーク index は非ユニークに・kiosk_reactivate（無効化済み→有効・上限内・audit）・kiosk_delete（無効化済みだけ・kiosk_sessions を先に消す・audit）。
 - ★8 K-1（裁定437）: kiosk_login の既定ロック＝10 分（店設定 pin_lock_minutes が無いとき・最大失敗 5 は既定のまま）。
 
-## 事前確認 SQL（貼る前・SELECT のみ）
+## 事後照合 SQL（SELECT のみ・適用済みなら missing は「kiosk_devices.device_fp exists, kiosk policies exist, kiosk_reactivate exists」の 3 語になる＝正常）
 
 ```sql
 select 'nox-project-proof', count(*)::text from public.orgs
@@ -36,9 +36,9 @@ select 'missing', string_agg(x, ', ') from (
   union all select 'kiosk_reactivate exists' where exists (select 1 from pg_proc where pronamespace='public'::regnamespace and proname in ('kiosk_reactivate','kiosk_delete'))
 ) m;
 ```
-期待＝`nox-project-proof 9`・`missing` が **null（空）**。
+期待（適用済み）＝`nox-project-proof 9`・`missing`＝`kiosk_devices.device_fp exists, kiosk policies exist, kiosk_reactivate exists`。
 
-## verify の期待値（Success の後に末尾 ===== verify ===== を貼る）
+## verify の期待値（末尾 ===== verify ===== を貼ると返る行＝2026-10-30 12:1x の本番の実測と全行一致）
 
 51 行（nox-project-proof 9・has 0190 37・gated 25・helpers 3・kiosk entry acl 6・kiosk policies 29・kiosk_reactivate/delete 2・kiosk_login lock 10 true・device limit true・whitelist has duty_gate true・md5 37 本）。
 
@@ -96,9 +96,9 @@ select 'missing', string_agg(x, ', ') from (
 | nox-project-proof | **9** |
 | whitelist has duty_gate | **true** |
 
-## 適用後に CC がやること
-1. 本番の読取で照合（sha16・md5・関数数・ポリシー 29・CHECK）。t0190 を mig を流さずに本番の定義で（T0190_NO_APPLY=1・BEGIN…ROLLBACK・残留 0）。
+## 新 CC がやること（0190 のフラグ true 便の前）
+1. 照合済み（本書）。t0190 を本番の定義で再走するなら **T0190_NO_APPLY=1**（本体を流さない）＝BEGIN…ROLLBACK・残留 0。verify 採取の別スクリプトは作らない（教訓128）。
 2. **0191 を live から再生成**（gen_0191.cjs＝set_store_profile が 0190 の duty_gate 込みになる）→ sha16 と handpaste_0191.md の表を更新 → Agoora が 0191 を貼る。
 3. 0190 を収蔵・フラグ **MIG_0190_APPLIED** を追加して true（client＝K-5 の device_fp・端末一覧の「束縛中」「端末を解除」・店舗設定の「打刻ゲート」スイッチ・退店ダイアログの注記・ゲートの文言・退店 route の admin signOut＋ban／K-0＝キオスクのレジを register-board の包みに／M-29 の「再発行して有効化」「削除」／K-1 の人を選ぶ→PIN（0185 の PIN だけの解除は撤去））・pin 張替え・f0 2 連・live・push・6 店 reset。
 
-**Success 表示は適用の証明にならない（恒久注意28）＝verify の返り値を貼ってから次へ。**
+**Success 表示は適用の証明にならない（恒久注意28）。本件は verify 51 行の実測一致と md5 40／40 を適用の証明とした。**

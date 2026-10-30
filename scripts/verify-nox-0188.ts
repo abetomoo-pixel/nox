@@ -7,7 +7,7 @@
  *  (D) 日払い（裁定434 ④）＝daily 以外の店は前払だけ（画面）・RPC 'settlement not allowed' の文言・デモ LILY の 4 件は advance（payload）。
  *  (E) 0189＝必要人数の時間帯の翌表記（bandOptionsOf の終了は翌 24:00 まで・翌日またぎの店は close＋24h・「翌02:00」）。
  *  (F) 本番 DB（SUPABASE_DB_URL・BEGIN…ROLLBACK・残留 0）＝税率表 6 行が鏡と同値・withholding_calc が TS と 14 点で同値・CHECK 4 区分・staffing_needs の CHECK 2880・
- *      関数 386・表 111・md5 6 本・月次の店の settlement は拒否・daily の店は 20,000→源泉 1,531・other_fee は bad kind・set_staffing_need 2880 可／2881 bad band。
+ *      関数 393（0190 後・2026-10-30）・表 111・md5 6 本・月次の店の settlement は拒否・daily の店は 20,000→源泉 1,531・other_fee は bad kind・set_staffing_need 2880 可／2881 bad band。
  *  使い方: npm run verify:nox-0188（env: SUPABASE_DB_URL＝(F)・無ければ (F) は FAIL）
  */
 import fs from "node:fs";
@@ -121,8 +121,8 @@ async function main() {
       const cnt = await tx.one<{ f: number; t: number }>(`select (select count(*) from pg_proc where pronamespace='public'::regnamespace)::int f, (select count(*) from pg_tables where schemaname='public')::int t`);
       const md = await tx.q<{ n: string; m: string }>(`select proname n, left(md5(replace(prosrc, chr(13), '')), 8) m from pg_proc where pronamespace='public'::regnamespace and proname in ('withholding_rate_of','withholding_calc','set_withholding_kind','daily_pay_issue','referral_payout_pay','set_staffing_need') order by 1`);
       const mm = Object.fromEntries(md.map((x) => [x.n, x.m]));
-      check("0188(F-4) 関数 386・表 111（0187 後 384／110 ＋ 0188 の 2 本・表 1）・md5 6 本（rate_of 75a0f2c5／calc 532d05c7／set_withholding_kind 58f7d87d／daily_pay_issue 3e5628ad／referral_payout_pay 2be65150／set_staffing_need b394d912）",
-        cnt?.f === 386 && cnt.t === 111 && mm.withholding_rate_of === "75a0f2c5" && mm.withholding_calc === "532d05c7" && mm.set_withholding_kind === "58f7d87d" && mm.daily_pay_issue === "3e5628ad" && mm.referral_payout_pay === "2be65150" && mm.set_staffing_need === "b394d912", { cnt, mm });
+      check("0188(F-4) 関数 393（0190 後）・表 111（0187 後 384／110 ＋ 0188 の 2 本・表 1）・md5 6 本（rate_of 75a0f2c5／calc 532d05c7／set_withholding_kind 58f7d87d／daily_pay_issue 3e5628ad／referral_payout_pay 2be65150／set_staffing_need b394d912）",
+        cnt?.f === 393 /* ★0190（2026-10-30 適用・+7） */ && cnt.t === 111 && mm.withholding_rate_of === "75a0f2c5" && mm.withholding_calc === "532d05c7" && mm.set_withholding_kind === "58f7d87d" && mm.daily_pay_issue === "3e5628ad" && mm.referral_payout_pay === "2be65150" && mm.set_staffing_need === "b394d912", { cnt, mm });
       const acl = await tx.q<{ n: string; a: string | null }>(`select proname n, proacl::text a from pg_proc where pronamespace='public'::regnamespace and proname in ('withholding_rate_of','withholding_calc') order by 1`);
       const tg = await tx.q<{ grantee: string; p: string }>(`select grantee, string_agg(privilege_type, ',' order by privilege_type) p from information_schema.role_table_grants where table_schema='public' and table_name='withholding_rates' and grantee in ('anon','authenticated') group by 1`);
       check("0188(F-5) 内部 2 本は postgres だけ（anon／authenticated／service_role なし）・税率表は authenticated SELECT だけ・anon なし", acl.length === 2 && acl.every((x) => x.a !== null && !/anon|authenticated|service_role/.test(x.a)) && tg.length === 1 && tg[0].grantee === "authenticated" && tg[0].p === "SELECT", { acl, tg });

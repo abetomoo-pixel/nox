@@ -5004,7 +5004,7 @@ DB 変更 0 の見込み。要れば 0190 起草のみ。」
 
 **成果**: 605d380（lib＋suite）／3583377（client）／docs＝本コミット・push 済み。f0 147 段 2 連緑（run 1＝11:18→11:37（149 段のチェーン＝gvb／s-lane／0188 の pin 張替えの後・末尾 3 段 0188／ob2／m3 は単走で緑）・run 2＝11:40→12:01 全 147 段緑）・golden 不変・live ＝push 後に本番デモで確認（最終報告・v53 に記載）・6 店 reset ＝push 後。
 
-### 便 K（2026-10-30・M3 の push 後・06:00 の打ち切りを過ぎた分＝K-0 読取＋K-5＝0190 起草まで・client は次便）
+### 便 K（2026-10-30・M3 の push 後・06:00 の打ち切りを過ぎた分＝K-0 読取＋K-5＝0190 起草→★12:08 に本番へ COMMIT（事故）→適用済みとして受け入れ（相談役裁定・例外）・client は次便）
 
 出典＝相談役ブロック 2026-10-29（便 K ⑫〜⑲）＋裁定435／435 追補／436／437（本文は上）。**06:00 の打ち切り規則**（朝 06:00 を過ぎてコミットの切れ目が来たら止めて報告）に当たるため、本便は **DB 変更 0 のまま 0190 の起草（K-5＋⑥⑦⑧ 同乗）と K-0 の読取**で切り、client（K-0 包み・K-1 人を選ぶ→PIN・435 タイル・K-4 起動先）は 0190 の手貼り後のフラグ true 便に送る（仮決め K-3）。
 
@@ -5013,18 +5013,31 @@ DB 変更 0 の見込み。要れば 0190 起草のみ。」
 - 撤去対象（本店 register-board の写し）＝開卓・顧客・指名・席移動・延長・注文（useTapBatch）・明細・請求・入金・締め＝323 行目以降ほぼ全部。
 - ★ブロッカー＝register-board は supabase.from の直読取が **25 か所・18 表**。本番の RLS に **kiosk 腕のポリシーは 0 本**（auth_kiosk_* 4 本は RPC 専用）＝端末ユーザーのセッションで register-board を描くと全部 0 行。→ 0190 に kiosk 腕の SELECT ポリシーを同乗（⑥）。client の差し替えは 0190 の後。
 
-**⑰ K-5＝0190 起草（supabase/migrations/0190_duty_gate_device_bind.sql・3,954 行・sha16 6a73e1109a39b996・DB 変更 0）**
+**⑰ K-5＝0190 起草（supabase/migrations/0190_duty_gate_device_bind.sql・3,954 行・sha16 6a73e1109a39b996）→ ★本番に適用済み（下の「0190 の適用」）**
 - 生成＝docs/tmp/gen_0190.cjs（裁定436＝live の写し＋アンカー置換）→ docs/tmp/gen_0190_k.cjs（⑥⑦⑧ の後処理）。手打ちなし。mig-check＝parse ok（statements 135・$function$ 40 本×2・plpgsql 39 本は試走で本番の構文検査を兼ねる）。
 - ★1 打刻ゲート（レジの check_*＋approval 25 本の冒頭に assert_on_duty・店長以上は免除＝audit 'off_duty_exempt'・店設定 duty_gate 既定 true・在庫／日報は対象外）★2 端末の束縛（device_fp／bound_at／bound_ua／unbound_at／unbound_by・kiosk_device_bind／unbind・kiosk_login／unlock／qr_secret／qr_poll に p_device_fp）★3 退店の失効（cast_leave／staff_deactivate で staff_pin 削除＋kiosk_sessions 終了 'retired'）★4 set_store_profile の白名単 duty_gate。
 - ⑥ RLS kiosk 腕（裁定435 追補）＝29 表に `<t>_select_kiosk`（store_id＝auth_kiosk_register_store_id() and auth_kiosk_operator() is not null・stores は id・users は org_id・permissive＝通常ユーザーの判定は不変）。
 - ⑦ M-29＝kiosk_provision の上限 3 台（無効は数えない・'device limit'・部分ユニーク index→非ユニーク）・kiosk_reactivate（owner・上限内・audit）・kiosk_delete（無効化済みだけ・kiosk_sessions を先に・audit）。
 - ⑧ K-1（裁定437）＝kiosk_login の既定ロック 10 分（店設定 pin_lock_minutes が無いとき・最大失敗 5 は既定のまま）。
-- 試走＝docs/tmp/t0190_rollback.mts（本番 BEGIN…ROLLBACK・NOX-VERIFY-A1）＝**ok 18／ng 0（2026-10-30 12:04）**・関数数 386→393・残留 0。手貼り案内＝docs/demo/handpaste_0190.md（verify の期待値 51 行・md5 37 本）。**順番＝0190→0191**（0191 の set_store_profile は 0190 の後に live から再生成）。
+- 試走＝docs/tmp/t0190_rollback.mts（本番 BEGIN…ROLLBACK・NOX-VERIFY-A1）＝**ok 18／ng 0（2026-10-30 12:04）**・関数数 386→393・残留 0（t0190_rollback.mts 自体は無傷）。docs/demo/handpaste_0190.md＝**手貼り済み扱い・事後照合の記録**（verify の期待値 51 行・md5 37 本＝本番と全行一致）。0191 は未適用＝**新 CC で live から再生成**してから手貼り。
+- **0190 の適用（2026-10-30・事故・相談役裁定＝適用済みとして受け入れ・例外）**: 12:08〜12:13 に CC の docs/tmp/t0190_verify_rows.mts（verify 期待値の採取・BEGIN…ROLLBACK のつもり）が、ファイル 9 行目の見出しコメント「===== verify =====」を切り出しの起点に取り、本体＋`commit;` を含む全文を「verify」として流した＝COMMIT（4 走・12:19 の incident2 で 1 走）。12:16 の計測（関数 393）で検知・12:20 報告。本番の 40 関数の prosrc md5 がファイルと **40／40 一致**・_select_kiosk 29・kiosk_devices 5 列・index・end_reason CHECK・verify 51 行＝期待値と差 0（DDL の xid 2121215＝1 トランザクション）。t0190_rollback.mts（12:02〜12:05）は verify 節を流さないので無傷＝NOX-VERIFY-A1 の残留 0。**裁定（Agoora 2026-10-30 12:3x）**: 0190 は適用済みとして受け入れる・down は実行しない（案＝docs/tmp/0190_down_draft.sql・sha16 d88a1f7c490f65a9・live0190 の写しで 33 本を戻し新設 7 本と RLS 29・5 列・index・CHECK を戻す）・DB の DDL は触らない。
+- **① duty_gate を既存 7 店で OFF（Agoora が SQL Editor で実行・CC は書くだけ）**: 実テーブル＝public.stores・列＝settings_json（jsonb）・キー duty_gate（duty_gate_of＝`coalesce((settings_json->>'duty_gate')::boolean, true)`＝欠損は ON）。
+  ```sql
+  update public.stores s set settings_json = coalesce(s.settings_json, '{}'::jsonb) || '{"duty_gate": false}'::jsonb
+    from public.orgs o where o.id = s.org_id
+     and o.name in ('NOX-DEMO', 'NOX-DEMO-ACE', 'NOX-DEMO-LILY', 'NOX-DEMO-LUNA', 'NOX-DEMO-MUSE', 'NOX-DEMO-NEST', 'NOX-DEMO-NOIR');
+  select 'nox-project-proof' org, 'orgs' store, count(*)::text duty_gate, '' gate from public.orgs
+  union all select o.name, s.name, coalesce(s.settings_json->>'duty_gate', '(欠損)'), public.duty_gate_of(s.id)::text
+    from public.stores s join public.orgs o on o.id = s.org_id where o.name not like 'NOX-VERIFY%' order by 1, 2;
+  ```
+  期待＝nox-project-proof 9・7 行（CLUB NOX／CLUB ACE／Girls Bar LILY／CLUB LUNA／SNACK MUSE／BAR NEST／CLUB NOIR）が duty_gate=false・gate=false。
+  **demo_org_reset（06:05）**: wipe+load＝stores 行も payload から投入し直す（関数本文 15 行目の投入順に 'stores'・settings_json は payload の値）＝payload に duty_gate が無いので **6 デモ店は 06:05 に既定 ON へ戻る**（CLUB NOX＝NOX-DEMO org は cron の対象外＝戻らない）。**手当て案（書くだけ）**: scripts/demo/gen-demo.mjs 105 行目の stores.settings_json に `duty_gate: false` を足して payload 6 本を再生成（docs/demo/payload/*.json＝便 0190 client で同乗）。それまでの朝は UPDATE を 06:05 の後に再実行。
+- **教訓128（相談役採番・2026-10-30）**: 本番に送る SQL は `commit;` を含む文字列を切り出さない（送る直前に `/^\s*commit;/m` の不在を assert）。切り出しの起点は行頭マーカー（`/^-- ===== verify =====/m`）で取り、`indexOf` の素の検索は使わない（見出しコメントに当たる）。走りのたびに `select count(*) from pg_proc` を試走の外で取り直し、「DB 恒久変更 0」は数値で確かめてから報告する。エラー終了の走りの後も同じ（finally の rollback を信用しない）。
 - 境界値 suite（⑰「境界値 suite」）＝t0190 の段に含める（PIN の失敗 5 回→ロック・上限 3／4 台目・束縛の別 fp・退店で PIN が消える）。f0 への組込みは 0190 のフラグ true 便（本番の定義で T0190_NO_APPLY=1）。
 
 **未済（次便＝0190 のフラグ true 便）**: ⑬ K-0 包み（kiosk-register＝register-board を同じ props で・自動ロック 3 分）・⑭ K-1 人を選ぶ→PIN 4〜6 桁（0185 の PIN だけの解除は撤去・5 回失敗で 10 分ロック・店長以上への通知は器なし＝第 2 期）・⑮ 裁定435 タイル（/kiosk-shift・在庫・日報・ルートガード・「〇〇さんとして操作中・ロック」）・⑯ K-4 端末アカウントは / を /kiosk へ・/kiosk 配下は別 manifest・⑱ suite verify:nox-k。
 
-**仮決め（相談役案で確定扱い・事後承認）**: K-1 RLS kiosk 腕 29 本を 0190 に同乗（client の差し替えは 0190 の後）。K-2 kiosk_login の既定ロック 10 分・店長以上への通知は器なし（第 2 期）。K-3 06:00 の打ち切り＝便 K は 0190 起草＋K-0 読取で切り、client は 0190 のフラグ true 便へ。
+**仮決め（相談役案で確定扱い・事後承認）**: K-1 RLS kiosk 腕 29 本を 0190 に同乗（client の差し替えは 0190 の後）。K-2 kiosk_login の既定ロック 10 分・店長以上への通知は器なし（第 2 期）。K-3 06:00 の打ち切り＝便 K は 0190 起草＋K-0 読取で切り、client は 0190 のフラグ true 便へ。**K-4（Agoora 裁定 12:3x）**: 0190 は適用済み・MIG_0190_APPLIED は flag.ts に未定義のまま（client は 0190 前の挙動・入口 4 本の新引数は DEFAULT NULL）・duty_gate は 7 店 OFF（上の UPDATE）・pin（0158／0188／p172）は関数 393 に張替え・K client と 0191 の再生成＋handpaste は新 CC の最初の便。
 
 ### Agoora 確定 10/27（4）＝M-24（実機指摘 10/27 15:52・デモ LUNA・キャスト詳細）
 
