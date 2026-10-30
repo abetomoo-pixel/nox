@@ -58,7 +58,7 @@ const src = (p: string) => fs.readFileSync(p, "utf8");
     && tp.includes("...(sel.ops && sel.current.ops ? opsPatchOf(sel.ops, sel.current.ops) : {}) };") && tp.includes("ops?: OpsProfile; // ★0164（便 W5-2a）: STEP 5"));
   check("sw(1-3) SETUP_HIDDEN_ITEMS＝C 0 件・D 5 件（器なし 5 項目は結線済み）", SETUP_HIDDEN_ITEMS.filter((x) => x.cls === "C").length === 0 && SETUP_HIDDEN_ITEMS.filter((x) => x.cls === "D").length === 5, SETUP_HIDDEN_ITEMS.map((x) => x.label).join("・"));
   check("sw(2-1) 331 ⑱→★便 OB-2（v5）: メニューは分類ごと「使う／使わない」・商品ごと「出す」チェック＋名前／値段／バック（円・%）／キープ inline・計画は on の分だけ（buildV5Plan）・下書き（localStorage）に全状態",
-    wz.includes("aria-label={`${it.n} を出す`}") && wz.includes('ariaLabel="商品名"') && wz.includes('ariaLabel="バックの単位"') && wz.includes('aria-label="キープ可"') && src("lib/nox/setup/v5.ts").includes("if (!it.on || !String(it.n).trim()) return;") && wz.includes("JSON.stringify({ S, savedAt: new Date().toISOString(), ids: ids.current, issued })"));
+    wz.includes("aria-label={`${it.n} を出す`}") && wz.includes('ariaLabel="商品名"') && wz.includes('ariaLabel="バックの単位"') && wz.includes('aria-label="キープ可"') && src("lib/nox/setup/v5.ts").includes("if (!it.on || !String(it.n).trim()) return;") && wz.includes("JSON.stringify({ S, savedAt, ids: ids.current, issued })") /* ★0191 ★6: savedAt は変数（server 保存と共用） */);
 }
 // fl(1)
 {
