@@ -35,6 +35,9 @@ export function wishRowLabelOf(w: { kind?: string | null; start_hm: string | nul
 /** 'off_only' では時刻の検証を飛ばす（時刻を送らない） */
 export const wishNeedsTimes = (mode: WishMode): boolean => mode !== "off_only";
 
+/** ★0191 ★4: 店設定 'store'（店が決める）でキャスト個別の方式が無いとき＝希望は集めない（/mine は案内だけ・提出フォームを出さない） */
+export const storeDecidesOf = (castMode: string | null | undefined, storeMode: string): boolean => storeMode === "store" && !(castMode === "off_only" || castMode === "shift");
+export const STORE_DECIDES_NOTE = "この店ではシフトを店が決めます。希望の提出はありません。確定したシフトは「シフト」で確認できます（休みの相談は店へ）。";
 /** ★裁定337（0167・便 X-13d-2b）: キャスト個別の方式（casts.shift_request_mode・null＝店の既定に従う）→店の既定で解決。/mine と自動配置の候補はこの解決値を使う */
 export function resolveWishMode(castMode: string | null | undefined, storeMode: WishMode | "store"): WishMode {
   // ★0191 ★4（2026-10-30・着手）: 店設定 'store'（店が決める＝希望は集めない）は /mine では「休み希望のみ」と同じ入口に倒す（休みたい日だけ提出・提出のない日は出勤可）。専用の案内は便 ③ の本体で

@@ -13,6 +13,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 export type MasterProduct = {
   id: string; type: string; category: string | null; name: string; price: number;
   back_mode: string; back_value: number | null; unit4_json: Record<string, number> | null; hon_pt: number; is_active: boolean;
+  back_rate_by_kind?: { jonai?: number; free?: number } | null; // ★0191 ★2（2026-10-30）: %の商品の場内／フリーの率（null＝店の割合 kind_back_rate で算出）。手貼り前は列が無く undefined
   track_stock?: boolean; // ★0166（X-13-8）: 在庫を管理するか（false＝在庫「—」・発注点なし）。手貼り前は列が無く undefined＝管理する扱い
   // 純増①（mig0061/0062）: 発注点しきい（null=しきい無し）。select("*") で取得。
   reorder_point: number | null;
