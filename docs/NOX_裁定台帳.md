@@ -5066,8 +5066,9 @@ DB 変更 0 の見込み。要れば 0190 起草のみ。」
 - **gen-demo**＝settings_json に duty_gate:false → payload 6 本再生成（各 1 行＋_report.json の sha）＝06:05 の reset で ON に戻らない。**A1 の 'x' 端末 1 行を掃除**（参照 0 を確認・kiosk_devices 9→8・pg_proc 394 不変）。
 - **suite**＝verify:nox-0190（22＝t0190_rollback の翻訳・NO_APPLY・教訓128 の前後計数）・verify:nox-k（22＝client 配線）を f0 に組込み（149 段）・anon-guard（duty_gate OFF の前提固定＋段35＝上限 3）・grants（G9／G11／G12／G14／G15／G27／G37＝<t>_select_kiosk 2 本目・G30＝index 非ユニーク・G31＝24／26）・billing（課金ゲート名簿 A14＝kiosk_reactivate／kiosk_delete・B(s)＝0190／0191 の非ゲート 6 本＝188／206・述語参照 189）・qr／p175prep／m3／c2 の pin 張替え・0158／0188／p172＝394／112。
 - **f0**＝run A 14:46→15:04・run B 15:04→15:23＝**149 段 6,892 の 2 連緑**（直前の洗い出し＝grants／billing／store-systems／demo-guard／0158／p172／p173 の pin 張替え後・チェーン 155 本）。golden 不変（pay 130・payroll 234・玲奈 5931／125802）。
-- **live**＝本番 Vercel（デモ LUNA）＝push 後に追記。
-- **push**＝commit 3 層（①フラグ＋mig 収蔵＋純関数＋suite／②client／③docs）＝push の sha は追記。**6 店 reset**＝push・Vercel 反映の後に 6 店＝追記。
+- **live**＝本番 Vercel（デモ LUNA・オーナーで入場）: 店舗設定 › 店舗情報 › 会計と運用に「打刻ゲート（出勤していない人はレジを使えない）」の OFF／ON（OFF が選択・注記つき）が出る・マスタ › システム › 端末に「端末の固定」列と「上限＝店舗×用途ごとに 3 台」（デモは発行不可＝0 台）・/kiosk-shift／/kiosk-register は 200・kiosk 配下の manifest は /manifest-kiosk.json（本店は /manifest.json）。★**書込を伴う live（ゲート ON への切替・打刻なしのキャストのレジ・店長の免除・端末の束縛・人を選ぶ→PIN・5 回失敗のロック）は CC の auto mode の柵（本番の共有データの変更）で止まった＝未実施**→ Agoora が打合せ後に実機で（手順＝§live 手順）。ローカル（localhost:3200・ownerA）は資格情報の読取が柵で止まり未実施。
+- **push**＝commit 3 層＝0782807（①フラグ＋mig 収蔵＋純関数＋suite）／11252f1（②client）／6a14824（③docs）を 15:24 に push → **Vercel の build が ESLint で止まった**（components/nox/kiosk-feature-page.tsx の `<a href="/">`＝@next/next/no-html-link-for-pages）→ fix 00528be（Link に）を 15:41 に push → 15:43 反映（/manifest-kiosk.json 200）。**6 店 reset**＝15:47:28〜15:48:01 JST・cron route（Bearer＝Vault）・6 店とも 200（wipe+load・chunks 4〜7）・reset 後の duty_gate＝10 店とも false（payload の duty_gate:false が効いた＝06:05 の reset でも ON に戻らない）・関数 394 不変。
+- **live 手順（Agoora・打合せ後・デモ LUNA）**: ①オーナー＝店舗設定 › 店舗情報 › 会計と運用 › 打刻ゲートを ON → 保存 ②キャスト＝自分のスマホで /register（店設定 cast_register_device が own_phone の店）→ 卓を開く → 「出勤してからレジを開けます」③/mine で出勤打刻 → 卓が開く ④店長＝打刻なしで開ける → 監査に off_duty_exempt ⑤端末（キオスク）で入る → /kiosk＝初回で固定（kiosk_devices.bound_at）→ 別ブラウザで同じ端末アカウント＝「この端末では使えません」→ マスタ › システム › 端末の「固定を解除」⑥レジ端末（本物の店＝CLUB NOX／TEST CLUB）＝/kiosk-register＝人を選ぶ→PIN 4〜6 桁・5 回失敗でロック→お知らせに 1 行 ⑦終わったら打刻ゲートを OFF に戻す（デモは 06:05 の reset でも OFF）。
 - **duty_gate を 9 店 ON に戻す UPDATE 案（実行は Agoora・18:30 以降は提示しない＝打合せ後）**:
   ```sql
   update public.stores s set settings_json = coalesce(s.settings_json, '{}'::jsonb) || '{"duty_gate": true}'::jsonb
@@ -5080,6 +5081,21 @@ DB 変更 0 の見込み。要れば 0190 起草のみ。」
   ★注意＝NOX-VERIFY 3 店を ON に戻すと anon-guard が起動時に false へ寄せる（前提固定＝旧値を控えて復元）。デモ 6 店は payload が duty_gate:false なので 06:05 の reset で OFF に戻る（ON で運用するなら gen-demo を true に）。
 
 **仮決め（相談役案で確定扱い・事後承認）**: KC-1 端末の印＝localStorage の乱数 ID（指紋採取はしない・消すと別端末扱い＝固定を解除して再ログイン）。KC-2 キオスクのレジは予約タブを出さない（showReserve=false）。KC-3 435 タイルのシフト／在庫／日報は案内画面（本体は K client 第 2 便＝在庫・日報の kiosk 腕は別 mig）。KC-4 ロックのお知らせは audience 'staff'（店長以上専用の区分が無い＝器なし・代筆者＝owner）。KC-5 退店の ban は他の有効な役が残れば行わない・unban は再雇用／復活で。KC-6 KIOSK_DEVICE_LIMIT=1 は旧 pin の定数として残置（kioskDeviceLimit() が本体）。KC-7 kiosk-unlock-pad.tsx は未使用のまま残置（qr suite の pin・撤去は次便）。KC-8 課金ゲート名簿＝kiosk_device_unbind／setup_draft_set は非ゲート（B(s)）。KC-9 f0 の 2 連は grants／billing の pin 張替え後の走から数える。
+
+
+### 便 SU（M-37 殻だけ・2026-10-30 午後・0190 のフラグ true 便の push と 6 店 reset の後・DB 変更 0）
+
+出典＝相談役ブロック 2026-10-30 午後（順序の追加＝③の前に小さな便 SU）。中身の 9 STEP の突合はしない（(4)＝差分表だけ・便 M5 で直す）。
+- **(1) 専用レイアウト**＝/setup は通常の画面殻（左ナビ・上部バー）の外＝(manage)/layout.tsx が isSetupPath なら children だけを描く（DemoProvider は保つ・URL と page.tsx の場所は不変＝6 suite の path pin を触らない）。殻＝正本 docs/handoff/mock/setup_v5.html の .top/.bar（ロゴ N・h1 NOX 初期設定＋業態ピル・sub「店名・あとからすべて変更できます」・自動保存の印）／.steps／main／.foot（固定バー＝左に 1 / 9・右に 戻る・次へ：次の STEP 名／この内容で始める）を NOX のトークンで globals.css に（.nox-setup-*）。旧 .nox-pthead＋ピルの ol＋脚カード（.nox-actions）は撤去。
+- **(2) ステップ表示**＝正本と同じ番号付き（.n＝26px の丸・現在は金地・済は緑＋✓）＋名前（.t）の大きなタブ 9 列（min-height 52・1100 以下は横スクロール）。aria-current／done／業態未選択は 2 以降 disabled は不変。進捗バー（role=progressbar）は残置（旧 pin）。
+- **(3) 関所**＝lib/nox/setup/gate.ts の setupGateRedirectOf（純関数）＝setup_done=false の店がある org は owner／manager／staff とも /setup へ（cast は /mine・デモは除外・/setup 自身は通す）。manager／staff の /setup は案内（setup-waiting.tsx「〇〇 は初期設定の途中です」）＝ループしない。旧「owner だけ /setup へ」は差し替え。
+- **(4) 正本との差分表（突合は便 M5）**: 見出し h3 26／26 一致・フィールド名 87 本のうち wizard の文字列に無いのは **「どのお店の設定ですか」（複数店のときの店選びカード＝wizard は setup_done!==true の先頭店に固定）** の 1 件（他 9 件は正本 JS の変数名＝差分ではない）。器なし 10 項目（V5_SAVE_MAP has=false）は便 ③（0191）で実保存に。
+- **suite**＝verify:nox-su（8＝関所の純関数 2・配線 6＝「未完の店で /register を開くと /setup に戻る」を含む）を f0 に組込み（150 段）・actions-center の /setup 9 画面は既存の段（固定バーは主ボタン中央の例外）・ob2 D-2／setup su(5-4)／demo-guard dg(6-5) の pin 張替え。
+- **f0**＝1 走（15:26→15:49）＝**150 段 6,900 全緑**（actions-center 208 checks＝/setup 9 画面×2 幅・違反 0・例外 118＝固定バーは例外）・golden 不変（0190 便の 2 連の直後＝1 走）。**live**＝TEST CLUB の STEP 1 目視＝Agoora（打合せ後）。CC＝本番 /setup は owner のセッションが要る（デモは setup_done 済＝関所に当たらない）・ローカルの ownerA 撮影は別記。**push**＝commit 3 層（lint＋tsc の前段ゲート＝教訓129 候補）→ push の sha は最終報告。
+
+**仮決め（相談役案で確定扱い・事後承認）**: SU-1 /setup の場所（app/(manage)/setup）と URL は動かさず layout の早期 return で殻の外へ（suite の path pin 6 本を守る）。SU-2 下段は正本どおり右寄せの固定バー（教訓122 の「主ボタン中央」は固定バーの例外＝actions-center-probe）。SU-3 /setup は (manage) の利用規約ゲート（terms_accepted_version_ok）を通ってから届く（layout の順序＝規約→関所→殻）。SU-4 manager／staff の案内は読み取り専用（オーナーへの通知は器なし）。SU-5 進捗バーは残置（正本に無いが旧 pin＝害なし・便 M5 で要否）。
+
+**教訓129（候補・相談役採番 2026-10-30）＝f0 は lint を含まない。push の直前に lint・tsc を単走する**: 0190 のフラグ true 便の push（6a14824・15:24）が Vercel の build で止まった＝f0 149 段 2 連緑・tsc 0 でも、ESLint の `@next/next/no-html-link-for-pages`（components/nox/kiosk-feature-page.tsx の `<a href="/">`）は f0 のどの段も見ていない（f0 は tsx の実行と grep＝ESLint を通さない）。検知＝push から 15 分の反映待ちが timeout → `npx next lint` で 1 件。処置＝commit→push のスクリプト（便 SU から）に `npx next lint --dir app --dir lib --dir components --dir scripts` と `npx tsc --noEmit -p .` を前段に置き、どちらか赤なら push しない。f0 への組込み（verify:nox-lint）は相談役判断。
 
 
 ### Agoora 確定 10/27（4）＝M-24（実機指摘 10/27 15:52・デモ LUNA・キャスト詳細）
@@ -7893,8 +7909,8 @@ anon-guard 段28 が無差別 `limit(1)` でそれを拾い 'bad amount'/BV=unde
   該当列なし）ため、消さずに理由を分けて残した。
   根拠の全文＝`docs/dp/survey_6-4.md`。
 
-## 次の番号（2026-10-30 便 R191 時点）
+## 次の番号（2026-10-30 便 SU 時点）
 
 - **次の M＝M-36**（M-30＝便 M3 で収載・**M-31〜M-35＝相談役採番 2026-10-30＝便 M5 に予約**（M4 は 2026-10-01 に使用済みのため改名＝相談役 10/30 午後）。M-31 onoff の選択中 OFF の塗り・M-32 390px の select・M-33 /mine 確認枠＝店向けカード手数料文の混入・M-34 基本の働き方はアカウント未発行でも設定可・**M-35 スタッフ › 一覧に「＋スタッフを追加」＝STEP 6 と同じフォーム・/api/staff/create＋staff_contract_set・追加後に PIN 発行の印**。投入は別途（台帳に予約だけ）。M-27 は欠番＝M-17 追補を便 2 に同乗させたため）。
-- **次の教訓＝129**（125＝cron と suite の fixture・126＝候補（共用端末は包み）・127＝欠番のまま・**128＝2026-10-30 採番＝commit; を含む切り出しの禁止**）。
+- **次の教訓＝130**（125＝cron と suite の fixture・126＝候補（共用端末は包み）・127＝欠番のまま・**128＝2026-10-30 採番＝commit; を含む切り出しの禁止**・**129＝候補（便 SU・2026-10-30）＝f0 は lint を含まない＝push の直前に lint・tsc を単走**）。
 - **次の裁定＝439**（437＝キオスクの解除「人を選ぶ→PIN」・438＝初期設定 v5 正本＝ともに本文収載・確定は相談役。433＝提案中・本文収載済み・434＝2026-10-27 確定・435＝提案中＝便 K キオスクの機能拡張・436＝提案中＝K-5 打刻ゲート・端末の束縛・退店の失効（0190）・2026-10-29 本文収載済み）。
