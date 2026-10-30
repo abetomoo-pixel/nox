@@ -157,7 +157,7 @@ const SNAP: ExtSnapItem[] = [
       for (const st of stores) {
         for (const [seat, vip] of [["卓", false], ["VIP", true]] as [string, boolean][]) {
           if (vip && !st.has_vip) continue;
-          for (const off of [0, 4, 8, 12]) {
+          for (const off of [0, 8, 16, 24, 32, 40, 48, 56, 64, 72, 80, 88, 96, 104, 112, 120, 128, 136, 144, 152, 160]) { // ★2026-10-30: 7 日×3 時間帯（8h 刻み）を一周＝曜日・時間帯で 2 行以上が 0 になる日（木曜の朝の f0 で赤）を防ぐ
             const at = `now() + interval '${off} hours'`;
             const r = await tx.one<{ snap: ExtSnapItem[]; bm: number }>(`select public.ext_menu_build($1, $2, null, ${at}, $3, $4, $5) snap, (select b.biz_min from public.biz_minutes_of($1, ${at}) b) bm`, [st.id, seat, st.ext_min, st.time_per, vip]);
             const snap = r?.snap ?? []; if (!snap.length) continue;
@@ -166,7 +166,7 @@ const SNAP: ExtSnapItem[] = [
             const sqlRows: string[] = [];
             for (const d of durs) { const p = await tx.one<{ p: ExtSnapItem | null }>(`select public.ext_menu_pick($1::jsonb, $2, null, $3) p`, [J(snap), r!.bm, d]); if (p?.p) sqlRows.push(`${d}:${p.p.rule_id}`); }
             const tsRows = extGuideRowsOf(snap, r!.bm, null).map((x) => `${x.duration}:${x.item.rule_id}`);
-            cmp++; if (J(sqlRows) !== J(tsRows)) diff.push(`${st.name}/${seat}/+${off}h: sql ${J(sqlRows)} ts ${J(tsRows)}`);
+            cmp++; if (J(sqlRows) !== J(tsRows)) diff.push(`${st.name}/${seat}/+${off}h(d${Math.floor(off / 24)}): sql ${J(sqlRows)} ts ${J(tsRows)}`);
             // 選択中のパターン＝snap の各行を prefer にしても一致
             for (const m of snap) { const p = await tx.one<{ p: ExtSnapItem | null }>(`select public.ext_menu_pick($1::jsonb, $2, $3::uuid, $4) p`, [J(snap), r!.bm, m.rule_id, m.duration_min]); const t = extMenuPickOf(snap, r!.bm, m.rule_id, m.duration_min); cmp++; if ((p?.p?.rule_id ?? null) !== (t?.rule_id ?? null)) diff.push(`${st.name}/${seat}/+${off}h prefer ${m.rule_id}: sql ${p?.p?.rule_id} ts ${t?.rule_id}`); }
           }
