@@ -5045,10 +5045,41 @@ DB 変更 0 の見込み。要れば 0190 起草のみ。」
 - **照合**＝HEAD 6c01e32＝origin/main（差分 0・未コミット 0・未追跡＝0190／0191 の .sql＝規約どおり）。本番 ref hiqbfagmkrdpmlqhkmsu＝関数 **393**・表 **111**・_select_kiosk **29**・0190 の新設 5 本あり・★0190 印 40 本・0191 の痕跡（setup_draft_set／setup_drafts／products.back_rate_by_kind）0＝適用済み最大 **0190**。flag.ts＝定義済み 10 本（RULES_0175／OKURI_4WAY／OKURI_TIERS／SEAT_MOVE_PRICING／MIG_0183／0185／0186／0187／0188／0189）すべて true・**MIG_0190_APPLIED／MIG_0191_APPLIED＝未定義**（v53 の「12 本」は実測 10 本）。読取は begin read only。
 - **⑧ duty_gate**＝全 10 店（デモ 6＋CLUB NOX＋NOX-VERIFY-A1／A2／B1）が settings_json duty_gate=false・duty_gate_of=false＝Agoora の 13 時台の返り値 10 行と全行一致。demo_org_reset（125 行）は wipe→load で stores を payload から投入し直す（15 行目の表の順に 'stores'・settings_json は payload の値）＝payload に duty_gate が無いので **6 デモ店は 06:05 に既定 ON へ戻る**（本文で確認）。CLUB NOX と NOX-VERIFY 3 店は cron の対象外＝戻らない。手当て＝gen-demo.mjs の settings_json に duty_gate:false（0190 のフラグ true 便）・それまでは朝に UPDATE を再実行。
 - **⑨ A1 の残留**＝kiosk_devices **1 行**（label 'x'・purpose punch・is_active・created 2026-10-30 **13:24:24 JST**・bound_at null）＝**13:23 の f0（anon-guard 段35「同店2台目＝already provisioned」が 0190 の上限 3 で通った）の産物で、12:08 の事故由来ではない**（t0190 試走の端末 label は「試走端末」・12:08 の走は mig 本体を流しただけで A1 に行を残さない）。customers は **5 行すべて 2026-08-25 の seed**（fixtures-f0 の NOX-VERIFY-顧客-指名A／指名B／フリー／休眠／A2）＝基準どおり・残留なし（v53 の「customers 4」は候補のまま誤り）。**消さない**。★f0 を回すたびに 'x' が 1 行増え、3 台で上限に当たると段35 が偶然緑になる＝0190 のフラグ true 便で段35 を上限 3（3 台目まで通り 4 台目が 'device limit'）に張替え、'x' 行は参照 0 を確かめて掃除（教訓123）。
-- **⑩ M の採番**＝台帳の最大は **M-30**（便 M3）。相談役採番 **M-31**（onoff の選択中 OFF の塗り）・**M-32**（390px で select がカードからはみ出る）・**M-33**（/mine 確認枠＝店向けカード手数料文の混入）・**M-34**（基本の働き方はアカウント未発行でも設定可）は台帳と重複なし＝**便 M4（2026-10・M-31〜M-34）として予約**（★2026-10-01 の「便 M4」（裁定326 追補7・30bfb7e）と同名＝日付で区別する）。次の M＝**M-35**。本文は v53（相談役版）§3-4 と v54_draft §2。
+- **⑩ M の採番**＝台帳の最大は **M-30**（便 M3）。相談役採番 **M-31**（onoff の選択中 OFF の塗り）・**M-32**（390px で select がカードからはみ出る）・**M-33**（/mine 確認枠＝店向けカード手数料文の混入）・**M-34**（基本の働き方はアカウント未発行でも設定可）は台帳と重複なし＝便 M4 として予約→**相談役 10/30 午後の訂正＝便名「便 M5」（M4 は 2026-10-01 に使用済み）・M-35（スタッフ › 一覧の「＋スタッフを追加」）を足して M-31〜M-35**。次の M＝**M-36**。本文は v53（相談役版）§3-4 と v54_draft §2。
 - **0191 の再生成**＝live（2026-10-30・0190 適用後）を docs/tmp/live0191_read.mts で採り直し、gen_0191.cjs の白名単アンカーを `'pay_discount_base'];`→`'duty_gate'];` に直して再生成（手打ちなし）。旧版との差分＝0190 の 4 か所（白名単 'duty_gate'・v_dg 宣言・duty_gate の分岐・check_remove_line の assert_on_duty）＋ヘッダ 2 行＝16 行。**sha16 e5106a9fe0b75a17**（1,449 行・119,548 B・LF）。mig-check parse ok（statements 25・$function$ 9×2・plpgsql 9 本は試走で）。試走 t0191_rollback.mts に **教訓128 を実装**（行頭マーカーで切り出し・本体に行頭 commit;／begin; が無いことを送る前に assert・verify 節が commit; の後にあることを assert・関数数を tx の外で前後に取り直す）＝**ok 7／ng 0・残留 0**・tx 内 関数 393→394・表 111→112・tx の外 **393→393（恒久変更 0）**。md5＝set_store_profile **b074a4bf**・check_remove_line **e34ebf23**（他 7 本は 10/29 と不変）。ファイルの $function$ 本体から切り出した md5 が live の方式と一致することを 0190 の 2 本（e56d9253／00fe093c）で検証＝試走なしでも期待値を出せる。docs/demo/handpaste_0191.md を更新（旧 sha16 67fafc1611e48301 は無効＝貼らない）。**再生成しないと 0191 が set_store_profile／check_remove_line を 0190 前の本体で上書き＝duty_gate の白名単と打刻ゲート 1 本が消える（影響はこの 2 本だけ・他 7 本は無関係）。**
 - **f0**＝基準線 **147 段 6,845**（M3 run2 11:40→12:01 全緑・golden pay 130・payroll 234・玲奈 5931／125802）。13:23 の走（pin 393 の後）は anon-guard FAIL 52／pass 1014（'off duty' 51＋段35 の上限）で停止。duty_gate OFF 後に残る赤＝段35 だけ（見込み）。**本便では f0 を回していない**（0191 手貼り→フラグ true 便で 2 連）。
 - **DB 変更 0**（読取 begin read only・試走 BEGIN…ROLLBACK・関数数 393 不変）。docs 以外のコミットなし。
+
+
+### 便 K client（0190 のフラグ true 便・2026-10-30 午後・MIG_0190_APPLIED=true・K-5／K-0／K-1／435 タイル／K-4／M-29／退店／打刻ゲート・DB 恒久変更 0＝'x' 1 行の掃除のみ）
+
+出典＝相談役ブロック 2026-10-30 午後 ②（0190 のフラグ true 便）＋時間制約（19:00 打合せ＝18:30 以降は push・Vercel・reset・UPDATE 案の提示を止める）。便 R191 の照合（0191 verify 17 行差 0）の後に着手。
+- **フラグ**＝lib/nox/rules-0175/flag.ts に MIG_0190_APPLIED=true・mig0190On()・__set0190ForTest（0190 の .sql を収蔵＝sha16 6a73e1109a39b996）。
+- **K-5 端末の束縛**＝lib/nox/kiosk/device-fp.ts（localStorage の乱数 32 桁 hex＝ブラウザの指紋は採らない・8〜128 文字）→ /kiosk・/kiosk-register の端末ログイン直後に kiosk_device_bind(fp, ua)・'device bound' は「この端末では使えません」（denied・マスタ › システム › 端末の「固定を解除」）・p_device_fp を kiosk_login／kiosk_qr_secret／kiosk_qr_poll に添える（フラグ false は引数ごと送らない）。
+- **K-0 包み**＝app/kiosk-register/page.tsx を 1,253 行→約 300 行＝RegisterBoard（本店のレジと同一部品）を同じ props で描く（seats／stores use_vip・use_counter／products／product_categories／casts＝register/page.tsx と同じ select＝0190 の kiosk 腕で端末の店の行だけ読める）・showReserve=false（顧客の個人情報はキオスクに出さない）・操作担当のバー「〇〇さんとして操作中・ロック（交代／離席）」・自動ロック 3 分（店設定 kiosk_idle_sec・idle は kiosk_lock('idle')）。写し（会計 RPC の写経 900 行）は撤去。
+- **K-1**＝人を選ぶ（kiosk_operator_list）→PIN 4〜6 桁（PIN だけの解除＝KioskUnlockPad は mount しない・部品ファイルは残置＝qr suite の pin）・QR は近道（押したときだけ KioskQrDisplay）・5 回失敗で 10 分ロック（RPC）→ /api/kiosk/lock-notice（端末アカウントの route＝kiosk_devices で端末を確かめ・代筆者＝org の owner・audience 'staff'・直近 10 分の重複は書かない・until 翌日）＝店長以上のお知らせ欄に 1 行（純関数 lib/nox/kiosk/lock-notice.ts）。
+- **435 タイル**＝kioskTilesOf＝出退勤／レジ／シフト／在庫／日報の 5（フラグ false は 3）・シフト／在庫／日報の行き先は案内画面（components/nox/kiosk-feature-page.tsx＝端末アカウントの確認・出退勤へ戻る）＝**本体は K client 第 2 便**（在庫・日報の書込 RPC に kiosk 腕が無い）。
+- **K-4**＝端末アカウントは / から /kiosk-register（kiosk_operator_list ≥1）／/kiosk（kiosk_cast_list ≥1）・public/manifest-kiosk.json（start_url /kiosk・ショートカット 出退勤／レジ）を kiosk 配下 5 つの layout が指す（本店の /manifest.json は不変）。
+- **M-29**＝端末一覧（kiosk-device-panel）に「端末の固定」列（固定済（relTime）＋固定を解除＝kiosk_device_unbind／未固定）・無効行に「再発行して有効化」（route reactivate＝kiosk_reactivate＋unban＋新 PW を 1 回表示）と「削除」（route delete＝kiosk_delete＋deleteUser）・上限 3 台（kioskDeviceLimit()・'device limit'／'device bound'／'already active'／'still active' の日本語）・監査の写像 4 action。
+- **退店**＝app/api/auth/retire（owner／manager・cast／staff・ban／unban・is_active=false のときだけ ban・他の有効な役が残れば ban しない・demo 403）を casts-board（cast_leave→ban／cast_rejoin→unban）・staff-board（staff_deactivate→ban／staff_reactivate→unban）が RPC 成功後に呼ぶ（失敗は注記だけ）。access token は失効まで ≤1h 残る（refresh は不可）。
+- **打刻ゲート**＝rpc-err に 'off duty'→「出勤してからレジを開けます（店の端末で出勤の打刻をしてください）」・register-board の check_* 経路 8 か所＋C3_ERR_JA の catch-all・店舗設定「会計と運用」に打刻ゲートのスイッチ（data-duty-gate・set_store_profile {duty_gate}＝boolean 明示）・初期設定 v5 の「打刻ゲート」は便 ③（0191）で実保存に。
+- **gen-demo**＝settings_json に duty_gate:false → payload 6 本再生成（各 1 行＋_report.json の sha）＝06:05 の reset で ON に戻らない。**A1 の 'x' 端末 1 行を掃除**（参照 0 を確認・kiosk_devices 9→8・pg_proc 394 不変）。
+- **suite**＝verify:nox-0190（22＝t0190_rollback の翻訳・NO_APPLY・教訓128 の前後計数）・verify:nox-k（22＝client 配線）を f0 に組込み（149 段）・anon-guard（duty_gate OFF の前提固定＋段35＝上限 3）・grants（G9／G11／G12／G14／G15／G27／G37＝<t>_select_kiosk 2 本目・G30＝index 非ユニーク・G31＝24／26）・billing（課金ゲート名簿 A14＝kiosk_reactivate／kiosk_delete・B(s)＝0190／0191 の非ゲート 6 本＝188／206・述語参照 189）・qr／p175prep／m3／c2 の pin 張替え・0158／0188／p172＝394／112。
+- **f0**＝run A 14:46→15:04・run B 15:04→15:23＝**149 段 6,892 の 2 連緑**（直前の洗い出し＝grants／billing／store-systems／demo-guard／0158／p172／p173 の pin 張替え後・チェーン 155 本）。golden 不変（pay 130・payroll 234・玲奈 5931／125802）。
+- **live**＝本番 Vercel（デモ LUNA）＝push 後に追記。
+- **push**＝commit 3 層（①フラグ＋mig 収蔵＋純関数＋suite／②client／③docs）＝push の sha は追記。**6 店 reset**＝push・Vercel 反映の後に 6 店＝追記。
+- **duty_gate を 9 店 ON に戻す UPDATE 案（実行は Agoora・18:30 以降は提示しない＝打合せ後）**:
+  ```sql
+  update public.stores s set settings_json = coalesce(s.settings_json, '{}'::jsonb) || '{"duty_gate": true}'::jsonb
+    from public.orgs o where o.id = s.org_id
+     and o.name in ('NOX-DEMO', 'NOX-DEMO-ACE', 'NOX-DEMO-LILY', 'NOX-DEMO-LUNA', 'NOX-DEMO-MUSE', 'NOX-DEMO-NEST', 'NOX-DEMO-NOIR', 'NOX-VERIFY-A', 'NOX-VERIFY-B');
+  select 'nox-project-proof' org, 'orgs' store, count(*)::text duty_gate, '' gate from public.orgs
+  union all select o.name, s.name, coalesce(s.settings_json->>'duty_gate', '(欠損)'), public.duty_gate_of(s.id)::text
+    from public.stores s join public.orgs o on o.id = s.org_id order by 1, 2;
+  ```
+  ★注意＝NOX-VERIFY 3 店を ON に戻すと anon-guard が起動時に false へ寄せる（前提固定＝旧値を控えて復元）。デモ 6 店は payload が duty_gate:false なので 06:05 の reset で OFF に戻る（ON で運用するなら gen-demo を true に）。
+
+**仮決め（相談役案で確定扱い・事後承認）**: KC-1 端末の印＝localStorage の乱数 ID（指紋採取はしない・消すと別端末扱い＝固定を解除して再ログイン）。KC-2 キオスクのレジは予約タブを出さない（showReserve=false）。KC-3 435 タイルのシフト／在庫／日報は案内画面（本体は K client 第 2 便＝在庫・日報の kiosk 腕は別 mig）。KC-4 ロックのお知らせは audience 'staff'（店長以上専用の区分が無い＝器なし・代筆者＝owner）。KC-5 退店の ban は他の有効な役が残れば行わない・unban は再雇用／復活で。KC-6 KIOSK_DEVICE_LIMIT=1 は旧 pin の定数として残置（kioskDeviceLimit() が本体）。KC-7 kiosk-unlock-pad.tsx は未使用のまま残置（qr suite の pin・撤去は次便）。KC-8 課金ゲート名簿＝kiosk_device_unbind／setup_draft_set は非ゲート（B(s)）。KC-9 f0 の 2 連は grants／billing の pin 張替え後の走から数える。
 
 
 ### Agoora 確定 10/27（4）＝M-24（実機指摘 10/27 15:52・デモ LUNA・キャスト詳細）
@@ -7864,6 +7895,6 @@ anon-guard 段28 が無差別 `limit(1)` でそれを拾い 'bad amount'/BV=unde
 
 ## 次の番号（2026-10-30 便 R191 時点）
 
-- **次の M＝M-35**（M-30＝便 M3 で収載・**M-31〜M-34＝相談役採番 2026-10-30＝便 M4（2026-10）に予約**・M-27 は欠番＝M-17 追補を便 2 に同乗させたため。旧「次の M＝M-30」は便 M3 で消費）。
+- **次の M＝M-36**（M-30＝便 M3 で収載・**M-31〜M-35＝相談役採番 2026-10-30＝便 M5 に予約**（M4 は 2026-10-01 に使用済みのため改名＝相談役 10/30 午後）。M-31 onoff の選択中 OFF の塗り・M-32 390px の select・M-33 /mine 確認枠＝店向けカード手数料文の混入・M-34 基本の働き方はアカウント未発行でも設定可・**M-35 スタッフ › 一覧に「＋スタッフを追加」＝STEP 6 と同じフォーム・/api/staff/create＋staff_contract_set・追加後に PIN 発行の印**。投入は別途（台帳に予約だけ）。M-27 は欠番＝M-17 追補を便 2 に同乗させたため）。
 - **次の教訓＝129**（125＝cron と suite の fixture・126＝候補（共用端末は包み）・127＝欠番のまま・**128＝2026-10-30 採番＝commit; を含む切り出しの禁止**）。
 - **次の裁定＝439**（437＝キオスクの解除「人を選ぶ→PIN」・438＝初期設定 v5 正本＝ともに本文収載・確定は相談役。433＝提案中・本文収載済み・434＝2026-10-27 確定・435＝提案中＝便 K キオスクの機能拡張・436＝提案中＝K-5 打刻ゲート・端末の束縛・退店の失効（0190）・2026-10-29 本文収載済み）。

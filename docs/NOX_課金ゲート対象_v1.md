@@ -333,6 +333,10 @@ kiosk_provision（新規 kiosk の追加＝拡大操作）
 - 0187: remove_store_special_day（★set_store_special_day と揃えた＝B(p) から移動・0186 締めの候補）
 （対象 185→**186**・live 実測＝'billing locked' **186**・述語参照 187）
 
+### A14. 0190（2本・2026-10-30 本番適用（12:08 事故適用＝受け入れ）・0190 のフラグ true 便で収載・規則A形でゲート内蔵・kiosk 腕なし）
+- 0190 M-29 ⑦: kiosk_reactivate（無効化した端末を有効に戻す＝上限 3 台）・kiosk_delete（無効化済みの端末を削除）
+（対象 186→**188**・live 実測＝'billing locked' **188**・述語参照 189・挿入行の形 188。0190 の改稿 33 本（check_* 25＋approval 2＋入口 4＋退店 2）と set_store_profile／check_remove_line は名前不変で本数不動）
+
 ## B. 除外（99本）
 
 ### B(a) 構造除外＝authenticated 実行不可（service/内部・28本）→ ゲート不要（B7 回避型(1)）
@@ -493,6 +497,13 @@ staff_deactivate / kiosk_deactivate
 ### B(r). 0188 新設の除外（2本・2026-10-29 手貼り・0188／0189 フラグ true 便）
 - 内部専用（4 ロール revoke・源泉の税率表の読み口と税額の整数計算＝日払いの発行と紹介料の支払から呼ぶ）: withholding_rate_of・withholding_calc
 （除外 198→**200**・全数 384→**386**・0189 は set_staffing_need の差し替えだけ＝本数不変）
+
+### B(s). 0190／0191 新設の除外（6本・2026-10-30・0190 のフラグ true 便で収載）
+- 内部専用（4 ロール revoke・打刻ゲート＝裁定436 ①a）: duty_gate_of（店設定 duty_gate・欠損＝true）・on_duty_of（その営業日の最後の打刻が in か）・assert_on_duty（check_* 25 本＋approval 2 本の冒頭から呼ぶ＝'off duty'・店長以上は免除で audit）
+- 端末の束縛（裁定436 ①b・端末アカウント自身が呼ぶ＝org なし・B-補2 の kiosk_login と同じ扱い）: kiosk_device_bind
+- 非ゲート書込（owner・端末の固定の解除＝縮退の逆＝B-補1 の *_deactivate と同列・課金停止中でも端末の固定は外せる）: kiosk_device_unbind
+- 0191 ★6（owner・初期設定の下書き＝setup_drafts の upsert／削除＝課金の前段の入力＝ゲートなし）: setup_draft_set
+（除外 200→**206**・全数 386→**394**（0190 ＋7＝A 2＋B 5・0191 ＋1＝B 1）・0191 の改稿 8 本（set_store_profile／set_product（15→16 引数）／set_cast_pin／set_staff_pin／kiosk_punch／staff_punch／set_store_mine_settings／check_remove_line）は名前不変で本数不動）
 
 ## C. kiosk 腕を持つ対象（実装注意・18本）
 A1 の check_open / check_add_line / check_remove_line / check_add_seat / check_remove_seat /
