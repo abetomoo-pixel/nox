@@ -87,6 +87,8 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
   const [newCat, setNewCat] = useState("");
   const ids = useRef<{ device: string; staff: string[] }>({ device: "", staff: [] });
   const savedT = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const draftT = useRef<ReturnType<typeof setTimeout> | null>(null); // ★0191 ★6: server 下書きの間引き
+  const [draftFrom, setDraftFrom] = useState<"local" | "server">("local"); // ★0191 ★6: 復元元（表示）
 
   // ── 自動保存（localStorage・店ごと）: 復元は hydration 後・変更ごとに保存・完了で消す ──
   useEffect(() => {
@@ -96,6 +98,17 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
     } catch { /* 壊れた下書きは無視 */ }
     if (!ids.current.device) ids.current.device = crypto.randomUUID();
     setHydrated(true);
+    // ★0191 ★6（MIG_0191_APPLIED）: org 単位の下書き（setup_drafts＝owner だけ読める）＝別端末で再開。localStorage より新しければ server の下書きを使う（古ければ無視・読めなければ無視）
+    if (mig0191On()) {
+      let localAt = "";
+      try { const raw = window.localStorage.getItem(DRAFT_KEY(store.id)); if (raw) localAt = String((JSON.parse(raw) as { savedAt?: string }).savedAt ?? ""); } catch { /* noop */ }
+      void supabase.from("setup_drafts").select("data, updated_at").eq("store_id", store.id).maybeSingle().then(({ data }) => {
+        const d = (data?.data ?? null) as { S?: V5State; savedAt?: string; ids?: { device: string; staff: string[] }; issued?: Issued[] } | null;
+        if (!d?.S?.type || !d.savedAt || (localAt && d.savedAt <= localAt)) return;
+        setS(d.S); setRestoredAt(d.savedAt); if (d.ids) ids.current = d.ids; if (d.issued) setIssued(d.issued);
+        setDraftFrom("server");
+      });
+    }
   }, [store.id]);
   useEffect(() => {
     if (!hydrated || initialType == null) return;
@@ -104,10 +117,13 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
   useEffect(() => { if (hydrated && typeof initialStep === "number" && initialStep >= 0 && initialStep <= 9) setS((s) => ({ ...s, step: initialStep })); }, [hydrated, initialStep]);
   useEffect(() => {
     if (!hydrated || !S.type || run.completed) return;
-    try { window.localStorage.setItem(DRAFT_KEY(store.id), JSON.stringify({ S, savedAt: new Date().toISOString(), ids: ids.current, issued })); } catch { /* 容量超過などは無視 */ }
+    const savedAt = new Date().toISOString();
+    try { window.localStorage.setItem(DRAFT_KEY(store.id), JSON.stringify({ S, savedAt, ids: ids.current, issued })); } catch { /* 容量超過などは無視 */ }
+    // ★0191 ★6: server の下書き（setup_draft_set＝owner・2 秒の間引き・失敗は無視＝localStorage が主）
+    if (mig0191On() && isOwner) { if (draftT.current) clearTimeout(draftT.current); draftT.current = setTimeout(() => { void supabase.rpc("setup_draft_set", { p_store_id: store.id, p_data: { S, savedAt, ids: ids.current, issued } }).then(() => undefined, () => undefined); }, 2000); }
     setSaved("保存しました"); if (savedT.current) clearTimeout(savedT.current); savedT.current = setTimeout(() => setSaved("入力は自動で保存されます"), 1200);
   }, [hydrated, S, issued, run.completed, store.id]);
-  function restart() { try { window.localStorage.removeItem(DRAFT_KEY(store.id)); } catch { /* noop */ } window.location.reload(); }
+  function restart() { try { window.localStorage.removeItem(DRAFT_KEY(store.id)); } catch { /* noop */ } if (mig0191On() && isOwner) void supabase.rpc("setup_draft_set", { p_store_id: store.id, p_data: null }).then(() => window.location.reload(), () => window.location.reload()); else window.location.reload(); } // ★0191 ★6: server の下書きも消す
 
   const up = (f: (s: V5State) => void) => setS((prev) => { const n = clone(prev); f(n); n.dirty = true; return n; });
   const go = (i: number) => { setS((s) => ({ ...s, step: i })); window.scrollTo({ top: 0, behavior: "smooth" }); };
@@ -152,7 +168,8 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
             const b = +it.b || 0; if (!(b > 0)) continue;
             const jo = it.byKind && it.bj !== null ? +it.bj : kindVal(it, S.kindRate.jo); const fr = it.byKind && it.bf !== null ? +it.bf : kindVal(it, S.kindRate.free);
             const args = { p_id: r.id, p_store_id: store.id, p_type: r.type, p_category: r.category, p_name: r.name, p_price: r.price, p_cost: null, p_back_mode: it.bt === "pct" ? "rate" : "unit4", p_back_value: it.bt === "pct" ? Math.round(b) : null,
-              p_unit4: it.bt === "pct" ? null : { hon: Math.round(b), jonai: Math.round(jo), dohan: Math.round(b), free: Math.round(fr) }, p_hon_pt: r.hon_pt, p_is_active: r.is_active, p_reorder_point: r.reorder_point, p_category_id: r.category_id, p_back_exempt_from_split: r.back_exempt_from_split };
+              p_unit4: it.bt === "pct" ? null : { hon: Math.round(b), jonai: Math.round(jo), dohan: Math.round(b), free: Math.round(fr) }, p_hon_pt: r.hon_pt, p_is_active: r.is_active, p_reorder_point: r.reorder_point, p_category_id: r.category_id, p_back_exempt_from_split: r.back_exempt_from_split,
+              ...(mig0191On() ? { p_back_rate_by_kind: it.bt === "pct" && it.byKind ? { jonai: Math.round(jo), free: Math.round(fr) } : null } : {}) }; // ★0191 ★2: %の商品の場内／フリー個別（円＝unit4 は従来どおり）
             const { error: e2 } = await supabase.rpc("set_product", args); if (e2) throw new Error(`${r.name}: ${e2.message}`); } }
         } else if (st.rpc) {
           const args = { ...(st.args ?? {}) };
@@ -178,6 +195,7 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
     if (!ids2.basic) { const { data } = await supabase.from("comp_plans").select("id, name").eq("store_id", store.id); const rows = (data ?? []) as { id: string; name: string }[]; ids2 = { basic: rows.find((x) => x.name === "基本プラン")?.id ?? rows[0]?.id ?? null, trial: rows.find((x) => x.name === "体験入店")?.id ?? null }; }
     setPlanIds(ids2);
     try { window.localStorage.removeItem(DRAFT_KEY(store.id)); } catch { /* noop */ }
+    if (mig0191On() && isOwner) void supabase.rpc("setup_draft_set", { p_store_id: store.id, p_data: null }).then(() => undefined, () => undefined); // ★0191 ★6: 完了＝server の下書きも消す
     setRun({ running: false, done: steps.length, total: steps.length, failedAt: null, error: null, completed: true, log: r.log });
     setS((s) => ({ ...s, step: 9 }));
   }
@@ -235,7 +253,7 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
       {!isDone && (
         <>
           <div role="progressbar" aria-valuemin={1} aria-valuemax={9} aria-valuenow={S.step + 1} aria-label="進捗" style={{ height: 4, borderRadius: 2, background: "var(--line)", margin: "0 0 14px", overflow: "hidden" }}><div style={{ width: `${((S.step + 1) / 9) * 100}%`, height: "100%", background: "var(--gold)" }} /></div>
-          {restoredAt && <p style={{ ...t.sub, fontSize: 11.5, margin: "0 0 10px" }}>途中保存した下書きを復元しました（{new Date(restoredAt).toLocaleString("ja-JP")}）。<button type="button" style={{ ...t.link, marginLeft: 6 }} onClick={restart}>最初からやり直す</button></p>}
+          {restoredAt && <p style={{ ...t.sub, fontSize: 11.5, margin: "0 0 10px" }}>途中保存した下書きを復元しました（{new Date(restoredAt).toLocaleString("ja-JP")}{draftFrom === "server" ? "・別の端末の入力" : ""}）。<button type="button" style={{ ...t.link, marginLeft: 6 }} onClick={restart}>最初からやり直す</button></p>}
         </>
       )}
 

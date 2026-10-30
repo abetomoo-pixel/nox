@@ -9,7 +9,7 @@ import { DaysNormNote } from "../schedule-card"; // ★便 X13-G W-22 ⑤
 import { daysCountOf, daysNormLineOf, scheduleOf, type ScheduleShift, type ScheduleWish } from "@/lib/nox/mine/schedule";
 import { daysNormTargetsOf } from "@/lib/nox/mine/days-norm-server";
 import { mineSettingsOf } from "@/lib/nox/store/mine-settings"; // ★裁定326-7（便 M4-1）: 店設定 shift_request_mode（'shift'／'off_only'）
-import { resolveWishMode, wishPageTextOf, wishRowLabelOf } from "@/lib/nox/mine/wish-mode";
+import { resolveWishMode, wishPageTextOf, wishRowLabelOf, storeDecidesOf, STORE_DECIDES_NOTE } from "@/lib/nox/mine/wish-mode"; // ★0191 ★4: 店が決める
 import { WISH_STATE_COLOR, WISH_STATE_LABEL, wishStateDetailOf, wishStateOf, type ShiftStatusLike, type WishStatusLike } from "@/lib/nox/shift/wish-state"; // ★裁定345
 
 export const dynamic = "force-dynamic";
@@ -30,6 +30,7 @@ export default async function WishesPage() {
   const { data: meCast } = myCastId ? await supabase.from("casts").select("shift_request_mode").eq("id", myCastId as string).maybeSingle() : { data: null };
   const mode = resolveWishMode((meCast as { shift_request_mode?: string | null } | null)?.shift_request_mode, mineSettingsOf(storeRow?.settings_json).shift_request_mode);
   const text = wishPageTextOf(mode);
+  const storeDecides = storeDecidesOf((meCast as { shift_request_mode?: string | null } | null)?.shift_request_mode, mineSettingsOf(storeRow?.settings_json).shift_request_mode); // ★0191 ★4
   const [{ data: wishes }, { data: shiftRows }] = await Promise.all([
     supabase.from("shift_wishes").select("id, date, start_hm, end_hm, status, kind").order("date", { ascending: false }).limit(20),
     supabase.from("shifts").select("id, date, start_hm, end_hm, status, wish_id").gte("date", bizToday).order("date"), // 自分の行（RLS）・今日以降
@@ -78,11 +79,18 @@ export default async function WishesPage() {
           {normLines.map((x) => <div key={x.label}><b style={{ fontSize: 12.5 }}>{x.label}</b><DaysNormNote norm={x.line} /></div>)}
         </section>
       )}
+      {storeDecides ? (/* ★0191 ★4: 店が決める＝提出フォームを出さない */
+        <section className="nox-cardtop" style={t.card} data-wish-store-decides="1">
+          <h2 style={title}>シフトは店が決めます</h2>
+          <p style={{ fontSize: 12, color: "var(--sub)", margin: 0 }}>{STORE_DECIDES_NOTE}</p>
+        </section>
+      ) : (
       <section className="nox-cardtop" style={t.card}>
         <h2 style={title}>{text.submitHeading}</h2>
         <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 10px" }}>{text.note}</p>
         <WishForm mode={mode} />
       </section>
+      )}
 
       <section className="nox-cardtop" style={t.card}>
         <h2 style={title}>提出済み</h2>

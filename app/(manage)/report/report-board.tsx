@@ -9,7 +9,7 @@ import { bizDateOf, bizDateRange } from "@/lib/nox/biz-date";
 import { cashPayoutRowsOf, cashPayoutTotalOf, cashPayoutWithOtherOf, otherPayoutMemoMissing, noteWithOtherPayoutOf, otherPayoutFromNoteOf, manualPayoutDiffLineOf, type CashPayoutParts } from "@/lib/nox/report/cash-payout";
 import CashPayoutIssue, { type PayoutIssueKind } from "@/components/nox/cash-payout-issue";
 import { OKURI_ROW_LABEL, okuriAsks, okuriCashOf, okuriExpenseOf, okuriModeOf, type OkuriMode } from "@/lib/nox/shift/okuri-mode"; // ★裁定414（S-4）: 送りの 4 方式＝現金支払／諸経費の読み分け // ★便 X13-G W-24 ②: 内訳の ＋発行 // ★裁定311-②／④（便 Y-4）: 現金支払のプレフィル集計と内訳
-import { rules0175On } from "@/lib/nox/rules-0175/flag"; // ★便 P175-prep P-2
+import { mig0191On, rules0175On } from "@/lib/nox/rules-0175/flag"; // ★便 P175-prep P-2
 import { staffDirectDiscountOf } from "@/lib/nox/rules-0175/staff-discount"; // ★追補 2（裁定421 候補）
 import { castPaymentsOf } from "@/lib/nox/rules-0175/cast-register"; // ★追補 2（裁定420）
 import { roundYen } from "@/lib/nox/money";
@@ -438,6 +438,7 @@ export default function ReportBoard({
     void (async () => {
       const { data: st } = await supabase.from("stores").select("settings_json").eq("id", storeId).maybeSingle();
       const sj = (st?.settings_json ?? {}) as Record<string, unknown>;
+      if (mig0191On() && !recloseTarget && typeof sj.cash_float_default === "number" && sj.cash_float_default > 0) setCashFloat(sj.cash_float_default); // ★0191 ★1: 釣銭準備金の既定（店設定 cash_float_default・再締めは凍結値）
       const om = okuriModeOf(sj); // ★裁定414: 4 方式。'none' 以外は transport を読む（select * ＝0177 前は mode 列が無い→'actual' 扱い）
       const actual = okuriAsks(om);
       const [tr, adv, dp, pr, cs] = await Promise.all([

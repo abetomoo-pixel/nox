@@ -23,6 +23,7 @@ import {
 import { STOCK_REASON_RESTOCK } from "@/lib/nox/stock/reasons";
 import { swapAdjacent, reorderErrJa } from "@/lib/nox/ui/reorder";
 import { isSectionOn, type StoreSettings } from "@/lib/nox/store-systems"; // ★裁定269: 使う制度の出し分け
+import { mig0191On } from "@/lib/nox/rules-0175/flag"; // ★0191 ★2: 場内／フリーの個別率（p_back_rate_by_kind）
 import {
   parseProductBulk, duplicateWarnings, checkInactiveCategoryConflicts,
   newCategories, countByType, TYPE_LABEL_JA as BULK_TYPE_LABEL_JA,
@@ -103,11 +104,13 @@ type FormValues = {
   type: string; category: string; name: string; price: number; cost: string;
   backMode: string; backValue: number; unit4: Record<string, number>; honPt: number;
   exempt: boolean; active: boolean; reorder: string; catId: string;
+  byKind: boolean; bj: string; bf: string; // ★0191 ★2: 率%のとき 場内／フリーを別の率に（空欄＝店の割合）
 };
 const EMPTY_FORM: FormValues = {
   type: "drink", category: "", name: "", price: 0, cost: "",
   backMode: "rate", backValue: 50, unit4: { ...EMPTY_UNIT4 }, honPt: 0,
   exempt: false, active: true, reorder: "", catId: "",
+  byKind: false, bj: "", bf: "",
 };
 
 export type ProductsInitial = {
@@ -143,6 +146,7 @@ export default function ProductsBoard({ storeId, isManagerUp, initial, settings 
   const [pCost, setPCost] = useState("");
   const [pBackMode, setPBackMode] = useState("rate");
   const [pBackValue, setPBackValue] = useState(50);
+  const [pByKind, setPByKind] = useState(false); const [pBj, setPBj] = useState(""); const [pBf, setPBf] = useState(""); // ★0191 ★2
   const [pUnit4, setPUnit4] = useState<Record<string, number>>({ ...EMPTY_UNIT4 });
   const [pHonPt, setPHonPt] = useState(0);
   // キャストドリンク（mig0069）: 按分除外フラグ。常に明示送信（原則7）。
@@ -204,7 +208,7 @@ export default function ProductsBoard({ storeId, isManagerUp, initial, settings 
   //   「開いた直後は必ず未変更」が構造的に保証される（setter を個別に呼ぶ書き方だと取りこぼす）。
   function applyForm(v: FormValues) {
     setPType(v.type); setPCategory(v.category); setPName(v.name); setPPrice(v.price);
-    setPCost(v.cost); setPBackMode(v.backMode); setPBackValue(v.backValue);
+    setPCost(v.cost); setPBackMode(v.backMode); setPBackValue(v.backValue); setPByKind(v.byKind); setPBj(v.bj); setPBf(v.bf);
     setPUnit4(v.unit4); setPHonPt(v.honPt); setPExempt(v.exempt); setPActive(v.active);
     setPReorder(v.reorder); setPCatId(v.catId);
     setBaseSig(JSON.stringify(v));
@@ -213,6 +217,7 @@ export default function ProductsBoard({ storeId, isManagerUp, initial, settings 
     type: pType, category: pCategory, name: pName, price: pPrice, cost: pCost,
     backMode: pBackMode, backValue: pBackValue, unit4: pUnit4, honPt: pHonPt,
     exempt: pExempt, active: pActive, reorder: pReorder, catId: pCatId,
+    byKind: pByKind, bj: pBj, bf: pBf,
   });
   // 現在のフォーム値の署名。baseSig と違えば未保存の変更あり。
   const currentSig = () => JSON.stringify(currentValues());
@@ -230,6 +235,7 @@ export default function ProductsBoard({ storeId, isManagerUp, initial, settings 
       type: p.type, category: p.category ?? "", name: p.name, price: p.price,
       cost: costs[p.id] == null ? "" : String(costs[p.id]),
       backMode: p.back_mode, backValue: p.back_value ?? 0,
+      byKind: !!p.back_rate_by_kind, bj: p.back_rate_by_kind?.jonai == null ? "" : String(p.back_rate_by_kind.jonai), bf: p.back_rate_by_kind?.free == null ? "" : String(p.back_rate_by_kind.free), // ★0191 ★2
       unit4: p.unit4_json ?? { ...EMPTY_UNIT4 }, honPt: p.hon_pt,
       exempt: p.back_exempt_from_split, active: p.is_active,
       reorder: p.reorder_point == null ? "" : String(p.reorder_point),
@@ -239,7 +245,7 @@ export default function ProductsBoard({ storeId, isManagerUp, initial, settings 
     applyForm(v);
     // 「詳細」は既定 閉。ただし編集時に値が入っている（＝運用で使っている）なら自動で開く。
     const hasDetail = costs[p.id] != null || p.reorder_point != null || p.hon_pt > 0
-      || p.back_mode === "unit4" || (p.back_value ?? 0) !== 0 || p.back_exempt_from_split;
+      || p.back_mode === "unit4" || (p.back_value ?? 0) !== 0 || p.back_exempt_from_split || !!p.back_rate_by_kind;
     setDetailOpen(hasDetail);
     setModalOpen(true);
   }
@@ -329,6 +335,8 @@ export default function ProductsBoard({ storeId, isManagerUp, initial, settings 
       p_reorder_point: pReorder.trim() === "" ? null : Number(pReorder),
       // mig0063: カテゴリも常に明示値（""＝未分類＝null）。旧 p_category（text）は現値往復のみ＝deprecated。
       p_category_id: pCatId === "" ? null : pCatId,
+      // ★0191 ★2（MIG_0191_APPLIED）: %の商品の場内／フリーの個別率＝{jonai, free}（空欄のキーは送らない＝店の割合）・率%でないか「別の率」OFF は null。フラグ false の間は引数ごと送らない（旧 15 引数）
+      ...(mig0191On() ? { p_back_rate_by_kind: pBackMode === "rate" && pByKind && (pBj.trim() !== "" || pBf.trim() !== "") ? { ...(pBj.trim() !== "" ? { jonai: Number(pBj) } : {}), ...(pBf.trim() !== "" ? { free: Number(pBf) } : {}) } : null } : {}),
     });
     setMsg(error
       ? (error.message.includes("bad category") ? "カテゴリの指定が不正です（他店のカテゴリは選べません）" : error.message)
@@ -754,11 +762,29 @@ export default function ProductsBoard({ storeId, isManagerUp, initial, settings 
               </div>
 
               {pBackMode === "rate" ? (
+                <>
                 <div className="nox-field">
                   <span className="lab">バック率（%）</span>
                   <input type="number" inputMode="numeric" min={0} value={pBackValue}
                     onChange={(e) => setPBackValue(Number(e.target.value))} style={inputLg} />
                 </div>
+                {mig0191On() && (/* ★0191 ★2: 場内指名／フリーのときの率を個別に（空欄＝店の割合 kind_back_rate で算出・本指名は上の率） */
+                  <div className="nox-field" data-back-by-kind="0191">
+                    <label style={{ fontSize: 13, display: "inline-flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                      <input type="checkbox" checked={pByKind} style={{ width: 18, height: 18 }} onChange={(e) => setPByKind(e.target.checked)} />
+                      場内指名／フリーのときは別の率にする
+                    </label>
+                    {pByKind && (
+                      <div className="nox-field2" style={{ marginTop: 6 }}>
+                        <div className="nox-field"><span className="lab">場内指名のとき（%・空欄＝店の割合）</span>
+                          <input type="number" inputMode="numeric" min={0} max={100} value={pBj} placeholder="店の割合" onChange={(e) => setPBj(e.target.value)} style={inputLg} aria-label="場内指名のバック率" /></div>
+                        <div className="nox-field"><span className="lab">フリーのとき（%・空欄＝店の割合）</span>
+                          <input type="number" inputMode="numeric" min={0} max={100} value={pBf} placeholder="店の割合" onChange={(e) => setPBf(e.target.value)} style={inputLg} aria-label="フリーのバック率" /></div>
+                      </div>
+                    )}
+                  </div>
+                )}
+                </>
               ) : (
                 // ★④b-3: unit4 は 2×2 のグリッド＝ラベルと欄の対応を明確にする（旧: 横一列4つ）。
                 <div className="nox-field2">
