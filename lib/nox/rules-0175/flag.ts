@@ -54,3 +54,10 @@ export const MIG_0189_APPLIED = true; // ★2026-10-29: 0189（sha16 c6a8dab6a32
 let override0189: boolean | null = null;
 export function mig0189On(): boolean { return override0189 ?? MIG_0189_APPLIED; }
 export function __set0189ForTest(v: boolean | null): void { override0189 = v; }
+/** ★0190（裁定436 打刻ゲート・端末の束縛・退店の失効＋便 K ⑥〜⑧＝RLS kiosk 腕 29 本・上限 3 台・ロック 10 分・2026-10-30 12:08 に本番へ適用＝事故適用を受け入れ＝例外）: true の間＝
+ *  レジの 'off duty' の文言・店舗設定の打刻ゲートのスイッチ・端末の束縛（device_fp を kiosk_login／unlock／qr_secret／qr_poll に送り、端末ログイン直後に kiosk_device_bind）・端末一覧の固定の解除／再発行して有効化／削除・
+ *  キオスクのレジ＝register-board の包み（K-0）・人を選ぶ→PIN 4〜6 桁（K-1）・435 タイル・退店 route の ban。false なら 0190 前の挙動（入口 4 本の新引数は DEFAULT NULL＝送らない） */
+export const MIG_0190_APPLIED = true; // ★2026-10-30: 0190（sha16 6a73e1109a39b996）＝本番の 40 関数 md5 がファイルと 40／40 一致・verify 51 行差 0（handpaste_0190.md）→ true
+let override0190: boolean | null = null;
+export function mig0190On(): boolean { return override0190 ?? MIG_0190_APPLIED; }
+export function __set0190ForTest(v: boolean | null): void { override0190 = v; }

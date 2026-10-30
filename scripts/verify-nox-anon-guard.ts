@@ -142,7 +142,8 @@
  *       wrong_pin（fail_count 実値）→5回目 locked（locked_until）→ロック中は正PINも locked→admin で
  *       locked_until 過去化→正PIN ok＋カウンタ復元。bad_pin（形式不正）は fail_count 非増加・
  *       not_found（他店）・no_pin。audit は actor null の直接 INSERT（audit_log_write 非経由）を実測。
- *       e. provision 負系＝bad target（実在人物 uid）/already provisioned（1店1台）/manager forbidden・
+ *       e. provision 負系＝bad target（実在人物 uid）/★0190: 同店 2・3 台目は成功・4 台目 'device limit'（1 店 3 台＝便 K ⑦ M-29・
+ *          旧 'already provisioned'（1店1台）は廃止）/manager forbidden・
  *       deactivate 後は kiosk_cast_list 0行＋kiosk_punch forbidden（is_active 失効）。
  *       finally=kiosk punches→cast_pin→kiosk_devices→一時 casts→auth deleteUser の依存順全消し
  *       ＝固定カウント反転ゼロ（audit_logs は append-only のため残置＝従来どおり）。anon は段35a で 7署名 BLOCKED。
@@ -254,7 +255,48 @@ async function createUserWithRetry(
   return res;
 }
 
+// ★0190（2026-10-30）: NOX-VERIFY 3 店は duty_gate OFF が前提（ON だと cast/staff のレジ流れが 'off duty'）。
+//   起動時に settings_json->>'duty_gate' を読み、"false" でない店は admin で false に寄せ（旧値を控える）、最外の finally で厳密復元。
+//   duty_gate の挙動そのものは verify:nox-0190（BEGIN…ROLLBACK）が見る＝ここは前提の固定だけ。
+type DutyGateOld = { id: string; name: string; settings: Record<string, unknown> | null };
+async function dutyGateOff(admin: SupabaseClient): Promise<DutyGateOld[]> {
+  const { data } = await admin.from("stores").select("id, name, settings_json").in("name", [STORE_A1, STORE_A2, STORE_B1]);
+  const changed: DutyGateOld[] = [];
+  for (const s of (data ?? []) as { id: string; name: string; settings_json: Record<string, unknown> | null }[]) {
+    const old = s.settings_json ?? null;
+    if (old && old.duty_gate === false) continue;
+    const { error } = await admin.from("stores").update({ settings_json: { ...(old ?? {}), duty_gate: false } }).eq("id", s.id);
+    if (error) fails.push(`★0190 前提: ${s.name} duty_gate=false への寄せに失敗: ${error.message}`);
+    else { changed.push({ id: s.id, name: s.name, settings: old }); console.log(`[★0190 前提] ${s.name} duty_gate ${JSON.stringify(old?.duty_gate ?? null)} → false（finally で復元）`); }
+  }
+  return changed;
+}
+async function dutyGateRestore(admin: SupabaseClient, olds: DutyGateOld[]): Promise<void> {
+  for (const o of olds) {
+    const { error } = await admin.from("stores").update({ settings_json: o.settings }).eq("id", o.id);
+    if (error) console.error(`[★0190 前提] ${o.name} settings_json の復元に失敗: ${error.message}`);
+  }
+}
+
 async function main() {
+  const admin0 = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  const dutyOld = await dutyGateOff(admin0);
+  try {
+    await mainBody();
+  } finally {
+    await dutyGateRestore(admin0, dutyOld);
+  }
+  if (fails.length) {
+    console.error(`FAIL ${fails.length} 件 / pass ${pass}`);
+    for (const f of fails) console.error(" - " + f);
+    process.exit(1);
+  }
+  console.log(`verify:nox-anon-guard ALL PASS (${pass} assertions)`);
+}
+
+async function mainBody() {
   const anon = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
@@ -5210,10 +5252,19 @@ async function main() {
           p_auth_user_id: ownerUidRow!.auth_user_id, p_store_id: s35A1.id, p_label: "x",
         });
         check("段35 実在人物 auth uid = bad target（人物アカウントの kiosk 化封じ）", has(eBt, "bad target"), eBt?.message ?? "通ってしまった");
-        const { error: eDup } = await owner.rpc("kiosk_provision", {
-          p_auth_user_id: randomUUID(), p_store_id: s35A1.id, p_label: "x",
+        // ★0190（2026-10-30・便 K ⑦ M-29）: 1店1台 → 打刻端末は 1 店 3 台まで（有効なものだけ数える）。2〜3 台目は成功・4 台目が 'device limit'。
+        //   ラベルは PREFIX 付き（wipe35 がラベル前置で消す＝'x' のまま通ると残留する。2026-10-30 04:24Z の 'x' 1 行はこれ）。auth_user_id はランダム uuid（auth ユーザーなし）。
+        const { data: dev2, error: eDev2 } = await owner.rpc("kiosk_provision", {
+          p_auth_user_id: randomUUID(), p_store_id: s35A1.id, p_label: `${PREFIX}-dev2`,
         });
-        check("段35 同店2台目 = already provisioned（1店1台）", has(eDup, "already provisioned"), eDup?.message ?? "通ってしまった");
+        const { data: dev3, error: eDev3 } = await owner.rpc("kiosk_provision", {
+          p_auth_user_id: randomUUID(), p_store_id: s35A1.id, p_label: `${PREFIX}-dev3`,
+        });
+        check("段35 ★0190 同店 2・3 台目 = 成功（打刻端末は 1 店 3 台まで）", !eDev2 && typeof dev2 === "string" && !eDev3 && typeof dev3 === "string", eDev2?.message ?? eDev3?.message);
+        const { error: eDup } = await owner.rpc("kiosk_provision", {
+          p_auth_user_id: randomUUID(), p_store_id: s35A1.id, p_label: `${PREFIX}-dev4`,
+        });
+        check("段35 ★0190 同店 4 台目 = device limit（上限 3）", has(eDup, "device limit"), eDup?.message ?? "通ってしまった");
         const { error: eMgrProv } = await mgr.rpc("kiosk_provision", {
           p_auth_user_id: randomUUID(), p_store_id: s35A1.id, p_label: "x",
         });
@@ -6141,13 +6192,7 @@ async function main() {
         !!error || (Array.isArray(data) && data.length === 0), error?.message ?? `rows=${data?.length}`);
     }
   }
-
-  if (fails.length) {
-    console.error(`FAIL ${fails.length} 件 / pass ${pass}`);
-    for (const f of fails) console.error(" - " + f);
-    process.exit(1);
-  }
-  console.log(`verify:nox-anon-guard ALL PASS (${pass} assertions)`);
+  // 判定の出力と exit は main()（★0190 前提の finally 復元の後）
 }
 
 main().catch((e) => {

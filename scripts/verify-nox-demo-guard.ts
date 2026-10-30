@@ -40,7 +40,8 @@ const DENY_GUARDED: Record<string, string> = {
   "line/secret": "app/api/line/secret/route.ts", // ★便 ON-3（0176 ★1 401）: Vault へ書く＝デモは 403
   "line/push": "app/api/line/push/route.ts", // ★便 ON-3: 外部送信＝デモ org は 204（送らない・台帳にも書かない）
   "line/notice": "app/api/line/notice/route.ts",
-  "auth/invite-accept": "app/api/auth/invite-accept/route.ts", // ★便 OB-2 ⑧（2026-10-29）: 招待で入ったオーナーのパスワード設定＝デモ auth／デモ org は 403・client は auth.updateUser を呼ばない // ★便 W-10 #21: お知らせの LINE＝デモ org は送らない（demo: true を返す・台帳にも書かない）
+  "auth/invite-accept": "app/api/auth/invite-accept/route.ts",
+  "auth/retire": "app/api/auth/retire/route.ts", // ★0190 フラグ true 便（2026-10-30）: 退店の失効（ban／unban）＝owner／manager・デモ org は 403（demoGuardErr） // ★便 OB-2 ⑧（2026-10-29）: 招待で入ったオーナーのパスワード設定＝デモ auth／デモ org は 403・client は auth.updateUser を呼ばない // ★便 W-10 #21: お知らせの LINE＝デモ org は送らない（demo: true を返す・台帳にも書かない）
 };
 // B) セッション無し（差し込みなし）
 const DENY_NO_SESSION = new Set<string>([
@@ -57,6 +58,7 @@ const ALLOW = new Set<string>([
   "kiosk/punch-methods", // ★便 X13-G W-23: 端末の店の打刻設定を読むだけ（書込なし・デモ org も可）
   "attendance/sheet", // ★便 SH-UI-c C-2: 勤怠一覧（guardPayroll・読取のみ＝給与 preview と同じ・デモ org も可）
   "home/pending", // ★便 SH-UI-c2 C2-13: HOME の要承認とベル（利用者の client＝RLS・読取のみ・デモ org も可）
+  "kiosk/lock-notice", // ★0190 フラグ true 便 K-1（2026-10-30）: 端末アカウントの PIN ロックのお知らせ 1 行（kiosk_devices で端末を確かめる・notices に 1 行・デモ org も可＝06:05 の reset で消える）
 ]);
 
 function walk(dir: string, out: string[]) {

@@ -160,7 +160,7 @@ check("c2(2-8) CSV・印刷用にも同じ列＝従来の 10 列＋時給分｜�
 // ── (7) C2-12 会計タブ「①請求を確認」の列見出し ──
 {
   const rb = src("app/(manage)/register/register-board.tsx"), kr = src("app/kiosk-register/page.tsx");
-  check("c2(7-1) C2-12 見出し＝外税の店「請求（税・サ込）」・内税の店「請求（サ込・内税）」（伝票の凍結値 price_display で判定）・値は明細の「合計（税込）」と同じ due（gi.due）・キオスクも同じ", rb.includes('data-due-head="1">{check?.price_display === "tax_excluded" && (check?.business_tax_status ?? "taxable") === "taxable" ? "請求（税・サ込）" : "請求（サ込・内税）"}') && rb.includes('<div className="nox-sumrow total" data-sum-total="1"><span>合計（税込）</span>') && rb.includes("{yen(gi.due)}") && kr.includes('"請求（税・サ込）" : "請求（サ込・内税）"') && !rb.includes("請求（サ料込）</th>") && !kr.includes("請求（サ料込）</th>"));
+  check("c2(7-1) C2-12 見出し＝外税の店「請求（税・サ込）」・内税の店「請求（サ込・内税）」（伝票の凍結値 price_display で判定）・値は明細の「合計（税込）」と同じ due（gi.due）・キオスクも同じ", rb.includes('data-due-head="1">{check?.price_display === "tax_excluded" && (check?.business_tax_status ?? "taxable") === "taxable" ? "請求（税・サ込）" : "請求（サ込・内税）"}') && rb.includes('<div className="nox-sumrow total" data-sum-total="1"><span>合計（税込）</span>') && rb.includes("{yen(gi.due)}") && kr.includes("<RegisterBoard seats={board.seats}") /* ★0190 K-0（2026-10-30）: キオスクのレジは register-board と同一部品＝見出しも同じ（写しの文字列は無い） */ && !rb.includes("請求（サ料込）</th>") && !kr.includes("請求（サ料込）</th>"));
 }
 
 // ── (8) C2-13 HOME の要承認 ──

@@ -9,7 +9,7 @@
 import fs from "node:fs";
 import { staffDayRowsOf, staffDayPayOf, staffPayHeadOf, staffPunchHmOf } from "../lib/nox/staff/kintai";
 import { staffHoursOf, type StaffContract, type StaffPunch } from "../lib/nox/staff/pay";
-import { kioskErrJa, KIOSK_DEVICE_LIMIT } from "../lib/nox/kiosk/device-errors";
+import { kioskErrJa, KIOSK_DEVICE_LIMIT, kioskDeviceLimit } from "../lib/nox/kiosk/device-errors";
 
 let pass = 0; const fails: string[] = [];
 const check = (label: string, ok: boolean, detail?: unknown) => { if (ok) pass++; else fails.push(`${label}${detail !== undefined ? `: ${JSON.stringify(detail)}` : ""}`); };
@@ -51,7 +51,7 @@ check("m3(28-1) 下段タブ＝給与の上段タブと同じ型（role=tab・bt
   sysb.includes('role="tablist" aria-label="スタッフ・システム" data-system-tabs="1"') && sysb.includes("minHeight: 44, flex: \"1 1 calc(50% - 8px)\"") && sysp.includes('if (isOwner && orgDemo?.is_demo === true) { deviceTotal = 0; deviceInactive = 0; }') && sysp.includes("`${deviceTotal} 台登録・有効 ${deviceTotal - deviceInactive}`") && kdp.includes('data-kiosk-empty={isDemo ? "demo" : "none"}') && kdp.includes('data-kiosk-kpi="1"'));
 check("m3(29-1) 再発行＝route action reissue（updateUserById・旧 PW 即時無効・新 PW は 1 回）・一覧の操作「認証情報を再発行」・無効化した端末の有効化／削除は 0190 の後（置かない）・成功＝緑の帯",
   route.includes('if (body.action === "reissue") {') && route.includes("admin.auth.admin.updateUserById(dev.auth_user_id as string, { password })") && kdp.includes("data-kiosk-reissue={d.id}") && kdp.includes('data-kiosk-inactive-ops="0190"') && kdp.includes('<Message kind="success">{msg}</Message>'));
-check("m3(29-2) 英語の生文→日本語（already provisioned＝上限の文言・bad target・not found・forbidden・billing locked・already processed・device inactive）", /上限（1 台）に達しています/.test(kioskErrJa(409, "already provisioned", "レジ")) && KIOSK_DEVICE_LIMIT === 1 && kioskErrJa(403, "forbidden", "x") === "権限がありません（オーナーのみ）" && /端末が見つかりません/.test(kioskErrJa(404, "not found", "x")) && /契約の状態/.test(kioskErrJa(500, "billing locked", "x")) && /端末アカウントにできません/.test(kioskErrJa(500, "bad target", "x")) && kioskErrJa(500, "zzz", "x") === "エラー(500): zzz");
+check("m3(29-2) 英語の生文→日本語（already provisioned＝上限の文言・bad target・not found・forbidden・billing locked・already processed・device inactive）", /上限（3 台）に達しています/.test(kioskErrJa(409, "already provisioned", "レジ")) /* ★0190: 上限 3 台 */ && KIOSK_DEVICE_LIMIT === 1 && kioskDeviceLimit() === 3 && kioskErrJa(403, "forbidden", "x") === "権限がありません（オーナーのみ）" && /端末が見つかりません/.test(kioskErrJa(404, "not found", "x")) && /契約の状態/.test(kioskErrJa(500, "billing locked", "x")) && /端末アカウントにできません/.test(kioskErrJa(500, "bad target", "x")) && kioskErrJa(500, "zzz", "x") === "エラー(500): zzz");
 // M-30
 const rb = src("app/(manage)/register/register-board.tsx");
 check("m3(30-1) 行削除＝pending のキープを bottle_keep_update（removed）で取り消してから check_remove_line（RPC 側＝0191 ★5）", rb.includes('.eq("status", "pending"); // ★便 M3 M-30') && rb.includes('p_status: "removed"') && rb.indexOf("★便 M3 M-30") < rb.indexOf('supabase.rpc("check_remove_line", { p_line_id: lineId })'));

@@ -441,8 +441,8 @@ async function main() {
       [["advances", "transport"]],
     );
     check(
-      "G9 advances/transport ポリシー = 各1本 SELECT（パターン1）",
-      tp.rowCount === 2 && tp.rows.every((x) => x.cmd === "SELECT"),
+      "G9 advances/transport ポリシー = advances 1 本・transport 2 本（transport_select＋transport_select_kiosk＝★0190）・すべて SELECT（パターン1）",
+      tp.rowCount === 3 && tp.rows.every((x) => x.cmd === "SELECT") && tp.rows.filter((x) => x.tablename === "advances").length === 1 && tp.rows.some((x) => x.policyname === "transport_select_kiosk"), // ★0190（2026-10-30・裁定435 追補）: register-board が直読みする 29 表に <t>_select_kiosk（SELECT・authenticated）が増えた
       tp.rows.map((x) => `${x.tablename}:${x.cmd}`).join(", "),
     );
     for (const fn of ["adv_issue", "adv_cancel", "transport_issue", "transport_cancel", "set_store_okuri_mode", "adv_issue_bulk", "transport_issue_bulk"]) { // ★0157: bulk 2 本
@@ -568,8 +568,8 @@ async function main() {
       `select policyname, cmd from pg_policies where schemaname='public' and tablename='customers'`,
     );
     check(
-      "G11 customers ポリシー = customers_select（SELECT）1本のみ（書込 policy なし＝RPC 経由）",
-      cup.rowCount === 1 && cup.rows[0].cmd === "SELECT" && cup.rows[0].policyname === "customers_select",
+      "G11 customers ポリシー = customers_select＋customers_select_kiosk（SELECT 2 本＝★0190・書込 policy なし＝RPC 経由）",
+      cup.rowCount === 2 && cup.rows.every((x) => x.cmd === "SELECT") && cup.rows.map((x) => x.policyname).sort().join(",") === "customers_select,customers_select_kiosk", // ★0190（2026-10-30・裁定435 追補）: register-board が直読みする 29 表に <t>_select_kiosk（SELECT・authenticated）が増えた
       cup.rows.map((x) => `${x.policyname}:${x.cmd}`).join(", "),
     );
     for (const fn of [
@@ -595,8 +595,8 @@ async function main() {
       `select policyname, cmd from pg_policies where schemaname='public' and tablename='memberships'`,
     );
     check(
-      "G12 memberships ポリシー = memberships_select（SELECT）1本のみ不変（read RPC 不採用・土台非汚染）",
-      memp.rowCount === 1 && memp.rows[0].cmd === "SELECT" && memp.rows[0].policyname === "memberships_select",
+      "G12 memberships ポリシー = memberships_select＋memberships_select_kiosk（SELECT 2 本＝★0190・read RPC 不採用・土台非汚染）",
+      memp.rowCount === 2 && memp.rows.every((x) => x.cmd === "SELECT") && memp.rows.map((x) => x.policyname).sort().join(",") === "memberships_select,memberships_select_kiosk", // ★0190（2026-10-30・裁定435 追補）: register-board が直読みする 29 表に <t>_select_kiosk（SELECT・authenticated）が増えた
       memp.rows.map((x) => `${x.policyname}:${x.cmd}`).join(", "),
     );
 
@@ -625,8 +625,8 @@ async function main() {
       `select policyname, cmd from pg_policies where schemaname='public' and tablename='users'`,
     );
     check(
-      "G14 users ポリシー = users_select（SELECT）1本のみ不変（書込 policy なし＝RPC 経由）",
-      usp.rowCount === 1 && usp.rows[0].cmd === "SELECT" && usp.rows[0].policyname === "users_select",
+      "G14 users ポリシー = users_select＋users_select_kiosk（SELECT 2 本＝★0190・書込 policy なし＝RPC 経由）",
+      usp.rowCount === 2 && usp.rows.every((x) => x.cmd === "SELECT") && usp.rows.map((x) => x.policyname).sort().join(",") === "users_select,users_select_kiosk", // ★0190（2026-10-30・裁定435 追補）: register-board が直読みする 29 表に <t>_select_kiosk（SELECT・authenticated）が増えた
       usp.rows.map((x) => `${x.policyname}:${x.cmd}`).join(", "),
     );
 
@@ -645,8 +645,8 @@ async function main() {
       `select policyname, cmd from pg_policies where schemaname='public' and tablename='reservations'`,
     );
     check(
-      "G15 reservations ポリシー = reservations_select（SELECT）1本のみ（書込 policy なし＝RPC 経由）",
-      rsp.rowCount === 1 && rsp.rows[0].cmd === "SELECT" && rsp.rows[0].policyname === "reservations_select",
+      "G15 reservations ポリシー = reservations_select＋reservations_select_kiosk（SELECT 2 本＝★0190・書込 policy なし＝RPC 経由）",
+      rsp.rowCount === 2 && rsp.rows.every((x) => x.cmd === "SELECT") && rsp.rows.map((x) => x.policyname).sort().join(",") === "reservations_select,reservations_select_kiosk", // ★0190（2026-10-30・裁定435 追補）: register-board が直読みする 29 表に <t>_select_kiosk（SELECT・authenticated）が増えた
       rsp.rows.map((x) => `${x.policyname}:${x.cmd}`).join(", "),
     );
 
@@ -972,8 +972,8 @@ async function main() {
       const pol = await db.query(
         `select polname, polcmd from pg_policy where polrelid = 'public.check_seats'::regclass`,
       );
-      check("G27 check_seats ポリシー = SELECT 1本（check_seats_select）",
-        pol.rowCount === 1 && pol.rows[0].polcmd === "r" && pol.rows[0].polname === "check_seats_select",
+      check("G27 check_seats ポリシー = SELECT 2 本（check_seats_select＋check_seats_select_kiosk＝★0190）",
+        pol.rowCount === 2 && pol.rows.every((x) => x.polcmd === "r") && pol.rows.map((x) => x.polname).sort().join(",") === "check_seats_select,check_seats_select_kiosk", // ★0190（2026-10-30・裁定435 追補）: register-board が直読みする 29 表に <t>_select_kiosk（SELECT・authenticated）が増えた
         pol.rows.map((x) => `${x.polname}:${x.polcmd}`).join(", "));
       // 占有 unique index 逐語（追加席は同時1伝票の構造保証）
       const ix = await db.query(
@@ -1098,12 +1098,15 @@ async function main() {
       );
       check("G30 旧 kiosk_devices_one_active_per_store_idx 不在（0056 で drop）", old.rowCount === 0);
       const nw = await db.query(
-        `select indexdef from pg_indexes where schemaname = 'public' and indexname = 'kiosk_devices_one_active_per_store_purpose_idx'`,
+        `select indexdef from pg_indexes where schemaname = 'public' and indexname = 'kiosk_devices_store_purpose_active_idx'`,
       );
-      check("G30 kiosk_devices_one_active_per_store_purpose_idx 逐語（(store_id, purpose) WHERE is_active）",
+      // ★0190 M-29 ⑦（2026-10-30）: 1 店 1 台の部分ユニーク index（kiosk_devices_one_active_per_store_purpose_idx）は drop・上限 3 台は kiosk_provision／kiosk_reactivate が数える＝非ユニークの部分 index に
+      check("G30 kiosk_devices_store_purpose_active_idx 逐語（非ユニーク・(store_id, purpose) WHERE is_active＝★0190 上限 3 台）",
         nw.rowCount === 1 && nw.rows[0].indexdef ===
-          "CREATE UNIQUE INDEX kiosk_devices_one_active_per_store_purpose_idx ON public.kiosk_devices USING btree (store_id, purpose) WHERE is_active",
+          "CREATE INDEX kiosk_devices_store_purpose_active_idx ON public.kiosk_devices USING btree (store_id, purpose) WHERE is_active",
         nw.rows[0]?.indexdef ?? "(missing)");
+      const oldU = await db.query(`select 1 from pg_indexes where schemaname = 'public' and indexname = 'kiosk_devices_one_active_per_store_purpose_idx'`);
+      check("G30 旧 kiosk_devices_one_active_per_store_purpose_idx 不在（0190 で drop）", oldU.rowCount === 0);
       const ks = await db.query(
         `select indexdef from pg_indexes where schemaname = 'public' and indexname = 'kiosk_sessions_one_active_per_device'`,
       );
@@ -1147,7 +1150,7 @@ async function main() {
       // ★mig0148（裁定272・2026-09-18）: check_add_referral（check_add_line の冒頭〜role 判定を逐語＝kiosk 腕あり）で 18→19・20→21・18→19。
       // ★mig0152（裁定298／299・2026-09-25）: check_add_referral を drop・check_referral_set／remove（同じ冒頭を逐語＝kiosk 腕あり）で 19→20・21→22・19→20。
       check("G31 register helper を使う会計RPC = 20本（0057 の12＋0084 shimei/dohan＋0089 extension＋0090 set_people＋0091 line_set_group＋0131 pricing_categories_for_register＋0152 check_referral_set／remove）",
-        reg.rows[0].n === 23, `got ${reg.rows[0].n}`); // ★mig0173（裁定385 追補）: check_set_ext_rule（kiosk 腕）で 22→23 // ★mig0153（裁定305-7）: bottle_keep_out（kiosk 腕）で 20→21 // ★mig0155（裁定309-10）: kiosk_check_keeps（kiosk 腕・読取）で 21→22
+        reg.rows[0].n === 24, `got ${reg.rows[0].n}`); // ★0190（裁定436）: assert_on_duty（kiosk 腕＝auth_kiosk_register_store_id で店を解決）で 23→24 // ★mig0173（裁定385 追補）: check_set_ext_rule（kiosk 腕）で 22→23 // ★mig0153（裁定305-7）: bottle_keep_out（kiosk 腕）で 20→21 // ★mig0155（裁定309-10）: kiosk_check_keeps（kiosk 腕・読取）で 21→22
       const op = await db.query(
         `select count(*)::int as n from pg_proc p join pg_namespace ns on ns.oid = p.pronamespace
          where ns.nspname = 'public' and p.prokind = 'f'
@@ -1155,7 +1158,7 @@ async function main() {
            and p.proname not in ('auth_kiosk_operator','kiosk_register_state','kiosk_check_detail')`,
       );
       check("G31 operator を使う関数 = 22本（write-arm 系 20＝0131 for_register・0152 check_referral_set／remove 込み＋audit_log_write＋drink_claims_on_line_delete）",
-        op.rows[0].n === 25, `got ${op.rows[0].n}`); // ★mig0173: check_set_ext_rule で 24→25 // ★mig0153: bottle_keep_out で 22→23 // ★mig0155: kiosk_check_keeps で 23→24
+        op.rows[0].n === 26, `got ${op.rows[0].n}`); // ★0190（裁定436）: assert_on_duty（auth_kiosk_operator＝操作担当の本人解決）で 25→26 // ★mig0173: check_set_ext_rule で 24→25 // ★mig0153: bottle_keep_out で 22→23 // ★mig0155: kiosk_check_keeps で 23→24
       const cv = await db.query(
         `select count(*)::int as n from pg_proc p join pg_namespace ns on ns.oid = p.pronamespace
          where ns.nspname = 'public' and p.prokind = 'f' and p.proname = 'check_void'
@@ -1371,12 +1374,13 @@ async function main() {
                 (select array_agg(r.rolname::text order by r.rolname) from pg_roles r where r.oid = any(polroles)) roles
            from pg_policy where polrelid = ('public.${t}')::regclass`,
       );
-      check(`G37 ${t} policy は select 1本のみ・polroles={authenticated}`,
-        pol.rowCount === 1 && pol.rows[0].cmd === "r"
-        && JSON.stringify(pol.rows[0].roles) === JSON.stringify(["authenticated"]),
+      // ★0190（2026-10-30・裁定435 追補）: register-board が直読みする 29 表に <t>_select_kiosk（SELECT・authenticated）が増えた
+      const polMain = pol.rows.find((x) => x.polname === `${t}_select`);
+      check(`G37 ${t} policy は select 2 本（${t}_select＋${t}_select_kiosk＝★0190）・polroles={authenticated}`,
+        pol.rowCount === 2 && pol.rows.every((x) => x.cmd === "r" && JSON.stringify(x.roles) === JSON.stringify(["authenticated"])) && !!polMain && pol.rows.some((x) => x.polname === `${t}_select_kiosk`),
         JSON.stringify(pol.rows.map((x) => ({ n: x.polname, c: x.cmd, r: x.roles }))));
       check(`G37 ${t} polqual 逐語＝org 照合＋owner∨manager自店（cast/staff に見せない）`,
-        pol.rows[0]?.q === POLQUAL, String(pol.rows[0]?.q));
+        polMain?.q === POLQUAL, String(polMain?.q));
     }
 
     const FNS: Array<[string, string, boolean, string]> = [
