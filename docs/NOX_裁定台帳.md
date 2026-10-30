@@ -5097,6 +5097,13 @@ DB 変更 0 の見込み。要れば 0190 起草のみ。」
 
 **教訓129（候補・相談役採番 2026-10-30）＝f0 は lint を含まない。push の直前に lint・tsc を単走する**: 0190 のフラグ true 便の push（6a14824・15:24）が Vercel の build で止まった＝f0 149 段 2 連緑・tsc 0 でも、ESLint の `@next/next/no-html-link-for-pages`（components/nox/kiosk-feature-page.tsx の `<a href="/">`）は f0 のどの段も見ていない（f0 は tsx の実行と grep＝ESLint を通さない）。検知＝push から 15 分の反映待ちが timeout → `npx next lint` で 1 件。処置＝commit→push のスクリプト（便 SU から）に `npx next lint --dir app --dir lib --dir components --dir scripts` と `npx tsc --noEmit -p .` を前段に置き、どちらか赤なら push しない。f0 への組込み（verify:nox-lint）は相談役判断。
 
+### 便 ③（0191 のフラグ true 便・2026-10-30 夕・★着手のみ＝push しない・f0 未走）
+
+出典＝相談役ブロック 2026-10-30 午後 ③（便 SU の後に着手のみ・18:30 以降は push しない）。0191 は 14 時台に手貼り済み（verify 17 行差 0）。
+- **済（ローカル commit のみ）**: MIG_0191_APPLIED=true・mig0191On（flag.ts）／0191_setup_v5_gaps.sql（sha16 e5106a9fe0b75a17）を収蔵／lib/nox/setup/v5.ts＝店設定 5 キー（kind_back_rate・withholding_default_cast／staff・cash_float_default・settlement_close_day＝CLOSE_DAY_OF）と duty_gate（0190）を settings の patch に・shift_request_mode 'store'・PIN 4〜6 桁の素通し（staff／cast）・deferred と V5_SAVE_MAP の has をフラグで（残る器なし＝マイページ 3 キーだけ）／setup-wizard の「後で（マスタから）」ピル 4 か所をフラグで／PIN UI 3 面（casts-board の set_cast_pin・kiosk-pin-panel の set_staff_pin・/kiosk の PIN pad＝4〜6 桁）／mine-settings の ShiftRequestMode に 'store'（ラベル「店が決める」・読取）・wish-mode は 'store' を「休み希望のみ」の入口に倒す／suite verify:nox-0191（7＝t0191_rollback の翻訳・mig は流さない・教訓128 の前後計数 394 不変）を f0 に組込み／ob2 B-8 をフラグ対応に。tsc 0・単走＝0191 7／ob2 25／su 8／setup／k／m3／p174／x13g／n1014／qr／p175prep／mine-settings／mine-cast-settings／store-systems／w52a 緑。
+- **未済（便 ③ の本体＝次セッション）**: 商品の場内／フリー個別（products-board の入力欄と wizard の product_overrides に p_back_rate_by_kind）／店の源泉区分の既定・釣銭準備金・締め日・店の割合の店舗設定 UI（0191 ★1 の 5 キーの編集口＝今は初期設定の保存だけ）／日報の締めの釣銭準備金の既定（cash_float_default の prefill）／下書き setup_drafts（setup_draft_set の保存と別端末での再開＝今は localStorage）／M-30 client の整理（RPC 側が pending を消すので client の先回り取消は残置）／/mine の「店が決める」の専用案内／suite の pin（ob2 以外＝products／mine の 'store' 表示）／f0 2 連・live（初期設定で商品バックの割合と源泉区分の既定が保存される・PIN 6 桁が通る・下書きが別端末で再開できる）・commit 3 層・push・reset。
+- **仮決め（相談役案で確定扱い・事後承認）**: S3-1 'store' の /mine は当面「休み希望のみ」と同じ入口（専用案内は本体で）。S3-2 マイページ 3 キー（遅刻連絡・ノルマ進捗・出勤ボーナスの表示）は 0191 に器が無い＝引き続き「後で」（別 mig 候補）。S3-3 着手分はローカル commit 2 層（①フラグ＋mig 収蔵＋純関数＋suite／②client）＋docs＝push は打合せ後の再開時に f0 2 連の後で。
+
 
 ### Agoora 確定 10/27（4）＝M-24（実機指摘 10/27 15:52・デモ LUNA・キャスト詳細）
 
