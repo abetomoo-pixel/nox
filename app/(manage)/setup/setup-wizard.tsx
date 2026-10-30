@@ -16,6 +16,7 @@ import {
   CSV_HEADER, PIN_RE, V5_STEPS, V5_TYPES, WD, applyType, buildV5Plan, castPlanOf, clone, genPin, kindVal, menuCount, normRule, parseCsv, rebuildBack, seatNames, slideTiersFor, v5Checks, v5DefaultState, v5TypeName,
   type V5Cast, type V5Ctx, type V5Rule, type V5State, type V5Step, type V5Type,
 } from "@/lib/nox/setup/v5";
+import { mig0190On, mig0191On } from "@/lib/nox/rules-0175/flag"; // ★0190／0191 のフラグ true 便: 器が入った項目は「後で（マスタから）」を出さない
 import type { ProductRow } from "@/lib/nox/setup/template-plan";
 
 const DRAFT_KEY = (storeId: string) => `nox.setup.v5.draft.${storeId}`;
@@ -455,7 +456,7 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
           <h3 style={h3}>給与の締め・支払い</h3>
           <div style={grid(200)}>
             <div><span style={t.fieldLabel}>給与の期間</span><br /><SegSelect value={pr.period} onChange={(v) => up((s) => { s.payroll.period = v as "month" | "half" | "daily"; })} options={[["month", "月ごと"], ["half", "半月ごと"], ["daily", "日ごと（日払いの店）"]] as const} ariaLabel="給与の期間" wrap /></div>
-            <Field label={<>締め日{pr.close !== "末日" && later("末日固定＝0191")}</>}><SegSelect value={pr.close} onChange={(v) => up((s) => { s.payroll.close = v; })} options={[["末日", "末日"], ["15日", "15日"], ["20日", "20日"], ["25日", "25日"]] as const} ariaLabel="締め日" /></Field>
+            <Field label={<>締め日{!mig0191On() && pr.close !== "末日" && later("末日固定＝0191")}</>}><SegSelect value={pr.close} onChange={(v) => up((s) => { s.payroll.close = v; })} options={[["末日", "末日"], ["15日", "15日"], ["20日", "20日"], ["25日", "25日"]] as const} ariaLabel="締め日" /></Field>
             <Field label="支払日（翌月）"><Money value={pr.payday} unit="日" onChange={(n) => up((s) => { s.payroll.payday = n; })} width={70} /></Field>
           </div>
           <Opt title="源泉徴収の区分（既定）" sub={<>人ごとに給与の画面で変えられます。雇用（社員・アルバイト）は「給与」＝NOX は税額を計算せず、社会保険料・源泉所得税・住民税を入れた分だけ差し引きます。{later("店の既定＝0191")}<div style={{ ...grid(200), marginTop: 8 }}>
@@ -497,7 +498,7 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
               <Field label="雇用形態"><select value={st.kind} onChange={(e) => up((s) => { s.staff[i].kind = e.target.value; })} style={input} aria-label="雇用形態">{["正社員", "契約社員", "アルバイト", "業務委託"].map((r) => <option key={r}>{r}</option>)}</select></Field>
               <Field label="給与"><SegSelect value={st.basis} onChange={(v) => up((s) => { s.staff[i].basis = v; })} options={[["時給", "時給"], ["月給", "月給"], ["日給", "日給"]] as const} ariaLabel="給与" /></Field>
               <Field label="金額"><Money value={st.amt} unit="円" pre onChange={(n) => up((s) => { s.staff[i].amt = n; })} /></Field>
-              <Field label={<>PIN（4〜6 桁）{st.pin && !/^\d{4}$/.test(st.pin) && later("5〜6 桁は 0191")}</>}><Text value={st.pin} onChange={(v) => up((s) => { s.staff[i].pin = v.replace(/\D/g, "").slice(0, 6); })} placeholder="空なら自動" width={110} ariaLabel="PIN" /></Field>
+              <Field label={<>PIN（4〜6 桁）{!mig0191On() && st.pin && !/^\d{4}$/.test(st.pin) && later("5〜6 桁は 0191")}</>}><Text value={st.pin} onChange={(v) => up((s) => { s.staff[i].pin = v.replace(/\D/g, "").slice(0, 6); })} placeholder="空なら自動" width={110} ariaLabel="PIN" /></Field>
               <div className="nox-actions" style={{ alignSelf: "end" }}><button type="button" style={{ ...t.btnGhost, ...t.btnSm }} aria-label="この行を削除" onClick={() => up((s) => { s.staff.splice(i, 1); })}>削除</button></div>
             </div>))}
           <div className="nox-actions"><button type="button" style={{ ...t.btnGhost, ...t.btnSm }} onClick={() => up((s) => { s.staff.push({ n: "", role: "ホール", perm: "staff", shiftOk: false, kind: "アルバイト", basis: "時給", amt: 1500, pin: "" }); })}>＋ スタッフを追加</button></div>
@@ -510,7 +511,7 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
         <section className="nox-cardtop" style={card}>
           <h2 style={secTitle}>シフト・勤怠</h2>
           <p style={lead}>シフトの集め方と、打刻のルールです。</p>
-          <h3 style={h3}>シフトの集め方{S.shift.mode === "store" && later("店が決める＝0191・いまは休み希望のみ")}</h3>
+          <h3 style={h3}>シフトの集め方{!mig0191On() && S.shift.mode === "store" && later("店が決める＝0191・いまは休み希望のみ")}</h3>
           <SegSelect value={S.shift.mode} onChange={(v) => up((s) => { s.shift.mode = v as "want" | "off" | "store"; })} options={[["want", "出たい日を出してもらう（シフト希望）"], ["off", "休みだけ出してもらう（休み希望のみ）"], ["store", "店が決めて本人に通知する"]] as const} ariaLabel="シフトの集め方" wrap />
           <p style={note}>{({ off: "休みを出していない日は「出られる日」として、シフト配置の候補になります。", want: "出たい日と時間を出してもらい、店が承認してシフトにします。", store: "店が配置した時点で確定し、本人に通知します。希望は集めません。" } as const)[S.shift.mode]}</p>
           <p style={note}>店が配置したシフトは既定で「確定」です。確定後に足した分も本人に通知されます。定休日には配置できません（特別営業日を入れたときだけ）。</p>
@@ -552,7 +553,7 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
               : <><div style={grid(220)}><Field label="端末の名前"><Text value={S.devName} onChange={(v) => up((s) => { s.devName = v; })} width="100%" ariaLabel="端末の名前" /></Field></div><div className="nox-actions" style={{ marginTop: 8 }}><button type="button" style={{ ...t.btnGhost, ...t.btnSm }} onClick={() => up((s) => { s.devReg = true; })} data-devreg="1">この iPad を店の端末として登録</button></div></>}
           </>)}
           <h3 style={h3}>締め</h3>
-          <div style={grid(220)}><Field label={<>釣銭準備金（毎日の締めの基準額）{later("0191")}</>}><Money value={S.float} unit="円" pre onChange={(n) => up((s) => { s.float = n; })} /></Field></div>
+          <div style={grid(220)}><Field label={<>釣銭準備金（毎日の締めの基準額）{!mig0191On() && later("0191")}</>}><Money value={S.float} unit="円" pre onChange={(n) => up((s) => { s.float = n; })} /></Field></div>
           <p style={note}>日報の締めで「レジ内の現金予定額」の起点になります。</p>
           <h3 style={h3}>カード手数料・現金割引</h3>
           <p style={lead}>カードで払うとき上乗せする率の既定値。会計のたびに「店の率／率を指定（±0.5%）／額を指定／なし」から選べます。</p>

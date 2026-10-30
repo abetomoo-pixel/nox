@@ -17,7 +17,7 @@ import { Message } from "@/components/ui/toast"; // ★裁定281（便 U）: メ
 import { okuriSelfPlanOf, OKURI_PENDING_NOTE, type OkuriSelfPlan } from "@/lib/nox/shift/okuri-self";
 import { okuriOutTextOf, okuriRecordedTextOf } from "@/lib/nox/shift/okuri-mode"; // ★裁定414（S-4）: 方式の 1 文・「記録」
 import { rpcErrJa } from "@/lib/nox/ui/rpc-err"; // ★裁定327（0161・便 M1-4）: 順序検査の拒否 3 語は端末にも同じ和文
-import { mig0190On, rules0175On } from "@/lib/nox/rules-0175/flag"; // ★追補 2 同乗 R-7 ★0190: mig0190On
+import { mig0190On, mig0191On, rules0175On } from "@/lib/nox/rules-0175/flag"; // ★追補 2 同乗 R-7 ★0190: mig0190On
 import { bindErrJa, browserDeviceFp } from "@/lib/nox/kiosk/device-fp"; // ★0190（裁定436 ①b）: 端末の束縛＝ログイン直後に kiosk_device_bind
 import { KIOSK_FEATURE_READY } from "@/lib/nox/rules-0175/kiosk"; // ★0190（裁定435）: 5 タイル（シフト・在庫・日報は案内画面）
 import { KIOSK_FEATURE_HREF, KIOSK_FEATURE_LABEL, type KioskFeature } from "@/lib/nox/rules-0175/kiosk"; // ★追補 2 同乗 R-7（裁定423 候補）
@@ -29,6 +29,8 @@ type PunchResult =
   | { kind: "ng"; message: string };
 
 const RESULT_MS = 4000; // 結果表示 → name-select 自動復帰
+/** ★0191 ★3: PIN 4〜6 桁（フラグ false は 4 桁固定） */
+const pinOk = (p: string): boolean => (mig0191On() ? p.length >= 4 && p.length <= 6 : p.length === 4);
 
 const bigBtn: React.CSSProperties = {
   border: "1px solid var(--line2)", borderRadius: 14, background: "linear-gradient(180deg,var(--card2),var(--card))",
@@ -117,12 +119,12 @@ export default function KioskPage() {
   }
 
   function keyIn(d: string) {
-    setPin((p) => (p.length >= 4 ? p : p + d)); // 関数型更新（連打でも取りこぼさない）
+    setPin((p) => (p.length >= (mig0191On() ? 6 : 4) ? p : p + d)); // 関数型更新（連打でも取りこぼさない）★0191 ★3: 4〜6 桁
   }
 
   /** 退勤: 実費の店なら先に「送り あり／なし」を聞く（読取に失敗したら聞かずに従来どおり打刻） */
   async function startOut() {
-    if (!target || pin.length !== 4 || busy) return;
+    if (!target || !pinOk(pin) || busy) return;
     if (target.staff) { void punch("out"); return; } // ★便 P174 T-6: スタッフは送りなし
     setBusy(true);
     const { data, error } = await supabase.rpc("kiosk_punch_state");
@@ -133,7 +135,7 @@ export default function KioskPage() {
   }
 
   async function punch(type: "in" | "out", okuri?: boolean) {
-    if (!target || pin.length !== 4 || busy) return;
+    if (!target || !pinOk(pin) || busy) return;
     setBusy(true);
     const { data, error } = target.staff
       ? await supabase.rpc("staff_punch", { p_membership_id: target.cast_id, p_pin: pin, p_kind: type }) // ★便 P174 T-6（355・0174 ★5）
@@ -300,12 +302,12 @@ export default function KioskPage() {
               <button style={{ ...keyBtn, fontSize: 20, color: "var(--sub)" }} onClick={() => setPin((p) => p.slice(0, -1))}>⌫</button>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 18 }}>
-              <button disabled={pin.length !== 4 || busy} onClick={() => void punch("in")}
-                style={{ ...t.btnGold, padding: "20px 0", fontSize: 20, fontWeight: 900, borderRadius: 14, opacity: pin.length === 4 ? 1 : 0.4 }}>
+              <button disabled={!pinOk(pin) || busy} onClick={() => void punch("in")}
+                style={{ ...t.btnGold, padding: "20px 0", fontSize: 20, fontWeight: 900, borderRadius: 14, opacity: pinOk(pin) ? 1 : 0.4 }}>
                 出勤
               </button>
-              <button disabled={pin.length !== 4 || busy} onClick={() => void startOut()}
-                style={{ ...bigBtn, color: "var(--champ)", opacity: pin.length === 4 ? 1 : 0.4 }}>
+              <button disabled={!pinOk(pin) || busy} onClick={() => void startOut()}
+                style={{ ...bigBtn, color: "var(--champ)", opacity: pinOk(pin) ? 1 : 0.4 }}>
                 退勤
               </button>
             </div>

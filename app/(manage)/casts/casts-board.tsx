@@ -14,7 +14,7 @@ import Toast, { Message, type MessageKind } from "@/components/ui/toast";
 import { rpcErrJa, isRpcMissingError } from "@/lib/nox/ui/rpc-err";
 import SegSelect from "@/components/ui/seg-select"; // ★0154 D6: 契約区分
 import { WITHHOLDING_KIND_LABEL, WITHHOLDING_KIND_SELECT_NOTE, WITHHOLDING_KIND_SHORT, defaultWithholdingKindOf, withholdingKindChoices, withholdingKindOf } from "@/lib/nox/payroll/withholding-kind"; // ★便 M3 M-21
-import { mig0183On, mig0188On, mig0190On } from "@/lib/nox/rules-0175/flag"; // ★便 M3 M-21 // ★0190（裁定436 ①c）: 退店の失効（route）
+import { mig0183On, mig0188On, mig0190On, mig0191On } from "@/lib/nox/rules-0175/flag"; // ★便 M3 M-21 // ★0190（裁定436 ①c）: 退店の失効（route）
 import { NOTE_EMPLOYMENT, NOTE_LABOR, amountKeyOf, laborNoteNeeded, nextPeriodStartOf, overridesWithRule, payRuleLabelOf, payRuleOptionsOf, ruleOfOverrides, type Employment } from "@/lib/nox/cast/pay-rule"; // ★0154 D2／D6
 import type { PayRule } from "@/lib/nox/pay";
 // ★夜間便 N4（裁定282-2／282-3／287-3・0151 ★3）: 保証時給の表示用純関数（DB を知らない）
@@ -433,7 +433,7 @@ export default function CastsBoard({
 
   async function submitPin() {
     if (!pinTarget) return;
-    if (!/^[0-9]{4}$/.test(pinVal)) { setPinErr("PIN は数字4桁で入力してください"); return; }
+    if (!(mig0191On() ? /^[0-9]{4,6}$/ : /^[0-9]{4}$/).test(pinVal)) { setPinErr(mig0191On() ? "PIN は数字 4〜6 桁で入力してください" : "PIN は数字4桁で入力してください"); return; }   // ★0191 ★3
     setBusy(true); setPinErr(null);
     const { error } = await supabase.rpc("set_cast_pin", { p_cast_id: pinTarget.id, p_pin: pinVal });
     setBusy(false);
@@ -1607,7 +1607,7 @@ export default function CastsBoard({
                 {pinErr && <Message kind="error" style={{ margin: "8px 0 0" }}>{pinErr}</Message>}
                 <div className="nox-actions" style={{ display: "flex", gap: 8, marginTop: 10 }}>
                   <button style={btnGhost} disabled={busy} onClick={() => setPinTarget(null)}>キャンセル</button>
-                  <button style={btnGold} disabled={busy || pinVal.length !== 4} onClick={() => void submitPin()}>
+                  <button style={btnGold} disabled={busy || !(mig0191On() ? pinVal.length >= 4 && pinVal.length <= 6 : pinVal.length === 4)} onClick={() => void submitPin()}>
                     {busy ? "処理中…" : "設定する"}
                   </button>
                 </div>

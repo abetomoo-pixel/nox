@@ -13,6 +13,7 @@
 //   ★モーダルの検証は 4桁・確認一致のみ（サーバに繰り返し禁止規則は無い＝逆転を作らない）。
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { mig0191On } from "@/lib/nox/rules-0175/flag"; // ★0191 ★3: PIN 4〜6 桁
 import * as t from "@/lib/nox/ui/theme";
 import Modal from "@/components/ui/modal";
 
@@ -116,7 +117,7 @@ export default function KioskPinPanel({ stores, isOwner }: { stores: Store[]; is
 
   // set_staff_pin（mig0056・owner/manager 自店＝RPC 側が強制。PIN は保存せず送信のみ・上書き設定）
   async function setStaffPin(membershipId: string, p: string) {
-    if (!/^[0-9]{4}$/.test(p)) { setModalErr("PIN は数字4桁で入力してください"); return; }
+    if (!(mig0191On() ? /^[0-9]{4,6}$/ : /^[0-9]{4}$/).test(p)) { setModalErr(mig0191On() ? "PIN は数字 4〜6 桁で入力してください" : "PIN は数字4桁で入力してください"); return; }   // ★0191 ★3
     setBusy(true); setPinMsg(""); setModalErr(null);
     const { error } = await supabase.rpc("set_staff_pin", { p_membership_id: membershipId, p_pin: p });
     setBusy(false);
@@ -147,7 +148,7 @@ export default function KioskPinPanel({ stores, isOwner }: { stores: Store[]; is
     void loadPolicy(polStoreId);
   }
 
-  const canSubmit = /^[0-9]{4}$/.test(newPin) && newPin === confirmPin;
+  const canSubmit = (mig0191On() ? /^[0-9]{4,6}$/ : /^[0-9]{4}$/).test(newPin) && newPin === confirmPin;   // ★0191 ★3
 
   const hhmm = (iso: string) => {
     const d = new Date(iso);
