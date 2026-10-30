@@ -5,6 +5,7 @@
 //   在庫（stock_*）と日報の書込 RPC の kiosk 腕が無い（別 mig）ため、この便では「端末アカウントの確認 → 行き先の案内 → 出退勤へ戻る」だけを置く。
 //   ルートガード＝端末アカウントでなければ /kiosk（打刻端末）へ返す（kiosk_cast_list／kiosk_operator_list が 0 行＝端末ではない→ /login）。
 import { useEffect, useState } from "react";
+import Link from "next/link"; // ★Vercel の build＝@next/next/no-html-link-for-pages（<a href="/"> は Link に）
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import { KIOSK_FEATURE_LABEL, type KioskFeature } from "@/lib/nox/rules-0175/kiosk";
@@ -37,13 +38,13 @@ export default function KioskFeaturePage({ feature }: { feature: Exclude<KioskFe
         </div>
         <div className="nox-cardtop" style={{ ...t.card, textAlign: "center", marginTop: 16 }}>
           {state === "loading" && <p style={{ color: "var(--sub)", margin: 0 }}>確認中…</p>}
-          {state === "login" && <p style={{ margin: 0 }}>端末アカウントでログインしてください。<a href="/kiosk" style={{ color: "var(--gold)" }}>出退勤の画面へ</a></p>}
-          {state === "not_kiosk" && <p style={{ margin: 0 }}>この画面は店舗の共用端末（端末アカウント）用です。<a href="/" style={{ color: "var(--gold)" }}>ホームへ</a></p>}
+          {state === "login" && <p style={{ margin: 0 }}>端末アカウントでログインしてください。<Link href="/kiosk" style={{ color: "var(--gold)" }}>出退勤の画面へ</Link></p>}
+          {state === "not_kiosk" && <p style={{ margin: 0 }}>この画面は店舗の共用端末（端末アカウント）用です。<Link href="/" style={{ color: "var(--gold)" }}>ホームへ</Link></p>}
           {state === "kiosk" && (
             <>
               <p style={{ fontSize: 15, fontWeight: 800, margin: "0 0 8px" }}>{KIOSK_FEATURE_LABEL[feature]}</p>
               <p style={{ ...t.sub, margin: "0 0 14px", lineHeight: 1.7 }} data-kiosk-feature-note="1">{NOTE[feature]}</p>
-              <a href="/kiosk" style={{ ...t.btnGold, display: "inline-block", textDecoration: "none", padding: "12px 24px" }}>出退勤へ戻る</a>
+              <Link href="/kiosk" style={{ ...t.btnGold, display: "inline-block", textDecoration: "none", padding: "12px 24px" }}>出退勤へ戻る</Link>
             </>
           )}
         </div>
