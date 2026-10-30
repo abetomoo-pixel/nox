@@ -3023,3 +3023,28 @@ input[type="date"]::-webkit-date-and-time-value, input[type="time"]::-webkit-dat
 /* ★便 2 M-17 追補（2026-10-29）: 手数料の率の −／＋（C2-8 の−／＋と同じ部品・タップ目安 40px） */
 .nox-step-btn { width: 40px; height: 34px; border-radius: 8px; border: 1px solid var(--line2); background: var(--card2); color: var(--ink); font-size: 16px; font-weight: 800; touch-action: manipulation; user-select: none; cursor: pointer; }
 .nox-step-btn:disabled { opacity: .45; cursor: default; }
+
+/* ★便 SU（M-37 殻だけ・2026-10-30）: 初期設定の専用レイアウト＝正本 docs/handoff/mock/setup_v5.html の殻（.top/.bar/.mark/.steps/main/.foot を NOX のトークンで）。中身の 9 STEP は不変 */
+.nox-setup-page { min-height: 100dvh; background: var(--bg); color: var(--ink); }
+.nox-setup-wrap { max-width: none; }
+.nox-setup-top { position: sticky; top: 0; z-index: 10; background: color-mix(in srgb, var(--bg) 97%, transparent); border-bottom: 1px solid var(--line); }
+.nox-setup-bar { max-width: 1200px; margin: 0 auto; padding: 12px 24px 8px; display: flex; align-items: center; gap: 14px; }
+.nox-setup-mark { width: 38px; height: 38px; border: 1px solid var(--gold); border-radius: 10px; display: grid; place-items: center; color: var(--gold); font: 19px var(--font-serif, Georgia, serif); flex: none; }
+.nox-setup-bar h1 { margin: 0; font-size: 18px; font-weight: 800; }
+.nox-setup-bar .sub { font-size: 13px; color: var(--sub); }
+.nox-setup-bar .save { margin-left: auto; font-size: 13px; color: var(--sub); white-space: nowrap; }
+.nox-setup-steps { max-width: 1200px; margin: 0 auto; padding: 0 24px 12px; display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 6px; list-style: none; }
+.nox-setup-steps button { width: 100%; min-height: 52px; display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 12px; border: 1px solid var(--line); background: var(--card); color: var(--sub); text-align: left; font: inherit; cursor: pointer; }
+.nox-setup-steps button:disabled { cursor: not-allowed; }
+.nox-setup-steps .n { flex: none; width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--line2); display: grid; place-items: center; font-size: 13px; }
+.nox-setup-steps .t { font-size: 14px; line-height: 1.2; }
+.nox-setup-steps button.done { color: var(--ok); border-color: var(--ok); background: var(--success-soft, var(--card2)); }
+.nox-setup-steps button.done .n { background: var(--ok); border-color: var(--ok); color: #fff; }
+.nox-setup-steps button[aria-current="step"] { background: var(--gold); border-color: var(--gold); color: var(--on-gold, #17140c); font-weight: 700; }
+.nox-setup-steps button[aria-current="step"] .n { background: var(--on-gold, #17140c); border-color: var(--on-gold, #17140c); color: var(--gold); }
+.nox-setup-main { max-width: 1200px; margin: 0 auto; padding: 22px 24px 140px; display: flex; flex-direction: column; gap: 18px; }
+.nox-setup-foot { position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; background: color-mix(in srgb, var(--bg) 97%, transparent); border-top: 1px solid var(--line); }
+.nox-setup-foot .in { max-width: 1200px; margin: 0 auto; padding: 12px 24px; display: flex; align-items: center; justify-content: flex-end; gap: 10px; position: relative; }
+.nox-setup-foot .pos { position: absolute; left: 24px; color: var(--sub); font-size: 14px; }
+@media (max-width: 1100px) { .nox-setup-steps { grid-template-columns: repeat(9, minmax(112px, 1fr)); overflow-x: auto; } }
+@media (max-width: 700px) { .nox-setup-bar { padding: 10px 14px; } .nox-setup-steps { padding: 0 14px 10px; } .nox-setup-main { padding: 18px 14px 150px; } .nox-setup-foot .pos { position: static; } .nox-setup-foot .in { flex-wrap: wrap; } }

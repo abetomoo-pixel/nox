@@ -17,6 +17,7 @@ import DemoBanner from "@/components/ui/demo-banner";
 import { DemoProvider } from "@/lib/nox/demo/context";
 import { TERMS_VERSION, termsGateRedirectOf } from "@/lib/nox/terms"; // ★0172（裁定351・便 P172）: 本番 org の同意ゲート
 import { castRegisterEntryOf } from "@/lib/nox/register/cast-entry-server"; // ★便 P173（裁定389）: cast の入口＝店端末 or 自分のスマホ
+import { isSetupPath, setupGateRedirectOf } from "@/lib/nox/setup/gate"; // ★便 SU（M-37）: /setup は専用の殻・未完の店は /setup へ
 import * as t from "@/lib/nox/ui/theme";
 
 // 店側エリア（register/shift/report/master）の layout。auth_role() rpc は「ここで1回/リクエスト」のみ。
@@ -62,10 +63,17 @@ export default async function ManageLayout({ children }: { children: React.React
     const to = termsGateRedirectOf(isDemo, termsOk === true, (await headers()).get("x-pathname") ?? "");
     if (to) redirect(to);
   }
-  if (role === "owner" && !isDemo) { // ★N7-2 ②: デモは setup_done に依らず /setup へ飛ばさない
-    const pathname = (await headers()).get("x-pathname") ?? "";
+  // ★便 SU（M-37 (3)・2026-10-30）: setup_done=false の店がある org は owner だけでなく manager／staff も他画面へ行けない＝/setup へ戻す（cast は上で /mine・デモは除外＝N7-2 ②）。
+  //   /setup は manager／staff には案内（オーナーが終えるまで）＝page.tsx。判定は純関数 setupGateRedirectOf（verify:nox-su）。
+  const pathnameSU = (await headers()).get("x-pathname") ?? "";
+  {
     const needsSetup = (storeRows ?? []).some((r) => ((r.settings_json as Record<string, unknown> | null)?.setup_done) !== true);
-    if (needsSetup && !(pathname === "/setup" || pathname.startsWith("/setup/"))) redirect("/setup");
+    const to = setupGateRedirectOf({ role, isDemo, needsSetup, pathname: pathnameSU });
+    if (to) redirect(to);
+  }
+  // ★便 SU（M-37 (1)）: /setup は通常の画面殻（左ナビ・上部バー）の外＝正本 docs/handoff/mock/setup_v5.html と同じ専用レイアウト（殻は setup-wizard が描く）
+  if (isSetupPath(pathnameSU)) {
+    return (<div className="nox-dark nox-setup-page" data-setup-shell="1"><DemoProvider isDemo={isDemo}>{children}</DemoProvider></div>);
   }
 
   const isManagerUp = role === "owner" || role === "manager";

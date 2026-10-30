@@ -4,6 +4,7 @@ import { getSessionRole } from "@/lib/nox/auth";
 import { mineSettingsOf } from "@/lib/nox/store/mine-settings";
 import type { V5Type } from "@/lib/nox/setup/v5";
 import SetupWizard from "./setup-wizard";
+import SetupWaiting from "./setup-waiting"; // ★便 SU（M-37 (3)）: manager／staff の案内
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +13,8 @@ export const dynamic = "force-dynamic";
 //   ?step=1〜9（深いリンク）・?type=cabaret（業態が未選択ならその初期値＝suite・actions-center 用）。
 export default async function SetupPage({ searchParams }: { searchParams: Promise<{ step?: string; type?: string }> }) {
   const { role } = await getSessionRole();
-  if (role !== "owner") redirect(role === "cast" ? "/mine" : "/dashboard");
+  if (!role) redirect("/login");
+  if (role === "cast") redirect("/mine");
   const sp = await searchParams;
   const supabase = await createClient();
   const { data: stores } = await supabase
@@ -22,6 +24,7 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
   const rows = (stores ?? []) as Array<{ id: string; name: string; settings_json: Record<string, unknown> | null; round_unit: number; round_mode: string; time_mode: string; time_per: string; business_tax_status?: string | null; price_display?: string | null; invoice_status?: string | null; invoice_reg_no?: string | null; tax_rounding?: string | null; card_surcharge_rate?: number | null }>;
   const target = rows.find((r) => r.settings_json?.setup_done !== true) ?? rows[0];
   if (!target) redirect("/master");
+  if (role !== "owner") return <SetupWaiting storeName={target.name} />; // ★便 SU（M-37 (3)）: manager／staff は /setup で待つ（layout が他画面を /setup へ戻す＝ループしない）
   const [{ count: seats }, { count: products }, { count: plans }, { count: rules }] = await Promise.all([
     supabase.from("seats").select("id", { count: "exact", head: true }).eq("store_id", target.id),
     supabase.from("products").select("id", { count: "exact", head: true }).eq("store_id", target.id),

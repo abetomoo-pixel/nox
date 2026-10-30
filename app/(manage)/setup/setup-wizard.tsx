@@ -214,21 +214,25 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
   const isDone = S.step === 9;
 
   return (
-    <div className="nox-mv1" style={{ maxWidth: 980 }} data-setup-v5="1" data-setup-step={S.step + 1}>
-      <div className="nox-pthead">
-        <div className="nox-pthead-main">
-          <div className="title"><h2>NOX 初期設定</h2>{type && <span className="nox-stpill" style={{ marginLeft: 8 }}>{v5TypeName(type)}</span>}</div>
-          <p className="desc">{store.name} の初期設定です。すべて後からマスタで変更できます。{store.setupDone && "（設定済みの店です＝再実行は既存データを二重投入しません）"} <span style={{ color: "var(--sub)" }} data-setup-saved="1">{saved}</span></p>
+    <div className="nox-mv1 nox-setup-wrap" data-setup-v5="1" data-setup-step={S.step + 1}>
+      {/* ★便 SU（M-37 (1)(2)・2026-10-30）: 正本 docs/handoff/mock/setup_v5.html の殻＝ロゴ＋見出し＋自動保存の印（.bar）・番号付きの大きなステップ（.steps・9 列）・本文（main）・下段の固定バー（1 / 9・戻る・次へ）。中身の 9 STEP は不変（突合は便 M5） */}
+      <header className="nox-setup-top" data-setup-top="1">
+        <div className="nox-setup-bar">
+          <div className="nox-setup-mark" aria-hidden="true">N</div>
+          <div><h1>NOX 初期設定{type && <span className="nox-stpill" style={{ marginLeft: 8, verticalAlign: "middle" }}>{v5TypeName(type)}</span>}</h1><div className="sub">{store.name}・あとからすべて変更できます{store.setupDone && "（設定済みの店＝再実行は既存データを二重投入しません）"}</div></div>
+          <div className="save" data-setup-saved="1">{saved}</div>
         </div>
-      </div>
+        {!isDone && (
+          <ol className="nox-setup-steps" aria-label="初期設定の手順">
+            {V5_STEPS.map((n, i) => { const cur = S.step === i, done = !!S.done[i] && !cur; return (
+              <li key={n}><button type="button" className={done ? "done" : undefined} aria-current={cur ? "step" : undefined} disabled={i > 0 && !type} onClick={() => go(i)} data-step={i} style={{ opacity: i > 0 && !type ? 0.5 : 1 }}>
+                <span className="n num">{done ? "✓" : i + 1}</span><span className="t">{n}</span></button></li>); })}
+          </ol>
+        )}
+      </header>
+      <main className="nox-setup-main" data-setup-main="1">
       {!isDone && (
         <>
-          <ol style={{ display: "flex", gap: 6, flexWrap: "wrap", listStyle: "none", padding: 0, margin: "0 0 8px" }} aria-label="初期設定のステップ">
-            {V5_STEPS.map((n, i) => { const cur = S.step === i, done = !!S.done[i] && !cur; return (
-              <li key={n}><button type="button" className="nox-stpill" aria-current={cur ? "step" : undefined} disabled={i > 0 && !type} onClick={() => go(i)} data-step={i}
-                style={{ padding: "6px 10px", background: "transparent", cursor: i > 0 && !type ? "not-allowed" : "pointer", opacity: i > 0 && !type ? 0.5 : 1, borderColor: cur ? "var(--gold)" : undefined, color: cur ? "var(--champ)" : done ? "var(--ok)" : undefined }}>
-                <b className="num">{done ? "✓" : i + 1}</b> {n}</button></li>); })}
-          </ol>
           <div role="progressbar" aria-valuemin={1} aria-valuemax={9} aria-valuenow={S.step + 1} aria-label="進捗" style={{ height: 4, borderRadius: 2, background: "var(--line)", margin: "0 0 14px", overflow: "hidden" }}><div style={{ width: `${((S.step + 1) / 9) * 100}%`, height: "100%", background: "var(--gold)" }} /></div>
           {restoredAt && <p style={{ ...t.sub, fontSize: 11.5, margin: "0 0 10px" }}>途中保存した下書きを復元しました（{new Date(restoredAt).toLocaleString("ja-JP")}）。<button type="button" style={{ ...t.link, marginLeft: 6 }} onClick={restart}>最初からやり直す</button></p>}
         </>
@@ -654,15 +658,15 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
           </section>
         </div>); })()}
 
+      </main>
       {!isDone && (
-        <section style={{ ...card, marginTop: 14 }} data-setup-footcard="1">{/* 教訓122: 中央判定の基準＝親カード（section）＝サイドバー込みの body 幅で測らない */}
-        <div className="nox-actions" data-setup-foot="1">
-          <span style={{ fontSize: 11.5, color: "var(--sub)", width: "100%", textAlign: "center" }}>{S.step + 1} / {V5_STEPS.length}</span>
+        /* ★便 SU（M-37 (1)）: 下段＝正本の固定バー（左に 1 / 9・右に 戻る／次へ）。固定バーは主ボタン中央の判定の例外（actions-center-probe「固定バー」） */
+        <div className="nox-setup-foot" data-setup-foot="1"><div className="in">
+          <span className="pos num" data-setup-pos="1">{S.step + 1} / {V5_STEPS.length}</span>
           {S.step > 0 && <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} disabled={run.running} onClick={() => go(S.step - 1)}>戻る</button>}{/* 教訓122: 隠しボタンで幅を取らない（中央判定） */}
           {S.step < 8 ? <button type="button" style={{ ...t.btnGold }} disabled={S.step === 0 && !type} onClick={next} data-setup-next="1">次へ：{V5_STEPS[S.step + 1]}</button>
             : <button type="button" style={{ ...t.btnGold }} disabled={run.running || !type || !isOwner} onClick={() => void execute()} data-setup-start="1">{run.error ? "続きから再実行" : "この内容で始める"}</button>}
-        </div>
-        </section>
+        </div></div>
       )}
     </div>
   );
