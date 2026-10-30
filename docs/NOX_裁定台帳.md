@@ -5039,6 +5039,18 @@ DB 変更 0 の見込み。要れば 0190 起草のみ。」
 
 **仮決め（相談役案で確定扱い・事後承認）**: K-1 RLS kiosk 腕 29 本を 0190 に同乗（client の差し替えは 0190 の後）。K-2 kiosk_login の既定ロック 10 分・店長以上への通知は器なし（第 2 期）。K-3 06:00 の打ち切り＝便 K は 0190 起草＋K-0 読取で切り、client は 0190 のフラグ true 便へ。**K-4（Agoora 裁定 12:3x）**: 0190 は適用済み・MIG_0190_APPLIED は flag.ts に未定義のまま（client は 0190 前の挙動・入口 4 本の新引数は DEFAULT NULL）・duty_gate は 7 店 OFF（上の UPDATE）・pin（0158／0188／p172）は関数 393 に張替え・K client と 0191 の再生成＋handpaste は新 CC の最初の便。
 
+### 便 R191（2026-10-30 午後・新 CC セッションの最初の便＝現在地の照合（①〜⑦＋⑧⑨⑩）＋0191 を 0190 適用後の live から再生成・DB 変更 0）
+
+出典＝相談役ブロック 2026-10-30 午後（v53 §8-2 の 1 通＋追加の照合 ⑧⑨⑩・締め便条項＝v54_draft）。
+- **照合**＝HEAD 6c01e32＝origin/main（差分 0・未コミット 0・未追跡＝0190／0191 の .sql＝規約どおり）。本番 ref hiqbfagmkrdpmlqhkmsu＝関数 **393**・表 **111**・_select_kiosk **29**・0190 の新設 5 本あり・★0190 印 40 本・0191 の痕跡（setup_draft_set／setup_drafts／products.back_rate_by_kind）0＝適用済み最大 **0190**。flag.ts＝定義済み 10 本（RULES_0175／OKURI_4WAY／OKURI_TIERS／SEAT_MOVE_PRICING／MIG_0183／0185／0186／0187／0188／0189）すべて true・**MIG_0190_APPLIED／MIG_0191_APPLIED＝未定義**（v53 の「12 本」は実測 10 本）。読取は begin read only。
+- **⑧ duty_gate**＝全 10 店（デモ 6＋CLUB NOX＋NOX-VERIFY-A1／A2／B1）が settings_json duty_gate=false・duty_gate_of=false＝Agoora の 13 時台の返り値 10 行と全行一致。demo_org_reset（125 行）は wipe→load で stores を payload から投入し直す（15 行目の表の順に 'stores'・settings_json は payload の値）＝payload に duty_gate が無いので **6 デモ店は 06:05 に既定 ON へ戻る**（本文で確認）。CLUB NOX と NOX-VERIFY 3 店は cron の対象外＝戻らない。手当て＝gen-demo.mjs の settings_json に duty_gate:false（0190 のフラグ true 便）・それまでは朝に UPDATE を再実行。
+- **⑨ A1 の残留**＝kiosk_devices **1 行**（label 'x'・purpose punch・is_active・created 2026-10-30 **13:24:24 JST**・bound_at null）＝**13:23 の f0（anon-guard 段35「同店2台目＝already provisioned」が 0190 の上限 3 で通った）の産物で、12:08 の事故由来ではない**（t0190 試走の端末 label は「試走端末」・12:08 の走は mig 本体を流しただけで A1 に行を残さない）。customers は **5 行すべて 2026-08-25 の seed**（fixtures-f0 の NOX-VERIFY-顧客-指名A／指名B／フリー／休眠／A2）＝基準どおり・残留なし（v53 の「customers 4」は候補のまま誤り）。**消さない**。★f0 を回すたびに 'x' が 1 行増え、3 台で上限に当たると段35 が偶然緑になる＝0190 のフラグ true 便で段35 を上限 3（3 台目まで通り 4 台目が 'device limit'）に張替え、'x' 行は参照 0 を確かめて掃除（教訓123）。
+- **⑩ M の採番**＝台帳の最大は **M-30**（便 M3）。相談役採番 **M-31**（onoff の選択中 OFF の塗り）・**M-32**（390px で select がカードからはみ出る）・**M-33**（/mine 確認枠＝店向けカード手数料文の混入）・**M-34**（基本の働き方はアカウント未発行でも設定可）は台帳と重複なし＝**便 M4（2026-10・M-31〜M-34）として予約**（★2026-10-01 の「便 M4」（裁定326 追補7・30bfb7e）と同名＝日付で区別する）。次の M＝**M-35**。本文は v53（相談役版）§3-4 と v54_draft §2。
+- **0191 の再生成**＝live（2026-10-30・0190 適用後）を docs/tmp/live0191_read.mts で採り直し、gen_0191.cjs の白名単アンカーを `'pay_discount_base'];`→`'duty_gate'];` に直して再生成（手打ちなし）。旧版との差分＝0190 の 4 か所（白名単 'duty_gate'・v_dg 宣言・duty_gate の分岐・check_remove_line の assert_on_duty）＋ヘッダ 2 行＝16 行。**sha16 e5106a9fe0b75a17**（1,449 行・119,548 B・LF）。mig-check parse ok（statements 25・$function$ 9×2・plpgsql 9 本は試走で）。試走 t0191_rollback.mts に **教訓128 を実装**（行頭マーカーで切り出し・本体に行頭 commit;／begin; が無いことを送る前に assert・verify 節が commit; の後にあることを assert・関数数を tx の外で前後に取り直す）＝**ok 7／ng 0・残留 0**・tx 内 関数 393→394・表 111→112・tx の外 **393→393（恒久変更 0）**。md5＝set_store_profile **b074a4bf**・check_remove_line **e34ebf23**（他 7 本は 10/29 と不変）。ファイルの $function$ 本体から切り出した md5 が live の方式と一致することを 0190 の 2 本（e56d9253／00fe093c）で検証＝試走なしでも期待値を出せる。docs/demo/handpaste_0191.md を更新（旧 sha16 67fafc1611e48301 は無効＝貼らない）。**再生成しないと 0191 が set_store_profile／check_remove_line を 0190 前の本体で上書き＝duty_gate の白名単と打刻ゲート 1 本が消える（影響はこの 2 本だけ・他 7 本は無関係）。**
+- **f0**＝基準線 **147 段 6,845**（M3 run2 11:40→12:01 全緑・golden pay 130・payroll 234・玲奈 5931／125802）。13:23 の走（pin 393 の後）は anon-guard FAIL 52／pass 1014（'off duty' 51＋段35 の上限）で停止。duty_gate OFF 後に残る赤＝段35 だけ（見込み）。**本便では f0 を回していない**（0191 手貼り→フラグ true 便で 2 連）。
+- **DB 変更 0**（読取 begin read only・試走 BEGIN…ROLLBACK・関数数 393 不変）。docs 以外のコミットなし。
+
+
 ### Agoora 確定 10/27（4）＝M-24（実機指摘 10/27 15:52・デモ LUNA・キャスト詳細）
 
 出典＝相談役ブロック 2026-10-27（Agoora の実機指摘）。便 M3 に入れる（日払いの種別の 1 項目は 0188 の便の client 分に追記）。390px 基準・live に 390 相当と「主ボタン中央」。**本文（逐語）**:
@@ -7850,8 +7862,8 @@ anon-guard 段28 が無差別 `limit(1)` でそれを拾い 'bad amount'/BV=unde
   該当列なし）ため、消さずに理由を分けて残した。
   根拠の全文＝`docs/dp/survey_6-4.md`。
 
-## 次の番号（2026-10-27 便 L 時点）
+## 次の番号（2026-10-30 便 R191 時点）
 
-- **次の M＝M-30**（M-15〜M-19＝Agoora 確定 10/27・M-20〜M-23＝同（3）・M-24＝同（4）・M-25／M-26／M-28／M-29＝Agoora 確定 10/29 で収載済み・M-27 は欠番＝M-17 追補を便 2 に同乗させたため）。
-- **次の教訓＝126**（125＝cron と suite の fixture・2026-10-29）。
-- **次の裁定＝437**（433＝提案中・本文収載済み・434＝2026-10-27 確定・435＝提案中＝便 K キオスクの機能拡張・436＝提案中＝K-5 打刻ゲート・端末の束縛・退店の失効（0190）・2026-10-29 本文収載済み）。
+- **次の M＝M-35**（M-30＝便 M3 で収載・**M-31〜M-34＝相談役採番 2026-10-30＝便 M4（2026-10）に予約**・M-27 は欠番＝M-17 追補を便 2 に同乗させたため。旧「次の M＝M-30」は便 M3 で消費）。
+- **次の教訓＝129**（125＝cron と suite の fixture・126＝候補（共用端末は包み）・127＝欠番のまま・**128＝2026-10-30 採番＝commit; を含む切り出しの禁止**）。
+- **次の裁定＝439**（437＝キオスクの解除「人を選ぶ→PIN」・438＝初期設定 v5 正本＝ともに本文収載・確定は相談役。433＝提案中・本文収載済み・434＝2026-10-27 確定・435＝提案中＝便 K キオスクの機能拡張・436＝提案中＝K-5 打刻ゲート・端末の束縛・退店の失効（0190）・2026-10-29 本文収載済み）。
