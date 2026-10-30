@@ -5097,12 +5097,13 @@ DB 変更 0 の見込み。要れば 0190 起草のみ。」
 
 **教訓129（候補・相談役採番 2026-10-30）＝f0 は lint を含まない。push の直前に lint・tsc を単走する**: 0190 のフラグ true 便の push（6a14824・15:24）が Vercel の build で止まった＝f0 149 段 2 連緑・tsc 0 でも、ESLint の `@next/next/no-html-link-for-pages`（components/nox/kiosk-feature-page.tsx の `<a href="/">`）は f0 のどの段も見ていない（f0 は tsx の実行と grep＝ESLint を通さない）。検知＝push から 15 分の反映待ちが timeout → `npx next lint` で 1 件。処置＝commit→push のスクリプト（便 SU から）に `npx next lint --dir app --dir lib --dir components --dir scripts` と `npx tsc --noEmit -p .` を前段に置き、どちらか赤なら push しない。f0 への組込み（verify:nox-lint）は相談役判断。
 
-### 便 ③（0191 のフラグ true 便・2026-10-30 夕・★着手のみ＝push しない・f0 未走）
+### 便 ③（0191 のフラグ true 便・2026-10-30 夕＝着手（16:00）→ 本体（16:30〜・打ち切り解除＝push・reset 可））
 
 出典＝相談役ブロック 2026-10-30 午後 ③（便 SU の後に着手のみ・18:30 以降は push しない）。0191 は 14 時台に手貼り済み（verify 17 行差 0）。
 - **済（ローカル commit のみ）**: MIG_0191_APPLIED=true・mig0191On（flag.ts）／0191_setup_v5_gaps.sql（sha16 e5106a9fe0b75a17）を収蔵／lib/nox/setup/v5.ts＝店設定 5 キー（kind_back_rate・withholding_default_cast／staff・cash_float_default・settlement_close_day＝CLOSE_DAY_OF）と duty_gate（0190）を settings の patch に・shift_request_mode 'store'・PIN 4〜6 桁の素通し（staff／cast）・deferred と V5_SAVE_MAP の has をフラグで（残る器なし＝マイページ 3 キーだけ）／setup-wizard の「後で（マスタから）」ピル 4 か所をフラグで／PIN UI 3 面（casts-board の set_cast_pin・kiosk-pin-panel の set_staff_pin・/kiosk の PIN pad＝4〜6 桁）／mine-settings の ShiftRequestMode に 'store'（ラベル「店が決める」・読取）・wish-mode は 'store' を「休み希望のみ」の入口に倒す／suite verify:nox-0191（7＝t0191_rollback の翻訳・mig は流さない・教訓128 の前後計数 394 不変）を f0 に組込み／ob2 B-8 をフラグ対応に。tsc 0・単走＝0191 7／ob2 25／su 8／setup／k／m3／p174／x13g／n1014／qr／p175prep／mine-settings／mine-cast-settings／store-systems／w52a 緑。
-- **未済（便 ③ の本体＝次セッション）**: 商品の場内／フリー個別（products-board の入力欄と wizard の product_overrides に p_back_rate_by_kind）／店の源泉区分の既定・釣銭準備金・締め日・店の割合の店舗設定 UI（0191 ★1 の 5 キーの編集口＝今は初期設定の保存だけ）／日報の締めの釣銭準備金の既定（cash_float_default の prefill）／下書き setup_drafts（setup_draft_set の保存と別端末での再開＝今は localStorage）／M-30 client の整理（RPC 側が pending を消すので client の先回り取消は残置）／/mine の「店が決める」の専用案内／suite の pin（ob2 以外＝products／mine の 'store' 表示）／f0 2 連・live（初期設定で商品バックの割合と源泉区分の既定が保存される・PIN 6 桁が通る・下書きが別端末で再開できる）・commit 3 層・push・reset。
-- **仮決め（相談役案で確定扱い・事後承認）**: S3-1 'store' の /mine は当面「休み希望のみ」と同じ入口（専用案内は本体で）。S3-2 マイページ 3 キー（遅刻連絡・ノルマ進捗・出勤ボーナスの表示）は 0191 に器が無い＝引き続き「後で」（別 mig 候補）。S3-3 着手分はローカル commit 2 層（①フラグ＋mig 収蔵＋純関数＋suite／②client）＋docs＝push は打合せ後の再開時に f0 2 連の後で。
+- **本体（16:30〜）**: ★2 商品の場内／フリー個別＝products-board の率%欄の下に「場内指名／フリーのときは別の率にする」（data-back-by-kind・場内%／フリー%・空欄＝店の割合＝送らない・OFF／unit4 は null・編集時に back_rate_by_kind から復元・MasterProduct に列）＋wizard の product_overrides に同じ引数／★1 店舗設定 › 店舗情報 › 会計と運用に 5 キーの編集口（data-store-0191＝指名の区分ごとの割合 3 欄・源泉区分の既定 2（ホステス報酬／源泉なし・源泉なし／その他 204 条）・釣銭準備金・締め日 15／20／25／末日＝patchOf は変更分だけ・数値で）／日報の締め＝釣銭準備金の既定（cash_float_default>0 を prefill・再締めは凍結値）／★6 下書き＝server（setup_draft_set・2 秒の間引き・owner だけ・失敗は無視＝localStorage が主）・再開は server が新しければ server（「別の端末の入力」）・完了と「最初からやり直す」で削除／★4 /mine の希望ページ＝店が決める店は案内（data-wish-store-decides・提出フォームなし・storeDecidesOf＝キャスト個別があれば従来）／suite verify:nox-s3（14・env 不要）を f0 に組込み（verify:nox-0191 の次）。残置＝M-30 client の先回り取消（RPC 側が pending を消す＝二重でも害なし）。
+- **f0／live／push**＝f0＝run A 16:35→16:57・run B 17:00→17:22＝**152 段 6,921 の 2 連緑**（golden 不変＝pay 130・payroll 234・玲奈 5931／125802・verify:nox-0191 7・verify:nox-s3 14）。lint（app／lib／components）＋tsc のゲート緑 → commit 3 層 → push（sha は最終報告）→ Vercel → live（本番デモ＝読取目視）→ 6 店 reset。
+- **仮決め（相談役案で確定扱い・事後承認）**: S3-1 'store' の /mine＝キャスト個別の方式が無ければ案内だけ（提出フォームなし）・個別が shift／off_only なら従来（自動配置の候補は 'store' を休み希望扱い）。S3-4 商品の個別率は率%のときだけ（unit4＝円は従来の 4 単価）・空欄のキーは送らない（店の割合で算出）。S3-5 締め日は 0191 の器に保存するだけ（月次の精算の区切りの計算は別便）。S3-6 下書きの正は localStorage・server は「別の端末で再開」用（新しい方を採る・2 秒間引き・owner だけ＝manager は読めない）。S3-2 マイページ 3 キー（遅刻連絡・ノルマ進捗・出勤ボーナスの表示）は 0191 に器が無い＝引き続き「後で」（別 mig 候補）。S3-3 着手分はローカル commit 2 層（①フラグ＋mig 収蔵＋純関数＋suite／②client）＋docs＝push は打合せ後の再開時に f0 2 連の後で。
 
 
 ### Agoora 確定 10/27（4）＝M-24（実機指摘 10/27 15:52・デモ LUNA・キャスト詳細）
@@ -7916,8 +7917,8 @@ anon-guard 段28 が無差別 `limit(1)` でそれを拾い 'bad amount'/BV=unde
   該当列なし）ため、消さずに理由を分けて残した。
   根拠の全文＝`docs/dp/survey_6-4.md`。
 
-## 次の番号（2026-10-30 便 SU 時点）
+## 次の番号（2026-10-30 便 ③ 時点）
 
-- **次の M＝M-36**（M-30＝便 M3 で収載・**M-31〜M-35＝相談役採番 2026-10-30＝便 M5 に予約**（M4 は 2026-10-01 に使用済みのため改名＝相談役 10/30 午後）。M-31 onoff の選択中 OFF の塗り・M-32 390px の select・M-33 /mine 確認枠＝店向けカード手数料文の混入・M-34 基本の働き方はアカウント未発行でも設定可・**M-35 スタッフ › 一覧に「＋スタッフを追加」＝STEP 6 と同じフォーム・/api/staff/create＋staff_contract_set・追加後に PIN 発行の印**。投入は別途（台帳に予約だけ）。M-27 は欠番＝M-17 追補を便 2 に同乗させたため）。
+- **次の M＝M-38**（M-30＝便 M3 で収載・**M-31〜M-37b＝便 M5 に予約**（相談役 10/30 夕＝投入文は相談役から。M-37＝便 SU の殻（済）・**M-37b＝/setup 9 STEP を正本 setup_v5.html の密度に合わせる＝文字サイズ・余白・カード構造・入力欄の幅と高さ 44px・選択状態の青枠＋バッジ・料金ルールのヘッダーと削除。部品は .nox-setup 配下の CSS 変数で上書きし本体画面の部品は触らない**）・M4 は 2026-10-01 に使用済みのため M5。M-31 onoff の選択中 OFF の塗り・M-32 390px の select・M-33 /mine 確認枠＝店向けカード手数料文の混入・M-34 基本の働き方はアカウント未発行でも設定可・**M-35 スタッフ › 一覧に「＋スタッフを追加」＝STEP 6 と同じフォーム・/api/staff/create＋staff_contract_set・追加後に PIN 発行の印**。投入は別途（台帳に予約だけ）。M-27 は欠番＝M-17 追補を便 2 に同乗させたため）。
 - **次の教訓＝130**（125＝cron と suite の fixture・126＝候補（共用端末は包み）・127＝欠番のまま・**128＝2026-10-30 採番＝commit; を含む切り出しの禁止**・**129＝候補（便 SU・2026-10-30）＝f0 は lint を含まない＝push の直前に lint・tsc を単走**）。
 - **次の裁定＝439**（437＝キオスクの解除「人を選ぶ→PIN」・438＝初期設定 v5 正本＝ともに本文収載・確定は相談役。433＝提案中・本文収載済み・434＝2026-10-27 確定・435＝提案中＝便 K キオスクの機能拡張・436＝提案中＝K-5 打刻ゲート・端末の束縛・退店の失効（0190）・2026-10-29 本文収載済み）。
