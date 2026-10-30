@@ -5004,6 +5004,28 @@ DB 変更 0 の見込み。要れば 0190 起草のみ。」
 
 **成果**: 605d380（lib＋suite）／3583377（client）／docs＝本コミット・push 済み。f0 147 段 2 連緑（run 1＝11:18→11:37（149 段のチェーン＝gvb／s-lane／0188 の pin 張替えの後・末尾 3 段 0188／ob2／m3 は単走で緑）・run 2＝11:40→12:01 全 147 段緑）・golden 不変・live ＝push 後に本番デモで確認（最終報告・v53 に記載）・6 店 reset ＝push 後。
 
+### 便 K（2026-10-30・M3 の push 後・06:00 の打ち切りを過ぎた分＝K-0 読取＋K-5＝0190 起草まで・client は次便）
+
+出典＝相談役ブロック 2026-10-29（便 K ⑫〜⑲）＋裁定435／435 追補／436／437（本文は上）。**06:00 の打ち切り規則**（朝 06:00 を過ぎてコミットの切れ目が来たら止めて報告）に当たるため、本便は **DB 変更 0 のまま 0190 の起草（K-5＋⑥⑦⑧ 同乗）と K-0 の読取**で切り、client（K-0 包み・K-1 人を選ぶ→PIN・435 タイル・K-4 起動先）は 0190 の手貼り後のフラグ true 便に送る（仮決め K-3）。
+
+**⑫ K-0 読取（kiosk-register/page.tsx 1,253 行）**
+- キオスク固有で残すもの（包みに置く）＝端末ログイン（phase login＝端末アカウントの signInWithPassword・denied）・操作担当の解除（kiosk_operator_list→kiosk_login(membership, PIN)・QR）・交代／離席（kiosk_lock('manual')／kiosk_logout）・自動ロック（IDLE_MS＝15 分の鏡像・10 秒 tick → K-0 で 3 分）・店舗固定（auth_kiosk_register_store_id＝RPC 側）・セッション失効の検知（'forbidden'→operator）・操作担当のバー。
+- 撤去対象（本店 register-board の写し）＝開卓・顧客・指名・席移動・延長・注文（useTapBatch）・明細・請求・入金・締め＝323 行目以降ほぼ全部。
+- ★ブロッカー＝register-board は supabase.from の直読取が **25 か所・18 表**。本番の RLS に **kiosk 腕のポリシーは 0 本**（auth_kiosk_* 4 本は RPC 専用）＝端末ユーザーのセッションで register-board を描くと全部 0 行。→ 0190 に kiosk 腕の SELECT ポリシーを同乗（⑥）。client の差し替えは 0190 の後。
+
+**⑰ K-5＝0190 起草（supabase/migrations/0190_duty_gate_device_bind.sql・3,954 行・sha16 6a73e1109a39b996・DB 変更 0）**
+- 生成＝docs/tmp/gen_0190.cjs（裁定436＝live の写し＋アンカー置換）→ docs/tmp/gen_0190_k.cjs（⑥⑦⑧ の後処理）。手打ちなし。mig-check＝parse ok（statements 135・$function$ 40 本×2・plpgsql 39 本は試走で本番の構文検査を兼ねる）。
+- ★1 打刻ゲート（レジの check_*＋approval 25 本の冒頭に assert_on_duty・店長以上は免除＝audit 'off_duty_exempt'・店設定 duty_gate 既定 true・在庫／日報は対象外）★2 端末の束縛（device_fp／bound_at／bound_ua／unbound_at／unbound_by・kiosk_device_bind／unbind・kiosk_login／unlock／qr_secret／qr_poll に p_device_fp）★3 退店の失効（cast_leave／staff_deactivate で staff_pin 削除＋kiosk_sessions 終了 'retired'）★4 set_store_profile の白名単 duty_gate。
+- ⑥ RLS kiosk 腕（裁定435 追補）＝29 表に `<t>_select_kiosk`（store_id＝auth_kiosk_register_store_id() and auth_kiosk_operator() is not null・stores は id・users は org_id・permissive＝通常ユーザーの判定は不変）。
+- ⑦ M-29＝kiosk_provision の上限 3 台（無効は数えない・'device limit'・部分ユニーク index→非ユニーク）・kiosk_reactivate（owner・上限内・audit）・kiosk_delete（無効化済みだけ・kiosk_sessions を先に・audit）。
+- ⑧ K-1（裁定437）＝kiosk_login の既定ロック 10 分（店設定 pin_lock_minutes が無いとき・最大失敗 5 は既定のまま）。
+- 試走＝docs/tmp/t0190_rollback.mts（本番 BEGIN…ROLLBACK・NOX-VERIFY-A1）＝**ok 18／ng 0（2026-10-30 12:04）**・関数数 386→393・残留 0。手貼り案内＝docs/demo/handpaste_0190.md（verify の期待値 51 行・md5 37 本）。**順番＝0190→0191**（0191 の set_store_profile は 0190 の後に live から再生成）。
+- 境界値 suite（⑰「境界値 suite」）＝t0190 の段に含める（PIN の失敗 5 回→ロック・上限 3／4 台目・束縛の別 fp・退店で PIN が消える）。f0 への組込みは 0190 のフラグ true 便（本番の定義で T0190_NO_APPLY=1）。
+
+**未済（次便＝0190 のフラグ true 便）**: ⑬ K-0 包み（kiosk-register＝register-board を同じ props で・自動ロック 3 分）・⑭ K-1 人を選ぶ→PIN 4〜6 桁（0185 の PIN だけの解除は撤去・5 回失敗で 10 分ロック・店長以上への通知は器なし＝第 2 期）・⑮ 裁定435 タイル（/kiosk-shift・在庫・日報・ルートガード・「〇〇さんとして操作中・ロック」）・⑯ K-4 端末アカウントは / を /kiosk へ・/kiosk 配下は別 manifest・⑱ suite verify:nox-k。
+
+**仮決め（相談役案で確定扱い・事後承認）**: K-1 RLS kiosk 腕 29 本を 0190 に同乗（client の差し替えは 0190 の後）。K-2 kiosk_login の既定ロック 10 分・店長以上への通知は器なし（第 2 期）。K-3 06:00 の打ち切り＝便 K は 0190 起草＋K-0 読取で切り、client は 0190 のフラグ true 便へ。
+
 ### Agoora 確定 10/27（4）＝M-24（実機指摘 10/27 15:52・デモ LUNA・キャスト詳細）
 
 出典＝相談役ブロック 2026-10-27（Agoora の実機指摘）。便 M3 に入れる（日払いの種別の 1 項目は 0188 の便の client 分に追記）。390px 基準・live に 390 相当と「主ボタン中央」。**本文（逐語）**:
