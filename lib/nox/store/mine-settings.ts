@@ -5,7 +5,7 @@
 import { rpcErrJa } from "../ui/rpc-err";
 
 export type PayslipVisibility = "off" | "net_only" | "detail";
-export type ShiftRequestMode = "shift" | "off_only";
+export type ShiftRequestMode = "shift" | "off_only" | "store"; // ★0191 ★4（2026-10-30）: "store"＝店が決める（希望は集めない）＝set_store_mine_settings が受理
 export type MineSettings = {
   payslip_visibility: PayslipVisibility;
   drink_claim: boolean;
@@ -31,7 +31,7 @@ export const MINE_SETTING_LABEL: Record<MineSettingKey, string> = {
   ranking_show_others: "ランキングの他キャスト表示", reservation_request: "予約の申請", shift_request_mode: "シフト希望の方式", contract_ack: "加盟店契約の確認",
 };
 export const PAYSLIP_VISIBILITY_LABEL: Record<PayslipVisibility, string> = { off: "表示しない", net_only: "手取りと期のみ", detail: "明細まで" };
-export const SHIFT_REQUEST_MODE_LABEL: Record<ShiftRequestMode, string> = { shift: "シフト希望", off_only: "休み希望のみ" };
+export const SHIFT_REQUEST_MODE_LABEL: Record<ShiftRequestMode, string> = { shift: "シフト希望", off_only: "休み希望のみ", store: "店が決める" }; // ★0191 ★4
 
 const ON_OFF_KEYS: readonly Exclude<MineSettingKey, "payslip_visibility" | "shift_request_mode" | "contract_ack">[] = ["drink_claim", "punch_correction_request", "ranking", "ranking_show_others", "reservation_request"];
 const onOff = (v: unknown, d: boolean): boolean => (v === "on" ? true : v === "off" ? false : d);
@@ -43,7 +43,7 @@ export function mineSettingsOf(settingsJson: unknown): MineSettings {
   const sm = o.shift_request_mode;
   const out: MineSettings = { ...MINE_SETTINGS_DEFAULT };
   out.payslip_visibility = pv === "off" || pv === "net_only" || pv === "detail" ? pv : MINE_SETTINGS_DEFAULT.payslip_visibility;
-  out.shift_request_mode = sm === "shift" || sm === "off_only" ? sm : MINE_SETTINGS_DEFAULT.shift_request_mode;
+  out.shift_request_mode = sm === "shift" || sm === "off_only" || sm === "store" ? sm : MINE_SETTINGS_DEFAULT.shift_request_mode; // ★0191 ★4: "store" を受ける（0191 前の DB には無い値＝既定に倒れない）
   for (const k of ON_OFF_KEYS) out[k] = onOff(o[k], MINE_SETTINGS_DEFAULT[k]);
   out.contract_ack = typeof o.contract_ack === "boolean" ? o.contract_ack : MINE_SETTINGS_DEFAULT.contract_ack;
   return out;

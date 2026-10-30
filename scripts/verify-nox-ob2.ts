@@ -8,6 +8,7 @@
  *  使い方: npm run verify:nox-ob2（env: SUPABASE_DB_URL＝(E)・無ければ (E) は FAIL）
  */
 import fs from "node:fs";
+import { mig0190On, mig0191On } from "../lib/nox/rules-0175/flag"; // ★0190／0191 フラグ true 便
 import pg from "pg";
 import { pgTx } from "./fixtures-pgtx";
 import {
@@ -81,9 +82,14 @@ async function main() {
     && plans.snack.steps.find((s) => s.key === "rule_0")!.args!.p_duration_min === 90 && plans.bar.steps.find((s) => s.key === "rule_0")!.args!.p_duration_min === null && plans.bar.steps.find((s) => s.key === "pricing")!.args!.p_service_rate === 0 && plans.lounge.steps.find((s) => s.key === "rule_1")!.args!.p_amount === 12000 && J((plans.lounge.steps.find((s) => s.key === "settings")!.args!.p_patch as { service_rate_by_seat: unknown }).service_rate_by_seat) === J({ VIP: 30 }));
   const sDef = stateOf("cabaret"); sDef.payroll.whtStaff = "other_204"; sDef.kindRate.jo = 40; sDef.shift.mode = "store"; sDef.punch.gate = true; sDef.staff[0].pin = "12345"; sDef.payroll.close = "15日";
   const dp = buildV5Plan(sDef, ctxOf("11111111-1111-4111-8111-111111111111"));
-  check("ob2(B-8) 器が無い項目＝deferred（源泉の既定・店の割合・店が決める・打刻ゲート・釣銭準備金・締め日・PIN 5〜6 桁）と V5_SAVE_MAP の has=false（10 件）が対応・「店が決める」は off_only＋期間は draft・締切 null",
-    dp.deferred.length === 8 && dp.deferred.map((d) => d.item).join("|").includes("源泉区分の既定") && V5_SAVE_MAP.filter((x) => !x.has).length === 10 && (dp.steps.find((s) => s.key === "mine")!.args!.p_settings as { shift_request_mode: string }).shift_request_mode === "off_only" && dp.steps.find((s) => s.key === "shift_period")!.args!.p_status === "draft" && dp.steps.find((s) => s.key === "shift_period")!.args!.p_wish_deadline === null
-    && plans.cabaret.deferred.length === 3 && plans.cabaret.deferred.some((d) => d.item === "釣銭準備金（締めの基準額）") && plans.cabaret.deferred.some((d) => d.item === "延長パターン 1 本") && plans.cabaret.deferred.some((d) => /打刻ゲート/.test(d.item)) /* 既定＝ゲート ON（0190 の後） */, { d: dp.deferred.map((x) => x.item), n: V5_SAVE_MAP.filter((x) => !x.has).map((x) => x.item) });
+  // ★0190／0191 のフラグ true 便（2026-10-30）: 器が入った項目は deferred から消え、V5_SAVE_MAP の has=false はマイページ 3 キー（mine_settings にキーが無い）の 1 件だけ。フラグ false は従来の 8／10／3。
+  { const on91 = mig0191On(), on90 = mig0190On();
+    const expDp = on91 && on90 ? 1 : 8, expMap = on91 ? (on90 ? 1 : 2) : 10, expCab = on91 && on90 ? 1 : 3;
+    check("ob2(B-8) 器が無い項目＝deferred と V5_SAVE_MAP の has=false の対応（フラグ true＝延長パターン 1 本だけ・has=false はマイページ 1 件・「店が決める」は 'store'／false＝8・10・3・off_only）・期間は draft・締切 null",
+      dp.deferred.length === expDp && (on91 || dp.deferred.map((d) => d.item).join("|").includes("源泉区分の既定")) && V5_SAVE_MAP.filter((x) => !x.has).length === expMap && (dp.steps.find((s) => s.key === "mine")!.args!.p_settings as { shift_request_mode: string }).shift_request_mode === (on91 ? "store" : "off_only") && dp.steps.find((s) => s.key === "shift_period")!.args!.p_status === "draft" && dp.steps.find((s) => s.key === "shift_period")!.args!.p_wish_deadline === null
+      && plans.cabaret.deferred.length === expCab && plans.cabaret.deferred.some((d) => d.item === "延長パターン 1 本") && (on91 || plans.cabaret.deferred.some((d) => d.item === "釣銭準備金（締めの基準額）")) && (on90 || plans.cabaret.deferred.some((d) => /打刻ゲート/.test(d.item)))
+      && (!on91 || ((dp.steps.find((s) => s.key === "settings")!.args!.p_patch as Record<string, unknown>).kind_back_rate !== undefined && (dp.steps.find((s) => s.key === "settings")!.args!.p_patch as Record<string, unknown>).settlement_close_day !== undefined)) && (!on90 || typeof (dp.steps.find((s) => s.key === "settings")!.args!.p_patch as Record<string, unknown>).duty_gate === "boolean"),
+      { d: dp.deferred.map((x) => x.item), n: V5_SAVE_MAP.filter((x) => !x.has).map((x) => x.item), cab: plans.cabaret.deferred.map((x) => x.item) }); }
   const cp = castPlanOf({ g: "ひなの", n: "日向", st: "在籍", kind: "業務委託", pin: "4321", dist: "near", inv: false, birthday: "2000-01-01" }, "11111111-1111-4111-8111-111111111111", { basic: "p1", trial: "p2" }, true);
   check("ob2(B-9) キャスト 1 人＝cast_create（生年月日）→set_cast_employment 委託→set_cast_plan 基本→set_cast_pin 4321→set_cast_okuri_tier near・体入は体験入店プラン",
     cp.map((s) => s.rpc).join(",") === "cast_create,set_cast_employment,set_cast_plan,set_cast_pin,set_cast_okuri_tier" && cp[0].args!.p_birthday === "2000-01-01" && cp[2].args!.p_plan_id === "p1" && cp[3].args!.p_pin === "4321" && cp[4].args!.p_tier === "near"

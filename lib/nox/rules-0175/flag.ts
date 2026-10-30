@@ -61,3 +61,9 @@ export const MIG_0190_APPLIED = true; // ★2026-10-30: 0190（sha16 6a73e1109a3
 let override0190: boolean | null = null;
 export function mig0190On(): boolean { return override0190 ?? MIG_0190_APPLIED; }
 export function __set0190ForTest(v: boolean | null): void { override0190 = v; }
+/** ★0191（便 OB-2 ⑤＝初期設定 v5 の器なし項目・2026-10-30 14 時台に Agoora が手貼り＝verify 17 行差 0・md5 set_store_profile b074a4bf／check_remove_line e34ebf23・関数 394・表 112）: true の間＝
+ *  初期設定 v5 の「後で（マスタから）」を実保存に（店設定 kind_back_rate／withholding_default_cast／withholding_default_staff／cash_float_default／settlement_close_day・shift_request_mode 'store'・商品の場内／フリー個別 p_back_rate_by_kind）・PIN 4〜6 桁・下書き setup_drafts。false なら 0191 前の挙動 */
+export const MIG_0191_APPLIED = true; // ★2026-10-30: 0191（sha16 e5106a9fe0b75a17＝0190 適用後の live から再生成）を Agoora が手貼り＝verify 全行一致→ true
+let override0191: boolean | null = null;
+export function mig0191On(): boolean { return override0191 ?? MIG_0191_APPLIED; }
+export function __set0191ForTest(v: boolean | null): void { override0191 = v; }

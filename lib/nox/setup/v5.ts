@@ -4,6 +4,10 @@
 import type { MineSettings } from "../store/mine-settings";
 import { mineSettingsPatchOf } from "../store/mine-settings";
 import { DEFAULT_SETTLEMENT_PRESETS } from "../payroll/settlement";
+import { mig0190On, mig0191On } from "../rules-0175/flag"; // ★0190／0191 のフラグ true 便: 器なし項目を実保存に（false の間は従来＝「後で（マスタから）」）
+/** ★0191 ★1: 締め日の表記→settlement_close_day（15／20／25／31＝末日） */
+export const CLOSE_DAY_OF: Record<string, 15 | 20 | 25 | 31> = { "15": 15, "20": 20, "25": 25, "末日": 31 };
+const pct100 = (n: number): number => Math.max(0, Math.min(100, Math.round(n || 0)));
 
 // ── 9 STEP・業態 5 種（モック STEPS／TYPES 逐語） ──
 export const V5_STEPS: readonly string[] = ["お店", "席・卓", "料金", "メニュー", "キャスト待遇", "スタッフ", "シフト・勤怠", "会計・レジ", "確認"];
@@ -238,6 +242,13 @@ export function buildV5Plan(S: V5State, ctx: V5Ctx): { steps: V5Step[]; deferred
     pay_fee_rates: { card: Math.max(0, Math.min(100, Math.round(S.cardfee || 0))), emoney: 0, other: 0 },
     pay_discount_rates: { cash: S.cashOff ? Math.round(Math.max(0, Math.min(100, S.cashRate)) * 10) / 10 : 0, card: 0, other: 0 }, pay_discount_base: S.cashBase,
   };
+  if (mig0190On()) patch.duty_gate = S.punch.gate === true;   // ★0190（裁定436）: 打刻ゲート＝boolean 明示（原則7）
+  if (mig0191On()) {   // ★0191 ★1: 店設定 +5 キー（白名単＝set_store_profile）
+    patch.kind_back_rate = { hon: pct100(S.kindRate.hon), jonai: pct100(S.kindRate.jo), free: pct100(S.kindRate.free) };
+    patch.withholding_default_cast = S.payroll.whtCast; patch.withholding_default_staff = S.payroll.whtStaff;
+    patch.cash_float_default = Math.max(0, Math.min(9_999_999, Math.round(S.float || 0)));
+    patch.settlement_close_day = CLOSE_DAY_OF[S.payroll.close] ?? 31;
+  }
   if (S.punch.how === "any") patch.punch_require_shift = S.punch.judge === "hard" ? "block" : "warn";
   if (S.seats.vip > 0 && S.svcVip !== S.svc) patch.service_rate_by_seat = { VIP: Math.max(0, Math.min(100, Math.round(S.svcVip))) };
   if (S.payroll.okuriMode === "fixed") patch.okuri_flat_tiers = [{ code: "near", name: "近距離", amount: S.payroll.okuriTiers[0] }, { code: "mid", name: "中距離", amount: S.payroll.okuriTiers[1] }, { code: "far", name: "遠距離", amount: S.payroll.okuriTiers[2] }];
@@ -252,7 +263,7 @@ export function buildV5Plan(S: V5State, ctx: V5Ctx): { steps: V5Step[]; deferred
   push({ key: "receipt", group: "settings", label: "領収書（発行者名・登録番号・但し書き・住所）", rpc: "set_store_invoice_profile", args: { p_store_id: s, p_legal_name: (S.receipt.name || S.shop.name).trim(), p_trade_name: S.shop.name.trim(), p_receipt_default_desc: S.receipt.tadashi.trim() } });
   push({ key: "receipt2", group: "settings", label: "店舗情報（住所・登録番号＝領収書の表記）", rpc: "set_store_receipt_profile", args: { p_store_id: s, p_address: S.shop.addr.trim(), p_tel: ctx.current.receipt.tel, p_reg_no: reg ?? ctx.current.receipt.reg_no, p_footer: ctx.current.receipt.footer } });
   // マイページ
-  const mine: MineSettings = { ...ctx.current.mine, payslip_visibility: PAYSLIP_OF[S.payroll.mypage], ranking: S.mine.rank, ranking_show_others: S.mine.rank && S.mine.rankOthers === "top", drink_claim: S.mine.drink, punch_correction_request: S.mine.fix, reservation_request: S.mine.resv, shift_request_mode: S.shift.mode === "want" ? "shift" : "off_only" };
+  const mine: MineSettings = { ...ctx.current.mine, payslip_visibility: PAYSLIP_OF[S.payroll.mypage], ranking: S.mine.rank, ranking_show_others: S.mine.rank && S.mine.rankOthers === "top", drink_claim: S.mine.drink, punch_correction_request: S.mine.fix, reservation_request: S.mine.resv, shift_request_mode: S.shift.mode === "want" ? "shift" : S.shift.mode === "store" && mig0191On() ? "store" : "off_only" };   // ★0191 ★4: 「店が決める」＝'store'
   const mp = mineSettingsPatchOf(ctx.current.mine, mine);
   if (Object.keys(mp).length) push({ key: "mine", group: "settings", label: `キャストのマイページ（${Object.keys(mp).length} 項目）`, rpc: "set_store_mine_settings", args: { p_store_id: s, p_settings: mp } });
   // 2) 営業時間 7 曜日＋切替
@@ -308,7 +319,7 @@ export function buildV5Plan(S: V5State, ctx: V5Ctx): { steps: V5Step[]; deferred
     const pk = PAY_KIND_OF[st.basis] ?? "hourly";
     push({ key: `${k}_contract`, group: "staff", label: `${st.n.trim()} の働き方（${st.kind}・${st.basis} ¥${st.amt}）`, rpc: "staff_contract_set", useResult: { from: k, as: "p_membership_id" }, args: { p_patch: { contract_kind: KIND_OF[st.kind] ?? "employee", pay_kind: pk, [pk]: Math.max(0, Math.round(st.amt || 0)) } } });
     if (st.perm === "staff") push({ key: `${k}_perms`, group: "staff", label: `${st.n.trim()} の権限（シフトを組める＝${st.shiftOk ? "ON" : "OFF"}）`, rpc: "set_staff_perms", useResult: { from: k, as: "p_membership_id" }, args: { p_can_register: false, p_can_crm: false, p_can_shift: st.shiftOk, p_can_view_backs: false, p_can_close: false, p_can_reopen: false } });
-    push({ key: `${k}_pin`, group: "staff", label: `${st.n.trim()} の PIN`, rpc: "set_staff_pin", useResult: { from: k, as: "p_membership_id" }, args: { p_pin: /^\d{4}$/.test(st.pin) ? st.pin : genPin() } }); });
+    push({ key: `${k}_pin`, group: "staff", label: `${st.n.trim()} の PIN`, rpc: "set_staff_pin", useResult: { from: k, as: "p_membership_id" }, args: { p_pin: (mig0191On() ? PIN_RE : /^\d{4}$/).test(st.pin) ? st.pin : genPin() } }); });   // ★0191 ★3: PIN 4〜6 桁
   // 9) シフト（最初の期間・曜日別必要人数）
   const due = (() => { const d = new Date(S.firstShift.from + "T00:00:00"); d.setDate(d.getDate() - Math.max(0, Math.round(S.shift.due || 0))); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; })();
   push({ key: "shift_period", group: "shift", label: `最初のシフト期間 ${S.firstShift.from}〜${S.firstShift.to}（${S.shift.mode === "store" ? "店が決める" : S.firstShift.start ? "募集を始める" : "下書き"}）`, rpc: "shift_period_set", args: { p_id: null, p_store_id: s, p_start_date: S.firstShift.from, p_end_date: S.firstShift.to, p_wish_deadline: S.shift.mode === "store" ? null : due, p_status: S.firstShift.start && S.shift.mode !== "store" ? "open" : "draft" } });
@@ -318,14 +329,14 @@ export function buildV5Plan(S: V5State, ctx: V5Ctx): { steps: V5Step[]; deferred
   // 11) 完了（setup_done）
   push({ key: "done", group: "done", label: "初期設定の完了", rpc: "set_store_profile", args: { p_store_id: s, p_patch: { setup_done: true, slide_apply: "next", settlement_presets: DEFAULT_SETTLEMENT_PRESETS } } });
   // 器が無い項目（0191）
-  if (S.payroll.whtCast !== "hostess" || S.payroll.whtStaff !== "none") deferred.push({ item: "源泉区分の既定（委託キャスト／委託スタッフ）", note: "店の既定＝0191（人ごとの区分は給与の画面で）" });
-  if (S.kindRate.hon !== 100 || S.kindRate.jo !== 50 || S.kindRate.free !== 30) deferred.push({ item: "指名区分ごとの割合（店）", note: "店の割合＝0191（商品ごとの場内／フリーは円のとき保存済み）" });
-  if (S.menu.some((c) => c.items.some((it) => it.bt === "pct" && it.byKind))) deferred.push({ item: "商品ごとの場内／フリーの率（%）", note: "0191（円の商品は保存済み）" });
-  if (S.shift.mode === "store") deferred.push({ item: "シフトの集め方「店が決める」", note: "0191（いまは休み希望のみとして保存）" });
-  if (S.punch.gate) deferred.push({ item: "出勤していない人はレジを使えない（打刻ゲート）", note: "0190 の後（MIG_0190_APPLIED）" });
-  deferred.push({ item: "釣銭準備金（締めの基準額）", note: "0191（いまは日報の締めで毎回入力）" });
-  if (S.payroll.close !== "末日") deferred.push({ item: `締め日（${S.payroll.close}）`, note: "月次の締めは末日固定＝0191" });
-  if (S.staff.some((st) => st.n.trim() && st.pin && !/^\d{4}$/.test(st.pin))) deferred.push({ item: "PIN 5〜6 桁", note: "0191（いまは 4 桁＝5〜6 桁は自動で 4 桁を振る）" });
+  if (!mig0191On() && (S.payroll.whtCast !== "hostess" || S.payroll.whtStaff !== "none")) deferred.push({ item: "源泉区分の既定（委託キャスト／委託スタッフ）", note: "店の既定＝0191（人ごとの区分は給与の画面で）" });
+  if (!mig0191On() && (S.kindRate.hon !== 100 || S.kindRate.jo !== 50 || S.kindRate.free !== 30)) deferred.push({ item: "指名区分ごとの割合（店）", note: "店の割合＝0191（商品ごとの場内／フリーは円のとき保存済み）" });
+  if (!mig0191On() && S.menu.some((c) => c.items.some((it) => it.bt === "pct" && it.byKind))) deferred.push({ item: "商品ごとの場内／フリーの率（%）", note: "0191（円の商品は保存済み）" });
+  if (!mig0191On() && S.shift.mode === "store") deferred.push({ item: "シフトの集め方「店が決める」", note: "0191（いまは休み希望のみとして保存）" });
+  if (!mig0190On() && S.punch.gate) deferred.push({ item: "出勤していない人はレジを使えない（打刻ゲート）", note: "0190 の後（MIG_0190_APPLIED）" });
+  if (!mig0191On()) deferred.push({ item: "釣銭準備金（締めの基準額）", note: "0191（いまは日報の締めで毎回入力）" });
+  if (!mig0191On() && S.payroll.close !== "末日") deferred.push({ item: `締め日（${S.payroll.close}）`, note: "月次の締めは末日固定＝0191" });
+  if (!mig0191On() && S.staff.some((st) => st.n.trim() && st.pin && !/^\d{4}$/.test(st.pin))) deferred.push({ item: "PIN 5〜6 桁", note: "0191（いまは 4 桁＝5〜6 桁は自動で 4 桁を振る）" });
   if (!S.mine.late || !S.mine.norma || !S.mine.bonus) deferred.push({ item: "マイページ（遅刻連絡・ノルマ進捗・出勤ボーナスの表示）", note: "0191（いまは常に出る）" });
   return { steps, deferred };
 }
@@ -337,7 +348,7 @@ export function castPlanOf(c: V5Cast, storeId: string, planIds: { basic: string 
   out.push({ key: `${k}_emp`, group: "cast", label: `${c.g} の契約区分（${c.kind}）`, rpc: "set_cast_employment", useResult: { from: k, as: "p_cast_id" }, args: { p_employment: c.kind === "雇用" ? "雇用" : "委託", p_valid_from: new Date().toISOString().slice(0, 10) } });
   const pid = c.st === "体入" || c.plan === "体験入店" ? planIds.trial : planIds.basic;
   if (pid) out.push({ key: `${k}_plan`, group: "cast", label: `${c.g} の待遇プラン（${c.st === "体入" || c.plan === "体験入店" ? "体験入店" : "基本プラン"}）`, rpc: "set_cast_plan", useResult: { from: k, as: "p_cast_id" }, args: { p_plan_id: pid, p_overrides: {} } });
-  out.push({ key: `${k}_pin`, group: "cast", label: `${c.g} の PIN`, rpc: "set_cast_pin", useResult: { from: k, as: "p_cast_id" }, args: { p_pin: /^\d{4}$/.test(c.pin) ? c.pin : genPin() } });
+  out.push({ key: `${k}_pin`, group: "cast", label: `${c.g} の PIN`, rpc: "set_cast_pin", useResult: { from: k, as: "p_cast_id" }, args: { p_pin: (mig0191On() ? PIN_RE : /^\d{4}$/).test(c.pin) ? c.pin : genPin() } });   // ★0191 ★3
   if (okuriFixed && c.dist) out.push({ key: `${k}_okuri`, group: "cast", label: `${c.g} の送りの距離区分`, rpc: "set_cast_okuri_tier", useResult: { from: k, as: "p_cast_id" }, args: { p_tier: DIST_CODE[c.dist] ?? "mid" } });
   return out;
 }
@@ -354,8 +365,8 @@ export const V5_SAVE_MAP: readonly V5SaveMap[] = [
   { step: 3, item: "指名・同伴料", dest: "set_store_pricing{hon_fee, jonai_fee, dohan_fee}", has: true },
   { step: 3, item: "金額の表示（税込／税別）・合流", dest: "set_store_tax_config{price_display}／settings join_mode", has: true },
   { step: 4, item: "メニュー一括（名前・値段・キープ可・バック 円／%）", dest: "product_bulk_insert＋set_product（unit4／rate）・キープ可＝type bottle", has: true },
-  { step: 4, item: "指名区分ごとの商品バック（本指名の値＋店の割合）", dest: "商品ごと＝products.unit4_json{hon,jonai,free}（円のとき）／店の割合 3 列＝なし", has: false },
-  { step: 4, item: "商品ごとの個別 場内・フリー（%）", dest: "なし（products に率の区分別列が無い）", has: false },
+  { step: 4, item: "指名区分ごとの商品バック（本指名の値＋店の割合）", dest: "商品ごと＝products.unit4_json{hon,jonai,free}（円のとき）／店の割合 3 列＝なし", has: mig0191On() },
+  { step: 4, item: "商品ごとの個別 場内・フリー（%）", dest: "なし（products に率の区分別列が無い）", has: mig0191On() },
   { step: 5, item: "ドリンク本数バック ON／OFF", dest: "settings sys_drink_count_back（0175）", has: true },
   { step: 5, item: "時給・体入・体入日数", dest: "set_comp_plan「基本プラン」「体験入店」／settings trial_guarantee_days", has: true },
   { step: 5, item: "スライド 3 種（売上・ポイント・報酬率）", dest: "comp_plans.sales_slide／point_slide（＋pt_rules）／pay_rate_tiers（報酬率の段の写像は画面で）", has: true },
@@ -363,24 +374,24 @@ export const V5_SAVE_MAP: readonly V5SaveMap[] = [
   { step: 5, item: "達成ボーナス（段の数え方）", dest: "settings sys_bonus／bonus_tier_mode", has: true },
   { step: 5, item: "売上の数え方", dest: "settings sales_split", has: true },
   { step: 5, item: "給与の期間・支払日", dest: "settings settlement_cycle／pay_day", has: true },
-  { step: 5, item: "締め日（15／20／25 日）", dest: "なし（月次は末日固定）", has: false },
-  { step: 5, item: "源泉区分の既定（委託キャスト／委託スタッフ）", dest: "なし（人ごと＝set_withholding_kind・店の既定 2 列は無い）", has: false },
+  { step: 5, item: "締め日（15／20／25 日）", dest: "なし（月次は末日固定）", has: mig0191On() },
+  { step: 5, item: "源泉区分の既定（委託キャスト／委託スタッフ）", dest: "なし（人ごと＝set_withholding_kind・店の既定 2 列は無い）", has: mig0191On() },
   { step: 5, item: "前払・日次精算", dest: "settings mid_pay／settlement_cycle=daily（0188＝settlement は daily の店だけ）", has: true },
   { step: 5, item: "送り 4 方式＋距離 3 段", dest: "set_store_okuri_mode／settings okuri_flat_tiers（0180）・okuri_base_amount", has: true },
   { step: 5, item: "マイページに出すもの", dest: "set_store_mine_settings（給与明細・ランキング・ドリンク申告・修正申請・予約申請）", has: true },
   { step: 5, item: "マイページ（遅刻連絡・ノルマ進捗・出勤ボーナスの表示）", dest: "なし（mine_settings にキーが無い＝常に出る）", has: false },
   { step: 6, item: "スタッフ（職種・権限・シフトを組める・雇用形態・給与・PIN）", dest: "/api/staff/create／staff_contract_set{contract_kind, pay_kind, 額}／set_staff_perms{can_shift}／set_staff_pin（4 桁）", has: true },
-  { step: 6, item: "PIN 4〜6 桁", dest: "なし（set_staff_pin／set_cast_pin は 4 桁固定）", has: false },
+  { step: 6, item: "PIN 4〜6 桁", dest: "なし（set_staff_pin／set_cast_pin は 4 桁固定）", has: mig0191On() },
   { step: 7, item: "シフトの集め方（希望・休み希望）・締切・自動確定・最初の期間", dest: "mine_settings shift_request_mode／shift_period_set{wish_deadline, status}／settings shift_auto_confirm_hours", has: true },
-  { step: 7, item: "シフトの集め方「店が決める」", dest: "なし（shift_request_mode は 2 値）", has: false },
+  { step: 7, item: "シフトの集め方「店が決める」", dest: "なし（shift_request_mode は 2 値）", has: mig0191On() },
   { step: 7, item: "曜日別必要人数", dest: "set_staffing_need（0189＝翌 24:00 まで）", has: true },
   { step: 7, item: "打刻の場所・条件に合わないとき・丸め", dest: "settings punch_methods／punch_require_shift／punch_round_unit・mode", has: true },
-  { step: 7, item: "打刻ゲート（出勤していない人はレジを使えない）", dest: "なし（0190 duty_gate＝MIG_0190_APPLIED の配下）", has: false },
+  { step: 7, item: "打刻ゲート（出勤していない人はレジを使えない）", dest: "なし（0190 duty_gate＝MIG_0190_APPLIED の配下）", has: mig0190On() },
   { step: 8, item: "キオスク ON・キャストのレジ 3 段階・スタッフの割引 3 段階・売掛", dest: "settings kiosk_features／sys_cast_register（裁定420）／sys_staff_discount（裁定421）／set_store_receivable_policy", has: true },
   { step: 8, item: "店の端末の登録（端末アカウント発行）", dest: "/api/kiosk/provision（purpose register・初期 PW は完了画面で 1 回）", has: true },
-  { step: 8, item: "釣銭準備金", dest: "なし（daily_report_close の p_cash_float＝毎回入力）", has: false },
+  { step: 8, item: "釣銭準備金", dest: "なし（daily_report_close の p_cash_float＝毎回入力）", has: mig0191On() },
   { step: 8, item: "カード手数料・現金割引（0187）・丸め", dest: "set_store_pricing{card_tax_rate}／settings pay_fee_rates／pay_discount_rates・pay_discount_base／set_store_tax_config{tax_rounding}", has: true },
   { step: 8, item: "領収書（発行者・登録番号・但し書き）", dest: "set_store_invoice_profile／set_store_receipt_profile{reg_no}／set_store_tax_config{invoice_status}", has: true },
   { step: 9, item: "完了画面＝キャスト 1 人ずつ・CSV（9 列・PIN・送り距離）・PIN 一覧印刷", dest: "cast_create（生年月日が必須＝18 歳判定）／set_cast_employment／set_cast_plan／set_cast_pin／set_cast_okuri_tier／招待＝/api/cast/invite（メール）", has: true },
-  { step: 0, item: "入力の自動保存（org 単位の下書き・再開）", dest: "なし（localStorage＝店ごと・端末ごと。org 単位の表は 0191）", has: false },
+  { step: 0, item: "入力の自動保存（org 単位の下書き・再開）", dest: "なし（localStorage＝店ごと・端末ごと。org 単位の表は 0191）", has: mig0191On() },
 ];
