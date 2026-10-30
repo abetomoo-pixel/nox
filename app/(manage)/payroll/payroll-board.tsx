@@ -11,6 +11,7 @@ import CastAvatar from "@/components/ui/cast-avatar";
 import { resolveOrgId, signCastPhotos } from "@/lib/nox/cast-photo";
 import { kpiOfDraftRows, issuesOfDraft, payStatusCellOf } from "@/lib/nox/payroll/ui-calc"; // ★便 X-7: 状態列は run の status と整合（payStatusCellOf）
 import PeriodSelect from "@/components/nox/period-select";
+import BottomSheet, { useNarrow } from "@/components/ui/bottom-sheet"; // ★便 M3 M-25（C2-7 の型）: 1,024px 未満は右パネルをシートで
 import { OPS_DEFAULT, opsProfileOf, type OpsProfile } from "@/lib/nox/store/ops-profile"; // ★0164（便 W5-2b）: 支払日・内税表示 // ★X-13-28（便 P168）: 期間＝select（当月＋過去 12 か月・確定の印・もっと前…）。旧 picker（便 X-5・テキスト＋▾）は撤去
 import { finalizedPeriodsOf } from "@/lib/nox/payroll/list-periods"; // ★X-13-28: 確定済みの月の印
 //残す）
@@ -149,6 +150,7 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
   const [rowTax, setRowTax] = useState("");
   // E8-5 payroll#3: 行タップ→個別内訳（preview breakdown の再掲・選択中 castId）
   const [detailCast, setDetailCast] = useState<string | null>(null);
+  const narrow = useNarrow(1024); // ★便 M3 M-25
   const [settle, setSettle] = useState<{ castId: string; castName: string } | null>(null); // ★0154 D4
   const [sanct, setSanct] = useState<{ castId: string; castName: string } | null>(null); // ★0154 D5
   // ★U-1 是正B: 右パネルの「明細プレビュー」（PayslipSlip 全体）の開閉
@@ -974,7 +976,8 @@ ${md.message}（入れずに確定すると控除 0 のまま確定します）`
           </div>
 
           {/* ★U-1 是正B: 右パネル明細（sticky・PayslipSlip と同じ順序・0円行は非表示・数値は preview 再掲のみ） */}
-          <aside style={{ flex: "1 1 260px", minWidth: 260, position: "sticky", top: 12 }}>
+          {(() => { const asideNode = (/* ★便 M3 M-25: 同じ中身を 1,024px 以上は右パネル・未満はシート（開いた行ハイライト＝detailCast・閉じると同じ位置） */
+          <aside style={{ flex: "1 1 260px", minWidth: 260, position: narrow ? "static" : "sticky", top: 12 }} data-pay-detail-panel={narrow ? "sheet" : "aside"}>
             <section className="nox-cardtop" style={{ ...t.card, marginBottom: 0 }}>
               {(() => {
                 const r = detailCast ? rows.find((x) => x.castId === detailCast) : null;
@@ -1189,7 +1192,7 @@ ${md.message}（入れずに確定すると控除 0 のまま確定します）`
                 );
               })()}
             </section>
-          </aside>
+          </aside>); return narrow ? (detailCast ? <BottomSheet onClose={() => setDetailCast(null)} title={rows.find((x) => x.castId === detailCast)?.castName ?? "内訳"} testId="paydetail">{asideNode}</BottomSheet> : null) : asideNode; })()}
           </div>
         </>
       )}

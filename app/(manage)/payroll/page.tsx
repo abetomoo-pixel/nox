@@ -14,7 +14,7 @@ function WhoTabs({ who }: { who: "cast" | "staff" | "attendance" | "attendance_s
   // ★便 SH-UI-c C-2: 「勤怠」タブ（キャスト／スタッフの切替・月・人で絞る・既定＝当月）。スタッフ側は /staff と同じ勤怠・報酬（StaffWorkPanel）
   return (
     <div role="tablist" aria-label="対象" data-payroll-who={who} style={{ display: "flex", gap: 8, margin: "0 0 12px", flexWrap: "wrap" }}>
-      {([["cast", "キャスト", "/payroll"], ["staff", "スタッフ", "/payroll?who=staff"], ["attendance", "勤怠", "/payroll?tab=attendance"], ["attendance_staff", "勤怠（スタッフ）", "/payroll?tab=attendance&who=staff"]] as const).map(([k, label, href]) => (
+      {([["cast", "キャスト", "/payroll"], ["staff", "スタッフ", "/payroll?who=staff"], ["attendance", "勤怠（キャスト）", "/payroll?tab=attendance"], ["attendance_staff", "勤怠（スタッフ）", "/payroll?tab=attendance&who=staff"]] as const).map(([k, label, href]) => (
         <Link key={k} href={href} role="tab" aria-selected={who === k}
           style={{ ...(who === k ? t.btnGold : t.btnGhost), ...t.btnSm, minHeight: 44, textDecoration: "none", display: "inline-flex", alignItems: "center" }}>{label}</Link>
       ))}
@@ -28,7 +28,7 @@ export const dynamic = "force-dynamic";
 // ★B5（設計書 v1 §3.1／§3.2）: 起点は月次一覧。?store=<id>&period=YYYY-MM が揃っていれば既存の明細画面（PayrollBoard）を
 //   その store×period を初期選択にして描く（一覧の「明細へ」＝.nox-link からの遷移・裁定238）。
 // 真の防御は payroll_finalize／payroll_reopen／payroll_mark_paid の service_role 限定＋route の manager+／owner 検証（ここは利便のリダイレクト）。
-export default async function PayrollPage({ searchParams }: { searchParams: Promise<{ store?: string | string[]; period?: string | string[]; who?: string | string[]; tab?: string | string[]; cast?: string | string[] }> }) {
+export default async function PayrollPage({ searchParams }: { searchParams: Promise<{ mem?: string; store?: string | string[]; period?: string | string[]; who?: string | string[]; tab?: string | string[]; cast?: string | string[] }> }) {
   const { role } = await getSessionRole();
   if (!role) redirect("/login");
   if (role !== "owner" && role !== "manager") redirect("/register");
@@ -41,7 +41,7 @@ export default async function PayrollPage({ searchParams }: { searchParams: Prom
   const period = typeof sp.period === "string" && /^\d{4}-(0[1-9]|1[0-2])$/.test(sp.period) ? sp.period : null;
   // ★便 SH-UI-c C-2: 勤怠タブ（?tab=attendance・&who=staff はスタッフの勤怠＝StaffWorkPanel・&cast= で 1 人の表を開く）
   if (sp.tab === "attendance") {
-    if (who === "staff") return (<><WhoTabs who="attendance_staff" /><StaffWorkPanel scope="store" stores={storeList} /></>);
+    if (who === "staff") return (<><WhoTabs who="attendance_staff" /><StaffWorkPanel scope="store" stores={storeList} daily initialMem={typeof sp.mem === "string" ? sp.mem : null} /></>);{/* ★便 M3 M-23: 正本＝給与 › 勤怠（スタッフ）＝日ごとの勤怠 */}
     return (<><WhoTabs who="attendance" /><AttendanceBoard stores={storeList} initialStoreId={store} initialPeriod={period} initialCastId={typeof sp.cast === "string" ? sp.cast : null} /></>);
   }
   if (who === "staff") return (<><WhoTabs who="staff" /><StaffWorkPanel scope="store" stores={storeList} /></>);

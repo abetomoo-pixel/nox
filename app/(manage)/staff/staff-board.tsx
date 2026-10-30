@@ -103,6 +103,7 @@ export default function StaffBoard({
   // ★便 ON-3（0176 ★2 I-1）: ログインの方法（初期パスワード＝従来／招待リンク＝本人がパスワードを決める）・招待の結果・招待中の一覧・LINE 連携
   const [aMethod, setAMethod] = useState<LoginMethod>("password");
   const [aInvite, setAInvite] = useState<{ url: string; expires_at: string | null; email: string } | null>(null);
+  const [aWork, setAWork] = useState<{ contract_kind: string; pay_kind: string; amount: string }>({ contract_kind: "parttime", pay_kind: "hourly", amount: "" }); // ★便 M3 M-20／M-21
   const [invites, setInvites] = useState<{ id: string; store_id: string; email: string; name: string; role: string; expires_at: string; accepted_at: string | null }[]>([]);
   const [lineLinked, setLineLinked] = useState<Set<string>>(new Set());
   const [bindUrl, setBindUrl] = useState<string | null>(null);
@@ -225,6 +226,7 @@ export default function StaffBoard({
     setAName(""); setAEmail(""); setATel(""); setALine(""); setAStore(isOwner ? (stores[0]?.id ?? "") : myStoreId); // ★裁定381
     setARole("staff"); setAErr(null); setAResult(null); setCopied(false);
     setAMethod("password"); setAInvite(null); // ★便 ON-3
+    setAWork({ contract_kind: "parttime", pay_kind: "hourly", amount: "" }); // ★便 M3 M-20／M-21: 追加の時点で働き方
     setAIdemKey(crypto.randomUUID()); // 送信意図ごとに1つ＝リトライは同キー（route が二重作成を止める）
     setAddOpen(true);
   }
@@ -260,7 +262,15 @@ export default function StaffBoard({
       });
       const body = (await res.json()) as CreateResult & { error?: string };
       if (!res.ok) setAErr(body.error ?? `追加に失敗しました（${res.status}）`);
-      else { setAResult(body); await load(); }
+      else {
+        // ★便 M3 M-20／M-21: 働き方（雇用形態・給与の形・額）＝staff_contract_set（額が空なら契約は作らない）
+        const n = Number(String(aWork.amount).replace(/[,，\s円¥]/g, ""));
+        if (body.membership_id && aWork.amount.trim() !== "" && Number.isInteger(n) && n >= 0) {
+          const { error: eC } = await supabase.rpc("staff_contract_set", { p_membership_id: body.membership_id, p_patch: { contract_kind: aWork.contract_kind, pay_kind: aWork.pay_kind, [aWork.pay_kind]: n } });
+          if (eC) setMsg(`働き方の保存に失敗: ${rpcErrJa(eC.message)}（スタッフは追加済み＝勤怠・報酬から入れ直せます）`);
+        }
+        setAResult(body); await load();
+      }
     } catch (e) {
       setAErr((e as Error).message);
     } finally {
@@ -318,8 +328,8 @@ export default function StaffBoard({
       <Toast msg={msg} />
       {tabs}{/* ★0172（裁定356・便 P172）: 一覧／勤怠・報酬 */}
 
-      <div className="nox-ctoolbar">
-        {!isDemo && <button style={{ ...btnGold, marginLeft: "auto", minHeight: 44 }} onClick={openAdd} disabled={busy} data-staff-add="1">＋ スタッフ登録</button>}{/* ★裁定381 */}{/* ★N7-2 ③: デモはスタッフ作成の導線を隠す */}
+      <div className="nox-actions" style={{ marginBottom: 8 }}>{/* ★便 M3 M-20: 「＋スタッフを追加」＝.nox-actions 中央（キャストの追加と同じ形） */}
+        {!isDemo && <button style={{ ...btnGold, minHeight: 44 }} onClick={openAdd} disabled={busy} data-staff-add="1">＋ スタッフを追加</button>}{/* ★裁定381 */}{/* ★N7-2 ③: デモはスタッフ作成の導線を隠す */}
       </div>
 
       <section className="nox-panel">
@@ -584,6 +594,15 @@ export default function StaffBoard({
                       <span style={{ ...t.input, display: "block", color: "var(--sub)" }}>スタッフ（staff）</span>
                     )}
                   </label>
+                  <div data-staff-add-work="1" style={{ display: "grid", gap: 6 }}>{/* ★便 M3 M-20／M-21: 働き方（任意＝額が空なら契約は後で） */}
+                    <span style={t.fieldLabel}>働き方（任意・あとで「勤怠・報酬」からも）</span>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
+                      <label style={t.fieldLabel}>雇用形態<br /><SegSelect value={aWork.contract_kind} onChange={(v) => setAWork({ ...aWork, contract_kind: v })} options={[["contractor", "業務委託"], ["parttime", "アルバイト・パート"], ["employee", "正社員"]] as const} ariaLabel="雇用形態" /></label>
+                      <label style={t.fieldLabel}>給与の形<br /><SegSelect value={aWork.pay_kind} onChange={(v) => setAWork({ ...aWork, pay_kind: v })} options={[["hourly", "時給"], ["daily", "日給"], ["monthly", "月給"]] as const} ariaLabel="給与の形" /></label>
+                      <label style={t.fieldLabel}>額<br /><input value={aWork.amount} onChange={(e) => setAWork({ ...aWork, amount: e.target.value })} inputMode="numeric" placeholder="例: 1,500" style={{ ...t.input, width: 120 }} aria-label="働き方の額" /></label>
+                    </div>
+                    <span style={{ ...t.sub, lineHeight: 1.6 }}>源泉区分は雇用形態から既定で入ります（業務委託＝対象外・社員／アルバイト＝給与）。</span>
+                  </div>
                   <p style={{ ...t.sub, margin: 0, lineHeight: 1.6 }}>電話番号・LINE ID は登録時に保存されます。</p>
                   <div className="nox-inset" data-staff-after="1" style={{ padding: "12px 14px" }}>{/* ★便 X13-H H-12 ①: キャストと同じ形の案内 */}
                     <p style={{ fontSize: 12, fontWeight: 800, color: "var(--champ)", margin: "0 0 8px" }}>登録した後に設定する項目</p>

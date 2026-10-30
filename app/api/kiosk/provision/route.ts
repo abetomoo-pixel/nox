@@ -117,9 +117,23 @@ export async function POST(req: Request) {
       return NextResponse.json({ deactivated: true, auth_banned: true });
     }
 
+    // ── reissue 分岐（★便 M3 M-29 ②: 認証情報を再発行＝旧い PW は即時無効・新しい PW を 1 回だけ返す。auth 層のみ＝kiosk_devices は不変・監査は Supabase auth ログ）──
+    if (body.action === "reissue") {
+      const deviceId = body.deviceId;
+      if (typeof deviceId !== "string" || !UUID_RE.test(deviceId))
+        return NextResponse.json({ error: "deviceId required (uuid)" }, { status: 400 });
+      const { data: dev } = await admin.from("kiosk_devices").select("auth_user_id, is_active").eq("id", deviceId).eq("org_id", g.orgId).single();
+      if (!dev?.auth_user_id) return NextResponse.json({ error: "not found" }, { status: 404 });
+      if (!dev.is_active) return NextResponse.json({ error: "device inactive" }, { status: 409 });
+      const password = genPassword();
+      const { data: au, error: eUp } = await admin.auth.admin.updateUserById(dev.auth_user_id as string, { password });
+      if (eUp) return NextResponse.json({ error: `auth update failed: ${eUp.message}` }, { status: 500 });
+      return NextResponse.json({ device_id: deviceId, login_email: au.user?.email ?? "", initial_password: password, reissued: true });
+    }
+
     // ── provision 分岐 ──
     if (body.action !== "provision")
-      return NextResponse.json({ error: "action must be provision or deactivate" }, { status: 400 });
+      return NextResponse.json({ error: "action must be provision, deactivate or reissue" }, { status: 400 });
     const storeId = body.storeId;
     if (typeof storeId !== "string" || !UUID_RE.test(storeId))
       return NextResponse.json({ error: "storeId required (uuid)" }, { status: 400 });

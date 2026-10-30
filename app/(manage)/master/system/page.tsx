@@ -81,7 +81,9 @@ export default async function MasterSystemPage() {
   //   （端末管理の可視は provision GET の owner 限定に合わせる＝manager へ新しく開示しない）。
   let deviceTotal: number | null = null;
   let deviceInactive = 0;
-  if (isOwner) {
+  const { data: orgDemo } = await supabase.from("orgs").select("is_demo").limit(1).maybeSingle(); // ★便 M3 M-28 ③: デモ org は端末を発行できない（403）＝KPI も 0 台（一覧と同じ元）
+  if (isOwner && orgDemo?.is_demo === true) { deviceTotal = 0; deviceInactive = 0; }
+  else if (isOwner) {
     const orgId = (store?.org_id as string | undefined) ?? "";
     if (orgId) {
       try {
@@ -146,7 +148,7 @@ export default async function MasterSystemPage() {
           <div className="nox-kpi2-l">登録端末</div>
           <div className="nox-kpi2-v num">{deviceTotal === null ? "—" : <>{deviceTotal}<small>台</small></>}</div>
           <div className="nox-kpi2-s">{deviceTotal === null ? "「キオスク端末」タブで確認"
-            : deviceInactive === 0 ? "すべて有効" : `${deviceInactive}台 無効`}</div>
+            : orgDemo?.is_demo === true ? "デモ環境では端末を発行できません" : `${deviceTotal} 台登録・有効 ${deviceTotal - deviceInactive}`}</div>{/* ★便 M3 M-29 ⑥: 有効台数／登録台数 */}
         </div>
         <div className="nox-kpi2">
           <div className="nox-kpi2-l">PIN設定済み</div>

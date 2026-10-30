@@ -293,7 +293,7 @@ export default function DashboardBoard({ storeId, storeName, cutoff, casts, shor
           </span>
           {/* ★裁定154（M14）: 仮シフト未確認＝proposed 件数（0 件は出さない） */}
           {proposedToday > 0 && (
-            <span style={{ fontSize: 11.5, color: "var(--v2-muted)" }}>・仮シフト未確認 {proposedToday}名</span>
+            <span style={{ fontSize: 11.5, color: "var(--v2-muted)" }}>・配置の未確認 {proposedToday}名</span>
           )}
         </div>
         {/* ★裁定154（M22）: 4分割＝出勤予定／出勤済み／未着・遅刻／欠勤（atts・todayShifts の既存 state から導出） */}

@@ -1363,6 +1363,8 @@ export default function RegisterBoard({
     if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止）
     setMsg(null);
     const target = lines.find((l) => l.id === lineId); // 削除後は lines から消えるので先に控える
+    { const { data: pk } = await supabase.from("bottle_keeps").select("id, remaining_pct, expires_on, shelf_no, note, bottle_name, tag_label").eq("check_line_id", lineId).eq("status", "pending"); // ★便 M3 M-30: 行を消す前に pending のキープを取り消す（bottle_keep_update → removed・RPC 側＝0191 ★5 が削除）
+      for (const k of (pk ?? []) as { id: string; remaining_pct: number | null; expires_on: string | null; shelf_no: string | null; note: string | null; bottle_name: string | null; tag_label: string | null }[]) await supabase.rpc("bottle_keep_update", { p_id: k.id, p_remaining_pct: k.remaining_pct, p_expires_on: k.expires_on, p_shelf_no: k.shelf_no, p_status: "removed", p_note: k.note, p_bottle_name: k.bottle_name, p_tag_label: k.tag_label }).then(() => undefined, () => undefined); }
     const { error } = await supabase.rpc("check_remove_line", { p_line_id: lineId });
     if (error) {
       setMsg({ to: MSG_DETAIL, text: rpcErrJaCommon(error.message), kind: "bad" });

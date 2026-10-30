@@ -16,6 +16,7 @@
 // ★タブは既存 `.nox-seg`（master-subnav・casts・report と同じセグメント）を使う＝新クラスを作らない。
 // ★権限で空になったタブは server 側で配列から落ちる（owner 限定パネルの出し分けは page.tsx が持つ）。
 import { useEffect, useRef, useState } from "react";
+import * as th from "@/lib/nox/ui/theme"; // ★便 M3 M-28 ①
 
 export type SystemTab = { key: string; label: string; node: React.ReactNode };
 
@@ -52,19 +53,13 @@ export default function SystemBoard({ tabs }: { tabs: SystemTab[] }) {
     <div>
       {/* タブ行はタブが2つ以上のときだけ出す（1件のタブ行は情報量ゼロ＝master-subnav と同じ退化契約） */}
       {tabs.length > 1 && (
-        <div className="nox-ctoolbar" style={{ flexWrap: "nowrap", overflowX: "auto" }}>
-          <div className="nox-seg" style={{ flex: "0 0 auto" }}>
-            {tabs.map((t) => (
-              <button
-                key={t.key}
-                className={t.key === active.key ? "on" : ""}
-                aria-current={t.key === active.key ? "page" : undefined}
-                onClick={() => setCur(t.key)}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
+        <div role="tablist" aria-label="スタッフ・システム" data-system-tabs="1" style={{ display: "flex", gap: 8, margin: "0 0 12px", flexWrap: "wrap" }}>{/* ★便 M3 M-28 ①: 給与の上段タブ（キャスト／スタッフ／勤怠）と同じ型＝44px・選択中は塗り・390px は折返し */}
+          {tabs.map((t) => (
+            <button key={t.key} type="button" role="tab" aria-selected={t.key === active.key} aria-current={t.key === active.key ? "page" : undefined} onClick={() => setCur(t.key)} data-system-tab={t.key}
+              style={{ ...(t.key === active.key ? th.btnGold : th.btnGhost), ...th.btnSm, minHeight: 44, flex: "1 1 calc(50% - 8px)", maxWidth: 260, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+              {t.label}
+            </button>
+          ))}
         </div>
       )}
       {/* ★A3: id＝タブ key（master-board の href の hash と一致）。

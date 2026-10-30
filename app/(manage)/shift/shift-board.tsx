@@ -919,7 +919,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   const gotoNeeds = () => {
     // ★SC-8 ③-0: タブを跨ぐ前に日詳細を閉じる（開いたまま別の面へ行く経路を構造的に潰す）。
     setDayModal("");
-    setTab("calendar"); // ★0125（裁定112-A）: 必要人数カードは仮シフトタブへ移設＝行き先追随
+    setTab("calendar"); // ★0125（裁定112-A）: 必要人数カードは配置（旧 calendar）タブへ移設＝行き先追随
     requestAnimationFrame(() => {
       document.getElementById("shift-needs")?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
@@ -2407,7 +2407,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
             <h2 style={{ ...secTitle, margin: 0 }}>確定シフト</h2>
             {/* ★R4: 役割分担を画面が自己説明する（カレンダータブ＝充足管理／このタブ＝誰がいつ） */}
             <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "2px 0 0" }}>
-              <b>誰がいつ入るか</b>を見る画面です（人数の過不足は「仮シフト」タブで見ます）。
+              <b>誰がいつ入るか</b>を見る画面です（人数の過不足は「シフト作成 › ③配置」で見ます）。
             </p>
           </div>
           <span className="nox-noprint nox-plantools">{/* ★306-8: ≤899px はセグメント 1 行＋ボタン 1 行（CSS .nox-plantools） */}
@@ -2691,7 +2691,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
             {isManagerUp && (
               <DayAddPanel date={selDate} casts={casts} photoUrls={photoUrls} bhRows={bhRows} wishes={wishAll} closed={isClosedDay(selDate)}
                 assignedCastIds={shiftsOn(selDate).map((s) => s.cast_id)}
-                onSaved={async () => { setMsg("仮シフトを保存しました"); await load(); }}
+                onSaved={async () => { setMsg("配置を保存しました"); await load(); }}
                 onDirtyChange={setDayDirty} />
             )}
             {bands.map((b) => (
@@ -2813,7 +2813,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
             {isManagerUp && (
               <DayAddPanel date={selDate} casts={casts} photoUrls={photoUrls} bhRows={bhRows} wishes={wishAll} closed={isClosedDay(selDate)}
                 assignedCastIds={shiftsOn(selDate).map((s) => s.cast_id)}
-                onSaved={async () => { setMsg("仮シフトを保存しました"); await load(); }}
+                onSaved={async () => { setMsg("配置を保存しました"); await load(); }}
                 onDirtyChange={setDayDirty} />
             )}
             {shiftsOn(selDate).slice().sort((a, b) => hm2min(a.start_hm) - hm2min(b.start_hm)).map((x) => (

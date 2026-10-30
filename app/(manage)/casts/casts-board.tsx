@@ -13,6 +13,8 @@ import MoneyInput from "@/components/ui/money-input"; // ★便 X-12-1（起票9
 import Toast, { Message, type MessageKind } from "@/components/ui/toast";
 import { rpcErrJa, isRpcMissingError } from "@/lib/nox/ui/rpc-err";
 import SegSelect from "@/components/ui/seg-select"; // ★0154 D6: 契約区分
+import { WITHHOLDING_KIND_LABEL, WITHHOLDING_KIND_SELECT_NOTE, WITHHOLDING_KIND_SHORT, defaultWithholdingKindOf, withholdingKindChoices, withholdingKindOf } from "@/lib/nox/payroll/withholding-kind"; // ★便 M3 M-21
+import { mig0183On, mig0188On } from "@/lib/nox/rules-0175/flag"; // ★便 M3 M-21
 import { NOTE_EMPLOYMENT, NOTE_LABOR, amountKeyOf, laborNoteNeeded, nextPeriodStartOf, overridesWithRule, payRuleLabelOf, payRuleOptionsOf, ruleOfOverrides, type Employment } from "@/lib/nox/cast/pay-rule"; // ★0154 D2／D6
 import type { PayRule } from "@/lib/nox/pay";
 // ★夜間便 N4（裁定282-2／282-3／287-3・0151 ★3）: 保証時給の表示用純関数（DB を知らない）
@@ -162,6 +164,14 @@ export default function CastsBoard({
   const [ruleForm, setRuleForm] = useState<{ rule: PayRule; amount: string } | null>(null);
   const [ruleMsg, setRuleMsg] = useState<{ kind: "error" | "success" | "warn" | "info"; text: string } | null>(null);
   const [empForm, setEmpForm] = useState<{ employment: Employment; from: string } | null>(null);
+  const [castWhKind, setCastWhKind] = useState<Record<string, string | null>>({}); // ★便 M3 M-21: 源泉区分（cast_tax_profiles.withholding_kind・null＝既定）
+  useEffect(() => { if (!mig0183On()) return; let alive = true; void supabase.from("cast_tax_profiles").select("cast_id, withholding_kind").then(({ data }) => { if (alive) setCastWhKind(Object.fromEntries(((data ?? []) as { cast_id: string; withholding_kind: string | null }[]).map((r) => [r.cast_id, r.withholding_kind]))); }); return () => { alive = false; }; // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  async function saveCastKind(castId: string, v: string) {
+    const { error } = await supabase.rpc("set_withholding_kind", { p_subject_kind: "cast", p_subject_id: castId, p_kind: v === "" ? null : v });
+    setEmpMsg(error ? { kind: "error", text: `源泉区分の保存エラー: ${rpcErrJa(error.message)}` } : { kind: "success", text: "源泉区分を保存しました" });
+    if (!error) setCastWhKind((m) => ({ ...m, [castId]: v === "" ? null : v }));
+  }
   const [empMsg, setEmpMsg] = useState<{ kind: "error" | "success" | "warn" | "info"; text: string } | null>(null);
   // ★裁定306-13: 待遇プランの切替（候補＝店の有効な comp_plans・適用開始日＝次の給与期の初日が既定・過去日不可・確定済みの期は不可・既存 RPC set_cast_plan＝上書きは維持）
   const [activePlans, setActivePlans] = useState<{ id: string; name: string }[]>([]);
@@ -1197,9 +1207,9 @@ export default function CastsBoard({
                 本名・生年月日・マイナンバー等の機微情報は「機密・税務情報」（owner/manager 限定・閲覧ログ記録）でのみ扱います。この画面には表示しません。
               </div>
               {/* ★裁定109: 機密・税務情報パネル（/master/system 搭載）への導線（閲覧は owner 限定＝パネル側で出し分け） */}
-              <Link href="/master/system" className="nox-link" style={{ display: "inline-block", marginTop: 8 }}>
-                機密・税務情報へ（システム設定）
-              </Link>
+              <div className="nox-actions" style={{ marginTop: 8 }}>{/* ★便 M3 M-24: 末尾の遷移＝中央の副ボタン（文字リンクをやめる） */}
+                <Link href="/master/system" style={{ ...btnGhost, textDecoration: "none", display: "inline-flex", alignItems: "center" }} data-cast-link-secrets="1">機密・税務情報（システム設定）</Link>
+              </div>
             </>
           )}
 
@@ -1314,6 +1324,9 @@ export default function CastsBoard({
                       {isOwner && !empForm && <button style={btnGhost} disabled={busy}
                         onClick={() => { setEmpMsg(null); setEmpForm({ employment: emp ?? "委託", from: nextPeriodStartOf(today) }); }}>契約区分を変更</button>}
                     </div>
+                    <div className="nox-frow" data-cast-withholding-kind="1"><span className="k">源泉区分</span><span className="v">{WITHHOLDING_KIND_SHORT[withholdingKindOf(castWhKind[selCast.id] ?? null, defaultWithholdingKindOf({ subject: "cast", taxMode: emp ?? "委託" }))]}{(castWhKind[selCast.id] ?? null) === null ? "（既定）" : ""}
+                      {mig0183On() && <select value={castWhKind[selCast.id] ?? ""} onChange={(e) => void saveCastKind(selCast.id, e.target.value)} disabled={busy} style={{ ...input, width: "auto", marginLeft: 8 }} aria-label="源泉区分（キャスト）"><option value="">既定</option>{withholdingKindChoices().map((k) => <option key={k} value={k}>{WITHHOLDING_KIND_LABEL[k]}</option>)}</select>}</span></div>{/* ★便 M3 M-21: 働き方＝契約区分＋源泉区分（人ごと・set_withholding_kind） */}
+                    {mig0188On() && <p style={{ ...t.sub, margin: "0 0 4px" }} data-cast-withholding-note="1">{WITHHOLDING_KIND_SELECT_NOTE}</p>}
                     <div className="nox-frow"><span className="k">契約区分</span><span className="v">{emp ?? "未設定（委託として計算）"}{selCast.employment_valid_from ? <span style={{ fontSize: 11, color: "var(--v2-muted)", marginLeft: 6 }}>（{selCast.employment_valid_from} から）</span> : null}</span></div>
                     <div className="nox-frow"><span className="k">報酬型</span><span className="v">{curLabel}{cur.amount !== null ? <span className="num" style={{ marginLeft: 6 }}>¥{cur.amount.toLocaleString()}{cur.rule === "per_shift" ? "／稼働" : "／期"}</span> : null}</span></div>
                     {ruleForm && (
@@ -1402,7 +1415,9 @@ export default function CastsBoard({
               <p style={{ fontSize: 12.5, color: "var(--v2-muted)", margin: "0 0 10px", lineHeight: 1.8 }}>
                 待遇プランの中身（基本時給・スライド・指名バック単価）は<strong style={{ color: "var(--v2-text)" }}>マスタ</strong>で管理します。キャストへの割当（切替）は上の「変更」から（306-13）。
               </p>
-              <Link href="/master/cast-comp/plan" className="nox-link" style={{ display: "inline-block" }}>待遇プラン・報酬シミュレーターへ</Link>
+              <div className="nox-actions">{/* ★便 M3 M-24 */}
+                <Link href="/master/cast-comp/plan" style={{ ...btnGhost, textDecoration: "none", display: "inline-flex", alignItems: "center" }} data-cast-link-plan="1">待遇プラン・報酬シミュレーター</Link>
+              </div>
             </>
           )}
 
