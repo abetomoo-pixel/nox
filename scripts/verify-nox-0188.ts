@@ -77,7 +77,7 @@ async function main() {
     sN.withholding === 0 && sN.net === 15000 && sN.withholdingNote === "対象外" && sH.withholding === 1531 && sO.withholding === 1531 && sO.withholdingNote === "その他 204 条", { sN, sH: sH.withholding, sO: sO.withholding });
   const swp = src("app/(manage)/staff/staff-work-panel.tsx"), tax = src("app/(manage)/master/sensitive-tax-panel.tsx");
   check("0188(C-6) 配線＝スタッフの勤怠・報酬は withholding_rate を読まない（フラグ true の select に無い）・区分の選択肢は withholdingKindChoices・注記（data-withholding-kind-note）・キャスト詳細も同じ",
-    swp.includes('mig0188On() ? supabase.from("staff_contracts").select("membership_id, contract_kind, hourly, fixed_allowance, tax_class")') && swp.includes("withholdingKindChoices().map(") && swp.includes('data-withholding-kind-note="1"') && !swp.includes("WITHHOLDING_KINDS.map(")
+    swp.includes('mig0188On() ? supabase.from("staff_contracts").select("membership_id, contract_kind, hourly, fixed_allowance, tax_class, pay_kind, monthly, daily")') /* ★便 M3 M-21: 給与の形を足す（withholding_rate は無いまま） */ && !(swp.split('mig0188On() ? supabase.from("staff_contracts").select("')[1] ?? "").split('")')[0].includes("withholding_rate") && swp.includes("withholdingKindChoices().map(") && swp.includes('data-withholding-kind-note="1"') && !swp.includes("WITHHOLDING_KINDS.map(")
     && tax.includes("withholdingKindChoices().map(") && tax.includes('data-withholding-kind-note="1"') && tax.includes("{WITHHOLDING_KIND_SELECT_NOTE}") && !tax.includes("WITHHOLDING_KINDS.map("));
 
   // ── (D) 日払い ──
