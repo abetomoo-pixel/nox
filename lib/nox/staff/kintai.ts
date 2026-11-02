@@ -13,10 +13,23 @@ export function staffPunchHmOf(bizDate: string, punchedAt: string): string {
   if (ymd > bizDate) h += 24;
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
-/** 1 人 1 か月の行（打刻のある営業日だけ・日付順）。todayBiz＝営業日の今日（out の無い今日＝勤務中・過去＝退勤記録なし） */
-export function staffDayRowsOf(punches: readonly StaffPunch[], todayBiz: string): AttendanceDayRow[] {
+/** ★0192 ★1: 店が付ける日の区分（staff_attendance_days.status）＝出勤／当欠／遅刻／早退 */
+export type StaffDayStatus = "present" | "absent" | "late" | "early";
+export const STAFF_DAY_STATUS_LABEL: Record<StaffDayStatus, string> = { present: "出勤", absent: "当欠", late: "遅刻", early: "早退" };
+export const isStaffDayStatus = (v: unknown): v is StaffDayStatus => v === "present" || v === "absent" || v === "late" || v === "early";
+/** ★0192 ★1: 営業日 bizDate の時刻 HH:MM（0〜47 域＝24 以上は翌暦日）→ ISO（JST）。形が違えば null */
+export function staffHmToIso(bizDate: string, hm: string): string | null {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(hm.trim()); if (!m) return null;
+  const h = Number(m[1]), mi = Number(m[2]); if (h > 47 || mi > 59) return null;
+  const base = Date.parse(`${bizDate}T00:00:00+09:00`); if (!Number.isFinite(base)) return null;
+  return new Date(base + (h * 60 + mi) * 60_000).toISOString();
+}
+/** 1 人 1 か月の行（打刻のある営業日＋区分だけの日・日付順）。todayBiz＝営業日の今日（out の無い今日＝勤務中・過去＝退勤記録なし）。
+ *  ★0192 ★1: status（営業日→区分）があれば 遅刻／当欠／早退 に反映（当欠は打刻が無くても行を出す） */
+export function staffDayRowsOf(punches: readonly StaffPunch[], todayBiz: string, status: Readonly<Record<string, StaffDayStatus>> = {}): AttendanceDayRow[] {
   const byDate = new Map<string, StaffPunch[]>();
   for (const p of punches) (byDate.get(p.biz_date) ?? byDate.set(p.biz_date, []).get(p.biz_date)!).push(p);
+  for (const d of Object.keys(status)) if (!byDate.has(d)) byDate.set(d, []);
   const hours = new Map(staffHoursOf(punches).map((d) => [d.bizDate, d]));
   const out: AttendanceDayRow[] = [];
   for (const [bizDate, rows] of [...byDate.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
@@ -24,7 +37,7 @@ export function staffDayRowsOf(punches: readonly StaffPunch[], todayBiz: string)
     const firstIn = sorted.find((p) => p.kind === "in") ?? null; const lastOut = [...sorted].reverse().find((p) => p.kind === "out") ?? null;
     const h = hours.get(bizDate); const open = h?.open ?? false;
     out.push({ bizDate, shift: null, inHm: firstIn ? staffPunchHmOf(bizDate, firstIn.punched_at) : null, outHm: lastOut && !open ? staffPunchHmOf(bizDate, lastOut.punched_at) : null, corrections: [],
-      late: false, absent: false, early: false, contactAt: null, hours: Math.round(((h?.minutes ?? 0) / 60) * 10) / 10, basis: "punch", okuri: { n: 0, modes: [] }, note: "",
+      late: status[bizDate] === "late", absent: status[bizDate] === "absent", early: status[bizDate] === "early", contactAt: null, hours: Math.round(((h?.minutes ?? 0) / 60) * 10) / 10, basis: "punch", okuri: { n: 0, modes: [] }, note: "",
       missingOut: open && bizDate < todayBiz, missingIn: !firstIn && !!lastOut, working: open && bizDate >= todayBiz, future: bizDate > todayBiz, final: firstIn ? "ok" : null,
       inPunchId: null, outPunchId: null, shiftId: null, cancelled: false }); // 修正・取消はスタッフに器が無い（0190／0191 へ）＝null／false
   }

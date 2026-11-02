@@ -9,6 +9,7 @@ import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import Toast from "@/components/ui/toast";
 import { rpcErrJa } from "@/lib/nox/ui/rpc-err";
+import { mig0192On } from "@/lib/nox/rules-0175/flag"; // ★0192 M-34: アカウント未発行のキャストも店が設定（availability_set_cast＝cast_id で持つ）
 import { notifyCast } from "@/lib/nox/people/notify"; // ★便 ON-3（0176 ★5 (d)・裁定413 の「相手に通知」）: 店が変えたら本人へ
 import { AVAILABILITY_CHANGED_BODY, notifRefOf } from "@/lib/nox/people/notify-text";
 import { AVAIL_LABEL, DOW_JA, availChipsOf, availFormOf, availPatchOf, canEditTimeOf, emptyAvailForm, type Avail, type AvailForm, type AvailRow, type AvailTerms } from "@/lib/nox/rules-0175/availability";
@@ -27,6 +28,8 @@ export default function AvailabilityEditor({ castId, storeId, employment, bySelf
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ kind: "success" | "error"; text: string } | null>(null);
   const timeEditable = canEditTimeOf(employment, bySelf);
+  const noAccount = !membershipId && mig0192On() && !bySelf; // ★0192 M-34: 未発行＝店が cast_id で置く（本人の確認は初回ログイン後の保存で membership へ引き取る）
+  const canEdit = !!membershipId || noAccount;
 
   const load = useCallback(async () => {
     // ★便 ON-1（2026-10-26）: memberships に cast_id 列は無い（user × store）＝casts.user_id → memberships（store・active）で解く
@@ -35,11 +38,16 @@ export default function AvailabilityEditor({ castId, storeId, employment, bySelf
     const { data: m } = uid ? await supabase.from("memberships").select("id").eq("user_id", uid).eq("store_id", storeId).eq("is_active", true).limit(1).maybeSingle() : { data: null };
     const mid = (m?.id as string | undefined) ?? null;
     setMembershipId(mid);
-    if (!mid) { setLoaded(true); return; }
-    const [{ data: rows }, { data: terms }] = await Promise.all([
+    if (!mid && !mig0192On()) { setLoaded(true); return; }
+    const byCast = async () => Promise.all([ // ★0192 M-34: 未発行のうちに店が置いた行（membership_id null・cast_id）
+      supabase.from("availability").select("dow, avail, from_min, to_min, memo").is("membership_id", null).eq("cast_id", castId).order("dow"),
+      supabase.from("availability_terms").select("week_days_target, fixed_off_dows, effective_from, memo").is("membership_id", null).eq("cast_id", castId).maybeSingle(),
+    ]);
+    let [{ data: rows }, { data: terms }] = mid ? await Promise.all([
       supabase.from("availability").select("dow, avail, from_min, to_min, memo").eq("membership_id", mid).order("dow"),
       supabase.from("availability_terms").select("week_days_target, fixed_off_dows, effective_from, memo").eq("membership_id", mid).maybeSingle(),
-    ]);
+    ]) : await byCast();
+    if (mid && mig0192On() && (rows ?? []).length === 0 && !terms) [{ data: rows }, { data: terms }] = await byCast(); // 発行後まだ本人が保存していない＝店が置いた行を見せる（保存で引き取る）
     setForm(availFormOf((rows ?? []) as Partial<AvailRow>[], (terms ?? null) as Partial<AvailTerms> | null));
     setLoaded(true);
   }, [supabase, castId, storeId]); // ★便 ON-1: storeId で membership を解く（lint exhaustive-deps）
@@ -47,11 +55,14 @@ export default function AvailabilityEditor({ castId, storeId, employment, bySelf
 
   const setRow = (dow: number, patch: Partial<AvailRow>) => setForm((f) => ({ ...f, rows: f.rows.map((r) => (r.dow === dow ? { ...r, ...patch } : r)) }));
   async function save() {
-    if (busy || !membershipId) return; setBusy(true); setMsg(null);
-    const { error } = await supabase.rpc("availability_set", { p_membership_id: membershipId, ...availPatchOf(form) });
+    if (busy || !canEdit) return; setBusy(true); setMsg(null);
+    const { error } = membershipId
+      ? await supabase.rpc("availability_set", { p_membership_id: membershipId, ...availPatchOf(form) })
+      : await supabase.rpc("availability_set_cast", { p_cast_id: castId, ...availPatchOf(form) }); // ★0192 M-34
     setBusy(false);
     if (error) { setMsg({ kind: "error", text: `保存に失敗: ${rpcErrJa(error.message)}` }); return; }
     // ★便 ON-3: 店側（bySelf=false）の保存＝本人へ通知（cast_notifications availability_changed＋LINE）。本人側の保存＝店は audit と詳細の表示で知る（本人→店の通知の器は無い）
+    if (!membershipId) { setMsg({ kind: "success", text: "基本の働き方を保存しました（本人はアカウント発行後に確認します）" }); setEdit(false); await load(); return; } // ★0192 M-34: 未発行＝通知先なし
     if (!bySelf) void notifyCast(supabase, { castId, kind: "availability_changed", body: AVAILABILITY_CHANGED_BODY, ref: notifRefOf("availability", membershipId) });
     setMsg({ kind: "success", text: bySelf ? "基本の働き方を保存しました" : "基本の働き方を保存し、本人に通知しました" }); setEdit(false); await load();
   }

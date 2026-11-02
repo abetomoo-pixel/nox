@@ -8,7 +8,7 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link"; // ★便 M3 M-23 ②: 「日ごとの勤怠を開く」（給与 › 勤怠（スタッフ）へ）
 import BottomSheet, { useNarrow } from "@/components/ui/bottom-sheet"; // ★便 M3 M-23 ③: 390px＝シート化（C2-7 と同型）
 import KintaiRow, { KintaiHead } from "@/components/nox/kintai-row"; // ★便 M3 M-23 ①: キャストの勤怠と同じ部品
-import { staffDayPayOf, staffDayRowsOf, staffPayHeadOf } from "@/lib/nox/staff/kintai";
+import { STAFF_DAY_STATUS_LABEL, isStaffDayStatus, staffDayPayOf, staffDayRowsOf, staffHmToIso, staffPayHeadOf, type StaffDayStatus } from "@/lib/nox/staff/kintai";
 import SegSelect from "@/components/ui/seg-select";
 import MoneyInput from "@/components/ui/money-input";
 import { rpcErrJa } from "@/lib/nox/ui/rpc-err";
@@ -17,7 +17,7 @@ import * as t from "@/lib/nox/ui/theme";
 import { ResponsiveTable } from "@/components/ui/responsive-kit";
 import { Message } from "@/components/ui/toast";
 import { staffContractLineOf, hmOf, staffHoursOf, staffMonthRangeOf, staffPayOf, type StaffContract, type StaffPunch } from "@/lib/nox/staff/pay";
-import { mig0183On, mig0188On } from "@/lib/nox/rules-0175/flag"; // ★裁定432（0183 ★4）
+import { mig0183On, mig0188On, mig0192On } from "@/lib/nox/rules-0175/flag"; // ★裁定432（0183 ★4）・★0192 ★1／M-38: スタッフ勤怠の修正・確定・退勤の取消
 import Withholding432Panel from "@/components/nox/withholding-432-panel";
 import { WITHHOLDING_ADVICE_NOTE, WITHHOLDING_KIND_LABEL, WITHHOLDING_KIND_SELECT_NOTE, WITHHOLDING_KIND_SHORT, PAYMENT_REPORT_NOTE, defaultWithholdingKindOf, withholdingKindChoices, withholdingKindOf, type EmployeeDeductionKind, type EmployeeDeductionRow } from "@/lib/nox/payroll/withholding-kind";
 
@@ -48,6 +48,12 @@ export default function StaffWorkPanel({ scope, stores, daily = false, initialMe
   const [w432, setW432] = useState<{ kind: Record<string, string | null>; ov: Record<string, number>; ded: Record<string, EmployeeDeductionRow[]> }>({ kind: {}, ov: {}, ded: {} });
   const [openMem, setOpenMem] = useState<string | null>(null);
   const [kindMsg, setKindMsg] = useState<string | null>(null); // ★便 P174 T-7: staff_payroll_runs（読取のみ・owner／manager）
+  // ★0192 ★1: 店が付けた区分（membership|営業日→区分）・確定済みの店（この月）・日の編集フォーム（出退は 0〜47 域の HH:MM）
+  const [dayStatus, setDayStatus] = useState<Record<string, StaffDayStatus>>({});
+  const [lockedStores, setLockedStores] = useState<Set<string>>(new Set());
+  const [dayEdit, setDayEdit] = useState<{ mem: string; date: string; punches: boolean; inHm: string; outHm: string; status: "" | StaffDayStatus; note: string } | null>(null);
+  const [attMsg, setAttMsg] = useState<{ kind: "success" | "error"; text: string } | null>(null);
+  const [attBusy, setAttBusy] = useState(false);
 
   const load = useCallback(async () => {
     setErr(null);
@@ -68,6 +74,14 @@ export default function StaffWorkPanel({ scope, stores, daily = false, initialMe
     setPunches((pp.data ?? []) as StaffPunch[]);
     if (scope === "store") { const { data: rr } = await supabase.from("staff_payroll_runs").select("status").eq("period", month).limit(1); setRun(((rr ?? []) as { status: string }[])[0] ?? null); }
     if (stores[0]?.id) { const { data: tb } = await supabase.rpc("biz_date_of", { p_store_id: stores[0].id, p_at: new Date().toISOString() }); if (typeof tb === "string") setTodayBiz(tb); } // ★便 M3 M-23: 営業日の今日（勤務中／退勤記録なしの判定）
+    if (mig0192On() && scope === "store") { // ★0192 ★1: 区分と月の確定（RLS＝owner 全店／manager 自店）
+      const [ds, ls] = await Promise.all([
+        supabase.from("staff_attendance_days").select("membership_id, biz_date, status").gte("biz_date", from).lte("biz_date", to),
+        supabase.from("staff_attendance_locks").select("store_id").eq("period", month),
+      ]);
+      setDayStatus(Object.fromEntries(((ds.data ?? []) as { membership_id: string; biz_date: string; status: string }[]).filter((r) => isStaffDayStatus(r.status)).map((r) => [`${r.membership_id}|${r.biz_date}`, r.status as StaffDayStatus])));
+      setLockedStores(new Set(((ls.data ?? []) as { store_id: string }[]).map((r) => r.store_id)));
+    }
     if (mig0183On()) { // ★裁定432
       const [kk, oo, dd] = await Promise.all([
         supabase.from("staff_contracts").select("membership_id, withholding_kind"),
@@ -184,7 +198,38 @@ export default function StaffWorkPanel({ scope, stores, daily = false, initialMe
       )}
       {daily && dailyMem && (() => { /* ★便 M3 M-23 ①③: 1 人 1 か月の日ごとの勤怠＝キャストと同じ部品（KintaiHead／KintaiRow・withPay なし）＋時給分／日計（時給制だけ）・月給は — */
         const r = rows.find((x) => x.m.id === dailyMem); if (!r) return null;
-        const dayRows = staffDayRowsOf(punches.filter((p) => p.membership_id === r.m.id), todayBiz);
+        const statusOfMem = Object.fromEntries(Object.entries(dayStatus).filter(([key]) => key.startsWith(`${r.m.id}|`)).map(([key, v]) => [key.slice(r.m.id.length + 1), v])); // ★0192 ★1
+        const dayRows = staffDayRowsOf(punches.filter((p) => p.membership_id === r.m.id), todayBiz, statusOfMem);
+        const att = mig0192On() && scope === "store"; // ★0192 ★1／M-38: 店の修正・確定・退勤の取消
+        const monthLocked = lockedStores.has(r.m.store_id);
+        const todayOutRow = dayRows.find((d) => d.bizDate === todayBiz && !!d.outHm) ?? null;
+        const openDay = (d: { bizDate: string; inHm: string | null; outHm: string | null }) => setDayEdit({ mem: r.m.id, date: d.bizDate, punches: false, inHm: d.inHm ?? "", outHm: d.outHm ?? "", status: statusOfMem[d.bizDate] ?? "", note: "" });
+        const saveDay = async () => {
+          if (!dayEdit || attBusy) return;
+          const inIso = dayEdit.punches && dayEdit.inHm.trim() ? staffHmToIso(dayEdit.date, dayEdit.inHm) : null;
+          const outIso = dayEdit.punches && dayEdit.outHm.trim() ? staffHmToIso(dayEdit.date, dayEdit.outHm) : null;
+          if (dayEdit.punches && ((dayEdit.inHm.trim() && !inIso) || (dayEdit.outHm.trim() && !outIso))) { setAttMsg({ kind: "error", text: "時刻は 18:30／26:15 の形で入れてください（24 以上は翌日）" }); return; }
+          setAttBusy(true); setAttMsg(null);
+          const { error } = await supabase.rpc("staff_attendance_set", { p_membership_id: dayEdit.mem, p_biz_date: dayEdit.date, p_punches: dayEdit.punches === true, p_in: inIso, p_out: outIso, p_status: dayEdit.status || null, p_note: dayEdit.note });
+          setAttBusy(false);
+          if (error) { const m = error.message; setAttMsg({ kind: "error", text: m.includes("confirmed") ? "この月は確定済みです（解除はオーナー）" : m.includes("bad time") ? "時刻が営業日に合いません（退勤は出勤より後・24 時間以内）" : `保存に失敗: ${rpcErrJa(m)}` }); return; }
+          setDayEdit(null); setAttMsg({ kind: "success", text: "勤怠を保存しました" }); await load();
+        };
+        const confirmMonth = async (lock: boolean) => {
+          if (attBusy) return; setAttBusy(true); setAttMsg(null);
+          const { error } = await supabase.rpc("staff_attendance_confirm", { p_store_id: r.m.store_id, p_period: month, p_lock: lock === true });
+          setAttBusy(false);
+          if (error) { setAttMsg({ kind: "error", text: error.message.includes("forbidden") ? (lock ? "権限がありません（自店の店長以上）" : "確定の解除はオーナーのみです") : `失敗: ${rpcErrJa(error.message)}` }); return; }
+          setAttMsg({ kind: "success", text: lock ? `${month.replace("-", "/")} のスタッフ勤怠を確定しました` : "確定を解除しました" }); await load();
+        };
+        const cancelOut = async () => {
+          if (attBusy || !window.confirm(`${r.name} の今日の退勤（${todayOutRow?.outHm ?? ""}）を取り消して勤務中に戻しますか`)) return;
+          setAttBusy(true); setAttMsg(null);
+          const { error } = await supabase.rpc("staff_punch_cancel_out", { p_membership_id: r.m.id });
+          setAttBusy(false);
+          if (error) { setAttMsg({ kind: "error", text: error.message.includes("not out") ? "今日の最後の打刻が退勤ではないため取り消せません" : error.message.includes("confirmed") ? "この月は確定済みです" : `取り消しに失敗: ${rpcErrJa(error.message)}` }); return; }
+          setAttMsg({ kind: "success", text: `${r.name} の今日の退勤を取り消しました` }); await load();
+        };
         const c = r.contract as (StaffContract & { pay_kind?: string | null; monthly?: number | null; daily?: number | null }) | null;
         const hourly = (c?.pay_kind ?? (c && c.hourly > 0 ? "hourly" : "monthly")) === "hourly";
         const timePay = dayRows.reduce((a, d) => a + (staffDayPayOf(c, d) ?? 0), 0);
@@ -194,10 +239,43 @@ export default function StaffWorkPanel({ scope, stores, daily = false, initialMe
             <p className="num" style={{ ...t.sub, margin: "0 0 6px" }} data-staff-daily-total={`${r.days.length}:${r.days.reduce((a, d) => a + d.minutes, 0)}`}>出勤 {dayRows.filter((d) => d.inHm).length} 日・実働 {hmOf(r.days.reduce((a, d) => a + d.minutes, 0))}{hourly ? <>・時給分 {yen(timePay)}</> : <>・時給分 —（{staffPayHeadOf(c)}）</>}</p>
             <div className="nox-kintai-scroll" style={{ overflowX: "auto", maxWidth: "100%" }}><table className="nox-table nox-kintai-table" style={{ width: "100%" }}>
               <KintaiHead withPay={false} />
-              <tbody>{dayRows.map((d) => <KintaiRow key={d.bizDate} r={d} withBy={false} withPay={false} onEdit={null} onFix={null} onConfirmShift={null} />)}</tbody>
+              <tbody>{dayRows.map((d) => <KintaiRow key={d.bizDate} r={d} withBy={false} withPay={false} onEdit={att && !monthLocked ? (row) => openDay(row) : null} onFix={null} onConfirmShift={null} />)}</tbody>
               <tfoot><tr><td colSpan={9} style={{ ...t.td, fontWeight: 800 }}>日計の合計（時給分）</td><td className="num" style={{ ...t.td, textAlign: "right", fontWeight: 800 }} data-staff-daily-pay={hourly ? timePay : ""}>{hourly ? yen(timePay) : "—"}</td></tr></tfoot>
             </table></div>
-            <p style={{ ...t.sub, margin: "6px 0 0" }}>日計＝時給×実働（時給制だけ・月給／日給は —）。打刻の修正・シフト無し出勤の確定はスタッフの器が無いため 0190／0191 の後（キャストの勤怠と同じ部品）。</p>
+            {att ? (/* ★0192 ★1／M-38 */
+              <div data-staff-att="0192" style={{ display: "grid", gap: 8, marginTop: 8 }}>
+                <div className="nox-actions" style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                  {monthLocked ? <span className="nox-stpill" data-staff-att-locked="1">この月は確定済み</span> : <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} data-staff-att-add="1" disabled={attBusy} onClick={() => openDay({ bizDate: todayBiz, inHm: null, outHm: null })}>＋ 日を追加・修正</button>}
+                  {!monthLocked && todayOutRow && <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} data-staff-cancel-out="1" disabled={attBusy} onClick={() => void cancelOut()}>今日の退勤を取り消す</button>}
+                  {monthLocked
+                    ? <button type="button" style={{ ...t.btnGhost, ...t.btnSm, marginLeft: "auto" }} data-staff-att-unlock="1" disabled={attBusy} onClick={() => void confirmMonth(false)}>確定を解除（オーナー）</button>
+                    : <button type="button" style={{ ...t.btnGold, ...t.btnSm, marginLeft: "auto" }} data-staff-att-lock="1" disabled={attBusy} onClick={() => { if (window.confirm(`${month.replace("-", "/")} のスタッフ勤怠を確定しますか（以後この月の修正・取消はできません）`)) void confirmMonth(true); }}>この月を確定</button>}
+                </div>
+                {dayEdit && dayEdit.mem === r.m.id && (
+                  <div data-staff-day-edit={dayEdit.date} style={{ display: "grid", gap: 6, padding: 10, border: "1px solid var(--line2)", borderRadius: 8 }}>
+                    <label style={{ display: "grid", gap: 3 }}><span style={t.fieldLabel}>営業日</span><input type="date" value={dayEdit.date} onChange={(e) => setDayEdit({ ...dayEdit, date: e.target.value })} style={{ ...t.input, width: "auto" }} /></label>
+                    <label style={{ display: "inline-flex", gap: 6, alignItems: "center", fontSize: 12.5 }}><input type="checkbox" checked={dayEdit.punches} onChange={(e) => setDayEdit({ ...dayEdit, punches: e.target.checked })} />打刻を差し替える（下の出勤・退勤で置き換え・空欄は打たない）</label>
+                    {dayEdit.punches && (
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                        <label style={{ display: "grid", gap: 3 }}><span style={t.fieldLabel}>出勤</span><input value={dayEdit.inHm} placeholder="19:00" inputMode="numeric" onChange={(e) => setDayEdit({ ...dayEdit, inHm: e.target.value })} style={{ ...t.input, width: 90 }} /></label>
+                        <label style={{ display: "grid", gap: 3 }}><span style={t.fieldLabel}>退勤（24 以上＝翌日）</span><input value={dayEdit.outHm} placeholder="25:30" inputMode="numeric" onChange={(e) => setDayEdit({ ...dayEdit, outHm: e.target.value })} style={{ ...t.input, width: 90 }} /></label>
+                      </div>
+                    )}
+                    <label style={{ display: "grid", gap: 3 }}><span style={t.fieldLabel}>区分</span>
+                      <select value={dayEdit.status} onChange={(e) => setDayEdit({ ...dayEdit, status: isStaffDayStatus(e.target.value) ? e.target.value : "" })} style={{ ...t.input, width: "auto" }}>
+                        <option value="">（なし）</option>{(Object.keys(STAFF_DAY_STATUS_LABEL) as StaffDayStatus[]).map((v) => <option key={v} value={v}>{STAFF_DAY_STATUS_LABEL[v]}</option>)}
+                      </select></label>
+                    <label style={{ display: "grid", gap: 3 }}><span style={t.fieldLabel}>メモ（200 字まで・監査に残ります）</span><input value={dayEdit.note} maxLength={200} onChange={(e) => setDayEdit({ ...dayEdit, note: e.target.value })} style={t.input} /></label>
+                    <div className="nox-actions" style={{ display: "flex", gap: 8 }}>
+                      <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} onClick={() => setDayEdit(null)}>キャンセル</button>
+                      <button type="button" style={{ ...t.btnGold, ...t.btnSm }} data-staff-day-save="1" disabled={attBusy || !dayEdit.date} onClick={() => void saveDay()}>保存</button>
+                    </div>
+                  </div>
+                )}
+                {attMsg && <Message kind={attMsg.kind} style={{ margin: 0 }}>{attMsg.text}</Message>}
+                <p style={{ ...t.sub, margin: 0 }}>日計＝時給×実働（時給制だけ・月給／日給は —）。日付を押すとその日を修正できます（打刻の差し替え・当欠／遅刻／早退）。月を確定すると以後の修正と退勤の取消はできません（解除はオーナー）。</p>
+              </div>
+            ) : <p style={{ ...t.sub, margin: "6px 0 0" }}>日計＝時給×実働（時給制だけ・月給／日給は —）。打刻の修正・シフト無し出勤の確定はスタッフの器が無いため 0190／0191 の後（キャストの勤怠と同じ部品）。</p>}
           </div>);
         return narrow
           ? <BottomSheet onClose={() => setDailyMem(null)} title={title} testId="staff-kintai">{table}</BottomSheet>

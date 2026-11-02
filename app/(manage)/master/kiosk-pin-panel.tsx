@@ -164,6 +164,18 @@ export default function KioskPinPanel({ stores, isOwner }: { stores: Store[]; is
     void loadPolicy(polStoreId);
   }
 
+  // ★0192 M-39: ロックの解除（staff_pin_unlock／cast_pin_unlock＝owner 全店／manager 自店・fail_count 0・locked_until null・audit）。0192 未適用はボタンを出さない
+  async function unlockPin(kind: "staff" | "cast", id: string) {
+    setBusy(true); setPinMsg("");
+    const { error } = kind === "staff"
+      ? await supabase.rpc("staff_pin_unlock", { p_membership_id: id })
+      : await supabase.rpc("cast_pin_unlock", { p_cast_id: id });
+    setBusy(false);
+    if (error) { const m = error.message; setPinMsg(m.includes("no pin") ? "PIN が未設定です" : m.includes("forbidden") ? "権限がありません（自店の担当のみ解除できます）" : m.includes("billing locked") ? "課金が停止中のため変更できません" : m); return; }
+    setPinMsg("ロックを解除しました（失敗回数も 0 に）");
+    if (kind === "staff") void loadPinStatus(); else void loadCastRows();
+  }
+
   const canSubmit = (mig0191On() ? /^[0-9]{4,6}$/ : /^[0-9]{4}$/).test(newPin) && newPin === confirmPin;   // ★0191 ★3
 
   const hhmm = (iso: string) => {
@@ -226,6 +238,7 @@ export default function KioskPinPanel({ stores, isOwner }: { stores: Store[]; is
                     </td>
                     <td style={{ padding: 6 }}>
                       <button style={btn} disabled={busy} onClick={() => openPinModal(m)}>再設定</button>
+                      {mig0192On() && locked && <button style={{ ...btn, marginLeft: 6 }} data-pin-unlock={m.id} disabled={busy} onClick={() => void unlockPin("staff", m.id)}>解除</button>}{/* ★0192 M-39 */}
                     </td>
                   </tr>
                 );
@@ -249,7 +262,10 @@ export default function KioskPinPanel({ stores, isOwner }: { stores: Store[]; is
                       <span className="num">{c.fail_count}</span><small style={{ color: "var(--sub)" }}>回</small>
                       {locked && c.locked_until && <small style={{ display: "block", color: "var(--bad)", fontWeight: 700 }}>ロック中 {hhmm(c.locked_until)} まで</small>}
                     </td>
-                    <td style={{ padding: 6 }}><Link href="/casts" style={{ fontSize: 12, color: "var(--champ)" }}>キャスト詳細で設定</Link></td>
+                    <td style={{ padding: 6 }}>
+                      <Link href="/casts" style={{ fontSize: 12, color: "var(--champ)" }}>キャスト詳細で設定</Link>
+                      {locked && <button style={{ ...btn, marginLeft: 6 }} data-pin-unlock={c.cast_id} disabled={busy} onClick={() => void unlockPin("cast", c.cast_id)}>解除</button>}{/* ★0192 M-39（castRows は 0192 適用後だけ並ぶ） */}
+                    </td>
                   </tr>
                 );
               })}
@@ -286,7 +302,7 @@ export default function KioskPinPanel({ stores, isOwner }: { stores: Store[]; is
               {LOCK_MIN_OPTIONS.map((n) => <option key={n} value={n}>{n}分</option>)}
             </select>
           </label>
-          <div style={t.bdRow}><span style={t.bdKey}>ロック解除</span><span style={t.bdVal}>正しい PIN の入力・または PIN の再設定で即時解除</span></div>
+          <div style={t.bdRow}><span style={t.bdKey}>ロック解除</span><span style={t.bdVal}>{mig0192On() ? "左の表の「解除」・PIN の再設定・または時間の経過で解除" : "正しい PIN の入力・または PIN の再設定で即時解除"}</span></div>
           {isOwner ? (
             <div className="nox-actions">
               <button style={btnOn} disabled={polBusy || !polStoreId} onClick={() => void savePolicy()}>ポリシーを保存</button>

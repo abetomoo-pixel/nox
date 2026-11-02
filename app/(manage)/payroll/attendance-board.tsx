@@ -28,6 +28,7 @@ import type { BusinessHourRow } from "@/lib/nox/business-hours";
 import { shiftMonthHrefOf } from "@/lib/nox/payroll/view";
 import { monthLastDayOf } from "@/lib/nox/month"; // ★便 M-10: この月のシフトを開く＝公開済みなら確定シフト・無ければ ③配置（同月）
 import { createClient } from "@/lib/supabase/client";
+import { mig0192On } from "@/lib/nox/rules-0175/flag"; // ★0192 M-38: 退勤の取消（punch_cancel_out）
 
 type Sheet = KintaiSheet;
 type CastSheet = KintaiCast;
@@ -106,6 +107,17 @@ export default function AttendanceBoard({ stores, initialStoreId, initialPeriod,
   const payNote = sheet ? payTotalsNoteOf(finalized, sheet.todayBiz) : "";
 
   const onSaved = async (m: string) => { setEdit(null); setMsg(m); await load(); };
+  // ★0192 M-38: 退勤の取消＝当営業日の最後の打刻が out のときだけ消す（出勤中に戻る・audit 'punch_cancel_out'）。押し間違いの退勤を店長が戻す
+  const todayOut = sel && sheet ? sel.rows.find((r) => r.bizDate === sheet.todayBiz && !!r.outHm && !r.cancelled) ?? null : null;
+  async function cancelOut() {
+    if (!sel || busy) return;
+    if (!window.confirm(`${sel.castName} の今日の退勤（${todayOut?.outHm ?? ""}）を取り消して出勤中に戻しますか`)) return;
+    setBusy(true); setMsg(null);
+    const { error } = await createClient().rpc("punch_cancel_out", { p_cast_id: sel.castId });
+    setBusy(false);
+    if (error) { setMsg(error.message.includes("not out") ? "今日の最後の打刻が退勤ではないため取り消せません" : error.message.includes("forbidden") ? "権限がありません（自店のキャストのみ）" : `取り消しに失敗: ${error.message}`); return; }
+    setMsg(`${sel.castName} の今日の退勤を取り消しました（出勤中に戻りました）`); await load();
+  }
 
   // ── ②1 人 1 か月の表（下に描く／狭い幅はシートの中身） ──
   const detailActions = sel && (
@@ -114,6 +126,7 @@ export default function AttendanceBoard({ stores, initialStoreId, initialPeriod,
       <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} data-kintai-csv="1" onClick={() => downloadCsv(sel)}>CSV</button>
       <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} data-kintai-print="1" onClick={() => window.print()}>印刷用</button>
       {canEdit && <button type="button" style={{ ...t.btnGold, ...t.btnSm }} data-kintai-add="1" onClick={() => setEdit({ mode: "add" })}>＋ 日を追加</button>}
+      {mig0192On() && todayOut && <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} data-kintai-cancel-out="1" disabled={busy} onClick={() => void cancelOut()}>今日の退勤を取り消す</button>}{/* ★0192 M-38 */}
     </>
   );
   const detailTable = sel && (

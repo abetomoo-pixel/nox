@@ -2,11 +2,14 @@
 //   起動＝0163 の pg_cron → pg_net → 本 route（GET＋Authorization: Bearer CRON_SECRET・URL と秘密は Vault）。店ごとに 1 job（?org=<店コード>）・
 //   30 分後の再試行 job（?retry=1＝その日の営業日にまだ reset されていない org だけ）。org 指定なし＝is_demo の全 org を名前順に。
 //   ★vercel.json の crons には足さない（裁定276-5＝Hobby の上限 2 本）。手動起動は同ヘッダで GET。
-//   失敗は audit 'demo.reset.failed'（audit_log_write_service・service）に残す＝再試行の材料（reset_design §4 ★3）。
+//   失敗は audit 'demo.reset.failed' に残す＝再試行の材料（reset_design §4 ★3）。★0192（0192_plan 項目 9・案 A）: audit_log_write_service は 0135 から内部専用（4 ロール revoke）＝
+//   service_role から直に呼ぶと permission denied（毎回）だったため、cron 専用の demo_reset_mark_failed（service_role だけが EXECUTE）経由に切り替え（0192 未適用の間は console だけ）。
+//   ★0192: 1 店でも失敗したら応答は ok:false＋HTTP 500（pg_net の job 結果が failed になる）。
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { bizDateOf } from "@/lib/nox/biz-date";
 import { afterResetHooks, buildPayload, demoOrgName, isDemoStore, runDemoReset } from "@/lib/nox/demo/seed";
+import { mig0192On } from "@/lib/nox/rules-0175/flag";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -43,13 +46,15 @@ export async function GET(req: Request) {
     await afterResetHooks(admin, orgId, bizDate);
     results.push({ org: o.name as string, ok: true, mode: r.mode, chunks: r.chunks });
   }
-  return NextResponse.json({ ok: results.every((r) => r.ok), count: results.length, retry, results });
+  const ok = results.every((r) => r.ok);
+  return NextResponse.json({ ok, count: results.length, retry, results }, { status: ok ? 200 : 500 }); // ★0192: 1 店でも失敗＝failed
 }
 
-/** 失敗の記録（audit 'demo.reset.failed'・service 専用 RPC・無ければ console のみ） */
+/** 失敗の記録（audit 'demo.reset.failed'）。★0192: cron 専用 RPC demo_reset_mark_failed（service_role のみ）・0192 未適用は console のみ */
 async function markFailed(admin: ReturnType<typeof createAdminClient>, orgId: string, reason: string): Promise<void> {
+  if (!mig0192On()) { console.error(`cron demo-reset: failed ${orgId} ${reason.slice(0, 200)}`); return; }
   try {
-    const { error } = await admin.rpc("audit_log_write_service", { p_org_id: orgId, p_actor: null, p_action: "demo.reset.failed", p_target: `orgs:${orgId}`, p_before: null, p_after: { reason: reason.slice(0, 200) }, p_store_id: null, p_reason: null });
+    const { error } = await admin.rpc("demo_reset_mark_failed", { p_org_id: orgId, p_reason: reason.slice(0, 200) });
     if (error) console.error(`cron demo-reset: audit failed ${error.message}`);
   } catch (e) { console.error(`cron demo-reset: audit ${e instanceof Error ? e.message : String(e)}`); }
 }
