@@ -13,7 +13,8 @@
 //   ★モーダルの検証は 4桁・確認一致のみ（サーバに繰り返し禁止規則は無い＝逆転を作らない）。
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { mig0191On } from "@/lib/nox/rules-0175/flag"; // ★0191 ★3: PIN 4〜6 桁
+import { mig0191On, mig0192On } from "@/lib/nox/rules-0175/flag"; // ★0191 ★3: PIN 4〜6 桁・★便 M5 M-45: 0192 cast_pin_status
+import Link from "next/link"; // ★便 M5 M-45: キャストの行→キャスト詳細
 import * as t from "@/lib/nox/ui/theme";
 import Modal from "@/components/ui/modal";
 
@@ -21,7 +22,8 @@ import Toast, { Message } from "@/components/ui/toast"; // ★裁定281（便 U�
 type Store = { id: string; name: string };
 type OpMember = { id: string; store_id: string; role: string; user_name: string };
 type PinStatus = { membership_id: string; has_pin: boolean; fail_count: number; locked_until: string | null; pin_updated_at: string | null };
-const ROLE_LABEL: Record<string, string> = { owner: "オーナー", manager: "店長", staff: "スタッフ" };
+type CastPinRow = { cast_id: string; store_id: string; cast_name: string; has_pin: boolean; fail_count: number; locked_until: string | null }; // ★便 M5 M-45: 0192 cast_pin_status（owner＝全店／manager＝自店）
+const ROLE_LABEL: Record<string, string> = { owner: "オーナー", manager: "店長", staff: "スタッフ", cast: "キャスト" }; // ★便 M5 M-45: キャストの行
 
 const MAX_FAIL_OPTIONS = [3, 5, 10] as const;
 const LOCK_MIN_OPTIONS = [5, 10, 15, 30, 60] as const;
@@ -55,7 +57,8 @@ export default function KioskPinPanel({ stores, isOwner }: { stores: Store[]; is
   // ★M-11b: PIN ポリシー（店単位・settings_json の pin_lock_max_fail / pin_lock_minutes）
   const [polStoreId, setPolStoreId] = useState<string>(stores[0]?.id ?? "");
   const [maxFail, setMaxFail] = useState(5);
-  const [lockMin, setLockMin] = useState(15);
+  const [lockMin, setLockMin] = useState(10); // ★便 M5 M-46（裁定437）: 既定 10 分（kiosk_login＝0190 は 10 分・staff_punch＝0191 は 15 分→0192 で 10 分に）
+  const [castRows, setCastRows] = useState<CastPinRow[] | null>(null); // ★便 M5 M-45: null＝未読（0192 未適用は読まない）
   const [polMsg, setPolMsg] = useState("");
   const [polBusy, setPolBusy] = useState(false);
 
@@ -94,7 +97,20 @@ export default function KioskPinPanel({ stores, isOwner }: { stores: Store[]; is
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stores]);
 
-  // ポリシー実値の読取（stores.settings_json＝kiosk_login と同じキー・既定 5回/15分）
+  // ★便 M5 M-45: キャストのキオスク PIN の状態（設定はキャスト詳細のまま・ここは設定済み／未設定と失敗回数だけ）＝0192 cast_pin_status の配下
+  const loadCastRows = useCallback(async () => {
+    if (!mig0192On()) { setCastRows(null); return; }
+    const rows: CastPinRow[] = [];
+    for (const s of stores) {
+      const { data, error } = await supabase.rpc("cast_pin_status", { p_store_id: s.id });
+      if (error) continue;
+      for (const r of (data ?? []) as Omit<CastPinRow, "store_id">[]) rows.push({ ...r, store_id: s.id });
+    }
+    setCastRows(rows);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stores]);
+
+  // ポリシー実値の読取（stores.settings_json＝kiosk_login と同じキー・既定 5回/10分＝★便 M5 M-46）
   const loadPolicy = useCallback(async (storeId: string) => {
     if (!storeId) return;
     const { data } = await supabase.from("stores").select("settings_json").eq("id", storeId).single();
@@ -104,11 +120,11 @@ export default function KioskPinPanel({ stores, isOwner }: { stores: Store[]; is
       return Number.isFinite(n) ? n : d;
     };
     setMaxFail(asInt(sj.pin_lock_max_fail, 5));
-    setLockMin(asInt(sj.pin_lock_minutes, 15));
+    setLockMin(asInt(sj.pin_lock_minutes, 10)); // ★便 M5 M-46（裁定437）: 既定 10 分
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => { void loadOpMembers(); void loadPinStatus(); }, [loadOpMembers, loadPinStatus]);
+  useEffect(() => { void loadOpMembers(); void loadPinStatus(); void loadCastRows(); }, [loadOpMembers, loadPinStatus, loadCastRows]);
   useEffect(() => { void loadPolicy(polStoreId); }, [loadPolicy, polStoreId]);
 
   function openPinModal(m: OpMember) {
@@ -160,10 +176,10 @@ export default function KioskPinPanel({ stores, isOwner }: { stores: Store[]; is
       {/* ── 左: 操作担当PIN（主カード） ── */}
       <section className="nox-cardtop" style={card}>
         <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-          <h3 style={h3}>操作担当PIN</h3>
-          <span className="nox-stpill" style={{ marginLeft: "auto" }}>4桁</span>
+          <h3 style={h3}>PIN</h3>{/* ★便 M5 M-45: 2 系統を 1 つの一覧に＝操作担当 PIN（スタッフ・ここで設定）／キオスク PIN（キャスト・設定はキャスト詳細） */}
+          <span className="nox-stpill" style={{ marginLeft: "auto" }}>{mig0191On() ? "4〜6桁" : "4桁"}</span>
         </div>
-        <p style={sub}>レジ操作を担当者と紐付けます</p>
+        <p style={sub} data-pin-two-kinds="1">操作担当 PIN（オーナー・店長・スタッフ＝レジ操作を担当者と紐付ける・ここで設定）と、キオスク PIN（キャスト＝打刻・レジの本人確認・設定はキャスト詳細 › アカウント）</p>
         <div style={{ overflowX: "auto" }}>
           <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 12 }}>
             <thead>
@@ -211,6 +227,29 @@ export default function KioskPinPanel({ stores, isOwner }: { stores: Store[]; is
                     <td style={{ padding: 6 }}>
                       <button style={btn} disabled={busy} onClick={() => openPinModal(m)}>再設定</button>
                     </td>
+                  </tr>
+                );
+              })}
+              {/* ★便 M5 M-45: キャストの行（キオスク PIN＝設定済み／未設定と失敗回数だけ・設定はキャスト詳細）。0192 未適用＝1 行の案内 */}
+              {castRows === null ? (
+                <tr data-cast-pin-rows="pending"><td colSpan={5} style={{ padding: 8, color: "var(--sub)", fontSize: 11.5 }}>キャストのキオスク PIN の状態（設定済み／失敗回数）は 0192（cast_pin_status）の適用後にここに並びます。設定はキャスト詳細 › アカウント。</td></tr>
+              ) : castRows.map((c) => {
+                const locked = !!c.locked_until && new Date(c.locked_until).getTime() > Date.now();
+                return (
+                  <tr key={c.cast_id} data-cast-pin-row={c.cast_id} style={{ borderBottom: "1px solid var(--line)" }}>
+                    <td style={{ padding: 6 }}>
+                      <b>{c.cast_name}</b>
+                      <small style={{ display: "block", color: "var(--sub)" }}>{storeName(c.store_id)}</small>
+                    </td>
+                    <td style={{ padding: 6, whiteSpace: "nowrap" }}><span className="nox-stpill">{ROLE_LABEL.cast}</span></td>
+                    <td style={{ padding: 6, whiteSpace: "nowrap" }}>
+                      {c.has_pin ? <span className="num" style={{ letterSpacing: 2 }}>••••<small style={{ letterSpacing: 0, color: "var(--sub)" }}>（設定済）</small></span> : <span style={{ color: "var(--sub)" }}>未設定</span>}
+                    </td>
+                    <td style={{ padding: 6, whiteSpace: "nowrap" }}>
+                      <span className="num">{c.fail_count}</span><small style={{ color: "var(--sub)" }}>回</small>
+                      {locked && c.locked_until && <small style={{ display: "block", color: "var(--bad)", fontWeight: 700 }}>ロック中 {hhmm(c.locked_until)} まで</small>}
+                    </td>
+                    <td style={{ padding: 6 }}><Link href="/casts" style={{ fontSize: 12, color: "var(--champ)" }}>キャスト詳細で設定</Link></td>
                   </tr>
                 );
               })}

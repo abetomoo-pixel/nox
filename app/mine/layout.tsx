@@ -13,7 +13,7 @@ import { mineSettingsOf } from "@/lib/nox/store/mine-settings"; // ★裁定326-
 import { noticeNavLabelOf, unreadCountOf } from "@/lib/nox/mine/notice-unread";
 import { mineNavUnreadOf, noticeVisibleToCastOf, unreadNotifCountOf } from "@/lib/nox/people/notify-text"; // ★便 ON-3（0176 ★5 (d)(e)）: 通知の未読・宛先つき // ★裁定326-6（便 M2-3）: お知らせ未読数「お知らせ（N）」
 import { resolveWishMode, wishNavLabelOf } from "@/lib/nox/mine/wish-mode"; // ★裁定326-7（便 M4-1）: 「シフト希望」／'off_only' は「休み希望」
-import { castRegisterEntryOf } from "@/lib/nox/register/cast-entry-server"; // ★便 P173（裁定389）: レジ使用 ON ∧ 本人セッション可のときだけナビに「レジ」
+import { castMineRegisterNavEntryOf } from "@/lib/nox/register/cast-entry-server"; // ★便 M5 M-44: ∧ 出勤中（duty_gate ON の店） // ★便 P173（裁定389）: レジ使用 ON ∧ 本人セッション可のときだけナビに「レジ」
 
 // cast エリアの layout。auth_role() rpc は「ここで1回/リクエスト」のみ（F1f plan §2）。
 // リダイレクトは利便のため・真の防御は RLS/RPC（cast 以外がすり抜けても DB は cast データを返さない…の逆も同様）。
@@ -42,7 +42,7 @@ export default async function MineLayout({ children }: { children: React.ReactNo
   ]);
   const unreadNotices = unreadCountOf(((noticeRows ?? []) as { id: string; cast_ids?: string[] | null }[]).filter((n) => noticeVisibleToCastOf(n.cast_ids ?? null, (myCastId as string | null) ?? null)).map((r) => r.id), ((readRows ?? []) as { notice_id: string }[]).map((r) => r.notice_id));
   const unread = mineNavUnreadOf(unreadNotices, unreadNotifCountOf((notifRows ?? []) as { read_at: string | null }[])); // ★便 ON-3: お知らせ（本人宛を含む）＋通知
-  const regEntry = await castRegisterEntryOf(supabase); // ★便 P173（裁定389）
+  const regNav = await castMineRegisterNavEntryOf(supabase); // ★便 P173（裁定389）→ ★便 M5 M-44: 店 ON ∧ 自分のスマホ ∧ 本人の許可 ∧（duty_gate ON なら）出勤中
   // 段N: TabBar が群構造になったため1群（見出しなし）で渡す＝/mine の並び・挙動は完全に不変。
   //   spPriority は渡さない＝4項目をそのままボトムタブに並べる（従来どおり）。
   const groups: NavGroup[] = [{
@@ -52,7 +52,7 @@ export default async function MineLayout({ children }: { children: React.ReactNo
       { href: "/mine/wishes", label: wishNavLabelOf(wishMode) }, // ★裁定337: 解決値
       { href: "/mine/ranking", label: "ランキング" },
       { href: "/mine/notices", label: noticeNavLabelOf(unread) },
-      ...(regEntry.allowed ? [{ href: "/register", label: "レジ" }] : []), // ★便 P173（裁定389）: 店端末のみの店（登録済み端末あり）は出さない
+      ...(regNav.show ? [{ href: "/register", label: "レジ" }] : []), // ★便 P173（裁定389）: 店端末のみの店（登録済み端末あり）は出さない・★便 M5 M-44: 出勤前も出さない（理由は /mine の 1 行）
     ].filter((i) => i.href !== "/mine/ranking" || ms.ranking),
   }];
   return (

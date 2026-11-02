@@ -3066,7 +3066,7 @@ export default function RegisterBoard({
                   {/* ★B3 裁定210（#64 指名カード）: ランク名＝読めた id だけ（モック 163 行「あべ｜エース」） */}
                   {rankNames.get(ca.id) && <span className="rk">{rankNames.get(ca.id)}</span>}
                   {/* ★裁定415（S-7）: 他卓に着卓中の小さな印（指名かぶり＝着卓情報は消さない） */}
-                  {servingMarkOf(servingSeat.get(ca.id)) && <span className="rk" data-nom-serving={ca.id} style={{ color: "var(--gold2)" }}>{servingMarkOf(servingSeat.get(ca.id))}</span>}
+                  {servingMarkOf(servingSeat.get(ca.id)) && <span className="rk" data-nom-serving={ca.id} title={servingMarkOf(servingSeat.get(ca.id)) ?? undefined} style={{ color: "var(--gold2)", display: "block", maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{servingMarkOf(servingSeat.get(ca.id))}</span>}{/* ★便 M5 M-48: 長い卓名は省略記号＋title */}
                   {/* ★裁定110 A2-(5): 0% 行＝按分なし（本数は種別どおり計上・金額の取り分だけ 0） */}
                   {(nomWeights[ca.id] ?? 0) === 0 && <span className="rk">按分なし</span>}
                 </div>

@@ -18,6 +18,8 @@ import { DemoProvider } from "@/lib/nox/demo/context";
 import { TERMS_VERSION, termsGateRedirectOf } from "@/lib/nox/terms"; // ★0172（裁定351・便 P172）: 本番 org の同意ゲート
 import { castRegisterEntryOf } from "@/lib/nox/register/cast-entry-server"; // ★便 P173（裁定389）: cast の入口＝店端末 or 自分のスマホ
 import { isSetupPath, setupGateRedirectOf } from "@/lib/nox/setup/gate"; // ★便 SU（M-37）: /setup は専用の殻・未完の店は /setup へ
+import KioskPersonGuard from "@/components/nox/kiosk-person-guard"; // ★便 M5 M-49: キオスクからの本人ログイン＝無操作 N 分で戻す
+import { kioskPersonIdleMinutesOf } from "@/lib/nox/kiosk/person-login"; // ★便 M5 M-49
 import * as t from "@/lib/nox/ui/theme";
 
 // 店側エリア（register/shift/report/master）の layout。auth_role() rpc は「ここで1回/リクエスト」のみ。
@@ -93,10 +95,14 @@ export default async function ManageLayout({ children }: { children: React.React
   const billingLocked = billingWritable === false;
   let staffCrm = false;
   let staffShift = false; // ★裁定381（GV-B W-10）: staff のシフトは can_shift（auth_staff_can_shift）で出し分け＝/shift の redirect と同じ述語
+  let staffRegister = true; // ★便 M5 M-43（2026-10-30）: staff の会計権限 can_register（auth_staff_can_register）＝OFF ならレジをナビに出さず /register は /dashboard へ（RLS で伝票が隠れた「使用中 0／6・全席空席」の誤表示を出さない＝シフト権限と同じ型）
   if (role === "staff") {
-    const [{ data }, { data: sh }] = await Promise.all([supabase.rpc("auth_staff_can_crm"), supabase.rpc("auth_staff_can_shift")]);
+    const [{ data }, { data: sh }, { data: rg }] = await Promise.all([supabase.rpc("auth_staff_can_crm"), supabase.rpc("auth_staff_can_shift"), supabase.rpc("auth_staff_can_register")]);
     staffCrm = data === true;
     staffShift = sh === true;
+    staffRegister = rg === true;
+    const pathnameReg = (await headers()).get("x-pathname") ?? "";
+    if (!staffRegister && (pathnameReg === "/register" || pathnameReg.startsWith("/register/"))) redirect("/dashboard"); // ★M-43: 権限が無ければ画面に入れない
   }
   // ★UI刷新v2 段N（正本 nox-nav-redesign-mock-v2.html）: 5群構成へ再編。
   //   ★ルート/URL/ページ実体/role ゲートは完全不変＝並び・群見出し・ラベルだけを変えた
@@ -108,7 +114,7 @@ export default async function ManageLayout({ children }: { children: React.React
     : [
         { label: null, items: [{ href: "/dashboard", label: "ホーム" }] },
         { label: "営業", items: [
-          { href: "/register", label: "レジ" },
+          ...(role !== "staff" || staffRegister ? [{ href: "/register", label: "レジ" }] : []), // ★便 M5 M-43: staff は can_register のみ
           { href: "/report", label: "日報" },
           // ★裁定275 追補（2026-09-18・z2）: 在庫は営業群（レジ・日報の下）＝≤899 の「その他」でも先頭側に出る（既存画面 /master/stock・URL 不変・manager 以上）
           ...(isManagerUp ? [{ href: "/master/stock", label: "在庫" }] : []),
@@ -183,6 +189,7 @@ export default async function ManageLayout({ children }: { children: React.React
           cast は項目が レジ 1本のみ＝その他は出ない（従来と同一）。 */}
       {/* ★裁定275 追補2-1（N4）: 下タブ 5 本＝ホーム／レジ／日報／シフト／メニュー（残り＋お知らせ）。歯車はヘッダー右へ */}
       <TabBar groups={groups} spPriority={["/dashboard", "/register", "/report", "/shift"]} hideSide />
+      <KioskPersonGuard idleMinutes={kioskPersonIdleMinutesOf(storeRows?.[0]?.settings_json)} role={role as string} />{/* ★便 M5 M-49: 印が無ければ描画 0 */}
     </div>
   );
 }

@@ -27,7 +27,7 @@ import Modal from "@/components/ui/modal";
 import { Message } from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 import { useIsDemo } from "@/lib/nox/demo/context"; // ★便 M3 M-28 ③
 import { kioskErrJa, kioskDeviceLimit } from "@/lib/nox/kiosk/device-errors"; // ★便 M3 M-29 ③: 英語の生文を日本語に // ★0190: 上限は kioskDeviceLimit()（3 台）
-import { mig0190On } from "@/lib/nox/rules-0175/flag"; // ★0190（裁定436 ①b／M-29 ⑤）: 端末の固定の列・再発行して有効化・削除
+import { mig0190On, mig0192On } from "@/lib/nox/rules-0175/flag"; // ★便 M5 M-47（裁定435 追補）: 0192 で用途の廃止 // ★0190（裁定436 ①b／M-29 ⑤）: 端末の固定の列・再発行して有効化・削除
 type Store = { id: string; name: string };
 // ★0190: bound＝device_fp の有無（route が boolean に写す・fp そのものは来ない）・bound_at／bound_ua＝初回ログインで束縛した日時と UA
 type Device = { id: string; store_id: string; label: string | null; purpose: string; is_active: boolean; created_at: string; last_seen_at: string | null; bound: boolean; bound_at: string | null; bound_ua: string | null };
@@ -226,7 +226,8 @@ export default function KioskDevicePanel({ stores }: { stores: Store[] }) {
     return "端末を無効化";
   };
   // ★0190: 列＝端末／用途／端末の固定（フラグ true のみ）／最終アクセス／状態／操作
-  const columns = mig0190On() ? ["端末", "用途", "端末の固定", "最終アクセス", "状態", "操作"] : ["端末", "用途", "最終アクセス", "状態", "操作"];
+  const purposeHead = mig0192On() ? "タイル" : "用途"; // ★便 M5 M-47（裁定435 追補）: 0192 以降＝用途は無い（1 台で 5 タイル）
+  const columns = mig0190On() ? ["端末", purposeHead, "端末の固定", "最終アクセス", "状態", "操作"] : ["端末", purposeHead, "最終アクセス", "状態", "操作"];
   const actorLabel = (uid: string | null): string => {
     const role = uid ? roleByUser[uid] : undefined;
     return role ? (ROLE_LABEL[role] ?? role) : "—";
@@ -280,7 +281,7 @@ export default function KioskDevicePanel({ stores }: { stores: Store[] }) {
                         </span>
                       </span>
                     </td>
-                    <td style={{ padding: 6, whiteSpace: "nowrap" }}>{PURPOSE_LABEL[d.purpose] ?? d.purpose}</td>
+                    <td style={{ padding: 6, whiteSpace: "nowrap" }} data-kiosk-tiles={mig0192On() ? "all" : d.purpose}>{mig0192On() ? "全タイル（打刻・レジ・シフト・在庫・日報）" : (PURPOSE_LABEL[d.purpose] ?? d.purpose)}</td>{/* ★便 M5 M-47: 既存端末も全タイルに昇格（0192） */}
                     {/* ★0190（裁定436 ①b）: 端末の固定＝初回ログインで端末が device_fp を束縛（kiosk_device_bind）。別の端末からは 'device bound'。解除は owner（kiosk_device_unbind）＝次のログインで固定し直す */}
                     {mig0190On() && (
                       <td style={{ padding: 6, whiteSpace: "nowrap" }} data-kiosk-bound={d.bound ? "1" : "0"}>
@@ -328,7 +329,7 @@ export default function KioskDevicePanel({ stores }: { stores: Store[] }) {
             <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
               <h3 style={h3}>端末アカウントを発行</h3>
             </div>
-            <p style={sub}>認証情報は発行時に一度だけ表示されます（上限＝店舗×用途ごとに {kioskDeviceLimit()} 台）</p>{/* ★0190: 3 台（無効は数えない） */}
+            <p style={sub}>認証情報は発行時に一度だけ表示されます（上限＝{mig0192On() ? "店舗ごとに" : "店舗×用途ごとに"} {kioskDeviceLimit()} 台）</p>{/* ★0190: 3 台（無効は数えない）・★便 M5 M-47: 0192 で店舗ごと */}
             <p style={{ ...t.alert, fontSize: 11.5, margin: "0 0 10px" }}>
               安全な運用：端末ごとに専用アカウントを発行し、共有しないでください。
             </p>
@@ -340,6 +341,11 @@ export default function KioskDevicePanel({ stores }: { stores: Store[] }) {
                     {stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
                   </select>
                 </label>
+                {mig0192On() ? (
+                  <span style={{ fontSize: 10.5, color: "var(--sub)", alignSelf: "end" }} data-kiosk-no-purpose="1">
+                    1 台で 5 タイル（打刻・レジ・シフト・在庫・日報）。解除は人を選ぶ→PIN（キャスト＝キオスク PIN／スタッフ＝操作担当 PIN）。{/* ★便 M5 M-47（裁定435 追補）: 用途選択を外す（送る purpose は 'punch' 固定＝0192 の RPC は読まない） */}
+                  </span>
+                ) : (
                 <label style={{ display: "grid", gap: 3 }}><span style={t.fieldLabel}>用途</span>
                   <SegSelect value={purpose} onChange={(v) => setPurpose(v === "register" ? "register" : "punch")}
                     options={[["punch", "打刻（タイムレコーダー）"], ["register", "レジ（会計）"]] as const} />
@@ -347,6 +353,7 @@ export default function KioskDevicePanel({ stores }: { stores: Store[] }) {
                     打刻＝名前選択＋PIN（「キャスト管理」で設定）／レジ＝操作担当選択＋PIN（「操作担当PIN」タブで設定）。
                   </span>
                 </label>
+                )}
               </div>
               <label style={{ display: "grid", gap: 3 }}><span style={t.fieldLabel}>端末ラベル（任意）</span>
                 <input placeholder="例: 入口タブレット" value={label} onChange={(e) => setLabel(e.target.value)} style={inp} />

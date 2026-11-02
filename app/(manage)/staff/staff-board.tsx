@@ -302,7 +302,7 @@ export default function StaffBoard({
         let pinDigits = 0;
         if (body.membership_id && aPin !== "") {
           const { error: eK } = await supabase.rpc("set_staff_pin", { p_membership_id: body.membership_id, p_pin: aPin });
-          if (eK) setMsg((m) => `${m ? `${m}・` : ""}PIN の保存に失敗: ${eK.message.includes("bad pin") ? "PIN は現在 4 桁まで（5〜6 桁は 0191 で対応）" : rpcErrJa(eK.message)}（マスタ › 操作担当PIN で設定できます）`);
+          if (eK) setMsg((m) => `${m ? `${m}・` : ""}PIN の保存に失敗: ${eK.message.includes("bad pin") ? "PIN は数字 4〜6 桁で入力してください" : rpcErrJa(eK.message)}（マスタ › 操作担当PIN で設定できます）`);
           else pinDigits = aPin.length;
         }
         setAPinMark(pinDigits);

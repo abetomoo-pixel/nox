@@ -13,7 +13,7 @@ import { useMemo, useState } from "react";
 import CastAvatar from "@/components/ui/cast-avatar";
 import * as t from "@/lib/nox/ui/theme";
 import { castPickerOrder, castStatusOf, castStatusLabelOf, lateContactLabelOf, CAST_STATUS_LABEL, CAST_STATUS_ORDER, CAST_STATUS_TONE, offDutyToggleLabelOf, type CastPickGroup, type CastStatus } from "@/lib/nox/register/cast-picker-order"; // ★便 M2 M-18: 状態 5 つ（待機中・着卓中・出勤予定・遅刻・退勤／休み）
-import { ROSTER_CHIPS, servingLabelOf } from "@/lib/nox/register/seat-roster"; // ★便 S（S-6 ①）: チップ 出勤中／全員・他卓の「着卓中（B2）」
+import { ROSTER_CHIPS, servingBadgeOf, servingLabelOf } from "@/lib/nox/register/seat-roster"; // ★便 S（S-6 ①）: チップ 出勤中／全員・他卓の「着卓中（B2）」
 
 export type PickerCast = { id: string; name: string };
 
@@ -115,6 +115,16 @@ export default function CastPicker({
   const showOffSection = grouped && offDuty.length > 0 && (chip !== "working" || needle !== "");
   const offVisible = showOffSection && (offOpen || needle !== "");
 
+  // ★便 M5 M-48（2026-10-30）: 他卓に着卓中のバッジ＝2 段（着卓中／卓名）。卓名は max-width 100％＋省略記号・title に全文「着卓中（テーブル10番席）」。
+  const servingBadge = (id: string, seat: string | null | undefined) => {
+    const b = servingBadgeOf(seat);
+    return (
+      <span data-serving-badge={id} title={b.title} style={{ ...t.tag, fontSize: 9.5, padding: "1px 7px", color: "var(--gold2)", borderColor: "rgba(201, 162, 74, .45)", display: "grid", maxWidth: "100%", boxSizing: "border-box", lineHeight: 1.25, textAlign: "center" }}>
+        <span>{b.top}</span>
+        {b.seat && <span data-serving-seat="1" style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%" }}>{b.seat}</span>}
+      </span>
+    );
+  };
   const card = (c: { id: string; name: string; group: CastPickGroup; working: boolean }) => {
     const sel = selectedIds?.has(c.id) ?? false;
     const seated = seatedIds?.has(c.id) ?? false;
@@ -129,7 +139,8 @@ export default function CastPicker({
     const sets = { seatedIds, servingIds, punchedInIds: todayIds, shiftIds, lateIds, outIds };
     const status = grouped ? castStatusOf(c.id, sets) : null;
     const etaLabel = status === "late" && lateEta?.has(c.id) ? lateContactLabelOf(lateEta.get(c.id)) : null; // ★便 M2 M-18（補遺）
-    const stateLabel = seated ? "着卓中" : serving ? (grouped ? servingLabelOf(servingSeat?.get(c.id)) : "接客中") : grouped ? etaLabel ?? castStatusLabelOf(c.id, sets) : attend ? "出勤中" : today ? "打刻" : null; // ★便 S（S-6 ①）: 他卓＝「着卓中（B2）」
+    const stateLabel = seated ? "着卓中" : serving ? (grouped ? servingLabelOf(servingSeat?.get(c.id)) : "接客中") : grouped ? etaLabel ?? castStatusLabelOf(c.id, sets) : attend ? "出勤中" : today ? "打刻" : null;
+    const serving2 = !seated && serving && grouped; // ★便 M5 M-48: 他卓の「着卓中（卓名）」はカード幅に収まる 2 段バッジ（1 段目＝着卓中・2 段目＝卓名を省略記号・title に全文） // ★便 S（S-6 ①）: 他卓＝「着卓中（B2）」
     const stateTone = status ? BADGE_STYLE[CAST_STATUS_TONE[status]] : null;
     const badge = badges?.get(c.id) ?? (chip === "seated" ? seatedBadges?.get(c.id) ?? null : null);
     return (
@@ -141,6 +152,7 @@ export default function CastPicker({
         style={{
           display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
           padding: "9px 4px", borderRadius: 11, cursor: "pointer", fontFamily: "inherit",
+          minWidth: 0, maxWidth: "100%", boxSizing: "border-box", // ★便 M5 M-48: グリッドの min-width（94／78px）で崩さない＝中身（バッジ）がカード幅に収まる
           // 選択状態は .nox-chip.on と同言語（--goldface2 地＋gold 枠＋champ 文字）
           // ★DP2 T2: 生 hex #1B1710 → var(--goldface2)（値は同一＝見た目不変）。
           background: sel ? "var(--goldface2)" : "var(--card2)",
@@ -159,10 +171,9 @@ export default function CastPicker({
             {badge.label}
           </span>
         )}
-        {badge && serving && grouped && (
-          <span style={{ ...t.tag, fontSize: 9.5, padding: "1px 7px", color: "var(--gold2)", borderColor: "rgba(201, 162, 74, .45)" }} data-serving-badge={c.id}>{servingLabelOf(servingSeat?.get(c.id))}</span>
-        )}
-        {!badge && stateLabel && (
+        {badge && serving && grouped && servingBadge(c.id, servingSeat?.get(c.id))}
+        {!badge && serving2 && servingBadge(c.id, servingSeat?.get(c.id))}
+        {!badge && !serving2 && stateLabel && (
           <span style={{
             ...t.tag, fontSize: 9.5, padding: "1px 7px",
             // 着卓中／接客中＝gold2 系・出勤中／打刻＝ok 系・未出勤＝muted（既存の色の範囲内・新色なし）

@@ -1461,13 +1461,21 @@ export default function CastsBoard({
                 </span>
               </div>
               <div className="nox-frow">
-                <span className="k">キオスク打刻 PIN</span>
+                <span className="k">キオスク PIN</span>{/* ★便 M5 M-45: 名称＝操作担当 PIN（スタッフ）と並ぶ「キオスク PIN」（キャスト＝打刻・レジの本人確認） */}
                 <span className="v">
                   {/* F4a: 打刻 PIN（ログイン結線と独立＝招待していない子も打刻できる） */}
-                  <button style={btnGhost} disabled={busy}
+                  <button style={btnGhost} disabled={busy} data-cast-kiosk-pin="set"
                     onClick={() => { setPinTarget(selCast); setPinVal(""); setPinErr(null); setPinDone(false); }}>
-                    打刻PIN を設定
+                    キオスク PIN を設定
                   </button>
+                  <span style={{ display: "block", fontSize: 11.5, color: "var(--v2-muted)", marginTop: 4 }}>設定済み／失敗回数は マスタ › システム › PIN の一覧で見られます</span>
+                </span>
+              </div>
+              <div className="nox-frow">
+                <span className="k">レジの許可</span>{/* ★便 M5 M-44: 本人の許可の置き場＝マスタ › キャスト待遇 › レジ会計（店 ON＋本人・set_cast_register）＝ここは案内だけ（二重の編集口を作らない） */}
+                <span className="v" data-cast-register-pointer="1">
+                  <Link href="/master/cast-comp/register" style={{ color: "var(--champ)", fontSize: 12.5 }}>マスタ › キャスト待遇 › レジ会計 で許可</Link>
+                  <span style={{ display: "block", fontSize: 11.5, color: "var(--v2-muted)", marginTop: 4 }}>店の「キャストのレジ使用」ON ＋ 本人の許可 ＋（打刻ゲート ON の店は）出勤中 で、本人のマイページのナビに「レジ」が出ます</span>
                 </span>
               </div>
               {/* ★v3.1 K36（C1）: 説明文をモックの2カード語彙「本人レコード／NOXログインアカウント」へ寄せる（構造は現行の行形式のまま） */}
@@ -1593,7 +1601,7 @@ export default function CastsBoard({
         <Modal onClose={() => !busy && setPinTarget(null)}>
             {!pinDone ? (
               <>
-                <h2 style={secTitle}>{pinTarget.name} の打刻PIN</h2>
+                <h2 style={secTitle}>{pinTarget.name} のキオスク PIN</h2>{/* ★便 M5 M-45 */}
                 <p style={{ fontSize: 12.5, color: "var(--sub)", margin: "0 0 10px" }}>
                   キオスク端末（タブレット）で打刻するときの4桁の数字です。
                   設定し直すと失敗カウント・ロックもリセットされます。

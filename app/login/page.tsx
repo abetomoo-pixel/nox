@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import BrandLogo from "@/components/ui/brand-logo"; // ★便 SH-UI-a A-2: ロゴ（Concept 2 改）
 import { useRouter } from "next/navigation";
+import { KIOSK_PERSON_DENY, kioskPersonAllowedOf } from "@/lib/nox/kiosk/person-login"; // ★便 M5 M-49
+import { kioskPersonActive, leaveKioskPersonLogin } from "@/lib/nox/kiosk/person-login-client"; // ★便 M5 M-49
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 
@@ -13,6 +15,8 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [fromKiosk, setFromKiosk] = useState(false); // ★便 M5 M-49: ?kiosk=1（キオスクから「本人でログイン」）
+  useEffect(() => { setFromKiosk(new URLSearchParams(window.location.search).get("kiosk") === "1" && kioskPersonActive()); }, []);
 
   // ★便 M5 M-40 (b)（2026-10-30）: Supabase のメールリンク（パスワード再設定 type=recovery／招待 type=invite／マジックリンク type=magiclink）は
   //   Site URL＝/login に「#access_token=…&type=recovery」の形で着地することがある。hash を残したまま /auth/set-password へ渡す（そこが setSession→パスワード設定を担う）。
@@ -37,6 +41,7 @@ export default function LoginPage() {
     // ロールで着地先を分ける（真の防御は RLS/RPC・これは利便のための振り分け）。
     // E5（裁定8）: cast 以外の着地はホーム（モックのログイン後遷移と同型）。
     const { data: role } = await supabase.rpc("auth_role");
+    if (fromKiosk && !kioskPersonAllowedOf(role as string | null)) { setError(KIOSK_PERSON_DENY); setBusy(false); window.setTimeout(() => void leaveKioskPersonLogin(supabase), 1500); return; } // ★便 M5 M-49: 店長以上だけ
     router.replace(role === "cast" ? "/mine" : "/dashboard");
     router.refresh();
   }

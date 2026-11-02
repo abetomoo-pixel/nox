@@ -79,11 +79,11 @@ const STORES = LP_ORDER.map((s) => ({ key: s, label: DEMO_STORE_LABEL[s], ...LP_
 /** 絞り込みのチップ（モック v3）＝見た目だけ（static・先頭「すべて」が選択状態） */
 const LP_CHIPS: readonly string[] = ["すべて", "売上で時給が上がる", "指名で時給が上がる", "半月で判定する", "時給は固定", "日払いがある", "休み希望だけ集める"];
 
-const LP_ROLES: readonly { name: string; dev: string; text: string }[] = [
-  { name: "オーナー", dev: "PC・iPad", text: "待遇プランや店の設定を決め、給与、分析、月報まで店全体を見ます。" },
-  { name: "店長", dev: "PC・iPad", text: "シフトを組み、その日の出退勤とレジの伝票を回します。" },
-  { name: "スタッフ（黒服）", dev: "iPad・PC", text: "レジ、キャストの打刻の代行、当日のシフト配置を受け持ちます。給与や待遇の設定には触れません。" },
-  { name: "キャスト", dev: "スマホ", text: "マイページで打刻、シフト希望、給与明細、ノルマの進み具合、自分の順位を見ます。" },
+const LP_ROLES: readonly { name: string; dev: string; body: string }[] = [
+  { name: "オーナー", dev: "PC・iPad", body: "待遇プランや店の設定を決め、給与、分析、月報まで店全体を見ます。" },
+  { name: "店長", dev: "PC・iPad", body: "シフトを組み、その日の出退勤とレジの伝票を回します。" },
+  { name: "スタッフ（ホール・店長）", dev: "iPad・PC", body: "レジ、キャストの打刻の代行、当日のシフト配置を受け持ちます。給与や待遇の設定には触れません。" },
+  { name: "キャスト", dev: "スマホ", body: "マイページで打刻、シフト希望、給与明細、ノルマの進み具合、自分の順位を見ます。" },
 ];
 
 const LP_FLOW: readonly { title: string; when: string; items: readonly (readonly [string, string])[] }[] = [
@@ -101,7 +101,7 @@ const LP_FLOW: readonly { title: string; when: string; items: readonly (readonly
     ["日払い・前借り", "支払った分を記録し、明細で確かめられます。"],
     ["売掛・領収書", "伝票ごとの売掛を記録できます。領収書は画面で発行し、そのまま印刷やPDF保存ができます。"],
     ["日報・レジ締め", "その日の売上・現金・カード・売掛を締め、釣銭準備金まで記録します。"],
-    ["スタッフの勤怠・報酬", "黒服・店長の時給や月給も、打刻から見込みの報酬まで同じ画面で。"],
+    ["スタッフの勤怠・報酬", "スタッフ・店長の時給や月給も、打刻から見込みの報酬まで同じ画面で。"],
   ] },
   { title: "振り返り", when: "週ごと、月ごと", items: [
     ["ノルマ", "出勤日数・同伴・売上・指名から、店で使う軸を選べます。"],
@@ -270,7 +270,7 @@ export default function LpPage() {
               <div key={r.name} className="nox-cardtop" style={tile}>
                 <h3 style={{ ...t.cardTitle, fontSize: 15, margin: "0 0 2px" }}>{r.name}</h3>
                 <p style={{ ...muted, fontSize: 11.5, marginBottom: 8 }}>{r.dev}</p>
-                <p style={{ fontSize: 12.5, lineHeight: 1.7, margin: 0, color: "var(--ink)" }}>{r.text}</p>
+                <p style={{ fontSize: 12.5, lineHeight: 1.7, margin: 0, color: "var(--ink)" }}>{r.body}</p>
               </div>
             ))}
           </div>

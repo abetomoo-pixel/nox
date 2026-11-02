@@ -61,6 +61,7 @@ export default function KioskRegisterPage() {
   const [session, setSession] = useState<Session | null>(null);
   const [lockMsg, setLockMsg] = useState<string | null>(null);
   const [showQr, setShowQr] = useState(false);
+  const [opPhotos, setOpPhotos] = useState<Record<string, string>>({}); // ★便 M5 M-42: 操作担当の写真（/api/kiosk/photos＝admin が署名・本体と同じ URL）
   const [board, setBoard] = useState<BoardData | null>(null);
   const [boardErr, setBoardErr] = useState<string | null>(null);
 
@@ -78,6 +79,7 @@ export default function KioskRegisterPage() {
     const rows = (data ?? []) as OpRow[];
     if (error || rows.length === 0) return false;
     setOperators(rows);
+    void fetch("/api/kiosk/photos").then((r) => (r.ok ? r.json() : null)).then((j) => { if (j && j.operators) setOpPhotos(j.operators); }).catch(() => undefined); // ★便 M5 M-42
     return true;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -310,6 +312,7 @@ export default function KioskRegisterPage() {
               {operators.map((o) => (
                 <button key={o.membership_id} onClick={() => pickOperator(o)} disabled={!o.has_pin}
                   style={{ ...bigBtn, opacity: o.has_pin ? 1 : 0.35, cursor: o.has_pin ? "pointer" : "not-allowed" }}>
+                  <span style={{ display: "flex", justifyContent: "center", marginBottom: 6 }}><CastAvatar name={o.user_name} url={opPhotos[o.membership_id]} size={44} variant="flat" /></span>{/* ★便 M5 M-42 */}
                   {o.user_name}
                   <div style={{ fontSize: 11, color: "var(--sub)", fontWeight: 600, marginTop: 4 }}>
                     {ROLE_LABEL[o.role] ?? o.role}{!o.has_pin ? "・PIN未設定" : ""}

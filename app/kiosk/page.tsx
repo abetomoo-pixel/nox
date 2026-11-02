@@ -20,7 +20,10 @@ import { rpcErrJa } from "@/lib/nox/ui/rpc-err"; // ★裁定327（0161・便 M1
 import { mig0190On, mig0191On, rules0175On } from "@/lib/nox/rules-0175/flag"; // ★追補 2 同乗 R-7 ★0190: mig0190On
 import { bindErrJa, browserDeviceFp } from "@/lib/nox/kiosk/device-fp"; // ★0190（裁定436 ①b）: 端末の束縛＝ログイン直後に kiosk_device_bind
 import { KIOSK_FEATURE_READY } from "@/lib/nox/rules-0175/kiosk"; // ★0190（裁定435）: 5 タイル（シフト・在庫・日報は案内画面）
+import CastAvatar from "@/components/ui/cast-avatar"; // ★便 M5 M-42: 写真＝本体画面と同じ部品（url は /api/kiosk/photos の署名 URL）
 import { KIOSK_FEATURE_HREF, KIOSK_FEATURE_LABEL, type KioskFeature } from "@/lib/nox/rules-0175/kiosk"; // ★追補 2 同乗 R-7（裁定423 候補）
+import { KIOSK_PERSON_LINK } from "@/lib/nox/kiosk/person-login"; // ★便 M5 M-49: 本人でログイン（店長以上）
+import { startKioskPersonLogin } from "@/lib/nox/kiosk/person-login-client"; // ★便 M5 M-49: 端末のセッションを控えて /login?kiosk=1
 type KRow = { cast_id: string; cast_name: string; has_pin: boolean; staff?: boolean }; // ★便 P174 T-6（355）: staff＝true は cast_id に membership_id（スタッフ群）
 type SRow = { membership_id: string; user_name: string; role: string; has_pin: boolean; last_kind: string | null; last_at: string | null }; // ★便 P174 T-6: kiosk_staff_list（0174 ★5）
 type Phase = "loading" | "login" | "denied" | "select" | "pin" | "okuri" | "result";
@@ -59,6 +62,7 @@ export default function KioskPage() {
   const [okuriPlan, setOkuriPlan] = useState<OkuriSelfPlan | null>(null);
   const [castPunchOff, setCastPunchOff] = useState(false); // ★便 X13-G W-23 ①: キャストの打刻を使わない店＝キャスト群を出さない（スタッフ群は今のまま）
   const [bindMsg, setBindMsg] = useState<string | null>(null); // ★0190: 端末の束縛（'device bound'＝別の端末に固定済み→denied）
+  const [photoUrls, setPhotoUrls] = useState<{ casts: Record<string, string>; operators: Record<string, string> }>({ casts: {}, operators: {} }); // ★便 M5 M-42: 端末は署名できない（auth_org_id null）＝route が admin で署名
 
   // ★0190（裁定436 ①b）: 端末ログインの直後に端末自身が kiosk_device_bind(fp, ua) を呼ぶ＝未束縛なら束縛・同じ fp なら last_seen・別の fp は 'device bound'（この端末では使えない）
   const bindDevice = useCallback(async (): Promise<boolean> => {
@@ -81,6 +85,7 @@ export default function KioskPage() {
     // ★便 P174 T-6（355）: スタッフ群（打刻端末だけ・読めなければ空＝キャスト群のみ）
     const { data: sd, error: se } = await supabase.rpc("kiosk_staff_list");
     setStaffs(se ? [] : ((sd ?? []) as SRow[]));
+    void fetch("/api/kiosk/photos").then((r) => (r.ok ? r.json() : null)).then((j) => { if (j && j.casts) setPhotoUrls({ casts: j.casts ?? {}, operators: j.operators ?? {} }); }).catch(() => undefined); // ★便 M5 M-42: 失敗は頭文字のまま
     void fetch("/api/kiosk/punch-methods").then((r) => (r.ok ? r.json() : null)).then((j) => { if (j && j.castPunchOff === true) { setCastPunchOff(true); setGroup("staff"); } if (rules0175On() && j && Array.isArray(j.tiles)) setKioskTiles(j.tiles as KioskFeature[]); }).catch(() => {}); // ★追補 2 同乗 R-7: タイル（フラグ true）
     return true;
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -242,6 +247,12 @@ export default function KioskPage() {
             <p style={{ textAlign: "center", fontSize: 15, color: "var(--champ)", fontWeight: 700, margin: "0 0 16px" }}>
               名前を選んでください
             </p>
+            {/* ★便 M5 M-49（2026-10-30）: 本人でログイン＝店長以上がパスワードで本体画面を開く入口（タイルの構成＝裁定435 の 5 タイルは変えない・小さな文字リンク）。
+                開いた本体画面は無操作 N 分（店設定 kiosk_person_idle_minutes・既定 10）で自動ログアウト→端末のセッションを復元してこの画面へ戻る（KioskPersonGuard） */}
+            <p style={{ textAlign: "center", margin: "0 0 14px" }}>
+              <button type="button" data-kiosk-person-login="1" onClick={() => void startKioskPersonLogin(supabase)}
+                style={{ background: "none", border: "none", padding: 0, fontFamily: "inherit", fontSize: 12.5, color: "var(--sub)", textDecoration: "underline", cursor: "pointer" }}>{KIOSK_PERSON_LINK}</button>
+            </p>
             {castPunchOff && (
               <p data-kiosk-cast-off="1" style={{ textAlign: "center", fontSize: 13, color: "var(--sub)", margin: "0 0 12px" }}>この店ではキャストの出勤・退勤は店が記録します（キャストの打刻はありません）</p>
             )}
@@ -258,6 +269,7 @@ export default function KioskPage() {
                 {staffs.map((m) => (
                   <button key={m.membership_id} onClick={() => pick({ cast_id: m.membership_id, cast_name: m.user_name, has_pin: m.has_pin, staff: true })} disabled={!m.has_pin}
                     style={{ ...bigBtn, opacity: m.has_pin ? 1 : 0.35, cursor: m.has_pin ? "pointer" : "not-allowed" }}>
+                    <span style={{ display: "flex", justifyContent: "center", marginBottom: 6 }}><CastAvatar name={m.user_name} url={photoUrls.operators[m.membership_id]} size={44} variant="flat" /></span>{/* ★便 M5 M-42 */}
                     {m.user_name}
                     <div style={{ fontSize: 11, color: "var(--sub)", fontWeight: 600, marginTop: 4 }}>
                       {m.role === "manager" ? "店長" : "スタッフ"}{!m.has_pin ? "・PIN未設定" : m.last_kind === "in" ? "・出勤中" : m.last_kind === "out" ? "・退勤済み" : ""}
@@ -270,6 +282,7 @@ export default function KioskPage() {
               {(castPunchOff ? [] : casts).map((c) => ( /* ★便 X13-G W-23: キャストの打刻を使わない店はキャストの名前を出さない */
                 <button key={c.cast_id} onClick={() => pick(c)} disabled={!c.has_pin}
                   style={{ ...bigBtn, opacity: c.has_pin ? 1 : 0.35, cursor: c.has_pin ? "pointer" : "not-allowed" }}>
+                  <span style={{ display: "flex", justifyContent: "center", marginBottom: 6 }}><CastAvatar name={c.cast_name} url={photoUrls.casts[c.cast_id]} size={44} variant="flat" /></span>{/* ★便 M5 M-42: 写真（本体と同じ部品・同じ署名 URL） */}
                   {c.cast_name}
                   {!c.has_pin && <div style={{ fontSize: 11, color: "var(--sub)", fontWeight: 600, marginTop: 4 }}>PIN未設定</div>}
                 </button>

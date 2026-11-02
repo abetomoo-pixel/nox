@@ -34,6 +34,7 @@ import { okuriFlatTiersOf } from "@/lib/nox/shift/okuri-mode"; // ★便 M5 M-33
 import { okuriTiersOn } from "@/lib/nox/rules-0175/flag"; // ★便 M5 M-33: casts.okuri_tier は 0180 後だけ読む
 import { Message } from "@/components/ui/toast"; // ★便 M5 M-40 (c): /register を通さなかった理由
 import { castRegisterDenyTextOf } from "@/lib/nox/register/p173"; // ★便 M5 M-40 (c)
+import { castMineRegisterNavEntryOf } from "@/lib/nox/register/cast-entry-server"; // ★便 M5 M-44: ナビにレジが無い理由 1 行
 import AttendanceForm from "./attendance-form";
 import { LAST_PUNCH_PREV_NOTE, lastPunchPrevDayOf } from "@/lib/nox/mine/eta-chips"; // ★便 M-3
 import { mineReportStateOf } from "@/lib/nox/shift/cast-report"; // ★便 X13-H H-17 ③ // ★便 ON-3（I-4）: ack_at で「店が確認しました」
@@ -68,6 +69,7 @@ export default async function MinePage({ searchParams }: { searchParams?: Promis
   // ★便 M5 M-40 (c)（2026-10-30）: (manage)/layout が cast を /register から戻すとき ?denied=register&why=… を付ける＝最上部に理由を出す（知らない語は出さない）
   const sp = (await searchParams) ?? {};
   const deniedText = sp.denied === "register" ? castRegisterDenyTextOf(sp.why) : null;
+  const regNav = await castMineRegisterNavEntryOf(supabase); // ★便 M5 M-44（2026-10-30）: レジがナビに無いとき＝理由 1 行（店が許可していない／本人の許可がない／店の端末からだけ／出勤してから）
   const cutoff = await loadCutoff(supabase);
   const bizToday = bizDateOf(new Date().toISOString(), cutoff);
   const month = bizToday.slice(0, 7);
@@ -259,7 +261,8 @@ export default async function MinePage({ searchParams }: { searchParams?: Promis
     <div className="nox-printpage nox-minewrap nox-mv1 nox-mv1-m">
       {/* 段P: プロフィール写真（本人スコープのみ・client 自己完結＝他カードの取得に影響しない）
           段M2: モックの .me ヘッダ（写真＋名前＋店）へ。店名は上で引いた自店を渡すだけ。 */}
-      {deniedText && <div data-mine-denied="register" style={{ marginBottom: 12 }}><Message kind="warn" style={{ margin: 0 }}>{deniedText}</Message></div>}{/* ★便 M5 M-40 (c): /register を通さなかった理由（layout の ?denied=register&why=…） */}
+      {deniedText && <div data-mine-denied="register" style={{ marginBottom: 12 }}><Message kind="warn" style={{ margin: 0 }}>{deniedText}</Message></div>}
+      {!deniedText && !regNav.show && regNav.note && <p data-mine-register-note={regNav.reason ?? ""} style={{ margin: "0 0 12px", fontSize: 12.5, color: "var(--sub)" }}>{regNav.note}</p>}{/* ★便 M5 M-44: ナビにレジが無い理由（1 行・控えめ） */}{/* ★便 M5 M-40 (c): /register を通さなかった理由（layout の ?denied=register&why=…） */}
       {showContractAck && <ContractAckGate lines={termsLines} />}{/* ★0162 ★4（便 M5-2）: 初回表示の契約確認＝記録済みは出さない・rev 更新で再表示 ★便 M5 M-33: 本文＝基本条件の要約 */}
       <PhotoCard storeName={myStore?.name as string | undefined} />
       {rules0175On() && mig0185On() && (<div style={{ margin: "-4px 0 10px", display: "flex", justifyContent: "flex-end" }}><Link href="/kq" style={{ ...t.btnGhost, ...t.btnSm, textDecoration: "none" }} data-kq-entry="1">キオスクを開く（QR を読む）</Link></div>)}{/* ★QR 便（裁定423 変更）: キオスクの QR をスマホで読む入口（旧＝スマホに QR を出す全画面は撤去）。フラグ false＝出ない */}

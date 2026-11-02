@@ -2818,7 +2818,7 @@ button:disabled, .nox-btn:disabled { opacity: .45; cursor: not-allowed; }
 .nox-onoff > button { min-height: 36px; padding: 6px 14px; border-radius: 8px; border: 1px solid var(--line2); background: transparent; color: var(--sub); font-weight: 700; font-size: 13px; cursor: pointer; font-family: inherit; }
 .nox-onoff > button:disabled { cursor: default; }
 .nox-onoff > button.on[data-v="on"] { background: var(--primary); border-color: var(--primary); color: #fff; }
-.nox-onoff > button.on[data-v="off"] { background: #5a5750; border-color: #5a5750; color: #fff; }
+.nox-onoff > button.on[data-v="off"] { background: #d9d6ce; border-color: #d9d6ce; color: #17140c; } /* ★便 M5 M-31（2026-10-30）: OFF 選択中＝明るい灰＋黒字（暗い灰では「選択中」が見えない・ON は青のまま） */
 .nox-onoff > button.on[data-v="inherit"] { background: var(--card2); border-color: var(--primary); color: var(--ink); }
 .nox-onoff-state { font-size: 12px; color: var(--sub); }
 .nox-onoffwrap[data-onoff-state="on"] .nox-onoff-state { color: var(--primary); font-weight: 700; }
@@ -3048,3 +3048,46 @@ input[type="date"]::-webkit-date-and-time-value, input[type="time"]::-webkit-dat
 .nox-setup-foot .pos { position: absolute; left: 24px; color: var(--sub); font-size: 14px; }
 @media (max-width: 1100px) { .nox-setup-steps { grid-template-columns: repeat(9, minmax(112px, 1fr)); overflow-x: auto; } }
 @media (max-width: 700px) { .nox-setup-bar { padding: 10px 14px; } .nox-setup-steps { padding: 0 14px 10px; } .nox-setup-main { padding: 18px 14px 150px; } .nox-setup-foot .pos { position: static; } .nox-setup-foot .in { flex-wrap: wrap; } }
+
+/* ★便 M5 M-32（2026-10-30）: 390px で select がカードからはみ出る＝幅の上限と box-sizing を部品で統一（inline の width:auto／固定幅は max-width で収める） */
+.nox-dark select, .nox-formfield select, .nox-setup-wrap select { max-width: 100%; box-sizing: border-box; }
+
+/* ★便 M5 M-37b（2026-10-30）: /setup 9 STEP を正本 docs/handoff/mock/setup_v5.html の密度に＝.nox-setup 配下だけで上書き（本体画面の部品は触らない）。
+   見出し 24px 白をカードの外（.nox-setup-head）／本文 15・注記 14／ラベル 13／カード余白 24／入力欄は列いっぱい・高さ 44／選択状態＝青枠＋「選択中」バッジ／曜日＝幅いっぱいのセグメント／料金ルール＝番号＋名前＋削除のヘッダー */
+.nox-setup-wrap { font-size: 15px; }
+.nox-setup-head { margin: 0 0 4px; }
+.nox-setup-head h2 { margin: 0 0 4px; font-size: 24px; font-weight: 800; color: var(--ink); line-height: 1.3; }
+.nox-setup-head p { margin: 0; font-size: 15px !important; color: var(--sub); line-height: 1.6; }
+.nox-setup-main section.nox-cardtop { padding: 24px !important; border-radius: 16px !important; }
+.nox-setup-main section.nox-cardtop > h2 { font-size: 19px !important; }
+.nox-setup-main h3 { font-size: 19px !important; margin: 16px 0 8px !important; }
+.nox-setup-main p { font-size: 14px !important; line-height: 1.6; }
+.nox-setup-main label > span:first-child { font-size: 13px !important; color: var(--sub); }
+.nox-setup-main b { font-size: 15px; }
+.nox-setup-main input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), .nox-setup-main select { min-height: 44px !important; width: 100% !important; max-width: 100%; box-sizing: border-box; font-size: 15px !important; padding: 10px 12px !important; border-radius: 10px !important; }
+.nox-setup-main input[type="checkbox"], .nox-setup-main input[type="radio"] { width: 22px; height: 22px; }
+.nox-setup-main span:has(> input.num) { display: flex !important; align-items: center; width: 100%; }
+.nox-setup-main span:has(> input.num) > input { flex: 1 1 auto; min-width: 0; }
+.nox-setup-main button[data-type] { position: relative; min-height: 120px !important; padding: 16px !important; border-radius: 14px !important; display: flex !important; flex-direction: column; gap: 6px; }
+.nox-setup-main button[data-type] > b { font-size: 17px !important; }
+.nox-setup-main button[data-type] > small { font-size: 14px !important; }
+.nox-setup-main button[data-type] > .num { margin-top: auto; padding-top: 8px; border-top: 1px solid var(--line); font-size: 14px !important; }
+.nox-setup-main button[data-type][aria-pressed="true"] { border: 2px solid var(--blueline, #4f86d9) !important; background: var(--bluebg, #16263d) !important; color: var(--ink) !important; padding: 15px !important; }
+.nox-setup-main button[data-type][aria-pressed="true"]::after { content: "選択中"; position: absolute; top: 12px; right: 12px; font-size: 12px; background: var(--blue, #2f6fd6); color: #fff; border-radius: 999px; padding: 2px 10px; }
+.nox-setup-main .nox-seg { width: 100% !important; display: flex !important; border-radius: 12px; }
+.nox-setup-main .nox-seg > button { flex: 1 1 0; min-height: 46px !important; font-size: 15px !important; }
+.nox-setup-main [data-setup-rule-head="1"] { padding: 12px 16px !important; margin: -8px -8px 12px !important; border-bottom: 1px solid var(--line); background: var(--card2); border-radius: 14px 14px 0 0; }
+.nox-setup-main [data-setup-rule-head="1"] > .nox-stpill { width: 30px; height: 30px; border-radius: 8px !important; display: grid; place-items: center; font-size: 14px; padding: 0 !important; }
+.nox-setup-main [data-setup-rule-head="1"] input { max-width: 320px; }
+.nox-setup-main [data-setup-rule-head="1"] { flex-wrap: nowrap !important; }
+.nox-setup-main [data-setup-rule-head="1"] > span:has(> input), .nox-setup-main [data-setup-rule-head="1"] > input { flex: 1 1 200px !important; min-width: 0; }
+.nox-setup-main [data-setup-rule-head="1"] input { width: 100% !important; max-width: none !important; }
+.nox-setup-main [data-setup-rule-head="1"] > button { margin-left: auto; white-space: nowrap; flex: 0 0 auto; }
+.nox-setup-main [data-staff-row] label:has(> span + .nox-seg) { grid-column: span 2; }
+.nox-setup-main [data-staff-row] .nox-seg > button { white-space: nowrap; font-size: 13px !important; padding: 0 10px !important; min-height: 44px !important; }
+.nox-setup-main span:has(> input.num) > em { white-space: nowrap; flex: 0 0 auto; }
+.nox-setup-main button[data-type][aria-pressed="true"] > b { padding-right: 60px; }
+@media (max-width: 430px) { .nox-setup-main div:has(> button[data-type]) { grid-template-columns: 1fr !important; } .nox-setup-top .sub .nox-setup-sub-note { display: none; } .nox-setup-main [data-staff-row] label:has(> span + .nox-seg) { grid-column: 1 / -1; } }
+.nox-setup-foot .in { justify-content: center; }
+.nox-setup-foot button { min-height: 52px !important; font-size: 17px !important; padding: 12px 28px !important; border-radius: 12px !important; }
+@media (max-width: 700px) { .nox-setup-head h2 { font-size: 22px; } .nox-setup-main section.nox-cardtop { padding: 16px !important; } .nox-setup-foot button { min-height: 46px !important; font-size: 15px !important; padding: 9px 16px !important; } }

@@ -105,7 +105,7 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
       void supabase.from("setup_drafts").select("data, updated_at").eq("store_id", store.id).maybeSingle().then(({ data }) => {
         const d = (data?.data ?? null) as { S?: V5State; savedAt?: string; ids?: { device: string; staff: string[] }; issued?: Issued[] } | null;
         if (!d?.S?.type || !d.savedAt || (localAt && d.savedAt <= localAt)) return;
-        setS(d.S); setRestoredAt(d.savedAt); if (d.ids) ids.current = d.ids; if (d.issued) setIssued(d.issued);
+        setS(typeof initialStep === "number" && initialStep >= 0 && initialStep <= 9 ? { ...d.S, step: initialStep } : d.S); setRestoredAt(d.savedAt); if (d.ids) ids.current = d.ids; if (d.issued) setIssued(d.issued); // ★便 M5 M-37b: ?step= の明示は server の下書きの step より優先（撮影・直リンク）
         setDraftFrom("server");
       });
     }
@@ -238,7 +238,7 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
       <header className="nox-setup-top" data-setup-top="1">
         <div className="nox-setup-bar">
           <div className="nox-setup-mark" aria-hidden="true">N</div>
-          <div><h1>NOX 初期設定{type && <span className="nox-stpill" style={{ marginLeft: 8, verticalAlign: "middle" }}>{v5TypeName(type)}</span>}</h1><div className="sub">{store.name}・あとからすべて変更できます{store.setupDone && "（設定済みの店＝再実行は既存データを二重投入しません）"}</div></div>
+          <div><h1>NOX 初期設定{type && <span className="nox-stpill" style={{ marginLeft: 8, verticalAlign: "middle" }}>{v5TypeName(type)}</span>}</h1><div className="sub">{store.name}・あとからすべて変更できます{store.setupDone && <span className="nox-setup-sub-note">{"（設定済みの店＝再実行は既存データを二重投入しません）"}</span>}</div></div>
           <div className="save" data-setup-saved="1">{saved}</div>
         </div>
         {!isDone && (
@@ -259,9 +259,8 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
 
       {/* ── 1 お店 ── */}
       {S.step === 0 && (
-        <section className="nox-cardtop" style={card}>
-          <h2 style={secTitle}>お店について</h2>
-          <p style={lead}>業態を選ぶと、席・料金・メニュー・待遇・会計の初期値がその業態の一般的な形で入ります。</p>
+        <><div className="nox-setup-head" data-setup-head="1"><h2>お店について</h2><p>業態を選ぶと、席・料金・メニュー・待遇・会計の初期値がその業態の一般的な形で入ります。</p></div>
+          <section className="nox-cardtop" style={card}>
           <h3 style={h3}>お店のタイプ</h3>
           <p style={lead}>選び直すときは、入力した内容を入れ替えるか確認します。</p>
           <div style={grid(150)}>
@@ -289,14 +288,13 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
             </div>
           </div>
           <p style={note}>営業日の切替時刻＝この時刻までの売上・出勤は前日の営業日として数えます。</p>
-        </section>
+        </section></>
       )}
 
       {/* ── 2 席・卓 ── */}
       {S.step === 1 && (
-        <section className="nox-cardtop" style={card}>
-          <h2 style={secTitle}>席・卓</h2>
-          <p style={lead}>レジで開く単位です。数を入れると名前を自動で付けます（あとで 1 つずつ名前を変えられます）。</p>
+        <><div className="nox-setup-head" data-setup-head="1"><h2>席・卓</h2><p>レジで開く単位です。数を入れると名前を自動で付けます（あとで 1 つずつ名前を変えられます）。</p></div>
+          <section className="nox-cardtop" style={card}>
           <h3 style={h3}>席の数</h3>
           <div style={grid(220)}>
             <div><span style={t.fieldLabel}>カウンター（席）</span><br /><Money value={seats.counter} unit="席" onChange={(n) => up((s) => { s.seats.counter = Math.max(0, n); })} width={80} /> <span style={t.fieldLabel}>名前の頭</span> <Text value={seats.cp} onChange={(v) => up((s) => { s.seats.cp = v; })} width={60} ariaLabel="カウンターの名前の頭" /></div>
@@ -305,19 +303,18 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
           </div>
           <div style={{ marginTop: 10 }}><span style={t.fieldLabel}>作られる席（{list.length}）</span><div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 4 }}>{list.map(([n, v]) => <span key={n} className={`nox-stpill${v ? " warn" : ""}`}>{n}</span>)}</div></div>
           <p style={note}>VIP 席は、料金で「VIP」のルールと VIP 料金が使われます。{counts.seats > 0 && "既存の席があるときは投入しません。"}</p>
-        </section>
+        </section></>
       )}
 
       {/* ── 3 料金 ── */}
       {S.step === 2 && (
-        <section className="nox-cardtop" style={card}>
-          <h2 style={secTitle}>料金</h2>
-          <p style={lead}>{v5TypeName(type)}の一般的な料金で入っています。金額はそのまま直せます。</p>
+        <><div className="nox-setup-head" data-setup-head="1"><h2>料金</h2><p>{v5TypeName(type)}の一般的な料金で入っています。金額はそのまま直せます。</p></div>
+          <section className="nox-cardtop" style={card}>
           <h3 style={h3}>セット料金のルール</h3>
           <p style={lead}>時間帯・曜日・席種ごと。上ほど優先されます。</p>
           {S.rules.map((x, i) => (
             <div key={i} style={{ ...t.card, padding: 10, marginBottom: 8 }} data-rule={i}>
-              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}><span className="nox-stpill">{i + 1}</span><Text value={x.name} onChange={(v) => up((s) => { s.rules[i].name = v; })} placeholder="ルール名" width={200} ariaLabel="ルール名" />
+              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }} data-setup-rule-head="1"><span className="nox-stpill">{i + 1}</span><Text value={x.name} onChange={(v) => up((s) => { s.rules[i].name = v; })} placeholder="ルール名" width={200} ariaLabel="ルール名" />
                 {S.rules.length > 1 && <button type="button" style={{ ...t.btnGhost, ...t.btnSm, marginLeft: "auto" }} onClick={() => { if (window.confirm(`${x.name} を削除しますか？`)) up((s) => { s.rules.splice(i, 1); }); }}>このルールを削除</button>}</div>
               <div style={{ ...grid(140), marginTop: 8 }}>
                 <Field label="開始"><input type="time" value={x.from} onChange={(e) => up((s) => { s.rules[i].from = e.target.value; })} style={input} aria-label="開始" /></Field>
@@ -367,14 +364,13 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
           <p style={note}>サービス料と税率・延長パターンは開卓のときに固まります（途中で設定を変えても開いている卓は変わりません）。端数の丸めだけは会計の時点の設定で掛かります。</p>
           <div style={{ marginTop: 8 }}><span style={t.fieldLabel}>セット時間が過ぎてからお客様が増えたとき</span><SegSelect value={S.join} onChange={(v) => up((s) => { s.join = v as "join" | "extend"; })} options={[["join", "合流セット（セット料金を足す）"], ["extend", "延長だけ"]] as const} ariaLabel="人数が増えたとき" wrap /></div>
           <p style={note}>人数が減ってもセット料金は引き直しません。</p>
-        </section>
+        </section></>
       )}
 
       {/* ── 4 メニュー ── */}
       {S.step === 3 && (
-        <section className="nox-cardtop" style={card}>
-          <h2 style={secTitle}>メニュー</h2>
-          <p style={lead}>{v5TypeName(type)}でよく出る商品を入れています。使わない物はチェックを外すだけ。値段・バックはそのまま直せます。</p>
+        <><div className="nox-setup-head" data-setup-head="1"><h2>メニュー</h2><p>{v5TypeName(type)}でよく出る商品を入れています。使わない物はチェックを外すだけ。値段・バックはそのまま直せます。</p></div>
+          <section className="nox-cardtop" style={card}>
           <Message kind="info">いま {menuCount(S)} 品がレジに出ます。キャストのバックは商品ごとに「円（固定額）」か「%（値段に対する率）」を選べます。初期値はキャストドリンク・ボトル＝円、シャンパン＝%。次の「キャスト待遇」の率で入れ直せます。</Message>
           {S.menu.map((c, ci) => (
             <div key={ci} style={{ ...t.card, padding: 10, marginTop: 8 }} data-menu-cat={ci}>
@@ -402,14 +398,13 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
             </div>))}
           <div className="nox-actions" style={{ marginTop: 10 }}><input value={newCat} onChange={(e) => setNewCat(e.target.value)} placeholder="新しいカテゴリ名" style={{ ...input, maxWidth: 260 }} aria-label="新しいカテゴリ名" /><button type="button" style={{ ...t.btnGhost, ...t.btnSm }} onClick={() => { const nm = newCat.trim(); if (!nm) return; up((s) => { s.menu.push({ cat: nm, on: true, items: [{ n: "", p: 0, b: 0, keep: false, on: true, byKind: false, bj: null, bf: null, bt: "yen" }] }); }); setNewCat(""); }}>＋ カテゴリを追加</button></div>
           <p style={note}>{counts.products > 0 && "既存の商品があるときは投入しません。"}キープ可の商品はボトルとして登録します。</p>
-        </section>
+        </section></>
       )}
 
       {/* ── 5 キャスト待遇 ── */}
       {S.step === 4 && (() => { const p = S.pay, b = S.back, pr = S.payroll; const axes: [keyof V5State["normaAxes"], string, string, string, string][] = [["days", "出勤日数", "不足 1 日ごと", "円／日", "日／月"], ["hon", "本指名", "不足 1 件ごと", "円／件", "件／月"], ["dohan", "同伴", "不足 1 回ごと", "円／回", "回／月"], ["sales", "売上", "不足 1 万円ごと", "円／1 万円", "円／月"]]; return (
-        <section className="nox-cardtop" style={card}>
-          <h2 style={secTitle}>キャスト待遇</h2>
-          <p style={lead}>使う仕組みを選び、選んだものだけ数字を入れます。細かい設定はあとでマスタの待遇プランから。</p>
+        <><div className="nox-setup-head" data-setup-head="1"><h2>キャスト待遇</h2><p>使う仕組みを選び、選んだものだけ数字を入れます。細かい設定はあとでマスタの待遇プランから。</p></div>
+          <section className="nox-cardtop" style={card}>
           <h3 style={h3}>時給</h3>
           <div style={grid(180)}>
             <Field label="基本時給（在籍）"><Money value={p.base} unit="円／時" pre onChange={(n) => up((s) => { s.pay.base = n; })} /></Field>
@@ -499,13 +494,12 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
           <Opt title="遅刻・当欠の連絡" sub={<>出勤見込みや理由を店に送れます。{later("0191")}</>}><OnOff on={S.mine.late} onChange={(v) => up((s) => { s.mine.late = v; })} label="遅刻・当欠の連絡" /></Opt>
           <Opt title="指名・同伴の予約申請" sub="担当のお客様の予約を申請し、店の承認で予約になります。"><OnOff on={S.mine.resv} onChange={(v) => up((s) => { s.mine.resv = v; })} label="指名・同伴の予約申請" /></Opt>
           <Opt title="出勤ボーナス" sub={<>その日に出た人への加算を本人に見せます。{later("0191")}</>}><OnOff on={S.mine.bonus} onChange={(v) => up((s) => { s.mine.bonus = v; })} label="出勤ボーナス" /></Opt>
-        </section>); })()}
+        </section></>); })()}
 
       {/* ── 6 スタッフ ── */}
       {S.step === 5 && (
-        <section className="nox-cardtop" style={card}>
-          <h2 style={secTitle}>スタッフ</h2>
-          <p style={lead}>店長・ホール・キッチンなど、キャスト以外で働く人です。あとで招待メールを送ってログインしてもらいます。</p>
+        <><div className="nox-setup-head" data-setup-head="1"><h2>スタッフ</h2><p>店長・ホール・キッチンなど、キャスト以外で働く人です。あとで招待メールを送ってログインしてもらいます。</p></div>
+          <section className="nox-cardtop" style={card}>
           <h3 style={h3}>スタッフの登録</h3>
           {S.staff.map((st, i) => (
             <div key={i} style={{ ...t.card, padding: 10, marginBottom: 8, ...grid(150) }} data-staff-row={i}>
@@ -521,14 +515,13 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
             </div>))}
           <div className="nox-actions"><button type="button" style={{ ...t.btnGhost, ...t.btnSm }} onClick={() => up((s) => { s.staff.push({ n: "", role: "ホール", perm: "staff", shiftOk: false, kind: "アルバイト", basis: "時給", amt: 1500, pin: "" }); })}>＋ スタッフを追加</button></div>
           <p style={note}>名前が空の行は登録されません。スタッフがいないお店は空のままで大丈夫です。メールアドレスや電話は、あとでスタッフ管理から入れます。「シフトを組める」スタッフは店長と同じシフトの操作ができます。業務委託のスタッフは源泉の既定が「対象外」です。初回のログインは、完了画面に出るログイン ID と初期パスワードで。</p>
-        </section>
+        </section></>
       )}
 
       {/* ── 7 シフト・勤怠 ── */}
       {S.step === 6 && (
-        <section className="nox-cardtop" style={card}>
-          <h2 style={secTitle}>シフト・勤怠</h2>
-          <p style={lead}>シフトの集め方と、打刻のルールです。</p>
+        <><div className="nox-setup-head" data-setup-head="1"><h2>シフト・勤怠</h2><p>シフトの集め方と、打刻のルールです。</p></div>
+          <section className="nox-cardtop" style={card}>
           <h3 style={h3}>シフトの集め方{!mig0191On() && S.shift.mode === "store" && later("店が決める＝0191・いまは休み希望のみ")}</h3>
           <SegSelect value={S.shift.mode} onChange={(v) => up((s) => { s.shift.mode = v as "want" | "off" | "store"; })} options={[["want", "出たい日を出してもらう（シフト希望）"], ["off", "休みだけ出してもらう（休み希望のみ）"], ["store", "店が決めて本人に通知する"]] as const} ariaLabel="シフトの集め方" wrap />
           <p style={note}>{({ off: "休みを出していない日は「出られる日」として、シフト配置の候補になります。", want: "出たい日と時間を出してもらい、店が承認してシフトにします。", store: "店が配置した時点で確定し、本人に通知します。希望は集めません。" } as const)[S.shift.mode]}</p>
@@ -551,14 +544,13 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
           {S.punch.how === "any" && <div style={{ marginTop: 8 }}><span style={t.fieldLabel}>条件に合わないとき</span><SegSelect value={S.punch.judge} onChange={(v) => up((s) => { s.punch.judge = v as "soft" | "hard"; })} options={[["hard", "打刻させない"], ["soft", "打刻して記録だけ残す"]] as const} ariaLabel="条件に合わないとき" /></div>}
           <Opt title="出勤していない人はレジを使えない" sub={<>キャスト・スタッフが自分のスマホからレジ（開卓・注文・会計）を使えるのは、出勤の打刻があって退勤する前だけ。店長以上は対象外（操作は記録に残ります）。店の端末を置かないお店は OFF に。{later("打刻ゲート＝0190 の後")}</>}><OnOff on={S.punch.gate} onChange={(v) => up((s) => { s.punch.gate = v; })} label="出勤していない人はレジを使えない" /></Opt>
           <div style={{ marginTop: 8 }}><span style={t.fieldLabel}>勤務時間の丸め</span><SegSelect value={String(S.punch.round)} onChange={(v) => up((s) => { s.punch.round = Number(v) as 1 | 5 | 15 | 30; })} options={[["1", "丸めない"], ["5", "5分"], ["15", "15分"], ["30", "30分"]] as const} ariaLabel="勤務時間の丸め" /></div>
-        </section>
+        </section></>
       )}
 
       {/* ── 8 会計・レジ ── */}
       {S.step === 7 && (() => { const r = S.reg, rc = S.receipt; return (
-        <section className="nox-cardtop" style={card}>
-          <h2 style={secTitle}>会計・レジ</h2>
-          <p style={lead}>レジの使い方・支払い・領収書の設定です。</p>
+        <><div className="nox-setup-head" data-setup-head="1"><h2>会計・レジ</h2><p>レジの使い方・支払い・領収書の設定です。</p></div>
+          <section className="nox-cardtop" style={card}>
           <h3 style={h3}>使う機能</h3>
           <Opt title="店の端末（キオスク）" sub="入口やレジに置く共用の iPad。打刻のほか、本人を選んで PIN を入れると、その人の権限でレジ・シフト・在庫・日報が使えます（給与・マスタ・顧客・分析は出ません）。端末ごとに専用のアカウントを発行します。"><OnOff on={r.kiosk} onChange={(v) => up((s) => { s.reg.kiosk = v; })} label="店の端末" /></Opt>
           <Opt title="売掛" sub="ツケ払い。回収はレジから。"><OnOff on={r.uri} onChange={(v) => up((s) => { s.reg.uri = v; })} label="売掛" /></Opt>
@@ -588,13 +580,12 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
             <Field label="但し書きの既定"><Text value={rc.tadashi} onChange={(v) => up((s) => { s.receipt.tadashi = v; })} width="100%" ariaLabel="但し書きの既定" /></Field>
           </div>
           <p style={note}>領収書はレジから電子（お客様の URL・90 日）でも紙でも出せます。登録番号があれば簡易インボイス（税率別の内訳付き）になり、無いお店は空のままで発行できます。</p>
-        </section>); })()}
+        </section></>); })()}
 
       {/* ── 9 確認 ── */}
       {S.step === 8 && (() => { const p = S.pay, r = S.reg, pr = S.payroll; return (
-        <section className="nox-cardtop" style={card}>
-          <h2 style={secTitle}>確認</h2>
-          <p style={lead}>この内容で始めます。あとからマスタでいつでも変えられます。</p>
+        <><div className="nox-setup-head" data-setup-head="1"><h2>確認</h2><p>この内容で始めます。あとからマスタでいつでも変えられます。</p></div>
+          <section className="nox-cardtop" style={card}>
           {W.length > 0 && (<div style={{ ...t.card, padding: 10, borderColor: "var(--warn, #6b5626)" }} data-setup-checks={W.length}><h3 style={{ margin: "0 0 6px", fontSize: 13 }}>要確認 {W.length} 件<span style={{ ...note, display: "inline", marginLeft: 10 }}>このまま始められます</span></h3>
             {W.map(([i, w], k) => <div key={k} style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: "1px solid var(--line)", fontSize: 12.5 }}><span>{w}</span><button type="button" style={{ ...t.btnGhost, ...t.btnSm }} onClick={() => go(i - 1 < 0 ? 0 : i - 1)}>直す</button></div>)}</div>)}
           {planAll.deferred.length > 0 && <div style={{ marginTop: 10 }} data-setup-deferred={planAll.deferred.length}><Message kind="info">後で（マスタから）になる項目 {planAll.deferred.length} 件: {planAll.deferred.map((d) => `${d.item}（${d.note}）`).join("・")}</Message></div>}
@@ -615,7 +606,7 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
               {run.error && <Message kind="error">{run.error}　ここまでの書込は残っています。原因を直して「続きから再実行」を押してください（既存データは二重投入しません）。</Message>}
               <ul style={{ margin: "6px 0 0", paddingLeft: 18, color: "var(--sub)", maxHeight: 180, overflowY: "auto" }}>{run.log.map((l, i) => <li key={i}>{l}</li>)}</ul>
             </div>)}
-        </section>); })()}
+        </section></>); })()}
 
       {/* ── 完了 ── */}
       {isDone && (() => { const f = S.castForm; return (
