@@ -5106,6 +5106,54 @@ DB 変更 0 の見込み。要れば 0190 起草のみ。」
 - **仮決め（相談役案で確定扱い・事後承認）**: S3-1 'store' の /mine＝キャスト個別の方式が無ければ案内だけ（提出フォームなし）・個別が shift／off_only なら従来（自動配置の候補は 'store' を休み希望扱い）。S3-4 商品の個別率は率%のときだけ（unit4＝円は従来の 4 単価）・空欄のキーは送らない（店の割合で算出）。S3-5 締め日は 0191 の器に保存するだけ（月次の精算の区切りの計算は別便）。S3-6 下書きの正は localStorage・server は「別の端末で再開」用（新しい方を採る・2 秒間引き・owner だけ＝manager は読めない）。S3-2 マイページ 3 キー（遅刻連絡・ノルマ進捗・出勤ボーナスの表示）は 0191 に器が無い＝引き続き「後で」（別 mig 候補）。S3-3 着手分はローカル commit 2 層（①フラグ＋mig 収蔵＋純関数＋suite／②client）＋docs＝push は打合せ後の再開時に f0 2 連の後で。
 
 
+### 読取 3 点（2026-10-30 16:4x・相談役の問い・実装・DB 変更なし）
+
+- **(a) kiosk_login の 5 回ロック＝オーナー／店長の免除は無い（意図どおり）**: 0190 版 kiosk_login の fail_count／locked_until（5 回で 10 分）はロール条件を持たず全ロールに効く。ロール条件は「操作担当の候補」の絞り込み（owner／admin／manager・staff can_register・cast can_register かつ店設定）だけ。免除に見える経路＝set_staff_pin（0191 版も）が fail_count=0・locked_until=null に戻す＝オーナー／店長がマスタ › 操作担当PIN で PIN を設定し直すとロックが解ける（kiosk-pin-panel の注記「上書きでロック解除」＝意図された解除口）。0190 の「店長以上は免除」は打刻ゲート（assert_on_duty）の話で PIN ロックとは別。→ M-39「オーナー／店長にも適用」は DB 側は既に適用済み＝追加は「ロック中の解除をマスタ › システムから（audit）」の RPC（0192 同乗）。
+- **(b) 端末の用途「打刻／レジ」は裁定435 の後も DB 側で意味を持つ**: 分岐＝helper の auth_kiosk_store_id()（purpose='punch'）と auth_kiosk_register_store_id()（purpose='register'・0056）。打刻系（kiosk_cast_list／kiosk_punch／kiosk_punch_state／kiosk_staff_list）は punch 端末だけ、レジ系（kiosk_operator_list／kiosk_login／register の読取）は register 端末だけ。5 タイルは打刻端末のホーム（/kiosk）にだけ出る＝レジ用途の端末で /kiosk は kiosk_cast_list 0 行→「キオスク端末ではありません」（出退勤タイルは出ない）・打刻端末の「レジ」タイルは /kiosk-register で「レジ端末ではありません」。1 台で 5 タイルにするなら helper の purpose 条件を外す（または purpose 'all'）mig が要る＝K client 第 2 便の候補（M-40 の「1 本化」）。 **→ 相談役 10/30 夕＝M-47（裁定435 追補）で確定＝用途を廃止・1 台で 5 タイル・解除は人を選ぶ→PIN・上限は店舗ごと 3 台・発行欄の用途選択を外す・既存端末は全タイルに昇格。DB 側（helper 2 本の purpose 条件・kiosk_provision の上限の数え方・各 RPC の k.purpose 条件＝live の prosrc 走査で全数）は 0192 に同乗・client は便 M5 で MIG_0192_APPLIED の配下。**
+- **(c) 退勤後の /register→/mine の無言リダイレクトは 0190 ではなく P173 の route guard**: (manage)/layout.tsx の castRegisterEntryOf＝店 ON（sys_cast_register）∧ 本人 can_register ∧（cast_register_device が own_phone ∨ register 端末が未登録）＝打刻は見ない。0190 のゲートは RPC（check_*）で 'off duty' を返すだけ＝画面は開いたまま「出勤してからレジを開けます」が出る。無言で戻るのは店設定か can_register の変化（退店＝cast_leave で can_register が落ちる等）か cast_register_device＝店端末のみの店。拒否理由を出す場所＝①castRegisterEntryOf に理由コード（store_off／not_allowed／store_device_only）②layout の redirect を /mine?denied=register&why=<code> に ③app/mine/page.tsx が searchParams を読んで上部に Message 1 行（いまは searchParams を受けていない）＝M-40 で ①②③を 1 便。
+
+### Agoora の本番確認 10/30（記録のみ・相談役 10/30 夕の 1 通・実装なし・v55_draft §0／§5／§8-4 にも）
+
+- **0190 の live 手順の消し込み**＝⑥ キャストの 5 回ロック○（CLUB ACE・あい）／オーナーはロック×（M-39）・④ 端末の固定は 1 台目の固定まで○（TESTタブレット・19 分前）＝2 台目の拒否は未確認・③⑤⑦ 未確認・①② は あべ が同一営業日に出勤→退勤済みのため明日 06:00 以降（退勤を取り消す手段なし＝M-38）。
+- **本番の状態**＝CLUB NOX（NOX-DEMO）は duty_gate ON・デモ 6 店と NOX-VERIFY 3 店と TEST CLUB は OFF。TEST CLUB＝10/30 14:02 に create-org で作成（org 3953ea9d…・store 0948c276…・owner successjob.jp@gmail.com・業態 cabaret＝初期設定 STEP 1 でスナックに変更・下書きあり・setup 未完）。
+- **Supabase Auth**＝Site URL を https://nox-kappa-eight.vercel.app に変更・Redirect URLs に本番 /** と localhost:3200/** を追加（10/30 14:05）。招待の有効期限切れ（otp_expired）→ password recovery で入った。内蔵メールの rate limit に当たった（カスタム SMTP が要る根拠）。
+- **観察（→ 便 M5 の採番）**＝キャストの /mine で出勤中でもナビにレジが出ない（M-44）／キオスクでキャスト写真が出ない（M-42）／会計 OFF のスタッフがレジを開けて全席空席に見える（M-43）／PIN ポリシー既定 15 分（M-46）／退勤をシフト開始時刻に丸める（M-40）／マスタ › システム 最近の操作の実行者が空（M-40）。
+- **v55_draft §8-4「Agoora が明朝やる手順」**＝あべ で出勤→/mine にレジ→/register→卓を開く→退勤→/register が拒否、の①②／0192 の手貼り／CLUB NOX の端末 2 台目の拒否（④後半）。
+
+### 便 M5（2026-10-30 夕〜夜・③ の push 後・client のみ・DB 恒久変更 0＝M-31〜M-46）
+
+出典＝相談役ブロック 2026-10-30 夕（「CC への指示（残り全部）」2.＋追加 2 通＝M-42／M-43・M-44〜M-46）。採番は台帳の予約（M-31〜M-37b）＋相談役採番 M-42／M-43／M-44〜M-46＋CC 採番 M-38〜M-41（M-38／M-39 は 0192 に同乗＝RPC）。RPC が要るものは 0192 に同乗（flag MIG_0192_APPLIED=false の配下＝client は従来）。
+
+- **M-31 onoff の選択中 OFF の塗り**＝`.nox-onoff > button.on[data-v="off"]`＝明るい灰 #d9d6ce＋黒字 #17140c（ON 選択中は青 --primary のまま）・部品 1 か所（globals.css）。
+- **M-32 390px で select がカードからはみ出る**＝`.nox-dark select, .nox-formfield select, .nox-setup-wrap select { max-width: 100%; box-sizing: border-box; }`（固定幅 inline の select は 4 本以下＝suite が一覧）。
+- **M-33 /mine 確認枠＝店向けカード手数料文の混入**＝contract-ack の要約（castTermsSummaryOf）からカード手数料の文を外し、本人に関わる条件だけに（lib/nox/mine/contract-ack.ts・suite m5c）。
+- **M-34 基本の働き方（availability）＝membership が無いキャストの提出**＝読取＝本番の cast で user あり・membership なしは 0 人（docs/tmp 読取）・availability_set は membership 必須＝許すには DB 変更（0192 候補・今回は見送り）。
+- **M-35 スタッフ追加の整合**＝staff-board＝シフト権限 OFF のときの文言・PIN は 4〜6 桁（0191）・印の統一（suite m5c）。
+- **M-36 プランのレジ軸の表示**＝plan-editor の reward_axis は表示のみ（pay_rate 軸は payroll の CANON 文脈で実際に使われている＝rules-0175-collect.ts＝死んだ列ではない）・store-systems-panel に id。
+- **M-37 /setup の殻**＝便 SU（済）。
+- **M-37b /setup 9 STEP を正本 setup_v5.html の密度に**＝.nox-setup 配下の CSS だけで上書き（本体の部品は触らない＝suite 37b-3 が M-37b 節のセレクタを全走査）：見出し 24px 白をカードの外（.nox-setup-head＝9 STEP）・本文 15／注記 14／ラベル 13・カード余白 24・入力欄は列いっぱい高さ 44・業態カードの選択＝青枠＋「選択中」バッジ・曜日は幅いっぱいのセグメント・料金ルールは番号＋名前＋削除のヘッダー・下段の主ボタンは中央 52px。撮影比較＝9 STEP×2 幅（1280／390）を app と正本で左右に並べる（docs/tmp/shot_setup_compare.mts・正本の state は IIFE 内＝window.__mock を注入して setContent）。**★撮影で発見＝?step= の明示より server の下書き（setup_drafts）の step が勝っていた→明示を優先に（37b-5）**。 撮影比較の画像＝docs/tmp/shots_m37b（18 組・ローカルのみ＝docs/tmp は ignore）・追い込み後の再撮影で 3 点（料金ルールのヘッダー 1 行・権限 seg 1 行・390 の業態カード 1 列）を目視確認。
+- **M-38 退勤の取消（RPC）**＝0192 に同乗（当日営業日の最後の out を取り消す＝owner／manager・audit）。Agoora 10/30 の①②が「退勤済みのため明日」になった根拠。
+- **M-39 PIN ロックをオーナー／店長にも＋解除 RPC**＝読取（読取 3 点 (a)）＝DB 側は既に全ロール＝解除口は set_staff_pin の上書きだけ→0192 に `staff_pin_unlock`／`cast_pin_unlock`（マスタ › システム・audit）。
+- **M-40 小物**＝(a) 退勤をシフト開始時刻に丸める（attendance-sheet＝打刻窓がシフトに重なるときだけ置換・punchShiftRelationOf）・(b) マスタ › システム 最近の操作の実行者（kiosk-device-panel の actor ラベル）・(c) /register→/mine の無言リダイレクトに理由（castRegisterDenyReasonOf→/mine?denied=register&why=…→Message 1 行）。
+- **M-41 LP v3**＝app/lp/page.tsx を正本（mock v3）に（suite lp）。
+- **M-42 キオスクの写真**＝原因＝kiosk の一覧（kiosk_cast_list／kiosk_operator_list／kiosk_staff_list）は photo_updated_at を持たず・端末の auth は auth_org_id() が null＝storage の署名 URL が作れない→route `/api/kiosk/photos`（端末を kiosk_devices で確かめ・admin が本体と同じ signCastPhotos／signUserPhotos で署名・実体は返さない・no-store）＋/kiosk と /kiosk-register のタイルに本体と同じ部品 CastAvatar（失敗は頭文字）・demo-guard の分類 C。
+- **M-43 会計 OFF のスタッフ**＝layout＝auth_staff_can_register で判定・レジをナビに出さず・/register は /dashboard へ（シフト権限 can_shift と同じ型）・actions-center に staffRegOffA1 の 1 段（/register→/dashboard・nav レジ 0＝緑）。
+- **M-44 キャストのレジ入口**＝/mine のナビ「レジ」＝店「キャストのレジ使用 ON」∧「自分のスマホからも」（∨ レジ端末が未登録）∧ 本人の許可 ∧（店の duty_gate ON なら）出勤中＝castMineRegisterNavOf（純関数・p173.ts）＋castMineRegisterNavEntryOf（server＝当日営業日の自分の打刻の最終が in）。揃わなければ /mine 上部に理由 1 行（店が許可していない／本人の許可がない／店の端末からだけ／出勤してから）。**本人の許可の置き場＝既存＝マスタ › キャスト待遇 › レジ会計（set_cast_register・店 ON＋本人）**→キャスト詳細 › アカウントは案内の 1 行（リンク）だけ＝二重の編集口を作らない。
+- **M-45 PIN の 2 系統の名称と導線**＝キャスト詳細のボタン「キオスク PIN を設定」（旧「打刻PIN を設定」）・マスタ › システム › PIN＝見出し「PIN」＋2 系統の説明（操作担当 PIN＝スタッフ・ここで設定／キオスク PIN＝キャスト・設定はキャスト詳細）・キャストの行（設定済み／未設定と失敗回数・設定はキャスト側）＝**0192 の `cast_pin_status(p_store_id)`（staff_pin_status と同型・owner 全店／manager 自店）の配下＝未適用は案内 1 行**。
+- **M-46 PIN ポリシーのロック時間＝既定 10 分（裁定437）**＝UI の既定 2 か所を 15→10。DB 側の読取＝kiosk_login（0190）＝店設定 pin_lock_minutes・既定 10 ○／staff_punch（0191）＝店設定・既定 **15**／kiosk_punch（cast・0191）＝**固定 interval '15 minutes'（店設定を読まない）**→0192 で両方を「店設定・既定 10」に揃える。
+
+- **M-47 裁定435 追補＝端末の用途（打刻／レジ）の廃止**（相談役 10/30 夕）＝1 台で 5 タイル・解除は人を選ぶ→PIN に統一・上限は店舗ごと 3 台・発行欄の用途選択を外す・既存端末は全タイルに昇格。client（便 M5）＝kiosk-device-panel を MIG_0192_APPLIED の配下で「用途選択なし＋タイル列＝全タイル＋上限の文言＝店舗ごと」（false の間は従来）。**DB＝0192 に同乗**＝本番の読取（docs/tmp/scan_purpose_0192*.mjs・読取だけ）＝purpose の条件を持つ関数 14（auth_kiosk_store_id／auth_kiosk_register_store_id／auth_kiosk_operator／kiosk_lock／kiosk_login／kiosk_logout／kiosk_punch／kiosk_punch_state／kiosk_qr_claim／kiosk_qr_poll／kiosk_qr_secret／kiosk_transport_issue／kiosk_unlock／staff_punch）＋上限の数え方（kiosk_provision／kiosk_reactivate＝store×purpose→store）＋kiosk_devices_purpose_check（CHECK は残してよい＝列は使わない）・RLS の kiosk 腕 28 本は auth_kiosk_register_store_id 経由＝helper の改修で自動。
+- **M-48 レジ › 指名・席のキャストカード＝「着卓中（VIP-1）」のはみ出し**＝バッジを 2 段（1 段目＝着卓中・2 段目＝卓名を max-width＋省略記号・title に全文＝servingBadgeOf）・カードは min-width 0＋max-width 100％（グリッドの 94／78px は不変）・指名カードの「A3 着卓中」も省略記号＋title。actions-center に卓名 8 文字「テーブル10番席」のケース 1 段（A1 に卓 2＋伝票 2 を pg で作り・1,280／390 で測り・終わりに必ず消す）。s-lane shc(6) の pin 張替え。
+- **M-49 キオスクのタイル画面に「本人でログイン」**（店長以上がパスワードで本体画面を開く入口・5 タイルは不変＝タイルの下の小さなリンク）＝端末のセッション（access／refresh）を localStorage に控えて local サインアウト→/login?kiosk=1→店長以上だけ通す（staff／cast は KIOSK_PERSON_DENY で端末へ戻す）。本体画面＝KioskPersonGuard（印のあるセッションだけ・無操作 N 分＝店設定 kiosk_person_idle_minutes・既定 10・15 秒ごとに判定）で local サインアウト→端末のセッションを setSession で復元→/kiosk（復元できなければ /login）・帯「今すぐキオスクへ戻る」。**キーの編集口（set_store_profile の白名単）は 0192 に同乗＝それまで既定 10 分固定**。/mine（cast）の layout には guard を置かない（cast は /login で止めるため）。
+**仮決め（相談役案で確定扱い・事後承認）**: M5-1 M-44 の理由 1 行は ?denied の Message が無いときだけ（二重に出さない）・M5-2 M-44 の出勤中は duty_gate ON の店だけ見る（OFF の店は従来＝出勤前でも出す）・M5-3 M-45 のキャストの行は 0192 まで案内 1 行・M5-4 M-46 の DB 側は 0192 同乗（UI の既定だけ先行＝未設定の店は kiosk_login 10 分／staff_punch 15 分／kiosk_punch 15 分の不揃いが 0192 まで残る）・M5-5 M-34 は見送り（DB 変更）・M5-6 M-42 の route は demo-guard 分類 C（読取だけ・デモ org も可）・M5-7 M-47 の client は MIG_0192_APPLIED の配下（false の間は従来の用途選択・送る purpose は 'punch' 固定）・M5-8 M-49 の無操作時間は店設定 kiosk_person_idle_minutes＝編集口は 0192 まで無し（既定 10 分固定・/mine の layout には guard を置かない）・M5-9 M-48 の指名カードの「A3 着卓中」も省略記号＋title（同じ型）・M5-10 M-37b の撮影比較後の追い込み 5 点（料金ルールのヘッダー 1 行・スタッフ行の権限 seg 2 列・≤430 の業態カード 1 列＋副題の補足を隠す・単位の折返し禁止）＝CSS は .nox-setup 配下だけ・markup は副題の補足を span で包んだ 1 か所。
+
+- **f0 run A'（10/30 19:58→20:25）の exit 4**＝receipt-ledger（26 段目）が出力なしで落ちた→ 11/02 10:56 に単走（dev サーバに他の走りなし）＝ALL PASS 23（7 秒）→ **訂正（11/02）＝原因は CC の bash の timeout 600000 ms（10 分）が f0 の背景実行を kill したこと**（run A' は 20:25 開始・ext-menu まで 10 分で kill・receipt-ledger が途中＝receipt_issues 5 行が PERM卓の伝票に残留＝教訓123）。11/02 の run A'' は anon-guard 25 赤（seat occupied の連鎖）＝残留の receipt_issues（FK no action）で段15／段20 の wipe の checks delete が無言で失敗したため。処置＝残留を参照確認のうえ削除（docs/tmp/clean_perm_residue.mjs）・anon-guard の wipe 3 か所に receipt_issues／check_customers／check_seats／print_jobs を追加・**f0 は timeout を付けた bash で走らせない（教訓130 候補）**。
+- **f0 の張替え 3 本（11/02）**＝p173(3-4)＝/mine のナビの条件を regNav.show に（M-44）／verify:nox-0190＝1 本の tx の中は now() が固定＝in と out が同時刻で on_duty_of（order by punched_at desc）が同点→out を 1 秒後ろへ（fixture の調整・ROLLBACK で消える・10/30 は同点の順で偶然緑＝0192 候補＝on_duty_of の order に id を足す）／verify:nox-x13h(1-4)＝ACE 固定をデモ店の先頭（is_demo・name 順）に（ACE は stores 0）。
+- **suite**＝verify:nox-m5（23）・verify:nox-m5c（16）・verify:nox-lp 張替え・actions-center 1 段（208）・pin 張替え（messages／staff-photo／demo-guard／setup／ob2／su／w52a）。f0＝**165 段（チェーン 165・緑行 160・検査 7,069＝docs/tmp/f0_count.mjs の規則）の 2 連緑**＝run A 11/02 11:27→11:43・run B 11:43→12:04・fails 0・golden 不変（pay 130・payroll 234・玲奈 5931／125802）。
+- **lint＋tsc**＝push 前に単走（教訓129 候補）＝tsc 0・lint Error 0（Warning＝setup-wizard の exhaustive-deps 3 本＝既存＋initialStep）。
+- **live**＝push 後に読取目視（結果は v55_draft §0／§3-3）。
+- **commit**＝ca58b45（純関数＋suite）／db5bb31（client）／1e5092a（suite 張替え 4 本）／docs＝本コミット・push／Vercel／6 店 reset／live＝締め便の docs コミット（v55_draft §0）に実測を記す。
+
 ### Agoora 確定 10/27（4）＝M-24（実機指摘 10/27 15:52・デモ LUNA・キャスト詳細）
 
 出典＝相談役ブロック 2026-10-27（Agoora の実機指摘）。便 M3 に入れる（日払いの種別の 1 項目は 0188 の便の client 分に追記）。390px 基準・live に 390 相当と「主ボタン中央」。**本文（逐語）**:
@@ -7917,8 +7965,8 @@ anon-guard 段28 が無差別 `limit(1)` でそれを拾い 'bad amount'/BV=unde
   該当列なし）ため、消さずに理由を分けて残した。
   根拠の全文＝`docs/dp/survey_6-4.md`。
 
-## 次の番号（2026-10-30 便 ③ 時点）
+## 次の番号（2026-10-30 便 M5 時点）
 
-- **次の M＝M-38**（M-30＝便 M3 で収載・**M-31〜M-37b＝便 M5 に予約**（相談役 10/30 夕＝投入文は相談役から。M-37＝便 SU の殻（済）・**M-37b＝/setup 9 STEP を正本 setup_v5.html の密度に合わせる＝文字サイズ・余白・カード構造・入力欄の幅と高さ 44px・選択状態の青枠＋バッジ・料金ルールのヘッダーと削除。部品は .nox-setup 配下の CSS 変数で上書きし本体画面の部品は触らない**）・M4 は 2026-10-01 に使用済みのため M5。M-31 onoff の選択中 OFF の塗り・M-32 390px の select・M-33 /mine 確認枠＝店向けカード手数料文の混入・M-34 基本の働き方はアカウント未発行でも設定可・**M-35 スタッフ › 一覧に「＋スタッフを追加」＝STEP 6 と同じフォーム・/api/staff/create＋staff_contract_set・追加後に PIN 発行の印**。投入は別途（台帳に予約だけ）。M-27 は欠番＝M-17 追補を便 2 に同乗させたため）。
+- **次の M＝M-50**（M-31〜M-49＝便 M5 で収載＝M-31 onoff／M-32 select／M-33 /mine 確認枠／M-34 読取のみ（0192 候補）／M-35 スタッフ追加／M-36 プラン軸の表示／M-37 便 SU／M-37b 密度／M-38 退勤取消＝0192／M-39 ロック解除＝0192／M-40 小物 3／M-41 LP v3／M-42 キオスクの写真／M-43 会計 OFF のスタッフ／M-44 キャストのレジ入口／M-45 PIN 2 系統／M-46 ロック 10 分／M-47 端末の用途廃止＝裁定435 追補／M-48 着卓中バッジ／M-49 本人でログイン）。**0192 の同乗（起草待ち・docs/tmp/0192_plan.md）**＝スタッフ日別勤怠の修正・確定／M-38／M-39／cast_pin_status（M-45）／staff_punch・kiosk_punch の既定 10 分（M-46）／端末の用途の廃止（M-47＝関数 14＋上限の数え方）／kiosk_person_idle_minutes の白名単（M-49）／M-34 は裁定待ち。flag＝MIG_0192_APPLIED=false（lib/nox/rules-0175/flag.ts）。
 - **次の教訓＝130**（125＝cron と suite の fixture・126＝候補（共用端末は包み）・127＝欠番のまま・**128＝2026-10-30 採番＝commit; を含む切り出しの禁止**・**129＝候補（便 SU・2026-10-30）＝f0 は lint を含まない＝push の直前に lint・tsc を単走**）。
 - **次の裁定＝439**（437＝キオスクの解除「人を選ぶ→PIN」・438＝初期設定 v5 正本＝ともに本文収載・確定は相談役。433＝提案中・本文収載済み・434＝2026-10-27 確定・435＝提案中＝便 K キオスクの機能拡張・436＝提案中＝K-5 打刻ゲート・端末の束縛・退店の失効（0190）・2026-10-29 本文収載済み）。
