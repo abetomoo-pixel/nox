@@ -69,6 +69,26 @@ check("ds(5-4) parseDemoUsers: JSON 以外・配列・uuid でない値は捨て
   check("ds(6-3) isRel は {$m,d} も true（$m だけ・d だけは false）", isRel({ $m: -1, d: 1 }) && !isRel({ $m: -1 }) && !isRel({ d: 1 }));
 }
 
+// (7) ★2026-11-02 デモ reset の load 失敗: 月初に {$m} の行と {$rel} の行が同じ一意キーに写る（NEST shifts 10/28・ACE cast_plan 11/01）→ {$rel} を残す
+{
+  const D = "2026-11-02";
+  const g = shiftPayload({
+    shifts: [{ id: "m", cast_id: "c", date: { $m: -1, d: 28 } }, { id: "r", cast_id: "c", date: { $rel: -5 } }, { id: "o", cast_id: "c", date: { $rel: -4 } }],
+    attendance: [{ id: "r", cast_id: "c", date: { $rel: -5 } }, { id: "m", cast_id: "c", date: { $m: -1, d: 28 } }],
+    cast_plan: [
+      { id: "a", cast_id: "c", valid_from: { $rel: -400 }, valid_to: { $m: -1, d: 31 } },
+      { id: "b", cast_id: "c", valid_from: { $m: 0, d: 1 }, valid_to: { $rel: -2 } },
+      { id: "c", cast_id: "c", valid_from: { $rel: -1 }, valid_to: null },
+    ],
+  }, D, "06:00");
+  check("ds(7-1) shifts／attendance: 同じ キャスト×日 は {$rel} の行だけ残す（順序に依らない）・重ならない行は残す", g.shifts.map((r) => r.id).join(",") === "r,o" && g.attendance.map((r) => r.id).join(",") === "r", JSON.stringify(g.shifts.map((r) => r.id)));
+  check("ds(7-2) cast_plan: 11/02 は {$m:0,d:1}（11/01〜10/31＝逆転）を落とし {$rel:-1}（11/01〜）を残す", g.cast_plan.map((r) => r.id).join(",") === "a,c" && g.cast_plan[1].valid_from === "2026-11-01", JSON.stringify(g.cast_plan));
+  const mid = shiftPayload({ cast_plan: [{ id: "b", cast_id: "c", valid_from: { $m: 0, d: 1 }, valid_to: { $rel: -2 } }, { id: "c", cast_id: "c", valid_from: { $rel: -1 }, valid_to: null }] }, "2026-11-15", "06:00");
+  const feb = shiftPayload({ daily_reports: [29, 30, 31, 27].map((d) => ({ id: `d${d}`, store_id: "s", biz_date: { $m: -1, d } })) }, "2027-03-05", "06:00");
+  check("ds(7-4) daily_reports: 3 月の reset で先月 29〜31 日が 2/28 に畳まれても 1 行だけ（店×営業日）", feb.daily_reports.map((r) => r.biz_date).join(",") === "2027-02-28,2027-02-27", JSON.stringify(feb.daily_reports));
+  check("ds(7-3) 月の途中（11/15）は 2 行とも残る（11/01〜11/13・11/14〜）", mid.cast_plan.map((r) => r.id).join(",") === "b,c");
+}
+
 if (fails.length) {
   console.error(`FAIL ${fails.length} 件 / pass ${pass}`);
   for (const f of fails) console.error(" - " + f);

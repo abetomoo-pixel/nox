@@ -110,7 +110,34 @@ export function shiftPayload(payload: Record<string, Record<string, unknown>[]>,
       if (base && cols && base.has(dedupeKeyOf(m.sh, cols, cutoffHm))) { if (table === "checks" && typeof m.raw.id === "string") droppedChecks.add(m.raw.id); continue; }
       kept.push(strip(m.sh));
     }
-    out[table] = kept;
+    out[table] = UNIQUE_GUARD[table] ? guardUnique(table, rows, kept, cutoffHm) : kept;
   }
   return Object.fromEntries(Object.keys(payload).map((t) => [t, out[t]]));
+}
+
+/**
+ * ★2026-11-02 デモ reset の load 失敗（ACE cast_plan_cast_from_uidx／NEST shifts_cast_date_key）: 月相対（{$m}）の行と営業日相対（{$rel}）の行が
+ *   月初に同じ日へ写って一意キーが重なる（例: 11/02 に {$m:-1,d:28} と {$rel:-5} がともに 10/28）。写しでない行どうしは $dedupe の対象外だったため。
+ *   一意キー（live の unique index と同じ列）で重なったら {$rel} の行を残し {$m} の行を落とす（当日まわりの話の筋＝$rel が正）。
+ *   cast_plan は valid_to < valid_from（月初の 1〜2 日に {$m:0,d:1}〜{$rel:-2} が逆転する）も落とす。
+ */
+const UNIQUE_GUARD: Record<string, { cols: readonly string[]; date: string }> = {
+  shifts: { cols: ["cast_id", "date"], date: "date" },
+  attendance: { cols: ["cast_id", "date"], date: "date" },
+  cast_plan: { cols: ["cast_id", "valid_from"], date: "valid_from" },
+  daily_reports: { cols: ["store_id", "biz_date"], date: "biz_date" }, // 3 月の reset で先月の 29〜31 日が 2/28 に畳まれて重なる（400 日走査で検出）
+};
+function guardUnique(table: string, rawRows: Record<string, unknown>[], kept: Record<string, unknown>[], cutoffHm: string): Record<string, unknown>[] {
+  const g = UNIQUE_GUARD[table];
+  const relById = new Map<unknown, boolean>(rawRows.map((r) => [r.id, !isRelMonth(r[g.date])]));
+  const byKey = new Map<string, number>();
+  const out: Record<string, unknown>[] = [];
+  for (const r of kept) {
+    if (table === "cast_plan" && typeof r.valid_to === "string" && typeof r.valid_from === "string" && r.valid_to < r.valid_from) continue;
+    const key = dedupeKeyOf(r, g.cols, cutoffHm);
+    const at = byKey.get(key);
+    if (at === undefined) { byKey.set(key, out.length); out.push(r); continue; }
+    if (relById.get(r.id) && !relById.get(out[at].id)) out[at] = r; // 先にいた {$m} の行を {$rel} の行で置き換える
+  }
+  return out;
 }
