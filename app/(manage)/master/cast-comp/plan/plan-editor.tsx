@@ -18,7 +18,8 @@ import { isSectionOn, isSystemOn, pointSlideOn, salesSlideOn, slidesTabOn, type 
 import { BONUS_TIER_MAX, bonusParamsOf, bonusTiersErrOf, bonusTiersLabel, bonusTiersOf, type BonusTier } from "@/lib/nox/bonus-tiers"; // ★便 P173 T-2（起票110）: 達成ボーナスの多段
 import { slideErrOf, slideToSave } from "@/lib/nox/comp/slide-rows"; // ★便 P174 T-1（裁定390）
 import { rules0175On } from "@/lib/nox/rules-0175/flag"; // ★便 P175-prep P-3
-import { PLAN_REWARD_AXIS_LABEL, planRewardAxisOf, planRewardAxisPatchOf, type PlanRewardAxis } from "@/lib/nox/rules-0175/settings"; // ★便 P175-prep P-3（裁定412 追補）
+import { PLAN_REWARD_AXIS_LABEL, planRewardAxisOf } from "@/lib/nox/rules-0175/settings"; // ★便 P175-prep P-3（裁定412 追補）→★便 M5 M-36: 表示だけ（planRewardAxisPatchOf は使わない）
+import Link from "next/link"; // ★便 M5 M-36: 「店舗設定で変更」
 import {
   SlideInput, compErrJa, secTitle, BackTab, PRODUCT_BACK_OPTIONS, productBackArgsOf, productBackErrOf,
   type Plan, type Slide, type BackModeRow, type CompRow, type BackDef, type ProductBackMode,
@@ -536,16 +537,20 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
           <span>対象: <b style={{ color: "var(--v2-text)" }}>時給</b>（固定）</span>
         </p>
         {rules0175On() && draft.id && (/* ★便 P175-prep P-3（裁定412 追補・0175 v2 ★12 comp_plan_ext_set）: 報酬の軸はプラン単位（null＝店の軸を引き継ぐ）。保存済みプランだけ。フラグ false＝DOM 差分 0 */
-          <p data-plan-reward-axis={planRewardAxisOf(plans.find((x) => x.id === draft.id) as { reward_axis?: string | null } | undefined, settings)} style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 8px", display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-            <span>報酬の軸:</span>
-            {(() => { const cur = (plans.find((x) => x.id === draft.id) as { reward_axis?: string | null } | undefined)?.reward_axis ?? null; const curKey: PlanRewardAxis | "store" = cur === null ? "store" : cur === "pt" ? "pts" : (cur as PlanRewardAxis);
-              return ([["store", "店の軸に従う"], ["sales", PLAN_REWARD_AXIS_LABEL.sales], ["pts", PLAN_REWARD_AXIS_LABEL.pts], ["pay_rate", PLAN_REWARD_AXIS_LABEL.pay_rate]] as const).map(([v, label]) => (
-                <label key={v} style={{ display: "inline-flex", gap: 4, alignItems: "center" }}>
-                  <input type="radio" name="plan-reward-axis" checked={curKey === v} disabled={!isOwner} aria-label={`報酬の軸 ${label}`}
-                    onChange={() => void (async () => { const { error } = await supabase.rpc("comp_plan_ext_set", { p_plan_id: draft.id, p_patch: planRewardAxisPatchOf(v === "store" ? null : v) }); if (error) { setSecErr((e) => ({ ...e, スライド: compErrJa(error.message) })); return; } setMsg(`報酬の軸を「${label}」にしました`); await reload(); })()} />{label}
-                </label>
-              )); })()}
-          </p>
+          /* ★便 M5 M-36（2026-10-30）: 表示だけ＝ラジオ（comp_plan_ext_set）は撤去。軸は店舗設定（使う制度 › 報酬の軸）で 1 つ選ぶ。
+             プラン固有の reward_axis が残っている行（null 以外）は「このプランは … を使う（店の軸: …）」と出す＝書き換え口は無い（data-plan-reward-axis は有効な軸・own は固有か） */
+          (() => {
+            const cur = plans.find((x) => x.id === draft.id) as { reward_axis?: string | null } | undefined;
+            const eff = planRewardAxisOf(cur, settings); const storeAxis = planRewardAxisOf(undefined, settings); const own = (cur?.reward_axis ?? null) !== null;
+            const toStore = <Link href="/master/cast-comp/systems#reward-axis" style={{ color: "var(--gold)", fontWeight: 700 }}>店舗設定で変更</Link>;
+            return (
+              <p data-plan-reward-axis={eff} data-plan-reward-axis-own={own ? "1" : "0"} style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 8px", display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                {own
+                  ? <span>このプランは <b style={{ color: "var(--v2-text)" }}>{PLAN_REWARD_AXIS_LABEL[eff]}</b> を使う（店の軸: {PLAN_REWARD_AXIS_LABEL[storeAxis]}・{toStore}）</span>
+                  : <span>報酬の軸: <b style={{ color: "var(--v2-text)" }}>{PLAN_REWARD_AXIS_LABEL[eff]}</b>（{toStore}）</span>}
+              </p>
+            );
+          })()
         )}
         {/* ★便 P174 T-4（裁定395・395 追補2）: 判定のタイミング＝詳細設定の奥（主表示は上の判定期間）。null＝店設定に従う・前期の実績（既定）・当期の累計（稀） */}
         <details data-slide-apply="1" style={{ margin: "0 0 8px", fontSize: 12, color: "var(--sub)" }}>

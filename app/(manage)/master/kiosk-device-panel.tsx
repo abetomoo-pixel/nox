@@ -231,6 +231,17 @@ export default function KioskDevicePanel({ stores }: { stores: Store[] }) {
     const role = uid ? roleByUser[uid] : undefined;
     return role ? (ROLE_LABEL[role] ?? role) : "—";
   };
+  // ★便 M5 M-40 (c)（2026-10-30）: 端末自身の操作（kiosk_device_bind＝audit_log_write_service・actor_user_id null）は「—が実行」ではなく端末名で出す。
+  //   target 'kiosk_devices:<id>' → devices の label ?? 用途（一覧に無い＝削除済みなら after_json の label／purpose → それも無ければ「端末」）
+  const deviceActorLabel = (a: { target: string; after_json: Record<string, unknown> | null }): string => {
+    const id = a.target.startsWith("kiosk_devices:") ? a.target.slice("kiosk_devices:".length) : null;
+    const d = id ? devices.find((x) => x.id === id) : undefined;
+    if (d) return d.label ?? (PURPOSE_LABEL[d.purpose] ?? d.purpose);
+    const aj = a.after_json ?? {};
+    if (typeof aj.label === "string" && aj.label) return aj.label;
+    if (typeof aj.purpose === "string" && aj.purpose) return PURPOSE_LABEL[aj.purpose] ?? aj.purpose;
+    return "端末";
+  };
 
   return (
     <div>
@@ -356,7 +367,9 @@ export default function KioskDevicePanel({ stores }: { stores: Store[] }) {
                   style={{ display: "flex", alignItems: "baseline", gap: 8, fontSize: 11.5, padding: "5px 0", borderBottom: "1px solid var(--line)" }}>
                   <span style={{ minWidth: 0 }}>
                     <b style={{ color: "var(--ink)" }}>{auditLabel(a)}</b>
-                    <small style={{ display: "block", color: "var(--sub)" }}>{actorLabel(a.actor_user_id)}が実行</small>
+                    {a.actor_user_id === null
+                      ? <small style={{ display: "block", color: "var(--sub)" }} data-kiosk-audit-actor="device">端末「{deviceActorLabel(a)}」が実行</small>/* ★便 M5 M-40 (c) */
+                      : <small style={{ display: "block", color: "var(--sub)" }} data-kiosk-audit-actor="role">{actorLabel(a.actor_user_id)}が実行</small>}
                   </span>
                   <span className="num" style={{ marginLeft: "auto", color: "var(--v2-muted)", whiteSpace: "nowrap" }}>{relTime(a.at)}</span>
                 </div>

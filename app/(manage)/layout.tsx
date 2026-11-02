@@ -44,6 +44,8 @@ export default async function ManageLayout({ children }: { children: React.React
     if (onRegister) {
       const e = await castRegisterEntryOf(supabase);
       castReg = e.allowed;
+      // ★便 M5 M-40 (c)（2026-10-30）: 通さない理由を /mine に持って行く（黙って戻さない）＝/mine が「この店ではキャストのレジ操作は使いません」等を出す
+      if (!castReg) redirect(`/mine?denied=register&why=${e.reason ?? "not_allowed"}`);
     }
     if (!(onRegister && castReg)) redirect("/mine");
   }

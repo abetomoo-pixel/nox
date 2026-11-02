@@ -33,7 +33,7 @@ export default function StoreSystemsPanel({
   const rowStyle = { display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap" as const, padding: "8px 0", borderBottom: "1px solid var(--line, rgba(0,0,0,.08))" };
   // ★便 X13-H H-7（裁定412）: 報酬の軸（ラジオ 1 つ）＋各種バック／スライドの 2 行。pt 軸のときは説明文だけ pt 版（行は増やさない）
   const axisBlock = (
-    <div key="reward-axis" data-reward-axis={axis} style={{ display: "grid", gap: 4, padding: "8px 0", borderBottom: "1px solid var(--line, rgba(0,0,0,.08))" }}>
+    <div key="reward-axis" id="reward-axis" data-reward-axis={axis} style={{ display: "grid", gap: 4, padding: "8px 0", borderBottom: "1px solid var(--line, rgba(0,0,0,.08))" }}>
       <div className="nox-onoff-head" style={{ fontSize: 13, fontWeight: 800 }}>報酬の軸</div>
       <p className="nox-onoff-body" style={{ fontSize: 11.5, color: "var(--sub)", margin: "0 0 4px", lineHeight: 1.6 }}>バックとスライドを売上（円）で決めるか、ポイント（pt）で決めるかを店で 1 つ選びます。</p>
       <div role="radiogroup" aria-label="報酬の軸" style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import BrandLogo from "@/components/ui/brand-logo"; // ★便 SH-UI-a A-2: ロゴ（Concept 2 改）
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -13,6 +13,15 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // ★便 M5 M-40 (b)（2026-10-30）: Supabase のメールリンク（パスワード再設定 type=recovery／招待 type=invite／マジックリンク type=magiclink）は
+  //   Site URL＝/login に「#access_token=…&type=recovery」の形で着地することがある。hash を残したまま /auth/set-password へ渡す（そこが setSession→パスワード設定を担う）。
+  useEffect(() => {
+    const h = window.location.hash;
+    if (!h) return;
+    const type = new URLSearchParams(h.replace(/^#/, "")).get("type");
+    if (type === "recovery" || type === "invite" || type === "magiclink") router.replace("/auth/set-password" + h);
+  }, [router]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();

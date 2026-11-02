@@ -67,3 +67,9 @@ export const MIG_0191_APPLIED = true; // ★2026-10-30: 0191（sha16 e5106a9fe0b
 let override0191: boolean | null = null;
 export function mig0191On(): boolean { return override0191 ?? MIG_0191_APPLIED; }
 export function __set0191ForTest(v: boolean | null): void { override0191 = v; }
+/** ★0192（便 M5 の読取で起草＝2026-10-30 夕・未手貼り）: cast_pin_status（M-45 キャストのキオスク PIN の状態＝マスタ › システムの一覧）・staff_punch の既定ロック 10 分（M-46・裁定437）・
+ *  退勤の取消（M-38）・PIN ロックの解除 RPC（M-39）・スタッフ日別勤怠の修正・確定。false の間は client は従来（キャストの行は「0192 の適用後」の 1 行だけ）。手貼り＋verify 一致で true。 */
+export const MIG_0192_APPLIED = false;
+let override0192: boolean | null = null;
+export function mig0192On(): boolean { return override0192 ?? MIG_0192_APPLIED; }
+export function __set0192ForTest(v: boolean | null): void { override0192 = v; }

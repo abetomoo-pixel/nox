@@ -2,7 +2,9 @@
  * verify:nox-lp — 裁定344（便 N1013b・2026-10-13）: LP（/lp）の係留（DB 不触・env 不要）。
  *   npm run verify:nox-lp。f0 104 段目。
  *  lp(1) app/lp/page.tsx: force-static・noindex（公開ゲートの後に index）・文言の出所＝DEMO_RESET_TIME_JA／DEMO_TERMS／DEMO_STORE_LABEL の import（二重化しない）・
- *        6 店カード＝DEMO_STORES.map・「この店で試す」＝/demo?store=<key>&role=owner・動画＝public/lp/<store>.mp4（無い間はポスター枠）・料金＝mailto・/terms へのリンクなし・スマホ 1 列（auto-fill）
+ *        6 店カード＝LP_ORDER（モック v3 の順・DEMO_STORES と同じ集合）・「オーナーで試す」「店長で試す」＝/demo?store=<key>&role=owner|manager・
+ *        上段＝public/lp/<store>.mp4 → <store>.jpg → ポスター枠・料金＝mailto・/terms へのリンクなし・スマホ 1 列（auto-fill）
+ *        ★便 M5 M-41（2026-10-30）: モック v3（nox_lp_mock_v3.html）への差し替え＝ヒーロー・チップ（見た目だけ）・4 つの立場・できること・これから・雇用・委託・FAQ（details）・OG 画像の meta
  *  lp(2) demo-terms: demoInitialSelectionOf（未知の店／役割は無視・店なしなら役割も null）・demoBizOrderOf（初期選択の店を先頭）・DemoEntry は useSearchParams で ?store=&role= を読む
  *  lp(3) 配線: /demo page は DemoEntry を Suspense で包む・session.ts の isDemoSessionExemptPath("/lp")・robots.ts の allow に /lp
  */
@@ -19,15 +21,38 @@ const src = (p: string) => fs.readFileSync(p, "utf8");
 // lp(1)
 {
   const lp = src("app/lp/page.tsx");
-  check("lp(1-1) force-static・noindex（robots index:false）", lp.includes('export const dynamic = "force-static";') && lp.includes("robots: { index: false, follow: false }"));
-  check("lp(1-2) 文言の出所＝DEMO_RESET_TIME_JA／DEMO_STORES／DEMO_STORE_LABEL（seed.ts）・DEMO_TERMS（demo-terms.tsx）を import＝二重化しない",
-    lp.includes('import { DEMO_RESET_TIME_JA, DEMO_STORES, DEMO_STORE_LABEL } from "@/lib/nox/demo/seed";') && lp.includes('import { DEMO_TERMS } from "@/lib/nox/demo/terms";') && src("components/ui/demo-terms.tsx").includes('import { DEMO_TERMS } from "@/lib/nox/demo/terms";\nexport { DEMO_TERMS };')
-    && lp.includes("{DEMO_TERMS.map((s) => <li key={s}>{s}</li>)}") && lp.includes("デモは{DEMO_RESET_TIME_JA}に初期化されます") && !/毎日 06:05/.test(lp));
-  check("lp(1-3) 6 店カード＝DEMO_STORES.map・「この店で試す」＝/demo?store=<key>&role=owner・主 CTA＝/demo",
-    lp.includes("const STORES = DEMO_STORES.map((s) => ({ key: s, ...DEMO_STORE_LABEL[s], video: videoSrcOf(s) }));") && lp.includes("href={`/demo?store=${s.key}&role=owner`}") && lp.includes(">この店で試す</Link>") && lp.includes('<Link href="/demo" style={{ ...t.btnGold'));
-  check("lp(1-4) 動画＝public/lp/<store>.mp4（fs.existsSync・無い店はポスター枠 data-poster）", lp.includes('path.join(process.cwd(), "public", "lp", `${store}.mp4`)') && lp.includes("return fs.existsSync(p) ? `/lp/${store}.mp4` : null;") && lp.includes('data-poster="1"') && lp.includes("<video src={s.video} controls muted playsInline preload=\"none\""));
-  check("lp(1-5) 料金＝mailto・/terms へのリンクなし・スマホ 1 列（auto-fill minmax）", lp.includes('const LP_CONTACT_MAILTO = "mailto:') && !lp.includes("export const LP_CONTACT_MAILTO") && lp.includes("href={LP_CONTACT_MAILTO}") && !/href="\/terms"/.test(lp) && lp.includes('gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))"'));
+  check("lp(1-1) force-static・noindex（robots index:false）・OG 画像＝/lp/og.jpg（meta だけ・static のまま＝\"use client\" なし）",
+    lp.includes('export const dynamic = "force-static";') && lp.includes("robots: { index: false, follow: false }") && lp.includes('openGraph: { images: ["/lp/og.jpg"] }') && !/^"use client";?\s*$/m.test(lp));
+  check("lp(1-2) 文言の出所＝DEMO_RESET_TIME_JA／DEMO_STORES／DEMO_STORE_LABEL（seed.ts）・DEMO_TERMS（demo-terms.tsx）を import＝二重化しない（帯・ヒーロー・FAQ の「毎日 06:05」は定数から）",
+    lp.includes('import { DEMO_RESET_TIME_JA, DEMO_STORES, DEMO_STORE_LABEL, type DemoStore } from "@/lib/nox/demo/seed";') && lp.includes('import { DEMO_TERMS } from "@/lib/nox/demo/terms";') && src("components/ui/demo-terms.tsx").includes('import { DEMO_TERMS } from "@/lib/nox/demo/terms";\nexport { DEMO_TERMS };')
+    && lp.includes("{DEMO_TERMS.map((s) => <li key={s}>{s}</li>)}") && lp.includes("デモは{DEMO_RESET_TIME_JA}に初期化されます") && !/毎日 06:05/.test(lp)
+    && lp.includes("デモ環境・{DEMO_RESET_TIME_JA}に初期化。入力内容は他の閲覧者にも見えます。個人情報を入力しないでください") && lp.includes("`デモ環境・${DEMO_RESET_TIME_JA}に初期化。入力内容は他の閲覧者にも見えます。個人情報を入力しないでください`"));
+  {
+    const m = /const LP_ORDER: readonly DemoStore\[\] = \[([^\]]+)\];/.exec(lp);
+    const order = m ? m[1].split(",").map((x) => x.trim().replace(/"/g, "")) : [];
+    check("lp(1-3) 6 店カード＝LP_ORDER（モック v3 の順 ace,luna,noir,muse,nest,lily＝DEMO_STORES と同じ集合）・「オーナーで試す」「店長で試す」＝/demo?store=<key>&role=owner|manager（MUSE／NEST／LILY は店長が先）・主 CTA「デモ店舗を選ぶ」＝/demo",
+      order.join(",") === "ace,luna,noir,muse,nest,lily" && [...order].sort().join(",") === [...DEMO_STORES].sort().join(",")
+      && lp.includes("const STORES = LP_ORDER.map((s) => ({ key: s, label: DEMO_STORE_LABEL[s], ...LP_STORE_COPY[s], video: videoSrcOf(s), image: imageSrcOf(s) }));")
+      && lp.includes("href={`/demo?store=${s.key}&role=owner`}") && lp.includes("href={`/demo?store=${s.key}&role=manager`}") && lp.includes(">オーナーで試す</Link>") && lp.includes(">店長で試す</Link>")
+      && /muse: \{[^}]*primary: "manager"/.test(lp) && /nest: \{[^}]*primary: "manager"/.test(lp) && /lily: \{[^}]*primary: "manager"/.test(lp) && /ace: \{[^}]*primary: "owner"/.test(lp)
+      && lp.includes('<Link href="/demo" style={{ ...t.btnGold, ...btn }}>デモ店舗を選ぶ</Link>') && lp.includes("伝票の1杯から、<br />月末の給与まで。"));
+  }
+  check("lp(1-4) 上段＝public/lp/<store>.mp4（fs.existsSync）→ <store>.jpg（<img alt 1280×800・動画の poster にも）→ ポスター枠 data-poster",
+    lp.includes('path.join(process.cwd(), "public", "lp", `${store}.mp4`)') && lp.includes("return fs.existsSync(p) ? `/lp/${store}.mp4` : null;")
+    && lp.includes('path.join(process.cwd(), "public", "lp", `${store}.jpg`)') && lp.includes("return fs.existsSync(p) ? `/lp/${store}.jpg` : null;")
+    && lp.includes('data-poster="1"') && lp.includes("<video src={s.video} poster={s.image ?? undefined} controls muted playsInline preload=\"none\"") && lp.includes("<img src={s.image} alt={s.alt} loading=\"lazy\" width={1280} height={800}"));
+  check("lp(1-5) 料金＝mailto（器なし・金額の行は出さない）・/terms へのリンクなし・スマホ 1 列（auto-fill／auto-fit minmax）・主ボタンは .nox-actions",
+    lp.includes('const LP_CONTACT_MAILTO = "mailto:') && !lp.includes("export const LP_CONTACT_MAILTO") && lp.includes("href={LP_CONTACT_MAILTO}") && !/href="\/terms"/.test(lp) && !/月額/.test(lp)
+    && lp.includes('gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))"') && lp.includes('gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))"') && lp.includes('<div className="nox-actions" style={{ marginTop: "auto", paddingTop: 4 }}>'));
   check("lp(1-6) 資格情報・外部リンクを置かない（http は無い・mailto のみ）", !/https?:\/\//.test(lp));
+  check("lp(1-7) モック v3 の節が揃う（チップ 7＝見た目だけ・4 つの立場・できること 3 列・これから 3 群・雇用・委託の注記 3・FAQ 5＝details・フッター）",
+    lp.includes('const LP_CHIPS: readonly string[] = ["すべて", "売上で時給が上がる", "指名で時給が上がる", "半月で判定する", "時給は固定", "日払いがある", "休み希望だけ集める"];')
+    && lp.includes("給与の決め方が違う、6つのデモ店舗") && lp.includes("どの店にも「体験入店」の待遇があり、1名が期限付きの保証時給で入っています。")
+    && lp.includes("立場ごとに、見える画面が変わります") && lp.split("{ name: \"").length - 1 === 4
+    && lp.includes("営業中の入力が、そのまま締めにつながる") && lp.split("when: \"").length - 1 === 3 && lp.includes('["監査ログ", "誰がいつ何を変えたかが残ります。伝票の修正や設定の変更も追えます。"]')
+    && lp.includes("これから加わる機能") && lp.includes('"給与計算の自動確定"') && lp.includes("雇用のキャストも、<br />業務委託のキャストも") && lp.includes('"源泉徴収の扱いは、税理士などの専門家にご確認ください。"')
+    && lp.includes("よくある質問") && lp.split("<details key={q}").length - 1 === 1 && lp.split('["').length - 1 >= 5 && lp.includes('["料金はいくらですか", "料金はお問い合わせください。店の運用をうかがってご案内します。"]')
+    && lp.includes("導入と料金のご相談") && lp.includes("<span>NOX　運営　株式会社Agoora</span>") && lp.includes("<span>© 2026 Agoora</span>") && lp.includes('<Link href="/demo" className="nox-link">デモ</Link>'));
 }
 
 // lp(2)

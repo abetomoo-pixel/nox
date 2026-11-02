@@ -94,6 +94,22 @@ export type AttendanceSheetInput = {
 
 const ymdAdd = (ymd: string, n: number): string => { const d = new Date(`${ymd}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 
+// ★便 M5 M-40 (x)（2026-10-30）: 実打刻の窓と確定シフトの窓の関係（0-47 域 HH:MM＝30 時間表記・翌日跨ぎは hm2min がそのまま比べられる）。
+//   "before"＝退勤がシフト開始以前（16:28→16:40 の打刻 vs 20:00 シフト）／"after"＝出勤がシフト終了以降／"overlap"＝重なる／null＝打刻なし。
+//   退勤が無い（勤務中）日は開き窓＝出勤がシフト終了より前なら overlap。出勤が無い（退勤だけ）日は退勤の 1 点で見る。
+export function punchShiftRelationOf(inHm: string | null | undefined, outHm: string | null | undefined, shiftStart: string, shiftEnd: string): "overlap" | "before" | "after" | null {
+  if (!inHm && !outHm) return null;
+  const s = hm2min(shiftStart), e = hm2min(shiftEnd);
+  const a = inHm ? hm2min(inHm) : hm2min(outHm as string);
+  const b = outHm ? hm2min(outHm) : Number.POSITIVE_INFINITY;
+  if (b <= s) return "before";
+  if (a >= e) return "after";
+  return "overlap";
+}
+/** 実打刻の窓が確定シフトの窓と重なるか（計算基準 'shift' の置換はこのときだけ）。打刻なしは false */
+export const punchOverlapsShiftOf = (inHm: string | null | undefined, outHm: string | null | undefined, shiftStart: string, shiftEnd: string): boolean => punchShiftRelationOf(inHm, outHm, shiftStart, shiftEnd) === "overlap";
+export const SHIFT_RELATION_NOTE: Record<"before" | "after", string> = { before: "シフト前", after: "シフト後" };
+
 /** 1 人 1 か月の行（日付昇順）。hours は給与と同じ関数（dayWorkedHours＋'shift' 置換）・丸めは行ごと roundPt1 */
 export function attendanceDayRowsOf(input: AttendanceSheetInput): AttendanceDayRow[] {
   const built = buildMatchInput({ punches: input.punches, shifts: input.shifts, attendance: input.attendance.map((a) => ({ date: a.date, status: a.status })), cutoffHm: input.cutoffHm });
@@ -124,9 +140,13 @@ export function attendanceDayRowsOf(input: AttendanceSheetInput): AttendanceDayR
     const ins = sorted.filter((e) => e.kind === "in"), outs = sorted.filter((e) => e.kind === "out");
     const inHm = ins[0]?.at ?? null, outHm = outs.length > 0 ? outs[outs.length - 1].at : null;
     const rawHours = d ? dayWorkedHours(d) : 0;
-    const basis: "punch" | "shift" = input.payTimeBasis === "shift" && rawHours > 0 && shiftHours[bizDate] !== undefined ? "shift" : "punch";
-    const hours = roundPt1(basis === "shift" ? shiftHours[bizDate] : rawHours); // pay.ts 613 と同じ置換
     const sh = shiftByDate.get(bizDate) ?? null;
+    // ★便 M5 M-40 (x)（2026-10-30）: 'shift' の置換は実打刻の窓が確定シフトの窓と重なる日だけ。シフト前に終わった打刻（16:28→16:40 vs 20:00 シフト）／シフト後に始まった打刻は実打刻のまま＋備考「シフト前」「シフト後」
+    //   （複数シフトの日＝どれか 1 本と重なれば overlap）。※ pay.ts 624 の置換はそのまま＝給与側は別便（差分表に載せる）
+    const rels = input.payTimeBasis === "shift" && rawHours > 0 ? input.shifts.filter((s) => s.date === bizDate).map((s) => punchShiftRelationOf(inHm, outHm, s.start_hm, s.end_hm)) : [];
+    const shiftRel: "overlap" | "before" | "after" | null = rels.length === 0 ? null : rels.includes("overlap") ? "overlap" : rels.every((x) => x === "before") ? "before" : rels.every((x) => x === "after") ? "after" : "overlap";
+    const basis: "punch" | "shift" = input.payTimeBasis === "shift" && rawHours > 0 && shiftHours[bizDate] !== undefined && shiftRel !== "before" && shiftRel !== "after" ? "shift" : "punch";
+    const hours = roundPt1(basis === "shift" ? shiftHours[bizDate] : rawHours); // pay.ts 613 と同じ置換（★M-40 (x): 重なる日だけ）
     const att = attByDate.get(bizDate);
     const corr = (input.corrections ?? []).filter((c) => c.biz_date === bizDate && c.decision === "approved").map((c) => ({ kind: c.kind, by: c.decided_by_name ?? null, at: jstMdHm(c.decided_at), before: jstHm(c.before_at), after: jstHm(c.after_at), reason: c.reason }));
     const trs = (input.transports ?? []).filter((t) => t.biz_date === bizDate && t.status !== "cancelled");
@@ -135,6 +155,7 @@ export function attendanceDayRowsOf(input: AttendanceSheetInput): AttendanceDayR
     const noteParts: string[] = [];
     if (att?.reason) noteParts.push(att.reason);
     if (fines.length > 0) noteParts.push(`罰金 ${fines.map((f) => `¥${f.amount.toLocaleString()}`).join("・")}`);
+    if (shiftRel === "before" || shiftRel === "after") noteParts.push(SHIFT_RELATION_NOTE[shiftRel]); // ★便 M5 M-40 (x)
     rows.push({
       bizDate, shift: sh ? { start: sh.start_hm, end: sh.end_hm } : null, inHm, outHm, corrections: corr,
       late: !!d && d.final.type === "late" && !future, absent: !!d && d.final.type === "absent" && !future, early: !!d && d.raw.out.type === "early" && !future,

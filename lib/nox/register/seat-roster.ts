@@ -45,6 +45,8 @@ export function endedPayloadOf(rows: readonly Pick<RosterRow, "cast_id" | "ratio
 
 /** 他卓に着いている人の印＝「着卓中（B2）」（卓名が取れなければ「着卓中」） */
 export const servingLabelOf = (seat: string | null | undefined): string => (seat ? `着卓中（${seat}）` : "着卓中");
+/** ★便 M5 M-48（2026-10-30）: カードのバッジは 2 段＝1 段目「着卓中」・2 段目＝卓名（max-width＋省略記号）・title＝全文（servingLabelOf） */
+export const servingBadgeOf = (seat: string | null | undefined): { top: string; seat: string | null; title: string } => ({ top: "着卓中", seat: seat || null, title: servingLabelOf(seat) });
 /** 他卓から移す確認（1 回） */
 export const moveConfirmTextOf = (name: string, fromSeat: string | null | undefined, toSeat: string | null | undefined): string =>
   `${name} は${fromSeat ? ` ${fromSeat} に` : "別の卓に"}着卓中です。${fromSeat ? `${fromSeat} から` : "その卓から"}離席して${toSeat ? `この卓（${toSeat}）` : "この卓"}に着けますか？`;

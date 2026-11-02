@@ -104,6 +104,11 @@ export default function StaffBoard({
   const [aMethod, setAMethod] = useState<LoginMethod>("password");
   const [aInvite, setAInvite] = useState<{ url: string; expires_at: string | null; email: string } | null>(null);
   const [aWork, setAWork] = useState<{ contract_kind: string; pay_kind: string; amount: string }>({ contract_kind: "parttime", pay_kind: "hourly", amount: "" }); // ★便 M3 M-20／M-21
+  // ★便 M5 M-35（2026-10-30）: 初期設定 STEP 6 と同じ項目＝「シフトを組める」（staff のみ・ON のときだけ登録後に set_staff_perms＝can_shift true・他 5 フラグ false 明示）と
+  //   PIN（4〜6 桁・任意＝入れたときだけ登録後に set_staff_pin）。結果モーダルに「PIN 発行済み（n 桁）／未発行」の 1 行（data-staff-pin-mark）
+  const [aShiftOk, setAShiftOk] = useState(false);
+  const [aPin, setAPin] = useState("");
+  const [aPinMark, setAPinMark] = useState<number>(0); // 0＝未発行・n＝発行した桁数
   const [invites, setInvites] = useState<{ id: string; store_id: string; email: string; name: string; role: string; expires_at: string; accepted_at: string | null }[]>([]);
   const [lineLinked, setLineLinked] = useState<Set<string>>(new Set());
   const [bindUrl, setBindUrl] = useState<string | null>(null);
@@ -238,6 +243,7 @@ export default function StaffBoard({
     setARole("staff"); setAErr(null); setAResult(null); setCopied(false);
     setAMethod("password"); setAInvite(null); // ★便 ON-3
     setAWork({ contract_kind: "parttime", pay_kind: "hourly", amount: "" }); // ★便 M3 M-20／M-21: 追加の時点で働き方
+    setAShiftOk(false); setAPin(""); setAPinMark(0); // ★便 M5 M-35
     setAIdemKey(crypto.randomUUID()); // 送信意図ごとに1つ＝リトライは同キー（route が二重作成を止める）
     setAddOpen(true);
   }
@@ -256,6 +262,8 @@ export default function StaffBoard({
       } catch (e) { setAErr((e as Error).message); } finally { setBusy(false); }
       return;
     }
+    // ★便 M5 M-35: PIN は入れたときだけ検査（4〜6 桁）＝route を呼ぶ前に止める
+    if (aPin !== "" && !/^[0-9]{4,6}$/.test(aPin)) { setAErr("PIN は数字 4〜6 桁で入力してください"); return; }
     setBusy(true); setAErr(null);
     try {
       const res = await fetch("/api/staff/create", {
@@ -280,6 +288,24 @@ export default function StaffBoard({
           const { error: eC } = await supabase.rpc("staff_contract_set", { p_membership_id: body.membership_id, p_patch: { contract_kind: aWork.contract_kind, pay_kind: aWork.pay_kind, [aWork.pay_kind]: n } });
           if (eC) setMsg(`働き方の保存に失敗: ${rpcErrJa(eC.message)}（スタッフは追加済み＝勤怠・報酬から入れ直せます）`);
         }
+        // ★便 M5 M-35: 「シフトを組める」ON（staff のみ）＝set_staff_perms 7 引数（規約 7＝6 フラグとも明示 boolean・can_shift だけ true）。OFF なら呼ばない（新規は全 OFF が既定）
+        const roleSent = isOwner ? aRole : "staff";
+        if (body.membership_id && roleSent === "staff" && aShiftOk) {
+          const { error: eP } = await supabase.rpc("set_staff_perms", {
+            p_membership_id: body.membership_id,
+            p_can_register: false, p_can_crm: false, p_can_shift: true,
+            p_can_view_backs: false, p_can_close: false, p_can_reopen: false,
+          });
+          if (eP) setMsg((m) => `${m ? `${m}・` : ""}シフト権限の保存に失敗: ${rpcErrJa(eP.message)}（一覧の権限チップから付け直せます）`);
+        }
+        // ★便 M5 M-35: PIN（任意）＝set_staff_pin（kiosk-pin-panel と同じ 1 本・RPC 側は現状 4 桁＝'bad pin' は桁数の注記で返す）
+        let pinDigits = 0;
+        if (body.membership_id && aPin !== "") {
+          const { error: eK } = await supabase.rpc("set_staff_pin", { p_membership_id: body.membership_id, p_pin: aPin });
+          if (eK) setMsg((m) => `${m ? `${m}・` : ""}PIN の保存に失敗: ${eK.message.includes("bad pin") ? "PIN は現在 4 桁まで（5〜6 桁は 0191 で対応）" : rpcErrJa(eK.message)}（マスタ › 操作担当PIN で設定できます）`);
+          else pinDigits = aPin.length;
+        }
+        setAPinMark(pinDigits);
         setAResult(body); await load();
       }
     } catch (e) {
@@ -322,6 +348,14 @@ export default function StaffBoard({
       setBusy(false);
     }
   }
+
+  // ★便 M5 M-35（2026-10-30）: 結果モーダルの PIN 行＝発行済み（n 桁）／未発行（マスタ › 操作担当PIN＝/master/system#pins で設定）
+  const pinMarkLine = (
+    <div style={t.bdRow} data-staff-pin-mark={aPinMark > 0 ? "1" : "0"}>
+      <span style={t.bdKey}>PIN</span>
+      <span style={t.bdVal}>{aPinMark > 0 ? `PIN 発行済み（${aPinMark} 桁）` : "PIN 未発行（マスタ › 操作担当PIN で設定）"}</span>
+    </div>
+  );
 
   async function copyPassword() {
     if (!aResult?.initial_password) return;
@@ -607,6 +641,19 @@ export default function StaffBoard({
                       <span style={{ ...t.input, display: "block", color: "var(--sub)" }}>スタッフ（staff）</span>
                     )}
                   </label>
+                  {/* ★便 M5 M-35（2026-10-30）: 初期設定 STEP 6 と同じ 2 項目（招待リンクでは membership が受諾まで無いので初期パスワードのときだけ） */}
+                  {aMethod === "password" && (isOwner ? aRole : "staff") === "staff" && (
+                    <label style={{ display: "grid", gap: 4 }} data-staff-add-shift={aShiftOk ? "1" : "0"}>
+                      <span style={t.fieldLabel}>シフトを組める</span>
+                      <SegSelect value={aShiftOk ? "on" : "off"} onChange={(v) => setAShiftOk(v === "on")} options={[["off", "OFF"], ["on", "ON（店長と同じシフトの操作ができます）"]] as const} ariaLabel="シフトを組める" />
+                    </label>
+                  )}
+                  {aMethod === "password" && (
+                    <label style={{ display: "grid", gap: 4 }}>
+                      <span style={t.fieldLabel}>PIN（4〜6 桁・任意）</span>
+                      <input value={aPin} onChange={(e) => setAPin(e.target.value.replace(/\D/g, "").slice(0, 6))} inputMode="numeric" pattern="[0-9]*" autoComplete="off" placeholder="店の端末で本人を選んだ後に入れる番号（空なら後で）" maxLength={6} style={t.input} data-staff-add-pin="1" />
+                    </label>
+                  )}
                   <div data-staff-add-work="1" style={{ display: "grid", gap: 6 }}>{/* ★便 M3 M-20／M-21: 働き方（任意＝額が空なら契約は後で） */}
                     <span style={t.fieldLabel}>働き方（任意・あとで「勤怠・報酬」からも）</span>
                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
@@ -639,6 +686,7 @@ export default function StaffBoard({
                 <div style={{ display: "grid", gap: 6, marginBottom: 10 }}>
                   <div style={t.bdRow}><span style={t.bdKey}>ログインID</span><span style={{ ...t.bdVal, wordBreak: "break-all" }}>{aResult.login_email}</span></div>
                   <div style={t.bdRow}><span style={t.bdKey}>初期パスワード</span><span style={{ ...t.bdVal, color: "var(--champ)", letterSpacing: 1 }}>{aResult.initial_password}</span></div>
+                  {pinMarkLine}{/* ★便 M5 M-35 */}
                 </div>
                 <p style={{ ...t.alert, marginBottom: 10 }}>このパスワードは再表示できません。スタッフに安全に渡してください。</p>
                 <div className="nox-actions" style={{ display: "flex", gap: 8 }}>
@@ -652,6 +700,7 @@ export default function StaffBoard({
                 <p style={{ fontSize: 12.5, color: "var(--sub)", margin: "0 0 10px" }}>
                   {aResult.login_email} は登録済みのため、既存のログイン情報のまま配属を追加しました（パスワードの再発行はありません）。
                 </p>
+                <div style={{ display: "grid", gap: 6, marginBottom: 10 }}>{pinMarkLine}</div>{/* ★便 M5 M-35 */}
                 <div className="nox-actions" style={{ display: "flex" }}>
                   <button style={btnGold} onClick={() => setAddOpen(false)}>閉じる</button>
                 </div>

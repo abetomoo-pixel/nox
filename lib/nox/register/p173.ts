@@ -117,3 +117,36 @@ export function castOwnSessionRegisterOf(i: { enabled: boolean; canRegister: boo
   if (!i.enabled || !i.canRegister) return false;
   return i.device === "own_phone" || i.registerDevices === 0;
 }
+// ★便 M5 M-40 (c)（2026-10-30）: 通さない理由＝castOwnSessionRegisterOf と同じ判定を理由語で返す（null＝通す）。layout が /mine?denied=register&why=… に載せ、/mine が和文で出す（従来の黙ったリダイレクトをやめる）。
+//   store_off＝店がキャストのレジ操作を使わない／not_allowed＝本人の can_register が false／store_device_only＝店端末のみ（登録済みのレジ端末あり）。
+//   ※ 0190 の打刻ゲート（'off duty'＝「出勤してからレジを開けます」）は register-board 内の RPC エラー＝別経路（ここでは扱わない）。
+export type CastRegisterDenyReason = "store_off" | "not_allowed" | "store_device_only";
+export function castRegisterDenyReasonOf(i: { enabled: boolean; canRegister: boolean; device: CastRegisterDevice; registerDevices: number }): CastRegisterDenyReason | null {
+  if (!i.enabled) return "store_off";
+  if (!i.canRegister) return "not_allowed";
+  if (i.device === "store_device" && i.registerDevices > 0) return "store_device_only";
+  return null;
+}
+export const CAST_REGISTER_DENY_TEXT: Record<CastRegisterDenyReason, string> = {
+  store_off: "この店ではキャストのレジ操作は使いません",
+  not_allowed: "レジの操作が許可されていません（店に確認してください）",
+  store_device_only: "レジは店の端末からだけ使えます",
+};
+/** URL の why（任意の文字列）→ 和文。知らない語／空は null（何も出さない） */
+// ★便 M5 M-44（2026-10-30）: /mine のナビに「レジ」を出す条件＝店「キャストのレジ使用 ON」∧「自分のスマホからも」（∨ レジ端末が未登録）∧ 本人の許可 ∧（店の打刻ゲート ON なら）出勤中。
+//   揃わないときは /mine の上部に理由を 1 行（店が許可していない／本人の許可がない／店の端末からだけ／出勤してから）。本人の許可の置き場＝マスタ › キャスト待遇 › レジ会計（set_cast_register・既存＝新設しない）。
+//   出勤中＝当日営業日の自分の打刻（punchStateOf＝'open'）＝0190 の打刻ゲート（assert_on_duty）と同じ材料。duty_gate OFF の店は出勤を見ない（従来どおり）。
+export type CastMineRegisterReason = CastRegisterDenyReason | "off_duty";
+export const CAST_MINE_REGISTER_NOTE: Record<CastMineRegisterReason, string> = {
+  store_off: "レジ：店が許可していない（この店ではキャストのレジ操作は使いません）",
+  not_allowed: "レジ：本人の許可がない（店が マスタ › キャスト待遇 › レジ会計 で許可すると使えます）",
+  store_device_only: "レジ：店の端末からだけ使えます（自分のスマホからは開けません）",
+  off_duty: "レジ：出勤してから（出勤の打刻の後にナビに出ます）",
+};
+export type CastMineRegisterNav = { show: boolean; reason: CastMineRegisterReason | null; note: string | null };
+export function castMineRegisterNavOf(i: { reason: CastRegisterDenyReason | null; dutyGate: boolean; onDuty: boolean }): CastMineRegisterNav {
+  if (i.reason) return { show: false, reason: i.reason, note: CAST_MINE_REGISTER_NOTE[i.reason] };
+  if (i.dutyGate && !i.onDuty) return { show: false, reason: "off_duty", note: CAST_MINE_REGISTER_NOTE.off_duty };
+  return { show: true, reason: null, note: null };
+}
+export const castRegisterDenyTextOf = (why: string | null | undefined): string | null => (why && Object.prototype.hasOwnProperty.call(CAST_REGISTER_DENY_TEXT, why) ? CAST_REGISTER_DENY_TEXT[why as CastRegisterDenyReason] : null);

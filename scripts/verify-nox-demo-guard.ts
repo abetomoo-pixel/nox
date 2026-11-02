@@ -58,6 +58,7 @@ const ALLOW = new Set<string>([
   "kiosk/punch-methods", // ★便 X13-G W-23: 端末の店の打刻設定を読むだけ（書込なし・デモ org も可）
   "attendance/sheet", // ★便 SH-UI-c C-2: 勤怠一覧（guardPayroll・読取のみ＝給与 preview と同じ・デモ org も可）
   "home/pending", // ★便 SH-UI-c2 C2-13: HOME の要承認とベル（利用者の client＝RLS・読取のみ・デモ org も可）
+  "kiosk/photos", // ★便 M5 M-42（2026-10-30）: 端末のキャスト／操作担当の写真の署名 URL（読取だけ・admin が署名・デモ org も可）
   "kiosk/lock-notice", // ★0190 フラグ true 便 K-1（2026-10-30）: 端末アカウントの PIN ロックのお知らせ 1 行（kiosk_devices で端末を確かめる・notices に 1 行・デモ org も可＝06:05 の reset で消える）
 ]);
 

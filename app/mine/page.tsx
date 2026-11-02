@@ -29,7 +29,11 @@ import PunchCorrectionList from "./punch-correction-list"; // ★0154 D1
 import { termOf, type CorrectionRow } from "@/lib/nox/shift/punch-correction";
 import PhotoCard from "./photo-card";
 import ContractAckGate from "./contract-ack-gate"; // ★0162 ★4（裁定326 追補7-6・便 M5-2）: 契約確認（店 ON かつ未記録のときだけ最上部）
-import { contractAckGateOf } from "@/lib/nox/mine/contract-ack";
+import { castTermsSummaryOf, contractAckGateOf } from "@/lib/nox/mine/contract-ack"; // ★便 M5 M-33: 本文＝本人の基本条件の要約（page が既に読んだ値だけ）
+import { okuriFlatTiersOf } from "@/lib/nox/shift/okuri-mode"; // ★便 M5 M-33: 本人の距離区分の名前
+import { okuriTiersOn } from "@/lib/nox/rules-0175/flag"; // ★便 M5 M-33: casts.okuri_tier は 0180 後だけ読む
+import { Message } from "@/components/ui/toast"; // ★便 M5 M-40 (c): /register を通さなかった理由
+import { castRegisterDenyTextOf } from "@/lib/nox/register/p173"; // ★便 M5 M-40 (c)
 import AttendanceForm from "./attendance-form";
 import { LAST_PUNCH_PREV_NOTE, lastPunchPrevDayOf } from "@/lib/nox/mine/eta-chips"; // ★便 M-3
 import { mineReportStateOf } from "@/lib/nox/shift/cast-report"; // ★便 X13-H H-17 ③ // ★便 ON-3（I-4）: ack_at で「店が確認しました」
@@ -59,8 +63,11 @@ const ATT_LABEL: Record<string, string> = {
 };
 
 // cast マイページ。SELECT はパターン1テーブルのみ（RLS が自分の行だけ返す＝可視性の物理保証）。
-export default async function MinePage() {
+export default async function MinePage({ searchParams }: { searchParams?: Promise<{ denied?: string; why?: string }> }) {
   const supabase = await createClient();
+  // ★便 M5 M-40 (c)（2026-10-30）: (manage)/layout が cast を /register から戻すとき ?denied=register&why=… を付ける＝最上部に理由を出す（知らない語は出さない）
+  const sp = (await searchParams) ?? {};
+  const deniedText = sp.denied === "register" ? castRegisterDenyTextOf(sp.why) : null;
   const cutoff = await loadCutoff(supabase);
   const bizToday = bizDateOf(new Date().toISOString(), cutoff);
   const month = bizToday.slice(0, 7);
@@ -68,7 +75,9 @@ export default async function MinePage() {
   // ★裁定326-2（便 M2-1）: 「今月のバック」「報酬シミュレーター」の 2 カードは削除（check_cast_backs の読取と sim-data の読取も外した）
 
   // ★0154 D1（裁定294／295）: 自分の cast 行（id・employment＝用語）・修正申請（RLS 本人・表が無ければ空）
-  const { data: meCast } = await supabase.from("casts").select("id, employment").limit(1).maybeSingle();
+  const MINE_CAST_COLS: string = okuriTiersOn() ? "id, employment, okuri_tier" : "id, employment"; // ★便 M5 M-33: okuri_tier（0180）は同じ 1 行読取に列を足すだけ（新規 fetch 0）
+  const { data: meCastRaw } = await supabase.from("casts").select(MINE_CAST_COLS).limit(1).maybeSingle();
+  const meCast = (meCastRaw ?? null) as unknown as { id: string; employment: string | null; okuri_tier?: string | null } | null;
   const { data: meUser } = await supabase.from("users").select("contact_email, phone").limit(1).maybeSingle(); // ★便 ON-3（0176 ★4）: 自分の users 行（cast の RLS＝本人だけ）
   const term = termOf((meCast?.employment as string | null) ?? null);
   const { startIso: bizStartIso, endIso: bizEndIso } = bizDateRange(bizToday, cutoff);
@@ -141,7 +150,7 @@ export default async function MinePage() {
   const ms = mineSettingsOf(myStore?.settings_json); // ★326-8: drink_claim／punch_correction_request／ranking の出し分け（reservation_request の申請カードは M3）
   // ★0162 ★4（便 M5-2）: 契約確認の要否＝店の contract_ack が ON のときだけ cast_contract_ack_needed()（cast セルフ・非ゲート）。読めなければ出さない（止めない）
   const { data: ackNeeded } = ms.contract_ack ? await supabase.rpc("cast_contract_ack_needed") : { data: null };
-  const showContractAck = contractAckGateOf(ms.contract_ack, typeof ackNeeded === "boolean" ? ackNeeded : null);
+  // ★便 M5 M-33: showContractAck は要約（termsLines＝出勤ノルマの目標 daysTargets を含む）の後で決める＝下の daysTargets の直後
   const ps = punchStateOf((todayPunches ?? []) as { type: string; punched_at: string }[]); // ★326 追補3: 当日営業日の自分の打刻 → 未出勤／出勤中／退勤済み
   // ★便 SH-UI-c C-2 ④: 「今月の勤怠」＝給与と同じ計算の表（lib/nox/payroll/attendance-sheet・自分の行＝RLS）。送りは transport の自分の行（mode は 0177 後）
   const { data: mineTransport } = await supabase.from("transport").select("*").gte("biz_date", `${month}-01`);
@@ -217,6 +226,16 @@ export default async function MinePage() {
   const { data: wishRows } = await supabase.from("shift_wishes").select("id, date, start_hm, end_hm, status, kind").gte("date", `${month}-01`).lt("date", `${nextNext}-01`);
   const workedThisMonth = new Set(((monthPunches ?? []) as { type: string; punched_at: string }[]).filter((x) => x.type === "in").map((x) => bizDateOf(x.punched_at, cutoff)).filter((d) => d.slice(0, 7) === month));
   const daysTargets = meCast?.id && myStores?.[0]?.id ? await daysNormTargetsOf(meCast.id as string, myStores[0].id as string, [month, nextMonth], bizToday) : { [month]: null, [nextMonth]: null };
+  // ★便 M5 M-33（2026-10-30）: 「基本の働き方の確認」の本文＝本人の基本条件の要約（page が既に読んだ値だけ＝新規 DB 読取 0）。
+  //   時給は明細の公開（payslip_visibility）が off の店では載せない（「今期の時給」カードと同じ出し分け）。バックはプランが cast の RLS で読めない＝今日は渡さない（将来の差替え点）。
+  const storeSj = (myStore?.settings_json ?? {}) as Record<string, unknown>;
+  const termsLines = castTermsSummaryOf({
+    hourly: mineWage && ms.payslip_visibility !== "off" ? mineWage.hourly : null, wageBasis: mineWage && ms.payslip_visibility !== "off" ? mineWage.basis : null, guaranteeLabel: guaLabel,
+    employment: meCast?.employment ?? null,
+    okuriMode: okuriModeOf(storeSj), okuriTierName: okuriFlatTiersOf(storeSj).find((tr) => tr.code === meCast?.okuri_tier)?.name ?? null,
+    normDaysTarget: daysTargets[month],
+  });
+  const showContractAck = contractAckGateOf(ms.contract_ack, typeof ackNeeded === "boolean" ? ackNeeded : null, termsLines.length > 0); // ★M-33: 要約 0 行なら枠を出さない
   const scheduleTabs: ScheduleTab[] = ([[month, "今月"], [nextMonth, "来月"]] as const).map(([m, label]) => {
     const sc = scheduleOf({ shifts: (shiftsAll ?? []) as ScheduleShift[], wishes: (wishRows ?? []) as ScheduleWish[], month: m, today: bizToday });
     const cnt = daysCountOf({ workedDates: m === month ? workedThisMonth : new Set<string>(), schedule: sc });
@@ -240,7 +259,8 @@ export default async function MinePage() {
     <div className="nox-printpage nox-minewrap nox-mv1 nox-mv1-m">
       {/* 段P: プロフィール写真（本人スコープのみ・client 自己完結＝他カードの取得に影響しない）
           段M2: モックの .me ヘッダ（写真＋名前＋店）へ。店名は上で引いた自店を渡すだけ。 */}
-      {showContractAck && <ContractAckGate />}{/* ★0162 ★4（便 M5-2）: 初回表示の契約確認＝記録済みは出さない・rev 更新で再表示 */}
+      {deniedText && <div data-mine-denied="register" style={{ marginBottom: 12 }}><Message kind="warn" style={{ margin: 0 }}>{deniedText}</Message></div>}{/* ★便 M5 M-40 (c): /register を通さなかった理由（layout の ?denied=register&why=…） */}
+      {showContractAck && <ContractAckGate lines={termsLines} />}{/* ★0162 ★4（便 M5-2）: 初回表示の契約確認＝記録済みは出さない・rev 更新で再表示 ★便 M5 M-33: 本文＝基本条件の要約 */}
       <PhotoCard storeName={myStore?.name as string | undefined} />
       {rules0175On() && mig0185On() && (<div style={{ margin: "-4px 0 10px", display: "flex", justifyContent: "flex-end" }}><Link href="/kq" style={{ ...t.btnGhost, ...t.btnSm, textDecoration: "none" }} data-kq-entry="1">キオスクを開く（QR を読む）</Link></div>)}{/* ★QR 便（裁定423 変更）: キオスクの QR をスマホで読む入口（旧＝スマホに QR を出す全画面は撤去）。フラグ false＝出ない */}
 

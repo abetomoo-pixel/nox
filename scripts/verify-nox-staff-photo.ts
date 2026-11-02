@@ -65,15 +65,15 @@ check("sp(4-1) StaffLike.photoUrl・staff-shift-manage＝users に photo_updated
 
 // (5) 契約確認
 const pricing = src("app/(manage)/master/pricing/pricing-board.tsx"), gate = src("app/mine/contract-ack-gate.tsx"), mine = src("app/mine/page.tsx");
-check("sp(5-1) contractAckGateOf＝店 ON ∧ needed=true だけ（OFF／false／null は出さない）・文面の 1 行目＝料金マスタ（pricing-board）の既存文面を逐語・ボタン「確認しました」",
-  contractAckGateOf(true, true) === true && contractAckGateOf(true, false) === false && contractAckGateOf(false, true) === false && contractAckGateOf(true, null) === false && contractAckGateOf(true, undefined) === false
-  && CONTRACT_ACK_LINES[0] === CONTRACT_ACK_STORE_TEXT && pricing.includes(CONTRACT_ACK_STORE_TEXT) && CONTRACT_ACK_BUTTON === "確認しました");
+check("sp(5-1) contractAckGateOf＝店 ON ∧ needed=true だけ（OFF／false／null は出さない）・★便 M5 M-33: 店向け文（カード手数料）は /mine の文面から外し pricing-board の注意文だけに残す・要約 0 行（hasTerms=false）は出さない・ボタン「確認しました」",
+  contractAckGateOf(true, true) === true && contractAckGateOf(true, false) === false && contractAckGateOf(false, true) === false && contractAckGateOf(true, null) === false && contractAckGateOf(true, undefined) === false && contractAckGateOf(true, true, false) === false
+  && !CONTRACT_ACK_LINES.includes(CONTRACT_ACK_STORE_TEXT) && pricing.includes(CONTRACT_ACK_STORE_TEXT) && CONTRACT_ACK_BUTTON === "確認しました");
 check("sp(5-2) contract-ack-gate: cast_contract_ack_self → router.refresh()・失敗は Message（rpcErrJa）・文面は lib から（素の契約語を部品に書かない）",
   gate.includes('supabase.rpc("cast_contract_ack_self")') && gate.includes("router.refresh();") && gate.includes('<Message kind="error"') && gate.includes("rpcErrJa(error.message)")
   && gate.includes("CONTRACT_ACK_LINES.map(") && !codeOf(gate).includes("加盟店契約"));
-check("sp(5-3) mine page: 店が ON のときだけ cast_contract_ack_needed（OFF は fetch 0）・contractAckGateOf・{showContractAck && <ContractAckGate />} は PhotoCard より前",
-  mine.includes('ms.contract_ack ? await supabase.rpc("cast_contract_ack_needed") : { data: null }') && mine.includes("contractAckGateOf(ms.contract_ack,")
-  && mine.indexOf("{showContractAck && <ContractAckGate />}") > 0 && mine.indexOf("{showContractAck && <ContractAckGate />}") < mine.indexOf("<PhotoCard storeName="));
+check("sp(5-3) mine page: 店が ON のときだけ cast_contract_ack_needed（OFF は fetch 0）・contractAckGateOf（★便 M5 M-33: hasTerms＝termsLines.length > 0）・{showContractAck && <ContractAckGate lines={termsLines} />} は PhotoCard より前",
+  mine.includes('ms.contract_ack ? await supabase.rpc("cast_contract_ack_needed") : { data: null }') && mine.includes("contractAckGateOf(ms.contract_ack,") && mine.includes("termsLines.length > 0)")
+  && mine.indexOf("{showContractAck && <ContractAckGate lines={termsLines} />}") > 0 && mine.indexOf("{showContractAck && <ContractAckGate lines={termsLines} />}") < mine.indexOf("<PhotoCard storeName="));
 
 // (6) rpc-err
 check("sp(6-1) rpc-err: 'bad user'／'not required' の和文（'no cast for caller' は既存）", rpcErrJa("bad user") === "スタッフの指定が正しくありません" && rpcErrJa("not required") === "この店では契約確認は不要です" && !rpcErrJa("no cast for caller").startsWith("処理できませんでした（コード"));
