@@ -71,8 +71,8 @@ export default function AvailabilityEditor({ castId, storeId, employment, bySelf
     <div data-availability-editor="1" data-store-id={storeId} style={{ display: "grid", gap: 6 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
         <b style={{ fontSize: 12.5 }}>基本の働き方</b>
-        {loaded && !edit && <span style={{ fontSize: 12, color: "var(--sub)" }}>{membershipId ? `${availChipsOf(form)}${form.terms.week_days_target !== null ? `・週 ${form.terms.week_days_target} 日目安` : ""}` : "（アカウント未発行＝基本の働き方は設定できません）"}</span>}
-        {!readOnly && !edit && membershipId && <button type="button" style={{ ...t.btnGhost, ...t.btnSm, marginLeft: "auto" }} disabled={busy || !loaded} onClick={() => setEdit(true)}>編集</button>}
+        {loaded && !edit && <span style={{ fontSize: 12, color: "var(--sub)" }}>{canEdit ? `${availChipsOf(form)}${form.terms.week_days_target !== null ? `・週 ${form.terms.week_days_target} 日目安` : ""}` : "（アカウント未発行＝基本の働き方は設定できません）"}{noAccount && <span data-avail-no-account="1" style={{ marginLeft: 6 }}>（アカウント未発行＝店で設定・本人はアカウント発行後に確認）</span>}</span>}
+        {!readOnly && !edit && canEdit && <button type="button" style={{ ...t.btnGhost, ...t.btnSm, marginLeft: "auto" }} disabled={busy || !loaded} onClick={() => setEdit(true)}>編集</button>}
       </div>
       {edit && (
         <div style={{ display: "grid", gap: 4 }}>
