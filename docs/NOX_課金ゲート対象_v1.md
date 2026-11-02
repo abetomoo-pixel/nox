@@ -337,6 +337,13 @@ kiosk_provision（新規 kiosk の追加＝拡大操作）
 - 0190 M-29 ⑦: kiosk_reactivate（無効化した端末を有効に戻す＝上限 3 台）・kiosk_delete（無効化済みの端末を削除）
 （対象 186→**188**・live 実測＝'billing locked' **188**・述語参照 189・挿入行の形 188。0190 の改稿 33 本（check_* 25＋approval 2＋入口 4＋退店 2）と set_store_profile／check_remove_line は名前不変で本数不動）
 
+### A15. 0192（7本・2026-11-02 本番適用（Agoora 手貼り・verify 45 行一致）・0192 のフラグ true 便で収載・規則A形でゲート内蔵・kiosk 腕なし）
+- 0192 ★1 スタッフ勤怠: staff_attendance_set（日別の修正・区分）・staff_attendance_confirm（月の確定／解除）
+- 0192 M-38 退勤の取消: punch_cancel_out（キャスト）・staff_punch_cancel_out（スタッフ）
+- 0192 M-39 PIN ロックの解除: staff_pin_unlock・cast_pin_unlock
+- 0192 M-34 未発行キャストの基本の働き方: availability_set_cast
+（対象 188→**195**・live 実測＝'billing locked' **195**・述語参照 196・挿入行の形 195。0192 の改稿 19 本（kiosk の helper 2＋RPC 12＋上限 2・set_store_profile・availability_set／availability_list）は名前不変で本数不変）
+
 ## B. 除外（99本）
 
 ### B(a) 構造除外＝authenticated 実行不可（service/内部・28本）→ ゲート不要（B7 回避型(1)）
@@ -504,6 +511,11 @@ staff_deactivate / kiosk_deactivate
 - 非ゲート書込（owner・端末の固定の解除＝縮退の逆＝B-補1 の *_deactivate と同列・課金停止中でも端末の固定は外せる）: kiosk_device_unbind
 - 0191 ★6（owner・初期設定の下書き＝setup_drafts の upsert／削除＝課金の前段の入力＝ゲートなし）: setup_draft_set
 （除外 200→**206**・全数 386→**394**（0190 ＋7＝A 2＋B 5・0191 ＋1＝B 1）・0191 の改稿 8 本（set_store_profile／set_product（15→16 引数）／set_cast_pin／set_staff_pin／kiosk_punch／staff_punch／set_store_mine_settings／check_remove_line）は名前不変で本数不動）
+
+### B(t). 0192 新設の除外（2本・2026-11-02・0192 のフラグ true 便で収載）
+- 読取 RPC（B(f) と同列・M-45）: cast_pin_status（マスタ › システム › PIN のキャストの行）
+- 構造除外＝authenticated 実行不可（service_role 専用・B(a) と同列・0192_plan 項目 9 案 A）: demo_reset_mark_failed（公開デモ cron の失敗の監査）
+（除外 206→**208**・全数 394→**403**（0192 ＋9＝A 7＋B 2））
 
 ## C. kiosk 腕を持つ対象（実装注意・18本）
 A1 の check_open / check_add_line / check_remove_line / check_add_seat / check_remove_seat /
