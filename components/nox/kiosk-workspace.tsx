@@ -266,7 +266,7 @@ export default function KioskWorkspace({ feature = "register" }: { feature?: Kio
         ) : (
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 18 }}>
           <span style={{ ...t.brand, fontSize: 24 }}>NOX</span>
-          <span style={{ fontSize: 13, color: "var(--sub)" }}>レジ</span>
+          <span style={{ fontSize: 13, color: "var(--sub)" }}>{FEATURE_LABEL[feature]}</span>{/* ★K client 第 2 便: タイルの名前（レジ／シフト／日報） */}
           {(phase === "operator" || phase === "pin" || phase === "denied") && (
             <button
               onClick={async () => { await supabase.auth.signOut(); setOperators([]); setPhase("login"); }}
