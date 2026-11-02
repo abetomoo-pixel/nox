@@ -62,6 +62,7 @@ async function main() {
     await tx.asUid(castA.auth_user_id); await c.query("reset role");
     const a1 = await tx.call(`select public.assert_on_duty('check_open')`);   // in の後 → 通る
     const p2 = await tx.as(castA, `select public.punch_self('out') r`);
+    await c.query("update public.punches set punched_at = punched_at + interval '1 second' where cast_id = $1 and type = 'out' and punched_at = (select max(punched_at) from public.punches where cast_id = $1)", [castId]); // ★2026-11-02: 1 本の tx の中は now() が固定＝in と out が同時刻で on_duty_of（order by punched_at desc）が同点→out を 1 秒後ろへ（fixture の調整・ROLLBACK で消える）
     const od2 = await tx.one<{ v: boolean }>(`select public.on_duty_of('cast', $1, $2, $3::date) v`, [castId, A1.id, biz]);
     await tx.asUid(castA.auth_user_id); await c.query("reset role");
     const a2c = await tx.call(`select public.assert_on_duty('check_open')`);   // out の後 → 'off duty'

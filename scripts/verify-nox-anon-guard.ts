@@ -929,7 +929,7 @@ async function mainBody() {
       const { data: cs } = await admin.from("checks").select("id").eq("seat_id", seatId);
       const ids = (cs ?? []).map((c) => c.id as string);
       if (!ids.length) return;
-      for (const t of ["check_cast_backs", "payments", "check_lines", "check_nominations", "receivables"]) {
+      for (const t of ["receipt_issues", "check_customers", "check_seats", "print_jobs", "check_cast_backs", "payments", "check_lines", "check_nominations", "receivables"]) { // ★2026-11-02（教訓123 の実証）: receipt_issues（FK no action）等を先に消す＝止まった走の残留で checks の delete が無言で FK 失敗→段19 以降が seat occupied で連鎖
         await admin.from(t).delete().in("check_id", ids);
       }
       await wipeStockTrig(admin); // mig0061: 自 fixture の sale/sale_remove/void_recredit を掃く
@@ -1307,7 +1307,7 @@ async function mainBody() {
         const { data: cs } = await admin.from("checks").select("id").eq("seat_id", seatId);
         const ids = (cs ?? []).map((c) => c.id as string);
         if (!ids.length) return;
-        for (const t of ["check_cast_backs", "payments", "check_lines", "check_nominations", "receivables"]) {
+        for (const t of ["receipt_issues", "check_customers", "check_seats", "print_jobs", "check_cast_backs", "payments", "check_lines", "check_nominations", "receivables"]) { // ★2026-11-02（教訓123 の実証）: receipt_issues（FK no action）等を先に消す＝止まった走の残留で checks の delete が無言で FK 失敗→段19 以降が seat occupied で連鎖
           await admin.from(t).delete().in("check_id", ids);
         }
         await wipeStockTrig(admin); // mig0061: 自 fixture の sale/sale_remove/void_recredit を掃く
@@ -1526,7 +1526,7 @@ async function mainBody() {
           const { data: cs } = await admin.from("checks").select("id").eq("seat_id", seatId);
           const ids = (cs ?? []).map((c) => c.id as string);
           if (!ids.length) return;
-          for (const t of ["check_cast_backs", "payments", "check_lines", "check_nominations", "receivables"]) {
+          for (const t of ["receipt_issues", "check_customers", "check_seats", "print_jobs", "check_cast_backs", "payments", "check_lines", "check_nominations", "receivables"]) { // ★2026-11-02（教訓123 の実証）: receipt_issues（FK no action）等を先に消す＝止まった走の残留で checks の delete が無言で FK 失敗→段19 以降が seat occupied で連鎖
             await admin.from(t).delete().in("check_id", ids);
           }
           await wipeStockTrig(admin); // mig0061: 自 fixture の sale/sale_remove/void_recredit を掃く
@@ -1687,7 +1687,7 @@ async function mainBody() {
         const { data: cs } = await admin.from("checks").select("id").eq("seat_id", seatId);
         const ids = (cs ?? []).map((c) => c.id as string);
         if (!ids.length) return;
-        for (const t of ["check_cast_backs", "payments", "check_lines", "check_nominations", "receivables"]) {
+        for (const t of ["receipt_issues", "check_customers", "check_seats", "print_jobs", "check_cast_backs", "payments", "check_lines", "check_nominations", "receivables"]) { // ★2026-11-02（教訓123 の実証）: receipt_issues（FK no action）等を先に消す＝止まった走の残留で checks の delete が無言で FK 失敗→段19 以降が seat occupied で連鎖
           await admin.from(t).delete().in("check_id", ids);
         }
         await wipeStockTrig(admin); // mig0061: 自 fixture の sale/sale_remove/void_recredit を掃く
@@ -1992,7 +1992,7 @@ async function mainBody() {
         const { data: cs } = await admin.from("checks").select("id").eq("seat_id", seatId);
         const ids = (cs ?? []).map((c) => c.id as string);
         if (!ids.length) return;
-        for (const t of ["check_cast_backs", "payments", "check_lines", "check_nominations", "receivables"]) {
+        for (const t of ["receipt_issues", "check_customers", "check_seats", "print_jobs", "check_cast_backs", "payments", "check_lines", "check_nominations", "receivables"]) { // ★2026-11-02（教訓123 の実証）: receipt_issues（FK no action）等を先に消す＝止まった走の残留で checks の delete が無言で FK 失敗→段19 以降が seat occupied で連鎖
           await admin.from(t).delete().in("check_id", ids);
         }
         await wipeStockTrig(admin); // mig0061: 自 fixture の sale/sale_remove/void_recredit を掃く
@@ -2269,7 +2269,7 @@ async function mainBody() {
       const ids = (cs ?? []).map((c) => c.id as string);
       if (!ids.length) return;
       await admin.from("reservations").update({ check_id: null }).in("check_id", ids); // ★先に参照を外す
-      for (const t of ["check_cast_backs", "payments", "check_lines", "check_nominations", "receivables"]) {
+      for (const t of ["receipt_issues", "check_customers", "check_seats", "print_jobs", "check_cast_backs", "payments", "check_lines", "check_nominations", "receivables"]) { // ★2026-11-02（教訓123 の実証）: receipt_issues（FK no action）等を先に消す＝止まった走の残留で checks の delete が無言で FK 失敗→段19 以降が seat occupied で連鎖
         await admin.from(t).delete().in("check_id", ids);
       }
       await wipeStockTrig(admin); // mig0061: 自 fixture の sale/sale_remove/void_recredit を掃く
@@ -2548,7 +2548,7 @@ async function mainBody() {
       const ids = (cs ?? []).map((c) => c.id as string);
       if (!ids.length) return;
       await admin.from("reservations").update({ check_id: null }).in("check_id", ids);
-      for (const t of ["check_cast_backs", "payments", "check_lines", "check_nominations", "receivables"]) {
+      for (const t of ["receipt_issues", "check_customers", "check_seats", "print_jobs", "check_cast_backs", "payments", "check_lines", "check_nominations", "receivables"]) { // ★2026-11-02（教訓123 の実証）: receipt_issues（FK no action）等を先に消す＝止まった走の残留で checks の delete が無言で FK 失敗→段19 以降が seat occupied で連鎖
         await admin.from(t).delete().in("check_id", ids);
       }
       await wipeStockTrig(admin); // mig0061: 自 fixture の sale/sale_remove/void_recredit を掃く
@@ -2692,7 +2692,7 @@ async function mainBody() {
       const ids = (cs ?? []).map((c) => c.id as string);
       if (!ids.length) return;
       await admin.from("reservations").update({ check_id: null }).in("check_id", ids);
-      for (const t of ["check_cast_backs", "payments", "check_lines", "check_nominations", "receivables"]) {
+      for (const t of ["receipt_issues", "check_customers", "check_seats", "print_jobs", "check_cast_backs", "payments", "check_lines", "check_nominations", "receivables"]) { // ★2026-11-02（教訓123 の実証）: receipt_issues（FK no action）等を先に消す＝止まった走の残留で checks の delete が無言で FK 失敗→段19 以降が seat occupied で連鎖
         await admin.from(t).delete().in("check_id", ids);
       }
       await wipeStockTrig(admin); // mig0061: 自 fixture の sale/sale_remove/void_recredit を掃く
@@ -3717,7 +3717,7 @@ async function mainBody() {
       const ids = (cs ?? []).map((c) => c.id as string);
       if (ids.length) {
         await admin.from("approvals").delete().in("check_id", ids);          // ★最初（FK 参照元）
-        for (const t of ["check_cast_backs", "payments", "check_lines", "check_nominations", "receivables"]) {
+        for (const t of ["receipt_issues", "check_customers", "check_seats", "print_jobs", "check_cast_backs", "payments", "check_lines", "check_nominations", "receivables"]) { // ★2026-11-02（教訓123 の実証）: receipt_issues（FK no action）等を先に消す＝止まった走の残留で checks の delete が無言で FK 失敗→段19 以降が seat occupied で連鎖
           await admin.from(t).delete().in("check_id", ids);
         }
         await wipeStockTrig(admin); // mig0061: 自 fixture の sale/sale_remove/void_recredit を掃く
@@ -4015,7 +4015,7 @@ async function mainBody() {
       const ids = (cs ?? []).map((c) => c.id as string);
       if (ids.length) {
         await admin.from("drink_claims").delete().in("check_id", ids);      // ★最初（check_id/cast_id FK 参照元）
-        for (const t of ["check_cast_backs", "payments", "check_lines", "check_nominations", "receivables"]) {
+        for (const t of ["receipt_issues", "check_customers", "check_seats", "print_jobs", "check_cast_backs", "payments", "check_lines", "check_nominations", "receivables"]) { // ★2026-11-02（教訓123 の実証）: receipt_issues（FK no action）等を先に消す＝止まった走の残留で checks の delete が無言で FK 失敗→段19 以降が seat occupied で連鎖
           await admin.from(t).delete().in("check_id", ids);
         }
         await wipeStockTrig(admin); // mig0061: 自 fixture の sale/sale_remove/void_recredit を掃く
@@ -4382,7 +4382,7 @@ async function mainBody() {
       const { data: cs } = await admin.from("checks").select("id").eq("seat_id", seatId);
       const ids = (cs ?? []).map((c) => c.id as string);
       if (!ids.length) return;
-      for (const t of ["check_cast_backs", "payments", "check_lines", "check_nominations", "receivables"]) {
+      for (const t of ["receipt_issues", "check_customers", "check_seats", "print_jobs", "check_cast_backs", "payments", "check_lines", "check_nominations", "receivables"]) { // ★2026-11-02（教訓123 の実証）: receipt_issues（FK no action）等を先に消す＝止まった走の残留で checks の delete が無言で FK 失敗→段19 以降が seat occupied で連鎖
         await admin.from(t).delete().in("check_id", ids);
       }
       await wipeStockTrig(admin); // mig0061: 自 fixture の sale/sale_remove/void_recredit を掃く
@@ -4535,7 +4535,7 @@ async function mainBody() {
       const { data: cs } = await admin.from("checks").select("id").eq("seat_id", seatId);
       const ids = (cs ?? []).map((c) => c.id as string);
       if (!ids.length) return;
-      for (const t of ["check_cast_backs", "payments", "check_lines", "check_nominations", "receivables"]) {
+      for (const t of ["receipt_issues", "check_customers", "check_seats", "print_jobs", "check_cast_backs", "payments", "check_lines", "check_nominations", "receivables"]) { // ★2026-11-02（教訓123 の実証）: receipt_issues（FK no action）等を先に消す＝止まった走の残留で checks の delete が無言で FK 失敗→段19 以降が seat occupied で連鎖
         await admin.from(t).delete().in("check_id", ids);
       }
       await wipeStockTrig(admin); // mig0061: 自 fixture の sale/sale_remove/void_recredit を掃く

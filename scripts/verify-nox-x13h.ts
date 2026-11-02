@@ -32,7 +32,7 @@ async function main() {
   const db = new Client({ connectionString: env.SUPABASE_DB_URL, ssl: { rejectUnauthorized: false }, statement_timeout: 60000 });
   await db.connect();
   try {
-    const st = (await db.query("select s.id from public.stores s join public.orgs o on o.id = s.org_id where o.name = 'NOX-DEMO-ACE' limit 1")).rows[0]?.id as string | undefined;
+    const st = (await db.query("select s.id from public.stores s join public.orgs o on o.id = s.org_id where o.is_demo and o.name like 'NOX-DEMO-%' order by o.name limit 1")).rows[0]?.id as string | undefined;
     const q = (from: string, to: string) => db.query("select count(*)::int n, coalesce(sum(cash + card_gross + uri + other), 0)::bigint s from public.daily_reports where store_id = $1 and biz_date >= $2::date and biz_date <= $3::date", [st, from, to]);
     let oldErr = "";
     try { await q("2026-11-01", "2026-11-31"); } catch (e) { oldErr = (e as { code?: string }).code ?? "err"; }
