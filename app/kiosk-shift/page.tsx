@@ -1,8 +1,8 @@
 "use client";
 
-// ★0190 フラグ true 便（裁定435）: キオスクのタイル「shift」の行き先＝案内画面（本体は K client 第 2 便）。共通部品 components/nox/kiosk-feature-page.tsx。
-import KioskFeaturePage from "@/components/nox/kiosk-feature-page";
+// ★K client 第 2 便（2026-11-02 夜）: キオスクのタイル「シフト」＝共通の包み components/nox/kiosk-workspace.tsx（端末ログイン→操作担当→本体）。
+import KioskWorkspace from "@/components/nox/kiosk-workspace";
 
 export default function Page() {
-  return <KioskFeaturePage feature="shift" />;
+  return <KioskWorkspace feature="shift" />;
 }

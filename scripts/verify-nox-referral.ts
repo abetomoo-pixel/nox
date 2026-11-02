@@ -267,7 +267,7 @@ async function main() {
 
   // ── (12) client 結線（逐語 grep）──
   const rb = fs.readFileSync("app/(manage)/register/register-board.tsx", "utf8");
-  const kiosk = fs.readFileSync("app/kiosk-register/page.tsx", "utf8");
+  const kiosk = fs.readFileSync("components/nox/kiosk-workspace.tsx" /* ★K client 第 2 便: 包みを移した */, "utf8");
   const payTs = fs.readFileSync("lib/nox/pay.ts", "utf8");
   const cc = fs.readFileSync("lib/nox/check-calc.ts", "utf8");
   const rc = fs.readFileSync("lib/nox/receipt.ts", "utf8");

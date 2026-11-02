@@ -39,12 +39,12 @@ const mp = src("app/mine/page.tsx");
 check("qr(2-4) /mine の入口＝「キオスクを開く（QR を読む）」（フラグ true の間だけ）・旧「キオスク用 QR」（全画面 QR）の部品は削除", mp.includes('{rules0175On() && mig0185On() && (') && mp.includes("キオスクを開く（QR を読む）") && !mp.includes("KioskQrButton") && !fs.existsSync("components/nox/kiosk-qr-modal.tsx"));
 
 // ③ 本人の権限で開く・無操作 3 分
-const kr = src("app/kiosk-register/page.tsx");
+const kr = src("components/nox/kiosk-workspace.tsx" /* ★K client 第 2 便: 包みを移した */);
 check("qr(3-1) 無操作＝QR は 3 分（店設定が短ければ店設定）・PIN は従来（15 分）・キオスクの時計が idleMsRef を見る・表示とロックの文言も分数", KIOSK_QR_IDLE_SEC === 180 && kioskIdleMsOf("qr", 900) === 180_000 && kioskIdleMsOf("qr", 120) === 120_000 && kioskIdleMsOf("pin", 900) === 900_000 && kioskIdleMsOf("qr", null) === 180_000 && kr.includes('idleMsRef.current = j.unlock_method === "qr" ? kioskIdleMsOf("qr", j.idle_sec) : IDLE_MS;') && kr.includes("Date.now() - lastActionRef.current > idleMsRef.current") && kr.includes("分で自動ロック）"));
 
 // ④ 旧向きの撤去
 const pad = src("components/nox/kiosk-unlock-pad.tsx");
-const clientFiles = ["components/nox/kiosk-unlock-pad.tsx", "components/nox/kiosk-qr-display.tsx", "app/kq/kq-client.tsx", "app/mine/page.tsx", "app/kiosk-register/page.tsx"];
+const clientFiles = ["components/nox/kiosk-unlock-pad.tsx", "components/nox/kiosk-qr-display.tsx", "app/kq/kq-client.tsx", "app/mine/page.tsx", "components/nox/kiosk-workspace.tsx" /* ★K client 第 2 便: 包みを移した */];
 check("qr(4-1) 旧向き＝client から my_qr_secret／kiosk_unlock_qr を呼ばない・キオスクの解除パッドにカメラ（getUserMedia）が無い・旧トークン 'noxk:' の組み立てが無い", clientFiles.every((f) => !src(f).includes('"my_qr_secret"') && !src(f).includes('"kiosk_unlock_qr"')) && !pad.includes("getUserMedia") && !src("lib/nox/rules-0175/kiosk-qr.ts").includes("`noxk:"));
 check("qr(4-2) PIN（4〜6 桁）は維持＝kiosk_unlock・QR のタブは mig0185On() の間だけ（KioskQrDisplay）", pad.includes('supabase.rpc("kiosk_unlock", { p_pin: pin, p_membership_id: membershipId ?? null })') && pad.includes("const qrOk = mig0185On();") && pad.includes('{tab === "qr" && qrOk && <KioskQrDisplay onUnlocked={onUnlocked} />}'));
 

@@ -1,0 +1,3483 @@
+{
+ "_note": "★便 M6（2026-11-02）: docs/handoff/menu_templates の CSV から生成（docs/tmp/gen_menu_templates.mjs）。価格は税込（取り込み時は内税に固定）・OFF の規則は相談役確認待ち",
+ "substitute": {
+  "girlsbar": "snack",
+  "lounge": "cabaret_regional_city",
+  "bar": "cabaret_regional_city"
+ },
+ "templates": {
+  "cabaret_kabukicho": {
+   "key": "cabaret_kabukicho",
+   "type": "キャバクラ",
+   "band": "歌舞伎町",
+   "pricing": {
+    "set": [
+     {
+      "name": "セット60分",
+      "price": 8000,
+      "minutes": 60
+     }
+    ],
+    "extension": [
+     {
+      "name": "延長30分",
+      "price": 4500,
+      "minutes": 30
+     },
+     {
+      "name": "延長60分",
+      "price": 8000,
+      "minutes": 60
+     }
+    ],
+    "hon": 3000,
+    "jo": 3000,
+    "dohan": 5000,
+    "vip": [
+     {
+      "name": "VIPルーム料60分",
+      "price": 15000,
+      "minutes": 60
+     }
+    ]
+   },
+   "others": [
+    {
+     "n": "カラオケ1曲",
+     "p": 500,
+     "unit": "1曲"
+    }
+   ],
+   "menu": [
+    {
+     "cat": "キャストドリンク",
+     "items": [
+      {
+       "n": "キャストドリンクS",
+       "p": 2000,
+       "type": "drink",
+       "keep": false,
+       "backPending": true,
+       "noBack": false,
+       "sub": "キャスト",
+       "on": true
+      },
+      {
+       "n": "キャストドリンクL",
+       "p": 3000,
+       "type": "drink",
+       "keep": false,
+       "backPending": true,
+       "noBack": false,
+       "sub": "キャスト",
+       "on": true
+      },
+      {
+       "n": "キャストショット",
+       "p": 2500,
+       "type": "drink",
+       "keep": false,
+       "backPending": true,
+       "noBack": false,
+       "sub": "キャスト",
+       "on": true
+      }
+     ]
+    },
+    {
+     "cat": "ドリンク",
+     "items": [
+      {
+       "n": "生ビール",
+       "p": 1500,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "グラス",
+       "on": true
+      },
+      {
+       "n": "瓶ビール",
+       "p": 1600,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "グラス",
+       "on": true
+      },
+      {
+       "n": "ハイボール",
+       "p": 1400,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "グラス",
+       "on": true
+      },
+      {
+       "n": "レモンサワー",
+       "p": 1400,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "グラス",
+       "on": true
+      },
+      {
+       "n": "ウーロンハイ",
+       "p": 1400,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "グラス",
+       "on": true
+      },
+      {
+       "n": "緑茶ハイ",
+       "p": 1400,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "グラス",
+       "on": true
+      },
+      {
+       "n": "カシスオレンジ",
+       "p": 1500,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "グラス",
+       "on": true
+      },
+      {
+       "n": "カシスウーロン",
+       "p": 1500,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "グラス",
+       "on": true
+      },
+      {
+       "n": "ファジーネーブル",
+       "p": 1500,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "グラス",
+       "on": true
+      },
+      {
+       "n": "ジントニック",
+       "p": 1500,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "グラス",
+       "on": true
+      },
+      {
+       "n": "モスコミュール",
+       "p": 1500,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "グラス",
+       "on": true
+      },
+      {
+       "n": "ウーロン茶（グラス）",
+       "p": 1000,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "グラス",
+       "on": true
+      },
+      {
+       "n": "緑茶（グラス）",
+       "p": 1000,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "グラス",
+       "on": true
+      },
+      {
+       "n": "コーラ（グラス）",
+       "p": 1000,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "グラス",
+       "on": true
+      },
+      {
+       "n": "オレンジジュース",
+       "p": 1000,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "グラス",
+       "on": true
+      }
+     ]
+    },
+    {
+     "cat": "ショット",
+     "items": [
+      {
+       "n": "テキーラ",
+       "p": 2000,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ショット",
+       "on": true
+      },
+      {
+       "n": "テキーラ1800",
+       "p": 3000,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ショット",
+       "on": true
+      },
+      {
+       "n": "クライナー",
+       "p": 2000,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ショット",
+       "on": true
+      },
+      {
+       "n": "イエーガー",
+       "p": 2000,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ショット",
+       "on": true
+      },
+      {
+       "n": "コカボム",
+       "p": 3000,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ショット",
+       "on": true
+      }
+     ]
+    },
+    {
+     "cat": "焼酎",
+     "items": [
+      {
+       "n": "鏡月",
+       "p": 8000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "焼酎",
+       "on": true
+      },
+      {
+       "n": "JINRO",
+       "p": 8000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "焼酎",
+       "on": true
+      },
+      {
+       "n": "いいちこ",
+       "p": 9000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "焼酎",
+       "on": true
+      },
+      {
+       "n": "二階堂",
+       "p": 10000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "焼酎",
+       "on": true
+      },
+      {
+       "n": "黒霧島",
+       "p": 10000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "焼酎",
+       "on": true
+      },
+      {
+       "n": "赤霧島",
+       "p": 14000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "焼酎",
+       "on": true
+      },
+      {
+       "n": "鍛高譚",
+       "p": 10000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "焼酎",
+       "on": true
+      },
+      {
+       "n": "吉四六（壺）",
+       "p": 20000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "焼酎",
+       "on": true
+      },
+      {
+       "n": "中々",
+       "p": 18000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "焼酎",
+       "on": true
+      },
+      {
+       "n": "富乃宝山",
+       "p": 18000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "焼酎",
+       "on": true
+      },
+      {
+       "n": "魔王",
+       "p": 35000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "焼酎",
+       "on": false
+      },
+      {
+       "n": "百年の孤独",
+       "p": 35000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "焼酎",
+       "on": false
+      }
+     ]
+    },
+    {
+     "cat": "ウイスキー",
+     "items": [
+      {
+       "n": "サントリー角瓶",
+       "p": 12000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ウイスキー",
+       "on": true
+      },
+      {
+       "n": "ジャックダニエル",
+       "p": 15000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ウイスキー",
+       "on": true
+      },
+      {
+       "n": "バランタイン12年",
+       "p": 16000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ウイスキー",
+       "on": true
+      },
+      {
+       "n": "シーバスリーガル12年",
+       "p": 18000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ウイスキー",
+       "on": true
+      },
+      {
+       "n": "シーバスリーガル ミズナラ",
+       "p": 24000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ウイスキー",
+       "on": true
+      },
+      {
+       "n": "知多",
+       "p": 28000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ウイスキー",
+       "on": true
+      },
+      {
+       "n": "竹鶴",
+       "p": 35000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ウイスキー",
+       "on": false
+      },
+      {
+       "n": "白州",
+       "p": 45000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ウイスキー",
+       "on": false
+      },
+      {
+       "n": "山崎",
+       "p": 50000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ウイスキー",
+       "on": false
+      },
+      {
+       "n": "響 JAPANESE HARMONY",
+       "p": 55000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ウイスキー",
+       "on": false
+      },
+      {
+       "n": "山崎12年",
+       "p": 100000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ウイスキー",
+       "on": false
+      }
+     ]
+    },
+    {
+     "cat": "ブランデー",
+     "items": [
+      {
+       "n": "ヘネシーVS",
+       "p": 35000,
+       "type": "bottle",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ブランデー",
+       "on": false
+      },
+      {
+       "n": "ヘネシーVSOP",
+       "p": 60000,
+       "type": "bottle",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ブランデー",
+       "on": false
+      },
+      {
+       "n": "レミーマルタンVSOP",
+       "p": 38000,
+       "type": "bottle",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ブランデー",
+       "on": false
+      },
+      {
+       "n": "カミュVSOP",
+       "p": 35000,
+       "type": "bottle",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ブランデー",
+       "on": false
+      },
+      {
+       "n": "マーテルVSOP",
+       "p": 35000,
+       "type": "bottle",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ブランデー",
+       "on": false
+      },
+      {
+       "n": "ヘネシーXO",
+       "p": 140000,
+       "type": "bottle",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ブランデー",
+       "on": false
+      }
+     ]
+    },
+    {
+     "cat": "シャンパン",
+     "items": [
+      {
+       "n": "カフェ・ド・パリ",
+       "p": 12000,
+       "type": "champ",
+       "keep": false,
+       "backPending": true,
+       "noBack": false,
+       "sub": "シャンパン",
+       "on": true
+      },
+      {
+       "n": "マバム",
+       "p": 18000,
+       "type": "champ",
+       "keep": false,
+       "backPending": true,
+       "noBack": false,
+       "sub": "シャンパン",
+       "on": true
+      },
+      {
+       "n": "モエ・エ・シャンドン 白",
+       "p": 30000,
+       "type": "champ",
+       "keep": false,
+       "backPending": true,
+       "noBack": false,
+       "sub": "シャンパン",
+       "on": false
+      },
+      {
+       "n": "モエ・エ・シャンドン ロゼ",
+       "p": 40000,
+       "type": "champ",
+       "keep": false,
+       "backPending": true,
+       "noBack": false,
+       "sub": "シャンパン",
+       "on": false
+      },
+      {
+       "n": "ヴーヴ・クリコ イエロー",
+       "p": 40000,
+       "type": "champ",
+       "keep": false,
+       "backPending": true,
+       "noBack": false,
+       "sub": "シャンパン",
+       "on": false
+      },
+      {
+       "n": "ドン・ペリニヨン",
+       "p": 120000,
+       "type": "champ",
+       "keep": false,
+       "backPending": true,
+       "noBack": false,
+       "sub": "シャンパン",
+       "on": false
+      }
+     ]
+    },
+    {
+     "cat": "ワイン",
+     "items": [
+      {
+       "n": "ハウスワイン赤",
+       "p": 10000,
+       "type": "bottle",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ワイン",
+       "on": true
+      },
+      {
+       "n": "ハウスワイン白",
+       "p": 10000,
+       "type": "bottle",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ワイン",
+       "on": true
+      }
+     ]
+    },
+    {
+     "cat": "割りもの",
+     "items": [
+      {
+       "n": "アイス（氷）",
+       "p": 1000,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ボトル用",
+       "on": true
+      },
+      {
+       "n": "ミネラルウォーター",
+       "p": 1000,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ボトル用",
+       "on": true
+      },
+      {
+       "n": "炭酸水",
+       "p": 1000,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ボトル用",
+       "on": true
+      },
+      {
+       "n": "ウーロン茶（デキャンタ）",
+       "p": 1500,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ボトル用",
+       "on": true
+      },
+      {
+       "n": "緑茶（デキャンタ）",
+       "p": 1500,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ボトル用",
+       "on": true
+      },
+      {
+       "n": "ジャスミン茶（デキャンタ）",
+       "p": 1500,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ボトル用",
+       "on": true
+      },
+      {
+       "n": "午後の紅茶（割りもの）",
+       "p": 1500,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ボトル用",
+       "on": true
+      },
+      {
+       "n": "コーラ（割りもの）",
+       "p": 1000,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ボトル用",
+       "on": true
+      },
+      {
+       "n": "ジンジャーエール（割りもの）",
+       "p": 1000,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ボトル用",
+       "on": true
+      },
+      {
+       "n": "カットレモン",
+       "p": 1000,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ボトル用",
+       "on": true
+      },
+      {
+       "n": "梅干し",
+       "p": 500,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ボトル用",
+       "on": true
+      }
+     ]
+    },
+    {
+     "cat": "フード",
+     "items": [
+      {
+       "n": "ミックスナッツ",
+       "p": 1000,
+       "type": "food",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "軽食",
+       "on": true
+      },
+      {
+       "n": "ポッキー",
+       "p": 1000,
+       "type": "food",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "軽食",
+       "on": true
+      },
+      {
+       "n": "チョコレート盛り合わせ",
+       "p": 1500,
+       "type": "food",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "軽食",
+       "on": true
+      },
+      {
+       "n": "枝豆",
+       "p": 1200,
+       "type": "food",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "軽食",
+       "on": true
+      },
+      {
+       "n": "ビーフジャーキー",
+       "p": 1600,
+       "type": "food",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "軽食",
+       "on": true
+      },
+      {
+       "n": "フライドポテト",
+       "p": 1600,
+       "type": "food",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "軽食",
+       "on": true
+      },
+      {
+       "n": "唐揚げ",
+       "p": 1800,
+       "type": "food",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "軽食",
+       "on": true
+      },
+      {
+       "n": "ソーセージ盛り合わせ",
+       "p": 2000,
+       "type": "food",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "軽食",
+       "on": true
+      },
+      {
+       "n": "ピザ",
+       "p": 2500,
+       "type": "food",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "軽食",
+       "on": true
+      },
+      {
+       "n": "焼きそば",
+       "p": 2000,
+       "type": "food",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "軽食",
+       "on": true
+      }
+     ]
+    },
+    {
+     "cat": "その他",
+     "items": [
+      {
+       "n": "カラオケ1曲",
+       "p": 500,
+       "type": "other",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "料金システム",
+       "on": true
+      }
+     ]
+    }
+   ]
+  },
+  "cabaret_regional_city": {
+   "key": "cabaret_regional_city",
+   "type": "キャバクラ",
+   "band": "地方都市",
+   "pricing": {
+    "set": [
+     {
+      "name": "セット60分",
+      "price": 3500,
+      "minutes": 60
+     }
+    ],
+    "extension": [
+     {
+      "name": "延長30分",
+      "price": 2000,
+      "minutes": 30
+     },
+     {
+      "name": "延長60分",
+      "price": 3500,
+      "minutes": 60
+     }
+    ],
+    "hon": 1500,
+    "jo": 1500,
+    "dohan": 2500,
+    "vip": [
+     {
+      "name": "VIPルーム料60分",
+      "price": 5000,
+      "minutes": 60
+     }
+    ]
+   },
+   "others": [
+    {
+     "n": "カラオケ1曲",
+     "p": 200,
+     "unit": "1曲"
+    }
+   ],
+   "menu": [
+    {
+     "cat": "キャストドリンク",
+     "items": [
+      {
+       "n": "キャストドリンクS",
+       "p": 1000,
+       "type": "drink",
+       "keep": false,
+       "backPending": true,
+       "noBack": false,
+       "sub": "キャスト",
+       "on": true
+      },
+      {
+       "n": "キャストドリンクL",
+       "p": 1500,
+       "type": "drink",
+       "keep": false,
+       "backPending": true,
+       "noBack": false,
+       "sub": "キャスト",
+       "on": true
+      },
+      {
+       "n": "キャストショット",
+       "p": 1500,
+       "type": "drink",
+       "keep": false,
+       "backPending": true,
+       "noBack": false,
+       "sub": "キャスト",
+       "on": true
+      }
+     ]
+    },
+    {
+     "cat": "ドリンク",
+     "items": [
+      {
+       "n": "生ビール",
+       "p": 900,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "グラス",
+       "on": true
+      },
+      {
+       "n": "瓶ビール",
+       "p": 900,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "グラス",
+       "on": true
+      },
+      {
+       "n": "ハイボール",
+       "p": 900,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "グラス",
+       "on": true
+      },
+      {
+       "n": "レモンサワー",
+       "p": 900,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "グラス",
+       "on": true
+      },
+      {
+       "n": "ウーロンハイ",
+       "p": 900,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "グラス",
+       "on": true
+      },
+      {
+       "n": "緑茶ハイ",
+       "p": 900,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "グラス",
+       "on": true
+      },
+      {
+       "n": "カシスオレンジ",
+       "p": 1000,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "グラス",
+       "on": true
+      },
+      {
+       "n": "カシスウーロン",
+       "p": 1000,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "グラス",
+       "on": true
+      },
+      {
+       "n": "ファジーネーブル",
+       "p": 1000,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "グラス",
+       "on": true
+      },
+      {
+       "n": "ジントニック",
+       "p": 1000,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "グラス",
+       "on": true
+      },
+      {
+       "n": "モスコミュール",
+       "p": 1000,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "グラス",
+       "on": true
+      },
+      {
+       "n": "ウーロン茶（グラス）",
+       "p": 600,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "グラス",
+       "on": true
+      },
+      {
+       "n": "緑茶（グラス）",
+       "p": 600,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "グラス",
+       "on": true
+      },
+      {
+       "n": "コーラ（グラス）",
+       "p": 600,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "グラス",
+       "on": true
+      },
+      {
+       "n": "オレンジジュース",
+       "p": 600,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "グラス",
+       "on": true
+      }
+     ]
+    },
+    {
+     "cat": "ショット",
+     "items": [
+      {
+       "n": "テキーラ",
+       "p": 1000,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ショット",
+       "on": true
+      },
+      {
+       "n": "テキーラ1800",
+       "p": 2000,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ショット",
+       "on": true
+      },
+      {
+       "n": "クライナー",
+       "p": 1000,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ショット",
+       "on": true
+      },
+      {
+       "n": "イエーガー",
+       "p": 1000,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ショット",
+       "on": true
+      },
+      {
+       "n": "コカボム",
+       "p": 2000,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ショット",
+       "on": true
+      }
+     ]
+    },
+    {
+     "cat": "焼酎",
+     "items": [
+      {
+       "n": "鏡月",
+       "p": 5000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "焼酎",
+       "on": true
+      },
+      {
+       "n": "JINRO",
+       "p": 5000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "焼酎",
+       "on": true
+      },
+      {
+       "n": "いいちこ",
+       "p": 5000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "焼酎",
+       "on": true
+      },
+      {
+       "n": "二階堂",
+       "p": 6000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "焼酎",
+       "on": true
+      },
+      {
+       "n": "黒霧島",
+       "p": 6000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "焼酎",
+       "on": true
+      },
+      {
+       "n": "赤霧島",
+       "p": 8000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "焼酎",
+       "on": true
+      },
+      {
+       "n": "鍛高譚",
+       "p": 6000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "焼酎",
+       "on": true
+      },
+      {
+       "n": "吉四六（壺）",
+       "p": 12000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "焼酎",
+       "on": true
+      },
+      {
+       "n": "中々",
+       "p": 10000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "焼酎",
+       "on": true
+      },
+      {
+       "n": "富乃宝山",
+       "p": 10000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "焼酎",
+       "on": true
+      },
+      {
+       "n": "魔王",
+       "p": 22000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "焼酎",
+       "on": true
+      },
+      {
+       "n": "百年の孤独",
+       "p": 22000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "焼酎",
+       "on": true
+      }
+     ]
+    },
+    {
+     "cat": "ウイスキー",
+     "items": [
+      {
+       "n": "サントリー角瓶",
+       "p": 7000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ウイスキー",
+       "on": true
+      },
+      {
+       "n": "ジャックダニエル",
+       "p": 9000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ウイスキー",
+       "on": true
+      },
+      {
+       "n": "バランタイン12年",
+       "p": 10000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ウイスキー",
+       "on": true
+      },
+      {
+       "n": "シーバスリーガル12年",
+       "p": 11000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ウイスキー",
+       "on": true
+      },
+      {
+       "n": "シーバスリーガル ミズナラ",
+       "p": 15000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ウイスキー",
+       "on": true
+      },
+      {
+       "n": "知多",
+       "p": 18000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ウイスキー",
+       "on": true
+      },
+      {
+       "n": "竹鶴",
+       "p": 24000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ウイスキー",
+       "on": true
+      },
+      {
+       "n": "白州",
+       "p": 30000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ウイスキー",
+       "on": false
+      },
+      {
+       "n": "山崎",
+       "p": 35000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ウイスキー",
+       "on": false
+      },
+      {
+       "n": "響 JAPANESE HARMONY",
+       "p": 38000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ウイスキー",
+       "on": false
+      },
+      {
+       "n": "山崎12年",
+       "p": 75000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ウイスキー",
+       "on": false
+      }
+     ]
+    },
+    {
+     "cat": "ブランデー",
+     "items": [
+      {
+       "n": "ヘネシーVS",
+       "p": 22000,
+       "type": "bottle",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ブランデー",
+       "on": true
+      },
+      {
+       "n": "ヘネシーVSOP",
+       "p": 40000,
+       "type": "bottle",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ブランデー",
+       "on": false
+      },
+      {
+       "n": "レミーマルタンVSOP",
+       "p": 25000,
+       "type": "bottle",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ブランデー",
+       "on": true
+      },
+      {
+       "n": "カミュVSOP",
+       "p": 22000,
+       "type": "bottle",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ブランデー",
+       "on": true
+      },
+      {
+       "n": "マーテルVSOP",
+       "p": 22000,
+       "type": "bottle",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ブランデー",
+       "on": true
+      },
+      {
+       "n": "ヘネシーXO",
+       "p": 100000,
+       "type": "bottle",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ブランデー",
+       "on": false
+      }
+     ]
+    },
+    {
+     "cat": "シャンパン",
+     "items": [
+      {
+       "n": "カフェ・ド・パリ",
+       "p": 7000,
+       "type": "champ",
+       "keep": false,
+       "backPending": true,
+       "noBack": false,
+       "sub": "シャンパン",
+       "on": true
+      },
+      {
+       "n": "マバム",
+       "p": 12000,
+       "type": "champ",
+       "keep": false,
+       "backPending": true,
+       "noBack": false,
+       "sub": "シャンパン",
+       "on": true
+      },
+      {
+       "n": "モエ・エ・シャンドン 白",
+       "p": 20000,
+       "type": "champ",
+       "keep": false,
+       "backPending": true,
+       "noBack": false,
+       "sub": "シャンパン",
+       "on": true
+      },
+      {
+       "n": "モエ・エ・シャンドン ロゼ",
+       "p": 25000,
+       "type": "champ",
+       "keep": false,
+       "backPending": true,
+       "noBack": false,
+       "sub": "シャンパン",
+       "on": true
+      },
+      {
+       "n": "ヴーヴ・クリコ イエロー",
+       "p": 26000,
+       "type": "champ",
+       "keep": false,
+       "backPending": true,
+       "noBack": false,
+       "sub": "シャンパン",
+       "on": true
+      },
+      {
+       "n": "ドン・ペリニヨン",
+       "p": 80000,
+       "type": "champ",
+       "keep": false,
+       "backPending": true,
+       "noBack": false,
+       "sub": "シャンパン",
+       "on": false
+      }
+     ]
+    },
+    {
+     "cat": "ワイン",
+     "items": [
+      {
+       "n": "ハウスワイン赤",
+       "p": 6000,
+       "type": "bottle",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ワイン",
+       "on": true
+      },
+      {
+       "n": "ハウスワイン白",
+       "p": 6000,
+       "type": "bottle",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ワイン",
+       "on": true
+      }
+     ]
+    },
+    {
+     "cat": "割りもの",
+     "items": [
+      {
+       "n": "アイス（氷）",
+       "p": 500,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ボトル用",
+       "on": true
+      },
+      {
+       "n": "ミネラルウォーター",
+       "p": 500,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ボトル用",
+       "on": true
+      },
+      {
+       "n": "炭酸水",
+       "p": 500,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ボトル用",
+       "on": true
+      },
+      {
+       "n": "ウーロン茶（デキャンタ）",
+       "p": 800,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ボトル用",
+       "on": true
+      },
+      {
+       "n": "緑茶（デキャンタ）",
+       "p": 800,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ボトル用",
+       "on": true
+      },
+      {
+       "n": "ジャスミン茶（デキャンタ）",
+       "p": 800,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ボトル用",
+       "on": true
+      },
+      {
+       "n": "午後の紅茶（割りもの）",
+       "p": 800,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ボトル用",
+       "on": true
+      },
+      {
+       "n": "コーラ（割りもの）",
+       "p": 500,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ボトル用",
+       "on": true
+      },
+      {
+       "n": "ジンジャーエール（割りもの）",
+       "p": 500,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ボトル用",
+       "on": true
+      },
+      {
+       "n": "カットレモン",
+       "p": 500,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ボトル用",
+       "on": true
+      },
+      {
+       "n": "梅干し",
+       "p": 300,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ボトル用",
+       "on": true
+      }
+     ]
+    },
+    {
+     "cat": "フード",
+     "items": [
+      {
+       "n": "ミックスナッツ",
+       "p": 600,
+       "type": "food",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "軽食",
+       "on": true
+      },
+      {
+       "n": "ポッキー",
+       "p": 600,
+       "type": "food",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "軽食",
+       "on": true
+      },
+      {
+       "n": "チョコレート盛り合わせ",
+       "p": 900,
+       "type": "food",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "軽食",
+       "on": true
+      },
+      {
+       "n": "枝豆",
+       "p": 700,
+       "type": "food",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "軽食",
+       "on": true
+      },
+      {
+       "n": "ビーフジャーキー",
+       "p": 1000,
+       "type": "food",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "軽食",
+       "on": true
+      },
+      {
+       "n": "フライドポテト",
+       "p": 900,
+       "type": "food",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "軽食",
+       "on": true
+      },
+      {
+       "n": "唐揚げ",
+       "p": 1200,
+       "type": "food",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "軽食",
+       "on": true
+      },
+      {
+       "n": "ソーセージ盛り合わせ",
+       "p": 1300,
+       "type": "food",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "軽食",
+       "on": true
+      },
+      {
+       "n": "ピザ",
+       "p": 1500,
+       "type": "food",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "軽食",
+       "on": true
+      },
+      {
+       "n": "焼きそば",
+       "p": 1200,
+       "type": "food",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "軽食",
+       "on": true
+      }
+     ]
+    },
+    {
+     "cat": "その他",
+     "items": [
+      {
+       "n": "カラオケ1曲",
+       "p": 200,
+       "type": "other",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "料金システム",
+       "on": true
+      }
+     ]
+    }
+   ]
+  },
+  "cabaret_tokyo_suburban": {
+   "key": "cabaret_tokyo_suburban",
+   "type": "キャバクラ",
+   "band": "都内郊外",
+   "pricing": {
+    "set": [
+     {
+      "name": "セット60分",
+      "price": 5000,
+      "minutes": 60
+     }
+    ],
+    "extension": [
+     {
+      "name": "延長30分",
+      "price": 3000,
+      "minutes": 30
+     },
+     {
+      "name": "延長60分",
+      "price": 5000,
+      "minutes": 60
+     }
+    ],
+    "hon": 2000,
+    "jo": 2000,
+    "dohan": 3000,
+    "vip": [
+     {
+      "name": "VIPルーム料60分",
+      "price": 8000,
+      "minutes": 60
+     }
+    ]
+   },
+   "others": [
+    {
+     "n": "カラオケ1曲",
+     "p": 300,
+     "unit": "1曲"
+    }
+   ],
+   "menu": [
+    {
+     "cat": "キャストドリンク",
+     "items": [
+      {
+       "n": "キャストドリンクS",
+       "p": 1500,
+       "type": "drink",
+       "keep": false,
+       "backPending": true,
+       "noBack": false,
+       "sub": "キャスト",
+       "on": true
+      },
+      {
+       "n": "キャストドリンクL",
+       "p": 2000,
+       "type": "drink",
+       "keep": false,
+       "backPending": true,
+       "noBack": false,
+       "sub": "キャスト",
+       "on": true
+      },
+      {
+       "n": "キャストショット",
+       "p": 2000,
+       "type": "drink",
+       "keep": false,
+       "backPending": true,
+       "noBack": false,
+       "sub": "キャスト",
+       "on": true
+      }
+     ]
+    },
+    {
+     "cat": "ドリンク",
+     "items": [
+      {
+       "n": "生ビール",
+       "p": 1200,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "グラス",
+       "on": true
+      },
+      {
+       "n": "瓶ビール",
+       "p": 1200,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "グラス",
+       "on": true
+      },
+      {
+       "n": "ハイボール",
+       "p": 1100,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "グラス",
+       "on": true
+      },
+      {
+       "n": "レモンサワー",
+       "p": 1100,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "グラス",
+       "on": true
+      },
+      {
+       "n": "ウーロンハイ",
+       "p": 1100,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "グラス",
+       "on": true
+      },
+      {
+       "n": "緑茶ハイ",
+       "p": 1100,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "グラス",
+       "on": true
+      },
+      {
+       "n": "カシスオレンジ",
+       "p": 1200,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "グラス",
+       "on": true
+      },
+      {
+       "n": "カシスウーロン",
+       "p": 1200,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "グラス",
+       "on": true
+      },
+      {
+       "n": "ファジーネーブル",
+       "p": 1200,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "グラス",
+       "on": true
+      },
+      {
+       "n": "ジントニック",
+       "p": 1200,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "グラス",
+       "on": true
+      },
+      {
+       "n": "モスコミュール",
+       "p": 1200,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "グラス",
+       "on": true
+      },
+      {
+       "n": "ウーロン茶（グラス）",
+       "p": 800,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "グラス",
+       "on": true
+      },
+      {
+       "n": "緑茶（グラス）",
+       "p": 800,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "グラス",
+       "on": true
+      },
+      {
+       "n": "コーラ（グラス）",
+       "p": 800,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "グラス",
+       "on": true
+      },
+      {
+       "n": "オレンジジュース",
+       "p": 800,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "グラス",
+       "on": true
+      }
+     ]
+    },
+    {
+     "cat": "ショット",
+     "items": [
+      {
+       "n": "テキーラ",
+       "p": 1500,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ショット",
+       "on": true
+      },
+      {
+       "n": "テキーラ1800",
+       "p": 2500,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ショット",
+       "on": true
+      },
+      {
+       "n": "クライナー",
+       "p": 1500,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ショット",
+       "on": true
+      },
+      {
+       "n": "イエーガー",
+       "p": 1500,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ショット",
+       "on": true
+      },
+      {
+       "n": "コカボム",
+       "p": 2500,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ショット",
+       "on": true
+      }
+     ]
+    },
+    {
+     "cat": "焼酎",
+     "items": [
+      {
+       "n": "鏡月",
+       "p": 6000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "焼酎",
+       "on": true
+      },
+      {
+       "n": "JINRO",
+       "p": 6000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "焼酎",
+       "on": true
+      },
+      {
+       "n": "いいちこ",
+       "p": 7000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "焼酎",
+       "on": true
+      },
+      {
+       "n": "二階堂",
+       "p": 7000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "焼酎",
+       "on": true
+      },
+      {
+       "n": "黒霧島",
+       "p": 8000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "焼酎",
+       "on": true
+      },
+      {
+       "n": "赤霧島",
+       "p": 10000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "焼酎",
+       "on": true
+      },
+      {
+       "n": "鍛高譚",
+       "p": 7000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "焼酎",
+       "on": true
+      },
+      {
+       "n": "吉四六（壺）",
+       "p": 15000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "焼酎",
+       "on": true
+      },
+      {
+       "n": "中々",
+       "p": 13000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "焼酎",
+       "on": true
+      },
+      {
+       "n": "富乃宝山",
+       "p": 13000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "焼酎",
+       "on": true
+      },
+      {
+       "n": "魔王",
+       "p": 28000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "焼酎",
+       "on": true
+      },
+      {
+       "n": "百年の孤独",
+       "p": 28000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "焼酎",
+       "on": true
+      }
+     ]
+    },
+    {
+     "cat": "ウイスキー",
+     "items": [
+      {
+       "n": "サントリー角瓶",
+       "p": 9000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ウイスキー",
+       "on": true
+      },
+      {
+       "n": "ジャックダニエル",
+       "p": 11000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ウイスキー",
+       "on": true
+      },
+      {
+       "n": "バランタイン12年",
+       "p": 12000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ウイスキー",
+       "on": true
+      },
+      {
+       "n": "シーバスリーガル12年",
+       "p": 14000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ウイスキー",
+       "on": true
+      },
+      {
+       "n": "シーバスリーガル ミズナラ",
+       "p": 18000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ウイスキー",
+       "on": true
+      },
+      {
+       "n": "知多",
+       "p": 22000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ウイスキー",
+       "on": true
+      },
+      {
+       "n": "竹鶴",
+       "p": 28000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ウイスキー",
+       "on": true
+      },
+      {
+       "n": "白州",
+       "p": 35000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ウイスキー",
+       "on": false
+      },
+      {
+       "n": "山崎",
+       "p": 40000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ウイスキー",
+       "on": false
+      },
+      {
+       "n": "響 JAPANESE HARMONY",
+       "p": 45000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ウイスキー",
+       "on": false
+      },
+      {
+       "n": "山崎12年",
+       "p": 85000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ウイスキー",
+       "on": false
+      }
+     ]
+    },
+    {
+     "cat": "ブランデー",
+     "items": [
+      {
+       "n": "ヘネシーVS",
+       "p": 28000,
+       "type": "bottle",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ブランデー",
+       "on": true
+      },
+      {
+       "n": "ヘネシーVSOP",
+       "p": 50000,
+       "type": "bottle",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ブランデー",
+       "on": false
+      },
+      {
+       "n": "レミーマルタンVSOP",
+       "p": 30000,
+       "type": "bottle",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ブランデー",
+       "on": false
+      },
+      {
+       "n": "カミュVSOP",
+       "p": 28000,
+       "type": "bottle",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ブランデー",
+       "on": true
+      },
+      {
+       "n": "マーテルVSOP",
+       "p": 28000,
+       "type": "bottle",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ブランデー",
+       "on": true
+      },
+      {
+       "n": "ヘネシーXO",
+       "p": 120000,
+       "type": "bottle",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ブランデー",
+       "on": false
+      }
+     ]
+    },
+    {
+     "cat": "シャンパン",
+     "items": [
+      {
+       "n": "カフェ・ド・パリ",
+       "p": 9000,
+       "type": "champ",
+       "keep": false,
+       "backPending": true,
+       "noBack": false,
+       "sub": "シャンパン",
+       "on": true
+      },
+      {
+       "n": "マバム",
+       "p": 14000,
+       "type": "champ",
+       "keep": false,
+       "backPending": true,
+       "noBack": false,
+       "sub": "シャンパン",
+       "on": true
+      },
+      {
+       "n": "モエ・エ・シャンドン 白",
+       "p": 25000,
+       "type": "champ",
+       "keep": false,
+       "backPending": true,
+       "noBack": false,
+       "sub": "シャンパン",
+       "on": true
+      },
+      {
+       "n": "モエ・エ・シャンドン ロゼ",
+       "p": 32000,
+       "type": "champ",
+       "keep": false,
+       "backPending": true,
+       "noBack": false,
+       "sub": "シャンパン",
+       "on": false
+      },
+      {
+       "n": "ヴーヴ・クリコ イエロー",
+       "p": 32000,
+       "type": "champ",
+       "keep": false,
+       "backPending": true,
+       "noBack": false,
+       "sub": "シャンパン",
+       "on": false
+      },
+      {
+       "n": "ドン・ペリニヨン",
+       "p": 100000,
+       "type": "champ",
+       "keep": false,
+       "backPending": true,
+       "noBack": false,
+       "sub": "シャンパン",
+       "on": false
+      }
+     ]
+    },
+    {
+     "cat": "ワイン",
+     "items": [
+      {
+       "n": "ハウスワイン赤",
+       "p": 8000,
+       "type": "bottle",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ワイン",
+       "on": true
+      },
+      {
+       "n": "ハウスワイン白",
+       "p": 8000,
+       "type": "bottle",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ワイン",
+       "on": true
+      }
+     ]
+    },
+    {
+     "cat": "割りもの",
+     "items": [
+      {
+       "n": "アイス（氷）",
+       "p": 500,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ボトル用",
+       "on": true
+      },
+      {
+       "n": "ミネラルウォーター",
+       "p": 500,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ボトル用",
+       "on": true
+      },
+      {
+       "n": "炭酸水",
+       "p": 700,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ボトル用",
+       "on": true
+      },
+      {
+       "n": "ウーロン茶（デキャンタ）",
+       "p": 1000,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ボトル用",
+       "on": true
+      },
+      {
+       "n": "緑茶（デキャンタ）",
+       "p": 1000,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ボトル用",
+       "on": true
+      },
+      {
+       "n": "ジャスミン茶（デキャンタ）",
+       "p": 1000,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ボトル用",
+       "on": true
+      },
+      {
+       "n": "午後の紅茶（割りもの）",
+       "p": 1000,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ボトル用",
+       "on": true
+      },
+      {
+       "n": "コーラ（割りもの）",
+       "p": 700,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ボトル用",
+       "on": true
+      },
+      {
+       "n": "ジンジャーエール（割りもの）",
+       "p": 700,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ボトル用",
+       "on": true
+      },
+      {
+       "n": "カットレモン",
+       "p": 700,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ボトル用",
+       "on": true
+      },
+      {
+       "n": "梅干し",
+       "p": 500,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ボトル用",
+       "on": true
+      }
+     ]
+    },
+    {
+     "cat": "フード",
+     "items": [
+      {
+       "n": "ミックスナッツ",
+       "p": 800,
+       "type": "food",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "軽食",
+       "on": true
+      },
+      {
+       "n": "ポッキー",
+       "p": 800,
+       "type": "food",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "軽食",
+       "on": true
+      },
+      {
+       "n": "チョコレート盛り合わせ",
+       "p": 1200,
+       "type": "food",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "軽食",
+       "on": true
+      },
+      {
+       "n": "枝豆",
+       "p": 900,
+       "type": "food",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "軽食",
+       "on": true
+      },
+      {
+       "n": "ビーフジャーキー",
+       "p": 1200,
+       "type": "food",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "軽食",
+       "on": true
+      },
+      {
+       "n": "フライドポテト",
+       "p": 1200,
+       "type": "food",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "軽食",
+       "on": true
+      },
+      {
+       "n": "唐揚げ",
+       "p": 1500,
+       "type": "food",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "軽食",
+       "on": true
+      },
+      {
+       "n": "ソーセージ盛り合わせ",
+       "p": 1600,
+       "type": "food",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "軽食",
+       "on": true
+      },
+      {
+       "n": "ピザ",
+       "p": 2000,
+       "type": "food",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "軽食",
+       "on": true
+      },
+      {
+       "n": "焼きそば",
+       "p": 1600,
+       "type": "food",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "軽食",
+       "on": true
+      }
+     ]
+    },
+    {
+     "cat": "その他",
+     "items": [
+      {
+       "n": "カラオケ1曲",
+       "p": 300,
+       "type": "other",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "料金システム",
+       "on": true
+      }
+     ]
+    }
+   ]
+  },
+  "snack": {
+   "key": "snack",
+   "type": "スナック",
+   "band": "標準モデル",
+   "pricing": {
+    "extension": [
+     {
+      "name": "延長30分",
+      "price": 1000,
+      "minutes": 30
+     },
+     {
+      "name": "延長60分",
+      "price": 2000,
+      "minutes": 60
+     }
+    ]
+   },
+   "others": [
+    {
+     "n": "セット料金90分",
+     "p": 3500,
+     "unit": "90分"
+    },
+    {
+     "n": "ボトルキープ管理料",
+     "p": 0,
+     "unit": "1回"
+    },
+    {
+     "n": "カラオケ1曲",
+     "p": 200,
+     "unit": "1曲"
+    },
+    {
+     "n": "カラオケ歌い放題",
+     "p": 1000,
+     "unit": "1回"
+    }
+   ],
+   "menu": [
+    {
+     "cat": "ドリンク",
+     "items": [
+      {
+       "n": "生ビール",
+       "p": 800,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "グラス",
+       "on": true
+      },
+      {
+       "n": "瓶ビール",
+       "p": 900,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "グラス",
+       "on": true
+      },
+      {
+       "n": "ハイボール",
+       "p": 800,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "グラス",
+       "on": true
+      },
+      {
+       "n": "レモンサワー",
+       "p": 700,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "グラス",
+       "on": true
+      },
+      {
+       "n": "ウーロンハイ",
+       "p": 700,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "グラス",
+       "on": true
+      },
+      {
+       "n": "緑茶ハイ",
+       "p": 700,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "グラス",
+       "on": true
+      },
+      {
+       "n": "カシスオレンジ",
+       "p": 800,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "グラス",
+       "on": true
+      },
+      {
+       "n": "ジントニック",
+       "p": 800,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "グラス",
+       "on": true
+      },
+      {
+       "n": "ウーロン茶（グラス）",
+       "p": 500,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "グラス",
+       "on": true
+      },
+      {
+       "n": "緑茶（グラス）",
+       "p": 500,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "グラス",
+       "on": true
+      },
+      {
+       "n": "コーラ（グラス）",
+       "p": 500,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "グラス",
+       "on": true
+      },
+      {
+       "n": "オレンジジュース",
+       "p": 500,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "グラス",
+       "on": true
+      }
+     ]
+    },
+    {
+     "cat": "スタッフドリンク",
+     "items": [
+      {
+       "n": "スタッフドリンク",
+       "p": 1000,
+       "type": "drink",
+       "keep": false,
+       "backPending": true,
+       "noBack": false,
+       "sub": "キャスト",
+       "on": true
+      },
+      {
+       "n": "スタッフドリンク大",
+       "p": 1500,
+       "type": "drink",
+       "keep": false,
+       "backPending": true,
+       "noBack": false,
+       "sub": "キャスト",
+       "on": true
+      }
+     ]
+    },
+    {
+     "cat": "焼酎",
+     "items": [
+      {
+       "n": "鏡月",
+       "p": 5000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "焼酎",
+       "on": true
+      },
+      {
+       "n": "JINRO",
+       "p": 5000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "焼酎",
+       "on": true
+      },
+      {
+       "n": "いいちこ",
+       "p": 6000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "焼酎",
+       "on": true
+      },
+      {
+       "n": "二階堂",
+       "p": 6000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "焼酎",
+       "on": true
+      },
+      {
+       "n": "黒霧島",
+       "p": 6000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "焼酎",
+       "on": true
+      },
+      {
+       "n": "赤霧島",
+       "p": 8000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "焼酎",
+       "on": true
+      },
+      {
+       "n": "鍛高譚",
+       "p": 6000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "焼酎",
+       "on": true
+      },
+      {
+       "n": "吉四六（壺）",
+       "p": 12000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "焼酎",
+       "on": true
+      },
+      {
+       "n": "中々",
+       "p": 10000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "焼酎",
+       "on": true
+      },
+      {
+       "n": "富乃宝山",
+       "p": 10000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "焼酎",
+       "on": true
+      },
+      {
+       "n": "魔王",
+       "p": 22000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "焼酎",
+       "on": true
+      },
+      {
+       "n": "百年の孤独",
+       "p": 22000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "焼酎",
+       "on": true
+      }
+     ]
+    },
+    {
+     "cat": "ウイスキー",
+     "items": [
+      {
+       "n": "サントリー角瓶",
+       "p": 7000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ウイスキー",
+       "on": true
+      },
+      {
+       "n": "ジャックダニエル",
+       "p": 9000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ウイスキー",
+       "on": true
+      },
+      {
+       "n": "バランタイン12年",
+       "p": 10000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ウイスキー",
+       "on": true
+      },
+      {
+       "n": "シーバスリーガル12年",
+       "p": 11000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ウイスキー",
+       "on": true
+      },
+      {
+       "n": "知多",
+       "p": 18000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ウイスキー",
+       "on": true
+      },
+      {
+       "n": "竹鶴",
+       "p": 24000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ウイスキー",
+       "on": true
+      },
+      {
+       "n": "白州",
+       "p": 30000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ウイスキー",
+       "on": false
+      },
+      {
+       "n": "山崎",
+       "p": 35000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ウイスキー",
+       "on": false
+      },
+      {
+       "n": "響 JAPANESE HARMONY",
+       "p": 38000,
+       "type": "bottle",
+       "keep": true,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ウイスキー",
+       "on": false
+      }
+     ]
+    },
+    {
+     "cat": "ブランデー・シャンパン",
+     "items": [
+      {
+       "n": "ヘネシーVS",
+       "p": 22000,
+       "type": "champ",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ブランデー・シャンパン",
+       "on": true
+      },
+      {
+       "n": "レミーマルタンVSOP",
+       "p": 25000,
+       "type": "champ",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ブランデー・シャンパン",
+       "on": true
+      },
+      {
+       "n": "モエ・エ・シャンドン 白",
+       "p": 20000,
+       "type": "champ",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ブランデー・シャンパン",
+       "on": true
+      },
+      {
+       "n": "ヴーヴ・クリコ イエロー",
+       "p": 26000,
+       "type": "champ",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ブランデー・シャンパン",
+       "on": true
+      }
+     ]
+    },
+    {
+     "cat": "割りもの",
+     "items": [
+      {
+       "n": "アイス（氷）",
+       "p": 500,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ボトル用",
+       "on": true
+      },
+      {
+       "n": "ミネラルウォーター",
+       "p": 500,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ボトル用",
+       "on": true
+      },
+      {
+       "n": "炭酸水",
+       "p": 500,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ボトル用",
+       "on": true
+      },
+      {
+       "n": "ウーロン茶（デキャンタ）",
+       "p": 800,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ボトル用",
+       "on": true
+      },
+      {
+       "n": "緑茶（デキャンタ）",
+       "p": 800,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ボトル用",
+       "on": true
+      },
+      {
+       "n": "ジャスミン茶（デキャンタ）",
+       "p": 800,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ボトル用",
+       "on": true
+      },
+      {
+       "n": "コーラ（割りもの）",
+       "p": 500,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ボトル用",
+       "on": true
+      },
+      {
+       "n": "ジンジャーエール（割りもの）",
+       "p": 500,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ボトル用",
+       "on": true
+      },
+      {
+       "n": "カットレモン",
+       "p": 500,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ボトル用",
+       "on": true
+      },
+      {
+       "n": "梅干し",
+       "p": 300,
+       "type": "drink",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "ボトル用",
+       "on": true
+      }
+     ]
+    },
+    {
+     "cat": "フード",
+     "items": [
+      {
+       "n": "ミックスナッツ",
+       "p": 500,
+       "type": "food",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "軽食",
+       "on": true
+      },
+      {
+       "n": "ポッキー",
+       "p": 500,
+       "type": "food",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "軽食",
+       "on": true
+      },
+      {
+       "n": "チョコレート",
+       "p": 700,
+       "type": "food",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "軽食",
+       "on": true
+      },
+      {
+       "n": "枝豆",
+       "p": 500,
+       "type": "food",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "軽食",
+       "on": true
+      },
+      {
+       "n": "ビーフジャーキー",
+       "p": 800,
+       "type": "food",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "軽食",
+       "on": true
+      },
+      {
+       "n": "フライドポテト",
+       "p": 700,
+       "type": "food",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "軽食",
+       "on": true
+      },
+      {
+       "n": "唐揚げ",
+       "p": 900,
+       "type": "food",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "軽食",
+       "on": true
+      },
+      {
+       "n": "ソーセージ盛り合わせ",
+       "p": 1000,
+       "type": "food",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "軽食",
+       "on": true
+      },
+      {
+       "n": "ピザ",
+       "p": 1200,
+       "type": "food",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "軽食",
+       "on": true
+      },
+      {
+       "n": "焼きそば",
+       "p": 900,
+       "type": "food",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "軽食",
+       "on": true
+      }
+     ]
+    },
+    {
+     "cat": "その他",
+     "items": [
+      {
+       "n": "セット料金90分",
+       "p": 3500,
+       "type": "other",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "料金システム",
+       "on": true
+      },
+      {
+       "n": "ボトルキープ管理料",
+       "p": 0,
+       "type": "other",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "料金システム",
+       "on": true
+      },
+      {
+       "n": "カラオケ1曲",
+       "p": 200,
+       "type": "other",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "料金システム",
+       "on": true
+      },
+      {
+       "n": "カラオケ歌い放題",
+       "p": 1000,
+       "type": "other",
+       "keep": false,
+       "backPending": false,
+       "noBack": true,
+       "sub": "料金システム",
+       "on": true
+      }
+     ]
+    }
+   ]
+  }
+ }
+}

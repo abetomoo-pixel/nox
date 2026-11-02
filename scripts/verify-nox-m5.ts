@@ -65,7 +65,7 @@ check("m5(37b-6) 撮影比較の追い込み＝料金ルールのヘッダーは
 }
 // M-42
 {
-  const rt = src("app/api/kiosk/photos/route.ts"), kp = src("app/kiosk/page.tsx"), kr = src("app/kiosk-register/page.tsx");
+  const rt = src("app/api/kiosk/photos/route.ts"), kp = src("app/kiosk/page.tsx"), kr = src("components/nox/kiosk-workspace.tsx" /* ★K client 第 2 便: 包みを移した */);
   check("m5(42-1) キオスクの写真＝route /api/kiosk/photos（端末を kiosk_devices で確かめ・admin が本体と同じ signCastPhotos／signUserPhotos で署名・実体は返さない・no-store）", rt.includes('.eq("auth_user_id", user.id).eq("is_active", true).maybeSingle()') && rt.includes("signCastPhotos(admin, orgId,") && rt.includes("signUserPhotos(admin, orgId,") && rt.includes('"cache-control": "private, no-store"') && rt.includes('return NextResponse.json({ error: "forbidden" }, { status: 403 })'));
   check("m5(42-2) /kiosk（キャスト・スタッフ）と /kiosk-register（操作担当）のタイルに本体と同じ部品 CastAvatar（url＝route の署名 URL・失敗は頭文字）", kp.includes('fetch("/api/kiosk/photos")') && kp.includes("<CastAvatar name={c.cast_name} url={photoUrls.casts[c.cast_id]} size={44} variant=\"flat\" />") && kp.includes("<CastAvatar name={m.user_name} url={photoUrls.operators[m.membership_id]} size={44} variant=\"flat\" />") && kr.includes('fetch("/api/kiosk/photos")') && kr.includes("<CastAvatar name={o.user_name} url={opPhotos[o.membership_id]} size={44} variant=\"flat\" />"));
 }

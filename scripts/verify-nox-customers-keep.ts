@@ -193,7 +193,7 @@ async function main() {
     const sp = fsx.readFileSync("app/(manage)/master/store-profile-panel.tsx", "utf8");
     const cs = fsx.readFileSync("app/(manage)/master/cast-comp/comp-sections.tsx", "utf8");
     const pm = fsx.readFileSync("app/(manage)/master/products/products-board.tsx", "utf8");
-    const kiosk = fsx.readFileSync("app/kiosk-register/page.tsx", "utf8");
+    const kiosk = fsx.readFileSync("components/nox/kiosk-workspace.tsx" /* ★K client 第 2 便: 包みを移した */, "utf8");
     // ★裁定364（GV-12・便 GV-A）: 顧客詳細はすべての幅でモーダル（右パネル・下送りは廃止）
     {
       const cb = fsx.readFileSync("app/(manage)/customers/customers-board.tsx", "utf8"); const css = fsx.readFileSync("app/globals.css", "utf8");

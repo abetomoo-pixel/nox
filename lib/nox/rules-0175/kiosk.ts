@@ -14,7 +14,7 @@ export function kioskTilesOf(settings: Record<string, unknown> | null | undefine
   return all.filter((k) => f[k] !== false);
 }
 /** タイルの行き先がこの便で開くか（シフト・在庫・日報の本体は K client 第 2 便＝今は案内画面） */
-export const KIOSK_FEATURE_READY: Record<KioskFeature, boolean> = { punch: true, register: true, shift: false, inventory: false, report: false };
+export const KIOSK_FEATURE_READY: Record<KioskFeature, boolean> = { punch: true, register: true, shift: true, inventory: false, report: true }; // ★K client 第 2 便（2026-11-02）: シフト・日報は本体（読取）＝ready・在庫は DDL 待ち
 /** 無操作で自動ロックする秒数＝店設定 kiosk_idle_sec（60〜900・既定 180） */
 export function kioskIdleSecOf(settings: Record<string, unknown> | null | undefined, fallback = 180): number {
   const v = settings?.kiosk_idle_sec;

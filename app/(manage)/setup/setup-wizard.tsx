@@ -6,6 +6,7 @@
 //   完了画面＝キャスト 1 人ずつ／CSV（9 列）・PIN 一覧印刷・ホームへ。入力は自動保存（localStorage＝店ごと・途中で離れても再開＝org 単位の表は 0191 setup_drafts の後）。
 //   器が無い項目（V5_SAVE_MAP has=false）は画面に出して保存は「後で（マスタから）」の注記。主ボタンは中央（.nox-actions・教訓122）・iPad 横 1,024 と 390 の両方。既存の org（初期設定済み）には page が出さない。
 //   UI 規約 238〜244・新トークン 0。書込は既存 RPC（v5.ts の計画）＋route 3 本（/api/staff/create・/api/kiosk/provision・/api/cast/invite）。
+import { applyMenuTemplate, menuTemplatesFor, tplStartBlockedOf, type TplConfirm } from "@/lib/nox/setup/menu-template"; // ★便 M6
 import TimeInput from "@/components/ui/time-input"; // ★便 M5b M-51: 時刻欄の共通部品（時計アイコン・時と分を選ぶ・翌の表示）
 import UnitInput from "@/components/ui/unit-input"; // ★便 M5b M-50
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -85,6 +86,12 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
   const [castMsg, setCastMsg] = useState<string | null>(null);
   const [castBusy, setCastBusy] = useState(false);
   const [newCat, setNewCat] = useState("");
+  // ★便 M6 メニューテンプレート（業態×価格帯）＝選んだテンプレート・割りもの無料・全体の価格 ±%
+  const [tplPick, setTplPick] = useState("");
+  const [tplMixFree, setTplMixFree] = useState(false);
+  const [tplAdj, setTplAdj] = useState("0");
+  const tplS = S as V5State & { tplKey?: string; tplConfirm?: TplConfirm };
+  const tplBlocked = tplStartBlockedOf(tplS);
   const ids = useRef<{ device: string; staff: string[] }>({ device: "", staff: [] });
   const savedT = useRef<ReturnType<typeof setTimeout> | null>(null);
   const draftT = useRef<ReturnType<typeof setTimeout> | null>(null); // ★0191 ★6: server 下書きの間引き
@@ -271,6 +278,16 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
               </button>))}
           </div>
           {!type && <p style={note}>タイプを選ぶと「次へ」が押せます。</p>}
+          {type && menuTemplatesFor(type).length > 0 && (/* ★便 M6: メニューテンプレート（業態×価格帯・税込の CSV）＝定番は ON・高額／希少は OFF で登録・料金システムは設定の欄へ */
+            <div style={{ ...t.card, padding: 12, marginTop: 10, display: "grid", gap: 8 }} data-setup-template="1">
+              <b style={{ fontSize: 13.5 }}>メニューと料金のテンプレート{tplS.tplKey ? <span className="nox-stpill" style={{ marginLeft: 8 }}>入れました</span> : null}</b>
+              <SegSelect value={tplPick || menuTemplatesFor(type)[0].key} onChange={(v) => setTplPick(v)} options={menuTemplatesFor(type).map((x) => [x.key, x.label] as [string, string])} ariaLabel="価格帯" />
+              <label style={{ display: "inline-flex", gap: 6, alignItems: "center", fontSize: 12.5 }}><input type="checkbox" checked={tplMixFree} onChange={(e) => setTplMixFree(e.target.checked)} />割りもの（水・ソーダ等）は無料にする</label>
+              <label style={{ display: "inline-flex", gap: 8, alignItems: "center", fontSize: 12.5 }}>全体の価格を<UnitInput value={tplAdj} type="number" step={5} onChange={setTplAdj} unit="%" width={110} ariaLabel="全体の価格の調整（%）" />調整（例 −10 で 1 割安く・100 円単位）</label>
+              <div className="nox-actions"><button type="button" style={{ ...t.btnGhost }} data-setup-template-apply="1" onClick={() => { const key = tplPick || menuTemplatesFor(type)[0].key; if (S.dirty && !window.confirm("メニュー・料金・指名料をテンプレートの内容に入れ替えますか？")) return; setS((prev) => ({ ...applyMenuTemplate(prev, key, { mixFree: tplMixFree, adjPct: Number(tplAdj) || 0 }), dirty: true }) as V5State); }}>このテンプレートを入れる</button></div>
+              <p style={{ ...note, margin: 0 }}>価格は税込（税は内税で始めます）。キャストのバックは 0 で入ります＝確認の画面で「料金システム」「バック」を確認するまで始められません。</p>
+            </div>
+          )}
           <h3 style={h3}>店舗の基本情報</h3>
           <div style={grid(220)}>
             <Field label="店舗名"><Text value={shop.name} onChange={(v) => up((s) => { s.shop.name = v; })} width="100%" ariaLabel="店舗名" /></Field>
@@ -587,6 +604,13 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
       {S.step === 8 && (() => { const p = S.pay, r = S.reg, pr = S.payroll; return (
         <><div className="nox-setup-head" data-setup-head="1"><h2>確認</h2><p>この内容で始めます。あとからマスタでいつでも変えられます。</p></div>
           <section className="nox-cardtop" style={card}>
+          {tplS.tplKey && (/* ★便 M6: テンプレートを入れたら料金システムとバックの確認が 2 つとも要る */
+            <div style={{ ...t.card, padding: 10, marginBottom: 10, display: "grid", gap: 6 }} data-setup-template-confirm="1">
+              <label style={{ display: "inline-flex", gap: 6, alignItems: "center", fontSize: 13 }}><input type="checkbox" checked={!!tplS.tplConfirm?.pricing} onChange={(e) => up((x) => { (x as typeof tplS).tplConfirm = { ...(x as typeof tplS).tplConfirm ?? { pricing: false, backs: false }, pricing: e.target.checked }; })} />料金システム（セット・延長・指名料・VIP）を確認した</label>
+              <label style={{ display: "inline-flex", gap: 6, alignItems: "center", fontSize: 13 }}><input type="checkbox" checked={!!tplS.tplConfirm?.backs} onChange={(e) => up((x) => { (x as typeof tplS).tplConfirm = { ...(x as typeof tplS).tplConfirm ?? { pricing: false, backs: false }, backs: e.target.checked }; })} />キャストのバック（メニューと待遇）を確認した</label>
+              {tplBlocked && <Message kind="warn" style={{ margin: 0 }}>{tplBlocked}</Message>}
+            </div>
+          )}
           {W.length > 0 && (<div style={{ ...t.card, padding: 10, borderColor: "var(--warn, #6b5626)" }} data-setup-checks={W.length}><h3 style={{ margin: "0 0 6px", fontSize: 13 }}>要確認 {W.length} 件<span style={{ ...note, display: "inline", marginLeft: 10 }}>このまま始められます</span></h3>
             {W.map(([i, w], k) => <div key={k} style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: "1px solid var(--line)", fontSize: 12.5 }}><span>{w}</span><button type="button" style={{ ...t.btnGhost, ...t.btnSm }} onClick={() => go(i - 1 < 0 ? 0 : i - 1)}>直す</button></div>)}</div>)}
           {planAll.deferred.length > 0 && <div style={{ marginTop: 10 }} data-setup-deferred={planAll.deferred.length}><Message kind="info">後で（マスタから）になる項目 {planAll.deferred.length} 件: {planAll.deferred.map((d) => `${d.item}（${d.note}）`).join("・")}</Message></div>}
@@ -676,7 +700,7 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
           <span className="pos num" data-setup-pos="1">{S.step + 1} / {V5_STEPS.length}</span>
           {S.step > 0 && <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} disabled={run.running} onClick={() => go(S.step - 1)}>戻る</button>}{/* 教訓122: 隠しボタンで幅を取らない（中央判定） */}
           {S.step < 8 ? <button type="button" style={{ ...t.btnGold }} disabled={S.step === 0 && !type} onClick={next} data-setup-next="1">次へ：{V5_STEPS[S.step + 1]}</button>
-            : <button type="button" style={{ ...t.btnGold }} disabled={run.running || !type || !isOwner} onClick={() => void execute()} data-setup-start="1">{run.error ? "続きから再実行" : "この内容で始める"}</button>}
+            : <button type="button" style={{ ...t.btnGold }} disabled={run.running || !type || !isOwner || !!tplBlocked} onClick={() => void execute()} data-setup-start="1">{run.error ? "続きから再実行" : "この内容で始める"}</button>}
         </div></div>
       )}
     </div>

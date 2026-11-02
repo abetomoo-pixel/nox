@@ -6,6 +6,9 @@
 // 半期境界は営業日(biz_date) の日で統一：前期=1〜15 / 後期=16〜末（daily_reports 振り分けと nom_counts 範囲呼びで一致）。
 // 役割別（裁定⑤）：人件費/人件費率は isManagerUp のみ（staff は payroll RLS でも 0行＝二重）。cast は layout で /mine へ（本タブに来ない）。
 // 客単価＝売上/来客数（モック現物 sales/guests。相談役の「売上/組数」指示とは分母が異なるため報告で申告）。
+import { bizDaysOfMonth, staffLaborOf, type StaffLaborContract } from "@/lib/nox/staff/labor"; // ★便 M6
+import { staffHoursOf, type StaffPunch } from "@/lib/nox/staff/pay";
+import { mig0192On } from "@/lib/nox/rules-0175/flag";
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
@@ -37,6 +40,7 @@ export default function MonthReport({ stores, defaultStoreId, isManagerUp }: {
   const [h1, setH1] = useState<Split>(empty());
   const [h2, setH2] = useState<Split>(empty());
   const [labor, setLabor] = useState<Labor>({ state: "none", gross: 0 });
+  const [staffLabor, setStaffLabor] = useState<{ total: number; confirmed: boolean } | null>(null); // ★便 M6: スタッフ給与のコスト（見込み／確定）
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   // E8-2 #9: 日別売上推移（daily_reports の日次行＝取得済みデータの保持のみ）
@@ -122,6 +126,28 @@ export default function MonthReport({ stores, defaultStoreId, isManagerUp }: {
       const lc = laborCostOf(laborRuns, (slips ?? []) as LaborSlip[]);
       lab = { state: lc.state, gross: lc.gross };
     }
+    // ★便 M6（決定 11/02・台帳の候補 439）: スタッフ給与のコスト＝月給は営業日で日割り・時給は実働×時給（0192 の修正は打刻として反映）・日給は出勤日・当欠は 0・社保の事業主負担は載せない。確定済みの月は「確定」
+    let sl: { total: number; confirmed: boolean } | null = null;
+    if (isManagerUp) {
+      const [mm, cc, pp, ab, lk, bh, sd] = await Promise.all([
+        supabase.from("memberships").select("id").eq("store_id", storeId).in("role", ["staff", "manager"]).eq("is_active", true),
+        supabase.from("staff_contracts").select("membership_id, pay_kind, hourly, fixed_allowance, monthly, daily").eq("store_id", storeId),
+        supabase.from("staff_punches").select("membership_id, biz_date, kind, punched_at").eq("store_id", storeId).gte("biz_date", start).lte("biz_date", end).order("punched_at"),
+        mig0192On() ? supabase.from("staff_attendance_days").select("membership_id, biz_date").eq("store_id", storeId).eq("status", "absent").gte("biz_date", start).lte("biz_date", end) : Promise.resolve({ data: [] as { membership_id: string; biz_date: string }[] }),
+        mig0192On() ? supabase.from("staff_attendance_locks").select("period").eq("store_id", storeId).eq("period", period) : Promise.resolve({ data: [] as { period: string }[] }),
+        supabase.from("store_business_hours").select("dow, is_closed").eq("store_id", storeId),
+        supabase.from("store_special_days").select("day, kind").eq("store_id", storeId).gte("day", start).lte("day", end),
+      ]);
+      const closed = new Set(((bh.data ?? []) as { dow: number; is_closed: boolean }[]).filter((r) => r.is_closed).map((r) => r.dow));
+      const sds = (sd.data ?? []) as { day: string; kind: string }[];
+      const bizDays = bizDaysOfMonth(period, closed, new Set(sds.filter((x) => x.kind === "closed").map((x) => x.day)), new Set(sds.filter((x) => x.kind === "open").map((x) => x.day)));
+      const contracts = new Map(((cc.data ?? []) as (StaffLaborContract & { membership_id: string })[]).map((c) => [c.membership_id, c]));
+      const punches = (pp.data ?? []) as StaffPunch[];
+      const absentOf = (mid: string) => new Set(((ab.data ?? []) as { membership_id: string; biz_date: string }[]).filter((x) => x.membership_id === mid).map((x) => x.biz_date));
+      const total = ((mm.data ?? []) as { id: string }[]).reduce((a, m) => a + staffLaborOf(contracts.get(m.id) ?? null, staffHoursOf(punches.filter((x) => x.membership_id === m.id)).map((d) => ({ bizDate: d.bizDate, minutes: d.minutes })), absentOf(m.id), bizDays).total, 0);
+      sl = { total, confirmed: ((lk.data ?? []) as unknown[]).length > 0 };
+    }
+    setStaffLabor(sl);
     setH1(s1); setH2(s2); setLabor(lab); setLoading(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storeId, period, isManagerUp]);
@@ -147,6 +173,7 @@ export default function MonthReport({ stores, defaultStoreId, isManagerUp }: {
     const laborCell = labor.state === "final" ? yen(labor.gross) : "未確定";
     rows.push(["人件費（源泉前）", "—", "—", laborCell]);
     rows.push(["人件費率", "—", "—", rate == null ? "—" : `${rate}%`]);
+    if (staffLabor) rows.push([`スタッフ人件費（${staffLabor.confirmed ? "確定" : "見込み"}）`, "—", "—", yen(staffLabor.total)]); // ★便 M6: 社保の事業主負担は含まない
   }
 
   const th: React.CSSProperties = { fontSize: 11, color: "var(--sub)", textAlign: "right", padding: "4px 6px" };
