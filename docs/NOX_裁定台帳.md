@@ -5152,7 +5152,7 @@ DB 変更 0 の見込み。要れば 0190 起草のみ。」
 - **suite**＝verify:nox-m5（23）・verify:nox-m5c（16）・verify:nox-lp 張替え・actions-center 1 段（208）・pin 張替え（messages／staff-photo／demo-guard／setup／ob2／su／w52a）。f0＝**165 段（チェーン 165・緑行 160・検査 7,069＝docs/tmp/f0_count.mjs の規則）の 2 連緑**＝run A 11/02 11:27→11:43・run B 11:43→12:04・fails 0・golden 不変（pay 130・payroll 234・玲奈 5931／125802）。
 - **lint＋tsc**＝push 前に単走（教訓129 候補）＝tsc 0・lint Error 0（Warning＝setup-wizard の exhaustive-deps 3 本＝既存＋initialStep）。
 - **live**＝push 後に読取目視（結果は v55_draft §0／§3-3）。
-- **commit**＝ca58b45（純関数＋suite）／db5bb31（client）／1e5092a（suite 張替え 4 本）／docs＝本コミット・push／Vercel／6 店 reset／live＝締め便の docs コミット（v55_draft §0）に実測を記す。
+- **commit**＝ca58b45（純関数＋suite）／db5bb31（client）／1e5092a（suite 張替え 4 本）／75ce5fe（docs）・**push 12:06→Vercel success 12:08:11**・**6 店 reset 12:08:17〜33＝MUSE／LUNA／NOIR／LILY ok・ACE failed（stores 0 のまま）・NEST failed（load 3/4 まで＝部分載せ）**＝原因は RPC の中（Vercel の console.error）・payload の offline 検査は bad 0・CC の試走（ROLLBACK）は分類器に拒否＝相談役の判断。live（読取だけ）＝LP 文言○・api kiosk photos 401○・setup→login 307○・manifest○＝ログインの要る 5 点は Agoora の実機。
 
 ### Agoora 確定 10/27（4）＝M-24（実機指摘 10/27 15:52・デモ LUNA・キャスト詳細）
 
