@@ -13,6 +13,8 @@
 //   (k) 営業時間外=黄色警告のみで送信可（RPC は通す=非対称・段25-9）・未設定の曜日は判定なし（後方互換）。
 //   判定は lib/nox/business-hours.ts（DB helper と同じ cutoff 変換・深夜帯=前営業日）。
 //   編集は予約の店が register の店と一致する場合のみ UI 判定（不一致=owner の他店予約は RPC 二層目が守る）。
+import TimeInput from "@/components/ui/time-input"; // ★便 M5b M-51: 時刻欄の共通部品（時計アイコン・時と分を選ぶ・翌の表示）
+import { UnitBox } from "@/components/ui/unit-input"; // ★便 M5b M-50
 import { useCallback, useEffect, useState } from "react";
 import SegSelect from "@/components/ui/seg-select";
 import { createClient } from "@/lib/supabase/client";
@@ -452,7 +454,7 @@ export default function ReservationPanel({
                     <span style={t.fieldLabel}>日付</span>
                     <input type="date" value={eDate} onChange={(ev) => setEDate(ev.target.value)} style={{ ...input, maxWidth: 156 }} />
                     <span style={t.fieldLabel}>時刻</span>
-                    <input type="time" value={eTime} onChange={(ev) => setETime(ev.target.value)} style={{ ...input, maxWidth: 110 }} />
+                    <TimeInput value={eTime} onChange={(v) => setETime(v)} maxHour={23} width={112} />
                     <span style={t.fieldLabel}>人数</span>
                     <input type="number" min={0} value={ePeople} onChange={(ev) => setEPeople(Number(ev.target.value))} style={{ ...input, width: 60 }} />
                     {r.store_id === storeId && hoursNote(hoursStatusOf(eDate, eTime))}
@@ -712,8 +714,8 @@ export default function ReservationPanel({
         <h2 style={secTitle}>新規予約</h2>
         <div className="nox-rsv-dtp" data-rsv-dtp="1" style={{ marginBottom: 8 }}>{/* ★便 M2 M-18（補遺）: 390 は「日付・時刻・人数」を 1 段（3 列・ラベルは上） */}
           <label><span style={t.fieldLabel}>日付</span><input type="date" value={fDate} onChange={(e) => setFDate(e.target.value)} style={input} /></label>
-          <label><span style={t.fieldLabel}>時刻</span><input type="time" value={fTime} onChange={(e) => setFTime(e.target.value)} style={input} /></label>
-          <label><span style={t.fieldLabel}>人数</span><input type="number" min={1} value={fPeople} onChange={(e) => setFPeople(Number(e.target.value))} style={input} /></label>
+          <label><span style={t.fieldLabel}>時刻</span><TimeInput value={fTime} onChange={(v) => setFTime(v)} maxHour={23} /></label>
+          <label><span style={t.fieldLabel}>人数</span><UnitBox post="名" width="100%"><input type="number" min={1} value={fPeople} onChange={(e) => setFPeople(Number(e.target.value))} style={input} /></UnitBox></label>
         </div>
         {hoursNote(fHours) && <div style={{ marginBottom: 8 }}>{hoursNote(fHours)}</div>}
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>

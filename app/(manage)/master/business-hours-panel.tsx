@@ -7,6 +7,7 @@
 // （DB 正本は HH:MM 24h超表記＝shifts.end_hm と同規約）。保存は曜日ごと（未設定の曜日を
 // 意図せず一括作成しない＝行なし「未設定」は後方互換で予約を縛らない状態のまま残せる）。
 // owner 複数店は store select・manager は RLS で自店 1 件のため select 非表示。
+import TimeInput from "@/components/ui/time-input"; // ★便 M5b M-51: 時刻欄の共通部品（時計アイコン・時と分を選ぶ・翌の表示）
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
@@ -295,9 +296,9 @@ export default function BusinessHoursPanel({
           </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
             <span style={t.fieldLabel}>開店</span>
-            <input type="time" value={bulkOpen} onChange={(e) => setBulkOpen(e.target.value)} style={{ ...input, maxWidth: 108 }} />
+            <TimeInput value={bulkOpen} onChange={(v) => setBulkOpen(v)} maxHour={23} width={112} />
             <span style={t.fieldLabel}>閉店</span>
-            <input type="time" value={bulkClose} onChange={(e) => setBulkClose(e.target.value)} style={{ ...input, maxWidth: 108 }} />
+            <TimeInput value={bulkClose} onChange={(v) => setBulkClose(v)} maxHour={23} after={bulkOpen} width={112} />
             <label style={{ fontSize: 12.5, display: "flex", gap: 4, alignItems: "center", cursor: "pointer" }}>
               <input type="checkbox" checked={bulkNext} onChange={(e) => setBulkNext(e.target.checked)} />翌日
             </label>
@@ -329,13 +330,13 @@ export default function BusinessHoursPanel({
                   </td>
                   <td>
                     {f.closed ? <span style={{ color: "var(--v2-muted)" }}>—</span> : (
-                      <input type="time" value={f.open} onChange={(e) => patch(dow, { open: e.target.value, dirty: true })} style={{ ...input, maxWidth: 108 }} />
+                      <TimeInput value={f.open} onChange={(v) => patch(dow, { open: v, dirty: true })} maxHour={23} width={112} />
                     )}
                   </td>
                   <td>
                     {f.closed ? <span style={{ color: "var(--v2-muted)" }}>—</span> : (
                       <span style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
-                        <input type="time" value={f.close} onChange={(e) => patch(dow, { close: e.target.value, dirty: true })} style={{ ...input, maxWidth: 108 }} />
+                        <TimeInput value={f.close} onChange={(v) => patch(dow, { close: v, dirty: true })} maxHour={23} after={f.open} width={112} />
                         <label style={{ fontSize: 12, display: "flex", gap: 4, alignItems: "center", cursor: "pointer" }}>
                           <input type="checkbox" checked={f.nextDay} onChange={(e) => patch(dow, { nextDay: e.target.checked, dirty: true })} />翌
                         </label>

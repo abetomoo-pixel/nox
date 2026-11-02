@@ -4,6 +4,7 @@
 //   担当客（customers＝RLS で cast_id が自分の行だけ）から選ぶ → 日付・来店予定時刻・区分（本指名／同伴）→ reservation_request（4 引数）→ 'pending'。
 //   送信後は自分の申請一覧（承認待ち／承認／却下＋理由）をカード内に出す。取消の RPC は無い＝注記（仮決め）。人数・備考は RPC に無い＝送らない（仮決め）。
 //   和文は rpcErrJa（'bad customer'／'bad reserved_at'／'bad kind'／'closed day'／'billing locked'）。メッセージは Toast（裁定281）。
+import TimeInput from "@/components/ui/time-input"; // ★便 M5b M-51: 時刻欄の共通部品（時計アイコン・時と分を選ぶ・翌の表示）
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
@@ -87,7 +88,7 @@ export default function ReservationRequestCard({ storeId, bizToday }: { storeId:
           )}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
             <input type="date" value={date} min={bizToday} disabled={busy} onChange={(e) => setDate(e.target.value)} style={{ ...input, maxWidth: 156 }} aria-label="来店日" />
-            <input type="time" value={time} disabled={busy} onChange={(e) => setTime(e.target.value)} style={{ ...input, maxWidth: 110 }} aria-label="来店予定時刻" />
+            <TimeInput value={time} onChange={(v) => setTime(v)} maxHour={23} disabled={busy} ariaLabel="来店予定時刻" width={112} />
             <SegSelect value={kind} onChange={setKind} options={RSV_KIND_OPTIONS} disabled={busy} ariaLabel="区分" />
           </div>
           <div className="nox-actions">

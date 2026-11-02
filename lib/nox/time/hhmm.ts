@@ -57,3 +57,23 @@ export function hmRangeErrorOf(value: string | null | undefined, maxHour = 47): 
   if (d.length >= 3 && Number(d[2]) > 5) return "分は 00〜59 で入力してください";
   return null;
 }
+
+/** ★便 M5b M-51 追補（2026-11-02）: 日をまたぐ時刻の表示＝「翌02:00」（24 時以上）。それ以外・形が違う値はそのまま。保存する値の形（26:00）は変えない */
+export function hmLabelOf(hm: string | null | undefined): string {
+  if (!hm) return "";
+  const m = /^(\d{1,2}):(\d{2})(?::\d{2})?$/.exec(hm.trim());
+  if (!m) return hm;
+  const h = Number(m[1]);
+  return h >= 24 ? `翌${String(h - 24).padStart(2, "0")}:${m[2]}` : `${String(h).padStart(2, "0")}:${m[2]}`;
+}
+/** ★便 M5b M-51: 選んだ時（0〜23）と分を値へ。after（開始の時刻）より前なら翌日＝+24 時（maxHour を超えるなら当日のまま） */
+export function hmPickOf(h: number, m: number, after: string | null, maxHour = 47): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  let hh = h;
+  const a = after ? /^(\d{1,2}):(\d{2})/.exec(after) : null;
+  if (a) {
+    const aMin = (Number(a[1]) % 24) * 60 + Number(a[2]);
+    if (h * 60 + m < aMin && h + 24 <= maxHour) hh = h + 24;
+  }
+  return `${pad(hh)}:${pad(m)}`;
+}

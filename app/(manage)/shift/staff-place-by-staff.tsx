@@ -7,6 +7,8 @@
 //   途中で失敗した日は一覧に赤で残し、成功分はそのまま（全取消はしない）。1 日だけ選んだ場合も同じ流れ（従来の 1 日画面＝StaffPlaceForm は本モーダルから撤去）。
 //   配置の単位と状態は現状どおり（各日が「確認待ち」で入り、確定は既存の「この営業日を一括確定」）。
 //   その人の希望・配置は選択日を含む月範囲で自前で読む（staff_shift_wishes／staff_shifts＝RLS で manager は自店全行）。定休日＝store_business_hours の is_closed。
+import { hmLabelOf } from "@/lib/nox/time/hhmm"; // ★便 M5b M-51 追補: 日をまたぐ時刻は「翌02:00」
+import TimeInput from "@/components/ui/time-input"; // ★便 M5b M-51: 時刻欄の共通部品（時計アイコン・時と分を選ぶ・翌の表示）
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
@@ -190,7 +192,7 @@ export default function StaffPlaceByStaffModal({ storeId, bizToday, initialMonth
                   };
                   return (
                     <button key={ymd} type="button" className={cls} style={style} disabled={!!block || busy || running} aria-pressed={sel} onClick={() => clickDay(ymd)}
-                      title={block ? `${mdDowOf(ymd)}・${DAY_BLOCK_JA[block]}${p ? `（${patName(p.pattern_id)} ${p.start_hm}〜${fmtEnd30(p.end_hm)}）` : ""}` : `${mdDowOf(ymd)}${w.length ? `・希望 ${w.map(patName).join("・")}` : ""}${ng ? `・前回失敗: ${failed[ymd]}` : ""}`}>
+                      title={block ? `${mdDowOf(ymd)}・${DAY_BLOCK_JA[block]}${p ? `（${patName(p.pattern_id)} ${hmLabelOf(p.start_hm)}〜${fmtEnd30(p.end_hm)}）` : ""}` : `${mdDowOf(ymd)}${w.length ? `・希望 ${w.map(patName).join("・")}` : ""}${ng ? `・前回失敗: ${failed[ymd]}` : ""}`}>
                       <span className="nox-cald-n num">{Number(ymd.slice(8))}</span>
                       {block === "closed" && <span style={{ fontSize: 8.5, color: "var(--sub)" }}>休</span>}
                       {p && <span className="num" style={{ fontSize: 8.5, color: "var(--ok)" }}>{patName(p.pattern_id)}</span>}
@@ -218,7 +220,7 @@ export default function StaffPlaceByStaffModal({ storeId, bizToday, initialMonth
                             style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 10px", borderRadius: 10, cursor: "pointer", fontFamily: "inherit", fontSize: 12.5,
                               background: on ? "var(--goldface2)" : "var(--card2)", border: on ? "1px solid var(--gold)" : "1px solid var(--line)", color: on ? "var(--champ)" : "var(--ink)" }}>
                             <b>{c.name}</b>
-                            <span className="num" style={{ color: "var(--sub)" }}>{c.sample.start_hm}〜{fmtEnd30(c.sample.end_hm)}</span>
+                            <span className="num" style={{ color: "var(--sub)" }}>{hmLabelOf(c.sample.start_hm)}〜{fmtEnd30(c.sample.end_hm)}</span>
                             {wished && <span className="nox-stpill" style={{ color: "var(--blue)" }}>希望</span>}
                             {c.days < selDays.length && <span className="nox-stpill warn">{c.days}/{selDays.length} 日で有効</span>}
                           </button>
@@ -228,9 +230,9 @@ export default function StaffPlaceByStaffModal({ storeId, bizToday, initialMonth
                     </div>
                     <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 10 }}>
                       <span style={t.fieldLabel}>開始</span>
-                      <input type="time" value={start} disabled={busy || running || !chosen} onChange={(e) => { setStart(e.target.value); setNext(nextOf30h(e.target.value, endBase)); setTimesTouched(true); }} style={{ ...input, maxWidth: 108 }} aria-label="開始" />
+                      <TimeInput value={start} onChange={(v) => { setStart(v); setNext(nextOf30h(v, endBase)); setTimesTouched(true); }} maxHour={23} disabled={busy || running || !chosen} ariaLabel="開始" width={112} />
                       <span style={t.fieldLabel}>終了</span>
-                      <input type="time" value={endBase} disabled={busy || running || !chosen} onChange={(e) => { setEndBase(e.target.value); setNext(nextOf30h(start, e.target.value)); setTimesTouched(true); }} style={{ ...input, maxWidth: 108 }} aria-label="終了" />{/* ★X2-3: 翌日は自動判定 */}
+                      <TimeInput value={endBase} onChange={(v) => { setEndBase(v); setNext(nextOf30h(start, v)); setTimesTouched(true); }} maxHour={23} disabled={busy || running || !chosen} ariaLabel="終了" width={112} />{/* ★X2-3: 翌日は自動判定 */}
                       <label style={{ fontSize: 12.5, display: "flex", gap: 4, alignItems: "center", cursor: "pointer" }}>
                         <input type="checkbox" checked={next} disabled={busy || running || !chosen} onChange={(e) => { setNext(e.target.checked); setTimesTouched(true); }} />翌日
                       </label>
@@ -238,7 +240,7 @@ export default function StaffPlaceByStaffModal({ storeId, bizToday, initialMonth
                     <p style={{ fontSize: 11, color: adjusted ? "var(--gold2)" : "var(--v2-muted)", margin: "6px 0 0" }}>
                       {!chosen ? "枠を選んでください"
                         : invalid ? "終了は開始より後にしてください（日跨ぎは「翌日」をオン）"
-                        : adjusted ? `枠の時刻（${chosen.sample.start_hm}〜${fmtEnd30(chosen.sample.end_hm)}）と違うため、各日とも配置後に例外として上書きします（監査に残ります）`
+                        : adjusted ? `枠の時刻（${hmLabelOf(chosen.sample.start_hm)}〜${fmtEnd30(chosen.sample.end_hm)}）と違うため、各日とも配置後に例外として上書きします（監査に残ります）`
                         : "枠の時刻のまま配置します（配置後の変更は「時刻を上書き」）"}
                     </p>
                     {noPatternDays.length > 0 && <p style={{ fontSize: 11, color: "var(--bad)", margin: "6px 0 0" }}>この枠は {noPatternDays.map(mdDowOf).join("・")} に有効ではありません（その日を外すか、別の枠を選んでください）。</p>}
@@ -256,7 +258,7 @@ export default function StaffPlaceByStaffModal({ storeId, bizToday, initialMonth
                           <div key={p.day} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", border: `1px solid ${err ? "var(--bad)" : "var(--line)"}`, borderRadius: 8, padding: "6px 9px", fontSize: 12, color: err ? "var(--bad)" : undefined }}>
                             <b className="num" style={{ width: 84 }}>{mdDowOf(p.day)}</b>
                             <span style={{ color: err ? "var(--bad)" : "var(--sub)" }}>{p.pattern?.name ?? chosen?.name ?? "—"}</span>
-                            <span className="num">{p.startHm && p.endHm ? `${p.startHm}〜${fmtEnd30(p.endHm)}` : "—"}</span>
+                            <span className="num">{p.startHm && p.endHm ? `${hmLabelOf(p.startHm)}〜${fmtEnd30(p.endHm)}` : "—"}</span>
                             {p.adjusted && !err && <span style={{ fontSize: 10, color: "var(--gold2)", fontWeight: 700 }}>上書き</span>}
                             {p.wishId && !err && <span style={{ fontSize: 10, color: "var(--blue)", fontWeight: 700 }}>希望から</span>}
                             {err && <span className="nox-stpill ng" title={err}>失敗</span>}{/* 理由は下の Message に列挙（裁定281-3＝素の描画はしない） */}

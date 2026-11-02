@@ -4,6 +4,8 @@
 //   「枠×充足 n/m」（n＝その枠の確定行＋確認待ち行・m＝◯の希望者数）・希望一覧から propose・行の時刻上書き（override・理由任意）・
 //   営業日一括確定＝行ごとに staff_shift_confirm を順次（1 件でも raise したら残りを止めて件数報告）。
 //   行の時刻が当日有効枠と違えば「9:00〜11:00（枠 12:00〜）」。名前＝memberships（自店・cast 以外）→users.name（読取 2・表示専用）。
+import { hmLabelOf } from "@/lib/nox/time/hhmm"; // ★便 M5b M-51 追補: 日をまたぐ時刻は「翌02:00」
+import TimeInput from "@/components/ui/time-input"; // ★便 M5b M-51: 時刻欄の共通部品（時計アイコン・時と分を選ぶ・翌の表示）
 import { staffCellCompactOf } from "@/lib/nox/ui/month-nav"; // ★裁定306-10: ≤899px の月セルは「早 0/0」の 1 行ずつ・折返し禁止・3 枠以上は「+n」
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
@@ -246,7 +248,7 @@ export default function StaffShiftManage({ storeId, month, bizToday, patterns, d
                     <td style={{ fontWeight: 800 }}>{nameOf(s.staff_id)}</td>
                     <td>{pat?.name ?? "—"}</td>
                     <td className="num">
-                      {s.start_hm}〜{fmtEnd30(s.end_hm)}
+                      {hmLabelOf(s.start_hm)}〜{fmtEnd30(s.end_hm)}
                       {differs && <span style={{ fontSize: 10.5, color: "var(--gold2)", marginLeft: 6 }}>（枠 {cur!.start_hm}〜{fmtEnd30(cur!.end_hm)}）</span>}
                     </td>
                     <td><span className={`nox-stpill ${s.status === "confirmed" ? "ok" : ""}`} style={s.status === "proposed" ? { color: "var(--gold2)", borderColor: "var(--gold-bd)" } : undefined}>{ST[s.status] ?? s.status}</span></td>
@@ -287,13 +289,13 @@ export default function StaffShiftManage({ storeId, month, bizToday, patterns, d
             <strong>時刻を上書き</strong>
             <button type="button" className="nox-formmodal-x" aria-label="閉じる" disabled={busy} onClick={() => setOv(null)}>×</button>
           </div>
-          <p style={{ fontSize: 12.5, margin: "0 0 4px" }}>{nameOf(ov.staff_id)}・{mdDowOf(ov.biz_date)}（現在 {ov.start_hm}〜{fmtEnd30(ov.end_hm)}）</p>
+          <p style={{ fontSize: 12.5, margin: "0 0 4px" }}>{nameOf(ov.staff_id)}・{mdDowOf(ov.biz_date)}（現在 {hmLabelOf(ov.start_hm)}〜{fmtEnd30(ov.end_hm)}）</p>
           <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "0 0 10px" }}>行の時刻だけを変えます（枠は変わりません・確定後も可・監査に残ります）。終了が開始より前の時刻なら「翌日」が自動でオンになります。</p>
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
             <span style={t.fieldLabel}>開始</span>
-            <input type="time" value={ovStart} onChange={(e) => { setOvStart(e.target.value); setOvNext(nextOf30h(e.target.value, ovEnd)); }} style={{ ...input, maxWidth: 108 }} />
+            <TimeInput value={ovStart} onChange={(v) => { setOvStart(v); setOvNext(nextOf30h(v, ovEnd)); }} maxHour={23} width={112} />
             <span style={t.fieldLabel}>終了</span>
-            <input type="time" value={ovEnd} onChange={(e) => { setOvEnd(e.target.value); setOvNext(nextOf30h(ovStart, e.target.value)); }} style={{ ...input, maxWidth: 108 }} />
+            <TimeInput value={ovEnd} onChange={(v) => { setOvEnd(v); setOvNext(nextOf30h(ovStart, v)); }} maxHour={23} width={112} />
             <label style={{ fontSize: 12.5, display: "flex", gap: 4, alignItems: "center", cursor: "pointer" }}>
               <input type="checkbox" checked={ovNext} onChange={(e) => setOvNext(e.target.checked)} />翌日
             </label>
@@ -313,7 +315,7 @@ export default function StaffShiftManage({ storeId, month, bizToday, patterns, d
             <button type="button" className="nox-formmodal-x" aria-label="閉じる" disabled={busy} onClick={() => { setCancelTarget(null); setCancelReason(""); }}>×</button>
           </div>
           <p style={{ fontSize: 12.5, margin: "0 0 10px" }}>
-            {nameOf(cancelTarget.staff_id)}・{mdDowOf(cancelTarget.biz_date)} {patterns.find((p) => p.id === cancelTarget.pattern_id)?.name ?? "—"} {cancelTarget.start_hm}〜{fmtEnd30(cancelTarget.end_hm)}（{ST[cancelTarget.status] ?? cancelTarget.status}）
+            {nameOf(cancelTarget.staff_id)}・{mdDowOf(cancelTarget.biz_date)} {patterns.find((p) => p.id === cancelTarget.pattern_id)?.name ?? "—"} {hmLabelOf(cancelTarget.start_hm)}〜{fmtEnd30(cancelTarget.end_hm)}（{ST[cancelTarget.status] ?? cancelTarget.status}）
           </p>
           {cancelNeedsReason(cancelTarget) ? (
             <>

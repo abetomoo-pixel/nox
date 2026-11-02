@@ -126,7 +126,7 @@ export function applyType(s: V5State, id: V5Type): V5State {
   n.type = id;
   n.rules = t.rules.map((r) => normRule(r, n.shop)); n.fees = t.fees; n.svc = t.svc; n.svcVip = t.svcVip ?? t.svc; n.join = t.join;
   n.seats.counter = t.seats.counter; n.seats.table = t.seats.table; n.seats.vip = t.seats.vip;
-  n.pay.base = t.pay.base; n.pay.trial = t.pay.base + 500; n.pay.slide = t.pay.slide; n.pay.norma = t.pay.norma; n.pay.bonus = t.pay.bonus;
+  n.pay.base = t.pay.base; n.pay.trial = t.pay.base + 500; if (n.pay.slide !== t.pay.slide) n.slideTiers = slideTiersFor(t.pay.slide); /* ★便 M5b M-53: 業態で方式が変わったら段も作り直す（報酬率 40％ の段が売上スライドに残って「¥40」と出ていた） */ n.pay.slide = t.pay.slide; n.pay.norma = t.pay.norma; n.pay.bonus = t.pay.bonus;
   n.back = t.back; n.reg.castReg = t.reg ? "pay" : "off"; n.vip.on = t.vip[0]; n.vip.amt = t.vip[1]; n.vip.ext = t.vip[2];
   n.menu = V5_MENU[id]();
   n.menu.forEach((c) => { const champ = /シャンパン|スパークリング/.test(c.cat); c.items.forEach((it) => { if (champ) { it.bt = "pct"; it.b = n.back.bottle; } else it.bt = "yen"; }); });

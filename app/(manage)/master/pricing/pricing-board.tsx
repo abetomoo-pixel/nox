@@ -1,4 +1,6 @@
 "use client";
+import TimeInput from "@/components/ui/time-input"; // ★便 M5b M-51: 時刻欄の共通部品（時計アイコン・時と分を選ぶ・翌の表示）
+import { UnitBox } from "@/components/ui/unit-input"; // ★便 M5b M-50
 import { rules0175On } from "@/lib/nox/rules-0175/flag"; // ★便 SH-UI-c2 C2-16 ③
 import { payFeeRatesOf } from "@/lib/nox/register/p173"; // ★便 X13-G W-17: お客様に請求するカード手数料＝pay_fee_rates.card
 
@@ -1763,9 +1765,9 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
             </span>
             <SegSelect value={feeOn ? "on" : "off"} onChange={(v) => setFeeOn(v === "on")} options={[["off", "無効"], ["on", "有効"]] as const} ariaLabel="お客様への加算" />
             {feeOn && (
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-                <input inputMode="numeric" value={feeRate} onChange={(e) => setFeeRate(e.target.value.replace(/[^0-9]/g, ""))} style={{ ...input, width: 80, textAlign: "right" }} aria-label="お客様に請求する率（%）" />%
-              </span>
+              <UnitBox post="%">{/* ★便 M5b M-50 */}
+                <input inputMode="numeric" value={feeRate} onChange={(e) => setFeeRate(e.target.value.replace(/[^0-9]/g, ""))} style={{ ...input, width: 70, textAlign: "right" }} aria-label="お客様に請求する率（%）" />
+              </UnitBox>
             )}
           </div>
           {feeOn && (
@@ -1889,9 +1891,9 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
           <div className="nox-field">
             <span className="lab">時間帯（両方空欄＝終日）</span>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <input type="time" value={mFrom} onChange={(e) => setMFrom(e.target.value)} style={inputLg} />
+              <TimeInput value={mFrom} onChange={(v) => setMFrom(v)} maxHour={23} />
               <span style={{ color: "var(--sub)" }}>〜</span>
-              <input type="time" value={mTo} onChange={(e) => setMTo(e.target.value)} style={inputLg} />
+              <TimeInput value={mTo} onChange={(v) => setMTo(v)} maxHour={23} after={mFrom} />
             </div>
             <span className="hint">
               {bizCutoffHm} より前は「翌日」の時刻として扱います。終了時刻の1分前までが適用範囲です。

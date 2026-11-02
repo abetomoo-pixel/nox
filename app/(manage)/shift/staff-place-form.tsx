@@ -3,6 +3,8 @@
 // ★夜間便 N6（便 S-1／S-2・裁定287-1・2026-09-18）: スタッフの配置フォーム＝枠の選択（chips・select 不使用＝裁定259）→ 時刻は枠から写す →
 //   必要なら開始・終了を調整（＝propose の後に staff_shift_override を続けて呼ぶ・呼ぶかどうかは親）→「配置」（実行＝青塗り・裁定239）。
 //   日付起点（staff-place-day）と人起点（staff-place-by-staff）で共用。RPC は持たない（親の onPlace に渡す）。
+import { hmLabelOf } from "@/lib/nox/time/hhmm"; // ★便 M5b M-51 追補: 日をまたぐ時刻は「翌02:00」
+import TimeInput from "@/components/ui/time-input"; // ★便 M5b M-51: 時刻欄の共通部品（時計アイコン・時と分を選ぶ・翌の表示）
 import { useState } from "react";
 import * as t from "@/lib/nox/ui/theme";
 import { hm2min, min2hm } from "@/lib/nox/shift-time";
@@ -60,7 +62,7 @@ export default function StaffPlaceForm({ staffName, patterns, wishPatternIds, pl
                     background: sel ? "var(--goldface2)" : "var(--card2)", border: sel ? "1px solid var(--gold)" : "1px solid var(--line)", color: sel ? "var(--champ)" : "var(--ink)",
                   }}>
                   <b>{p.name}</b>
-                  <span className="num" style={{ color: "var(--sub)" }}>{p.start_hm}〜{fmtEnd30(p.end_hm)}</span>
+                  <span className="num" style={{ color: "var(--sub)" }}>{hmLabelOf(p.start_hm)}〜{fmtEnd30(p.end_hm)}</span>
                   {wished && <span className="nox-stpill" style={{ color: "var(--blue)" }}>希望</span>}
                   {placedPatternIds.includes(p.id) && <span className="nox-stpill ok">配置済み</span>}
                 </button>
@@ -69,9 +71,9 @@ export default function StaffPlaceForm({ staffName, patterns, wishPatternIds, pl
           </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 10 }}>
             <span style={t.fieldLabel}>開始</span>
-            <input type="time" value={start} disabled={disabled || busy} onChange={(e) => { setStart(e.target.value); setNext(nextOf30h(e.target.value, endBase)); }} style={{ ...input, maxWidth: 108 }} aria-label="開始" />
+            <TimeInput value={start} onChange={(v) => { setStart(v); setNext(nextOf30h(v, endBase)); }} maxHour={23} disabled={disabled || busy} ariaLabel="開始" width={112} />
             <span style={t.fieldLabel}>終了</span>
-            <input type="time" value={endBase} disabled={disabled || busy} onChange={(e) => { setEndBase(e.target.value); setNext(nextOf30h(start, e.target.value)); }} style={{ ...input, maxWidth: 108 }} aria-label="終了" />{/* ★X2-3: 翌日は自動判定 */}
+            <TimeInput value={endBase} onChange={(v) => { setEndBase(v); setNext(nextOf30h(start, v)); }} maxHour={23} disabled={disabled || busy} ariaLabel="終了" width={112} />{/* ★X2-3: 翌日は自動判定 */}
             <label style={{ fontSize: 12.5, display: "flex", gap: 4, alignItems: "center", cursor: "pointer" }}>
               <input type="checkbox" checked={next} disabled={disabled || busy} onChange={(e) => setNext(e.target.checked)} />翌日
             </label>

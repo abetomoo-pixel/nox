@@ -148,7 +148,7 @@ check("ms(2-10) 裁定318: normalizeHHMM（2000→20:00・20:00・9:30→09:30�
   && HM_FORMAT_ERR === "時刻の形式が不正です（例 2000・20:00）" && messageKindOf(HM_FORMAT_ERR) === "error"
   && hmSrc.includes('inputMode="numeric"') && hmSrc.includes("onBlur=") && hmSrc.includes("normalizeHHMM(e.target.value, maxHour)")
   && !/HH:MM（00:00〜47:59）で入力してください|HH:MM 形式で入力してください/.test(fs.readFileSync("lib/nox/shift/punch-correction.ts", "utf8") + shiftSrc)
-  && (shiftSrc.match(/<HmInput /g) ?? []).length === 4); // ★裁定380（便 GV-B）: 希望の調整モーダル（開始／終了）で +2 ★便 M2 M-16: 必要人数の時間帯は 30 分刻みの選択式へ（−2）
+  && (shiftSrc.match(/<TimeInput /g) ?? []).length === 4); // ★便 M5b M-51: HmInput→TimeInput（時刻の共通部品＝時と分を選ぶ・打っても可） // ★裁定380（便 GV-B）: 希望の調整モーダル（開始／終了）で +2 ★便 M2 M-16: 必要人数の時間帯は 30 分刻みの選択式へ（−2）
 // ★裁定317（便 X-9-3）: 送りの既定額の順（店設定→直近の送り→空欄必須）・金額の検査・文言の種別・shift-board は「送り」→ダイアログ→punch_proxy(p_okuri true)→transport_issue_bulk(idem＝punch id)
 const okuriDlgSrc = fs.readFileSync("components/nox/okuri-out-dialog.tsx", "utf8");
 const reportSrc2 = fs.readFileSync("app/(manage)/report/report-board.tsx", "utf8");
@@ -173,7 +173,7 @@ check("ms(2-12) 裁定318 追補: maskHHMM（2→2・20→20:・203→20:3・203
   && messageKindOf("時は 00〜47 で入力してください") === "error" && messageKindOf("分は 00〜59 で入力してください") === "error"
   && normalizeHHMM("20:") === "20:00" && normalizeHHMM("20:3") === null
   && hmSrc.includes("maskHHMM(e.target.value, value, it.startsWith(\"delete\"))") && hmSrc.includes("hmRangeErrorOf(value, maxHour)") && hmSrc.includes('<Message kind="error"')
-  && hmUsers.every((f) => { const s2 = fs.readFileSync(f, "utf8"); return s2.includes("<HmInput ") && s2.includes("hmRangeErrorOf("); }));
+  && hmUsers.every((f) => { const s2 = fs.readFileSync(f, "utf8"); return s2.includes("<TimeInput ") && s2.includes("hmRangeErrorOf("); })); // ★便 M5b M-51: HmInput→TimeInput（送信非活性の hmRangeErrorOf は呼び出し側に残る）
 // ★裁定320（便 X-10-2）: 領収書の分割発行 UI
 check("ms(2-13) 裁定320: 分割して発行（行・最後の行は自動残額・行を追加・n 枚を発行・1 枚ずつ receipt_issue・失敗で停止）・取消して分け直す の後は分割 UI を開く・文言の種別",
   regSrc.includes(">分割して発行</button>") && regSrc.includes(">行を追加</button>") && regSrc.includes("枚を発行") && regSrc.includes("const splitAuto = remain - ") && regSrc.includes("if (error) { failed = rcptErrJa(error.message); break; }")
@@ -216,7 +216,7 @@ const moneySrc = fs.readFileSync("components/ui/money-input.tsx", "utf8");
 check("ms(2-16) X-11-6: moneyDigitsOf／moneyDisplayOf／moneyValueOf・MoneyInput（inputMode numeric・右に円）・置換 11 ファイルが MoneyInput を使い、括弧つきの「金額(円)」「金額（円）」「額（円）」が残っていない",
   moneyDigitsOf("1,500円") === "1500" && moneyDigitsOf("０１２３") === "123" && moneyDigitsOf("-5") === "5" && moneyDigitsOf("000") === "0" && moneyDigitsOf("") === "" && moneyDigitsOf("12345678901") === "123456789"
   && moneyDisplayOf("1500") === "1,500" && moneyDisplayOf("") === "" && moneyDisplayOf(1234567) === "1,234,567" && moneyValueOf("1,500") === 1500 && moneyValueOf("") === null
-  && moneySrc.includes('inputMode="numeric"') && moneySrc.includes(">円</span>") && moneySrc.includes("moneyDisplayOf(value)")
+  && moneySrc.includes('inputMode="numeric"') && moneySrc.includes('<em className="pre" aria-hidden="true">¥</em>') && !moneySrc.includes(">円</span>") && moneySrc.includes("moneyDisplayOf(value)") /* ★便 M5b M-50: ¥ は左の箱（円は付けない） */
   && MONEY_USERS.every((f) => { const s2 = fs.readFileSync(f, "utf8"); return s2.includes("<MoneyInput ") && !/金額\(円\)|金額（円）|金額（円・|額（円）|額（円・/.test(s2); }));
 // ★裁定323（便 X-11-7）: 在庫の棚卸しは一覧型
 const stockSrc = fs.readFileSync("app/(manage)/master/stock/stock-board.tsx", "utf8");

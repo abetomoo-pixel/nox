@@ -18,10 +18,11 @@
 //  - 日跨ぎは「翌02:00」表示（器は 26:00 型のまま＝表示写像のみ）。
 //  - 不可の登録 UI（★モック不在＝申告済みの配置判断）: 日詳細バーに「出勤不可にする／解除」
 //    （cast_unavailable_set / remove・owner/manager）。
+import { hmLabelOf } from "@/lib/nox/time/hhmm"; // ★便 M5b M-51 追補: 日をまたぐ時刻は「翌02:00」
+import TimeInput from "@/components/ui/time-input"; // ★便 M5b M-51: 時刻欄の共通部品（時計アイコン・時と分を選ぶ・翌の表示）
 import { notifyCast } from "@/lib/nox/people/notify"; // ★便 M-13: 追加・変更は本人へ通知
 import { shiftAddedBody, shiftChangedBody, shiftProposedBody } from "@/lib/nox/people/notify-text";
 import { useCallback, useEffect, useState } from "react";
-import HmInput from "@/components/ui/hm-input";
 import { hmRangeErrorOf } from "@/lib/nox/time/hhmm"; // ★裁定318（便 X-9-2）: 時刻入力の共通部品（blur で HH:MM に正規化）
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
@@ -154,7 +155,7 @@ export default function ShiftAddForm({
   const wishLabel = (w: WishRow) => {
     const row = bhRows.find((r) => r.dow === dowOf(w.date));
     return row && !row.is_closed && row.close_hm === w.end_hm
-      ? `${w.start_hm}〜LAST` : `${w.start_hm}〜${fmtNext(w.end_hm)}`;
+      ? `${hmLabelOf(w.start_hm)}〜LAST` : `${hmLabelOf(w.start_hm)}〜${fmtNext(w.end_hm)}`;
   };
 
   const loadCastMonth = useCallback(async (castId: string, m: string) => {
@@ -442,7 +443,7 @@ export default function ShiftAddForm({
                         {closed && <span style={{ fontSize: 8.5, color: "var(--sub)" }}>休</span>}
                         {!closed && ex && (
                           <span className="num" style={{ fontSize: 8.5, color: e?.src === "edit" ? "var(--gold2)" : "var(--ok)" }}>
-                            {ex.start_hm}〜{fmtNext(ex.end_hm)}
+                            {hmLabelOf(ex.start_hm)}〜{fmtNext(ex.end_hm)}
                           </span>
                         )}
                         {!closed && !ex && w && (
@@ -468,7 +469,7 @@ export default function ShiftAddForm({
                     <div style={{ display: "flex", gap: 14, flexWrap: "wrap", fontSize: 11.5, alignItems: "center" }}>
                       <b className="num">{focusDay}（{DOW[dowOf(focusDay)]}）</b>
                       <span>希望: <b className="num">{focusWish ? wishLabel(focusWish) : "—"}</b></span>
-                      <span>登録済み: <b className="num">{focusEx ? `${focusEx.start_hm}〜${fmtNext(focusEx.end_hm)}` : "—"}</b></span>
+                      <span>登録済み: <b className="num">{focusEx ? `${hmLabelOf(focusEx.start_hm)}〜${fmtNext(focusEx.end_hm)}` : "—"}</b></span>
                       {isClosed(focusDay) && <span style={{ color: "var(--sub)", fontWeight: 700 }}>定休日（操作不可）</span>}
                       {focusUnavail && (
                         <span style={{ color: "var(--bad)", fontWeight: 700 }}>
@@ -516,9 +517,9 @@ export default function ShiftAddForm({
                         <div style={{ fontSize: 10, color: "var(--v2-muted)" }}>必要な日だけ下で個別変更できます</div>
                       </div>
                       <label style={{ fontSize: 11 }}>開始<br />
-                        <HmInput value={bulkStart} onChange={setBulkStart} maxHour={23} ariaLabel="開始（一括）" style={{ ...input, width: 76 }} /></label>
+                        <TimeInput value={bulkStart} onChange={setBulkStart} maxHour={23} ariaLabel="開始（一括）" style={{ ...input, width: 76 }} /></label>
                       <label style={{ fontSize: 11 }}>終了<br />
-                        <HmInput value={bulkEnd} onChange={setBulkEnd} ariaLabel="終了（一括）" style={{ ...input, width: 76 }} />{hm2min(bulkEnd) >= 1440 && <span className="num" style={{ fontSize: 10.5, color: "var(--sub)", marginLeft: 4 }} data-bulk-end-next="1">= {fmtNext(bulkEnd)}</span>}</label>{/* ★便 M-11 ②: 入力は 26:00 も受け、表示は翌02:00 */}
+                        <TimeInput value={bulkEnd} onChange={setBulkEnd} ariaLabel="終了（一括）" style={{ ...input, width: 76 }} />{hm2min(bulkEnd) >= 1440 && <span className="num" style={{ fontSize: 10.5, color: "var(--sub)", marginLeft: 4 }} data-bulk-end-next="1">= {fmtNext(bulkEnd)}</span>}</label>{/* ★便 M-11 ②: 入力は 26:00 も受け、表示は翌02:00 */}
                       <button style={btnLight} onClick={applyAll}>全日に適用</button>
                     </div>
                     <div style={{ display: "grid", gap: 5, marginTop: 7 }}>
@@ -526,9 +527,9 @@ export default function ShiftAddForm({
                         <div key={d} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap",
                           border: "1px solid var(--line)", borderRadius: 8, padding: "6px 9px", fontSize: 12 }}>
                           <b className="num" style={{ width: 96 }}>{Number(mm)}/{Number(d.slice(8))}（{DOW[dowOf(d)]}）</b>
-                          <HmInput value={e.start} onChange={(v) => setDayTime(d, "start", v)} maxHour={23} ariaLabel={`${d} 開始`} style={{ ...input, width: 72, padding: "5px 7px" }} />
+                          <TimeInput value={e.start} onChange={(v) => setDayTime(d, "start", v)} maxHour={23} ariaLabel={`${d} 開始`} style={{ ...input, width: 72, padding: "5px 7px" }} />
                           <span style={{ color: "var(--sub)" }}>〜</span>
-                          <HmInput value={e.end} onChange={(v) => setDayTime(d, "end", v)} ariaLabel={`${d} 終了`} style={{ ...input, width: 72, padding: "5px 7px" }} />
+                          <TimeInput value={e.end} onChange={(v) => setDayTime(d, "end", v)} ariaLabel={`${d} 終了`} style={{ ...input, width: 72, padding: "5px 7px" }} />
                           {hm2min(e.end) >= 1440 && <span className="num" style={{ fontSize: 10.5, color: "var(--sub)" }}>= {fmtNext(e.end)} まで</span>}
                           {e.src === "wish" && <span style={{ fontSize: 10, color: "var(--blue)", fontWeight: 700 }}>希望から</span>}
                           {e.src === "edit" && <span style={{ fontSize: 10, color: "var(--gold2)", fontWeight: 700 }}>登録済みの編集</span>}

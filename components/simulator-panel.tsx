@@ -1,5 +1,6 @@
 "use client";
 
+import { UnitBox } from "@/components/ui/unit-input"; // ★便 M5b M-50: 単位は入力欄の右の箱
 import { useMemo, useState } from "react";
 import SegSelect from "@/components/ui/seg-select";
 import type { BackMode, CompPlan, PlanOverride, TaxMode } from "@/lib/nox/pay";
@@ -227,7 +228,7 @@ export default function SimulatorPanel({
             options={[["per_count", "円/本"], ["rate", "率(%)"]] as const} />
                 </label>
                 {edit.honBackMode === "rate" ? (
-                  <label style={s.lbl}>本指名率(%)<br /><input type="number" value={edit.honBackRate} onChange={(e) => setEdit({ ...edit, honBackRate: e.target.value })} style={s.inpS} /></label>
+                  <label style={s.lbl}>本指名率<br /><UnitBox post="%"><input type="number" value={edit.honBackRate} onChange={(e) => setEdit({ ...edit, honBackRate: e.target.value })} style={s.inpS} /></UnitBox></label>
                 ) : (
                   <label style={s.lbl}>本指名（1 本あたり）<br /><MoneyInput value={edit.honBack} onChange={(v) => setEdit({ ...edit, honBack: v })} style={s.inpS} ariaLabel="本指名バック" /></label>
                 )}
@@ -236,7 +237,7 @@ export default function SimulatorPanel({
             options={[["per_count", "円/本"], ["rate", "率(%)"]] as const} />
                 </label>
                 {edit.jonaiBackMode === "rate" ? (
-                  <label style={s.lbl}>場内率(%)<br /><input type="number" value={edit.jonaiBackRate} onChange={(e) => setEdit({ ...edit, jonaiBackRate: e.target.value })} style={s.inpS} /></label>
+                  <label style={s.lbl}>場内率<br /><UnitBox post="%"><input type="number" value={edit.jonaiBackRate} onChange={(e) => setEdit({ ...edit, jonaiBackRate: e.target.value })} style={s.inpS} /></UnitBox></label>
                 ) : (
                   <label style={s.lbl}>場内（1 本あたり）<br /><MoneyInput value={edit.jonaiBack} onChange={(v) => setEdit({ ...edit, jonaiBack: v })} style={s.inpS} ariaLabel="場内指名バック" /></label>
                 )}
@@ -248,7 +249,7 @@ export default function SimulatorPanel({
                     options={PRODUCT_BACK_OPTIONS} />
                 </label>
                 {edit.productBackMode === "plan_rate" && (
-                  <label style={s.lbl}>売上の割合(%)<br /><input type="number" min={0} max={100} value={edit.productBackRate} onChange={(e) => setEdit({ ...edit, productBackRate: e.target.value })} style={s.inpS} /></label>
+                  <label style={s.lbl}>売上の割合<br /><UnitBox post="%"><input type="number" min={0} max={100} value={edit.productBackRate} onChange={(e) => setEdit({ ...edit, productBackRate: e.target.value })} style={s.inpS} /></UnitBox></label>
                 )}
                 {edit.productBackMode === "plan_fixed" && (
                   <label style={s.lbl}>固定額（1 点あたり）<br /><MoneyInput value={edit.productBackFixed} onChange={(v) => setEdit({ ...edit, productBackFixed: v })} ariaLabel="商品バック固定額" style={s.inpS} /></label>
@@ -290,14 +291,14 @@ export default function SimulatorPanel({
           {effHonMode === "rate" ? (
             <label style={s.lbl}>本指名料額（期間）<br /><MoneyInput value={f.honShimeiAmt} onChange={setV("honShimeiAmt")} style={s.inp} ariaLabel="本指名料額" /></label>
           ) : (
-            <label style={s.lbl}>本指名(本)<br /><input type="number" value={f.hon} onChange={set("hon")} style={s.inpS} /></label>
+            <label style={s.lbl}>本指名<br /><UnitBox post="本"><input type="number" value={f.hon} onChange={set("hon")} style={s.inpS} /></UnitBox></label>
           )}
           {effJonaiMode === "rate" ? (
             <label style={s.lbl}>場内指名料額（期間）<br /><MoneyInput value={f.jonaiShimeiAmt} onChange={setV("jonaiShimeiAmt")} style={s.inp} ariaLabel="場内指名料額" /></label>
           ) : (
-            <label style={s.lbl}>場内(本)<br /><input type="number" value={f.jonai} onChange={set("jonai")} style={s.inpS} /></label>
+            <label style={s.lbl}>場内<br /><UnitBox post="本"><input type="number" value={f.jonai} onChange={set("jonai")} style={s.inpS} /></UnitBox></label>
           )}
-          <label style={s.lbl}>同伴(本)<br /><input type="number" value={f.dohan} onChange={set("dohan")} style={s.inpS} /></label>
+          <label style={s.lbl}>同伴<br /><UnitBox post="本"><input type="number" value={f.dohan} onChange={set("dohan")} style={s.inpS} /></UnitBox></label>
           {!compact && simPoints && (
             <label style={s.lbl}>本指名商品pt<br /><input type="number" value={f.pointProducts} onChange={set("pointProducts")} style={s.inpS} /></label>
           )}

@@ -8,6 +8,8 @@
 // 掘り起こし＝休眠込み時のみ「来店が古い順」ソート（クライアント側 sort・RPC の既定順は触らない。
 // 来店なし（last_visit null）は掘り起こし対象外に近いため末尾に置く）。可視スコープは RPC CTE が担保＝
 // cast は RPC 側で true でも休眠不可視（段23-3 実測）・UI でもトグルを出さない（canDormant 一次ガード）。
+import { LoadMoreBar, useLoadMore } from "@/components/ui/load-more"; // ★便 M5b M-60
+import AddButton from "@/components/ui/add-button"; // ★便 M5b M-55
 import { useCallback, useEffect, useMemo, useState } from "react";
 import PageHead from "@/components/ui/page-head";
 import Link from "next/link";
@@ -136,9 +138,15 @@ export default function CustomersBoard({
     const supabase = createClient();
     setErr(null);
     // p_include_dormant は常に明示 boolean（規約7 同列・省略に頼らない）
-    const { data, error } = await supabase.rpc("customer_list_summary", {
-      p_store_id: storeSel || null, p_include_dormant: incDormant,
-    });
+    // ★便 M5b M-60: API の 1 回の上限（既定 1,000 行）で黙って切れないよう 1,000 行ずつ読み足す（RPC は不変＝range）。表示は 50 件ずつ（useLoadMore）
+    const all: Row[] = []; let error: { message: string } | null = null;
+    for (let from = 0; ; from += 1000) {
+      const r = await supabase.rpc("customer_list_summary", { p_store_id: storeSel || null, p_include_dormant: incDormant }).range(from, from + 999);
+      if (r.error) { error = r.error; break; }
+      const chunk = (r.data ?? []) as Row[]; all.push(...chunk);
+      if (chunk.length < 1000) break;
+    }
+    const data = all;
     if (error) { setErr(`読み込みに失敗: ${error.message}`); setRows([]); return; }
     setRows((data ?? []) as Row[]);
     // E8-3 #2: 一覧バッジ用 grade（customers 直 select・RLS スコープ内・表示専用）
@@ -308,6 +316,7 @@ export default function CustomersBoard({
       .sort((a, b) => new Date(a.last_visit!).getTime() - new Date(b.last_visit!).getTime());
     return [...visited, ...filtered.filter((r) => r.last_visit === null)];
   }, [filtered, incDormant, sortOldest]);
+  const pageCust = useLoadMore(display, 50, `${tier}|${q}|${castFilter}|${incDormant}|${sortOldest}|${storeSel}`); // ★便 M5b M-60: 絞り込みを変えたら最初の 50 件に戻す
 
   const highCount = rows.filter((r) => r.churn_tier === "high").length;
   const midCount = rows.filter((r) => r.churn_tier === "mid").length;
@@ -453,10 +462,8 @@ export default function CustomersBoard({
             {stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
         )}
-        <button style={{ ...t.btnGold, ...t.btnSm, marginLeft: "auto" }} onClick={openAdd}>{/* ★裁定253 R7: 登録はモーダル＝ボタンは開くだけ */}
-          ＋ 顧客登録
-        </button>
       </div>
+      <AddButton testId="customer-add" onClick={openAdd}>＋ 顧客登録</AddButton>{/* ★裁定253 R7: 登録はモーダル＝ボタンは開くだけ・★便 M5b M-55: 一覧の上・中央・主ボタン */}
 
       {/* E8-5 customers#1（T2）: 担当キャスト絞り込み＝チップ（プルダウン新設禁止の規律・client のみ） */}
       {casts.filter((c) => c.is_active && (!storeSel || c.store_id === storeSel)).length > 0 && (
@@ -565,7 +572,7 @@ export default function CustomersBoard({
       <div className="nox-custlist" data-cust-list="1">{/* ★裁定364（GV-12・便 GV-A）: 右パネルと下送りは廃止＝一覧は 1 列・詳細はすべての幅でモーダル */}
         <div className="nox-panel">
             {!err && display.length === 0 && <p style={{ fontSize: 13, color: "var(--v2-muted)", margin: 0 }}>該当する顧客がいません</p>}
-            {display.map((r) => (
+            {pageCust.shown.map((r) => (
               <button
                 key={r.customer_id}
                 className={`nox-crow2 ${sel === r.customer_id ? "sel" : ""}`}
@@ -603,6 +610,7 @@ export default function CustomersBoard({
                 </div>
               </button>
             ))}
+            <LoadMoreBar {...pageCust} testId="customers" />{/* ★便 M5b M-60: 50 件ずつ・「50 / 230 件」・検索と絞り込みは全件に掛けてから */}
             <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "8px 0 0" }}>
               {display.length}件{tier !== "all" || q ? `（全${rows.length}件）` : ""}・
               {incDormant ? "休眠客を含めて表示中" : "休眠中の顧客は表示されません"}

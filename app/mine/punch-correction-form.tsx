@@ -2,6 +2,7 @@
 
 // ★0154 D1（2026-09-24・裁定294-2／295）: /mine 本人の打刻修正申請（punch_id または営業日＋区分・時刻・理由必須→punch_correction_request＝pending）。
 //   今日の自分の打刻（punches＝RLS 本人）から直す打刻を選ぶ or「打刻を追加」。メッセージは裁定281 の型。
+import TimeInput from "@/components/ui/time-input"; // ★便 M5b M-51: 時刻欄の共通部品（時計アイコン・時と分を選ぶ・翌の表示）
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -10,7 +11,6 @@ import Toast from "@/components/ui/toast";
 import { rpcErrJa } from "@/lib/nox/ui/rpc-err";
 import * as t from "@/lib/nox/ui/theme";
 import { KIND_LABEL, hmOnBizOf, requestArgsOf, type PunchKind } from "@/lib/nox/shift/punch-correction";
-import HmInput from "@/components/ui/hm-input";
 import { isFinalizedDay, POST_FINALIZE_NOTE } from "@/lib/nox/payroll/attention"; // ★裁定315（便 AB-3）: 確定済み期の日も申請できる＝注記を添える
 import { Message } from "@/components/ui/toast";
 import { hmRangeErrorOf } from "@/lib/nox/time/hhmm"; // ★裁定318（便 X-9-2）: 時刻入力の共通部品（blur で HH:MM に正規化）
@@ -56,7 +56,7 @@ export default function PunchCorrectionForm({ castId, bizToday, punches, term, f
         </select>
       )}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-        <HmInput value={hm} onChange={setHm} placeholder="時刻（例 2000・20:00／翌日は 24:00〜）" required style={{ ...input, width: 190 }} ariaLabel="時刻" />
+        <TimeInput value={hm} onChange={setHm} placeholder="時刻（例 2000・20:00／翌日は 24:00〜）" required style={{ ...input, width: 190 }} ariaLabel="時刻" />
         <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="理由（必須・200 字まで）" maxLength={200} required style={{ ...input, flex: "1 1 200px" }} aria-label="理由" />
         <button type="submit" disabled={busy || hmRangeErrorOf(hm) !== null} style={{ ...t.btnGold, ...t.btnSm, opacity: busy || hmRangeErrorOf(hm) !== null ? 0.7 : 1 }}>{busy ? "送信中…" : "修正を申請"}</button>{/* ★318 追補: 範囲外は送信非活性 */}
       </div>

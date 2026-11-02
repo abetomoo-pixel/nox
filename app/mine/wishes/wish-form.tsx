@@ -6,8 +6,8 @@
 //   営業時間＝cast は store_business_hours を読めない（RLS パターン2）ため一括既定 20:00〜26:00（従来と同値）＋日別の上書き。
 //   提出＝選択日を昇順に既存 shift_wish_submit を逐次（新 RPC なし・非原子）。失敗は rpcErrJa で和文・赤で残し再提出可（裁定281 の型）。
 //   取り下げ＝既存 shift_wish_withdraw（WithdrawButton）のまま。締切超過は案内のみ（裁定43）。1 日 1 枠は DB の部分 unique が守る。
+import TimeInput from "@/components/ui/time-input"; // ★便 M5b M-51: 時刻欄の共通部品（時計アイコン・時と分を選ぶ・翌の表示）
 import { useCallback, useEffect, useState } from "react";
-import HmInput from "@/components/ui/hm-input";
 import { hmRangeErrorOf } from "@/lib/nox/time/hhmm"; // ★裁定318（便 X-9-2）: 時刻入力の共通部品（blur で HH:MM に正規化）
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -228,9 +228,9 @@ export default function WishForm({ mode = "shift" }: { mode?: WishMode }) {
         {needsTimes ? (
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <b style={{ fontSize: 12.5 }}>時間（一括）</b>
-          <HmInput value={defStart} onChange={setDefStart} maxHour={23} placeholder="20:00" ariaLabel="開始（一括）" style={input} disabled={busy} />
+          <TimeInput value={defStart} onChange={setDefStart} maxHour={23} placeholder="20:00" ariaLabel="開始（一括）" style={input} disabled={busy} />
           <span style={{ fontSize: 13, color: "var(--sub)" }}>〜</span>
-          <HmInput value={defEnd} onChange={setDefEnd} placeholder="26:00" ariaLabel="終了（一括）" style={input} disabled={busy} />
+          <TimeInput value={defEnd} onChange={setDefEnd} placeholder="26:00" ariaLabel="終了（一括）" style={input} disabled={busy} />
           <span style={{ fontSize: 10.5, color: "var(--v2-muted)" }}>日ごとに変えるときは下で上書き</span>
         </div>
         ) : (
@@ -246,10 +246,10 @@ export default function WishForm({ mode = "shift" }: { mode?: WishMode }) {
                 <div key={ymd} style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", fontSize: 12.5 }}>
                   <span className="num" style={{ minWidth: 72, color: failed[ymd] ? "var(--bad)" : "var(--ink)" }}>{mdDowOf(ymd)}</span>
                   {needsTimes ? (<>
-                  <HmInput value={o?.start ?? ""} maxHour={23} placeholder={defStart} ariaLabel={`${mdDowOf(ymd)} 開始`} style={input} disabled={busy}
+                  <TimeInput value={o?.start ?? ""} maxHour={23} placeholder={defStart} ariaLabel={`${mdDowOf(ymd)} 開始`} style={input} disabled={busy}
                     onChange={(v) => setSel((s) => setOverride(s, ymd, { start: v, end: o?.end ?? "" }))} />
                   <span style={{ color: "var(--sub)" }}>〜</span>
-                  <HmInput value={o?.end ?? ""} placeholder={defEnd} ariaLabel={`${mdDowOf(ymd)} 終了`} style={input} disabled={busy}
+                  <TimeInput value={o?.end ?? ""} placeholder={defEnd} ariaLabel={`${mdDowOf(ymd)} 終了`} style={input} disabled={busy}
                     onChange={(v) => setSel((s) => setOverride(s, ymd, { start: o?.start ?? "", end: v }))} />
                   {o && (o.start || o.end) && <button type="button" style={{ ...btnLight, padding: "2px 8px" }} disabled={busy} onClick={() => setSel((s) => setOverride(s, ymd, null))}>一括に戻す</button>}
                   </>) : <span style={{ color: "var(--sub)" }}>休み</span>}

@@ -4,6 +4,8 @@
 // 操作は全て RPC 経由＝トグル set_staff_perms（束3-1）・編集 staff_update_profile/transfer_store/change_role・
 // 在籍解除/再雇用 staff_deactivate/reactivate（Q-1）・追加 POST /api/staff/create（Q-2）。
 // UI の出し分け（owner/manager・自店・自分の行）は利便のための表示制御＝真の防御は RPC ゲート（二重に守る）。
+import { LoadMoreBar, useLoadMore } from "@/components/ui/load-more"; // ★便 M5b M-60
+import AddButton from "@/components/ui/add-button"; // ★便 M5b M-55
 import { useCallback, useEffect, useState } from "react";
 import SegSelect from "@/components/ui/seg-select";
 import PageHead from "@/components/ui/page-head";
@@ -363,6 +365,7 @@ export default function StaffBoard({
     setCopied(true);
   }
 
+  const pageStaff = useLoadMore(mems, 50, "staff"); // ★便 M5b M-60: スタッフは 50 名ずつ（絞り込み・検索は無い＝全件の並び）
   return (
     <div className="nox-mv1 nox-mv1-m">
       {/* 段0R 第3陣: ヘッダを新シェルの nox-hero へ（他画面と同基準・表示のみ）。
@@ -373,8 +376,8 @@ export default function StaffBoard({
       <Toast msg={msg} />
       {tabs}{/* ★0172（裁定356・便 P172）: 一覧／勤怠・報酬 */}
 
-      <div className="nox-actions" style={{ marginBottom: 8 }}>{/* ★便 M3 M-20: 「＋スタッフを追加」＝.nox-actions 中央（キャストの追加と同じ形） */}
-        {!isDemo && <button style={{ ...btnGold, minHeight: 44 }} onClick={openAdd} disabled={busy} data-staff-add="1">＋ スタッフを追加</button>}{/* ★裁定381 */}{/* ★N7-2 ③: デモはスタッフ作成の導線を隠す */}
+      <div style={{ marginBottom: 8 }}>{/* ★便 M3 M-20 → ★便 M5b M-55: 一覧の上・中央・主ボタン（大）＝AddButton（キャストと同じ部品） */}
+        {!isDemo && <AddButton testId="staff-add" onClick={openAdd} disabled={busy}><span data-staff-add="1">＋ スタッフを追加</span></AddButton>}{/* ★裁定381 */}{/* ★N7-2 ③: デモはスタッフ作成の導線を隠す */}
       </div>
 
       <section className="nox-panel">
@@ -386,7 +389,7 @@ export default function StaffBoard({
               staff 以外は役職で固定＝チップを押せない（現行の「固定」表示と同義）。
             ★アバターは共通部品を使うが写真は無い＝段P の写真は cast_id 由来のキャスト専用で、
               スタッフ（users）の写真は現スキーマに存在しない。頭文字フォールバックのまま。 */}
-        {mems.map((m) => {
+        {pageStaff.shown.map((m) => {
           const u = users[m.user_id];
           const dim = !m.is_active;
           return (
@@ -426,6 +429,7 @@ export default function StaffBoard({
             </div>
           );
         })}
+        <LoadMoreBar {...pageStaff} unit="名" testId="staff" />{/* ★便 M5b M-60: 50 名ずつ */}
         <p style={{ ...t.sub, margin: "8px 0 0" }} data-staff-shift-note={mig0183On() ? "manager" : "open"}>{mig0183On() ? "* シフト＝シフトの作成・配置・承認まで（店長と同じ）。OFF のスタッフはメニューに出ず、開いてもホームへ戻ります。" : "* シフト＝シフト画面を開ける権限（OFF のスタッフはメニューに出ず、開いてもホームへ戻ります）。"}</p>{/* ★便 M-9（裁定429）: 0183 手貼り後に注記を「店長と同じ」に */}{/* ★裁定381（GV-B W-10）: can_shift を効かせた（shift/page.tsx・layout.tsx） */}
         <p style={{ ...t.sub, margin: "3px 0 0" }}>† バック＝キャストのバック金額（報酬）の閲覧権限。会計権限とは独立です（既定オフ・必要なスタッフのみ付与）。</p>
       </section>

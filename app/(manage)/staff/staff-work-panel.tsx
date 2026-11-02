@@ -149,7 +149,7 @@ export default function StaffWorkPanel({ scope, stores, daily = false, initialMe
       {rows.length > 0 && (
         <ResponsiveTable>
           <table className="nox-table" style={{ width: "100%" }}>
-          <thead><tr><th>名前</th>{scope === "store" && <th>店</th>}<th>契約</th><th>出勤日数</th><th>実働</th><th>支給見込み</th><th>源泉</th><th>手取り見込み</th></tr></thead>
+          <thead><tr><th>名前</th>{scope === "store" && <th>店</th>}<th>契約</th>{/* ★便 M5b M-54: 数値の列は見出しも右寄せ＝値（.num）と同じ位置 */}<th className="num" style={{ textAlign: "right" }}>出勤日数</th><th className="num" style={{ textAlign: "right" }}>実働</th><th className="num" style={{ textAlign: "right" }}>支給見込み</th><th className="num" style={{ textAlign: "right" }}>源泉</th><th className="num" style={{ textAlign: "right" }}>手取り見込み</th></tr></thead>
           <tbody>
             {rows.map((r) => (
               <Fragment key={r.m.id}><tr data-staff-work-row={r.m.id} onClick={daily ? () => setDailyMem((v) => (v === r.m.id ? null : r.m.id)) : scope === "store" && r.kind ? () => setOpenMem((v) => (v === r.m.id ? null : r.m.id)) : undefined} style={daily || (scope === "store" && r.kind) ? { cursor: "pointer", background: dailyMem === r.m.id ? "var(--card2)" : undefined } : undefined}>

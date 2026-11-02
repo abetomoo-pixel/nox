@@ -6,6 +6,8 @@
 //   完了画面＝キャスト 1 人ずつ／CSV（9 列）・PIN 一覧印刷・ホームへ。入力は自動保存（localStorage＝店ごと・途中で離れても再開＝org 単位の表は 0191 setup_drafts の後）。
 //   器が無い項目（V5_SAVE_MAP has=false）は画面に出して保存は「後で（マスタから）」の注記。主ボタンは中央（.nox-actions・教訓122）・iPad 横 1,024 と 390 の両方。既存の org（初期設定済み）には page が出さない。
 //   UI 規約 238〜244・新トークン 0。書込は既存 RPC（v5.ts の計画）＋route 3 本（/api/staff/create・/api/kiosk/provision・/api/cast/invite）。
+import TimeInput from "@/components/ui/time-input"; // ★便 M5b M-51: 時刻欄の共通部品（時計アイコン・時と分を選ぶ・翌の表示）
+import UnitInput from "@/components/ui/unit-input"; // ★便 M5b M-50
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
@@ -34,14 +36,12 @@ type Issued = { kind: "staff" | "device" | "cast"; name: string; login: string; 
 function Field({ label, children, span }: { label: React.ReactNode; children: React.ReactNode; span?: boolean }) {
   return <label style={{ display: "block", gridColumn: span ? "1 / -1" : undefined }}><span style={t.fieldLabel}>{label}</span><br />{children}</label>;
 }
+/** ★便 M5b M-57: ボトルの表だけキープ欄を出す（productTypeOf と同じ判定＝カテゴリ名に「ボトル」・品名に「（ボトル）」・キープ ON の品がある表＝ウイスキー／焼酎のボトル） */
+const isBottleCat = (c: { cat: string; items: { n: string; keep: boolean }[] }): boolean => /ボトル/.test(c.cat) || c.items.some((i) => i.keep || /（ボトル）/.test(i.n));
 function Money({ value, unit, onChange, pre, width = 120, step = 1 }: { value: number; unit?: string; onChange: (n: number) => void; pre?: boolean; width?: number; step?: number }) {
-  return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-      {pre && <em style={{ fontStyle: "normal", color: "var(--sub)" }}>¥</em>}
-      <input type="number" inputMode="decimal" value={value} step={step} onChange={(e) => onChange(Number(e.target.value))} className="num" style={{ ...input, width }} aria-label={unit ?? "数値"} />
-      {unit && <em style={{ fontStyle: "normal", fontSize: 12, color: "var(--sub)" }}>{unit}</em>}
-    </span>
-  );
+  // ★便 M5b M-50: 正本 .unit の形（¥ は左の箱・単位は右の箱・一体の枠）。¥ と 円 を同じ欄に両方付けない＝pre のときは「円」を外し「／時」などだけ右に
+  const right = pre && unit ? (unit.replace(/^円/, "") || undefined) : unit;
+  return <UnitInput value={value} type="number" step={step} onChange={(v) => onChange(Number(v))} pre={pre ? "¥" : undefined} unit={right} width={width + (pre ? 34 : 0) + (right ? 44 : 0)} ariaLabel={unit ?? "数値"} />;
 }
 function Text({ value, onChange, placeholder, width = 200, ariaLabel }: { value: string; onChange: (v: string) => void; placeholder?: string; width?: number | string; ariaLabel?: string }) {
   return <input value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} style={{ ...input, width }} aria-label={ariaLabel ?? placeholder} />;
@@ -277,9 +277,9 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
             <Field label="住所"><Text value={shop.addr} onChange={(v) => up((s) => { s.shop.addr = v; })} width="100%" ariaLabel="住所" /></Field>
           </div>
           <div style={{ ...grid(140), marginTop: 10 }}>
-            <Field label="営業開始"><input type="time" value={shop.open} onChange={(e) => up((s) => { s.shop.open = e.target.value; })} style={input} aria-label="営業開始" /></Field>
-            <Field label="営業終了（翌日も可）"><input type="time" value={shop.close} onChange={(e) => up((s) => { s.shop.close = e.target.value; })} style={input} aria-label="営業終了" /></Field>
-            <Field label="営業日の切替時刻"><input type="time" value={shop.cut} onChange={(e) => up((s) => { s.shop.cut = e.target.value; })} style={input} aria-label="営業日の切替時刻" /></Field>
+            <Field label="営業開始"><TimeInput value={shop.open} onChange={(v) => up((s) => { s.shop.open = v; })} maxHour={23} ariaLabel="営業開始" /></Field>
+            <Field label="営業終了（翌日も可）"><TimeInput value={shop.close} onChange={(v) => up((s) => { s.shop.close = v; })} maxHour={23} after={shop.open} ariaLabel="営業終了" /></Field>
+            <Field label="営業日の切替時刻"><TimeInput value={shop.cut} onChange={(v) => up((s) => { s.shop.cut = v; })} maxHour={23} ariaLabel="営業日の切替時刻" /></Field>
           </div>
           <div style={{ marginTop: 10 }} data-setup-holidays="1">
             <span style={t.fieldLabel}>定休日（複数選べます・無ければ選ばない）</span>
@@ -317,8 +317,8 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
               <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }} data-setup-rule-head="1"><span className="nox-stpill">{i + 1}</span><Text value={x.name} onChange={(v) => up((s) => { s.rules[i].name = v; })} placeholder="ルール名" width={200} ariaLabel="ルール名" />
                 {S.rules.length > 1 && <button type="button" style={{ ...t.btnGhost, ...t.btnSm, marginLeft: "auto" }} onClick={() => { if (window.confirm(`${x.name} を削除しますか？`)) up((s) => { s.rules.splice(i, 1); }); }}>このルールを削除</button>}</div>
               <div style={{ ...grid(140), marginTop: 8 }}>
-                <Field label="開始"><input type="time" value={x.from} onChange={(e) => up((s) => { s.rules[i].from = e.target.value; })} style={input} aria-label="開始" /></Field>
-                <Field label="終了（翌日も可）"><input type="time" value={x.to} onChange={(e) => up((s) => { s.rules[i].to = e.target.value; })} style={input} aria-label="終了" /></Field>
+                <Field label="開始"><TimeInput value={x.from} onChange={(v) => up((s) => { s.rules[i].from = v; })} maxHour={23} ariaLabel="開始" /></Field>
+                <Field label="終了（翌日も可）"><TimeInput value={x.to} onChange={(v) => up((s) => { s.rules[i].to = v; })} maxHour={23} after={x.from} ariaLabel="終了" /></Field>
                 <Field label="席"><SegSelect value={x.seat} onChange={(v) => up((s) => { s.rules[i].seat = v; })} options={seatOpts(x.seat)} ariaLabel="席" /></Field>
               </div>
               <div style={{ marginTop: 8 }}><span style={t.fieldLabel}>曜日</span><div className="nox-seg" role="group" aria-label="曜日" style={{ marginTop: 4, width: "fit-content" }}>{WD.map((d) => <button key={d} type="button" className={x.days.includes(d) ? "on" : ""} aria-pressed={x.days.includes(d)} onClick={() => up((s) => { const ds = s.rules[i].days; const k = ds.indexOf(d); if (k >= 0) ds.splice(k, 1); else ds.push(d); })}>{d}</button>)}</div></div>
@@ -377,27 +377,28 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}><b>{c.cat}</b><SegSelect value={c.on ? "on" : "off"} onChange={(v) => up((s) => { s.menu[ci].on = v === "on"; })} options={[["on", "使う"], ["off", "使わない"]] as const} ariaLabel={`${c.cat} を使う`} /></div>
               {c.on && (<>
                 <div className="nox-tablewrap plain" style={{ marginTop: 6 }}><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
-                  <thead><tr><th style={{ ...t.th, width: 34 }}>出す</th><th style={t.th}>商品名</th><th style={t.th}>値段</th><th style={t.th}>キャストのバック（本指名・円／%）</th><th style={t.th}>キープ</th><th style={t.th}></th></tr></thead>
+                  {/* ★便 M5b M-52／M-57: 値段とバックは同じ幅・円／% は金額の右の小さな 2 択・「区分ごと」「削除」は 1 行で中央・キープ欄はボトルの表だけ（見出し「ボトルキープ可」） */}
+                  <colgroup><col style={{ width: 40 }} /><col /><col style={{ width: 150 }} /><col style={{ width: 210 }} />{isBottleCat(c) && <col style={{ width: 118 }} />}<col style={{ width: 150 }} /></colgroup>
+                  <thead><tr><th style={{ ...t.th, width: 34 }}>出す</th><th style={t.th}>商品名</th><th style={t.th}>値段</th><th style={t.th}>キャストのバック（本指名）</th>{isBottleCat(c) && <th style={{ ...t.th, whiteSpace: "nowrap" }} data-keep-head="1">ボトルキープ可<small style={{ display: "block", fontSize: 10.5, fontWeight: 400, color: "var(--sub)", whiteSpace: "nowrap" }}>お客様の名前で預かれる</small></th>}<th style={t.th}></th></tr></thead>
                   <tbody>{c.items.map((it, ii) => (
                     <>
                       <tr key={ii} style={{ opacity: it.on ? 1 : 0.55 }}>
                         <td style={t.td}><input type="checkbox" checked={it.on} aria-label={`${it.n} を出す`} onChange={(e) => up((s) => { s.menu[ci].items[ii].on = e.target.checked; })} /></td>
                         <td style={t.td}><Text value={it.n} onChange={(v) => up((s) => { s.menu[ci].items[ii].n = v; })} width="100%" ariaLabel="商品名" /></td>
-                        <td style={t.td}><Money value={it.p} pre onChange={(n) => up((s) => { s.menu[ci].items[ii].p = n; })} width={90} /></td>
-                        <td style={t.td}><span style={{ display: "inline-flex", gap: 4, alignItems: "center" }}><Money value={it.b} pre={it.bt !== "pct"} unit={it.bt === "pct" ? "%" : ""} onChange={(n) => up((s) => { s.menu[ci].items[ii].b = n; })} width={70} />
-                          <SegSelect value={it.bt ?? "yen"} onChange={(v) => up((s) => { s.menu[ci].items[ii].bt = v as "yen" | "pct"; })} options={[["yen", "円"], ["pct", "%"]] as const} ariaLabel="バックの単位" />
-                          <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} aria-pressed={it.byKind} onClick={() => up((s) => { const x = s.menu[ci].items[ii]; x.byKind = !x.byKind; if (!x.byKind) { x.bj = null; x.bf = null; } })}>区分ごと</button></span></td>
-                        <td style={t.td}><input type="checkbox" checked={it.keep} aria-label="キープ可" onChange={(e) => up((s) => { s.menu[ci].items[ii].keep = e.target.checked; })} /></td>
-                        <td style={t.td}><button type="button" style={{ ...t.btnGhost, ...t.btnSm }} aria-label="この商品を削除" onClick={() => up((s) => { s.menu[ci].items.splice(ii, 1); })}>削除</button></td>
+                        <td style={t.td}><Money value={it.p} pre onChange={(n) => up((s) => { s.menu[ci].items[ii].p = n; })} width={104} /></td>
+                        <td style={t.td}><span className="nox-backcell"><Money value={it.b} pre={it.bt !== "pct"} unit={it.bt === "pct" ? "%" : undefined} onChange={(n) => up((s) => { s.menu[ci].items[ii].b = n; })} width={104} />
+                          <span className="nox-mini2" role="radiogroup" aria-label="バックの単位">{([["yen", "円"], ["pct", "%"]] as const).map(([v, l]) => <button key={v} type="button" role="radio" aria-checked={(it.bt ?? "yen") === v} className={(it.bt ?? "yen") === v ? "on" : ""} onClick={() => up((s) => { s.menu[ci].items[ii].bt = v; })}>{l}</button>)}</span></span></td>
+                        {isBottleCat(c) && <td style={{ ...t.td, textAlign: "center" }}><input type="checkbox" checked={it.keep} aria-label="ボトルキープ可" onChange={(e) => up((s) => { s.menu[ci].items[ii].keep = e.target.checked; })} /></td>}
+                        <td style={t.td}><span className="nox-rowacts"><button type="button" className="nox-linkbtn" aria-pressed={it.byKind} onClick={() => up((s) => { const x = s.menu[ci].items[ii]; x.byKind = !x.byKind; if (!x.byKind) { x.bj = null; x.bf = null; } })}>区分ごと</button><button type="button" className="nox-linkbtn" aria-label="この商品を削除" onClick={() => up((s) => { s.menu[ci].items.splice(ii, 1); })}>削除</button></span></td>
                       </tr>
                       {it.byKind && <tr key={`${ii}k`} style={{ background: "var(--bg)" }}><td style={t.td}></td><td style={{ ...t.td, color: "var(--sub)" }}>　↳ 場内指名／フリーのとき（{it.bt === "pct" ? "%" : "円"}）{it.bt === "pct" && later("%の個別は 0191")}</td>
-                        <td style={t.td} colSpan={4}><span style={{ display: "inline-flex", gap: 10, flexWrap: "wrap" }}><span>場内 <Money value={it.bj ?? kindVal(it, S.kindRate.jo)} onChange={(n) => up((s) => { s.menu[ci].items[ii].bj = n; })} width={70} /></span><span>フリー <Money value={it.bf ?? kindVal(it, S.kindRate.free)} onChange={(n) => up((s) => { s.menu[ci].items[ii].bf = n; })} width={70} /></span></span></td></tr>}
+                        <td style={t.td} colSpan={isBottleCat(c) ? 4 : 3}><span style={{ display: "inline-flex", gap: 10, flexWrap: "wrap" }}><span>場内 <Money value={it.bj ?? kindVal(it, S.kindRate.jo)} onChange={(n) => up((s) => { s.menu[ci].items[ii].bj = n; })} width={70} /></span><span>フリー <Money value={it.bf ?? kindVal(it, S.kindRate.free)} onChange={(n) => up((s) => { s.menu[ci].items[ii].bf = n; })} width={70} /></span></span></td></tr>}
                     </>))}</tbody></table></div>
                 <div className="nox-actions" style={{ marginTop: 8 }}><button type="button" style={{ ...t.btnGhost, ...t.btnSm }} onClick={() => up((s) => { s.menu[ci].items.push({ n: "", p: 0, b: 0, keep: false, on: true, byKind: false, bj: null, bf: null, bt: "yen" }); })}>＋ {c.cat}に商品を追加</button></div>
               </>)}
             </div>))}
           <div className="nox-actions" style={{ marginTop: 10 }}><input value={newCat} onChange={(e) => setNewCat(e.target.value)} placeholder="新しいカテゴリ名" style={{ ...input, maxWidth: 260 }} aria-label="新しいカテゴリ名" /><button type="button" style={{ ...t.btnGhost, ...t.btnSm }} onClick={() => { const nm = newCat.trim(); if (!nm) return; up((s) => { s.menu.push({ cat: nm, on: true, items: [{ n: "", p: 0, b: 0, keep: false, on: true, byKind: false, bj: null, bf: null, bt: "yen" }] }); }); setNewCat(""); }}>＋ カテゴリを追加</button></div>
-          <p style={note}>{counts.products > 0 && "既存の商品があるときは投入しません。"}キープ可の商品はボトルとして登録します。</p>
+          <p style={note}>{counts.products > 0 && "既存の商品があるときは投入しません。"}ボトルキープ可の商品はボトルとして登録します（お客様の名前で預かれる）。</p>
         </section></>
       )}
 
@@ -438,8 +439,8 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
             <div style={{ marginTop: 8 }}><span style={t.fieldLabel}>判定の単位</span><SegSelect value={S.slidePeriod} onChange={(v) => up((s) => { s.slidePeriod = v as "month" | "half"; })} options={[["month", "月単位（前月の実績で今月の時給）"], ["half", "半月単位（前の半月の実績で次の半月）"]] as const} ariaLabel="判定の単位" wrap /></div>
             <p style={note}>判定は「期」ごと。段の変更は自動では確定せず、給与の「要対応」に提案として出て店が適用／除外します。</p>
             <div style={{ display: "grid", gap: 6, marginTop: 6 }}>{S.slideTiers.map((tr, i) => (
-              <div key={i} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}><span style={{ fontSize: 12 }}>{i + 1}段</span><Money value={tr[0]} unit={p.slide === "point" ? "pt" : p.slide === "rate" ? "%" : "円"} pre={p.slide === "sales"} onChange={(n) => up((s) => { s.slideTiers[i][0] = n; })} /><span style={{ fontSize: 12 }}>→ 時給</span><Money value={tr[1]} unit="円" pre onChange={(n) => up((s) => { s.slideTiers[i][1] = n; })} width={90} />
-                {S.slideTiers.length > 1 && <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} onClick={() => up((s) => { s.slideTiers.splice(i, 1); })}>削除</button>}</div>))}</div>
+              <div key={i} className="nox-tierrow" data-slide-tier={i}>{/* ★便 M5b M-53: 1 段 1 行＝n段｜しきい値［単位］→ 時給［¥］｜削除（右端）。しきい値の単位＝売上スライド＝売上（¥）・ポイント＝pt・報酬率＝% */}<span className="n">{i + 1}段</span><Money value={tr[0]} unit={p.slide === "point" ? "pt" : p.slide === "rate" ? "%" : undefined} pre={p.slide === "sales"} onChange={(n) => up((s) => { s.slideTiers[i][0] = n; })} width={p.slide === "sales" ? 110 : 70} /><span className="u">→ 時給</span><Money value={tr[1]} unit="円" pre onChange={(n) => up((s) => { s.slideTiers[i][1] = n; })} width={80} />
+                {S.slideTiers.length > 1 ? <button type="button" className="del" style={{ ...t.btnGhost, ...t.btnSm }} onClick={() => up((s) => { s.slideTiers.splice(i, 1); })}>削除</button> : <span className="del" />}</div>))}</div>
             {S.slideTiers.length < 10 && <div className="nox-actions" style={{ marginTop: 8 }}><button type="button" style={{ ...t.btnGhost, ...t.btnSm }} onClick={() => up((s) => { const last = s.slideTiers[s.slideTiers.length - 1] ?? [0, s.pay.base]; s.slideTiers.push([Math.round(last[0] * 1.25), last[1] + 500]); })}>＋ 段を追加（最大 10）</button></div>}
           </>)}
           {p.slide === "point" && (<>

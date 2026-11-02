@@ -6,6 +6,7 @@
 // ★裁定310（2026-09-28・便 X-2）: 本体を PunchCorrectionForm（Modal なし）に切り出し、/shift 今日タブの「調整」モーダルのタブ①（出退勤）に埋め込む。
 //   既定 export の PunchCorrectionModal は同じ本体を Modal で包むだけ（文言・RPC・引数は不変）。
 // ★裁定315（0158・便 AB-3）: 確定済み・支払済みの期の日も修正できる（旧: 'period finalized' の赤エラー）。その日は注記を添える（給与は変わらず、給与画面の要対応に積まれる）。
+import TimeInput from "@/components/ui/time-input"; // ★便 M5b M-51: 時刻欄の共通部品（時計アイコン・時と分を選ぶ・翌の表示）
 import { useEffect, useState } from "react";
 import Modal from "@/components/ui/modal";
 import { Message } from "@/components/ui/toast";
@@ -13,7 +14,6 @@ import { createClient } from "@/lib/supabase/client";
 import { rpcErrJa } from "@/lib/nox/ui/rpc-err";
 import * as t from "@/lib/nox/ui/theme";
 import { KIND_LABEL, requestArgsOf, requestInitOf, type PunchKind } from "@/lib/nox/shift/punch-correction";
-import HmInput from "@/components/ui/hm-input"; // ★裁定318（便 X-9-2）: 時刻入力の共通部品（blur で HH:MM に正規化）
 import { hmRangeErrorOf, normalizeHHMM } from "@/lib/nox/time/hhmm";
 import { isFinalizedDay, POST_FINALIZE_NOTE } from "@/lib/nox/payroll/attention";
 
@@ -76,7 +76,7 @@ export function PunchCorrectionForm({ castId, castName, biz, kind, punchId, punc
       </p>
       <label style={{ ...t.fieldLabel, display: "block", marginBottom: 6 }}>
         {label}時刻（例 2000・20:00／翌日は 24:00〜47:59）
-        <HmInput value={hm} onChange={setHm} placeholder={kind === "in" ? "20:00" : "26:00"} /* ★便 GV-C C-14b（GV-61）: 既定値あり＝autofocus なし */ style={{ ...t.input, width: "100%", marginTop: 4 }} />
+        <TimeInput value={hm} onChange={setHm} placeholder={kind === "in" ? "20:00" : "26:00"} /* ★便 GV-C C-14b（GV-61）: 既定値あり＝autofocus なし */ style={{ ...t.input, width: "100%", marginTop: 4 }} />
       </label>
       <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 6px" }}>理由は必須です（200 字まで・本人に表示され、監査に残ります）</p>
       <input value={reason} onChange={(e) => setReason(e.target.value)} maxLength={200} placeholder="例: 打刻忘れ（本人申告）" style={{ ...t.input, width: "100%" }} />

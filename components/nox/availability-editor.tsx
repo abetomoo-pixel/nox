@@ -4,6 +4,8 @@
 //   曜日ごと 可／不可／相談＋時間帯・週の出勤日数の目安・適用開始日・メモ。雇用キャストの時間帯は店のみ（本人は表示＋メモで希望）。
 //   RULES_0175_APPLIED=false の間はどこにも mount されない（キャスト詳細と /mine が rules0175On() で出し分け）＝表も RPC も触らない。
 //   通知は audit だけ（RPC 側）。保存＝availability_set（p_rows 7 行・p_terms）。membership は casts.user_id → memberships（store・active）で解く（★便 ON-1）。
+import TimeInput from "@/components/ui/time-input"; // ★便 M5b M-51 追補 2
+import { hmPickOf } from "@/lib/nox/time/hhmm";
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
@@ -28,10 +30,12 @@ export default function AvailabilityEditor({ castId, storeId, employment, bySelf
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ kind: "success" | "error"; text: string } | null>(null);
   const timeEditable = canEditTimeOf(employment, bySelf);
+  const [bh, setBh] = useState<Record<number, { open: string; close: string }>>({}); // ★便 M5b M-51 追補 2: 店の営業時間（曜日→開始／終了）＝時刻の初期値
   const noAccount = !membershipId && mig0192On() && !bySelf; // ★0192 M-34: 未発行＝店が cast_id で置く（本人の確認は初回ログイン後の保存で membership へ引き取る）
   const canEdit = !!membershipId || noAccount;
 
   const load = useCallback(async () => {
+    void supabase.from("store_business_hours").select("dow, is_closed, open_hm, close_hm").eq("store_id", storeId).then(({ data }) => setBh(Object.fromEntries(((data ?? []) as { dow: number; is_closed: boolean; open_hm: string | null; close_hm: string | null }[]).filter((x) => !x.is_closed && x.open_hm && x.close_hm).map((x) => [x.dow, { open: x.open_hm!.slice(0, 5), close: x.close_hm!.slice(0, 5) }]))));
     // ★便 ON-1（2026-10-26）: memberships に cast_id 列は無い（user × store）＝casts.user_id → memberships（store・active）で解く
     const { data: cs } = await supabase.from("casts").select("user_id").eq("id", castId).maybeSingle();
     const uid = (cs?.user_id as string | null | undefined) ?? null;
@@ -88,11 +92,12 @@ export default function AvailabilityEditor({ castId, storeId, employment, bySelf
               </span>
               {r.avail !== "ng" && (
                 <span style={{ display: "inline-flex", gap: 4, alignItems: "center" }}>
-                  <input value={hm(r.from_min)} placeholder="20:00" disabled={busy || !timeEditable} aria-label={`${DOW_JA[r.dow]}曜の開始`} style={{ ...t.input, width: 64, padding: "2px 6px" }}
-                    onChange={(e) => setRow(r.dow, { from_min: minOf(e.target.value) })} />
+                  {/* ★便 M5b M-51 追補 2: 時と分を選ぶ部品（15 分刻み）・初期値は店の営業時間（その曜日）・終了が開始より前なら翌日（保存は 0〜2879 分のまま＝26:00 は 1560） */}
+                  <TimeInput value={hm(r.from_min)} step={15} maxHour={23} startAt={bh[r.dow]?.open ?? null} disabled={busy || !timeEditable} ariaLabel={`${DOW_JA[r.dow]}曜の開始`} width={104}
+                    onChange={(v) => setRow(r.dow, { from_min: minOf(v), ...(r.to_min === null && bh[r.dow] ? { to_min: minOf(hmPickOf(Number(bh[r.dow]!.close.slice(0, 2)) % 24, Number(bh[r.dow]!.close.slice(3, 5)), v)) } : {}) })} />
                   〜
-                  <input value={hm(r.to_min)} placeholder="26:00" disabled={busy || !timeEditable} aria-label={`${DOW_JA[r.dow]}曜の終了`} style={{ ...t.input, width: 64, padding: "2px 6px" }}
-                    onChange={(e) => setRow(r.dow, { to_min: minOf(e.target.value) })} />
+                  <TimeInput value={hm(r.to_min)} step={15} after={hm(r.from_min) || bh[r.dow]?.open || null} startAt={bh[r.dow]?.close ?? null} disabled={busy || !timeEditable} ariaLabel={`${DOW_JA[r.dow]}曜の終了`} width={112}
+                    onChange={(v) => setRow(r.dow, { to_min: minOf(v) })} />
                 </span>
               )}
             </div>

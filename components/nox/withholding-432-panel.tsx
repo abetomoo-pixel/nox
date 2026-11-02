@@ -120,7 +120,7 @@ export default function Withholding432Panel({ period, subjectKind, subjectId, ki
             ))}
           </div>
           {editable && (
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+            <div className="nox-actions" style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center", marginTop: 8 }}>{/* ★便 M5b M-54: 3 つのボタンを中央に */}
               <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} onClick={() => setForm((xs) => [...xs, { kind: "other", name: "", amount: "" }])}>＋ その他を追加</button>
               <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} onClick={() => void copyPrev()} data-emp-ded-copy="1">前月と同じ</button>
               <button type="button" disabled={busy} style={{ ...t.btnGold, ...t.btnSm }} onClick={() => void saveDeductions()} data-emp-ded-save="1">控除を保存</button>

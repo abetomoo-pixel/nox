@@ -2,11 +2,11 @@
 
 // ★便 W-10 #10（2026-10-26・0186 起草＝フラグ MIG_0186_APPLIED の間だけ mount）: 特別営業日・臨時休業＝日付ごとに曜日の設定より優先。
 //   store_special_days（店×日付で 1 行）・set_store_special_day／remove_store_special_day（owner／manager 自店）。シフトの定休日判定と予約の定休日判定も同じ表を見る（0186）。
+import TimeInput from "@/components/ui/time-input"; // ★便 M5b M-51: 時刻欄の共通部品（時計アイコン・時と分を選ぶ・翌の表示）
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import { Message } from "@/components/ui/toast";
-import HmInput from "@/components/ui/hm-input";
 import { specialDayLineOf, specialDayErrorOf, type SpecialDay } from "@/lib/nox/business-hours-special";
 
 export default function SpecialDaysPanel({ storeId, editable }: { storeId: string; editable: boolean }) {
@@ -24,6 +24,10 @@ export default function SpecialDaysPanel({ storeId, editable }: { storeId: strin
     const today = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
     const { data } = await createClient().from("store_special_days").select("day, kind, open_hm, close_hm, note").eq("store_id", storeId).gte("day", today).order("day");
     setRows((data ?? []) as SpecialDay[]);
+    // ★便 M5b M-51 追補 2: 時刻の初期値＝店の営業時間（最初の営業曜日の開始／終了・閉店が開店以前なら翌日＝24 時超の形）。固定の 20:00〜26:00 をやめる
+    const { data: bh } = await createClient().from("store_business_hours").select("dow, is_closed, open_hm, close_hm").eq("store_id", storeId).order("dow");
+    const r = ((bh ?? []) as { is_closed: boolean; open_hm: string | null; close_hm: string | null }[]).find((x) => !x.is_closed && x.open_hm && x.close_hm);
+    if (r) { const o = r.open_hm!.slice(0, 5), c = r.close_hm!.slice(0, 5); setOpenHm(o); setCloseHm(c <= o ? `${String(Number(c.slice(0, 2)) + 24).padStart(2, "0")}:${c.slice(3, 5)}` : c); }
   }, [storeId]);
   useEffect(() => { void load(); }, [load]);
 
@@ -69,8 +73,8 @@ export default function SpecialDaysPanel({ storeId, editable }: { storeId: strin
             </div>
             {kind === "open" && (
               <>
-                <label style={t.fieldLabel}>開店<HmInput value={openHm} onChange={setOpenHm} maxHour={23} style={{ ...t.input, maxWidth: 100 }} ariaLabel="開店" /></label>
-                <label style={t.fieldLabel}>閉店<HmInput value={closeHm} onChange={setCloseHm} style={{ ...t.input, maxWidth: 100 }} ariaLabel="閉店" /></label>
+                <label style={t.fieldLabel}>開店<TimeInput value={openHm} onChange={setOpenHm} maxHour={23} style={{ ...t.input, maxWidth: 100 }} ariaLabel="開店" /></label>
+                <label style={t.fieldLabel}>閉店<TimeInput value={closeHm} onChange={setCloseHm} style={{ ...t.input, maxWidth: 100 }} ariaLabel="閉店" /></label>
               </>
             )}
             <label style={t.fieldLabel}>名称・理由<br /><input value={note} onChange={(e) => setNote(e.target.value)} maxLength={100} placeholder="例: 年末年始" style={{ ...t.input, maxWidth: 200 }} /></label>

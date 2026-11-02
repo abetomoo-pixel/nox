@@ -1,5 +1,6 @@
 "use client";
 
+import { UnitBox } from "@/components/ui/unit-input"; // ★便 M5b M-50
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
@@ -144,7 +145,7 @@ export default function DeductionPanel({
                 <div key={i} className="nox-okuri-tier-row" data-okuri-tier-row={i} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", padding: "4px 0" }}>
                   <input value={tr.code} onChange={(e) => setTier(i, "code", e.target.value)} placeholder="コード（例: near）" aria-label={`区分 ${i + 1} のコード`} style={{ ...inp, width: 110 }} maxLength={32} disabled={tiersBusy} />
                   <input value={tr.name} onChange={(e) => setTier(i, "name", e.target.value)} placeholder="区分名（例: 近距離）" aria-label={`区分 ${i + 1} の名前`} style={{ ...inp, width: 140 }} maxLength={40} disabled={tiersBusy} />
-                  <input type="number" min={0} step={1} value={tr.amount} onChange={(e) => setTier(i, "amount", e.target.value)} aria-label={`区分 ${i + 1} の金額（円）`} style={{ ...inp, width: 100 }} disabled={tiersBusy} /> 円
+                  <UnitBox pre="¥"><input type="number" min={0} step={1} value={tr.amount} onChange={(e) => setTier(i, "amount", e.target.value)} aria-label={`区分 ${i + 1} の金額（円）`} style={{ ...inp, width: 90 }} disabled={tiersBusy} /></UnitBox>{/* ★便 M5b M-50: ¥ は左の箱（円は付けない） */}
                   <button type="button" onClick={() => setTiers((ts) => ts.filter((_, j) => j !== i))} disabled={tiersBusy} style={btn} aria-label={`区分 ${i + 1} を削除`}>削除</button>
                 </div>
               ))}

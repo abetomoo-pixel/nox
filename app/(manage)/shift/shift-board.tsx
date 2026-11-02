@@ -5,6 +5,9 @@
 //   ★シフトの営業日判定は shiftHoursStatus（date 直＝cutoff 変換なし・mig0008 決定3）。
 //   予約用 businessHoursStatus（cutoff 変換）をシフトに使うと深夜帯で1日ズレるため使用禁止。
 //   希望の採否は「採用のみ定休日ブロック・見送りは定休日でも可」の非対称を UI に出す（裁定B-3）。
+import { hmLabelOf } from "@/lib/nox/time/hhmm"; // ★便 M5b M-51 追補: 日をまたぐ時刻は「翌02:00」
+import TimeInput from "@/components/ui/time-input"; // ★便 M5b M-51: 時刻欄の共通部品（時計アイコン・時と分を選ぶ・翌の表示）
+import { UnitBox } from "@/components/ui/unit-input"; // ★便 M5b M-50
 import { dayStateLabelOf } from "@/lib/nox/mine/day-state"; // ★便 GV-C C-14（GV-60）: 日の状態の語と色（/mine と同じ）
 import { SHIFT_REQUEST_MODE_LABEL } from "@/lib/nox/store/mine-settings"; // ★裁定337（0167）: 配置ビューの印
 import { PROXY_CONFIRM_LABEL, WISH_STATE_LABEL, wishStateTextOf } from "@/lib/nox/shift/wish-state"; // ★裁定345: 4 段の語・「代行確定」
@@ -54,7 +57,6 @@ import { notifRefOf, remindNoticeDefaultOf, remindWishBody, shiftAddedBody, shif
 import { PERIOD_NEEDS_NOTE, emptyPeriodNeedsForm, periodNeedRequiredOf, periodNeedRowsOf, periodNeedsChipOf, periodNeedsErrorOf, periodNeedsFormOf, type PeriodNeedRow, type PeriodNeedsForm } from "@/lib/nox/shift/period-needs"; // ★便 ON-3（0176 ★5 (a)）: 期間ごとの必要人数
 import { declineTextOf } from "@/lib/nox/shift/decline"; // ★便 ON-3（0176 ★5 (c)・裁定406）: 辞退の印
 import { bandHmLabelOf, bandMinLabelOf, bandOptionsOf, periodShortOf } from "@/lib/nox/shift/half-hour"; // ★便 M2 M-16: 必要人数の時間帯＝30 分刻みの選択肢
-import HmInput from "@/components/ui/hm-input"; // ★裁定318（便 X-9-2）: 時刻入力の共通部品（blur で HH:MM に正規化）
 import { HM_FORMAT_ERR, hmRangeErrorOf, normalizeHHMM } from "@/lib/nox/time/hhmm";
 import OkuriOutDialog from "@/components/nox/okuri-out-dialog";
 import PenaltyDialog, { type PenaltyTarget } from "@/components/nox/penalty-dialog";
@@ -359,6 +361,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   const [addStatus, setAddStatus] = useState("confirmed"); // ★便 M-11／M-12 ④（Agoora 10/26）: 夜の店は店が決める＝新規の配置の既定は採用・確定
   // ★DP3 P2（2026-08-21・裁定 DP3-②）: 手動シフト追加をモーダルへ（モック `planShiftDialog`）。
   const [addModal, setAddModal] = useState(false);
+  const [todayAdd, setTodayAdd] = useState(false); // ★便 M5b M-58: 当日追加配置（今日の営業日固定）
   // ★裁定108: 手動追加は2段＝①CastPicker（addPicker）→②キャスト固定フォーム（addCast を確定して addModal）。
   //   表の行「＋」は①を飛ばして直開き（その行のキャストで固定）。RPC 呼び形は不変（shift_set 6引数）。
   // ★0125（裁定112）: addPicker（2段ピッカー）は廃止＝モーダル左ペインの CastPicker へ統合。
@@ -1087,7 +1090,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
 
   // 日詳細＝選択日のシフトを「時間帯」でグルーピング（表示のみ・fmtBand30 で 30時間制表記）
   const selShifts = shiftsOn(selDate);
-  const bandKey = (s: Shift) => `${s.start_hm}|${s.end_hm}`;
+  const bandKey = (s: Shift) => `${hmLabelOf(s.start_hm)}|${hmLabelOf(s.end_hm)}`;
   const bands = Array.from(new Set(selShifts.map(bandKey)))
     .map((key) => {
       const [start, end] = key.split("|");
@@ -1519,13 +1522,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                   shift_set は insert 経路で p_status をそのまま格納する（planned 固定ではない）と live 実測済み。 */}
             {isManagerUp && (
               <button className="nox-addc" style={{ marginLeft: "auto" }}
-                onClick={() => {
-                  // ★SC-8 ⑦: 既定 status は日で分ける（面4 と同式）。裁定42「当日その場で足すのは
-                  //   もう入る人」は今日にだけ当てはまり、先の日は「これから組む段」＝planned。
-                  setAddDate(todayDate);
-                  setAddStatus("confirmed"); // ★便 M-11: 先の日も既定は採用・確定
-                  setAddCast(null); setAddModal(true); // ★0125: v6 モーダル直開き（左ペインでキャスト選択）
-                }}>＋ 当日追加配置</button>
+                data-today-add="1" onClick={() => setTodayAdd(true) /* ★便 M5b M-58: 当日専用の形（日付＝今日の営業日で固定・キャスト複数・時刻・その場で確定）＝DayAddPanel を今日の営業日で開く */}>＋ 当日追加配置</button>
             )}
           </div>
           {/* ★裁定297-1（2026-09-25・裁定295-1）: cast の修正申請（pending）＝店の決裁。承認／却下とも理由必須（decide_reason）・RPC は既存 punch_correction_decide（新 RPC 0）・cast には出ない（isManagerUp） */}
@@ -1655,7 +1652,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                                       <span className={`nox-stpill ${chip.late ? "warn" : "ok"}`} data-att-chip={mode}>{chip.label}</span>
                                       {dseats && <span className="nox-stpill" data-dohan-chip="1" title={ex.note ?? "伝票の同伴（伝票で外すと消えます）"}>{dohanMarkTextOf(dseats)}</span>}
                                       {ex.note && <span className="sub" data-dohan-exempt="1" style={{ fontSize: 11 }}>{ex.note}</span>}
-                                      {att?.eta ? <span className="num sub">見込み {att.eta}</span> : null}
+                                      {att?.eta ? <span className="num sub">見込み {hmLabelOf(att.eta)}</span> : null}
                                     </span>
                                   );
                                 })()}
@@ -1687,7 +1684,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                                 {view === "pre" && (label || att?.eta) && (
                                   <span className="num sub">
                                     {label}{label && n !== null ? <span style={{ marginLeft: 4, opacity: 0.75 }}>(+{n} 分)</span> : null}
-                                    {att?.eta ? <span style={{ marginLeft: label ? 6 : 0 }}>見込み {att.eta}</span> : null}
+                                    {att?.eta ? <span style={{ marginLeft: label ? 6 : 0 }}>見込み {hmLabelOf(att.eta)}</span> : null}
                                   </span>
                                 )}
                                 {canRecord && (view === "arrived" || view === "done") && (
@@ -1837,7 +1834,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                           {rows.map((r) => (
                             <div key={r.wish.id} className="nox-wishrow" data-wish-state={r.state}>
                               <span className="num">{mdDowOf(r.wish.date)}</span>
-                              <span className="num">{(r.wish.kind ?? "work") === "off" ? "休み希望" : `${r.wish.start_hm}–${r.wish.end_hm}`}</span>
+                              <span className="num">{(r.wish.kind ?? "work") === "off" ? "休み希望" : `${hmLabelOf(r.wish.start_hm)}–${hmLabelOf(r.wish.end_hm)}`}</span>
                               <span className={`nox-stpill ${r.state === "確定" ? "ok" : r.state === "見送り" ? "ng" : r.state === "調整中" ? "warn" : ""}`}>{r.state}</span>
                               <span className="nox-wishrow-acts">
                                 {r.state === "未処理" && isManagerUp && (r.wish.kind ?? "work") === "work" && (<>
@@ -2267,8 +2264,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
               </>
             )}
             <span style={{ fontSize: 12.5, color: "var(--sub)" }}>必要</span>
-            <input type="number" min={0} value={nReq} onChange={(e) => setNReq(Number.parseInt(e.target.value || "0", 10))} style={{ ...input, width: 60 }} />
-            <span style={{ fontSize: 12.5, color: "var(--sub)" }}>名</span>
+            <UnitBox post="名"><input type="number" min={0} value={nReq} onChange={(e) => setNReq(Number.parseInt(e.target.value || "0", 10))} style={{ ...input, width: 52 }} /></UnitBox>{/* ★便 M5b M-50 */}
             <button style={{ ...btnDark, opacity: !nAllDay && (hmRangeErrorOf(nFrom) !== null || hmRangeErrorOf(nTo) !== null) ? 0.45 : 1 }}
               disabled={!nAllDay && (hmRangeErrorOf(nFrom) !== null || hmRangeErrorOf(nTo) !== null)} onClick={addNeed}>追加</button>{/* ★318 追補: 範囲外は非活性 */}
           </div>
@@ -2454,7 +2450,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                           display: "block", fontSize: 9.5, lineHeight: 1.5, textAlign: "left",
                           overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--ok)",
                         }}>
-                          {cell.shown[k]} <span className="nox-cald-t num">{x.start_hm}-</span>
+                          {cell.shown[k]} <span className="nox-cald-t num">{hmLabelOf(x.start_hm)}-</span>
                         </span>
                       ))}
                       {cell.restLabel && (
@@ -2614,6 +2610,15 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
           保存されたら onSaved で親の load() を回す（子は DB の再取得を知らない）。 */}
       {/* ★0125（裁定112）: 2段ピッカーは廃止＝v6 モーダルの左ペイン（CastPicker）へ統合。
           行の「＋」直開きは initialCast で従来どおりキャスト固定で開く（裁定108 の Picker 維持）。 */}
+      {isManagerUp && todayAdd && (/* ★便 M5b M-58: 見出しに今日の営業日（切替時刻前の深夜は前日）を固定表示・日付は選ばせない・保存＝採用・確定（DayAddPanel＝shift_set）→ 今日のシフト表と集計に即反映・その行で「出勤」 */
+        <Modal onClose={() => setTodayAdd(false)} maxWidth={560}>
+          <h3 style={{ ...t.cardTitle, margin: "0 0 8px" }} data-today-add-head={bizToday}>{Number(bizToday.slice(5, 7))}/{Number(bizToday.slice(8, 10))}（{DOW[dowOf(bizToday)]}）に追加配置</h3>
+          <p style={{ ...t.sub, margin: "0 0 8px" }}>今日のシフトに入っている人は出ません。出勤不可の人は理由を入れると登録できます。保存すると確定のシフトになり、今日のタブの行で「出勤」を押せます。</p>
+          <DayAddPanel date={bizToday} casts={casts} photoUrls={photoUrls} bhRows={bhRows} wishes={wishAll} closed={false}
+            assignedCastIds={shiftsOn(bizToday).map((s) => s.cast_id)}
+            onSaved={async () => { setMsg(`${Number(bizToday.slice(5, 7))}/${Number(bizToday.slice(8, 10))} に追加配置しました（確定）`); setTodayDate(bizToday); setTodayAdd(false); await load(); }} onDirtyChange={() => {}} />
+        </Modal>
+      )}
       {isManagerUp && (
         <ShiftAddForm
           casts={casts} photoUrls={photoUrls} initialCast={addCast} bhRows={bhRows}
@@ -2861,11 +2866,11 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
               <div className="nox-field2">
                 <div className="nox-field">
                   <span className="lab">開始</span>
-                  <HmInput value={wStart} onChange={setWStart} maxHour={23} ariaLabel="開始" style={{ ...input, width: "100%" }} />
+                  <TimeInput value={wStart} onChange={setWStart} maxHour={23} ariaLabel="開始" style={{ ...input, width: "100%" }} />
                 </div>
                 <div className="nox-field">
                   <span className="lab">終了</span>
-                  <HmInput value={wEnd} onChange={setWEnd} ariaLabel="終了" style={{ ...input, width: "100%" }} />
+                  <TimeInput value={wEnd} onChange={setWEnd} ariaLabel="終了" style={{ ...input, width: "100%" }} />
                   <span className="hint">2000・20:00 のどちらでも入力できます。24時以降は 25:00（2500）のように書けます。</span>
                 </div>
               </div>
@@ -2955,11 +2960,11 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
               <div className="nox-field2">
                 <div className="nox-field">
                   <span className="lab">開始</span>
-                  <HmInput value={aStart} onChange={setAStart} maxHour={23} ariaLabel="開始" style={{ ...input, width: "100%" }} />
+                  <TimeInput value={aStart} onChange={setAStart} maxHour={23} ariaLabel="開始" style={{ ...input, width: "100%" }} />
                 </div>
                 <div className="nox-field">
                   <span className="lab">終了</span>
-                  <HmInput value={aEnd} onChange={setAEnd} ariaLabel="終了" style={{ ...input, width: "100%" }} />
+                  <TimeInput value={aEnd} onChange={setAEnd} ariaLabel="終了" style={{ ...input, width: "100%" }} />
                   <span className="hint">2000・20:00 のどちらでも入力できます。24時以降は 25:00（2500）のように書けます。</span>
                 </div>
               </div>

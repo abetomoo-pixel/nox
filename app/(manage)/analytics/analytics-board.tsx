@@ -847,32 +847,32 @@ export default function AnalyticsBoard({
               const risk = segs.filter((g) => g.k.startsWith("離反リスク")).reduce((n, g) => n + g.rows.length, 0);
               return (
                 <>
-                  <div className="nox-listrow">
-                    <span style={{ flex: 1, minWidth: 0 }}>
+                  {/* ★便 M5b M-59: 768px 以下は「見出し（＋説明）」の下に値＝名前／金額（いちばん大きく）／構成比の 3 行。広い幅は横並びのまま（.nox-hlrow） */}
+                  <div className="nox-listrow nox-hlrow" data-hl="top">
+                    <span className="hd">
                       いちばん大きい売上
                       <span style={{ display: "block", fontSize: 10.5, color: "var(--v2-muted)" }}>5分類のうち構成比が最大のもの</span>
                     </span>
-                    <b>{CATEGORY_LABEL[top[0]]}</b>
-                    <b className="num">{yen(top[1])}（{pct}%）</b>
+                    <span className="val"><b className="nm">{CATEGORY_LABEL[top[0]]}</b><b className="num amt">{yen(top[1])}</b><span className="num pc">{pct}%</span></span>
                   </div>
-                  <div className="nox-listrow">
-                    <span style={{ flex: 1, minWidth: 0 }}>
+                  <div className="nox-listrow nox-hlrow" data-hl="nom">
+                    <span className="hd">
                       指名料の合計
                       <span style={{ display: "block", fontSize: 10.5, color: "var(--v2-muted)" }}>
                         本 {yen(catSums.nomFee.hon)} ／ 場内 {yen(catSums.nomFee.jonai)} ／ 同伴 {yen(catSums.nomFee.dohan)}
                       </span>
                     </span>
-                    <b className="num">{yen(nom)}</b>
+                    <span className="val"><b className="num amt">{yen(nom)}</b></span>
                   </div>
-                  <div className="nox-listrow">
-                    <span style={{ flex: 1, minWidth: 0 }}>
+                  <div className="nox-listrow nox-hlrow" data-hl="risk">
+                    <span className="hd">
                       しばらく来ていないお客様
                       <span style={{ display: "block", fontSize: 10.5, color: "var(--v2-muted)" }}>30日以上・60日以上の合計（顧客ビューに内訳）</span>
                     </span>
-                    <b className="num" style={risk > 0 ? { color: "var(--bad)" } : undefined}>
+                    <span className="val"><b className="num amt" style={risk > 0 ? { color: "var(--bad)" } : undefined}>
                       {custSummary === null ? "—" : `${risk}名`}
                     </b>
-                    <button style={{ ...t.btnGhost, ...t.btnSm }} onClick={() => setView("customers")}>顧客を見る</button>
+                    <button style={{ ...t.btnGhost, ...t.btnSm }} onClick={() => setView("customers")}>顧客を見る</button></span>
                   </div>
                   <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "8px 0 0", lineHeight: 1.7 }}>
                     ここに出しているのは<b>同じ画面の数字の言い換え</b>です。

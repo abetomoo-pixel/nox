@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import MoneyInput from "@/components/ui/money-input"; // ★便 X-11-6: 金額欄の共通部品（数字のみ・3 桁区切り・右に「円」）
+import { UnitBox } from "@/components/ui/unit-input"; // ★便 M5b M-50
 import SegSelect from "@/components/ui/seg-select";
 import { createClient } from "@/lib/supabase/client";
 import { opsProfileOf } from "@/lib/nox/store/ops-profile"; // ★0164（便 W5-2b）: 支払い方法の出し分け
@@ -3508,11 +3509,9 @@ export default function RegisterBoard({
             options={[["charge", "料金"], ["time", "延長"], ["custom", "その他"]] as const} />
             <input placeholder="名称（例 貸切料金）" value={cName} onChange={(e) => setCName(e.target.value)} style={{ ...input, width: 170 }} />
             {/* ★裁定253 R10: 金額欄に ¥／円 を添える（plan-editor の Unit と同形・値の扱いは不変） */}
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-              <span style={{ fontSize: 12, color: "var(--sub)" }}>¥</span>
-              <GroupedNumberInput value={cPrice} onChange={(v) => setCPrice(Number(v || 0))} style={{ ...input, width: 100 }} ariaLabel="金額" />
-              <span style={{ fontSize: 12, color: "var(--sub)" }}>円</span>
-            </span>
+            <UnitBox pre="¥" width={130}>{/* ★便 M5b M-50: ¥ は入力欄と一体の箱（円は付けない） */}
+              <GroupedNumberInput value={cPrice} onChange={(v) => setCPrice(Number(v || 0))} style={{ ...input, width: "100%" }} ariaLabel="金額" />
+            </UnitBox>
             {/* E8-1 ⑦: 英字テキスト入力 → 会計分けセグメント */}
             {groupSeg(cGroup || "A", setCGroup)}
             <button onClick={addCustomLine} style={btnDark}>追加</button>
@@ -3537,15 +3536,13 @@ export default function RegisterBoard({
             {apType === "discount" && (
               <>
                 {/* ★裁定253 R10: 割引額にも ¥／円 */}
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-                  <span style={{ fontSize: 12, color: "var(--sub)" }}>¥</span>
+                <UnitBox pre="¥" width={130}>{/* ★便 M5b M-50 */}
                   <input
                     type="number" min={1} max={apGroupBx || undefined} value={apAmount}
                     onChange={(e) => setApAmount(Number(e.target.value))} placeholder="割引額"
-                    style={{ ...input, width: 100 }}
+                    style={{ ...input, width: "100%" }}
                   />
-                  <span style={{ fontSize: 12, color: "var(--sub)" }}>円</span>
-                </span>
+                </UnitBox>
                 <span style={{ fontSize: 11, color: "var(--sub)" }}>上限 {yen(apGroupBx)}</span>
               </>
             )}

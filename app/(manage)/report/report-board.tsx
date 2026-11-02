@@ -1,5 +1,6 @@
 "use client";
 
+import { hmLabelOf } from "@/lib/nox/time/hhmm"; // ★便 M5b M-51 追補: 日をまたぐ時刻は「翌02:00」
 import { useCallback, useEffect, useRef, useState } from "react";
 import { upperKindOf } from "@/lib/nox/register/p173"; // ★便 P173（裁定391／393）: 2 分類・手数料
 import MoneyInput from "@/components/ui/money-input"; // ★便 X-11-6: 金額欄の共通部品（数字のみ・3 桁区切り・右に「円」）
@@ -1157,7 +1158,7 @@ export default function ReportBoard({
               <span style={{ ...t.sub, fontSize: 12 }}>
                 {bh.is_closed || !bh.open_hm || !bh.close_hm
                   ? "定休日"
-                  : `営業時間 ${bh.open_hm}〜${fmtCloseHm(bh.open_hm, bh.close_hm)}`}
+                  : `営業時間 ${hmLabelOf(bh.open_hm)}〜${fmtCloseHm(bh.open_hm, bh.close_hm)}`}
               </span>
             );
           })()}

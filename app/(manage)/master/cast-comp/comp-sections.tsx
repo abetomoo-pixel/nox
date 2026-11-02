@@ -1,4 +1,6 @@
 "use client";
+import { UnitBox } from "@/components/ui/unit-input"; // ★便 M5b M-50: 単位は入力欄の右の箱
+import UnitInput from "@/components/ui/unit-input"; // ★便 M5b M-50
 import { OKURI_DEDUCTION_BLOCK_MSG, okuriDeductionBlockedOf, okuriDeductionWarnOf, type OkuriMode } from "@/lib/nox/shift/okuri-mode"; // ★裁定431 ③
 import GroupedNumberInput from "@/components/ui/grouped-number-input"; // ★便 X13-G W-12 ④: 3 桁区切りの入力欄
 
@@ -271,11 +273,8 @@ export function SlideInput({ label, slide, setSlide, basis = "yen", desc, monthl
             <span className="n num">{i + 1}段</span>
             {basis === "yen"
               ? <MoneyInput value={r.at} onChange={(v) => set(i, "at", Number(v || 0))} style={input} width={118} ariaLabel={`${i + 1}段の判定基準（売上）`} />
-              : <span className="nox-money" style={{ display: "inline-flex", alignItems: "center", gap: 4, width: 118 }}>
-                  <input type="number" min={0} value={r.at} onChange={(e) => set(i, "at", Number(e.target.value))} aria-label={`${i + 1}段の判定基準（${basis === "count" ? "件数" : "pt"}）`}
-                    className="num" style={{ ...input, width: "100%", minWidth: 0, textAlign: "right" }} />
-                </span>}
-            <span className="u">{atLabel}</span>
+              : <UnitInput value={r.at} type="number" min={0} onChange={(v) => set(i, "at", Number(v))} unit={basis === "count" ? "件" : "pt"} width={118} ariaLabel={`${i + 1}段の判定基準（${basis === "count" ? "件数" : "pt"}）`} />}{/* ★便 M5b M-50／M-53: 件・pt は入力欄の右の箱（売上は MoneyInput の ¥ の箱） */}
+            <span className="u">{basis === "yen" ? atLabel : atLabel.replace(/^(pt|件) /, "")}</span>
             <span className="u">→ 時給</span>
             <MoneyInput value={r.wage} onChange={(v) => set(i, "wage", Number(v || 0))} style={input} width={118} ariaLabel={`${i + 1}段の時給`} />
             {rows.length > 1 && <button type="button" style={btnLight} aria-label={`${i + 1}段を削除`} data-slide-del={i} onClick={() => setSlide(slideRemoveRow(rows, i))}>−</button>}
@@ -413,14 +412,14 @@ export function PlanTab({ plans, isOwner, storeId, setMsg, reload }: { plans: Pl
           <label style={{ fontSize: 12 }}>本指名方式 <SegSelect value={honMode} onChange={(v) => setHonMode(v as BackModeRow)}
             options={[["per_count", "円/本"], ["rate", "率(%)"]] as const} /></label>
           {honMode === "rate" ? (
-            <label style={{ fontSize: 12 }}>本 率(%) <input type="number" min={0} max={100} value={honRate} onChange={(e) => setHonRate(Number(e.target.value))} style={{ ...input, width: 70 }} /></label>
+            <label style={{ fontSize: 12 }}>本 率 <UnitBox post="%"><input type="number" min={0} max={100} value={honRate} onChange={(e) => setHonRate(Number(e.target.value))} style={{ ...input, width: 70 }} /></UnitBox></label>
           ) : (
             <label style={{ fontSize: 12 }}>本（1 本あたり） <MoneyInput value={honBack} onChange={(v) => setHonBack(Number(v || 0))} style={input} width={100} ariaLabel="本指名バック" /></label>
           )}
           <label style={{ fontSize: 12 }}>場内方式 <SegSelect value={jonaiMode} onChange={(v) => setJonaiMode(v as BackModeRow)}
             options={[["per_count", "円/本"], ["rate", "率(%)"]] as const} /></label>
           {jonaiMode === "rate" ? (
-            <label style={{ fontSize: 12 }}>場内 率(%) <input type="number" min={0} max={100} value={jonaiRate} onChange={(e) => setJonaiRate(Number(e.target.value))} style={{ ...input, width: 70 }} /></label>
+            <label style={{ fontSize: 12 }}>場内 率 <UnitBox post="%"><input type="number" min={0} max={100} value={jonaiRate} onChange={(e) => setJonaiRate(Number(e.target.value))} style={{ ...input, width: 70 }} /></UnitBox></label>
           ) : (
             <label style={{ fontSize: 12 }}>場内（1 本あたり） <MoneyInput value={jonaiBack} onChange={(v) => setJonaiBack(Number(v || 0))} style={input} width={100} ariaLabel="場内指名バック" /></label>
           )}
@@ -428,7 +427,7 @@ export function PlanTab({ plans, isOwner, storeId, setMsg, reload }: { plans: Pl
           <label style={{ fontSize: 12 }}>同伴方式 <SegSelect value={dohanMode} onChange={(v) => setDohanMode(v as BackModeRow)}
             options={[["per_count", "円/本"], ["rate", "率(%)"]] as const} /></label>
           {dohanMode === "rate" ? (
-            <label style={{ fontSize: 12 }}>同伴 率(%) <input type="number" min={0} max={100} value={dohanRate} onChange={(e) => setDohanRate(Number(e.target.value))} style={{ ...input, width: 70 }} aria-label="同伴バックの率" /></label>
+            <label style={{ fontSize: 12 }}>同伴 率 <UnitBox post="%"><input type="number" min={0} max={100} value={dohanRate} onChange={(e) => setDohanRate(Number(e.target.value))} style={{ ...input, width: 70 }} aria-label="同伴バックの率" /></UnitBox></label>
           ) : (
             <label style={{ fontSize: 12 }}>同伴（1 本あたり） <MoneyInput value={dohanBack} onChange={(v) => setDohanBack(Number(v || 0))} style={input} width={100} ariaLabel="同伴バック" /></label>
           )}

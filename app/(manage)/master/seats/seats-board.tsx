@@ -9,6 +9,7 @@
 //   取得が seats だけになったこと（旧 load() は products/categories/stock も同時に取っていた）。
 // ★E8-5 席#5 の並べ替え（↑↓）は引き続き未実装＝set_seat 2連続呼びが非原子になるため
 //   （skipped.md の記録どおり・表示順の数値入力で同じ結果が得られる）。
+import AddButton from "@/components/ui/add-button"; // ★便 M5b M-55
 import { useState } from "react";
 import SegSelect from "@/components/ui/seg-select";
 import { createClient } from "@/lib/supabase/client";
@@ -108,10 +109,7 @@ export default function SeatsBoard({ storeId, isManagerUp, initial, hiddenKinds 
           </div>
         </div>
         {isManagerUp && (
-          <div className="nox-actions" style={{ margin: "0 0 10px" }}>{/* ★便 BTN（裁定242）: 主ボタンは行の中央 */}
-            <button style={btnDark}
-              onClick={() => { setSId(null); setSName(""); setSKind("卓"); setSSort(0); setSActive(true); setSeatOpen(true); }}>＋ 席を追加</button>
-          </div>
+          <AddButton testId="seat-add" onClick={() => { setSId(null); setSName(""); setSKind("卓"); setSSort(0); setSActive(true); setSeatOpen(true); }}>＋ 席を追加</AddButton>
         )}
         {/* E8-5 席#5（T2）: 検索＋種別フィルタ（表示のみ） */}
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 10 }}>

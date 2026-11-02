@@ -974,6 +974,8 @@ body {
 .nox-repsum.five { grid-template-columns: repeat(5, 1fr); }
 .nox-repsum.three { grid-template-columns: repeat(3, 1fr); } /* ★便 GV-D #2: 店長の追加 KPI（3 列）＝インラインをやめて class */
 @media (max-width: 641px) { .nox-repsum { grid-template-columns: repeat(2, 1fr); } .nox-repsum.five { grid-template-columns: repeat(2, 1fr); } .nox-repsum.three { grid-template-columns: repeat(2, 1fr); } }
+/* ★便 M5b M-56: 5 枚の帯は狭い幅で 3＋2（2 列の 2＋2＋1 で 5 枚目だけ落ちる形をやめる） */
+@media (max-width: 641px) { .nox-repsum.five { grid-template-columns: repeat(6, 1fr); } .nox-repsum.five > :nth-child(-n+3) { grid-column: span 2; } .nox-repsum.five > :nth-child(n+4) { grid-column: span 3; } }
 .nox-rs { background: var(--v2-panel2); border: 1px solid var(--v2-line); border-radius: 10px; padding: 10px; text-align: center; }
 .nox-rs .l { font-size: 10px; color: var(--v2-muted); }
 /* 金額は「読む情報」ゆえ白（金3役の原則） */
@@ -3091,3 +3093,62 @@ input[type="date"]::-webkit-date-and-time-value, input[type="time"]::-webkit-dat
 .nox-setup-foot .in { justify-content: center; }
 .nox-setup-foot button { min-height: 52px !important; font-size: 17px !important; padding: 12px 28px !important; border-radius: 12px !important; }
 @media (max-width: 700px) { .nox-setup-head h2 { font-size: 22px; } .nox-setup-main section.nox-cardtop { padding: 16px !important; } .nox-setup-foot button { min-height: 46px !important; font-size: 15px !important; padding: 9px 16px !important; } }
+
+
+/* ★便 M5b（2026-11-02）: 共通部品の見た目（新トークン 0＝既存の変数だけ）。正本＝docs/handoff/mock/setup_v5.html の .unit／input[type=time]。 */
+/* M-50 単位つき入力＝入力欄と単位の箱が一体の枠（¥ は左の箱・円／分／% は右の箱・数値は右寄せ） */
+.nox-unit { display: inline-flex; align-items: stretch; max-width: 100%; min-width: 0; border: 1px solid var(--line2); border-radius: 10px; overflow: hidden; background: var(--bg); vertical-align: middle; }
+.nox-unit input { flex: 1 1 auto; min-width: 0; width: 100%; border: 0; border-radius: 0; background: transparent; color: var(--ink); font: inherit; font-size: 14px; padding: 9px 10px; text-align: right; outline: none; }
+.nox-unit input:focus { background: rgba(255, 255, 255, 0.03); }
+.nox-unit:focus-within { border-color: var(--champ); }
+.nox-unit em { font-style: normal; display: flex; align-items: center; padding: 0 10px; color: var(--sub); font-size: 13px; border-left: 1px solid var(--line); white-space: nowrap; background: var(--bg2); flex: 0 0 auto; }
+.nox-unit em.pre { border-left: 0; border-right: 1px solid var(--line); }
+.nox-unit.is-invalid { border-color: var(--bad); }
+.nox-unit.is-disabled { opacity: 0.55; }
+/* 包み（UnitBox）＝中の input／MoneyInput／GroupedNumberInput の枠線・背景を消して 1 つの枠に（呼び出し側の inline の t.input に勝つため !important） */
+.nox-unitbox input { border: 0 !important; border-radius: 0 !important; background: transparent !important; box-shadow: none !important; min-width: 0; text-align: right; }
+.nox-unitbox > .nox-unit, .nox-unitbox .nox-money { border: 0; border-radius: 0; flex: 1 1 auto; min-width: 0; width: auto !important; }
+/* M-51 時刻入力＝時計アイコン付きのボタン＋時／分を選ぶ小窓（ダーク配色） */
+.nox-time { position: relative; display: inline-flex; vertical-align: middle; min-width: 0; max-width: 100%; }
+.nox-time-btn { display: inline-flex; align-items: center; gap: 8px; width: 100%; min-height: 40px; padding: 8px 12px; background: var(--bg); color: var(--ink); border: 1px solid var(--line2); border-radius: 10px; font: inherit; font-size: 14px; cursor: pointer; white-space: nowrap; color-scheme: dark; }
+.nox-time-btn svg { color: var(--sub); flex: 0 0 auto; }
+.nox-time-btn[data-empty] span { color: var(--sub); }
+.nox-time-btn:disabled { opacity: 0.55; cursor: default; }
+.nox-time-pop { position: absolute; z-index: 60; top: calc(100% + 4px); left: 0; display: grid; gap: 8px; padding: 8px; background: var(--card, var(--bg)); border: 1px solid var(--line2); border-radius: 12px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45); color-scheme: dark; }
+.nox-time-cols { display: grid; grid-template-columns: 64px 64px; gap: 6px; }
+.nox-time-col { display: grid; gap: 2px; max-height: 220px; overflow-y: auto; }
+.nox-time-col button { min-height: 32px; border: 0; border-radius: 6px; background: transparent; color: var(--ink); font: inherit; font-size: 14px; cursor: pointer; }
+.nox-time-col button:hover { background: rgba(255, 255, 255, 0.06); }
+.nox-time-col button.on { background: var(--champ); color: #111; font-weight: 800; }
+.nox-time-col button:disabled { opacity: 0.35; cursor: default; }
+.nox-time-type { display: flex; gap: 6px; }
+.nox-time-type input { width: 120px; min-width: 0; padding: 6px 8px; background: var(--bg); color: var(--ink); border: 1px solid var(--line2); border-radius: 8px; font: inherit; font-size: 13px; }
+.nox-time-type button { padding: 6px 10px; border: 1px solid var(--line2); border-radius: 8px; background: transparent; color: var(--ink); font: inherit; font-size: 13px; cursor: pointer; }
+/* M-60 さらに表示／M-55 一覧の追加ボタン（中央・主ボタン） */
+.nox-loadmore { display: flex; align-items: center; justify-content: center; gap: 12px; margin: 12px 0 4px; }
+.nox-addbar { display: flex; justify-content: center; margin: 4px 0 12px; }
+/* M-53 スライドの段＝1 段 1 行（n段｜しきい値→時給｜削除は右端） */
+.nox-tierrow { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto minmax(0, 1fr) auto; gap: 8px; align-items: center; }
+.nox-tierrow .n, .nox-tierrow .u { font-size: 12px; color: var(--sub); white-space: nowrap; }
+.nox-tierrow .nox-unit { width: 100% !important; }
+.nox-tierrow .del { justify-self: end; min-width: 52px; }
+/* M-52 キャストドリンク等の表＝バックの金額＋小さな 2 択（円／%）・「区分ごと」「削除」を 1 行の文字で中央 */
+.nox-backcell { display: inline-flex; align-items: center; gap: 6px; flex-wrap: nowrap; }
+.nox-mini2 { display: inline-flex; border: 1px solid var(--line2); border-radius: 8px; overflow: hidden; flex: 0 0 auto; }
+.nox-mini2 button { min-width: 30px; padding: 4px 6px; border: 0; background: transparent; color: var(--sub); font: inherit; font-size: 12px; cursor: pointer; }
+.nox-mini2 button.on { background: var(--champ); color: var(--bg); font-weight: 800; }
+.nox-rowacts { display: inline-flex; align-items: center; justify-content: center; gap: 12px; white-space: nowrap; width: 100%; }
+.nox-linkbtn { border: 0; background: transparent; color: var(--champ); font: inherit; font-size: 12.5px; padding: 4px 2px; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.nox-linkbtn[aria-pressed="true"] { color: var(--ink); font-weight: 800; }
+/* ★便 M5b M-59 分析「注目ポイント」＝広い幅は横並び・768px 以下は見出しの下に値（名前／金額（最大）／構成比の 3 行） */
+.nox-hlrow .hd { flex: 1; min-width: 0; }
+.nox-hlrow .val { display: inline-flex; align-items: baseline; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.nox-hlrow .val .pc::before { content: "（"; }
+.nox-hlrow .val .pc::after { content: "）"; }
+@media (max-width: 768px) {
+  .nox-hlrow { flex-direction: column; align-items: stretch; gap: 6px; }
+  .nox-hlrow .val { flex-direction: column; align-items: flex-start; gap: 2px; justify-content: flex-start; }
+  .nox-hlrow .val .amt { font-size: 20px; line-height: 1.25; }
+  .nox-hlrow .val .pc { font-size: 12px; color: var(--sub); }
+  .nox-hlrow .val .pc::before, .nox-hlrow .val .pc::after { content: ""; }
+}

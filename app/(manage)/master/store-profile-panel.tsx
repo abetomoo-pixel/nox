@@ -7,6 +7,8 @@
 //   読みは stores の直読（RLS 越し・owner は org 全店／manager は自店 1 件）。キー無しは既定（''／false）に倒す。
 //   保存後は同じ select で再取得して現値を表示。エラーは storeProfileErrJa で日本語へ。
 //   配置＝保存ボタンは .nox-actions で中央（裁定244）・トグルは切替＝例外。
+import { UnitBox } from "@/components/ui/unit-input"; // ★便 M5b M-50
+import UnitInput from "@/components/ui/unit-input"; // ★便 M5b M-50
 import { kioskPersonIdleMinutesOf } from "@/lib/nox/kiosk/person-login"; // ★0192 M-49
 import { useCallback, useEffect, useState } from "react";
 import { okuriAsks, okuriModeOf } from "@/lib/nox/shift/okuri-mode"; // ★裁定414（S-4）
@@ -249,9 +251,9 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
                 ))}
               </span>
               {payAdjustHasDisc(adj) && <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 2fr)", gap: 8, marginTop: 8 }}>
-                <label style={{ display: "block", minWidth: 0, fontSize: 12 }}>現金割引の率（％）
-                  <input type="number" min={0} max={100} step={0.1} inputMode="decimal" value={form.pay_disc_cash} disabled={busy || !loaded} aria-label="現金割引の率" data-pay-disc-cash="1"
-                    onChange={(e) => setForm((f) => ({ ...f, pay_disc_cash: e.target.value.replace(/[^0-9.]/g, "").slice(0, 5) }))} style={{ ...input, marginTop: 2 }} placeholder="10" />
+                <label style={{ display: "block", minWidth: 0, fontSize: 12 }}>現金割引の率
+                  <UnitBox post="%" width="100%"><input type="number" min={0} max={100} step={0.1} inputMode="decimal" value={form.pay_disc_cash} disabled={busy || !loaded} aria-label="現金割引の率" data-pay-disc-cash="1"
+                    onChange={(e) => setForm((f) => ({ ...f, pay_disc_cash: e.target.value.replace(/[^0-9.]/g, "").slice(0, 5) }))} style={{ ...input, marginTop: 2 }} placeholder="10" /></UnitBox>
                 </label>
                 <label style={{ display: "block", minWidth: 0, fontSize: 12 }}>割引対象
                   <select value={form.pay_disc_base} disabled={busy || !loaded} onChange={(e) => setForm((f) => ({ ...f, pay_disc_base: e.target.value === "subtotal" ? "subtotal" : "total" }))} style={{ ...input, marginTop: 2 }} aria-label="割引対象" data-pay-disc-base="1">
@@ -361,8 +363,8 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
               )}
               {mig0192On() && (/* ★0192 M-49: キオスクの「本人でログイン」＝無操作 N 分で端末のセッションに戻す（店設定 kiosk_person_idle_minutes・1〜120・既定 10） */
                 <label style={{ minWidth: 0, display: "grid", gap: 3 }} data-kiosk-person-idle="0192">
-                  <span style={label}>キオスクの本人でログイン：無操作で戻すまで（分）</span>
-                  <input type="number" min={1} max={120} step={1} inputMode="numeric" value={form.kiosk_person_idle} disabled={busy} onChange={(e) => setForm((f) => ({ ...f, kiosk_person_idle: e.target.value }))} style={input} aria-label="無操作で戻すまでの分" />
+                  <span style={label}>キオスクの本人でログイン：無操作で戻すまで</span>
+                  <UnitInput value={form.kiosk_person_idle} type="number" min={1} max={120} step={1} inputMode="numeric" disabled={busy} onChange={(v) => setForm((f) => ({ ...f, kiosk_person_idle: v }))} unit="分" width={140} ariaLabel="無操作で戻すまでの分" />
                   <span style={{ ...t.sub, display: "block", fontSize: 11.5, lineHeight: 1.7 }}>キオスクから本人のアカウントで開いた画面は、この時間操作が無いと自動でログアウトして端末の画面に戻ります</span>
                 </label>
               )}
@@ -371,8 +373,8 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
                   <span style={label}>指名の区分ごとの割合（%の商品のバック＝本指名の率 × この割合）</span>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8 }}>
                     {([["hon", "本指名"], ["jonai", "場内指名"], ["free", "フリー"]] as const).map(([k, l]) => (
-                      <label key={k} style={{ display: "grid", gap: 3 }}><span style={{ ...t.sub, fontSize: 11.5 }}>{l}（%）</span>
-                        <input type="number" min={0} max={100} step={1} inputMode="numeric" value={form.kind_back[k]} disabled={busy} onChange={(e) => setForm((f) => ({ ...f, kind_back: { ...f.kind_back, [k]: e.target.value } }))} style={input} aria-label={`${l}の割合`} /></label>
+                      <label key={k} style={{ display: "grid", gap: 3 }}><span style={{ ...t.sub, fontSize: 11.5 }}>{l}</span>
+                        <UnitBox post="%" width="100%"><input type="number" min={0} max={100} step={1} inputMode="numeric" value={form.kind_back[k]} disabled={busy} onChange={(e) => setForm((f) => ({ ...f, kind_back: { ...f.kind_back, [k]: e.target.value } }))} style={input} aria-label={`${l}の割合`} /></UnitBox></label>
                     ))}
                   </div>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 10, marginTop: 10 }}>

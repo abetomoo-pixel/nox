@@ -10,6 +10,7 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import MoneyInput from "@/components/ui/money-input"; // ★便 X-12-1（起票90）: 金額欄の共通部品（数字のみ・3 桁区切り・右に「円」）
+import { UnitBox } from "@/components/ui/unit-input"; // ★便 M5b M-50
 import SegSelect from "@/components/ui/seg-select";
 import { prepItemOf } from "@/lib/nox/comp-methods";
 import { NORM_AXES, NORM_AXIS_LABEL, NORM_AXIS_UNIT, normAxesOf } from "@/lib/nox/store/norm-axes"; // ★裁定347（0171・便 P171）: プラン既定の目標 4 軸（採用 OFF の軸は入力口を出さない）
@@ -382,13 +383,8 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
     );
   };
   // ★N2: 入力欄の単位を常時表示（規約 §3＝prefix/suffix・`¥ 5,000 円`／`20 %`／`¥ 4,000 円/本`）。値・onChange は不変＝表示だけ。
-  const Unit = ({ pre, post, children }: { pre?: string; post?: string; children: React.ReactNode }) => (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-      {pre && <span style={{ fontSize: 12, color: "var(--sub)" }}>{pre}</span>}
-      {children}
-      {post && <span style={{ fontSize: 12, color: "var(--sub)" }}>{post}</span>}
-    </span>
-  );
+  // ★便 M5b M-50: 単位は入力欄と一体の枠（UnitBox＝正本 .unit）。MoneyInput は自前の ¥ の箱を持つ＝pre は渡さない
+  const Unit = ({ pre, post, children }: { pre?: string; post?: string; children: React.ReactNode }) => <UnitBox pre={pre} post={post}>{children}</UnitBox>;
   const lbl: React.CSSProperties = { fontSize: 12, display: "inline-flex", flexDirection: "column", gap: 6 };
   const secCard: React.CSSProperties = { ...t.card, padding: 18, marginBottom: 20 };
 

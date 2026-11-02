@@ -18,7 +18,8 @@ import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import CastAvatar from "@/components/ui/cast-avatar";
 import { type BusinessHourRow } from "@/lib/nox/business-hours";
-import { dayAddStateOf, shiftHmOptionsOf, DAY_ADD_STATE_LABEL, type DayAddState } from "@/lib/nox/shift/half-hour";
+import { dayAddStateOf, DAY_ADD_STATE_LABEL, type DayAddState } from "@/lib/nox/shift/half-hour";
+import TimeInput from "@/components/ui/time-input"; // ★便 M5b M-51
 
 import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 type Cast = { id: string; name: string };
@@ -27,7 +28,6 @@ export type DayWish = { cast_id: string; date: string; start_hm: string; end_hm:
 
 const btnDark: React.CSSProperties = { ...t.btnGold, ...t.btnSm };
 const btnLight: React.CSSProperties = { ...t.btnGhost, ...t.btnSm };
-const hmSelect: React.CSSProperties = { ...t.input, width: "auto", padding: "5px 6px", fontSize: 12.5 };
 const STATE_STYLE: Record<DayAddState, React.CSSProperties> = {
   wish: { color: "var(--primary)", borderColor: "rgba(79, 140, 255, .45)" },
   none: { color: "var(--sub)", borderColor: "var(--line2)" },
@@ -99,7 +99,6 @@ export default function DayAddPanel({
   const nameOf = (id: string) => casts.find((c) => c.id === id)?.name ?? "?";
   const dayWishes = wishes.filter((w) => w.date === date && w.status !== "withdrawn");
   const stateOf = (id: string) => dayAddStateOf(dayWishes.filter((w) => w.cast_id === id));
-  const startOpts = shiftHmOptionsOf(true), endOpts = shiftHmOptionsOf(false);
 
   const toggle = (c: Cast) => {
     if (busy || assigned.has(c.id)) return;
@@ -198,13 +197,9 @@ export default function DayAddPanel({
           {rows.length >= 2 && (
             <div className="nox-crow" style={{ flexWrap: "wrap", gap: 6 }} data-day-add-all="1">
               <span style={{ fontSize: 12, color: "var(--sub)" }}>選んだ {rows.length} 人を同じ時間に</span>
-              <select value={allStart} onChange={(e) => setAllStart(e.target.value)} style={hmSelect} aria-label="まとめて開始">
-                <option value="">開始</option>{startOpts.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-              </select>
+              <TimeInput value={allStart} onChange={setAllStart} step={30} maxHour={23} placeholder="開始" ariaLabel="まとめて開始" width={108} />{/* ★便 M5b M-51 */}
               <span style={{ color: "var(--sub)" }}>〜</span>
-              <select value={allEnd} onChange={(e) => setAllEnd(e.target.value)} style={hmSelect} aria-label="まとめて終了">
-                <option value="">終了</option>{endOpts.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-              </select>
+              <TimeInput value={allEnd} onChange={setAllEnd} step={30} after={allStart || null} placeholder="終了" ariaLabel="まとめて終了" width={116} />
               <button type="button" style={btnLight} disabled={!allStart || !allEnd} onClick={applyAll}>時間をそろえる</button>
             </div>
           )}
@@ -212,13 +207,9 @@ export default function DayAddPanel({
             <div key={r.castId} className="nox-crow" style={{ flexWrap: "wrap" }} data-day-add-row={r.castId}>
               <CastAvatar name={nameOf(r.castId)} url={photoUrls.get(r.castId)} variant="flat" />
               <span style={{ flex: 1, minWidth: 0 }}>{nameOf(r.castId)}</span>
-              <select value={r.start} onChange={(e) => setRow(r.castId, { start: e.target.value })} style={hmSelect} aria-label="開始">
-                {(startOpts.some((o) => o.value === r.start) ? startOpts : [{ value: r.start, label: r.start }, ...startOpts]).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-              </select>
+              <TimeInput value={r.start} onChange={(v) => setRow(r.castId, { start: v })} step={30} maxHour={23} ariaLabel="開始" width={108} />
               <span style={{ color: "var(--sub)" }}>〜</span>
-              <select value={r.end} onChange={(e) => setRow(r.castId, { end: e.target.value })} style={hmSelect} aria-label="終了">
-                {(endOpts.some((o) => o.value === r.end) ? endOpts : [{ value: r.end, label: r.end }, ...endOpts]).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-              </select>
+              <TimeInput value={r.end} onChange={(v) => setRow(r.castId, { end: v })} step={30} after={r.start} ariaLabel="終了" width={116} />
               <button type="button" style={btnLight} title="この行を取り消す" onClick={() => toggle({ id: r.castId, name: nameOf(r.castId) })}>×</button>
               {r.needReason && (/* ★便 M2 M-19: 出勤不可＝「それでも追加」＋理由必須（既存ルール＝shift_set の p_override_reason） */
                 <label style={{ width: "100%", fontSize: 11.5, color: "var(--bad)", display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }} data-day-add-reason={r.castId}>

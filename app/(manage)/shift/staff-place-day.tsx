@@ -5,6 +5,7 @@
 //   左＝スタッフ一覧（その日に ◯ 希望を出している人を上・希望の枠をバッジ・配置済みは印と枠名）／右＝枠と時刻（StaffPlaceForm）→「配置」。
 //   下＝その日の配置済み一覧と「取消」（Danger＝red 枠・過去日は出さない・confirmed は理由入力のモーダル＝裁定265 の型・prompt 不使用）。
 //   ≤899 は .nox-2col の 1 列。RPC は持たない（onPlace／onCancel は親 staff-shift-manage）。成否はモーダル内の Message（裁定281-3）。
+import { hmLabelOf } from "@/lib/nox/time/hhmm"; // ★便 M5b M-51 追補: 日をまたぐ時刻は「翌02:00」
 import { useEffect, useState } from "react";
 import * as t from "@/lib/nox/ui/theme";
 import Modal from "@/components/ui/modal";
@@ -119,7 +120,7 @@ export default function StaffPlaceDayModal({ day, bizToday, patterns, staff, wis
             <div key={s.id} className="nox-crow" style={{ flexWrap: "wrap", padding: "5px 8px", border: "1px solid var(--line)", borderRadius: 8 }}>
               <span style={{ fontWeight: 800 }}>{nameOf(s.staff_id)}</span>
               <span style={{ color: "var(--sub)" }}>{patName(s.pattern_id)}</span>
-              <span className="num">{s.start_hm}〜{fmtEnd30(s.end_hm)}</span>
+              <span className="num">{hmLabelOf(s.start_hm)}〜{fmtEnd30(s.end_hm)}</span>
               <span className={`nox-stpill ${s.status === "confirmed" ? "ok" : ""}`} style={s.status === "proposed" ? { color: "var(--gold2)", borderColor: "var(--gold-bd)" } : undefined}>{ST[s.status] ?? s.status}</span>
               {cancelRpc !== "missing" && canCancel(s, bizToday) && (
                 <button type="button" style={{ ...btnDanger, marginLeft: "auto" }} disabled={busy || cancelRpc !== "ok"}
@@ -140,7 +141,7 @@ export default function StaffPlaceDayModal({ day, bizToday, patterns, staff, wis
             <button type="button" className="nox-formmodal-x" aria-label="閉じる" disabled={busy} onClick={() => { setCancelTarget(null); setCancelReason(""); }}>×</button>
           </div>
           <p style={{ fontSize: 12.5, margin: "0 0 10px" }}>
-            {nameOf(cancelTarget.staff_id)}・{mdDowOf(cancelTarget.biz_date)} {patName(cancelTarget.pattern_id)} {cancelTarget.start_hm}〜{fmtEnd30(cancelTarget.end_hm)}（{ST[cancelTarget.status] ?? cancelTarget.status}）
+            {nameOf(cancelTarget.staff_id)}・{mdDowOf(cancelTarget.biz_date)} {patName(cancelTarget.pattern_id)} {hmLabelOf(cancelTarget.start_hm)}〜{fmtEnd30(cancelTarget.end_hm)}（{ST[cancelTarget.status] ?? cancelTarget.status}）
           </p>
           {cancelNeedsReason(cancelTarget) ? (
             <>

@@ -12,6 +12,7 @@
 //     他画面（shift-board / notices-board）と同じ列・同じ RLS を通る読取。
 //   ★予想人件費（段S-2）はホームには出さない（モックにも無い＝店長は /shift で見る）。
 //   ★cast ロールは page.tsx が /mine へ戻すため本ボードに到達しない（対象外）。
+import { hmLabelOf } from "@/lib/nox/time/hhmm"; // ★便 M5b M-51 追補: 日をまたぐ時刻は「翌02:00」
 import { NavIcon } from "@/components/ui/nav-icons"; // ★306-16
 import { useCallback, useEffect, useState } from "react";
 import { useLiveReload } from "@/lib/nox/ui/use-live-reload"; // ★便 GV-C C-12: focus／visibility／60 秒で再読込
@@ -327,7 +328,7 @@ export default function DashboardBoard({ storeId, storeName, cutoff, casts, shor
                 {castName(a.cast_id)}
                 <span className="tm num">
                   {s ? fmtWin(s.start_hm, s.end_hm) : ATT_LABEL[a.status] ?? a.status}
-                  {a.eta ? `・見込み ${a.eta}` : ""}
+                  {a.eta ? `・見込み ${hmLabelOf(a.eta)}` : ""}
                 </span>
               </span>
             );

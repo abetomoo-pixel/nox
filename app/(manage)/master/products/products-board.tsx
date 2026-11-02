@@ -6,6 +6,7 @@
 //   カテゴリ管理と在庫の入出庫はレーン③まで master-board.tsx に残る（ここには無い）。
 // ★初期値は page.tsx（server）が取得して props で渡す。保存後の再取得だけ client から
 //   同じ queries.ts の関数を呼ぶ＝取得内容は移設前の load() と同一。
+import { UnitBox } from "@/components/ui/unit-input"; // ★便 M5b M-50
 import { useEffect, useMemo, useState } from "react";
 import SegSelect from "@/components/ui/seg-select";
 import { createClient } from "@/lib/supabase/client";
@@ -764,9 +765,9 @@ export default function ProductsBoard({ storeId, isManagerUp, initial, settings 
               {pBackMode === "rate" ? (
                 <>
                 <div className="nox-field">
-                  <span className="lab">バック率（%）</span>
-                  <input type="number" inputMode="numeric" min={0} value={pBackValue}
-                    onChange={(e) => setPBackValue(Number(e.target.value))} style={inputLg} />
+                  <span className="lab">バック率</span>
+                  <UnitBox post="%" width="100%"><input type="number" inputMode="numeric" min={0} value={pBackValue}
+                    onChange={(e) => setPBackValue(Number(e.target.value))} style={inputLg} /></UnitBox>
                 </div>
                 {mig0191On() && (/* ★0191 ★2: 場内指名／フリーのときの率を個別に（空欄＝店の割合 kind_back_rate で算出・本指名は上の率） */
                   <div className="nox-field" data-back-by-kind="0191">

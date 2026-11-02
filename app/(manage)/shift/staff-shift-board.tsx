@@ -6,6 +6,7 @@
 //   締切＝staff_shift_deadline_at は内部専用のため client で deadlines 表から同式で算出
 //   （対象営業日 − days_before の deadline_hm・JST・行なし＝3 日前 21:00）。
 //   面 c（manager）は staff-shift-manage.tsx＝本ファイルはデータ読込と本人カレンダーを持ち、manager 以上には面 c を差す。
+import { hmLabelOf } from "@/lib/nox/time/hhmm"; // ★便 M5b M-51 追補: 日をまたぐ時刻は「翌02:00」
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
@@ -147,7 +148,7 @@ export default function StaffShiftBoard({ storeId, role, cutoff }: { storeId: st
                     const mark = w ? (w.available ? "◯" : "×") : "—";
                     return (
                       <button key={p.id} type="button" disabled={isLocked || busy}
-                        title={`${p.name} ${p.start_hm}〜${fmtEnd30(p.end_hm)}${isLocked ? "（締切後）" : "（タップで ◯／× 切替）"}`}
+                        title={`${p.name} ${hmLabelOf(p.start_hm)}〜${fmtEnd30(p.end_hm)}${isLocked ? "（締切後）" : "（タップで ◯／× 切替）"}`}
                         onClick={(e) => { e.stopPropagation(); setSelDay(day); void tap(day, p); }}
                         style={{
                           display: "flex", justifyContent: "space-between", alignItems: "center", gap: 4, width: "100%",

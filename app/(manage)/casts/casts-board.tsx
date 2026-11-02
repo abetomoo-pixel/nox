@@ -3,6 +3,9 @@
 // キャスト管理ボード（F3d 体入採用 UI・モック「体入・採用管理」＋「新規キャスト登録」準拠）。
 // 操作は全て RPC 経由＝trial_register/trial_update/trial_hire/trial_reject／cast_create。
 // 真の防御は trials RLS（owner/manager 限定）＋各 RPC ゲート（UI は操作面）。
+import { LoadMoreBar, useLoadMore } from "@/components/ui/load-more"; // ★便 M5b M-60
+import AddButton from "@/components/ui/add-button"; // ★便 M5b M-55
+import { hmLabelOf } from "@/lib/nox/time/hhmm"; // ★便 M5b M-51 追補: 日をまたぐ時刻は「翌02:00」
 import { useCallback, useEffect, useState } from "react";
 import { useLiveReload } from "@/lib/nox/ui/use-live-reload"; // ★便 GV-C C-12: focus／visibility／60 秒で再読込
 import PageHead from "@/components/ui/page-head";
@@ -731,6 +734,7 @@ export default function CastsBoard({
       : sortKey === "rate" ? normRateOf(normAxesOfCast(b)) - normRateOf(normAxesOfCast(a)) || a.name.localeCompare(b.name, "ja")
       : a.name.localeCompare(b.name, "ja")); // ★裁定374: 並び替え＝名前・時給・達成率 // ★裁定353: 今日出勤＝確定シフトあり／出勤中／退勤
   const shownTrials = trials.filter((tr) => hit(tr.name));
+  const pageCasts = useLoadMore(shownCasts, 24, `${filter}|${q}|${rankFilter}|${planFilter}|${sortKey}`); // ★便 M5b M-60: キャストのカードは 24 枚ずつ・絞り込みは全件に掛けてから・条件が変われば最初の 24 枚に戻す
   const storeName = (id: string) => stores.find((s) => s.id === id)?.name ?? "—";
   const nomTotal = (id: string) => { const r = rankOf[id]; return r ? r.hon + r.jonai + r.dohan : 0; };
   // E8-5 casts#1: KPI 4枚（在籍/体入/未招待/今月出勤者）＝既存 state の再形のみ
@@ -761,8 +765,8 @@ export default function CastsBoard({
       <Toast msg={msg} />
       <ContactChangesPanel canConfirm={isOwner || !!myStoreId} />{/* ★便 ON-3（0176 ★4）: 連絡先の変更（未確認）＝0 件なら出ない */}
 
-      {/* E8-5 casts#1（T1）: KPI 帯4枚＝既存 state の再形のみ（新規取得ゼロ） */}
-      <div className="nox-repsum">
+      {/* E8-5 casts#1（T1）: KPI 帯4枚＝既存 state の再形のみ（新規取得ゼロ）→ ★便 M5b M-56: 5 枚＝1 段（five）・狭い幅は 3＋2 にきれいに折り返す */}
+      <div className="nox-repsum five">
         <div className="nox-rs"><div className="l">在籍</div><div className="v num">{kpiActive}名</div></div>
         <div className="nox-rs"><div className="l">体入中</div><div className="v num">{trials.length + loginCasts.filter(isTrialCast).length}名</div></div>{/* ★GV-C C-14f: 在籍区分 体入を足す */}
         <div className="nox-rs"><div className="l">未招待</div><div className="v num">{kpiUninvited}名</div></div>
@@ -813,10 +817,8 @@ export default function CastsBoard({
               onClick={() => { setFilter(k); setSel(null); }}>{label}</button>
           ))}
         </div>
-        <button style={{ ...btnGold, marginLeft: "auto" }} onClick={() => setShowAdd((v) => !v)}>
-          ＋ {filter === "trial" ? "体入を追加" : "キャスト登録"}
-        </button>
       </div>
+      <AddButton testId="cast-add" onClick={() => setShowAdd((v) => !v)}>＋ {filter === "trial" ? "体入を追加" : "キャスト登録"}</AddButton>{/* ★便 M5b M-55: 一覧の上・中央・主ボタン（大） */}
       {/* ★裁定374（GV-B W-4）: 絞り込みチップ＝待遇プラン／ノルマ（達成・進行中・未達）／時給の段・並び替え＝名前・時給・達成率（既存 state の再形＋当月の実績 1 本） */}
       {filter !== "trial" && (
         <div className="nox-ctoolbar" data-w4-filters="1" style={{ gap: 8, flexWrap: "wrap", margin: "0 0 10px" }}>
@@ -950,7 +952,7 @@ export default function CastsBoard({
               {filter === "trial" ? "体入中のキャストはいません。" : filter === "active" ? "在籍キャストがいません。" : filter === "today" ? "今日の出勤（確定シフト・出勤中・退勤）はいません。" : "退店済みのキャストはいません。"}
             </p>
           )}
-          {shownCasts.map((c) => (
+          {pageCasts.shown.map((c) => (
             <button key={c.id} className={`nox-ccard ${sel?.kind === "cast" && sel.id === c.id ? "sel" : ""}`}
               onClick={() => { setSel({ kind: "cast", id: c.id }); setDtab("basic"); }}>
               {!c.is_active && <span className="nox-ctag off">{c.left_on ? `退店 ${c.left_on}` : "退店"}</span>}
@@ -999,6 +1001,7 @@ export default function CastsBoard({
           ))}
         </div>
       )}
+      <LoadMoreBar {...pageCasts} unit="名" testId="casts" />{/* ★便 M5b M-60 */}
 
       {/* ── 詳細（カード選択で開く）＝現行の編集・招待・PW再発行・体入採否を3タブへ再配置 ──
           ★裁定253 R4（2026-09-14）: インラインの section をやめ共通 Modal へ（タブ構成・中身・RPC は不変＝器のみ・広め 640）。
@@ -1144,7 +1147,7 @@ export default function CastsBoard({
                 <span className="k">次回シフト</span>
                 <span className="v">
                   {nextShift
-                    ? `${nextShift.date} ${nextShift.start_hm}〜${nextShift.end_hm}（${nextShift.status === "confirmed" ? "確定" : "予定"}）`
+                    ? `${nextShift.date} ${hmLabelOf(nextShift.start_hm)}〜${hmLabelOf(nextShift.end_hm)}（${nextShift.status === "confirmed" ? "確定" : "予定"}）`
                     : "予定なし"}
                 </span>
               </div>

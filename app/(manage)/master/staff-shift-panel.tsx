@@ -7,6 +7,9 @@
 //   枠の時刻は既存 shifts と同じ 30 時間制（HH:MM・end ≤ 47:59）＝business-hours-panel と同じ「time 入力＋翌日」で受け送信時に変換。
 //   一覧＝現在有効行（同名の effective_from ≤ 営業日 の最大）＋予約行（effective_from > 営業日）・過去行は折りたたみ。
 //   削除は未来行のみボタン表示（RPC 側も effective_from_not_future／pattern_in_use で二重）。
+import { hmLabelOf } from "@/lib/nox/time/hhmm"; // ★便 M5b M-51 追補: 日をまたぐ時刻は「翌02:00」
+import TimeInput from "@/components/ui/time-input"; // ★便 M5b M-51: 時刻欄の共通部品（時計アイコン・時と分を選ぶ・翌の表示）
+import { UnitBox } from "@/components/ui/unit-input"; // ★便 M5b M-50
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
@@ -178,7 +181,7 @@ export default function StaffShiftPanel({ stores }: { stores: Store[] }) {
     return (
     <tr key={p.id} style={muted ? { opacity: 0.6 } : undefined}>
       <td style={{ fontWeight: 800 }}>{p.name}</td>
-      <td className="num">{p.start_hm}〜{fmtEnd30(p.end_hm)}</td>
+      <td className="num">{hmLabelOf(p.start_hm)}〜{fmtEnd30(p.end_hm)}</td>
       <td className="num">{p.effective_from}</td>
       <td>
         <span className={`nox-stpill ${kind === "current" && ds.state === "active" ? "ok" : ""}`}
@@ -242,9 +245,9 @@ export default function StaffShiftPanel({ stores }: { stores: Store[] }) {
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 8 }}>
           <input value={fName} onChange={(e) => setFName(e.target.value)} placeholder="名前（早番 など）" style={{ ...input, width: 140 }} />
           <span style={t.fieldLabel}>開始</span>
-          <input type="time" value={fStart} onChange={(e) => { setFStart(e.target.value); setFNext(nextOf30h(e.target.value, fEnd)); }} style={{ ...input, maxWidth: 108 }} />
+          <TimeInput value={fStart} onChange={(v) => { setFStart(v); setFNext(nextOf30h(v, fEnd)); }} maxHour={23} width={112} />
           <span style={t.fieldLabel}>終了</span>
-          <input type="time" value={fEnd} onChange={(e) => { setFEnd(e.target.value); setFNext(nextOf30h(fStart, e.target.value)); }} style={{ ...input, maxWidth: 108 }} />
+          <TimeInput value={fEnd} onChange={(v) => { setFEnd(v); setFNext(nextOf30h(fStart, v)); }} maxHour={23} width={112} />
           {/* ★便 X2-3（2026-09-24）: 「翌日」は終了≦開始で自動オン（18:00→23:00 と入れると外れる＝47:00＝翌23:00 の枠を誤って作らない）。手で切り替えも可 */}
           <label style={{ fontSize: 12.5, display: "flex", gap: 4, alignItems: "center", cursor: "pointer" }} title="終了が開始より前の時刻なら自動でオン">
             <input type="checkbox" checked={fNext} onChange={(e) => setFNext(e.target.checked)} />翌日
@@ -264,9 +267,8 @@ export default function StaffShiftPanel({ stores }: { stores: Store[] }) {
         </p>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <span style={t.fieldLabel}>対象営業日の</span>
-          <input type="number" min={0} max={60} value={dDays} onChange={(e) => setDDays(Number.parseInt(e.target.value || "0", 10))} style={{ ...input, width: 64 }} />
-          <span style={t.fieldLabel}>日前</span>
-          <input type="time" value={dHm} onChange={(e) => setDHm(e.target.value)} style={{ ...input, maxWidth: 108 }} />
+          <UnitBox post="日前"><input type="number" min={0} max={60} value={dDays} onChange={(e) => setDDays(Number.parseInt(e.target.value || "0", 10))} style={{ ...input, width: 56 }} /></UnitBox>{/* ★便 M5b M-50 */}
+          <TimeInput value={dHm} onChange={(v) => setDHm(v)} maxHour={23} width={112} />
           <span style={t.fieldLabel}>◯日から</span>
           <input type="date" value={dFrom} min={bizToday} onChange={(e) => setDFrom(e.target.value)} style={input} />
           <button style={btnDark} disabled={busy} onClick={() => void addDeadline()}>設定</button>

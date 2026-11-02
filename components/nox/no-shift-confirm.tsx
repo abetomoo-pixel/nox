@@ -2,12 +2,12 @@
 
 // ★便 M-14 ②（2026-10-26・Agoora）: 勤怠の「シフト無し出勤」の行から「シフトとして確定」＝採用・確定のシフトを作る（shift_set＝当日追加配置と同じ RPC・過去日も可）→時給分が付く。
 //   既定の時間＝打刻の出〜退（addShiftSpanOf＝0-23 域に丸め）・店の枠（その曜日の営業時間）から選び直し可・手入力も可。確定済みの月は呼び出し側が出さない。
+import TimeInput from "@/components/ui/time-input"; // ★便 M5b M-51: 時刻欄の共通部品（時計アイコン・時と分を選ぶ・翌の表示）
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import Modal from "@/components/ui/modal";
 import { Message } from "@/components/ui/toast";
-import HmInput from "@/components/ui/hm-input";
 import { hmRangeErrorOf, normalizeHHMM } from "@/lib/nox/time/hhmm";
 import { hm47Ja, noShiftSpanOptionsOf, type AttendanceDayRow } from "@/lib/nox/payroll/attendance-sheet";
 import type { BusinessHourRow } from "@/lib/nox/business-hours";
@@ -53,8 +53,8 @@ export default function NoShiftConfirm({ castId, castName, row, bhRows, onClose,
           ))}
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
-          <label style={t.fieldLabel}>開始<HmInput value={start} onChange={setStart} style={t.input} ariaLabel="開始" /></label>
-          <label style={t.fieldLabel}>終了<HmInput value={end} onChange={setEnd} style={t.input} ariaLabel="終了" /></label>
+          <label style={t.fieldLabel}>開始<TimeInput value={start} onChange={setStart} style={t.input} ariaLabel="開始" /></label>
+          <label style={t.fieldLabel}>終了<TimeInput value={end} onChange={setEnd} style={t.input} ariaLabel="終了" /></label>
         </div>
         {err && <div style={{ marginBottom: 8 }}><Message kind="error">{err}</Message></div>}
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
