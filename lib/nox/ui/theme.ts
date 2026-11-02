@@ -8,6 +8,7 @@
 // 移行状況（D-1 実態収束 2026-07-17 時点）: card/input/btn 等の差し替えは完了済み（`const card = t.card` 委譲が 15 ファイル）。
 //   .nox-dark も (manage)/mine/login/kiosk の 4 シェルに適用済み＝ライトのまま残るのは app/page.tsx（F0 プレースホルダ）のみ。
 //   残る重複は画面側のリテラル（secTitle ×35・overlay/modalCard ×4）＝D-2 で本モジュールへ寄せる。
+import { mig0193On } from "@/lib/nox/rules-0175/flag"; // ★0193
 import type { CSSProperties } from "react";
 
 // ★E3（2026-08-17）: `colors` オブジェクト（raw hex 13色）を**削除**した。
@@ -57,7 +58,7 @@ export function avatarBg(name: string): string {
 
 // ロール表示ラベル（server/client 両用の純関数＝ここは "use client" なし）。
 export function roleLabelJa(role: string): string {
-  return role === "owner" ? "オーナー" : role === "manager" ? "店長" : role === "staff" ? "スタッフ" : role === "cast" ? "キャスト" : role;
+  return role === "owner" ? (mig0193On() ? "管理者" : "オーナー") : role === "manager" ? "店長" : role === "staff" ? "スタッフ" : role === "cast" ? "キャスト" : role; // ★0193: 表示だけ owner＝管理者
 }
 
 // ── canvas（アプリ背景・ログイン背景。.nox-dark と同要素に置くと var(--bg) が解決）─────────

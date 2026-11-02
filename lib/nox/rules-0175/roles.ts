@@ -1,3 +1,4 @@
+import { mig0193On } from "./flag"; // ★0193
 // ★追補 3 R-8 役割「管理者」（裁定425 候補・0175 v2 ★28・2026-10-23）: 純関数（DB を知らない）。
 //   序列＝owner → admin → manager → staff → cast。管理者＝オーナーと同じ権限で、次の 4 つだけオーナー限定＝
 //   ①店舗の解約／削除 ②オーナーの変更（移譲） ③NOX の契約と請求（Stripe・プラン・規約の同意） ④管理者の任命と解除。
@@ -9,7 +10,9 @@ export type Role0175 = (typeof ROLE_ORDER)[number];
 
 export const ROLE_LABEL_0175: Record<string, string> = { owner: "オーナー", admin: "管理者", manager: "店長", staff: "スタッフ", cast: "キャスト" };
 /** 表示名（admin＝「管理者」・他は従来と同じ語） */
-export const roleLabelOf = (role: string | null | undefined): string => (role ? ROLE_LABEL_0175[role] ?? role : "");
+/** ★0193（Agoora 11/02）: 表示だけ owner＝「管理者」（内部の値は owner のまま）・既存の admin（本番 0 行）は「管理者（請求なし）」。肩書があれば肩書を出す */
+export const ROLE_LABEL_0193: Record<string, string> = { owner: "管理者", admin: "管理者（請求なし）", manager: "店長", staff: "スタッフ", cast: "キャスト" };
+export const roleLabelOf = (role: string | null | undefined, title?: string | null): string => (title && title.trim() ? title.trim() : role ? (mig0193On() ? ROLE_LABEL_0193 : ROLE_LABEL_0175)[role] ?? role : "");
 
 /** 序列（小さいほど上位・未知は末尾） */
 export const roleRankOf = (role: string): number => { const i = (ROLE_ORDER as readonly string[]).indexOf(role); return i < 0 ? ROLE_ORDER.length : i; };

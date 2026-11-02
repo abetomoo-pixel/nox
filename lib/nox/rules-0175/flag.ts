@@ -73,3 +73,9 @@ export const MIG_0192_APPLIED = true; // ★2026-11-02: 0192（sha16 241f742c847
 let override0192: boolean | null = null;
 export function mig0192On(): boolean { return override0192 ?? MIG_0192_APPLIED; }
 export function __set0192ForTest(v: boolean | null): void { override0192 = v; }
+
+/** ★0193（2026-11-02 夜の自走便＝下書き・未手貼り）: 役割の見直し（表示＝管理者／店長／スタッフ・肩書・役割の変更と最後の管理者の柵）・個人情報の権限（店長＝自店の本名・住所・電話・口座・マイナンバーは末尾 4 桁）・店長に開く操作（プリンタ・端末の停止／再開／固定の解除・勤怠の確定の解除）。false の間は client は従来。手貼り＋verify 一致で true。 */
+export const MIG_0193_APPLIED = false;
+let override0193: boolean | null = null;
+export function mig0193On(): boolean { return override0193 ?? MIG_0193_APPLIED; }
+export function __set0193ForTest(v: boolean | null): void { override0193 = v; }

@@ -4,6 +4,8 @@
 // 操作は全て RPC 経由＝トグル set_staff_perms（束3-1）・編集 staff_update_profile/transfer_store/change_role・
 // 在籍解除/再雇用 staff_deactivate/reactivate（Q-1）・追加 POST /api/staff/create（Q-2）。
 // UI の出し分け（owner/manager・自店・自分の行）は利便のための表示制御＝真の防御は RPC ゲート（二重に守る）。
+import Staff0193 from "@/components/nox/staff-0193";
+import { mig0193On } from "@/lib/nox/rules-0175/flag"; // ★0193
 import { LoadMoreBar, useLoadMore } from "@/components/ui/load-more"; // ★便 M5b M-60
 import AddButton from "@/components/ui/add-button"; // ★便 M5b M-55
 import { useCallback, useEffect, useState } from "react";
@@ -495,6 +497,7 @@ export default function StaffBoard({
               }}>異動を実行</button>
             </div>
           )}
+          {mig0193On() && <Staff0193 sel={sel} isOwner={isOwner} roleRaw={roleRaw} onChanged={() => void load()} />}{/* ★0193: 肩書・役割の変更・個人情報 */}
           <div className="nox-formmodal-foot">
             {/* ★裁定244: Danger 左端（在籍を解除）・補助（役職変更）・実行 右端（再雇用）。★裁定253 R5: 閉じるは × へ集約・脚は .nox-formmodal-foot（中央） */}
             {sel.is_active && !isSelf(sel) && (
