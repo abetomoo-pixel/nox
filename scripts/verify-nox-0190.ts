@@ -22,7 +22,7 @@ let ok = 0; const fails: string[] = [];
 const expect = (label: string, cond: boolean, detail?: unknown) => { if (cond) ok++; else fails.push(`${label}${detail !== undefined ? `: ${JSON.stringify(detail)}` : ""}`); };
 const ENTRY = ["kiosk_login", "kiosk_unlock", "kiosk_qr_secret", "kiosk_qr_poll", "cast_leave", "staff_deactivate"];
 const NEW_FNS = ["duty_gate_of", "on_duty_of", "assert_on_duty", "kiosk_device_bind", "kiosk_device_unbind", "kiosk_reactivate", "kiosk_delete"];
-const FN_PIN = 394; // ★0191（2026-10-30 適用）: 393→394（setup_draft_set）← ★0190: 386→393
+const FN_PIN = 403; // ★0192（2026-11-02 適用）: 394→403（新設 9）← ★0191（2026-10-30 適用）: 393→394（setup_draft_set）← ★0190: 386→393
 const FN_COUNT_SQL = `select count(*)::int n from pg_proc where pronamespace='public'::regnamespace`;
 
 async function main() {
@@ -150,12 +150,12 @@ async function main() {
       expect("⑥ RLS kiosk 腕＝端末ユーザー（解除中）は自店の seats／stores を読める・他店は 0", r1.ok && (r1.rows[0] as { n: number }).n > 0 && r2.ok && (r2.rows[0] as { n: number }).n === 1 && r3.ok && (r3.rows[0] as { n: number }).n === 0, { kioskRead });
     } else expect("⑥ RLS kiosk 腕（レジ端末の発行に失敗＝読取の実測なし）", false, { kprov: tx.errOf(kprov) });
     // ⑦ 上限 3＝有効な既存（n0）を数えて 3−n0 台だけ発行→次の 1 台が 'device limit'
-    const n0 = (await tx.one<{ n: number }>(`select count(*)::int n from public.kiosk_devices where store_id = $1 and purpose = 'punch' and is_active`, [A1.id]))!.n;
+    const n0 = (await tx.one<{ n: number }>(`select count(*)::int n from public.kiosk_devices where store_id = $1 and is_active /* ★0192 M-47: 用途を数えない＝店ごと 3 台 */`, [A1.id]))!.n;
     const kps: CallResult[] = [];
     for (let i = 1; i <= 3 - n0; i++) kps.push(await tx.as(owner, `select public.kiosk_provision(gen_random_uuid(), $1::uuid, $2, 'punch') r`, [A1.id, `t0190-${i}`]));
     const kpOver = await tx.as(owner, `select public.kiosk_provision(gen_random_uuid(), $1::uuid, 't0190-over', 'punch') r`, [A1.id]);
-    const punchN = (await tx.one<{ n: number }>(`select count(*)::int n from public.kiosk_devices where store_id = $1 and purpose = 'punch' and is_active`, [A1.id]))!.n;
-    expect(`⑦ M-29 上限＝打刻端末を 3 台まで（既存 ${n0} 台＋発行 ${3 - n0} 台＝3・次の 1 台は 'device limit'・無効は数えない）`, n0 <= 3 && kps.every((k) => k.ok) && punchN === 3 && !kpOver.ok && /device limit/.test(tx.errOf(kpOver)), { n0, kps: kps.map((k) => tx.errOf(k)), kpOver: tx.errOf(kpOver), punchN });
+    const punchN = (await tx.one<{ n: number }>(`select count(*)::int n from public.kiosk_devices where store_id = $1 and is_active /* ★0192 M-47: 用途を数えない＝店ごと 3 台 */`, [A1.id]))!.n;
+    expect(`⑦ M-29 上限＝★0192 M-47 から店ごとに 3 台（用途を数えない・既存 ${n0} 台＋発行 ${3 - n0} 台＝3・次の 1 台は 'device limit'・無効は数えない）`, n0 <= 3 && kps.every((k) => k.ok) && punchN === 3 && !kpOver.ok && /device limit/.test(tx.errOf(kpOver)), { n0, kps: kps.map((k) => tx.errOf(k)), kpOver: tx.errOf(kpOver), punchN });
     const kd1 = kps.length && kps[0].ok ? (kps[0].rows[0] as { r: string }).r : null;
     const de = kd1 ? await tx.as(owner, `select public.kiosk_deactivate($1::uuid)`, [kd1]) : { ok: false, err: "no device（n0=3＝残留端末あり・発行 0 台）" } as const;
     const kp5 = await tx.as(owner, `select public.kiosk_provision(gen_random_uuid(), $1::uuid, 't0190-5', 'punch') r`, [A1.id]);
@@ -181,7 +181,7 @@ async function main() {
     expect("ROLLBACK＝kiosk_devices に t0190-*／NOX-VERIFY-0190 の残留 0", (left.rows[0] as { n: number }).n === 0, left.rows[0]);
     await c.end().catch(() => undefined);
   }
-  expect(`教訓128: 関数数は前後で不変（${FN_PIN}＝0191 後）`, fnBefore === fnAfter && fnBefore === FN_PIN, { fnBefore, fnAfter });
+  expect(`教訓128: 関数数は前後で不変（${FN_PIN}＝0192 後）`, fnBefore === fnAfter && fnBefore === FN_PIN, { fnBefore, fnAfter });
   console.log(JSON.stringify(out));
   if (fails.length) { console.error(`verify:nox-0190 FAIL ${fails.length}（pass ${ok}）`); for (const f of fails) console.error(" - " + f.slice(0, 1500)); process.exit(1); }
   console.log(`verify:nox-0190 ALL PASS (${ok} assertions)`);

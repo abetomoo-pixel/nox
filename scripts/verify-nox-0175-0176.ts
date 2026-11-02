@@ -93,6 +93,9 @@ const ISO_PERIOD = "2033-02"; // (4) の隔離 period（他 suite と重なら�
   const mig177 = fs.readFileSync(MIG_0177, "utf8").replace(/\r/g, "");
   const draftMd5 = new Map<string, string>();
   for (const m of mig177.matchAll(/CREATE OR REPLACE FUNCTION public\.([a-z_]+)\([\s\S]*?AS \$function\$([\s\S]*?)\$function\$;/g)) draftMd5.set(m[1], crypto.createHash("md5").update(m[2]).digest("hex").slice(0, 8));
+  // ★0192（2026-11-02 手貼り）: kiosk_transport_issue は 0192 が作り直した（M-47 用途の廃止）＝その 1 本は 0192 の本文と照合（★0177 の語は本文に残る）
+  const mig192 = fs.readFileSync("supabase/migrations/0192_m5_db.sql", "utf8").replace(/\r/g, "");
+  for (const m of mig192.matchAll(/CREATE OR REPLACE FUNCTION public\.([a-z_]+)\([\s\S]*?AS \$function\$([\s\S]*?)\$function\$;/g)) if (draftMd5.has(m[1])) draftMd5.set(m[1], crypto.createHash("md5").update(m[2]).digest("hex").slice(0, 8));
   const live177 = await q<{ proname: string; md5: string; star: boolean }>(`select proname, left(md5(replace(prosrc, E'\\r', '')), 8) md5, prosrc like '%★0177%' star from pg_proc where pronamespace='public'::regnamespace and proname in ('set_store_okuri_mode','okuri_default_of','transport_issue','transport_issue_bulk','transport_issue_self','kiosk_transport_issue') order by 1`);
   check("v177(3-2) 6 本の md5＝収蔵した 0177（supabase/migrations）と一致・★0177 の語あり", live177.length === 6 && draftMd5.size === 6 && live177.every((r) => r.star && draftMd5.get(r.proname) === r.md5), JSON.stringify({ live: live177, draft: [...draftMd5] }));
   const acl177 = await q<{ proname: string; acl: string }>(`select proname, coalesce(proacl::text,'') acl from pg_proc where pronamespace='public'::regnamespace and proname in ('set_store_okuri_mode','okuri_default_of','transport_issue','transport_issue_bulk','transport_issue_self','kiosk_transport_issue') order by 1`);

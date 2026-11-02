@@ -1,6 +1,6 @@
 /*
  * verify:nox-0192c — 0192（便 M5 の DB 側＋公開デモ cron の監査・2026-11-02 起草＝手貼り待ち）の client を MIG_0192_APPLIED の配下で先に入れた分の純関数と配線。
- *  (1) フラグ＝MIG_0192_APPLIED=false（手貼り後に true＝フラグ便）・mig0192On は override 可
+ *  (1) フラグ＝MIG_0192_APPLIED=true（2026-11-02 手貼り＝フラグ便）・mig0192On は override 可
  *  (2) ★1 スタッフ勤怠＝staffHmToIso（0〜47 域・翌暦日・形の不正は null）・staffDayRowsOf の区分（遅刻／当欠／早退・当欠は打刻が無くても行）
  *  (3) 配線＝★1／M-38 staff-work-panel・M-38 attendance-board・M-39 kiosk-pin-panel・M-49 store-profile-panel・M-34 availability-editor・★9 cron route＝どれも mig0192On() の配下
  *  (4) ★9 cron route＝demo_reset_mark_failed（service_role 専用 RPC）・audit_log_write_service を直に呼ばない・1 店でも失敗は HTTP 500
@@ -15,7 +15,7 @@ const check = (label: string, ok: boolean, detail?: unknown) => { if (ok) pass++
 const src = (p: string) => fs.readFileSync(p, "utf8");
 
 // ── (1) フラグ ──
-check("0192c(1-1) MIG_0192_APPLIED=false（手貼り前）・mig0192On は既定で false", MIG_0192_APPLIED === false && mig0192On() === false);
+check("0192c(1-1) MIG_0192_APPLIED=true（2026-11-02 手貼り・verify 全行一致）・mig0192On は既定で true", MIG_0192_APPLIED === true && mig0192On() === true);
 __set0192ForTest(true); const on = mig0192On(); __set0192ForTest(null);
 check("0192c(1-2) override で true・解除で既定に戻る", on === true && mig0192On() === MIG_0192_APPLIED);
 
