@@ -22,7 +22,7 @@ export function kioskIdleSecOf(settings: Record<string, unknown> | null | undefi
 }
 /** 上部バーの文言「操作中: 林（スタッフ）・残り 2:40」 */
 export function operatorBarTextOf(name: string, role: string, remainSec: number): string {
-  const r = role === "owner" ? "オーナー" : role === "manager" ? "店長" : role === "cast" ? "キャスト" : "スタッフ";
+  const r = role === "owner" ? "管理者" : role === "manager" ? "店長" : role === "cast" ? "キャスト" : "スタッフ";
   const m = Math.floor(Math.max(0, remainSec) / 60), s = Math.max(0, remainSec) % 60;
   return `操作中: ${name}（${r}）・残り ${m}:${String(s).padStart(2, "0")}`;
 }

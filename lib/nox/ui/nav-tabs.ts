@@ -27,7 +27,7 @@ export const NAV_DESC: Record<string, string> = {
   "/receipts": "領収書の発行台帳",
   "/notices": "店からのお知らせ",
   "/master": "商品・料金・制度などの設定",
-  "/audit": "操作の記録（オーナー）",
+  "/audit": "操作の記録（管理者）",
   "/billing": "ご契約とお支払い",
 };
 

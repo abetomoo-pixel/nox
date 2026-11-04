@@ -103,7 +103,7 @@ export default function SystemsBoard({ storeId, storeName, isOwner, initialSetti
             ) : (
               <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
                 <b style={{ color: on ? "var(--ok)" : "var(--sub)" }}>{on ? "ON" : "OFF"}</b>
-                {isOwner ? null : <span className="nox-stpill">オーナーのみ変更できます</span>}
+                {isOwner ? null : <span className="nox-stpill">管理者のみ変更できます</span>}
               </span>
             )}
           </div>

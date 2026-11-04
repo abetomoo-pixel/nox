@@ -51,7 +51,7 @@ export function staffShiftErrJa(msg: string | undefined): string {
   if (msg.includes("staff_shift_patterns_uq") || msg.includes("duplicate key")) return "同じ名前・同じ適用日の枠がすでにあります";
   if (msg.includes("staff_shift_patterns_hm_order") || msg.includes("staff_shifts_hm_order")) return "終了は開始より後にしてください（日跨ぎは「翌日」をオン）";
   if (msg.includes("invalid_input")) return "入力が不正です";
-  if (msg.includes("forbidden")) return "権限がありません（オーナー／店長のみ）";
+  if (msg.includes("forbidden")) return "権限がありません（管理者／店長のみ）";
   if (msg.includes("unauthenticated")) return "ログインし直してください";
   return msg;
 }

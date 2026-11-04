@@ -80,7 +80,7 @@ function rpcErrJa(msg: string | undefined): string {
   if (msg.includes("bad decision")) return "決裁の種別が正しくありません";
   if (msg.includes("bad reason")) return "理由は 200 字以内で入力してください";
   if (msg.includes("billing locked")) return "ご契約の状態により、この操作は現在できません";
-  if (msg.includes("forbidden")) return "権限がありません（承認・却下はオーナー・店長・顧客権限のあるスタッフ）";
+  if (msg.includes("forbidden")) return "権限がありません（承認・却下は管理者・店長・顧客権限のあるスタッフ）";
   return msg;
 }
 

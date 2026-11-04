@@ -26,13 +26,13 @@ export const isOwnerRawOf = (raw: string | null | undefined): boolean => raw ===
 /** オーナー限定 4 つ（表示の注記と suite の列挙） */
 export const OWNER_ONLY = [
   { key: "cancel", label: "店舗の解約・削除", where: "Stripe ポータル（ご契約）＝RPC なし" },
-  { key: "transfer", label: "オーナーの変更（移譲）", where: "owner_transfer" },
+  { key: "transfer", label: "管理者の変更（移譲）", where: "owner_transfer" },
   { key: "billing", label: "NOX の契約と請求", where: "/billing・api/billing・org_billing RLS・terms_accept" },
   { key: "admin", label: "管理者の任命と解除", where: "set_membership_role" },
 ] as const;
 
 /** 管理者が見るオーナー限定の注記（オーナー本人には出さない） */
-export const ownerOnlyNoteOf = (raw: string | null | undefined): string | null => (raw === "admin" ? "オーナーのみ" : null);
+export const ownerOnlyNoteOf = (raw: string | null | undefined): string | null => (raw === "admin" ? "管理者のみ" : null);
 
 /** スタッフ画面の一覧に出す役割（フラグ true で admin を含む） */
 export const staffListRolesOf = (on: boolean): string[] => (on ? ["staff", "manager", "admin"] : ["staff", "manager"]);
@@ -55,10 +55,10 @@ export const rolePillKindOf = (role: string): "admin" | "manager" | "plain" => (
 /** RPC の例外→日本語（set_membership_role／owner_transfer） */
 export function roleRpcErrJaOf(msg: string): string {
   if (/\bself\b/.test(msg)) return "自分の役割は変えられません";
-  if (/bad target/.test(msg)) return "この方の役割は変えられません（オーナーの変更は「移譲」・キャストはキャスト管理）";
+  if (/bad target/.test(msg)) return "この方の役割は変えられません（管理者の変更は「移譲」・キャストはキャスト管理）";
   if (/bad role/.test(msg)) return "役割の指定が正しくありません";
   if (/no change/.test(msg)) return "すでにその役割です";
-  if (/forbidden/.test(msg)) return "管理者の任命・解除とオーナーの変更はオーナーのみ行えます";
+  if (/forbidden/.test(msg)) return "管理者の任命・解除と管理者の変更は管理者のみ行えます";
   if (/billing locked/.test(msg)) return "ご契約の手続きが必要です";
   return msg;
 }

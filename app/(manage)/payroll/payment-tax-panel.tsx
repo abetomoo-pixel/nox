@@ -77,7 +77,7 @@ export default function PaymentTaxPanel({ hasUnpaidFinalized }: { hasUnpaidFinal
     if (!reason.trim()) { setMsg("取消の理由を入れてください"); return; }
     setBusy(true); setMsg("");
     const { error } = await supabase.rpc("withholding_payment_cancel", { p_target_month: r.target_month, p_tax_category: r.tax_category, p_reason: reason.trim() });
-    setMsg(error ? (/forbidden/.test(error.message) ? "取消はオーナーのみです" : `取消に失敗: ${error.message}`) : "納付記録を取り消しました");
+    setMsg(error ? (/forbidden/.test(error.message) ? "取消は管理者のみです" : `取消に失敗: ${error.message}`) : "納付記録を取り消しました");
     setBusy(false);
     if (!error) await load();
   }

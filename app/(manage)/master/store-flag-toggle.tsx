@@ -27,7 +27,7 @@ export function storeProfileErrJa(msg: string | undefined): string {
   if (msg.includes("bad type")) return "送信内容の形式が不正です";
   if (msg.includes("bad patch")) return "変更がありません";
   if (msg.includes("billing locked")) return "課金の状態により設定を変更できません";
-  if (msg.includes("forbidden")) return "権限がありません（オーナーのみ変更できます）";
+  if (msg.includes("forbidden")) return "権限がありません（管理者のみ変更できます）";
   return msg;
 }
 
@@ -70,7 +70,7 @@ export default function StoreFlagToggle({
       ) : (
         <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
           <b style={{ color: on ? "var(--ok)" : "var(--sub)" }}>{on ? "ON" : "OFF"}</b>
-          <span className="nox-stpill">オーナーのみ変更できます</span>
+          <span className="nox-stpill">管理者のみ変更できます</span>
         </span>
       )}
     </div>

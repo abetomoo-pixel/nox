@@ -7,13 +7,13 @@ export default function SetupWaiting({ storeName }: { storeName: string }) {
       <header className="nox-setup-top">
         <div className="nox-setup-bar">
           <div className="nox-setup-mark" aria-hidden="true">N</div>
-          <div><h1>NOX 初期設定</h1><div className="sub">オーナーが設定を終えると使えるようになります</div></div>
+          <div><h1>NOX 初期設定</h1><div className="sub">管理者が設定を終えると使えるようになります</div></div>
         </div>
       </header>
       <main className="nox-setup-main">
         <section className="nox-cardtop" style={{ ...t.card, textAlign: "center", padding: "32px 20px" }}>
           <p style={{ fontSize: 17, fontWeight: 800, margin: "0 0 8px" }}>{storeName} は初期設定の途中です</p>
-          <p style={{ ...t.sub, margin: 0, lineHeight: 1.7 }}>オーナーが「この内容で始める」を押すと、レジ・シフト・日報が開きます。しばらくしてから画面を更新してください。</p>
+          <p style={{ ...t.sub, margin: 0, lineHeight: 1.7 }}>管理者が「この内容で始める」を押すと、レジ・シフト・日報が開きます。しばらくしてから画面を更新してください。</p>
         </section>
       </main>
     </div>

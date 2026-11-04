@@ -23,7 +23,7 @@ type Store = { id: string; name: string };
 type OpMember = { id: string; store_id: string; role: string; user_name: string };
 type PinStatus = { membership_id: string; has_pin: boolean; fail_count: number; locked_until: string | null; pin_updated_at: string | null };
 type CastPinRow = { cast_id: string; store_id: string; cast_name: string; has_pin: boolean; fail_count: number; locked_until: string | null }; // ★便 M5 M-45: 0192 cast_pin_status（owner＝全店／manager＝自店）
-const ROLE_LABEL: Record<string, string> = { owner: "オーナー", manager: "店長", staff: "スタッフ", cast: "キャスト" }; // ★便 M5 M-45: キャストの行
+const ROLE_LABEL: Record<string, string> = { owner: "管理者", manager: "店長", staff: "スタッフ", cast: "キャスト" }; // ★便 M5 M-45: キャストの行
 
 const MAX_FAIL_OPTIONS = [3, 5, 10] as const;
 const LOCK_MIN_OPTIONS = [5, 10, 15, 30, 60] as const;
@@ -39,7 +39,7 @@ const inp: React.CSSProperties = { ...t.input, width: "auto", padding: "8px 10px
 function policyErrJa(m: string): string {
   return m.includes("bad max_fail") ? "回数は3〜10で指定してください"
     : m.includes("bad lock_minutes") ? "時間は5〜60分で指定してください"
-    : m.includes("forbidden") ? "権限がありません（オーナーのみ）"
+    : m.includes("forbidden") ? "権限がありません（管理者のみ）"
     : m.includes("billing locked") ? "課金が停止中のため変更できません" : m;
 }
 
@@ -191,7 +191,7 @@ export default function KioskPinPanel({ stores, isOwner }: { stores: Store[]; is
           <h3 style={h3}>PIN</h3>{/* ★便 M5 M-45: 2 系統を 1 つの一覧に＝操作担当 PIN（スタッフ・ここで設定）／キオスク PIN（キャスト・設定はキャスト詳細） */}
           <span className="nox-stpill" style={{ marginLeft: "auto" }}>{mig0191On() ? "4〜6桁" : "4桁"}</span>
         </div>
-        <p style={sub} data-pin-two-kinds="1">操作担当 PIN（オーナー・店長・スタッフ＝レジ操作を担当者と紐付ける・ここで設定）と、キオスク PIN（キャスト＝打刻・レジの本人確認・設定はキャスト詳細 › アカウント）</p>
+        <p style={sub} data-pin-two-kinds="1">操作担当 PIN（管理者・店長・スタッフ＝レジ操作を担当者と紐付ける・ここで設定）と、キオスク PIN（キャスト＝打刻・レジの本人確認・設定はキャスト詳細 › アカウント）</p>
         <div style={{ overflowX: "auto" }}>
           <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 12 }}>
             <thead>
@@ -308,7 +308,7 @@ export default function KioskPinPanel({ stores, isOwner }: { stores: Store[]; is
               <button style={btnOn} disabled={polBusy || !polStoreId} onClick={() => void savePolicy()}>ポリシーを保存</button>
             </div>
           ) : (
-            <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: 0 }}>変更はオーナーのみ行えます（表示のみ）。</p>
+            <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: 0 }}>変更は管理者のみ行えます（表示のみ）。</p>
           )}
           {polMsg && <Toast msg={polMsg} style={{ margin: 0 }} />}
         </div>

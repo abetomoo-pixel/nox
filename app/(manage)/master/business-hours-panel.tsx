@@ -46,7 +46,7 @@ function cutoffErrJa(msg: string | undefined): string {
   if (msg.includes("band crosses cutoff")) {
     return "この時刻では時間帯料金の帯が営業日をまたぎます。先に時間帯料金を直してください";
   }
-  if (msg.includes("forbidden")) return "権限がありません（オーナーのみ変更できます）";
+  if (msg.includes("forbidden")) return "権限がありません（管理者のみ変更できます）";
   return msg;
 }
 
@@ -264,7 +264,7 @@ export default function BusinessHoursPanel({
           ) : (
             <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
               <b className="num" style={{ fontSize: 16 }}>{cutoffHm}</b>
-              <span className="nox-stpill">オーナーのみ変更できます</span>
+              <span className="nox-stpill">管理者のみ変更できます</span>
             </span>
           )}
         </div>

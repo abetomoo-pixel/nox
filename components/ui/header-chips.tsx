@@ -139,7 +139,7 @@ export function UserChip({ name, email, roleJa, storeLabel, meId = null, mePhoto
               {storeLabel && <><dt>店舗</dt><dd>{storeLabel}</dd></>}
             </dl>
             {/* ★X-13-2（便 X-13a）: メールは PC・スマホとも非表示（ログイン ID を画面に出さない）。変更の案内 1 行は残す。≤900px は Modal の既存シート（variant top は ≥901 のみ） */}
-            {isOwner && <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "8px 0 0" }} data-user-edit-note="1">登録名・メールの変更はスタッフ画面（オーナー）から行います。</p>}
+            {isOwner && <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "8px 0 0" }} data-user-edit-note="1">登録名・メールの変更はスタッフ画面（管理者）から行います。</p>}
             <div className="nox-navsheet-g nox-actions" style={{ marginTop: 14 }}>
               <form action="/auth/signout" method="post" style={{ display: "flex" }}>
                 <button type="submit" className="nox-btn ghost">ログアウト</button>{/* ★裁定242-(6): ログアウト＝補助（青枠）・POST /auth/signout は不変 */}

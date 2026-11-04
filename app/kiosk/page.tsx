@@ -161,6 +161,7 @@ export default function KioskPage() {
     if (error) {
       // ★裁定327（0161）: kiosk_punch は順序検査を raise で返す（'already in'／'already out'／'no open punch'）＝rpcErrJa の和文。それ以外は従来の端末文言
       r = { kind: "ng", message: /already in|already out|no open punch/.test(error.message) ? rpcErrJa(error.message)
+        : /confirmed/.test(error.message) ? "この月の勤怠は確定済みです（打刻の修正は店長以上に依頼してください）" // ★M-62（0193 ★5）: staff_punch が月の確定（staff_attendance_locks）を見る
         : /not in/.test(error.message) ? "出勤の打刻がありません（先に出勤を打刻してください）" // ★便 P174 T-6: staff_punch の順序検査
         : "この端末は現在使用できません（店に確認してください）" };
     } else {
@@ -229,7 +230,7 @@ export default function KioskPage() {
         {phase === "denied" && (
           <div className="nox-cardtop" style={{ ...t.card, textAlign: "center" }}>
             <p style={{ fontSize: 15, fontWeight: 700, margin: "0 0 6px" }}>{bindMsg && bindMsg.includes("固定されています") ? "この端末では使えません" : "このアカウントはキオスク端末ではありません"}</p>
-            <p style={{ ...t.sub, margin: 0 }} data-kiosk-bind-msg={bindMsg ? "1" : "0"}>{bindMsg ?? "端末アカウント（オーナーがマスタ管理で発行）でログインし直してください。"}</p>{/* ★0190: 'device bound' の案内 */}
+            <p style={{ ...t.sub, margin: 0 }} data-kiosk-bind-msg={bindMsg ? "1" : "0"}>{bindMsg ?? "端末アカウント（管理者がマスタ管理で発行）でログインし直してください。"}</p>{/* ★0190: 'device bound' の案内 */}
             <button onClick={async () => { await supabase.auth.signOut(); setPhase("login"); }}
               style={{ ...t.btnGhost, marginTop: 14 }}>ログアウト</button>
           </div>

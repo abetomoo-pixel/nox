@@ -451,13 +451,13 @@ export function PlanTab({ plans, isOwner, storeId, setMsg, reload }: { plans: Pl
             {id && <button style={btnLight} onClick={() => { setId(null); setName(""); }}>新規に戻す</button>}
           </div>
         </div>
-      ) : <p style={note}>プランの編集はオーナーのみ可能です（閲覧のみ）。</p>}
+      ) : <p style={note}>プランの編集は管理者のみ可能です（閲覧のみ）。</p>}
       {/* ── ★C1 §6-4（mig0115）: 追加コンポーネント＝選択中プランに付く行型（guarantee_min/achievement_bonus） ── */}
       {id && (
         <div className="nox-inset" style={{ padding: "10px 14px", marginTop: 12 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
             <b style={{ fontSize: 13 }}>追加コンポーネント</b>
-            <span style={note}>プランの基本（保証・バック・スライド）に足す報酬要素（書込はオーナーのみ）</span>
+            <span style={note}>プランの基本（保証・バック・スライド）に足す報酬要素（書込は管理者のみ）</span>
           </div>
           <div className="nox-tablewrap plain">{/* ★M1 第 2 レーン（裁定251・2026-09-18）: 横スクロール容器 */}
           <table className="nox-table" style={{ marginBottom: 8 }}>
@@ -1105,7 +1105,7 @@ export function PenaltyTab({ penalty, setPenalty, exists, isOwner, storeId, setM
         </div>
       ) : (
         <div style={{ fontSize: 12, color: "var(--ink)" }}>
-          <p style={note}>遅刻・当欠の検知（閾値）の編集はオーナーのみ可能です（閲覧のみ）。</p>
+          <p style={note}>遅刻・当欠の検知（閾値）の編集は管理者のみ可能です（閲覧のみ）。</p>
           遅刻猶予 {penalty.late_grace_min}分 / 早退 {penalty.early_grace_min}分 / 残留 {penalty.over_grace_min}分
         </div>
       )}

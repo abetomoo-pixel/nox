@@ -99,7 +99,7 @@ export default function NormAxesPenaltyPanel({ storeId, isOwner, initialAxes, in
       ) : (
         <p style={{ fontSize: 12, color: "var(--ink)", margin: 0 }}>
           現在: {NORM_AXES.map((k) => <span key={k}>{NORM_AXIS_LABEL[k]} <strong style={{ color: axes[k] ? "var(--ok)" : "var(--sub)" }}>{axes[k] ? "採用" : "不採用"}</strong>{" ／ "}</span>)}
-          {"カウント: "}{shimeiScope === "hon_jonai" ? "場内+本指名" : "本指名のみ"}（切替はオーナーのみ）
+          {"カウント: "}{shimeiScope === "hon_jonai" ? "場内+本指名" : "本指名のみ"}（切替は管理者のみ）
         </p>
       )}
     </section>

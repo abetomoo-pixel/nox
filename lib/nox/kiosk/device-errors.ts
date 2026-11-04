@@ -19,7 +19,7 @@ export function kioskErrJa(status: number, raw: string | undefined, purposeLabel
   if (/bad purpose/.test(m)) return "用途は「打刻」か「レジ」です";
   if (/not found/.test(m)) return "端末が見つかりません（画面を再読込してください）";
   if (/device inactive/.test(m)) return "無効化した端末です（「再発行して有効化」を使ってください）";
-  if (/forbidden|unauthenticated/.test(m) || status === 401 || status === 403) return "権限がありません（オーナーのみ）";
+  if (/forbidden|unauthenticated/.test(m) || status === 401 || status === 403) return "権限がありません（管理者のみ）";
   if (/billing locked/.test(m)) return "ご契約の状態により書込ができません";
   if (/auth create failed|auth update failed/.test(m)) return `認証情報の作成に失敗しました（${m.replace(/^auth (create|update) failed: /, "")}）`;
   return `エラー(${status}): ${m || "不明"}`;

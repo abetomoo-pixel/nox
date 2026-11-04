@@ -47,7 +47,7 @@ export function browserDeviceFp(): string | null {
 export type BindResult = { ok: true; bound: boolean; device_id: string };
 export function bindErrJa(msg: string | undefined): string {
   const m = msg ?? "";
-  if (m.includes("device bound")) return "この端末アカウントは別の端末に固定されています。オーナーがマスタ › システム › 端末の「固定を解除」をしてから、もう一度ログインしてください";
+  if (m.includes("device bound")) return "この端末アカウントは別の端末に固定されています。管理者がマスタ › システム › 端末の「固定を解除」をしてから、もう一度ログインしてください";
   if (m.includes("bad device_fp")) return "端末の識別子を作れませんでした（ブラウザの保存領域が使えません）";
   if (m.includes("forbidden")) return "このアカウントは端末アカウントではないか、無効化されています";
   return `端末の確認に失敗しました（${m || "不明"}）`;

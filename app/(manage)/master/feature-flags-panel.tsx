@@ -32,7 +32,7 @@ const sub: React.CSSProperties = { fontSize: 11.5, color: "var(--sub)", margin: 
 const inp: React.CSSProperties = { ...t.input, width: 260, padding: "8px 10px", fontSize: 13 };
 
 function errJa(m: string): string {
-  return m.includes("forbidden") ? "権限がありません（オーナーのみ）"
+  return m.includes("forbidden") ? "権限がありません（管理者のみ）"
     : m.includes("unknown_key") ? "不明な機能です"
     : m.includes("billing locked") ? "課金が停止中のため変更できません" : m;
 }

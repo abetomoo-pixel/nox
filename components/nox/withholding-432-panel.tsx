@@ -18,7 +18,7 @@ const yen = (n: number) => `¥${n.toLocaleString("en-US")}`;
 
 export function rpcErr432Ja(msg: string): string {
   if (/period finalized/.test(msg)) return "確定済み・支払済みの期は変えられません";
-  if (/forbidden/.test(msg)) return "権限がありません（店長・オーナーのみ）";
+  if (/forbidden/.test(msg)) return "権限がありません（店長・管理者のみ）";
   if (/bad amount|bad rows/.test(msg)) return "金額は 0 以上の整数で入力してください";
   if (/not found/.test(msg)) return "対象が見つかりません（画面を再読込してください）";
   return msg;

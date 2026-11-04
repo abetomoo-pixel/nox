@@ -70,7 +70,7 @@ export default function KioskUnlockPad({ onUnlocked }: { onUnlocked: (r: { membe
         <>
           <p style={{ textAlign: "center", fontSize: 14, fontWeight: 800, margin: "0 0 10px" }}>名前を選んでください</p>
           <div style={{ display: "grid", gap: 8 }}>
-            {cands.map((c) => <button key={c.membership_id} style={{ ...t.btnGhost, padding: "12px 0", fontSize: 16, fontWeight: 800 }} disabled={busy} onClick={() => void unlockPin(c.membership_id)}>{c.name}<span style={{ fontSize: 11, color: "var(--sub)", marginLeft: 8 }}>{c.role === "cast" ? "キャスト" : c.role === "staff" ? "スタッフ" : c.role === "manager" ? "店長" : "オーナー"}</span></button>)}
+            {cands.map((c) => <button key={c.membership_id} style={{ ...t.btnGhost, padding: "12px 0", fontSize: 16, fontWeight: 800 }} disabled={busy} onClick={() => void unlockPin(c.membership_id)}>{c.name}<span style={{ fontSize: 11, color: "var(--sub)", marginLeft: 8 }}>{c.role === "cast" ? "キャスト" : c.role === "staff" ? "スタッフ" : c.role === "manager" ? "店長" : "管理者"}</span></button>)}
           </div>
           <button style={{ ...t.btnGhost, ...t.btnSm, width: "100%", marginTop: 10 }} onClick={() => { setCands(null); setPin(""); }}>もどる</button>
         </>

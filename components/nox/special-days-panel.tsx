@@ -37,7 +37,7 @@ export default function SpecialDaysPanel({ storeId, editable }: { storeId: strin
     setBusy(true); setMsg(null);
     const { error } = await createClient().rpc("set_store_special_day", { p_store_id: storeId, p_day: day, p_kind: kind, p_open_hm: kind === "open" ? openHm : null, p_close_hm: kind === "open" ? closeHm : null, p_note: note.trim() || null });
     setBusy(false);
-    if (error) { setMsg({ kind: "error", text: /forbidden/.test(error.message) ? "権限がありません（店長・オーナーのみ）" : error.message }); return; }
+    if (error) { setMsg({ kind: "error", text: /forbidden/.test(error.message) ? "権限がありません（店長・管理者のみ）" : error.message }); return; }
     setMsg({ kind: "success", text: `${day} を${kind === "closed" ? "臨時休業" : "特別営業"}にしました` }); setDay(""); setNote("");
     await load();
   }

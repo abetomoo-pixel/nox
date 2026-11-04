@@ -36,7 +36,7 @@ type Category = { id: string; name: string; sort_order: number };
 type Cast = { id: string; name: string; photo_updated_at: string | null; rank_id?: string | null };
 type BoardData = { seats: Seat[]; products: Product[]; categories: Category[]; casts: Cast[]; storeId: string };
 
-const ROLE_LABEL: Record<string, string> = { owner: "オーナー", manager: "店長", staff: "スタッフ", cast: "キャスト", admin: "管理者" };
+const ROLE_LABEL: Record<string, string> = { owner: "管理者", manager: "店長", staff: "スタッフ", cast: "キャスト", admin: "管理者" };
 const IDLE_MS = 3 * 60_000; // ★K-0: 無操作 3 分で自動ロック（店設定 kiosk_idle_sec があればそれ）＝サーバ側失効のローカル鏡像・表示と自動ロックのみ
 const PIN_MIN = 4, PIN_MAX = 6; // ★裁定437（0191）: PIN 4〜6 桁
 
@@ -300,7 +300,7 @@ export default function KioskWorkspace({ feature = "register" }: { feature?: Kio
         {phase === "denied" && (
           <div className="nox-cardtop" style={{ ...card, textAlign: "center" }}>
             <p style={{ fontSize: 15, fontWeight: 700, margin: "0 0 6px" }}>{bindMsg && bindMsg.includes("固定されています") ? "この端末では使えません" : "このアカウントはレジ端末ではありません"}</p>
-            <p style={{ ...t.sub, margin: 0 }} data-kiosk-bind-msg={bindMsg ? "1" : "0"}>{bindMsg ?? "レジ用の端末アカウント（オーナーがマスタ管理で用途「レジ」を発行）でログインし直してください。"}</p>
+            <p style={{ ...t.sub, margin: 0 }} data-kiosk-bind-msg={bindMsg ? "1" : "0"}>{bindMsg ?? "レジ用の端末アカウント（管理者がマスタ管理で用途「レジ」を発行）でログインし直してください。"}</p>
             <button onClick={async () => { await supabase.auth.signOut(); setPhase("login"); }}
               style={{ ...btnLight, marginTop: 14 }}>ログアウト</button>
           </div>

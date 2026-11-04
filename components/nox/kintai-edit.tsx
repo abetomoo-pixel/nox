@@ -25,7 +25,7 @@ export function kintaiErrJa(msg: string): string {
   if (/not_found|not found/.test(msg)) return "対象が見つかりません（画面を再読込してください）";
   if (/bad status/.test(msg)) return "区分が正しくありません";
   if (/unavailable|override/.test(msg)) return "その日は出勤できない日として登録されています（理由を入れて保存してください）";
-  if (/forbidden/.test(msg)) return "権限がありません（店長・オーナーのみ）";
+  if (/forbidden/.test(msg)) return "権限がありません（店長・管理者のみ）";
   return msg;
 }
 

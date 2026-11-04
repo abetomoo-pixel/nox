@@ -33,7 +33,7 @@ type Store = { id: string; name: string };
 type Device = { id: string; store_id: string; label: string | null; purpose: string; is_active: boolean; created_at: string; last_seen_at: string | null; bound: boolean; bound_at: string | null; bound_ua: string | null };
 type ProvisionResult = { device_id: string; login_email: string; initial_password: string; reissued?: boolean; reactivated?: boolean };
 const PURPOSE_LABEL: Record<string, string> = { punch: "打刻", register: "レジ" };
-const ROLE_LABEL: Record<string, string> = { owner: "オーナー", manager: "店長", staff: "スタッフ" };
+const ROLE_LABEL: Record<string, string> = { owner: "管理者", manager: "店長", staff: "スタッフ" };
 
 const card: React.CSSProperties = t.card;
 const h3: React.CSSProperties = { fontSize: 13.5, fontWeight: 800, color: "var(--champ)", marginTop: 0, marginBottom: 2 };

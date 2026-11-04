@@ -97,7 +97,7 @@ export default function StoreSystemsPanel({
             ) : (
               <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
                 <b style={{ color: on ? "var(--ok)" : "var(--sub)" }}>{on ? "ON" : "OFF"}</b>
-                <span className="nox-stpill">オーナーのみ変更できます</span>
+                <span className="nox-stpill">管理者のみ変更できます</span>
               </span>
             )}
           </div>

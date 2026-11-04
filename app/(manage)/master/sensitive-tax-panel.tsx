@@ -49,7 +49,7 @@ function relTime(iso: string): string {
   return `${dt.getMonth() + 1}/${dt.getDate()}`;
 }
 
-const ROLE_LABEL: Record<string, string> = { owner: "オーナー", manager: "店長", staff: "スタッフ" };
+const ROLE_LABEL: Record<string, string> = { owner: "管理者", manager: "店長", staff: "スタッフ" };
 
 export default function SensitiveTaxPanel({ casts, stores, isOwner }: { casts: Cast[]; stores: Store[]; isOwner: boolean }) {
   const supabase = createClient();
@@ -257,7 +257,7 @@ export default function SensitiveTaxPanel({ casts, stores, isOwner }: { casts: C
       <div style={{ ...t.alert, display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
         <span style={{ minWidth: 0 }}>
           <b>機密情報へのアクセスは監査ログに記録されます</b>
-          <span style={{ display: "block", fontSize: 11, opacity: 0.85 }}>マイナンバーの表示・変更はオーナー権限のみ実行できます。</span>
+          <span style={{ display: "block", fontSize: 11, opacity: 0.85 }}>マイナンバーの表示・変更は管理者権限のみ実行できます。</span>
         </span>
       </div>
 
@@ -375,7 +375,7 @@ export default function SensitiveTaxPanel({ casts, stores, isOwner }: { casts: C
             <div className="nox-actions" style={{ marginTop: 8 }}>
               <button onClick={saveTax} disabled={!castId || !taxReady} style={btnDark}>税務情報を保存</button>
             </div>
-            {!isOwner && <p style={{ fontSize: 11, color: "var(--sub)", margin: "8px 0 0" }}>※ 本名・マイナンバー等の機密情報の登録・閲覧はオーナーのみ可能です。</p>}
+            {!isOwner && <p style={{ fontSize: 11, color: "var(--sub)", margin: "8px 0 0" }}>※ 本名・マイナンバー等の機密情報の登録・閲覧は管理者のみ可能です。</p>}
           </div>
         </section>
 
@@ -385,7 +385,7 @@ export default function SensitiveTaxPanel({ casts, stores, isOwner }: { casts: C
             <h3 style={h3}>アクセス権限</h3>
             <p style={subP}>機密情報を閲覧できる役割（実際の権限設定に基づく表示）</p>
             <div style={{ display: "grid", gap: 6, fontSize: 12 }}>
-              <div style={t.bdRow}><span style={t.bdKey}>オーナー</span>
+              <div style={t.bdRow}><span style={t.bdKey}>管理者</span>
                 <span style={t.bdVal}>表示・編集・支払調書用の全表示 <b style={{ color: "var(--ok)" }}>●許可</b></span></div>
               <div style={t.bdRow}><span style={t.bdKey}>店長</span>
                 <span style={t.bdVal}>閲覧不可（封印） <b style={{ color: "var(--sub)" }}>●制限</b></span></div>

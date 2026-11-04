@@ -199,7 +199,7 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
           <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap", marginBottom: 10 }}>
             <div>
               <h2 style={{ ...secTitle, margin: 0 }}>{on("profile") ? "店舗情報" : "データ管理"}</h2>
-              <p style={{ ...t.sub, fontSize: 12, margin: "4px 0 0" }}>店舗名・略称・店舗コード・表示名・顧客情報の利用目的と保持年数・送りの基本額。変更した項目だけを保存します（オーナーのみ）。</p>
+              <p style={{ ...t.sub, fontSize: 12, margin: "4px 0 0" }}>店舗名・略称・店舗コード・表示名・顧客情報の利用目的と保持年数・送りの基本額。変更した項目だけを保存します（管理者のみ）。</p>
             </div>
             {stores.length > 1 && (
               <select value={storeSel} onChange={(e) => setStoreSel(e.target.value)} style={{ ...input, width: "auto" }} aria-label="店舗">

@@ -100,7 +100,7 @@ export default function MineSettingsPanel({ stores, isOwner = false }: { stores:
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap", marginBottom: 6 }}>
         <div>
           <h2 style={{ ...secTitle, margin: 0 }}>キャスト画面の設定</h2>
-          <p style={{ ...t.sub, fontSize: 12, margin: "4px 0 0" }}>キャストのマイページに何を出すか（給与明細・ドリンク申告・修正申請・ランキング・予約申請・シフト希望）の店設定です。変更した項目だけを保存します（オーナー／店長）。</p>
+          <p style={{ ...t.sub, fontSize: 12, margin: "4px 0 0" }}>キャストのマイページに何を出すか（給与明細・ドリンク申告・修正申請・ランキング・予約申請・シフト希望）の店設定です。変更した項目だけを保存します（管理者／店長）。</p>
         </div>
         {stores.length > 1 && (
           <select value={storeSel} onChange={(e) => setStoreSel(e.target.value)} style={{ ...input, width: "auto" }} aria-label="店舗（キャスト画面の設定）">

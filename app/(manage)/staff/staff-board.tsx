@@ -414,13 +414,13 @@ export default function StaffBoard({
               <div className="nox-perms" onClick={(e) => e.stopPropagation()}>
                 {PERM_DEFS.map(([k, label]) => (m.role !== "staff" || !m.is_active) ? (
                   <span key={k} className={`nox-perm ro ${m[k] ? "on" : ""}`} data-perm-ro="1"
-                    title={m.role !== "staff" ? "オーナー/店長は役職で権限固定（フラグ対象外）" : "退店済み（権限は変えられません）"}>{label}</span>
+                    title={m.role !== "staff" ? "管理者/店長は役職で権限固定（フラグ対象外）" : "退店済み（権限は変えられません）"}>{label}</span>
                 ) : (
                   <button
                     key={k} type="button"
                     className={`nox-perm ${m[k] ? "on" : ""}`}
                     disabled={m.role !== "staff" || busy || !m.is_active}
-                    title={m.role !== "staff" ? "オーナー/店長は役職で権限固定（フラグ対象外）" : `${label}権限を切り替え`}
+                    title={m.role !== "staff" ? "管理者/店長は役職で権限固定（フラグ対象外）" : `${label}権限を切り替え`}
                     onClick={() => void toggleFlag(m, k)}
                   >
                     {label}
@@ -513,7 +513,7 @@ export default function StaffBoard({
               <span data-role-change="0175" style={{ display: "inline-flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
                 {roleChangeTargetsOf(roleRaw, sel.role).map((to) => (
                   <button key={to} style={btnGhost} disabled={busy} data-role-to={to} onClick={async () => {
-                    if (!confirm(`${users[sel.user_id]?.name ?? ""} を ${roleChangeTextOf(sel.role, to)}しますか？${to === "admin" ? "（管理者はオーナーと同じ権限＝解約・移譲・契約と請求・管理者任命だけ不可）" : ""}`)) return;
+                    if (!confirm(`${users[sel.user_id]?.name ?? ""} を ${roleChangeTextOf(sel.role, to)}しますか？${to === "admin" ? "（管理者は管理者と同じ権限＝解約・移譲・契約と請求・管理者任命だけ不可）" : ""}`)) return;
                     await rpc("役職を変更", "set_membership_role", { p_membership_id: sel.id, p_new_role: to });
                     setSel(null);
                   }}>{roleChangeTextOf(sel.role, to)}</button>
@@ -521,7 +521,7 @@ export default function StaffBoard({
                 {ownerOnlyNoteOf(roleRaw) && <span style={{ ...t.sub, fontSize: 11 }} data-owner-only-note="1">管理者の任命・解除は{ownerOnlyNoteOf(roleRaw)}</span>}
               </span>
             )}
-            {roleRaw === "owner" && sel.is_active && !isSelf(sel) && rules0175On() && (sel.role === "admin" || sel.role === "manager") && (/* ★便 M2 A 15-③: オーナーの譲渡＝オーナー本人だけ・相手は有効な管理者／店長（owner_transfer と同じ条件） */
+            {roleRaw === "owner" && sel.is_active && !isSelf(sel) && rules0175On() && !mig0193On() && (sel.role === "admin" || sel.role === "manager") && (/* ★0193: 管理者は複数置ける＝譲渡は出さない（任命は Staff0193 の「管理者にする」） *//* ★便 M2 A 15-③: オーナーの譲渡＝オーナー本人だけ・相手は有効な管理者／店長（owner_transfer と同じ条件） */
               <button style={btnGhost} disabled={busy} data-owner-transfer={sel.id} onClick={() => { setTransferTo(sel); setSel(null); }}>オーナーを譲渡</button>
             )}
             {isOwner && sel.is_active && !isSelf(sel) && !rules0175On() && (

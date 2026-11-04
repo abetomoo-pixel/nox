@@ -67,13 +67,13 @@ export default function MasterBoard() {
       case "/master/referrers":
         return { count: "支払", status: hubStatusOf(refState, (unpaidRef ?? 0) > 0 ? `● 未払 ${unpaidRef} 件` : "● 未払なし"), tone: refState === "ok" && (unpaidRef ?? 0) > 0 ? "warn" : refState === "error" ? "mute" : "" };
       case "/master/store-profile":
-        return { count: "2タブ", status: "● オーナー限定の項目あり", tone: "mute" };
+        return { count: "2タブ", status: "● 管理者限定の項目あり", tone: "mute" };
       case "/master/seats":
         return { count: hubState === "ok" ? `${seats.length}席・卓 / 稼働${activeSeats}` : hubCountOf(hubState, 0).text, status: hubStatusOf(hubState, `● 稼働可能 ${activeSeats}卓`), tone: hubState === "error" ? "mute" : "" };
       case "/master/business-hours":
         return { count: "曜日別", status: "● 有効", tone: "" };
       case "/master/system":
-        return { count: "オーナー", status: "● オーナー限定", tone: "mute" };
+        return { count: "管理者", status: "● 管理者限定", tone: "mute" };
       case "/master/cast-comp/register":
         return { count: "3タブ", status: "● 閲覧ログあり（機密情報）", tone: "warn" };
       default:
@@ -115,7 +115,7 @@ export default function MasterBoard() {
                   <Link key={p.href} href={p.href} className="nox-fcard">
                     <div className="top">
                       <div className="count">{m.count}</div>
-                      {p.ownerOnly && <span className="status mute">オーナー</span>}
+                      {p.ownerOnly && <span className="status mute">管理者</span>}
                     </div>
                     <h3><span className="nox-cardtitle">{p.label}</span><span className="nox-cardchev" aria-hidden="true" style={{ color: "var(--primary)" }}>›</span></h3>{/* ★306-15: 「タイトル ›」1 行（nowrap） */}
                     {/* ★306-15: 説明 1 行 → ★便 GV-C C-7（GV-48）: タブのある入口はタブ一覧の 1 行だけ（説明と 2 行重複していた）・タブが 1 つ以下は説明 1 行 */}

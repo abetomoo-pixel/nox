@@ -31,7 +31,7 @@ export default function TermsAcceptForm({ isOwner, orgName }: { isOwner: boolean
     <section className="nox-cardtop" style={{ ...t.card, maxWidth: 560, margin: "0 auto" }} data-terms-accept="1">
       <h1 style={{ fontSize: 18, fontWeight: 900, margin: "0 0 6px" }}>店舗向け利用規約への同意</h1>
       <p style={{ ...t.sub, margin: "0 0 12px", lineHeight: 1.7 }}>
-        {orgName} で NOX を使い始めるには、店舗向け利用規約（{TERMS_VERSION_LABEL}）への同意が必要です。同意は店舗（法人）単位で 1 回・オーナーが行います。
+        {orgName} で NOX を使い始めるには、店舗向け利用規約（{TERMS_VERSION_LABEL}）への同意が必要です。同意は店舗（法人）単位で 1 回・管理者が行います。
       </p>
       <p style={{ margin: "0 0 12px" }}><a href={TERMS_PATH} target="_blank" rel="noreferrer" style={{ color: "var(--gold)", fontWeight: 700 }}>規約の全文を読む（別タブ）</a></p>
       {isOwner ? (
@@ -46,7 +46,7 @@ export default function TermsAcceptForm({ isOwner, orgName }: { isOwner: boolean
           </button>
         </>
       ) : (
-        <Message kind="warn" style={{ margin: 0 }}>オーナーの同意待ちです。オーナーがログインして同意すると、店舗の全員が使えるようになります。</Message>
+        <Message kind="warn" style={{ margin: 0 }}>管理者の同意待ちです。管理者がログインして同意すると、店舗の全員が使えるようになります。</Message>
       )}
     </section>
   );

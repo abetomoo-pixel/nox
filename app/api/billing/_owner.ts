@@ -17,7 +17,7 @@ export async function requireOwner(): Promise<NextResponse | OwnerCtx> {
     supabase.rpc(rules0175On() ? "auth_role_raw" : "auth_role"), // ★追補 3 R-8（裁定425 候補・0175 v2 ★28）: 契約と請求はオーナー本人だけ＝本来の役割（管理者は 403）。フラグ false＝従来の auth_role
     supabase.rpc("auth_org_id"),
   ]);
-  if (role !== "owner") return NextResponse.json({ error: "請求の操作はオーナーのみ可能です" }, { status: 403 });
+  if (role !== "owner") return NextResponse.json({ error: "請求の操作は管理者のみ可能です" }, { status: 403 });
   if (typeof orgId !== "string" || !orgId) return NextResponse.json({ error: "組織を解決できませんでした" }, { status: 403 });
   const demo = await assertNotDemo(orgId); if (demo) return demo; // ★N7-1: デモ org は課金操作不可
   return { orgId, email: user.email ?? null };

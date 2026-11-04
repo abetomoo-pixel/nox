@@ -212,14 +212,14 @@ export default function StaffWorkPanel({ scope, stores, daily = false, initialMe
           setAttBusy(true); setAttMsg(null);
           const { error } = await supabase.rpc("staff_attendance_set", { p_membership_id: dayEdit.mem, p_biz_date: dayEdit.date, p_punches: dayEdit.punches === true, p_in: inIso, p_out: outIso, p_status: dayEdit.status || null, p_note: dayEdit.note });
           setAttBusy(false);
-          if (error) { const m = error.message; setAttMsg({ kind: "error", text: m.includes("confirmed") ? "この月は確定済みです（解除はオーナー）" : m.includes("bad time") ? "時刻が営業日に合いません（退勤は出勤より後・24 時間以内）" : `保存に失敗: ${rpcErrJa(m)}` }); return; }
+          if (error) { const m = error.message; setAttMsg({ kind: "error", text: m.includes("confirmed") ? "この月は確定済みです（解除は店長以上）" : m.includes("bad time") ? "時刻が営業日に合いません（退勤は出勤より後・24 時間以内）" : `保存に失敗: ${rpcErrJa(m)}` }); return; }
           setDayEdit(null); setAttMsg({ kind: "success", text: "勤怠を保存しました" }); await load();
         };
         const confirmMonth = async (lock: boolean) => {
           if (attBusy) return; setAttBusy(true); setAttMsg(null);
           const { error } = await supabase.rpc("staff_attendance_confirm", { p_store_id: r.m.store_id, p_period: month, p_lock: lock === true });
           setAttBusy(false);
-          if (error) { setAttMsg({ kind: "error", text: error.message.includes("forbidden") ? (lock ? "権限がありません（自店の店長以上）" : "確定の解除はオーナーのみです") : `失敗: ${rpcErrJa(error.message)}` }); return; }
+          if (error) { setAttMsg({ kind: "error", text: error.message.includes("forbidden") ? (lock ? "権限がありません（自店の店長以上）" : "権限がありません（自店の店長以上）") : `失敗: ${rpcErrJa(error.message)}` }); return; }
           setAttMsg({ kind: "success", text: lock ? `${month.replace("-", "/")} のスタッフ勤怠を確定しました` : "確定を解除しました" }); await load();
         };
         const cancelOut = async () => {
@@ -248,7 +248,7 @@ export default function StaffWorkPanel({ scope, stores, daily = false, initialMe
                   {monthLocked ? <span className="nox-stpill" data-staff-att-locked="1">この月は確定済み</span> : <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} data-staff-att-add="1" disabled={attBusy} onClick={() => openDay({ bizDate: todayBiz, inHm: null, outHm: null })}>＋ 日を追加・修正</button>}
                   {!monthLocked && todayOutRow && <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} data-staff-cancel-out="1" disabled={attBusy} onClick={() => void cancelOut()}>今日の退勤を取り消す</button>}
                   {monthLocked
-                    ? <button type="button" style={{ ...t.btnGhost, ...t.btnSm, marginLeft: "auto" }} data-staff-att-unlock="1" disabled={attBusy} onClick={() => void confirmMonth(false)}>確定を解除（オーナー）</button>
+                    ? <button type="button" style={{ ...t.btnGhost, ...t.btnSm, marginLeft: "auto" }} data-staff-att-unlock="1" disabled={attBusy} onClick={() => void confirmMonth(false)}>確定を解除</button>
                     : <button type="button" style={{ ...t.btnGold, ...t.btnSm, marginLeft: "auto" }} data-staff-att-lock="1" disabled={attBusy} onClick={() => { if (window.confirm(`${month.replace("-", "/")} のスタッフ勤怠を確定しますか（以後この月の修正・取消はできません）`)) void confirmMonth(true); }}>この月を確定</button>}
                 </div>
                 {dayEdit && dayEdit.mem === r.m.id && (
@@ -273,7 +273,7 @@ export default function StaffWorkPanel({ scope, stores, daily = false, initialMe
                   </div>
                 )}
                 {attMsg && <Message kind={attMsg.kind} style={{ margin: 0 }}>{attMsg.text}</Message>}
-                <p style={{ ...t.sub, margin: 0 }}>日計＝時給×実働（時給制だけ・月給／日給は —）。日付を押すとその日を修正できます（打刻の差し替え・当欠／遅刻／早退）。月を確定すると以後の修正と退勤の取消はできません（解除はオーナー）。</p>
+                <p style={{ ...t.sub, margin: 0 }}>日計＝時給×実働（時給制だけ・月給／日給は —）。日付を押すとその日を修正できます（打刻の差し替え・当欠／遅刻／早退）。月を確定すると以後の修正と退勤の取消はできません（解除は店長以上）。</p>
               </div>
             ) : <p style={{ ...t.sub, margin: "6px 0 0" }}>日計＝時給×実働（時給制だけ・月給／日給は —）。打刻の修正・シフト無し出勤の確定はスタッフの器が無いため 0190／0191 の後（キャストの勤怠と同じ部品）。</p>}
           </div>);

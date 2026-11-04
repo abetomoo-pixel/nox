@@ -343,7 +343,7 @@ export default function NoticesBoard({ isManagerUp, audienceCounts, storeName, c
               </div>
               <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "6px 0 0", lineHeight: 1.7 }}>
                 人数は在籍している人の数です（退店済み・無効の担当は数えません）。
-                オーナー・店長は公開範囲にかかわらずすべてのお知らせを閲覧できます。
+                管理者・店長は公開範囲にかかわらずすべてのお知らせを閲覧できます。
               </p>
             </div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
@@ -528,7 +528,7 @@ export default function NoticesBoard({ isManagerUp, audienceCounts, storeName, c
             <div className="nox-listrow"><span style={{ flex: 1 }}>ピン留め</span><b>{fPinned ? "する" : "しない"}</b></div>
             <div className="nox-listrow"><span style={{ flex: 1 }}>LINE通知</span><b>{fLine ? `送る（連携 ${lineLinked ?? "—"} 人）` : "送らない"}</b></div>
             <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "8px 0 0", lineHeight: 1.7 }}>
-              掲載すると、対象のマイページとこの一覧に表示されます。オーナー・店長は公開範囲にかかわらず閲覧できます。
+              掲載すると、対象のマイページとこの一覧に表示されます。管理者・店長は公開範囲にかかわらず閲覧できます。
             </p>
           </div>
           <div className="nox-modalfoot nox-actions">
