@@ -111,7 +111,7 @@ export default function AvailabilityEditor({ castId, storeId, employment, bySelf
           </div>
           <input value={form.terms.memo ?? ""} placeholder="メモ（200 字まで）" maxLength={200} disabled={busy} aria-label="基本の働き方のメモ" style={{ ...t.input }}
             onChange={(e) => setForm((f) => ({ ...f, terms: { ...f.terms, memo: e.target.value || null } }))} />
-          <div className="nox-actions" style={{ justifyContent: "flex-end" }}>
+          <div className="nox-actions" data-avail-actions="1">{/* ★便 A M-66・教訓133: キャンセル／保存は中央寄せ（.nox-actions の既定） */}
             <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} disabled={busy} onClick={() => { setEdit(false); void load(); }}>キャンセル</button>
             <button type="button" style={{ ...t.btnGold, ...t.btnSm }} disabled={busy} onClick={() => void save()}>保存</button>
           </div>

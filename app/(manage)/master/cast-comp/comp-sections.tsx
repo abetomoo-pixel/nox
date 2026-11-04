@@ -85,6 +85,8 @@ export type CompRow = {
 };
 const COMP_KIND_LABEL: Record<string, string> = { guarantee_min: "最低保証", achievement_bonus: "達成ボーナス" };
 export type Norm = { id: string; cast_id: string; period: string; days_target: number; dohan_target: number; sales_target: number; shimei_target: number };
+/** ★便 A M-74（2026-11-04）: 控除ルールの単位の日本語（0195 で 'pay_rate'＝報酬の% を足す） */
+export const DED_PER_JA: Record<string, string> = { day: "日ごと", month: "月ごと", rate: "売上の%" };
 export type Deduction = { id: string; name: string; amount: number; per: string; is_active: boolean;
   kind: string; basis_confirmed_at: string | null; basis_note: string | null }; // ★裁定98（mig0117）
 // ★裁定98: 控除種別6値の表示ラベル（DB 固定語彙と1:1）
@@ -971,8 +973,8 @@ export function DeductionTab({ deductions, isManagerUp, storeId, setMsg, reload,
             <tr key={d.id} onClick={() => isManagerUp && edit(d)} style={{ cursor: isManagerUp ? "pointer" : "default" }}>
               <td>{d.name}</td>
               <td style={{ color: d.kind === "sanction" ? "var(--bad)" : undefined }}>{DED_KIND_JA[d.kind] ?? d.kind}</td>
-              <td className="num">{d.per === "rate" ? `${d.amount}%` : d.amount}</td>
-              <td>{d.per}</td>
+              <td className="num">{d.per === "rate" ? `${d.amount}%` : `¥${Number(d.amount).toLocaleString("en-US")}`}</td>{/* ★便 A M-74: 額に ¥ と桁区切り */}
+              <td>{DED_PER_JA[d.per] ?? d.per}</td>{/* ★便 A M-74: 単位を日本語 */}
               <td>{d.basis_confirmed_at ? d.basis_confirmed_at.slice(0, 10) : "—"}</td>
               <td style={{ color: d.is_active ? "var(--ok)" : "var(--sub)" }}>{d.is_active ? "有効" : "無効"}</td>
             </tr>
@@ -992,7 +994,7 @@ export function DeductionTab({ deductions, isManagerUp, storeId, setMsg, reload,
             </label>
             <label style={{ fontSize: 12 }}>金額 <MoneyInput value={amount} onChange={(v) => setAmount(Number(v || 0))} style={input} width={110} ariaLabel="金額" /></label>
             <SegSelect value={per} onChange={(v) => setPer(v)}
-              options={[["day", "日ごと"], ["month", "月ごと"], ["rate", "売上%"]] as const} />
+              options={[["day", DED_PER_JA.day], ["month", DED_PER_JA.month], ["rate", DED_PER_JA.rate]] as const} />
             <label style={{ fontSize: 12 }}><input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} /> 有効</label>
             <div className="nox-actions" style={{ flexBasis: "100%", width: "100%" }}>{/* ★便 BTN（裁定242）: 主ボタン（＋補助）は行の中央 */}
               <button style={btnDark} onClick={save}>{id ? "更新" : "登録"}</button>

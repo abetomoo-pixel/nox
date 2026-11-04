@@ -50,6 +50,10 @@ export type V5State = {
   reg: { kiosk: boolean; castReg: "off" | "order" | "pay"; uri: boolean; staffDisc?: "approve" | "limit" | "no" };
   cardfee: number; cashOff: boolean; cashRate: number; cashBase: "total" | "subtotal";
   receipt: { name: string; tno: string; tadashi: string }; round: "round" | "floor" | "ceil";
+  /** ★便 A M-71（2026-11-04）: ③ 料金の「端数の丸め」＝会計の丸め（set_store_pricing の round_unit／round_mode）。新しい店の既定＝1,000 円・切り捨て（裁定443 1-① の v5 既定をこれに確定）・既存店は今の値 */
+  roundUnit: number; roundMode: "down" | "up" | "round";
+  /** ★便 A M-72（2026-11-04）: ③ 料金の「延長の付け方」＝自動／手動（set_store_time_pricing の time_mode）。必須＝null のまま ③ を完了にしない・既定なし */
+  timeMode: "auto" | "manual" | null;
   dirty: boolean; salesSplit: "prorate" | "equal"; castTab: "one" | "csv";
   mine: { rank: boolean; rankOthers: "self" | "top"; drink: boolean; fix: boolean; resv: boolean; late: boolean; norma: boolean; bonus: boolean };
   casts: V5Cast[]; castForm: { g: string; n: string; st: string; kind: string; plan: string; tel: string; mail: string; pin: string; dist: string; invite: boolean; birthday: string }; csvRows: V5CsvRow[];
@@ -111,6 +115,7 @@ export function v5DefaultState(today: string): V5State {
     shift: { mode: "want", due: 3, auto: 24, need: [0, 4, 4, 4, 4, 5, 5] }, punch: { judge: "soft", how: "device", round: 1, gate: true },
     reg: { kiosk: true, castReg: "off", uri: true, staffDisc: "approve" }, cardfee: 10, cashOff: false, cashRate: 10, cashBase: "total",
     receipt: { name: "", tno: "", tadashi: "御飲食代として" }, round: "round",
+    roundUnit: 1000, roundMode: "down", timeMode: null, // ★便 A M-71／M-72
     dirty: false, salesSplit: "prorate", castTab: "one", mine: { rank: true, rankOthers: "self", drink: false, fix: false, resv: true, late: true, norma: true, bonus: true },
     casts: [], castForm: { g: "", n: "", st: "在籍", kind: "業務委託", plan: "基本プラン", tel: "", mail: "", pin: "", dist: "mid", invite: true, birthday: "" }, csvRows: [],
     float: 50000, devReg: false, devName: "レジ iPad", firstShift: { from: add(toMon), to: add(toMon + 6), due: add(toMon - 4), start: true },
@@ -166,6 +171,8 @@ export function v5Checks(S: V5State): [number, string][] {
       if (q.seat === r.seat && q.days.some((d) => r.days.indexOf(d) >= 0)) { const s2 = span(q.from, q.to); if (s2[0] < sp[1] && sp[0] < s2[1]) W.push([2, `「${r.name}」と「${q.name}」の時間が重なっています（上のルールが優先されます）`]); } }
   });
   if (S.vip.on && S.seats.vip < 1) W.push([1, "VIP 料金を使う設定ですが、VIP 席が 0 卓です"]);
+  if (!S.timeMode) W.push([2, "延長の付け方（自動／手動）が選ばれていません"]); // ★便 A M-72: 必須
+  if (roundUnitErrorOf(S.roundUnit)) W.push([2, "端数の丸め単位は 1〜10,000 の整数で入力してください"]); // ★便 A M-71
   S.menu.forEach((c) => { if (!c.on) return; c.items.forEach((it) => { if (!it.on) return;
     if (!String(it.n).trim()) W.push([3, `${c.cat}に名前が空の商品があります`]);
     else if (!(+it.p > 0)) W.push([3, `「${it.n}」の値段が 0 円です`]);
@@ -209,9 +216,15 @@ export type V5Ctx = {
 const seatKind = (seat: string): string | null => (seat === "vip" ? "VIP" : seat === "counter" ? "カウンター" : seat === "table" ? "卓" : null);
 const dowMask = (days: readonly string[]): number | null => { if (days.length >= 7) return null; let m = 0; days.forEach((d) => { const i = WD.indexOf(d as typeof WD[number]); if (i >= 0) m |= 1 << i; }); return m || null; };
 const minOf = (hm: string): number => mins(hm) % 1440;
-/** ★裁定443 1-①: v5 の端数（tax_rounding の語）→ 会計の丸め round_mode の語（stores_round_mode_check＝up／down／round） */
-export const ROUND_MODE_OF: Record<V5State["round"], "up" | "down" | "round"> = { round: "round", floor: "down", ceil: "up" };
-export const v5RoundModeOf = (S: V5State, ctx: V5Ctx): string => (ctx.setupDone === false ? ROUND_MODE_OF[S.round] : ctx.current.round_mode);
+/** ★裁定443 1-① → ★便 A M-71（2026-11-04）: 新しい店（setupDone=false）だけ v5 ③ の「端数の丸め」（roundUnit／roundMode・既定 1,000 円・切り捨て）を会計の丸めに送る。既存の店は今の値 */
+export const ROUND_UNIT_CHOICES = [100, 500, 1000] as const;
+export const ROUND_MODE_LABEL: Record<V5State["roundMode"], string> = { down: "切り捨て", up: "切り上げ", round: "四捨五入" };
+export const roundUnitErrorOf = (n: number): string | null => (Number.isInteger(n) && n >= 1 && n <= 10000 ? null : "丸め単位は 1〜10,000 の整数です");
+export const v5RoundModeOf = (S: V5State, ctx: V5Ctx): string => (ctx.setupDone === false ? S.roundMode : ctx.current.round_mode);
+export const v5RoundUnitOf = (S: V5State, ctx: V5Ctx): number => (ctx.setupDone === false && roundUnitErrorOf(S.roundUnit) === null ? S.roundUnit : ctx.current.round_unit);
+/** ★便 A M-72: 延長の付け方（選んだときだけ v5 の値・未選択は今の値＝③ の必須なので通常は選ばれている） */
+export const TIME_MODE_LABEL: Record<"auto" | "manual", string> = { auto: "自動", manual: "手動" };
+export const v5TimeModeOf = (S: V5State, ctx: V5Ctx): string => S.timeMode ?? ctx.current.time_mode;
 /** 商品の type＝分類名から（product_bulk_insert の 5 値） */
 export function productTypeOf(cat: string, it: V5Item): "drink" | "champ" | "bottle" | "food" | "other" {
   if (/シャンパン|スパークリング/.test(cat)) return "champ";
@@ -280,9 +293,9 @@ export function buildV5Plan(S: V5State, ctx: V5Ctx): { steps: V5Step[]; deferred
   seatNames(S.seats).forEach(([name, v], i) => push({ key: `seat_${i}`, group: "seats", label: `席 ${name}`, rpc: "set_seat", guard: "seats_empty", args: { p_id: null, p_store_id: s, p_name: name, p_kind: v === "vip" ? "VIP" : i < S.seats.counter ? "カウンター" : "卓", p_sort_order: i + 1, p_is_active: true } }));
   // 4) 料金
   const r0 = S.rules[0];
-  push({ key: "pricing", group: "pricing", label: "指名料・同伴料・サービス料・カード手数料", rpc: "set_store_pricing", args: { p_store_id: s, p_hon_fee: S.fees.hon, p_jonai_fee: S.fees.jo, p_dohan_fee: S.fees.dohan, p_service_rate: Math.round(S.svc), p_card_tax_rate: Math.round(S.cardfee || 0), p_round_unit: ctx.current.round_unit, p_round_mode: v5RoundModeOf(S, ctx) } }); // ★裁定443 1-①: 新しい店だけ v5 の端数
+  push({ key: "pricing", group: "pricing", label: "指名料・同伴料・サービス料・カード手数料", rpc: "set_store_pricing", args: { p_store_id: s, p_hon_fee: S.fees.hon, p_jonai_fee: S.fees.jo, p_dohan_fee: S.fees.dohan, p_service_rate: Math.round(S.svc), p_card_tax_rate: Math.round(S.cardfee || 0), p_round_unit: v5RoundUnitOf(S, ctx), p_round_mode: v5RoundModeOf(S, ctx) } }); // ★裁定443 1-① ★便 A M-71: 新しい店だけ v5 ③ の端数（単位・丸め方）
   if (r0) { const e0 = r0.ext.find((e) => e[2]) ?? r0.ext[0];
-    push({ key: "time_pricing", group: "pricing", label: `${r0.min ? `セット ${r0.min}分 ¥${r0.set}` : `チャージ ¥${r0.set}`}・延長 ${e0 ? `${e0[0]}分 ¥${e0[1]}` : "なし"}`, rpc: "set_store_time_pricing", args: { p_store_id: s, p_set_min: r0.min || 60, p_set_fee: r0.set, p_ext_min: e0 ? e0[0] : 30, p_ext_fee: e0 ? e0[1] : 0, p_time_mode: ctx.current.time_mode, p_time_per: ctx.current.time_per } }); }
+    push({ key: "time_pricing", group: "pricing", label: `${r0.min ? `セット ${r0.min}分 ¥${r0.set}` : `チャージ ¥${r0.set}`}・延長 ${e0 ? `${e0[0]}分 ¥${e0[1]}` : "なし"}`, rpc: "set_store_time_pricing", args: { p_store_id: s, p_set_min: r0.min || 60, p_set_fee: r0.set, p_ext_min: e0 ? e0[0] : 30, p_ext_fee: e0 ? e0[1] : 0, p_time_mode: v5TimeModeOf(S, ctx), p_time_per: ctx.current.time_per } }); } // ★便 A M-72: 延長の付け方（自動／手動）
   const ruleBase = (key: string, label: string, args: Record<string, unknown>) => push({ key, group: "pricing", label, rpc: "set_pricing_rule", guard: "rules_empty", args: { p_id: null, p_store_id: s, p_fee_kind: "set", p_seat_kind: null, p_dow_mask: null, p_time_from_min: null, p_time_to_min: null, p_rank_id: null, p_amount: 0, p_duration_min: null, p_priority: 100, p_is_active: true, p_name: label, p_tax_category: "taxable_10", p_category_id: null, p_billing_unit: null, p_is_default_ext: false, ...args } });
   const commonOf = (r: V5Rule, i: number) => { const allHours = r.from === S.shop.open && r.to === S.shop.close; const tf = allHours ? null : minOf(r.from), tt = allHours ? null : minOf(r.to); return { p_seat_kind: seatKind(r.seat), p_dow_mask: dowMask(r.days), p_time_from_min: tf, p_time_to_min: tt, p_priority: (i + 1) * 10 }; };
   S.rules.forEach((r, i) => ruleBase(`rule_${i}`, r.name, { ...commonOf(r, i), p_fee_kind: "set", p_amount: r.set, p_duration_min: r.min || null }));

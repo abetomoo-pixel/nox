@@ -8,11 +8,14 @@
 //   ③取消＝理由必須。打刻は削除（punch_correction_request の p_after_at null）・シフトは shift_remove・区分は休み（理由に「取消: …」）＝行は「取消済み」で残る（器 cancelled_at は無い＝0175 行き）。
 //   編集後は呼び出し側が再読込＝合計行と給与画面の同じ数字が即時に一致（同じ関数）。≤900px は Modal がボトムシート（全幅）になる。
 import { useState } from "react";
+import DatePicker from "@/components/ui/date-picker"; // ★便 A M-67（教訓133 追記）: 日付は共通のカレンダー（ネイティブ date は使わない）
+import TimePicker from "@/components/ui/time-picker"; // ★便 A M-67: 時刻は共通のピッカー（時・分の 2 列・翌の表示・26:00 の手打ちは廃止）
+import SegSelect from "@/components/ui/seg-select"; // ★便 A M-67: 区分はボタン群（ネイティブ select は使わない）
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import Modal from "@/components/ui/modal";
 import { Message } from "@/components/ui/toast";
-import { hm47Ja, hm47OfInput, isoOfBizHm, kintaiEditPlanOf, type AttendanceDayRow } from "@/lib/nox/payroll/attendance-sheet";
+import { hm47Ja, isoOfBizHm, kintaiEditPlanOf, type AttendanceDayRow } from "@/lib/nox/payroll/attendance-sheet"; // ★便 A M-67: hm47OfInput（手打ちの解釈）は使わない
 import { hm2min, min2hm } from "@/lib/nox/shift-time";
 
 export const ATT_STATUS_OPTIONS = [["", "変えない"], ["shukkin", "出勤"], ["late", "遅刻"], ["absent", "当欠"], ["off", "休み"], ["dohan", "同伴"]] as const;
@@ -47,8 +50,9 @@ export default function KintaiEdit({ castId, castName, row, periodStart, periodE
   const supabase = createClient();
   const add = row === null;
   const [date, setDate] = useState(row?.bizDate ?? (todayBiz <= periodEnd && todayBiz >= periodStart ? todayBiz : periodEnd));
-  const [inTxt, setInTxt] = useState(row?.inHm ? hm47Ja(row.inHm) : "");
-  const [outTxt, setOutTxt] = useState(row?.outHm ? hm47Ja(row.outHm) : "");
+  // ★便 A M-67: 値は 0〜47 時の "HH:MM"（翌の表示は TimePicker が付ける）＝文字の手打ち（翌01:30／25:30）は廃止
+  const [inTxt, setInTxt] = useState(row?.inHm ?? "");
+  const [outTxt, setOutTxt] = useState(row?.outHm ?? "");
   const [status, setStatus] = useState<string>("");
   const [note, setNote] = useState("");
   const [reason, setReason] = useState("");
@@ -66,8 +70,8 @@ export default function KintaiEdit({ castId, castName, row, periodStart, periodE
 
   async function save() {
     setErr(null);
-    const inHm = hm47OfInput(inTxt), outHm = hm47OfInput(outTxt);
-    if (inHm === undefined || outHm === undefined) { setErr("時刻は「20:00」「翌01:30」（または 25:30）の形で入力してください"); return; }
+    const inHm = inTxt.trim() === "" ? null : inTxt.trim(), outHm = outTxt.trim() === "" ? null : outTxt.trim(); // ★便 A M-67: TimePicker の値（0〜47 時）
+    if ((inHm && !/^([0-3]?[0-9]|4[0-7]):([0-5][0-9])$/.test(inHm)) || (outHm && !/^([0-3]?[0-9]|4[0-7]):([0-5][0-9])$/.test(outHm))) { setErr("時刻を選んでください"); return; }
     if (inHm && outHm && hm2min(outHm) <= hm2min(inHm)) { setErr("退は出より後の時刻にしてください（翌日は「翌01:30」）"); return; }
     if (add) {
       if (!date || date < periodStart || date > periodEnd) { setErr("この月の日付を選んでください"); return; }
@@ -126,23 +130,23 @@ export default function KintaiEdit({ castId, castName, row, periodStart, periodE
       <div data-kintai-edit-sheet={add ? "add" : row!.bizDate} style={{ padding: "4px 2px" }}>
         <h3 style={{ ...t.cardTitle, margin: "0 0 10px" }}>{add ? `${castName}：日を追加` : `${castName}：${md(row!.bizDate)} の編集`}</h3>
         {!add && row!.shift && <p style={{ ...t.sub, margin: "0 0 8px" }}>確定シフト {row!.shift.start}–{hm47Ja(row!.shift.end)}{row!.missingOut ? "・退勤記録なし（退を入れると埋まります）" : ""}</p>}
-        {add && <div style={field}><label style={lbl}>日付</label><input type="date" value={date} min={periodStart} max={todayBiz < periodEnd ? todayBiz : periodEnd} onChange={(e) => setDate(e.target.value)} style={{ ...t.input, width: "auto" }} data-kintai-add-date="1" /><span style={t.sub}>確定シフトが無い日は、出〜退でシフトも足します（飛び入り出勤）</span></div>}
+        {add && <div style={field}><label style={lbl}>日付</label><DatePicker value={date} min={periodStart} max={todayBiz < periodEnd ? todayBiz : periodEnd} todayYmd={todayBiz} isDisabled={(d) => existingDates.includes(d)} onChange={setDate} ariaLabel="日付" width={200} testId="kintai-add-date" /><span style={t.sub}>確定シフトが無い日は、出〜退でシフトも足します（飛び入り出勤）</span></div>}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-          <div style={field}><label style={lbl}>出</label><input value={inTxt} onChange={(e) => setInTxt(e.target.value)} placeholder="20:00" inputMode="numeric" style={t.input} data-kintai-in="1" aria-label="出の時刻" /></div>
-          <div style={field}><label style={lbl}>退</label><input value={outTxt} onChange={(e) => setOutTxt(e.target.value)} placeholder="翌01:30" style={t.input} data-kintai-out="1" aria-label="退の時刻" /></div>
+          <div style={field} data-kintai-in="1"><label style={lbl}>出</label><TimePicker value={inTxt} onChange={setInTxt} step={15} maxHour={23} ariaLabel="出の時刻" width="100%" /></div>{/* ★便 A M-67: 共通の TimePicker */}
+          <div style={field} data-kintai-out="1"><label style={lbl}>退</label><TimePicker value={outTxt} onChange={setOutTxt} step={15} maxHour={47} after={inTxt || null} ariaLabel="退の時刻" width="100%" /></div>
         </div>
         <div style={field}><label style={lbl}>区分</label>
-          <select value={status} onChange={(e) => setStatus(e.target.value)} style={{ ...t.input, width: "auto" }} data-kintai-status="1" aria-label="区分">{ATT_STATUS_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
+          <SegSelect value={status} onChange={setStatus} options={ATT_STATUS_OPTIONS} ariaLabel="区分" wrap />{/* ★便 A M-67: 区分はボタン群（data-kintai-status は親で） */}
           <span style={t.sub}>早退は退の時刻から判定します（区分ではありません）</span></div>
         <div style={field}><label style={lbl}>備考（区分の理由・本人の連絡）</label><input value={note} onChange={(e) => setNote(e.target.value)} style={t.input} data-kintai-note="1" maxLength={200} /></div>
         <div style={field}><label style={lbl}>{cancelMode ? "取消の理由（必須）" : "修正の理由（時刻を変えるときは必須・店の修正に残ります）"}</label><input value={reason} onChange={(e) => setReason(e.target.value)} style={t.input} data-kintai-reason="1" maxLength={200} placeholder={add ? "飛び入り出勤" : "打刻の忘れ 等"} /></div>
         {err && <div style={{ marginBottom: 8 }}><Message kind="error">{err}</Message></div>}
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+        <div className="nox-actions" data-kintai-actions="1">{/* ★便 A M-67・教訓133: 保存する／やめる／取消… は中央寄せ */}
           {!cancelMode && <button type="button" style={{ ...t.btnGold, ...t.btnSm }} disabled={busy} onClick={() => void save()} data-kintai-save="1">{add ? "追加する" : "保存する"}</button>}
           {cancelMode && <button type="button" style={{ ...t.btnGold, ...t.btnSm, background: "var(--bad)" }} disabled={busy} onClick={() => void cancelDay()} data-kintai-cancel-confirm="1">この日を取消する</button>}
           <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} disabled={busy} onClick={onClose}>やめる</button>
-          {!add && !cancelMode && <button type="button" style={{ ...t.btnGhost, ...t.btnSm, marginLeft: "auto", color: "var(--bad)", borderColor: "var(--bad)" }} disabled={busy} onClick={() => setCancelMode(true)} data-kintai-cancel="1">取消…</button>}
-          {cancelMode && <button type="button" style={{ ...t.btnGhost, ...t.btnSm, marginLeft: "auto" }} disabled={busy} onClick={() => setCancelMode(false)}>取消をやめる</button>}
+          {!add && !cancelMode && <button type="button" style={{ ...t.btnGhost, ...t.btnSm, color: "var(--bad)", borderColor: "var(--bad)" }} disabled={busy} onClick={() => setCancelMode(true)} data-kintai-cancel="1">取消…</button>}
+          {cancelMode && <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} disabled={busy} onClick={() => setCancelMode(false)}>取消をやめる</button>}
         </div>
       </div>
     </Modal>

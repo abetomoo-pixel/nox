@@ -57,6 +57,7 @@ import { notifRefOf, remindNoticeDefaultOf, remindWishBody, shiftAddedBody, shif
 import { PERIOD_NEEDS_NOTE, emptyPeriodNeedsForm, periodNeedRequiredOf, periodNeedRowsOf, periodNeedsChipOf, periodNeedsErrorOf, periodNeedsFormOf, type PeriodNeedRow, type PeriodNeedsForm } from "@/lib/nox/shift/period-needs"; // ★便 ON-3（0176 ★5 (a)）: 期間ごとの必要人数
 import { declineTextOf } from "@/lib/nox/shift/decline"; // ★便 ON-3（0176 ★5 (c)・裁定406）: 辞退の印
 import { bandHmLabelOf, bandMinLabelOf, bandOptionsOf, periodShortOf } from "@/lib/nox/shift/half-hour"; // ★便 M2 M-16: 必要人数の時間帯＝30 分刻みの選択肢
+import type { Avail } from "@/lib/nox/rules-0175/availability"; // ★便 A M-65: 基本の働き方（不可・相談）
 import { HM_FORMAT_ERR, hmRangeErrorOf, normalizeHHMM } from "@/lib/nox/time/hhmm";
 import OkuriOutDialog from "@/components/nox/okuri-out-dialog";
 import PenaltyDialog, { type PenaltyTarget } from "@/components/nox/penalty-dialog";
@@ -210,6 +211,8 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   const [remindTarget, setRemindTarget] = useState<{ period: Period; castIds: string[]; title: string; body: string } | null>(null);
   // ★SD V2-2: 表示月の wishes 全 status（原型対比・4段フロー）／period／配置ルール
   const [wishAll, setWishAll] = useState<Wish[]>([]);
+  const [availByCast, setAvailByCast] = useState<Record<string, Partial<Record<number, Avail>>>>({}); // ★便 A M-65: cast_id → 曜日 → 可／不可／相談（availability＝membership か cast_id）
+  const [specialDays, setSpecialDays] = useState<{ day: string; kind: string }[]>([]); // ★便 A M-75: 特別営業日／臨時休業（定休日の判定）
   const [periods, setPeriods] = useState<Period[]>([]);
   // ★便 T-1: 既定日付と重なり判定は「表示月」ではなく店の全期間で見る（periods は表示月に重なる分だけ）
   const [periodsAll, setPeriodsAll] = useState<(Period & { store_id: string })[]>([]);
@@ -354,6 +357,11 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   //   新規配置／希望は従来どおり UI＋RPC 'closed day' でブロック・既にある行は赤バッジ「定休日」（店長が消す／残すを選ぶ＝自動削除なし）
   const closedDows = new Set(bhRows.filter((r) => r.is_closed).map((r) => r.dow));
   const isClosedDay = (ymd: string) => closedDows.has(dowOf(ymd));
+  // ★便 A M-75: 日タブの追加配置の定休日＝定休の曜日（必要人数 0）で特別営業日でない・または臨時休業
+  const specialOf = (ymd: string) => specialDays.find((x) => x.day === ymd)?.kind ?? null;
+  const isClosedForAdd = (ymd: string) => specialOf(ymd) === "closed" || (isClosedDay(ymd) && specialOf(ymd) !== "open");
+  // ★便 A M-76: 店の曜日別の既定（staffing_needs のピーク＝requiredOf と同じ・定休日は 0）
+  const storeNeedOf = (dow: number): number => (closedDows.has(dow) ? 0 : needs.filter((n) => n.dow === dow).reduce((m, n) => Math.max(m, n.required), 0));
   // 新規シフトフォーム（manager）
   // ★SC-1（裁定42）: 手動追加フォームは ShiftAddForm へ切り出した。
   //   親が持つのは「どの面から・どの日付・どの状態で開くか」だけ（フォームの6 state は子の内部）。
@@ -508,6 +516,25 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
     setWishAll((wAll ?? []) as Wish[]);
     setPeriods((ps2 ?? []) as Period[]);
     setBhRows((bh ?? []) as BusinessHourRow[]);
+    // ★便 A M-65: 基本の働き方＝availability（membership_id か cast_id・RLS＝店スコープ）→ cast_id に写す（memberships.user_id＝casts.user_id）
+    {
+      const [{ data: av }, { data: cu }, { data: mu }] = await Promise.all([
+        supabase.from("availability").select("membership_id, cast_id, dow, avail").eq("store_id", storeId),
+        supabase.from("casts").select("id, user_id").eq("store_id", storeId),
+        supabase.from("memberships").select("id, user_id").eq("store_id", storeId),
+      ]);
+      const castByUser = new Map(((cu ?? []) as { id: string; user_id: string | null }[]).filter((c) => !!c.user_id).map((c) => [c.user_id as string, c.id]));
+      const castByMem = new Map(((mu ?? []) as { id: string; user_id: string }[]).map((m) => [m.id, castByUser.get(m.user_id) ?? null]));
+      const out: Record<string, Partial<Record<number, Avail>>> = {};
+      for (const r of (av ?? []) as { membership_id: string | null; cast_id: string | null; dow: number; avail: Avail }[]) {
+        const cid = r.cast_id ?? (r.membership_id ? castByMem.get(r.membership_id) ?? null : null);
+        if (!cid) continue;
+        (out[cid] ??= {})[r.dow] = r.avail;
+      }
+      setAvailByCast(out);
+      const { data: sd } = await supabase.from("store_special_days").select("day, kind").eq("store_id", storeId).gte("day", addDays(bizToday, -7)).lte("day", addDays(bizToday, 62));
+      setSpecialDays((sd ?? []) as { day: string; kind: string }[]);
+    }
     // E8-4 #10: 登録者名の解決（E8-2 #8 の closed_by→users.name と同じ1クエリ流儀・失敗時は「—」に落ちるだけ）
     const uids = Array.from(new Set(((ss ?? []) as Shift[]).map((s) => s.created_by).filter(Boolean)));
     // ★B4-c 裁定224（H39）: owner のときだけ表示月のシフト系 action を読む（manager 以下は 0 行にすらしない＝要素非描画）。
@@ -1521,8 +1548,10 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                 ★既定 status は confirmed＝当日その場で足すのは「もう入る人」（予定ではない）。
                   shift_set は insert 経路で p_status をそのまま格納する（planned 固定ではない）と live 実測済み。 */}
             {isManagerUp && (
-              <button className="nox-addc" style={{ marginLeft: "auto" }}
-                data-today-add="1" onClick={() => setTodayAdd(true) /* ★便 M5b M-58: 当日専用の形（日付＝今日の営業日で固定・キャスト複数・時刻・その場で確定）＝DayAddPanel を今日の営業日で開く */}>＋ 当日追加配置</button>
+              isClosedForAdd(todayDate)
+                ? <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--sub)" }} data-today-add-closed={todayDate}>定休日（特別営業日にすると配置できます）</span>
+                : <button className="nox-addc" style={{ marginLeft: "auto" }}
+                  data-today-add="1" onClick={() => setTodayAdd(true) /* ★便 M5b M-58 → ★便 A M-75: 対象＝選択中の日（todayDate）・ラベル＝今日なら「当日」・それ以外は「11/8 に」 */}>{todayDate === bizToday ? "＋ 当日追加配置" : `＋ ${Number(todayDate.slice(5, 7))}/${Number(todayDate.slice(8, 10))} に追加配置`}</button>
             )}
           </div>
           {/* ★裁定297-1（2026-09-25・裁定295-1）: cast の修正申請（pending）＝店の決裁。承認／却下とも理由必須（decide_reason）・RPC は既存 punch_correction_decide（新 RPC 0）・cast には出ない（isManagerUp） */}
@@ -2245,22 +2274,16 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
           })}
           {/* バンド追加フォーム（検証の正は RPC＝bad band / overlap を日本語で返す） */}
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 10 }}>
-            <select value={nDow} onChange={(e) => setNDow(Number(e.target.value))} style={input}>
-              {DOW.map((l, d) => <option key={d} value={d}>{l}曜</option>)}
-            </select>
+            <SegSelect value={String(nDow)} onChange={(v) => setNDow(Number(v))} options={DOW.map((l, d) => [String(d), l] as const)} ariaLabel="曜日" />{/* ★便 A M-76: 曜日はボタン群（教訓133） */}
             <label style={{ fontSize: 12.5, color: "var(--sub)", display: "flex", alignItems: "center", gap: 4 }}>
               <input type="checkbox" checked={nAllDay} onChange={(e) => setNAllDay(e.target.checked)} />終日
             </label>
             <span className="nox-bandform-br" aria-hidden="true" />{/* ★便 M2 M-16（補遺）: 390 は「曜日／終日」と「開始〜終了・人数・追加」の 2 段 */}
             {!nAllDay && (
               <>
-                <select value={nFrom} onChange={(e) => setNFrom(e.target.value)} aria-label="開始" style={{ ...input, width: "auto" }} data-band-from="1">{/* ★便 M2 M-16（Agoora 確定 10/27）: 30 分刻みの選択式（翌表記は 0189 の後） */}
-                  {bandOptionsOf(bhRows, nDow).from.map((v) => <option key={v} value={v}>{bandHmLabelOf(v)}</option>)}{/* ★便 M2 M-16（補遺）: 範囲＝その曜日の店の営業時間 ★0189: 翌表記 */}
-                </select>
+                <TimeInput value={nFrom} onChange={setNFrom} step={30} maxHour={47} startAt={bandOptionsOf(bhRows, nDow).from[0] ?? "20:00"} ariaLabel="開始" width={120} />{/* ★便 A M-76: TimePicker（30 分刻み・範囲の正は RPC＝bad band） */}
                 <span style={{ fontSize: 13, color: "var(--sub)" }}>〜</span>
-                <select value={nTo} onChange={(e) => setNTo(e.target.value)} aria-label="終了" style={{ ...input, width: "auto" }} data-band-to="1">
-                  {bandOptionsOf(bhRows, nDow).to.map((v) => <option key={v} value={v}>{bandHmLabelOf(v)}</option>)}{/* ★0189: 翌 24:00（2880）まで */}
-                </select>
+                <TimeInput value={nTo} onChange={setNTo} step={30} maxHour={47} after={nFrom} startAt={bandOptionsOf(bhRows, nDow).to.slice(-1)[0] ?? "24:00"} ariaLabel="終了" width={120} />
               </>
             )}
             <span style={{ fontSize: 12.5, color: "var(--sub)" }}>必要</span>
@@ -2349,14 +2372,21 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
             <SegSelect value={pStatus} onChange={(v) => setPStatus(v)} options={PERIOD_ST_OPTIONS} ariaLabel="状態" />
           </div>
           {/* ★便 ON-3（0176 ★5 (a)）: この期間だけの必要人数（曜日別・空欄＝店の既定）＝shift_period_needs_set（保存と同時に全置換） */}
-          <div className="pf-row" data-period-needs="1" style={{ flexWrap: "wrap", gap: 6 }}>
-            <span style={{ fontSize: 12, color: "var(--sub)", flexBasis: "100%" }}>必要人数（この期間だけ・空欄＝店の既定）</span>
-            {DOW.map((d, i) => (
-              <label key={d} style={{ fontSize: 12, display: "inline-flex", alignItems: "center", gap: 3 }}>{d}
-                <input inputMode="numeric" value={pNeeds[i] ?? ""} onChange={(e) => { const v = e.target.value; setPNeeds((f) => f.map((x, k) => (k === i ? v : x))); }} style={{ ...input, width: 44, padding: "6px 6px", textAlign: "center" }} placeholder="—" aria-label={`${d}曜の必要人数`} data-period-need-dow={i} />
-              </label>
-            ))}
-            <span style={{ fontSize: 10.5, color: "var(--v2-muted)", flexBasis: "100%" }}>{PERIOD_NEEDS_NOTE}</span>
+          <div className="pf-row" data-period-needs="1" style={{ flexWrap: "wrap", gap: 6 }}>{/* ★便 A M-76: 店の曜日別の既定を初期表示・定休日は「定休」・−／＋のステッパー＋「名」・既定から変えた曜日だけ上書きを保存（既定に戻した曜日は空＝保存しない） */}
+            <span style={{ fontSize: 12, color: "var(--sub)", flexBasis: "100%" }}>必要人数（この期間だけ）<button type="button" className="nox-link" style={{ marginLeft: 8, fontSize: 11.5 }} data-period-needs-reset="1" onClick={() => setPNeeds(emptyPeriodNeedsForm())}>店の既定に戻す</button></span>
+            {DOW.map((d, i) => { const def = storeNeedOf(i); const hol = closedDows.has(i); const cur = (pNeeds[i] ?? "").trim() === "" ? def : Number(pNeeds[i]); const over = (pNeeds[i] ?? "").trim() !== "";
+              const setV = (v: number) => setPNeeds((f) => f.map((x, k) => (k === i ? (v === def ? "" : String(Math.max(0, Math.min(99, v)))) : x)));
+              return (
+              <span key={d} style={{ fontSize: 12, display: "inline-flex", alignItems: "center", gap: 3 }} data-period-need-dow={i} data-period-need-over={over ? "1" : "0"}>{d}
+                {hol ? <span style={{ ...input, width: 70, padding: "6px 6px", textAlign: "center", color: "var(--sub)", opacity: 0.7 }} data-period-need={i} data-period-need-closed="1">定休</span>
+                  : <span style={{ display: "inline-flex", alignItems: "center", border: "1px solid var(--line2)", borderRadius: 8, overflow: "hidden" }}>
+                    <button type="button" style={{ ...btnLight, border: 0, borderRadius: 0, padding: "4px 8px" }} aria-label={`${d}曜の必要人数を 1 減らす`} onClick={() => setV(cur - 1)}>−</button>
+                    <span className="num" style={{ minWidth: 34, textAlign: "center", fontWeight: over ? 800 : 400, color: over ? "var(--champ)" : undefined }} data-period-need={i} data-period-need-value={cur}>{cur}</span>
+                    <span style={{ fontSize: 11, color: "var(--sub)" }}>名</span>
+                    <button type="button" style={{ ...btnLight, border: 0, borderRadius: 0, padding: "4px 8px" }} aria-label={`${d}曜の必要人数を 1 増やす`} onClick={() => setV(cur + 1)}>＋</button>
+                  </span>}
+              </span>); })}
+            <span style={{ fontSize: 10.5, color: "var(--v2-muted)", flexBasis: "100%" }}>店の既定を表示しています。この期間だけ変える曜日を直してください。</span>
           </div>
           <div className="pf-acts nox-cta">{/* ★裁定406: 主ボタンは中央 */}
             {pEditId && (
@@ -2610,19 +2640,19 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
           保存されたら onSaved で親の load() を回す（子は DB の再取得を知らない）。 */}
       {/* ★0125（裁定112）: 2段ピッカーは廃止＝v6 モーダルの左ペイン（CastPicker）へ統合。
           行の「＋」直開きは initialCast で従来どおりキャスト固定で開く（裁定108 の Picker 維持）。 */}
-      {isManagerUp && todayAdd && (/* ★便 M5b M-58: 見出しに今日の営業日（切替時刻前の深夜は前日）を固定表示・日付は選ばせない・保存＝採用・確定（DayAddPanel＝shift_set）→ 今日のシフト表と集計に即反映・その行で「出勤」 */
+      {isManagerUp && todayAdd && (/* ★便 M5b M-58 → ★便 A M-75: 対象＝選択中の日（todayDate）。題名・説明も選択日で（今日以外は「保存すると確定のシフトになり、その日のタブに出ます」）。保存＝採用・確定（DayAddPanel＝shift_set）→ 選択日の表に即反映 */
         <Modal onClose={() => setTodayAdd(false)} maxWidth={560}>
-          <h3 style={{ ...t.cardTitle, margin: "0 0 8px" }} data-today-add-head={bizToday}>{Number(bizToday.slice(5, 7))}/{Number(bizToday.slice(8, 10))}（{DOW[dowOf(bizToday)]}）に追加配置</h3>
-          <p style={{ ...t.sub, margin: "0 0 8px" }}>今日のシフトに入っている人は出ません。出勤不可の人は理由を入れると登録できます。保存すると確定のシフトになり、今日のタブの行で「出勤」を押せます。</p>
-          <DayAddPanel date={bizToday} casts={casts} photoUrls={photoUrls} bhRows={bhRows} wishes={wishAll} closed={false}
-            assignedCastIds={shiftsOn(bizToday).map((s) => s.cast_id)}
-            onSaved={async () => { setMsg(`${Number(bizToday.slice(5, 7))}/${Number(bizToday.slice(8, 10))} に追加配置しました（確定）`); setTodayDate(bizToday); setTodayAdd(false); await load(); }} onDirtyChange={() => {}} />
+          <h3 style={{ ...t.cardTitle, margin: "0 0 8px" }} data-today-add-head={todayDate}>{Number(todayDate.slice(5, 7))}/{Number(todayDate.slice(8, 10))}（{DOW[dowOf(todayDate)]}）に追加配置</h3>
+          <p style={{ ...t.sub, margin: "0 0 8px" }}>{todayDate === bizToday ? "今日のシフトに入っている人は出ません。出勤不可の人は理由を入れると登録できます。保存すると確定のシフトになり、今日のタブの行で「出勤」を押せます。" : "この日のシフトに入っている人は出ません。出勤不可の人は理由を入れると登録できます。保存すると確定のシフトになり、その日のタブに出ます。"}</p>
+          <DayAddPanel date={todayDate} casts={casts} photoUrls={photoUrls} bhRows={bhRows} wishes={wishAll} closed={isClosedForAdd(todayDate)} availByCast={availByCast}
+            assignedCastIds={shiftsOn(todayDate).map((s) => s.cast_id)}
+            onSaved={async () => { setMsg(`${Number(todayDate.slice(5, 7))}/${Number(todayDate.slice(8, 10))} に追加配置しました（確定）`); setTodayAdd(false); await load(); }} onDirtyChange={() => {}} />
         </Modal>
       )}
       {isManagerUp && (
         <ShiftAddForm
           casts={casts} photoUrls={photoUrls} initialCast={addCast} bhRows={bhRows}
-          initialDate={addDate} initialStatus={addStatus}
+          initialDate={addDate} initialStatus={addStatus} availByCast={availByCast} /* ★便 A M-65 (b) */
           needs={needs} assignedByDate={assignedByDate} /* ★裁定245-6: 不足 n の材料（staffing_needs と日別配置数） */
           open={addModal} onClose={() => setAddModal(false)}
           onSaved={() => { setMsg("シフトを保存しました"); void load(); }}

@@ -50,3 +50,19 @@ export function dayAddStateOf(wishesOfDay: readonly { start_hm: string; end_hm: 
   const w = wishesOfDay.find((x) => (x.kind ?? "work") !== "off");
   return w ? { state: "wish", wish: { start_hm: w.start_hm, end_hm: w.end_hm } } : { state: "none", wish: null };
 }
+
+// ★便 A M-65（2026-11-04・Agoora 決定）: その日のキャストの状態＝4 段＝希望あり（青）／不可（赤＝基本の働き方のその曜日が不可、または希望が休み）／相談（黄＝基本の働き方が相談）／シフトなし（灰）。
+//   判定は希望＞基本の働き方。(a) 割当ピッカー（day-add-panel）と (b) まとめて追加（shift-add-form）の 1 本の関数。avail は lib/nox/rules-0175/availability の Avail（ok／ng／ask）・無ければ null。
+export type DayCastState = "wish" | "unavailable" | "consult" | "none";
+export const DAY_CAST_STATE_LABEL: Record<DayCastState, string> = { wish: "希望あり", unavailable: "不可", consult: "相談", none: "シフトなし" };
+export type DayCastJudge = { state: DayCastState; wish: { start_hm: string; end_hm: string } | null; /** 不可の理由＝休み希望／基本の働き方の曜日が不可 */ why: "wish_off" | "avail_ng" | null };
+export function dayCastStateOf(wishesOfDay: readonly { start_hm: string; end_hm: string; kind?: string }[], avail: "ok" | "ng" | "ask" | null | undefined): DayCastJudge {
+  if (wishesOfDay.some((w) => (w.kind ?? "work") === "off")) return { state: "unavailable", wish: null, why: "wish_off" };
+  const w = wishesOfDay.find((x) => (x.kind ?? "work") !== "off");
+  if (w) return { state: "wish", wish: { start_hm: w.start_hm, end_hm: w.end_hm }, why: null };
+  if (avail === "ng") return { state: "unavailable", wish: null, why: "avail_ng" };
+  if (avail === "ask") return { state: "consult", wish: null, why: null };
+  return { state: "none", wish: null, why: null };
+}
+/** 不可の曜日の確認文（選択時に 1 回） */
+export const availNgConfirmOf = (dowJa: string): string => `${dowJa}曜は不可の設定です。追加しますか`;

@@ -18,7 +18,8 @@ import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import CastAvatar from "@/components/ui/cast-avatar";
 import { type BusinessHourRow } from "@/lib/nox/business-hours";
-import { dayAddStateOf, DAY_ADD_STATE_LABEL, type DayAddState } from "@/lib/nox/shift/half-hour";
+import { dayCastStateOf, availNgConfirmOf, DAY_CAST_STATE_LABEL, type DayCastState } from "@/lib/nox/shift/half-hour"; // ★便 A M-65: 4 段の判定（希望＞基本の働き方）＝(b) まとめて追加と同じ 1 本
+import type { Avail } from "@/lib/nox/rules-0175/availability";
 import TimeInput from "@/components/ui/time-input"; // ★便 M5b M-51
 
 import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
@@ -28,11 +29,13 @@ export type DayWish = { cast_id: string; date: string; start_hm: string; end_hm:
 
 const btnDark: React.CSSProperties = { ...t.btnGold, ...t.btnSm };
 const btnLight: React.CSSProperties = { ...t.btnGhost, ...t.btnSm };
-const STATE_STYLE: Record<DayAddState, React.CSSProperties> = {
+const STATE_STYLE: Record<DayCastState, React.CSSProperties> = {
   wish: { color: "var(--primary)", borderColor: "rgba(79, 140, 255, .45)" },
   none: { color: "var(--sub)", borderColor: "var(--line2)" },
   unavailable: { color: "var(--bad)", borderColor: "rgba(217, 138, 138, .5)" },
+  consult: { color: "var(--gold2)", borderColor: "rgba(201, 162, 74, .5)" }, // ★便 A M-65: 相談＝黄
 };
+const DOW_JA = ["日", "月", "火", "水", "木", "金", "土"] as const;
 
 // 既定の勤務時間（営業時間が引けないときのフォールバック＝ShiftAddForm と同値）
 const FALLBACK_START = "20:00";
@@ -62,8 +65,10 @@ function rpcErrJa(msg: string | undefined): string {
 }
 
 export default function DayAddPanel({
-  date, casts, photoUrls, bhRows, assignedCastIds, onSaved, onDirtyChange, wishes = [], closed = false,
+  date, casts, photoUrls, bhRows, assignedCastIds, onSaved, onDirtyChange, wishes = [], closed = false, availByCast = {},
 }: {
+  /** ★便 A M-65: 基本の働き方（cast_id → 曜日 → 可／不可／相談）＝不可は赤「不可」・相談は黄「相談」（希望が優先） */
+  availByCast?: Record<string, Partial<Record<number, Avail>>>;
   date: string;
   casts: Cast[];
   photoUrls: Map<string, string>;
@@ -98,19 +103,22 @@ export default function DayAddPanel({
   const inBuf = (id: string) => rows.some((r) => r.castId === id);
   const nameOf = (id: string) => casts.find((c) => c.id === id)?.name ?? "?";
   const dayWishes = wishes.filter((w) => w.date === date && w.status !== "withdrawn");
-  const stateOf = (id: string) => dayAddStateOf(dayWishes.filter((w) => w.cast_id === id));
+  const dow = new Date(`${date}T00:00:00Z`).getUTCDay();
+  const stateOf = (id: string) => dayCastStateOf(dayWishes.filter((w) => w.cast_id === id), availByCast[id]?.[dow] ?? null); // ★便 A M-65 (c): 1 本の判定
 
   const toggle = (c: Cast) => {
     if (busy || assigned.has(c.id)) return;
     setMsg(null);
     const st = stateOf(c.id);
+    // ★便 A M-65 (a): 不可の人も選べるが、基本の働き方の曜日が不可のときは確認を 1 回（休み希望の不可は「それでも追加」＝理由必須のまま）
+    if (st.why === "avail_ng" && !rows.some((r) => r.castId === c.id) && !window.confirm(availNgConfirmOf(DOW_JA[dow]))) return;
     setRows((prev) => prev.some((r) => r.castId === c.id)
       ? prev.filter((r) => r.castId !== c.id)
       : [...prev, {
           castId: c.id,
           start: st.wish?.start_hm.slice(0, 5) ?? preset?.[0] ?? FALLBACK_START,
           end: st.wish?.end_hm.slice(0, 5) ?? preset?.[1] ?? FALLBACK_END,
-          err: null, needReason: st.state === "unavailable", reason: "",
+          err: null, needReason: st.why === "wish_off", reason: "",
         }]);
   };
   const setRow = (id: string, patch: Partial<Row>) =>
@@ -140,7 +148,7 @@ export default function DayAddPanel({
   }
 
   // ★便 M2 M-19: その日に入っている人は出さない・並び＝希望あり→シフトなし→出勤不可（各名前順）
-  const ORDER: Record<DayAddState, number> = { wish: 0, none: 1, unavailable: 2 };
+  const ORDER: Record<DayCastState, number> = { wish: 0, none: 1, consult: 2, unavailable: 3 }; // ★便 A M-65: 希望あり→シフトなし→相談→不可
   const sorted = casts.filter((c) => !assigned.has(c.id)).slice().sort((a, b) => ORDER[stateOf(a.id).state] - ORDER[stateOf(b.id).state] || a.name.localeCompare(b.name, "ja"));
   // ★B4-b 裁定225（H41）: 名前の部分一致で候補を絞る
   const [q, setQ] = useState("");
@@ -182,7 +190,7 @@ export default function DayAddPanel({
                   <CastAvatar name={c.name} url={photoUrls.get(c.id)} variant="flat" />
                   <span style={{ flex: 1, minWidth: 0 }}>{c.name}</span>
                   <span style={{ ...t.tag, fontSize: 10.5, padding: "1px 7px", ...STATE_STYLE[st.state] }}>
-                    {st.state === "wish" && st.wish ? `${DAY_ADD_STATE_LABEL.wish} ${st.wish.start_hm.slice(0, 5)}〜` : DAY_ADD_STATE_LABEL[st.state]}
+                    {st.state === "wish" && st.wish ? `${DAY_CAST_STATE_LABEL.wish} ${st.wish.start_hm.slice(0, 5)}〜` : DAY_CAST_STATE_LABEL[st.state]}
                   </span>
                   {on && <span className="nox-stpill ok">選択中</span>}
                 </button>

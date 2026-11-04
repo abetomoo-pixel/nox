@@ -16,6 +16,7 @@
 //     モックの「経理」ロールは NOX に無い＝出さない（M-10 C-3 でモック側を是正）。
 import { useCallback, useEffect, useState } from "react";
 import SegSelect from "@/components/ui/seg-select";
+import DatePicker from "@/components/ui/date-picker"; // ★便 A M-80 追記③: 生年月日は共通ピッカー
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 
@@ -321,7 +322,7 @@ export default function SensitiveTaxPanel({ casts, stores, isOwner, isManager = 
               <p style={{ fontSize: 12, fontWeight: 800, color: "var(--champ)", margin: "0 0 8px" }}>本人情報</p>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                 <label style={label}>本名<input value={realName} onChange={(e) => setRealName(e.target.value)} style={{ ...input, width: "100%" }} /></label>
-                <label style={label}>生年月日<input type="date" value={birthday} onChange={(e) => setBirthday(e.target.value)} style={{ ...input, width: "100%" }} /></label>
+                <label style={label}>生年月日<DatePicker value={birthday} onChange={setBirthday} ariaLabel="生年月日" width="100%" testId="cast-birthday" /></label>{/* ★便 A M-80 追記③ */}
                 <div style={{ gridColumn: "1 / -1" }}>
                   <span style={label}>マイナンバー</span>
                   {mynumberSet && (
@@ -356,8 +357,7 @@ export default function SensitiveTaxPanel({ casts, stores, isOwner, isManager = 
                   <label style={label}>電話<input value={ext.phone} onChange={(e) => setExt({ ...ext, phone: e.target.value })} inputMode="tel" maxLength={200} style={{ ...input, width: "100%" }} /></label>
                   <label style={label}>銀行<input value={ext.bank_name} onChange={(e) => setExt({ ...ext, bank_name: e.target.value })} maxLength={200} style={{ ...input, width: "100%" }} /></label>
                   <label style={label}>支店<input value={ext.bank_branch} onChange={(e) => setExt({ ...ext, bank_branch: e.target.value })} maxLength={200} style={{ ...input, width: "100%" }} /></label>
-                  <label style={label}>種別<select value={ext.bank_account_type} onChange={(e) => setExt({ ...ext, bank_account_type: e.target.value })} style={{ ...input, width: "100%" }} aria-label="口座の種別">
-                    <option value="">—</option>{Object.entries(BANK_TYPE_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
+                  <label style={label}>種別<SegSelect value={ext.bank_account_type} onChange={(v) => setExt({ ...ext, bank_account_type: v })} options={[["", "—"], ...Object.entries(BANK_TYPE_LABEL).map(([k, v]) => [k, v] as const)]} ariaLabel="口座の種別" /></label>{/* ★便 A M-80 追記③: 普通／当座／貯蓄 のボタン群 */}
                   <label style={label}>口座番号<input value={ext.bank_account_no} onChange={(e) => setExt({ ...ext, bank_account_no: e.target.value.replace(/[^\d]/g, "").slice(0, 8) })} inputMode="numeric" placeholder="数字 8 桁まで" style={{ ...input, width: "100%" }} /></label>
                   <label style={label}>名義（カナ）<input value={ext.bank_account_holder_kana} onChange={(e) => setExt({ ...ext, bank_account_holder_kana: e.target.value })} maxLength={200} style={{ ...input, width: "100%" }} /></label>
                 </div>

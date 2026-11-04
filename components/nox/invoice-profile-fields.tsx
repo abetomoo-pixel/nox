@@ -36,7 +36,7 @@ export default function InvoiceProfileFields({ storeId, isOwner }: { storeId: st
       <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "8px 0 0" }}>
         適格請求書登録番号＝{f.regStatus === "registered" ? (regNoValidOf(f.regNo) ? `${f.regNo}（登録事業者＝領収書に表示）` : `${f.regNo || "未入力"}（形式が T＋13 桁ではありません＝税設定で直してください）`) : "未登録（領収書に登録番号の行は出ません）"}。登録番号は料金・会計 › 税設定で。
       </p>
-      <div className="nox-actions" style={{ justifyContent: "flex-end", marginTop: 8 }}>
+      <div className="nox-actions" style={{ marginTop: 8 }}>{/* ★便 A M-66: 右寄せの上書きをやめ中央（教訓133） */}
         <button type="button" style={{ ...t.btnGold, ...t.btnSm }} disabled={!isOwner || busy} onClick={() => void save()}>保存</button>
       </div>
       <Toast msg={msg} />

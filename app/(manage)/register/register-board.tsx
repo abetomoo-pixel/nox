@@ -3959,7 +3959,9 @@ export default function RegisterBoard({
                 )}
               </span>
             ))}
-            <button style={{ ...btnLight, marginLeft: "auto" }} onClick={() => setPrintCard(null)}>閉じる</button>
+          </div>
+          <div className="nox-actions" data-print-card-actions="1" style={{ marginTop: 8 }}>{/* ★便 A M-66: 閉じるは中央（教訓133） */}
+            <button style={btnLight} onClick={() => setPrintCard(null)}>閉じる</button>
           </div>
         </section>
       )}

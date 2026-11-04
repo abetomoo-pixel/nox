@@ -228,12 +228,14 @@ export default function StaffShiftManage({ storeId, month, bizToday, patterns, d
           <span style={{ fontSize: 11, color: "var(--sub)" }}>
             希望締切 {new Date(deadlineMsOf(selDay, deadlines)).toLocaleString("ja-JP", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}
           </span>
-          {list.some((s) => s.status === "proposed") && (
-            <button style={{ ...btnDark, marginLeft: "auto" }} disabled={busy} onClick={() => void confirmDay(selDay)}>
+        </div>
+        {list.some((s) => s.status === "proposed") && (
+          <div className="nox-actions" data-staff-shift-confirm-actions="1" style={{ marginBottom: 8 }}>{/* ★便 A M-66: 一括確定は見出し行の右端ではなく中央（教訓133） */}
+            <button style={btnDark} disabled={busy} onClick={() => void confirmDay(selDay)}>
               この営業日を一括確定（{list.filter((s) => s.status === "proposed").length} 件）
             </button>
-          )}
-        </div>
+          </div>
+        )}
 
         <div className="nox-tablewrap">
           <table className="nox-table cardrows">{/* ★X-8-11: ≤899px は行をカード化（shift-board の承認待ちと同型） */}

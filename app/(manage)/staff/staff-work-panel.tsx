@@ -11,6 +11,9 @@ import KintaiRow, { KintaiHead } from "@/components/nox/kintai-row"; // ★便 M
 import { STAFF_DAY_STATUS_LABEL, isStaffDayStatus, staffDayPayOf, staffDayRowsOf, staffHmToIso, staffPayHeadOf, type StaffDayStatus } from "@/lib/nox/staff/kintai";
 import SegSelect from "@/components/ui/seg-select";
 import MoneyInput from "@/components/ui/money-input";
+import Modal from "@/components/ui/modal"; // ★便 A M-67: 日の修正はモーダル（下部埋め込みをやめる）
+import DatePicker from "@/components/ui/date-picker"; // ★便 A M-67: 営業日は共通のカレンダー
+import TimePicker from "@/components/ui/time-picker"; // ★便 A M-67: 出勤・退勤は共通のピッカー（26:00 の手打ちは廃止）
 import { rpcErrJa } from "@/lib/nox/ui/rpc-err";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
@@ -155,7 +158,7 @@ export default function StaffWorkPanel({ scope, stores, daily = false, initialMe
           <thead><tr><th>名前</th>{scope === "store" && <th>店</th>}<th>契約</th>{/* ★便 M5b M-54: 数値の列は見出しも右寄せ＝値（.num）と同じ位置 */}<th className="num" style={{ textAlign: "right" }}>出勤日数</th><th className="num" style={{ textAlign: "right" }}>実働</th><th className="num" style={{ textAlign: "right" }}>支給見込み</th><th className="num" style={{ textAlign: "right" }}>源泉</th><th className="num" style={{ textAlign: "right" }}>手取り見込み</th></tr></thead>
           <tbody>
             {rows.map((r) => (
-              <Fragment key={r.m.id}><tr data-staff-work-row={r.m.id} onClick={daily ? () => setDailyMem((v) => (v === r.m.id ? null : r.m.id)) : scope === "store" && r.kind ? () => setOpenMem((v) => (v === r.m.id ? null : r.m.id)) : undefined} style={daily || (scope === "store" && r.kind) ? { cursor: "pointer", background: dailyMem === r.m.id ? "var(--card2)" : undefined } : undefined}>
+              <Fragment key={r.m.id}><tr data-staff-work-row={r.m.id} onClick={daily ? () => setDailyMem((v) => (v === r.m.id ? null : r.m.id)) : scope === "store" ? () => setOpenMem((v) => (v === r.m.id ? null : r.m.id)) : undefined} style={daily || scope === "store" ? { cursor: "pointer", background: dailyMem === r.m.id ? "var(--card2)" : undefined } : undefined}>
                 <td>{r.name}<span style={{ ...t.sub, marginLeft: 6 }}>{t.roleLabelJa(r.m.role)}</span></td>
                 {scope === "store" && <td>{r.store}</td>}
                 <td>{r.contract ? staffContractLineOf(r.contract) : <span style={t.sub}>契約未登録</span>}</td>
@@ -165,12 +168,12 @@ export default function StaffWorkPanel({ scope, stores, daily = false, initialMe
                 <td className="num">{r.pay ? yen(r.pay.withholding) : "—"}{r.pay && <div style={{ ...t.sub, fontSize: 10.5 }}>{r.pay.withholdingNote}</div>}</td>
                 <td className="num">{r.pay ? yen(r.pay.net) : "—"}</td>
               </tr>
-              {openMem === r.m.id && r.kind && r.pay && (/* ★裁定432: 行を押すと区分・額の指定・社員の控除 */
+              {openMem === r.m.id && scope === "store" && (/* ★裁定432: 行を押すと区分・額の指定・社員の控除 ／ ★便 A M-80 ②: 契約未登録でも開く（働き方を登録） */
                 <tr key={`${r.m.id}-432`} data-staff-432={r.m.id}><td colSpan={scope === "store" ? 8 : 7}>
                   {/* ★便 M3 M-21: 働き方の欄（雇用形態・給与の形・額）＝staff_contract_set */}
                   <div data-staff-contract={r.m.id} style={{ marginBottom: 8 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}><span style={{ fontSize: 12, fontWeight: 800, color: "var(--champ)" }}>働き方</span><span style={{ fontSize: 12.5 }}>{r.contract ? staffContractLineOf(r.contract) : "契約未登録"}</span>
-                      {!contractForm && <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} onClick={() => openContract(r.m.id)} data-staff-contract-edit="1">働き方を変更</button>}</div>
+                      {!contractForm && <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} onClick={() => openContract(r.m.id)} data-staff-contract-edit="1">{r.contract ? "働き方を変更" : "働き方を登録"}</button>}</div>
                     {contractForm?.mem === r.m.id && (
                       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end", marginTop: 6 }}>
                         <label style={t.fieldLabel}>雇用形態<br /><SegSelect value={contractForm.contract_kind} onChange={(v) => setContractForm({ ...contractForm, contract_kind: v })} options={CONTRACT_KIND_OPTS} ariaLabel="雇用形態" /></label>
@@ -181,6 +184,7 @@ export default function StaffWorkPanel({ scope, stores, daily = false, initialMe
                     {contractMsg && <Message kind={/エラー/.test(contractMsg) ? "error" : "success"} style={{ margin: "6px 0 0" }}>{contractMsg}</Message>}
                   </div>
                   {!daily && <div className="nox-actions" style={{ margin: "0 0 8px" }}><Link href={`/payroll?tab=attendance&who=staff&mem=${r.m.id}`} style={{ ...t.btnGhost, ...t.btnSm, textDecoration: "none", display: "inline-flex", alignItems: "center" }} data-staff-daily-link={r.m.id}>日ごとの勤怠を開く</Link></div>}{/* ★便 M3 M-23 ②: 正本（給与 › 勤怠（スタッフ））へ */}
+                  {r.kind && r.pay && (<>{/* ★便 A M-80 ②: 源泉区分・控除は契約がある人だけ */}
                   <label style={{ ...t.fieldLabel, display: "block", marginBottom: 6 }}>源泉区分{" "}
                     <select value={w432.kind[r.m.id] ?? ""} onChange={(e) => void setKind(r.m.id, e.target.value)} style={{ ...t.input, width: "auto", minHeight: 40 }} aria-label="源泉区分">
                       <option value="">既定（{WITHHOLDING_KIND_SHORT[defaultWithholdingKindOf({ subject: "staff", contractKind: r.contract?.contract_kind })]}）</option>
@@ -192,6 +196,7 @@ export default function StaffWorkPanel({ scope, stores, daily = false, initialMe
                   <Withholding432Panel key={`${r.m.id}-${month}`} period={month} subjectKind="staff" subjectId={r.m.id} kind={r.kind}
                     auto={r.pay.withholdingAuto ?? r.pay.withholding} override={typeof r.pay.withholdingOverride === "number" ? r.pay.withholdingOverride : null}
                     deductions={w432.ded[r.m.id] ?? []} editable={!run || run.status === "open"} onSaved={async () => { await load(); }} />
+                  </>)}
                 </td></tr>
               )}</Fragment>
             ))}
@@ -211,7 +216,7 @@ export default function StaffWorkPanel({ scope, stores, daily = false, initialMe
           if (!dayEdit || attBusy) return;
           const inIso = dayEdit.punches && dayEdit.inHm.trim() ? staffHmToIso(dayEdit.date, dayEdit.inHm) : null;
           const outIso = dayEdit.punches && dayEdit.outHm.trim() ? staffHmToIso(dayEdit.date, dayEdit.outHm) : null;
-          if (dayEdit.punches && ((dayEdit.inHm.trim() && !inIso) || (dayEdit.outHm.trim() && !outIso))) { setAttMsg({ kind: "error", text: "時刻は 18:30／26:15 の形で入れてください（24 以上は翌日）" }); return; }
+          if (dayEdit.punches && ((dayEdit.inHm.trim() && !inIso) || (dayEdit.outHm.trim() && !outIso))) { setAttMsg({ kind: "error", text: "出勤・退勤の時刻を選んでください" }); return; } // ★便 A M-67: TimePicker の値
           setAttBusy(true); setAttMsg(null);
           const { error } = await supabase.rpc("staff_attendance_set", { p_membership_id: dayEdit.mem, p_biz_date: dayEdit.date, p_punches: dayEdit.punches === true, p_in: inIso, p_out: outIso, p_status: dayEdit.status || null, p_note: dayEdit.note });
           setAttBusy(false);
@@ -243,9 +248,9 @@ export default function StaffWorkPanel({ scope, stores, daily = false, initialMe
           <div data-staff-daily={r.m.id}>
             <p className="num" style={{ ...t.sub, margin: "0 0 6px" }} data-staff-daily-total={`${r.days.length}:${r.days.reduce((a, d) => a + d.minutes, 0)}`}>出勤 {dayRows.filter((d) => d.inHm).length} 日・実働 {hmOf(r.days.reduce((a, d) => a + d.minutes, 0))}{hourly ? <>・時給分 {yen(timePay)}</> : <>・時給分 —（{staffPayHeadOf(c)}）</>}</p>
             <div className="nox-kintai-scroll" style={{ overflowX: "auto", maxWidth: "100%" }}><table className="nox-table nox-kintai-table" style={{ width: "100%" }}>
-              <KintaiHead withPay={false} />
-              <tbody>{dayRows.map((d) => <KintaiRow key={d.bizDate} r={d} withBy={false} withPay={false} onEdit={att && !monthLocked ? (row) => openDay(row) : null} onFix={null} onConfirmShift={null} />)}</tbody>
-              <tfoot><tr><td colSpan={9} style={{ ...t.td, fontWeight: 800 }}>日計の合計（時給分）</td><td className="num" style={{ ...t.td, textAlign: "right", fontWeight: 800 }} data-staff-daily-pay={hourly ? timePay : ""}>{hourly ? yen(timePay) : "—"}</td></tr></tfoot>
+              <KintaiHead withPay={false} wageOnly={hourly} />{/* ★便 A M-68: 時給制だけ「時給分」列（キャストの金額列と同じ位置） */}
+              <tbody>{dayRows.map((d) => <KintaiRow key={d.bizDate} r={d} withBy={false} withPay={false} wageCell={hourly ? staffDayPayOf(c, d) : undefined} onEdit={att && !monthLocked ? (row) => openDay(row) : null} onFix={null} onConfirmShift={null} />)}</tbody>
+              <tfoot><tr><td colSpan={9} style={{ ...t.td, fontWeight: 800 }}>日計の合計（時給分）</td>{/* ★便 A M-68: 右の列＝「時給分」列の合計 */}<td className="num" style={{ ...t.td, textAlign: "right", fontWeight: 800 }} data-staff-daily-pay={hourly ? timePay : ""}>{hourly ? yen(timePay) : "—"}</td></tr></tfoot>
             </table></div>
             {att ? (/* ★0192 ★1／M-38 */
               <div data-staff-att="0192" style={{ display: "grid", gap: 8, marginTop: 8 }}>
@@ -256,26 +261,28 @@ export default function StaffWorkPanel({ scope, stores, daily = false, initialMe
                     ? <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} data-staff-att-unlock="1" disabled={attBusy} onClick={() => void confirmMonth(false)}>確定を解除</button>
                     : <button type="button" style={{ ...t.btnGold, ...t.btnSm }} data-staff-att-lock="1" disabled={attBusy} onClick={() => { if (window.confirm(`${month.replace("-", "/")} のスタッフ勤怠を確定しますか（以後この月の修正・取消はできません）`)) void confirmMonth(true); }}>この月を確定</button>}
                 </div>
-                {dayEdit && dayEdit.mem === r.m.id && (
-                  <div data-staff-day-edit={dayEdit.date} style={{ display: "grid", gap: 6, padding: 10, border: "1px solid var(--line2)", borderRadius: 8 }}>
-                    <label style={{ display: "grid", gap: 3 }}><span style={t.fieldLabel}>営業日</span><input type="date" value={dayEdit.date} onChange={(e) => setDayEdit({ ...dayEdit, date: e.target.value })} style={{ ...t.input, width: "auto" }} /></label>
+                {dayEdit && dayEdit.mem === r.m.id && (/* ★便 A M-67: 日の修正はモーダル（キャストの勤怠の修正と同じ型＝営業日は DatePicker・出勤／退勤は TimePicker・区分はボタン群・キャンセル／保存は中央） */
+                  <Modal onClose={() => { if (!attBusy) setDayEdit(null); }} maxWidth={460} scroll>
+                  <div data-staff-day-edit={dayEdit.date || "new"} style={{ display: "grid", gap: 8, padding: "4px 2px" }}>
+                    <h3 style={{ ...t.cardTitle, margin: 0 }}>{r.name}：{dayEdit.date ? `${Number(dayEdit.date.slice(5, 7))}/${Number(dayEdit.date.slice(8, 10))} の修正` : "日を追加・修正"}</h3>
+                    <label style={{ display: "grid", gap: 3 }}><span style={t.fieldLabel}>営業日</span><DatePicker value={dayEdit.date} onChange={(v) => setDayEdit({ ...dayEdit, date: v })} max={todayBiz} todayYmd={todayBiz} ariaLabel="営業日" width={220} testId="staff-day-date" /></label>
                     <label style={{ display: "inline-flex", gap: 6, alignItems: "center", fontSize: 12.5 }}><input type="checkbox" checked={dayEdit.punches} onChange={(e) => setDayEdit({ ...dayEdit, punches: e.target.checked })} />打刻を差し替える（下の出勤・退勤で置き換え・空欄は打たない）</label>
                     {dayEdit.punches && (
-                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                        <label style={{ display: "grid", gap: 3 }}><span style={t.fieldLabel}>出勤</span><input value={dayEdit.inHm} placeholder="19:00" inputMode="numeric" onChange={(e) => setDayEdit({ ...dayEdit, inHm: e.target.value })} style={{ ...t.input, width: 90 }} /></label>
-                        <label style={{ display: "grid", gap: 3 }}><span style={t.fieldLabel}>退勤（24 以上＝翌日）</span><input value={dayEdit.outHm} placeholder="25:30" inputMode="numeric" onChange={(e) => setDayEdit({ ...dayEdit, outHm: e.target.value })} style={{ ...t.input, width: 90 }} /></label>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                        <label style={{ display: "grid", gap: 3 }} data-staff-day-in="1"><span style={t.fieldLabel}>出勤</span><TimePicker value={dayEdit.inHm} onChange={(v) => setDayEdit({ ...dayEdit, inHm: v })} step={15} maxHour={23} ariaLabel="出勤" width="100%" /></label>
+                        <label style={{ display: "grid", gap: 3 }} data-staff-day-out="1"><span style={t.fieldLabel}>退勤</span><TimePicker value={dayEdit.outHm} onChange={(v) => setDayEdit({ ...dayEdit, outHm: v })} step={15} maxHour={47} after={dayEdit.inHm || null} ariaLabel="退勤" width="100%" /></label>
                       </div>
                     )}
-                    <label style={{ display: "grid", gap: 3 }}><span style={t.fieldLabel}>区分</span>
-                      <select value={dayEdit.status} onChange={(e) => setDayEdit({ ...dayEdit, status: isStaffDayStatus(e.target.value) ? e.target.value : "" })} style={{ ...t.input, width: "auto" }}>
-                        <option value="">（なし）</option>{(Object.keys(STAFF_DAY_STATUS_LABEL) as StaffDayStatus[]).map((v) => <option key={v} value={v}>{STAFF_DAY_STATUS_LABEL[v]}</option>)}
-                      </select></label>
+                    <div style={{ display: "grid", gap: 3 }}><span style={t.fieldLabel}>区分</span>
+                      <SegSelect value={dayEdit.status} onChange={(v) => setDayEdit({ ...dayEdit, status: isStaffDayStatus(v) ? v : "" })} options={[["", "（なし）"], ...(Object.keys(STAFF_DAY_STATUS_LABEL) as StaffDayStatus[]).map((v) => [v, STAFF_DAY_STATUS_LABEL[v]] as const)]} ariaLabel="区分" wrap /></div>
                     <label style={{ display: "grid", gap: 3 }}><span style={t.fieldLabel}>メモ（200 字まで・監査に残ります）</span><input value={dayEdit.note} maxLength={200} onChange={(e) => setDayEdit({ ...dayEdit, note: e.target.value })} style={t.input} /></label>
-                    <div className="nox-actions" style={{ display: "flex", gap: 8 }}>
-                      <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} onClick={() => setDayEdit(null)}>キャンセル</button>
+                    {attMsg && <Message kind={attMsg.kind} style={{ margin: 0 }}>{attMsg.text}</Message>}
+                    <div className="nox-actions" data-staff-day-actions="1">
+                      <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} disabled={attBusy} onClick={() => setDayEdit(null)}>キャンセル</button>
                       <button type="button" style={{ ...t.btnGold, ...t.btnSm }} data-staff-day-save="1" disabled={attBusy || !dayEdit.date} onClick={() => void saveDay()}>保存</button>
                     </div>
                   </div>
+                  </Modal>
                 )}
                 {attMsg && <Message kind={attMsg.kind} style={{ margin: 0 }}>{attMsg.text}</Message>}
                 <p style={{ ...t.sub, margin: 0 }}>日計＝時給×実働（時給制だけ・月給／日給は —）。日付を押すとその日を修正できます（打刻の差し替え・当欠／遅刻／早退）。月を確定すると以後の修正と退勤の取消はできません（解除は店長以上）。</p>
@@ -289,7 +296,7 @@ export default function StaffWorkPanel({ scope, stores, daily = false, initialMe
       {scope === "store" && (
         <div style={{ marginTop: 12 }}>
           {/* ★便 P174 T-7（356）: 確定（staff_payroll_runs）は書込 RPC が無い＝0175＝押せないボタンは置かず状況だけ（教訓25） */}
-          <p style={{ fontSize: 12.5, margin: "0 0 4px" }} data-staff-pay-run={run ? run.status : "none"}>この月の確定: <b>{run ? (run.status === "finalized" ? "確定済み" : run.status === "paid" ? "支払済み" : run.status) : "未確定（見込み）"}</b></p>
+          {/* ★裁定449（2026-11-04・相談役）: スタッフ給与 run の作成の口は作らない＝run の状態は画面に出さず DB だけ残す（staff_payroll_runs の読取は Withholding432Panel の editable の判定に残す）。確定額 staff_labor_confirmed が実質の確定 */}
           <p style={{ ...t.sub, margin: "6px 0 0", lineHeight: 1.6 }}>打刻は店の端末（キオスク）から。支給見込みは雇用＝時給×実働（月給は月額）、委託＝{mig0188On() ? "源泉区分（既定は対象外＝源泉なし・ホステス等なら 10.21%）で計算した額" : "源泉 10.21% を引いた額"}です。{mig0183On() ? `行を押すと源泉区分・額の指定・社員の控除を入れられます。${WITHHOLDING_ADVICE_NOTE}` : ""}</p>
         </div>
       )}

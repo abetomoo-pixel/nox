@@ -14,16 +14,19 @@ export const KINTAI_PAY_HEADS = ["時給分", "バック", "罰金・減額", "�
 /** 390px で隠す列（.opt）＝確定シフト・店の修正・区分・実働・送り・備考と、日計以外の金額列 */
 const OPT = new Set([1, 4, 5, 6, 7, 8]);
 
-export function KintaiHead({ withPay = false }: { withPay?: boolean }) {
+export function KintaiHead({ withPay = false, wageOnly = false }: { withPay?: boolean; /** ★便 A M-68: スタッフ＝「時給分」の 1 列だけ（キャストの金額列と同じ位置・右寄せ） */ wageOnly?: boolean }) {
   return (
     <thead><tr>
       {KINTAI_HEADS.map((h, i) => <th key={h} className={OPT.has(i) ? "opt" : undefined} style={{ ...t.th, textAlign: i === 6 ? "right" : "left" }}>{h}</th>)}
       {withPay && KINTAI_PAY_HEADS.map((h, i) => <th key={h} className={i === 3 ? "pay" : "opt pay"} style={{ ...t.th, textAlign: "right" }} data-kintai-pay-head={h}>{h}</th>)}
+      {!withPay && wageOnly && <th className="pay" style={{ ...t.th, textAlign: "right" }} data-kintai-pay-head="時給分">時給分</th>}
     </tr></thead>
   );
 }
 
-export default function KintaiRow({ r, withBy, onEdit, withPay = r.pay !== undefined, onFix, onConfirmShift }: { r: AttendanceDayRow; castId?: string; storeId?: string; withBy: boolean; link?: boolean; onEdit?: ((r: AttendanceDayRow) => void) | null; withPay?: boolean;
+export default function KintaiRow({ r, withBy, onEdit, withPay = r.pay !== undefined, onFix, onConfirmShift, wageCell }: { r: AttendanceDayRow; castId?: string; storeId?: string; withBy: boolean; link?: boolean; onEdit?: ((r: AttendanceDayRow) => void) | null; withPay?: boolean;
+  /** ★便 A M-68: スタッフの「時給分」＝時給 × その日の実働（時給制だけ・月給／日給と勤務中は null＝「—」）。undefined＝列を出さない */
+  wageCell?: number | null;
   /** ★便 M-14 ①: 退勤／出勤記録なしを押すと時刻修正（今日タブと同じ部品）。null＝押せない（/mine・確定済みの月） */
   onFix?: ((r: AttendanceDayRow, kind: "in" | "out") => void) | null;
   /** ★便 M-14 ②: シフト無し出勤を「シフトとして確定」。null＝押せない */
@@ -59,7 +62,7 @@ export default function KintaiRow({ r, withBy, onEdit, withPay = r.pay !== undef
             <ul style={{ margin: "4px 0 0", paddingLeft: 16, fontSize: 11.5 }}>{r.corrections.map((c, i) => <li key={i}>{correctionTextOf(c, withBy)}</li>)}</ul>
           </details>) : "—"}</td>
         <td className="opt" style={{ ...t.td, color: r.absent || r.late ? "var(--gold2)" : undefined }}>{flags || "—"}</td>
-        <td className="opt num" style={{ ...t.td, textAlign: "right" }}>{hoursTxt}{r.hours > 0 && <span style={{ fontSize: 10.5, color: "var(--sub)", marginLeft: 4 }} data-kintai-basis={r.basis}>{BASIS_MARK[r.basis]}</span>}</td>
+        <td className="opt num" style={{ ...t.td, textAlign: "right", whiteSpace: "nowrap" }}>{hoursTxt}{r.hours > 0 && <span style={{ fontSize: 10.5, color: "var(--sub)", marginLeft: 4, whiteSpace: "nowrap" }} data-kintai-basis={r.basis}>{BASIS_MARK[r.basis]}</span>}</td>{/* ★便 A M-68: 「実打刻」の 3 文字はスマホ幅でも 1 行 */}
         <td className="opt" style={t.td}>{r.okuri.n > 0 ? `${r.okuri.n}${r.okuri.modes.length ? `（${r.okuri.modes.join("・")}）` : ""}` : "—"}</td>
         <td className="opt" style={{ ...t.td, fontSize: 12 }}>{r.note || "—"}</td>
         {withPay && (<>
@@ -68,6 +71,7 @@ export default function KintaiRow({ r, withBy, onEdit, withPay = r.pay !== undef
           <td className="opt pay num" style={{ ...t.td, textAlign: "right", color: p && p.fine > 0 ? "var(--bad)" : undefined }} data-kintai-fine={p?.fine ?? 0} title={p?.fineNotes.join("・") || undefined}>{p ? yenCellOf(p.fine, { neg: true }) : "—"}</td>
           <td className="pay num" style={{ ...t.td, textAlign: "right", fontWeight: 700 }} data-kintai-total={p?.total ?? 0}>{p ? yenCellOf(p.total) : "—"}</td>
         </>)}
+        {!withPay && wageCell !== undefined && <td className="pay num" style={{ ...t.td, textAlign: "right", fontWeight: 700 }} data-kintai-wage={wageCell ?? ""}>{wageCell === null || r.working ? "—" : yenCellOf(wageCell)}</td>}{/* ★便 A M-68 */}
       </tr>
       {open && (
         <tr className="nox-kintai-more" data-kintai-more={r.bizDate}><td colSpan={9 + (withPay ? 4 : 0)} style={{ ...t.td, fontSize: 12, color: "var(--sub)" }}>

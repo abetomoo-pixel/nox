@@ -17,8 +17,7 @@ import SegSelect from "@/components/ui/seg-select";
 import { Message } from "@/components/ui/toast";
 import {
   CSV_HEADER, PIN_RE, V5_STEPS, V5_TYPES, WD, applyType, buildV5Plan, castPlanOf, clone, genPin, kindVal, menuCount, normRule, parseCsv, rebuildBack, seatNames, slideTiersFor, v5Checks, v5DefaultState, v5TypeName,
-  type V5Cast, type V5Ctx, type V5Rule, type V5State, type V5Step, type V5Type,
-} from "@/lib/nox/setup/v5";
+  type V5Cast, type V5Ctx, type V5Rule, type V5State, type V5Step, type V5Type, ROUND_MODE_LABEL, TIME_MODE_LABEL } from "@/lib/nox/setup/v5";
 import { mig0190On, mig0191On } from "@/lib/nox/rules-0175/flag"; // ★0190／0191 のフラグ true 便: 器が入った項目は「後で（マスタから）」を出さない
 import type { ProductRow } from "@/lib/nox/setup/template-plan";
 
@@ -365,6 +364,20 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
             </div>
             <p style={note}>{S.vip.mode === "table" ? "人数に関係なく卓にかかります。" : "お客様の人数分かかり、途中で増えたら増えた分も足します。"}</p>
           </>)}
+          <h3 style={h3}>延長の付け方<span className="nox-stpill" style={{ marginLeft: 6, fontSize: 10.5 }}>必須</span></h3>{/* ★便 A M-72（2026-11-04）: 必須の 2 択＝未選択なら ③ を完了にしない（下段の「次へ」が押せない）。保存先＝マスタ › 時間料金設定の課金モード（time_mode） */}
+          <div data-setup-time-mode={S.timeMode ?? "none"}>
+            <SegSelect value={S.timeMode ?? ""} onChange={(v) => up((s) => { s.timeMode = v === "auto" || v === "manual" ? v : null; })} options={[["auto", "自動"], ["manual", "手動"]] as const} ariaLabel="延長の付け方" />
+            <p style={note}>自動＝時計が延長を決めます。セット時間を過ぎると延長が自動で付き、会計時に自動で精算します。</p>
+            <p style={note}>手動＝お客様に確認してから「延長を追加」を押します。押した分だけ付きます。</p>
+            {!S.timeMode && <p style={{ ...note, color: "var(--champ)" }} data-setup-time-mode-required="1">どちらかを選ぶと「次へ」が押せます。</p>}
+          </div>
+          <h3 style={h3}>端数の丸め</h3>{/* ★便 A M-71（2026-11-04）: 会計の丸め単位と丸め方（マスタ › 端数・精算と同じ round_unit／round_mode）。新しい店の既定＝1,000 円・切り捨て・既存店は今の値 */}
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end" }} data-setup-round={`${S.roundUnit}:${S.roundMode}`}>
+            <Field label="丸め単位"><SegSelect value={([100, 500, 1000] as const).includes(S.roundUnit as 100 | 500 | 1000) ? String(S.roundUnit) : "other"} onChange={(v) => up((s) => { if (v !== "other") s.roundUnit = Number(v); else if ([100, 500, 1000].includes(s.roundUnit)) s.roundUnit = 10; })} options={[["100", "100 円"], ["500", "500 円"], ["1000", "1,000 円"], ["other", "その他"]] as const} ariaLabel="丸め単位" wrap /></Field>
+            {![100, 500, 1000].includes(S.roundUnit) && <Field label="その他の単位（1〜10,000）"><Money value={S.roundUnit} unit="円" pre onChange={(n) => up((s) => { s.roundUnit = Math.max(1, Math.min(10000, Math.round(n || 1))); })} width={90} /></Field>}
+            <Field label="丸め方"><SegSelect value={S.roundMode} onChange={(v) => up((s) => { s.roundMode = v as "down" | "up" | "round"; })} options={[["down", "切り捨て"], ["up", "切り上げ"], ["round", "四捨五入"]] as const} ariaLabel="丸め方" /></Field>
+          </div>
+          <p style={note}>会計の合計を丸めます（サービス料・税の端数の扱いは ⑧ 会計・レジで）。{store.setupDone ? "設定済みの店は今の値のままです。" : ""}</p>
           <h3 style={h3}>指名・同伴</h3>
           <div style={grid(160)}>
             <Field label="本指名料"><Money value={S.fees.hon} unit="円" pre onChange={(n) => up((s) => { s.fees.hon = n; })} /></Field>
@@ -408,8 +421,8 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
                         {isBottleCat(c) && <td style={{ ...t.td, textAlign: "center" }}><input type="checkbox" checked={it.keep} aria-label="ボトルキープ可" onChange={(e) => up((s) => { s.menu[ci].items[ii].keep = e.target.checked; })} /></td>}
                         <td style={t.td}><span className="nox-rowacts"><button type="button" className="nox-linkbtn" aria-pressed={it.byKind} onClick={() => up((s) => { const x = s.menu[ci].items[ii]; x.byKind = !x.byKind; if (!x.byKind) { x.bj = null; x.bf = null; } })}>区分ごと</button><button type="button" className="nox-linkbtn" aria-label="この商品を削除" onClick={() => up((s) => { s.menu[ci].items.splice(ii, 1); })}>削除</button></span></td>
                       </tr>
-                      {it.byKind && <tr key={`${ii}k`} style={{ background: "var(--bg)" }}><td style={t.td}></td><td style={{ ...t.td, color: "var(--sub)" }}>　↳ 場内指名／フリーのとき（{it.bt === "pct" ? "%" : "円"}）{it.bt === "pct" && later("%の個別は 0191")}</td>
-                        <td style={t.td} colSpan={isBottleCat(c) ? 4 : 3}><span style={{ display: "inline-flex", gap: 10, flexWrap: "wrap" }}><span>場内 <Money value={it.bj ?? kindVal(it, S.kindRate.jo)} onChange={(n) => up((s) => { s.menu[ci].items[ii].bj = n; })} width={70} /></span><span>フリー <Money value={it.bf ?? kindVal(it, S.kindRate.free)} onChange={(n) => up((s) => { s.menu[ci].items[ii].bf = n; })} width={70} /></span></span></td></tr>}
+                      {it.byKind && <tr key={`${ii}k`} style={{ background: "var(--bg)" }}><td style={t.td}></td><td style={{ ...t.td, color: "var(--sub)" }}>　↳ 場内指名／フリーのとき{it.bt === "pct" ? "（%）" : ""}{it.bt === "pct" && later("%の個別は 0191")}</td>{/* ★便 A M-69 ③: 「（円）」は外す（欄に ¥ が付く） */}
+                        <td style={t.td} colSpan={isBottleCat(c) ? 4 : 3}><span style={{ display: "inline-flex", gap: 10, flexWrap: "wrap" }}><span>場内 <Money value={it.bj ?? kindVal(it, S.kindRate.jo)} pre={it.bt !== "pct"} unit={it.bt === "pct" ? "%" : undefined} onChange={(n) => up((s) => { s.menu[ci].items[ii].bj = n; })} width={104} /></span><span>フリー <Money value={it.bf ?? kindVal(it, S.kindRate.free)} pre={it.bt !== "pct"} unit={it.bt === "pct" ? "%" : undefined} onChange={(n) => up((s) => { s.menu[ci].items[ii].bf = n; })} width={104} /></span></span></td></tr>}
                     </>))}</tbody></table></div>
                 <div className="nox-actions" style={{ marginTop: 8 }}><button type="button" style={{ ...t.btnGhost, ...t.btnSm }} onClick={() => up((s) => { s.menu[ci].items.push({ n: "", p: 0, b: 0, keep: false, on: true, byKind: false, bj: null, bf: null, bt: "yen" }); })}>＋ {c.cat}に商品を追加</button></div>
               </>)}
@@ -545,8 +558,8 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
           <p style={note}>{({ off: "休みを出していない日は「出られる日」として、シフト配置の候補になります。", want: "出たい日と時間を出してもらい、店が承認してシフトにします。", store: "店が配置した時点で確定し、本人に通知します。希望は集めません。" } as const)[S.shift.mode]}</p>
           <p style={note}>店が配置したシフトは既定で「確定」です。確定後に足した分も本人に通知されます。定休日には配置できません（特別営業日を入れたときだけ）。</p>
           {S.shift.mode !== "store" && <div style={{ ...grid(180), marginTop: 8 }}>
-            <Field label="希望の締切（期間の何日前）"><Money value={S.shift.due} unit="日前" onChange={(n) => up((s) => { s.shift.due = n; })} width={70} /></Field>
-            <Field label="送り返した時間の自動確定"><Money value={S.shift.auto} unit="時間後" onChange={(n) => up((s) => { s.shift.auto = n; })} width={70} /></Field></div>}
+            <Field label="希望の締切（期間の何日前）"><Money value={S.shift.due} unit="日前" onChange={(n) => up((s) => { s.shift.due = n; })} width={90} /></Field>
+            <Field label="送り返した時間の自動確定"><Money value={S.shift.auto} unit="時間後" onChange={(n) => up((s) => { s.shift.auto = n; })} width={90} /></Field></div>}{/* ★便 A M-69 ①: 3 桁が収まる幅（2 つとも同じ型） */}
           <h3 style={h3}>最初のシフト期間</h3>
           <p style={lead}>初期設定が終わったら、この期間の希望を集め始めます（シフト画面で直せます）。</p>
           <div style={grid(160)}>
@@ -556,7 +569,7 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
           <label style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 8 }}><input type="checkbox" checked={S.firstShift.start} onChange={(e) => up((s) => { s.firstShift.start = e.target.checked; })} style={{ width: 22, height: 22 }} /><span>初期設定の完了と同時に募集を始める</span></label>
           <h3 style={h3}>曜日別の必要人数</h3>
           <p style={lead}>シフト作成で「足りない日」を出すのに使います。定休日は 0 になります。時間帯ごと（30 分刻み）に分けるのはシフト画面であとから。</p>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: 6 }}>{WD.map((w, i) => { const hol = shop.holidays.includes(w); return <label key={w} style={{ textAlign: "center", display: "block" }}><span style={t.fieldLabel}>{w}{hol ? "（休）" : ""}</span><br /><input type="number" min={0} value={hol ? 0 : S.shift.need[i]} disabled={hol} onChange={(e) => up((s) => { s.shift.need[i] = Number(e.target.value); })} className="num" style={{ ...input, width: "100%", textAlign: "center" }} aria-label={`${w}の必要人数`} /></label>; })}</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: 6 }}>{WD.map((w, i) => { const hol = shop.holidays.includes(w); return <label key={w} style={{ textAlign: "center", display: "block" }}><span style={t.fieldLabel}>{w}{hol ? "（休）" : ""}</span><br />{hol ? <UnitInput value={0} type="number" unit="人" width="100%" ariaLabel={`${w}の必要人数（定休日）`} onChange={() => undefined} disabled /> : <UnitInput value={S.shift.need[i]} type="number" min={0} unit="人" width="100%" ariaLabel={`${w}の必要人数`} onChange={(v) => up((s) => { s.shift.need[i] = Math.max(0, Number(v || 0)); })} />}</label>; })}</div>{/* ★便 A M-69 ②: 単位「人」（「日前」「時間後」と同じ添字） */}
           <h3 style={h3}>打刻</h3>
           <div><span style={t.fieldLabel}>打刻できる場所</span><SegSelect value={S.punch.how} onChange={(v) => up((s) => { s.punch.how = v as "device" | "any"; })} options={[["device", "店の端末（キオスク）だけ"], ["any", "本人のスマホからも"]] as const} ariaLabel="打刻できる場所" wrap /></div>
           {S.punch.how === "any" && <div style={{ marginTop: 8 }}><span style={t.fieldLabel}>条件に合わないとき</span><SegSelect value={S.punch.judge} onChange={(v) => up((s) => { s.punch.judge = v as "soft" | "hard"; })} options={[["hard", "打刻させない"], ["soft", "打刻して記録だけ残す"]] as const} ariaLabel="条件に合わないとき" /></div>}
@@ -617,7 +630,7 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
           <div style={{ ...grid(260), marginTop: 10 }}>
             {box(0, "お店", [["タイプ", v5TypeName(type)], ["店舗名", shop.name], ["営業時間", `${shop.open}〜${shop.close}`], ["定休日", shop.holidays.length ? shop.holidays.join("・") : "なし"]])}
             {box(1, "席・卓", [["カウンター", `${seats.counter} 席`], ["テーブル", `${seats.table} 卓`], ["VIP", `${seats.vip} 卓`]])}
-            {box(2, "料金", [["ルール", `${S.rules.length} 件`], ["VIP", S.vip.on ? `${S.vip.mode === "table" ? "卓ごと" : "人ごと"} ¥${yen(S.vip.amt)}${S.vip.per === "set" ? "／セット" : "（1 回）"}` : "使わない"], ["本指名・場内・同伴", `¥${yen(S.fees.hon)}・¥${yen(S.fees.jo)}・¥${yen(S.fees.dohan)}`], ["サービス料", `${S.svc}%${seats.vip > 0 ? `／VIP ${S.svcVip}%` : ""}`]])}
+            {box(2, "料金", [["ルール", `${S.rules.length} 件`], ["延長", S.timeMode ? TIME_MODE_LABEL[S.timeMode] : "未選択"], ["端数", `${yen(S.roundUnit)} 円単位・${ROUND_MODE_LABEL[S.roundMode]}`], ["VIP", S.vip.on ? `${S.vip.mode === "table" ? "卓ごと" : "人ごと"} ¥${yen(S.vip.amt)}${S.vip.per === "set" ? "／セット" : "（1 回）"}` : "使わない"], ["本指名・場内・同伴", `¥${yen(S.fees.hon)}・¥${yen(S.fees.jo)}・¥${yen(S.fees.dohan)}`], ["サービス料", `${S.svc}%${seats.vip > 0 ? `／VIP ${S.svcVip}%` : ""}`]])}
             {box(3, "メニュー", [["レジに出す商品", `${menuCount(S)} 品`], ["カテゴリ", `${S.menu.filter((c) => c.on).length} 個`]])}
             {box(4, "キャスト待遇", [["基本時給／体入", `¥${yen(p.base)}／¥${yen(p.trial)}（${p.trialDays} 日）`], ["バック（本指名・同伴）", `¥${yen(S.back.hon)}・¥${yen(S.back.dohan)}`], ["商品バックの割合（本／場内／フリー）", `${S.kindRate.hon}／${S.kindRate.jo}／${S.kindRate.free}%`], ["時給スライド", slideLabel], ["ノルマ／達成ボーナス", `${p.norma ? "使う" : "使わない"}／${p.bonus ? "使う" : "使わない"}`], ["給与", `${({ month: "月ごと", half: "半月ごと", daily: "日ごと" } as const)[pr.period]}・支払 ${pr.payday} 日`]])}
             {box(5, "スタッフ", [["登録", `${S.staff.filter((s) => s.n.trim()).length} 人`]])}
@@ -699,7 +712,7 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
         <div className="nox-setup-foot" data-setup-foot="1"><div className="in">
           <span className="pos num" data-setup-pos="1">{S.step + 1} / {V5_STEPS.length}</span>
           {S.step > 0 && <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} disabled={run.running} onClick={() => go(S.step - 1)}>戻る</button>}{/* 教訓122: 隠しボタンで幅を取らない（中央判定） */}
-          {S.step < 8 ? <button type="button" style={{ ...t.btnGold }} disabled={S.step === 0 && !type} onClick={next} data-setup-next="1">次へ：{V5_STEPS[S.step + 1]}</button>
+          {S.step < 8 ? <button type="button" style={{ ...t.btnGold }} disabled={(S.step === 0 && !type) || (S.step === 2 && !S.timeMode)} onClick={next} data-setup-next="1">次へ：{V5_STEPS[S.step + 1]}</button>
             : <button type="button" style={{ ...t.btnGold }} disabled={run.running || !type || !isOwner || !!tplBlocked} onClick={() => void execute()} data-setup-start="1">{run.error ? "続きから再実行" : "この内容で始める"}</button>}
         </div></div>
       )}

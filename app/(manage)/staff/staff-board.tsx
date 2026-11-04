@@ -8,6 +8,7 @@ import Staff0193 from "@/components/nox/staff-0193";
 import { mig0193On } from "@/lib/nox/rules-0175/flag"; // ★0193
 import { LoadMoreBar, useLoadMore } from "@/components/ui/load-more"; // ★便 M5b M-60
 import AddButton from "@/components/ui/add-button"; // ★便 M5b M-55
+export const STAFF_ADD_DEMO_NOTE = "デモ環境ではスタッフを追加できません（本番ではここから登録→招待まで進めます）"; // ★M-79（2026-11-04）
 import { useCallback, useEffect, useState } from "react";
 import SegSelect from "@/components/ui/seg-select";
 import PageHead from "@/components/ui/page-head";
@@ -17,6 +18,8 @@ import CastAvatar from "@/components/ui/cast-avatar";
 import PhotoEdit from "@/components/ui/photo-edit"; // ★X-13-4: 名前の横に写真（現在・変更・削除）＝キャスト詳細と同じ部品
 import Toast, { Message } from "@/components/ui/toast";
 import Modal from "@/components/ui/modal";
+import StaffWorkSection, { type StaffWorkContract } from "@/components/nox/staff-work-section"; // ★便 A M-80: 編集モーダルの「働き方」（給与側と同じ保存先）
+import { staffContractLineOf } from "@/lib/nox/staff/pay"; // ★便 A M-80: 一覧の契約チップ
 import { FieldStack, TelLink } from "@/components/ui/responsive-kit"; // ★裁定381（GV-B W-10）・★0172: TelLink（スタッフの電話）
 
 import { useIsDemo } from "@/lib/nox/demo/context"; // ★N7-2 ③
@@ -115,6 +118,8 @@ export default function StaffBoard({
   const [aPinMark, setAPinMark] = useState<number>(0); // 0＝未発行・n＝発行した桁数
   const [invites, setInvites] = useState<{ id: string; store_id: string; email: string; name: string; role: string; expires_at: string; accepted_at: string | null }[]>([]);
   const [lineLinked, setLineLinked] = useState<Set<string>>(new Set());
+  const [contracts, setContracts] = useState<Record<string, StaffWorkContract>>({}); // ★便 A M-80: 働き方（staff_contracts＝RLS owner 全店／manager 自店）
+  const [eWorkOpen, setEWorkOpen] = useState(false); // ★便 A M-80 追記: 契約チップから開いたときは「働き方」の入力を開いた状態
   const [bindUrl, setBindUrl] = useState<string | null>(null);
   const [bindCopied, setBindCopied] = useState(false);
 
@@ -183,6 +188,10 @@ export default function StaffBoard({
     ]);
     setInvites(((inv ?? []) as typeof invites).filter((i) => inviteStateOf(i, Date.now()) === "ok"));
     setLineLinked(new Set(((ll ?? []) as { subject_id: string }[]).map((x) => x.subject_id)));
+    { // ★便 A M-80: 働き方＝一覧の契約チップと編集モーダルの「働き方」（withholding_kind は 0183 の列）
+      const { data: cc } = await supabase.from("staff_contracts").select(mig0183On() ? "membership_id, contract_kind, pay_kind, hourly, monthly, daily, fixed_allowance, tax_class, withholding_kind" : "membership_id, contract_kind, pay_kind, hourly, monthly, daily, fixed_allowance, tax_class");
+      setContracts(Object.fromEntries(((cc ?? []) as unknown as StaffWorkContract[]).map((c) => [c.membership_id, c])));
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -225,7 +234,8 @@ export default function StaffBoard({
     });
   }
 
-  function openEdit(m: Mem) {
+  function openEdit(m: Mem, work = false) {
+    setEWorkOpen(work); // ★便 A M-80 追記
     setSel(m);
     setEName(users[m.user_id]?.name ?? "");
     setEEmail(users[m.user_id]?.email ?? "");
@@ -379,7 +389,7 @@ export default function StaffBoard({
       {tabs}{/* ★0172（裁定356・便 P172）: 一覧／勤怠・報酬 → ★M-64: 案内 1 行（勤怠の正本は 給与 › 勤怠（スタッフ）） */}
 
       <div style={{ marginBottom: 8 }}>{/* ★便 M3 M-20 → ★便 M5b M-55: 一覧の上・中央・主ボタン（大）＝AddButton（キャストと同じ部品） */}
-        {!isDemo && <AddButton testId="staff-add" onClick={openAdd} disabled={busy}><span data-staff-add="1">＋ スタッフを追加</span></AddButton>}{/* ★裁定381 */}{/* ★N7-2 ③: デモはスタッフ作成の導線を隠す */}
+        <AddButton testId="staff-add" onClick={() => { if (isDemo) { setMsg(STAFF_ADD_DEMO_NOTE); return; } openAdd(); }} disabled={busy}><span data-staff-add="1">＋ スタッフを追加</span></AddButton>{/* ★M-79（2026-11-04）: 管理者と店長に出す（店長は自店の staff のみ＝裁定444）・デモはボタンを出して押すと注記（入力はさせない＝N7-2 ③の「隠す」から変更・真の防御は route の柵） */}{/* ★裁定381 */}{/* ★N7-2 ③: デモはスタッフ作成の導線を隠す */}
       </div>
 
       <section className="nox-panel">
@@ -406,6 +416,8 @@ export default function StaffBoard({
                   <span style={{ marginLeft: 6, fontSize: 11, fontWeight: 700, color: m.is_active ? "var(--ok)" : "var(--bad)" }}>
                     {m.is_active ? "在籍" : "解除"}
                   </span>
+                  <button type="button" className="nox-stpill" data-staff-contract-chip={contracts[m.id] ? "set" : "none"} style={{ marginLeft: 6, cursor: "pointer" }} title="働き方を編集"
+                    onClick={(e) => { e.stopPropagation(); openEdit(m, true); }}>{contracts[m.id] ? staffContractLineOf(contracts[m.id]) : "働き方を登録"}</button>{/* ★便 A M-80 追記: 契約の要約チップ＝押すと「働き方」を開いた状態で編集 */}
                 </div>
                 <div className="role">
                   {u?.email ?? "—"}{isOwner ? ` / ${storeName(m.store_id)}` : ""}{m.tel ? <> / <TelLink tel={m.tel} /></> : null}{/* ★0172（裁定381）: tel: リンク */}
@@ -482,19 +494,21 @@ export default function StaffBoard({
                 <input id="staff-edit-email" type="email" placeholder="メール（ログインID）" value={eEmail} onChange={(e) => setEEmail(e.target.value)} style={{ ...t.input, width: "100%" }} />
               </FieldStack>
             )}
-            <button type="button" style={t.btnPrimary56} disabled={busy} data-staff-save="1" onClick={() => void saveEdit()}>{busy ? "保存中…" : "保存"}</button>
           </div>
+          <div className="nox-actions" data-staff-edit-actions="1" style={{ marginTop: 10 }}>{/* ★便 A M-80 ④（教訓133）: 保存は中央 */}
+            <button type="button" style={{ ...btnGold, minHeight: 48, minWidth: 180, fontSize: 15 }} disabled={busy} data-staff-save="1" onClick={() => void saveEdit()}>{busy ? "保存中…" : "保存"}</button>
+          </div>
+          <StaffWorkSection key={`${sel.id}-${eWorkOpen ? "w" : "c"}`} memId={sel.id} contract={contracts[sel.id] ?? null} initialOpen={eWorkOpen} onSaved={() => load()}
+            canEdit={isOwner || (sel.role === "staff" && sel.store_id === myStoreId)} />{/* ★便 A M-80 ①②: 働き方＝staff_contract_set／源泉区分／控除（給与 › 勤怠（スタッフ）と同じ保存先・店長は自店の staff だけ） */}
           {isOwner && stores.length > 1 && sel.is_active && (
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 10 }}>
-              <span style={t.fieldLabel}>異動先</span>
-              <select value={eStore} onChange={(e) => setEStore(e.target.value)} style={input}>
-                {stores.filter((s) => s.id !== sel.store_id).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
-              <button style={btnGhost} disabled={busy || !eStore} onClick={async () => {
+            <div style={{ display: "grid", gap: 8, marginTop: 12 }} data-staff-transfer="1">{/* ★便 A M-80 ④: 配属店（異動先）は select ではなくボタン群（教訓27）・実行は中央 */}
+              <span style={t.fieldLabel}>異動先（配属店）</span>
+              <SegSelect value={eStore} onChange={setEStore} options={stores.filter((s) => s.id !== sel.store_id).map((s) => [s.id, s.name] as const)} ariaLabel="異動先" wrap />
+              <div className="nox-actions"><button style={btnGhost} disabled={busy || !eStore} onClick={async () => {
                 if (!confirm(`${users[sel.user_id]?.name ?? ""} を ${storeName(eStore)} へ異動しますか？（出戻りは元の権限設定で復帰します）`)) return;
                 await rpc("異動", "staff_transfer_store", { p_membership_id: sel.id, p_new_store_id: eStore });
                 setSel(null);
-              }}>異動を実行</button>
+              }}>異動を実行</button></div>
             </div>
           )}
           {mig0193On() && <Staff0193 sel={sel} isOwner={isOwner} roleRaw={roleRaw} onChanged={() => void load()} />}{/* ★0193: 肩書・役割の変更・個人情報 */}
@@ -592,7 +606,10 @@ export default function StaffBoard({
               </>
             ) : !aResult ? (
               <>
-                <h2 style={secTitle}>スタッフ登録</h2>{/* ★裁定381 */}
+                <div className="nox-formmodal-head" data-staff-register-head="1">{/* ★便 A M-81: 題名と × は sticky（スマホ幅で最上部まで届く） */}
+                  <strong>スタッフ登録</strong>{/* ★裁定381 */}
+                  <button type="button" className="nox-formmodal-x" aria-label="閉じる" onClick={() => !busy && setAddOpen(false)}>×</button>
+                </div>
                 <div style={{ display: "grid", gap: 10 }}>
                   <label style={{ display: "grid", gap: 4 }}>
                     <span style={t.fieldLabel}>名前（必須）</span>
@@ -677,13 +694,15 @@ export default function StaffBoard({
                       <li><b style={{ color: "var(--v2-text)" }}>写真</b>：一覧でそのスタッフを選び「写真」から設定します（任意）。</li>
                       <li><b style={{ color: "var(--v2-text)" }}>権限</b>：一覧の行の権限チップで、できる操作を選びます。</li>
                       <li><b style={{ color: "var(--v2-text)" }}>ログイン</b>：登録したメールアドレスでログインします（初期パスワードは登録直後に 1 回だけ表示）。</li>
-                      <li><b style={{ color: "var(--v2-text)" }}>契約</b>：「勤怠・報酬」タブで区分・時給（月給）と支給見込みを確認できます。</li>
+                      <li><b style={{ color: "var(--v2-text)" }}>契約</b>：スタッフの編集か 給与 › 勤怠（スタッフ）で変更。</li>{/* ★便 A M-80 ③ */}
                     </ol>
                   </div>
                   {aErr && <Message kind="error" style={{ margin: 0 }}>{aErr}</Message>}
-                  <button type="button" style={t.btnPrimary56} disabled={busy} data-staff-register="1" onClick={() => void submitAdd()}>{busy ? "登録中…" : aMethod === "invite" ? "登録して招待リンクを発行" : "登録する"}</button>
-                  <div style={t.btnRow48}>
-                    <button type="button" style={t.btnSecondary48} disabled={busy} onClick={() => setAddOpen(false)}>キャンセル</button>
+                  <div className="nox-formmodal-foot" data-staff-register-foot="1" style={{ flexDirection: "column", alignItems: "stretch" }}>{/* ★便 A M-81: 登録する／キャンセルは sticky で常に見える */}
+                    <button type="button" style={t.btnPrimary56} disabled={busy} data-staff-register="1" onClick={() => void submitAdd()}>{busy ? "登録中…" : aMethod === "invite" ? "登録して招待リンクを発行" : "登録する"}</button>
+                    <div style={{ ...t.btnRow48, marginTop: 0 }}>
+                      <button type="button" style={t.btnSecondary48} disabled={busy} onClick={() => setAddOpen(false)}>キャンセル</button>
+                    </div>
                   </div>
                 </div>
               </>

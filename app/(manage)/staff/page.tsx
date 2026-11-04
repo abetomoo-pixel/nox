@@ -24,9 +24,9 @@ export default async function StaffPage({ searchParams }: { searchParams: Promis
   } = await supabase.auth.getUser();
   const { data: stores } = await supabase.from("stores").select("id, name").order("name");
   const { data: myStoreId } = await supabase.rpc("auth_store_id");
-  // ★M-64: タブの代わりに案内 1 行（勤怠の正本は 給与 › 勤怠（スタッフ））
+  // ★M-64: タブの代わりに案内 1 行（勤怠の正本は 給与 › 勤怠（スタッフ））・★便 A M-80 追記: 働き方は行を押して編集
   const tabs = (
-    <p data-staff-work-link="1" style={{ fontSize: 12.5, color: "var(--sub)", margin: "0 0 12px" }}>勤怠は <Link href={STAFF_WORK_HREF} className="nox-link">給与 › 勤怠（スタッフ）</Link> で見ます（出勤・退勤の修正と月の確定もそこで）。</p>
+    <p data-staff-work-link="1" style={{ fontSize: 12.5, color: "var(--sub)", margin: "0 0 12px" }}>勤怠は <Link href={STAFF_WORK_HREF} className="nox-link">給与 › 勤怠（スタッフ）</Link> で見ます。働き方（雇用形態・給与）は行を押して編集します。</p>
   );
   return (
     <StaffBoard

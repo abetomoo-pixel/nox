@@ -508,6 +508,10 @@ body {
    スクロール自体（overflow:auto）は modal.tsx が inline で当てる（t.card の inline
    overflow:hidden は CSS から上書きできないため）。ここは高さ上限だけを与える。 */
 .nox-modal-scroll .nox-modal-card { max-height: calc(100vh - 36px); }  /* overlay の padding 18px×2 */
+/* ★便 A M-81（2026-11-04・不具合）: 全モーダルに高さ上限（scroll を渡さないものも）＝中身は modal.tsx が常に overflow:auto。
+   >900 は overlay の padding 18px×2 を引く・≤900 のシートは 100dvh から上の safe-area を引く（下は --nox-modal-pad-b が持つ）。 */
+.nox-modal-card { max-height: calc(100dvh - 36px); }
+@media (max-width: 900px) { .nox-modal-card { max-height: calc(100dvh - env(safe-area-inset-top, 0px)); } }
 
 /* ★起票94（便 X-12-3・2026-09-30）: variant="top"＝ヘッダー直下に固定（歯車・自分の情報）。上端＝.nox-tb 64px＋8px・高さ上限＝100vh−(64+8×2)＝内部スクロール（modal.tsx が overflow:auto を inline で当てる）。
    ≤900px は既存のシート分岐へ素通し（この節は min-width:901px の中だけ）。数値は lib/nox/ui/popover.ts（HEADER_H／POP_GAP）と同値＝ms(2-25) が pin。 */
@@ -529,6 +533,10 @@ body {
 .nox-formmodal-head {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
   margin-bottom: 16px;
+  /* ★便 A M-81: 題名と × はスクロールしても見える（カードが容器＝脚と同じ sticky・上の padding 15px を覆う） */
+  position: sticky; top: -15px; z-index: 2;
+  margin-top: -15px; padding: 15px 0 10px;
+  background: var(--card);
 }
 .nox-formmodal-head strong { font-size: 17px; color: var(--champ); }
 .nox-formmodal-x {

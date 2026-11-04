@@ -71,7 +71,9 @@ export default function Modal({
     // ★drawer / scroll のときだけ中身をスクロールさせる。t.card が inline で overflow:hidden を
     //   持つため CSS では上書きできない（inline が勝つ）＝ここで inline 対 inline で差し替える。
     //   どちらも渡さない既存6箇所は t.card の hidden のまま＝1px も変わらない。
-    ...(variant === "drawer" || variant === "top" || scroll ? { overflow: "auto" as const } : null),
+    // ★便 A M-81（2026-11-04・不具合）: scroll を渡さないモーダルも中身をスクロールさせる＝スマホ幅で長いフォーム（スタッフ登録）の上部に届かなかった。
+    //   高さ上限は globals.css の .nox-modal-card（max-height 100dvh−36px・≤900 は 100dvh−safe-area）＝全モーダル 1 か所。ヘッダ（.nox-formmodal-head）と脚（.nox-formmodal-foot）は sticky。
+    overflow: "auto" as const,
   };
   return (
     <div className={overlayCls} onClick={onClose}>

@@ -34,6 +34,8 @@ import { type BusinessHourRow } from "@/lib/nox/business-hours";
 import { hm2min } from "@/lib/nox/shift-time";
 // ★裁定245-6: 日セルの「不足 n」＝純関数 gapOf（required−assigned・選択中は −1・0 は充足）
 import { gapOf } from "@/lib/nox/shift/gap";
+import { dayCastStateOf } from "@/lib/nox/shift/half-hour"; // ★便 A M-65 (c): 割当ピッカーと同じ 1 本の判定（希望＞基本の働き方）
+import type { Avail } from "@/lib/nox/rules-0175/availability";
 
 import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 import { daysInMonthOf, monthLastDayOf } from "@/lib/nox/month"; // ★便 X13-H H-9: 暦月の日付は 1 か所で（「-31」固定・翌月 0 日を撤去）
@@ -96,7 +98,7 @@ function rpcErrJa(msg: string | undefined): string {
 const SKIP_JA: Record<string, string> = { closed: "定休日", duplicate: "既に登録あり", unavailable: "出勤不可（理由未入力）" };
 
 export default function ShiftAddForm({
-  casts, photoUrls, initialCast, bhRows, initialDate, initialStatus, open, onClose, onSaved, needs = [], assignedByDate = {},
+  casts, photoUrls, initialCast, bhRows, initialDate, initialStatus, open, onClose, onSaved, needs = [], assignedByDate = {}, availByCast = {},
 }: {
   /** 左ペイン CastPicker の母集団（裁定108: select 禁止＝Picker 維持） */
   casts: Cast[];
@@ -112,6 +114,8 @@ export default function ShiftAddForm({
   initialDate: string;
   /** 新規日の状態既定。今日タブ＝confirmed（当日その場で足すのは「もう入る人」・裁定42） */
   initialStatus: string;
+  /** ★便 A M-65 (b): 基本の働き方（cast_id → 曜日 → 可／不可／相談）＝日セルの「不可」「相談」 */
+  availByCast?: Record<string, Partial<Record<number, Avail>>>;
   open: boolean;
   onClose: () => void;
   /** 登録が成功したときだけ呼ばれる（親が load() を回す） */
@@ -151,6 +155,10 @@ export default function ShiftAddForm({
     return g === null ? null : g === 0 ? "充足" : `不足 ${g}`;
   };
   const wishOf = (ymd: string) => wishes.find((w) => w.date === ymd);
+  // ★便 A M-65 (b)(c): その日の 4 段（希望＞基本の働き方）＝不可（休み希望・曜日が不可）／相談／希望／なし。cast_unavailable_list（RPC の不可）は従来どおり unavail で見る
+  const judgeOf = (ymd: string) => { const w = wishOf(ymd); return dayCastStateOf(w ? [{ start_hm: w.start_hm, end_hm: w.end_hm }] : [], selCast ? availByCast[selCast.id]?.[dowOf(ymd)] ?? null : null); };
+  const availNgOf = (ymd: string) => judgeOf(ymd).why === "avail_ng";
+  const consultOf = (ymd: string) => judgeOf(ymd).state === "consult";
 
   // ★裁定112-D: 希望の表示写像＝end が閉店時刻と一致なら「〜LAST」（器に LAST は無い）
   const wishLabel = (w: WishRow) => {
@@ -230,6 +238,7 @@ export default function ShiftAddForm({
         if (n[ymd]) continue;
         if (isClosed(ymd)) continue;
         if (unavail.has(ymd) && !existOf(ymd)) continue; // 不可は一括では拾わない（個別に理由）
+        if (availNgOf(ymd) && !existOf(ymd)) continue; // ★便 A M-65 (b): 基本の働き方が不可の曜日も飛ばす
         if (dows && !dows.includes(dowOf(ymd))) continue;
         n[ymd] = entryFor(ymd);
       }
@@ -245,6 +254,7 @@ export default function ShiftAddForm({
         if (n[ymd]) continue;
         if (isClosed(ymd)) continue;
         if (unavail.has(ymd)) continue;
+        if (availNgOf(ymd)) continue; // ★便 A M-65 (b): 不足日の一括も不可の曜日は飛ばす
         if (existOf(ymd)) continue;
         const g = gapOf(requiredOf(ymd), assignedByDate[ymd] ?? 0, false);
         if (g === null || g <= 0) continue;
@@ -434,10 +444,14 @@ export default function ShiftAddForm({
                     const w = wishOf(ymd);
                     const closed = isClosed(ymd);
                     const un = unavail.has(ymd);
+                    const ng = !closed && !un && availNgOf(ymd); // ★便 A M-65 (b): 基本の働き方の曜日が不可（RPC の不可とは別）
+                    const ask = !closed && !un && !ng && consultOf(ymd);
                     const conflict = e?.src === "new" && !!ex;
                     const style: React.CSSProperties = {
                       ...(closed ? { background: "var(--line)", opacity: 0.55, cursor: "not-allowed" } : {}),
                       ...(un && !closed ? { background: "rgba(216,108,100,.07)", borderColor: "rgba(216,108,100,.35)" } : {}),
+                      ...(ng && !ex ? { background: "rgba(216,108,100,.07)", borderColor: "rgba(216,108,100,.35)" } : {}),
+                      ...(ask && !ex ? { background: "rgba(201,162,74,.08)", borderColor: "rgba(201,162,74,.4)" } : {}),
                       ...(e ? { outline: "2px solid var(--blue)", outlineOffset: -2 } : {}),
                       ...(conflict ? { outline: "2px solid var(--bad)", outlineOffset: -2 } : {}),
                     };
@@ -445,7 +459,8 @@ export default function ShiftAddForm({
                       <button key={ymd} type="button"
                         className={["nox-cald", ymd === focusDay ? "sel" : ""].filter(Boolean).join(" ")}
                         style={style} onClick={() => clickDay(ymd)}
-                        title={closed ? "定休日" : un ? `出勤不可${unavail.get(ymd) ? `（${unavail.get(ymd)}）` : ""}` : undefined}>
+                        title={closed ? "定休日" : un ? `出勤不可${unavail.get(ymd) ? `（${unavail.get(ymd)}）` : ""}` : ng ? "基本の働き方で不可の曜日" : ask ? "基本の働き方で相談の曜日" : undefined}
+                        data-day-avail={ng ? "ng" : ask ? "ask" : undefined}>
                         <span className="nox-cald-n num">{Number(ymd.slice(8))}</span>
                         {closed && <span style={{ fontSize: 8.5, color: "var(--sub)" }}>休</span>}
                         {!closed && ex && (
@@ -457,7 +472,10 @@ export default function ShiftAddForm({
                           <span className="num" style={{ fontSize: 8.5, color: "var(--blue)" }}>希 {wishLabel(w)}</span>
                         )}
                         {!closed && un && !ex && <span style={{ fontSize: 8.5, color: "var(--bad)" }}>不可</span>}
-                        {!closed && (() => { const g = gapLabelOf(ymd); return g ? <span className="num" style={{ fontSize: 8.5, color: g === "充足" ? "var(--ok)" : "var(--bad)" }}>{g}</span> : null; })()}
+                        {ng && !ex && <span style={{ fontSize: 8.5, color: "var(--bad)" }} data-day-avail-mark="ng">不可{(() => { const g = gapLabelOf(ymd); return g && g !== "充足" ? `・${g}` : ""; })()}</span>}{/* ★便 A M-65 (b): 不可＋不足数 */}
+                        {ask && !ex && <span style={{ fontSize: 8.5, color: "var(--gold2)" }} data-day-avail-mark="ask">相談</span>}
+                        {ng && ex && <span style={{ fontSize: 7.5, color: "var(--sub)" }} data-day-avail-mark="ng-has">不可の曜日</span>}{/* 登録済みは緑のまま小さく */}
+                        {!closed && !(ng && !ex) && (() => { const g = gapLabelOf(ymd); return g ? <span className="num" style={{ fontSize: 8.5, color: g === "充足" ? "var(--ok)" : "var(--bad)" }}>{g}</span> : null; })()}
                       </button>
                     );
                   })}
@@ -467,6 +485,7 @@ export default function ShiftAddForm({
                   <span style={{ color: "var(--ok)" }}>● 登録済み（クリックで時刻編集）</span>・
                   <span style={{ color: "var(--blue)" }}>● 出勤希望（選択で希望時間から）</span>・
                   <span style={{ color: "var(--bad)" }}>● 出勤不可（「それでも登録」で理由必須）</span>・
+                  <span style={{ color: "var(--bad)" }}>● 不可（基本の働き方の曜日）</span>・<span style={{ color: "var(--gold2)" }}>● 相談（基本の働き方）</span>・
                   ■ 定休日（操作不可）・<span style={{ color: "var(--bad)" }}>枠=時間競合（残っていると保存できません）</span>
                 </p>
 
@@ -485,10 +504,10 @@ export default function ShiftAddForm({
                       )}
                       {/* ★不可の登録/解除（モック不在＝申告済みの最小 UI・owner/manager） */}
                       {!isClosed(focusDay) && !focusUnavail && !focusEx && (
-                        <button style={{ ...btnLight, marginLeft: "auto" }} onClick={() => setUnavailTarget(focusDay)} data-cast-unavailable-open={focusDay}>出勤不可にする</button>
+                        <span className="nox-actions" style={{ width: "100%" }}>{/* ★便 A M-66: 右端ではなく中央（教訓133） */}<button style={btnLight} onClick={() => setUnavailTarget(focusDay)} data-cast-unavailable-open={focusDay}>出勤不可にする</button></span>
                       )}
                       {focusUnavail && (
-                        <button style={{ ...btnLight, marginLeft: "auto" }} onClick={() => void removeUnavailable(focusDay)}>不可を解除</button>
+                        <span className="nox-actions" style={{ width: "100%" }}><button style={btnLight} onClick={() => void removeUnavailable(focusDay)}>不可を解除</button></span>
                       )}
                     </div>
                     {/* 不可日の「それでも登録」＝理由必須→override_reason（裁定112-F） */}
@@ -574,9 +593,9 @@ export default function ShiftAddForm({
         </div>
       </div>
       {/* フッター（裁定112-H: 0件時 disabled・「保存して次のキャスト」は成功後に選択のみリセット） */}
-      <div className="nox-bulkadd-foot" style={{ display: "flex", alignItems: "center", gap: 9, padding: "12px 16px", borderTop: "1px solid var(--line)" }}>
+      <div className="nox-bulkadd-foot" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 9, padding: "12px 16px", borderTop: "1px solid var(--line)" }}>{/* ★便 A M-65 (c)・教訓133: 下段のボタンは中央寄せ */}
         <small style={{ color: "var(--sub)" }} className="num">{selCast?.name ?? "—"} ／ {selCount}日分</small>
-        <span className="nox-bulkadd-btns" style={{ marginLeft: "auto", display: "inline-flex", gap: 9 }}>
+        <span className="nox-bulkadd-btns nox-actions" style={{ display: "inline-flex", gap: 9 }}>
           <button style={btnLight} className="nox-bulkadd-cancel" onClick={onClose}>キャンセル</button>
           <button style={{ ...btnLight, opacity: selCount === 0 || conflicts.length > 0 || busy || hmBad ? 0.45 : 1 }}
             disabled={selCount === 0 || conflicts.length > 0 || busy || hmBad}
