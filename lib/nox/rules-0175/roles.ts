@@ -42,7 +42,8 @@ export function roleChangeTargetsOf(callerRaw: string | null | undefined, target
   if (callerRaw !== "owner" && callerRaw !== "admin") return [];
   if (targetRole === "admin") return callerRaw === "owner" ? ["manager", "staff"] : [];
   const base = targetRole === "staff" ? ["manager"] : targetRole === "manager" ? ["staff"] : [];
-  return callerRaw === "owner" && base.length ? [...base, "admin"] : base;
+  // ★0193（相談役 11/03 §0-2 ③）: 0193 の後は admin を選択肢に出さない（既存の admin の解除は残す・CHECK から外すのは 0194）＝管理者の任命は Staff0193 の「管理者にする」（owner）
+  return callerRaw === "owner" && base.length && !mig0193On() ? [...base, "admin"] : base;
 }
 
 /** ボタンの文言＝「店長に昇格」「スタッフに降格」「管理者に昇格」 */
