@@ -18,8 +18,28 @@ const fails: string[] = [];
 function check(label: string, ok: boolean, detail?: string) { if (ok) pass++; else fails.push(`${label}${detail ? `: ${detail}` : ""}`); }
 const src = (p: string) => fs.readFileSync(p, "utf8");
 
-// lp(1)
+// lp(1) ★LP v4（2026-11-04 夜の自走便 4）: 正本＝docs/handoff/lp/NOX-LP.html（Agoora 11/02）＝ヒーロー／01 つながる／02 画面で見る（4 枚）／03 立場＋FAQ／料金 29,800／問い合わせ（プレビュー）／6 店（店長・キャストでログイン）／フッター
 {
+  const lp = src("app/lp/page.tsx"), cl = src("components/nox/lp-v4-client.tsx"), css = src("app/lp/lp-v4.css");
+  check("lp(1-v4-1) 構成＝.lpv4 配下・9 節（hero／features／examples／立場＋FAQ／contact／inquiry／stores）・ロゴは BrandLogo・CSS は .lpv4 に閉じ込め（:root／body の素の行なし）",
+    lp.includes('<div className="lpv4">') && lp.includes('id="features"') && lp.includes('id="examples"') && lp.includes('id="contact"') && lp.includes('id="inquiry"') && lp.includes('id="stores"') && lp.includes('import "./lp-v4.css";')
+    && (lp.match(/<BrandLogo /g) ?? []).length === 2 && !/^(:root|body|html)\s*\{/m.test(css) && css.includes(".lpv4{") && css.includes(".lpv4 .store-grid{"));
+  check("lp(1-v4-2) 「オーナー」→「管理者」（立場 4＝管理者／店長／スタッフ／キャスト）・文言は HTML 逐語（ヒーロー・01 の 3 列・02 の 4 枚・FAQ 5・料金 29,800 円／月（税込）・年払い）",
+    lp.includes('{ dev: "PC / iPad", name: "管理者", body: "待遇・設定から給与、分析、月報まで。店全体を把握。" }') && !/オーナー/.test(lp) && (lp.match(/name: "/g) ?? []).length === 4
+    && lp.includes("伝票の1杯から、<br />月末の給与まで。") && lp.includes("営業から締めまで、<br />つながる店舗管理。") && (lp.match(/no: "0[1-4] \//g) ?? []).length === 4 && (lp.match(/\["[^"]+？", \[/g) ?? []).length === 5
+    && lp.includes("const LP_PRICE_MONTHLY = 29800;") && lp.includes("<b>円／月（税込）</b>") && lp.includes("年払いの割引もあります"));
+  check("lp(1-v4-3) 6 店カード＝LP_ORDER（ace,luna,noir,muse,nest,lily＝DEMO_STORES と同じ集合）・「店長でログイン」「キャストでログイン」＝/demo?store=<key>&role=manager|cast・帯＝DEMO_RESET_TIME_JA・条文＝DEMO_TERMS（二重化しない）",
+    (() => { const m = /const LP_ORDER: readonly DemoStore\[\] = \[([^\]]+)\];/.exec(lp); const order = m ? m[1].split(",").map((x) => x.trim().replace(/"/g, "")) : []; return order.join(",") === "ace,luna,noir,muse,nest,lily" && [...order].sort().join(",") === [...DEMO_STORES].sort().join(","); })()
+    && lp.includes("href={`/demo?store=${s.key}&role=manager`}>店長でログイン") && lp.includes("href={`/demo?store=${s.key}&role=cast`}>キャストでログイン") && lp.includes("デモは{DEMO_RESET_TIME_JA}に初期化。") && !/毎日 06:05/.test(lp)
+    && lp.includes("{DEMO_TERMS.map((s) => <li key={s}>{s}</li>)}") && lp.includes('import { DEMO_TERMS } from "@/lib/nox/demo/terms";'));
+  check("lp(1-v4-4) 画面 4 枚＝public/lp/v4（register／shift／cast／payroll）＋hero.jpg・拡大＝dialog（client）・問い合わせ＝プレビュー（送信しない＝fetch／mailto なし・確認→完了の 2 画面）・page は force-static・noindex・use client なし（page）",
+    ["screen-register", "screen-shift", "screen-cast", "screen-payroll"].every((n) => lp.includes(`/lp/v4/${n}.png`) && fs.existsSync(`public/lp/v4/${n}.png`)) && fs.existsSync("public/lp/v4/hero.jpg") && lp.includes('openGraph: { images: ["/lp/v4/hero.jpg"] }')
+    && cl.includes("ref.current?.showModal()") && cl.includes('data-lp-form="confirm"') && cl.includes('data-lp-form="done"') && !/fetch\(|mailto:/.test(cl) && cl.includes("プレビュー用") === false && lp.includes("プレビュー用フォームです。入力内容は送信・保存されません。")
+    && lp.includes('export const dynamic = "force-static";') && lp.includes("robots: { index: false, follow: false }") && !/^"use client";?\s*$/m.test(lp) && /^"use client";/.test(cl));
+  check("lp(1-v4-5) 資格情報・外部リンクを置かない（http は無い）・/terms へのリンクなし", !/https?:\/\//.test(lp) && !/href="\/terms"/.test(lp) && !/https?:\/\//.test(cl));
+}
+// lp(1) 旧（M-41 v3）＝v4 で置換済み
+if (false) {
   const lp = src("app/lp/page.tsx");
   check("lp(1-1) force-static・noindex（robots index:false）・OG 画像＝/lp/og.jpg（meta だけ・static のまま＝\"use client\" なし）",
     lp.includes('export const dynamic = "force-static";') && lp.includes("robots: { index: false, follow: false }") && lp.includes('openGraph: { images: ["/lp/og.jpg"] }') && !/^"use client";?\s*$/m.test(lp));
@@ -29,7 +49,7 @@ const src = (p: string) => fs.readFileSync(p, "utf8");
     && lp.includes("デモ環境・{DEMO_RESET_TIME_JA}に初期化。入力内容は他の閲覧者にも見えます。個人情報を入力しないでください") && lp.includes("`デモ環境・${DEMO_RESET_TIME_JA}に初期化。入力内容は他の閲覧者にも見えます。個人情報を入力しないでください`"));
   {
     const m = /const LP_ORDER: readonly DemoStore\[\] = \[([^\]]+)\];/.exec(lp);
-    const order = m ? m[1].split(",").map((x) => x.trim().replace(/"/g, "")) : [];
+    const order = (m?.[1] ?? "").split(",").filter(Boolean).map((x) => x.trim().replace(/"/g, ""));
     check("lp(1-3) 6 店カード＝LP_ORDER（モック v3 の順 ace,luna,noir,muse,nest,lily＝DEMO_STORES と同じ集合）・「オーナーで試す」「店長で試す」＝/demo?store=<key>&role=owner|manager（MUSE／NEST／LILY は店長が先）・主 CTA「デモ店舗を選ぶ」＝/demo",
       order.join(",") === "ace,luna,noir,muse,nest,lily" && [...order].sort().join(",") === [...DEMO_STORES].sort().join(",")
       && lp.includes("const STORES = LP_ORDER.map((s) => ({ key: s, label: DEMO_STORE_LABEL[s], ...LP_STORE_COPY[s], video: videoSrcOf(s), image: imageSrcOf(s) }));")
