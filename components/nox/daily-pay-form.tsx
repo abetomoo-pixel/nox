@@ -11,6 +11,7 @@ import { DAILY_PAY_KIND_LABEL, dailyPayKindDeductsNow, type DailyPayKind } from 
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import Toast from "@/components/ui/toast";
+import ReasonModal from "@/components/nox/reason-modal"; // ★裁定443 18-⑦: 取消の理由は Modal（金額と相手を見せる・window.prompt は使わない）
 import { withholdingOf } from "@/lib/nox/pay";
 import { rpcErrJa } from "@/lib/nox/ui/rpc-err";
 import { carriedNoteOf, dailyPayPeriodNoteOf, dailyPayOverNoteOf } from "@/lib/nox/payroll/advance-okuri";
@@ -109,19 +110,26 @@ export default function DailyPayForm({ castId, castName, dateDefault, storeId, o
   const live = activeRowsOf(paid ?? []); // ★便 P175-prep P-2: 合計は取消済みを除く（フラグ false＝cancelled_at 無し＝全件）
   const sumG = live.reduce((s, p) => s + p.gross, 0), sumW = live.reduce((s, p) => s + p.withholding, 0);
   // ★便 P175-prep P-2（裁定413 I-3・0175 v2 ★4 daily_pay_cancel）: 取消＝行を消さず印（理由必須・paid の期は RPC が 'paid period'）。フラグ false ではボタンを出さない
-  async function cancelPaid(p: Paid) {
+  // ★裁定443 18-⑦（2026-11-04）: 理由は ReasonModal（対象＝キャスト・営業日・金額を見せる）。空は Modal が送らせない
+  const [cancelTarget, setCancelTarget] = useState<Paid | null>(null);
+  async function cancelPaid(p: Paid, reason: string) {
     if (busy) return;
-    const reason = window.prompt(`${p.biz_date} の ${yen(p.gross)} を取り消します。理由（必須・200 字まで）`);
-    if (reason === null) return;
     if (!reason.trim()) { setMsg("取消の理由を入れてください"); return; }
     setBusy(true); setMsg(null);
     const { error } = await supabase.rpc("daily_pay_cancel", { p_id: p.id, p_reason: reason.trim().slice(0, 200) });
     setBusy(false);
     if (error) { setMsg(`取消に失敗: ${rpcErrJa(error.message)}`); return; }
+    setCancelTarget(null);
     setMsg(`${p.biz_date} の日払いを取り消しました`); await load(); await onIssued?.();
   }
   return (
     <div style={{ display: "grid", gap: 8 }}>
+      {cancelTarget && (/* ★裁定443 18-⑦ */
+        <ReasonModal title="日払いを取り消す" testId="daily-pay-cancel" danger submitLabel="取り消す" busy={busy}
+          lines={[["キャスト", castName], ["営業日", cancelTarget.biz_date], ["金額", yen(cancelTarget.gross)]]}
+          note="行は消さず「取消」の印を付けます（支払済みの期の分は取り消せません）。"
+          onCancel={() => setCancelTarget(null)} onSubmit={(reason) => cancelPaid(cancelTarget, reason)} />
+      )}
       {/* ★0172（裁定349・便 P172）: 種別＝前払（既定・控除なし・期の精算で控除）／日払い（日次精算＝1 日分の源泉を引いて渡す・期間精算から除外） */}
       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }} data-daily-pay-kind={kindEff} data-daily-pay-cycle={mig0188On() ? cycle : undefined}>
         <span style={t.fieldLabel}>種別</span>
@@ -166,7 +174,7 @@ export default function DailyPayForm({ castId, castName, dateDefault, storeId, o
                 <span className="num" style={{ color: "var(--sub)" }}>{p.biz_date}</span>
                 <span className="num">{yen(p.gross)}</span>
                 {rules0175On() && cancelledLabelOf(p, DAILY_PAY_KIND_LABEL_0175) && <span data-dp-cancelled="1" style={{ fontSize: 11, fontWeight: 800, color: "var(--bad)" }}>{cancelledLabelOf(p, DAILY_PAY_KIND_LABEL_0175)}</span>}{/* ★便 P175-prep P-2 */}
-                {rules0175On() && !isCancelledOf(p) && <button type="button" style={{ ...t.btnGhost, ...t.btnSm, border: "1px solid var(--bad)", color: "var(--bad)" }} disabled={busy} onClick={() => void cancelPaid(p)}>取消</button>}
+                {rules0175On() && !isCancelledOf(p) && <button type="button" style={{ ...t.btnGhost, ...t.btnSm, border: "1px solid var(--bad)", color: "var(--bad)" }} disabled={busy} onClick={() => setCancelTarget(p)} data-daily-pay-cancel={p.id}>取消</button>}
                 <span style={{ fontSize: 11.5, color: "var(--sub)" }}>源泉 <span className="num">{yen(p.withholding)}</span>・手取り <span className="num">{yen(p.net)}</span>・{p.withholding_category}・{p.kind === "advance" ? "前払" : "日次精算"}</span>
               </div>
             ))}

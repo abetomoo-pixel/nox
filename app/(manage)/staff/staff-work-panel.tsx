@@ -244,12 +244,12 @@ export default function StaffWorkPanel({ scope, stores, daily = false, initialMe
             </table></div>
             {att ? (/* ★0192 ★1／M-38 */
               <div data-staff-att="0192" style={{ display: "grid", gap: 8, marginTop: 8 }}>
-                <div className="nox-actions" style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                <div className="nox-actions" data-staff-att-actions="1">{/* ★M-63（2026-11-04 Agoora 実機）: 「＋ 日を追加・修正」「この月を確定」は左右端ではなく 2 つ並べて中央（.nox-actions の既定＝裁定242／教訓122・間隔 gap 8 は既存のボタン群と同じ・marginLeft:auto を外す） */}
                   {monthLocked ? <span className="nox-stpill" data-staff-att-locked="1">この月は確定済み</span> : <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} data-staff-att-add="1" disabled={attBusy} onClick={() => openDay({ bizDate: todayBiz, inHm: null, outHm: null })}>＋ 日を追加・修正</button>}
                   {!monthLocked && todayOutRow && <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} data-staff-cancel-out="1" disabled={attBusy} onClick={() => void cancelOut()}>今日の退勤を取り消す</button>}
                   {monthLocked
-                    ? <button type="button" style={{ ...t.btnGhost, ...t.btnSm, marginLeft: "auto" }} data-staff-att-unlock="1" disabled={attBusy} onClick={() => void confirmMonth(false)}>確定を解除</button>
-                    : <button type="button" style={{ ...t.btnGold, ...t.btnSm, marginLeft: "auto" }} data-staff-att-lock="1" disabled={attBusy} onClick={() => { if (window.confirm(`${month.replace("-", "/")} のスタッフ勤怠を確定しますか（以後この月の修正・取消はできません）`)) void confirmMonth(true); }}>この月を確定</button>}
+                    ? <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} data-staff-att-unlock="1" disabled={attBusy} onClick={() => void confirmMonth(false)}>確定を解除</button>
+                    : <button type="button" style={{ ...t.btnGold, ...t.btnSm }} data-staff-att-lock="1" disabled={attBusy} onClick={() => { if (window.confirm(`${month.replace("-", "/")} のスタッフ勤怠を確定しますか（以後この月の修正・取消はできません）`)) void confirmMonth(true); }}>この月を確定</button>}
                 </div>
                 {dayEdit && dayEdit.mem === r.m.id && (
                   <div data-staff-day-edit={dayEdit.date} style={{ display: "grid", gap: 6, padding: 10, border: "1px solid var(--line2)", borderRadius: 8 }}>

@@ -29,6 +29,8 @@ export const WITHHOLDING_KIND_LABEL: Record<WithholdingKind, string> = {
 };
 export const WITHHOLDING_KIND_SHORT: Record<WithholdingKind, string> = { hostess: "ホステス等", other_fee: "報酬・料金", other_204: "その他 204 条", manual: "給与", none: "対象外" };
 /** ★0188（裁定434 ②）: 区分の選択画面の注記 */
+/** ★裁定434 ④（2026-11-04 Agoora 確定）: 外交員・集金人は専用計算を作らない＝その他 204 条の説明に注記（税額は区分「給与」＝手入力で） */
+export const OTHER_204_MANUAL_NOTE = "外交員・集金人は計算方法が違うので税額を手入力で（区分を「給与」にして、その月に差し引く額を入れる）";
 export const WITHHOLDING_KIND_SELECT_NOTE = "肩書ではなく業務内容で選ぶ。接待が業務ならホステス等・実態が雇用なら給与";
 /** ★0188（裁定434 ③）: 支払調書の注記（hostess＝同一人への年間支払 50 万円超・その他 204 条の基準は税理士確認まで注記のみ・none は対象外） */
 export const PAYMENT_REPORT_NOTE: Record<WithholdingKind, string | null> = {

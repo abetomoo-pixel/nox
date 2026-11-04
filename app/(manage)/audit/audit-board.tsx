@@ -12,6 +12,7 @@ import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 
 import { AUDIT_HIGH_VOID_YEN, auditAlertsOf, auditCsvOf, auditExportErrorOf, voidApproverReasonOf, type AuditAlert } from "@/lib/nox/audit/alerts"; // ★便 W-10 #2／#5／#7
+import type { BusinessHourRow } from "@/lib/nox/business-hours"; // ★裁定443 9-①: 営業時間外＝店設定の営業時間から
 import { mig0186On } from "@/lib/nox/rules-0175/flag"; // ★便 W-10 #7（0186＝出力の記録）
 type Log = {
   id: string; store_id: string | null; actor_user_id: string | null; action: string; target: string;
@@ -115,9 +116,14 @@ export default function AuditBoard({ users, stores }: {
   const [alerts, setAlerts] = useState<AuditAlert[] | null>(null); // ★便 W-10 #2: 要確認（直近 30 日）
   useEffect(() => { let alive = true; void (async () => {
     const since = new Date(Date.now() - 30 * 86400_000).toISOString();
-    const { data } = await supabase.from("audit_logs").select("id, store_id, actor_user_id, action, target, before_json, after_json, at, ip, reason")
-      .gte("at", since).in("action", ["check_void", ...(VIEW_DEFS[2].actions ?? [])]).order("at", { ascending: false }).limit(500);
-    if (alive) setAlerts(auditAlertsOf((data ?? []) as Log[]));
+    const [{ data }, { data: bh }] = await Promise.all([
+      supabase.from("audit_logs").select("id, store_id, actor_user_id, action, target, before_json, after_json, at, ip, reason")
+        .gte("at", since).in("action", ["check_void", ...(VIEW_DEFS[2].actions ?? [])]).order("at", { ascending: false }).limit(500),
+      supabase.from("store_business_hours").select("store_id, dow, is_closed, open_hm, close_hm"), // ★裁定443 9-①: 店ごとの営業時間（RLS＝owner 全店／manager 自店）
+    ]);
+    const hoursByStore = new Map<string, BusinessHourRow[]>();
+    for (const r of (bh ?? []) as (BusinessHourRow & { store_id: string })[]) { const xs = hoursByStore.get(r.store_id) ?? []; xs.push(r); hoursByStore.set(r.store_id, xs); }
+    if (alive) setAlerts(auditAlertsOf((data ?? []) as Log[], { hoursOf: (sid) => (sid ? hoursByStore.get(sid) ?? null : null) }));
   })(); return () => { alive = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

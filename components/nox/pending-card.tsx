@@ -10,6 +10,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import { Message } from "@/components/ui/toast";
+import ReasonModal from "@/components/nox/reason-modal"; // ★裁定443 18-⑦: 却下の理由は Modal（申請の内容を見せる・window.prompt は使わない）
 import { APPROVAL_STATUS_LABEL, approvalLineOf, bellLabelOf, rejectReasonOkOf, type PendingSummary } from "@/lib/nox/home/pending";
 
 export const PENDING_CARD_ID = "pending-card";
@@ -31,10 +32,10 @@ export default function PendingCard({ storeId, role }: { storeId: string; role: 
   }, [storeId]);
   useEffect(() => { void load(); }, [load]);
 
-  async function decide(id: string, approve: boolean) {
-    let reason: string | null = null;
+  // ★裁定443 18-⑦（2026-11-04）: 却下の理由は ReasonModal（対象＝申請の見出しと内容を見せる）。承認は従来どおり即時
+  const [rejectTarget, setRejectTarget] = useState<{ id: string; head: string; sub: string } | null>(null);
+  async function decide(id: string, approve: boolean, reason: string | null = null) {
     if (!approve) {
-      reason = window.prompt("却下の理由（必須・200 字まで）");
       if (reason === null) return;
       if (!rejectReasonOkOf(reason)) { setMsg("却下の理由を 1〜200 字で入力してください"); return; }
     }
@@ -42,6 +43,7 @@ export default function PendingCard({ storeId, role }: { storeId: string; role: 
     const { error } = await supabase.rpc("approval_decide", { p_approval_id: id, p_approve: approve });
     setBusy(null);
     if (error) { setMsg(`処理できませんでした: ${error.message}`); return; }
+    setRejectTarget(null);
     setMsg(approve ? "承認しました（レジの明細に反映されます）" : `却下しました（理由: ${reason}）`);
     await load();
   }
@@ -61,6 +63,11 @@ export default function PendingCard({ storeId, role }: { storeId: string; role: 
   const none = !!data && total === 0 && (data.proposals?.length ?? 0) === 0;
   return (
     <section id={PENDING_CARD_ID} className="nox-panel nox-pending" data-pending-card="manager" data-pending-total={total} style={{ marginBottom: 14 }}>
+      {rejectTarget && (/* ★裁定443 18-⑦ */
+        <ReasonModal title="申請を却下する" testId="pending-reject" submitLabel="却下する" busy={busy === rejectTarget.id}
+          lines={[["申請", rejectTarget.head], ["内容", rejectTarget.sub]]} placeholder="例: 金額が規定と違う"
+          onCancel={() => setRejectTarget(null)} onSubmit={(reason) => decide(rejectTarget.id, false, reason)} />
+      )}
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         <h2 style={{ ...t.cardTitle, margin: 0 }} data-pending-head="1">{data ? bellLabelOf(total) : "要承認"}</h2>
         {!none && data && <button type="button" className="nox-link" style={{ marginLeft: "auto", fontSize: 12 }} onClick={() => setOpen((v) => !v)} aria-expanded={open}>{open ? "畳む" : "開く"}</button>}
@@ -75,7 +82,7 @@ export default function PendingCard({ storeId, role }: { storeId: string; role: 
               <span className="nox-pending-l2"><span style={t.sub}>{l.sub}</span>
                 <span className="nox-pending-acts">
                   <button type="button" style={{ ...t.btnGold, ...t.btnSm }} disabled={busy === a.id} onClick={() => void decide(a.id, true)} data-pending-approve={a.id}>承認</button>
-                  <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} disabled={busy === a.id} onClick={() => void decide(a.id, false)} data-pending-reject={a.id}>却下</button>
+                  <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} disabled={busy === a.id} onClick={() => setRejectTarget({ id: a.id, head: l.head, sub: l.sub })} data-pending-reject={a.id}>却下</button>
                 </span>
               </span>
             </li>); })}

@@ -9,7 +9,7 @@ import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import { Message } from "@/components/ui/toast";
 import {
-  EMPLOYEE_DEDUCTION_LABEL, OTHER_FEE_PROVISIONAL_NOTE, WITHHOLDING_ADVICE_NOTE, WITHHOLDING_KIND_SHORT, copyPrevDeductionsOf, employeeDeductionFormOf, employeeDeductionRowsOfForm,
+  EMPLOYEE_DEDUCTION_LABEL, OTHER_204_MANUAL_NOTE, OTHER_FEE_PROVISIONAL_NOTE, WITHHOLDING_ADVICE_NOTE, WITHHOLDING_KIND_SHORT, copyPrevDeductionsOf, employeeDeductionFormOf, employeeDeductionRowsOfForm,
   overrideLineOf, prevPeriodOf, type EmployeeDeductionKind, type EmployeeDeductionRow, type WithholdingKind,
 } from "@/lib/nox/payroll/withholding-kind";
 
@@ -105,6 +105,7 @@ export default function Withholding432Panel({ period, subjectKind, subjectId, ki
           )}
         </>
       )}
+      {kind === "other_204" && <p style={{ ...t.sub, margin: "2px 0 6px" }} data-withholding-204-note="1">{OTHER_204_MANUAL_NOTE}</p>}{/* ★裁定434 ④（2026-11-04 Agoora 確定）: 外交員・集金人は専用計算を作らず手入力の注記 */}
       {kind === "manual" && (
         <div data-employee-deductions="1">
           <p style={{ ...t.sub, margin: "0 0 6px" }}>NOX は税額を計算しません。この月に差し引く額を入れてください（空欄＝0・入れた分だけ差し引きます）</p>

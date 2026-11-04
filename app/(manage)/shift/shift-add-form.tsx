@@ -27,6 +27,7 @@ import { hmRangeErrorOf } from "@/lib/nox/time/hhmm"; // ★裁定318（便 X-9-
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import Modal from "@/components/ui/modal";
+import ReasonModal from "@/components/nox/reason-modal"; // ★裁定443 18-⑦: 出勤不可の理由は Modal（キャストと日付を見せる・window.prompt は使わない）
 import SegSelect from "@/components/ui/seg-select";
 import CastPicker from "@/components/nox/cast-picker";
 import { type BusinessHourRow } from "@/lib/nox/business-hours";
@@ -346,13 +347,14 @@ export default function ShiftAddForm({
   }
 
   // 不可の登録/解除（★配置はモック不在＝日詳細バーに置く申告済み判断・owner/manager）
-  async function setUnavailable(ymd: string) {
+  // ★裁定443 18-⑦（2026-11-04）: 理由は ReasonModal（任意・対象＝キャストと日付を見せる）
+  const [unavailTarget, setUnavailTarget] = useState<string | null>(null);
+  async function setUnavailable(ymd: string, reason: string) {
     if (!selCast) return;
-    const reason = window.prompt(`${ymd} を「出勤不可」にします。理由（任意・200字まで）`, "");
-    if (reason === null) return;
     const { error } = await supabase.rpc("cast_unavailable_set", {
       p_cast_id: selCast.id, p_date: ymd, p_reason: reason.trim() === "" ? null : reason.trim(),
     });
+    setUnavailTarget(null);
     setMsg(error ? `出勤不可の登録に失敗: ${rpcErrJa(error.message)}` : `${ymd} を出勤不可にしました`);
     await loadCastMonth(selCast.id, monthStr);
   }
@@ -371,6 +373,11 @@ export default function ShiftAddForm({
 
   return (
     <Modal onClose={onClose} maxWidth={980} scroll>
+      {unavailTarget && selCast && (/* ★裁定443 18-⑦: 出勤不可の理由（任意）＝入れ子の Modal（Modal は入れ子でも body の overflow を元へ戻す） */
+        <ReasonModal title="出勤不可にする" testId="cast-unavailable" required={false} submitLabel="出勤不可にする"
+          lines={[["キャスト", selCast.name], ["日付", unavailTarget]]} placeholder="例: 家庭の事情"
+          onCancel={() => setUnavailTarget(null)} onSubmit={(reason) => setUnavailable(unavailTarget, reason)} />
+      )}
       <div data-bulk-add="1" />{/* ★便 M-5: 390px の目印（.nox-modal-card:has([data-bulk-add])＝フルスクリーン） */}
       <div className="nox-modalhead">
         <h3 style={{ ...secTitle, margin: 0 }}>シフトを追加</h3>
@@ -478,7 +485,7 @@ export default function ShiftAddForm({
                       )}
                       {/* ★不可の登録/解除（モック不在＝申告済みの最小 UI・owner/manager） */}
                       {!isClosed(focusDay) && !focusUnavail && !focusEx && (
-                        <button style={{ ...btnLight, marginLeft: "auto" }} onClick={() => void setUnavailable(focusDay)}>出勤不可にする</button>
+                        <button style={{ ...btnLight, marginLeft: "auto" }} onClick={() => setUnavailTarget(focusDay)} data-cast-unavailable-open={focusDay}>出勤不可にする</button>
                       )}
                       {focusUnavail && (
                         <button style={{ ...btnLight, marginLeft: "auto" }} onClick={() => void removeUnavailable(focusDay)}>不可を解除</button>

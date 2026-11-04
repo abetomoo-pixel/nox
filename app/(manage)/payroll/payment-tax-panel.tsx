@@ -12,6 +12,7 @@ import * as t from "@/lib/nox/ui/theme";
 import { mig0186On } from "@/lib/nox/rules-0175/flag"; // ★便 W-10 #22（0186）
 
 import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
+import ReasonModal from "@/components/nox/reason-modal"; // ★裁定443 18-⑦: 取消の理由は Modal（対象月・区分・税額を見せる・window.prompt は使わない）
 type Row = {
   target_month: string;
   tax_category: string;
@@ -71,19 +72,25 @@ export default function PaymentTaxPanel({ hasUnpaidFinalized }: { hasUnpaidFinal
 
   const overdue = (r: Row) => !r.paid_on && r.deadline < todayJst;
   // ★便 W-10 #22（0186＝フラグ配下）: 納付記録の取消（owner・理由必須・audit に元の行）
-  async function cancelRecord(r: Row) {
-    const reason = window.prompt(`${r.target_month} の「${CAT_LABEL[r.tax_category] ?? r.tax_category}」の納付記録を取り消します。理由を入れてください（必須）`);
-    if (reason === null) return;
+  // ★裁定443 18-⑦（2026-11-04）: 理由は ReasonModal（対象＝対象月・区分・源泉税額・納付日を見せる）
+  const [cancelTarget, setCancelTarget] = useState<Row | null>(null);
+  async function cancelRecord(r: Row, reason: string) {
     if (!reason.trim()) { setMsg("取消の理由を入れてください"); return; }
     setBusy(true); setMsg("");
     const { error } = await supabase.rpc("withholding_payment_cancel", { p_target_month: r.target_month, p_tax_category: r.tax_category, p_reason: reason.trim() });
     setMsg(error ? (/forbidden/.test(error.message) ? "取消は管理者のみです" : `取消に失敗: ${error.message}`) : "納付記録を取り消しました");
     setBusy(false);
-    if (!error) await load();
+    if (!error) { setCancelTarget(null); await load(); }
   }
 
   return (
     <section className="nox-cardtop" style={{ ...t.card, marginTop: 18 }}>
+      {cancelTarget && (/* ★裁定443 18-⑦ */
+        <ReasonModal title="納付記録を取り消す" testId="wh-pay-cancel" danger submitLabel="取り消す" busy={busy}
+          lines={[["対象月", fmtPeriodYM(cancelTarget.target_month)], ["区分", CAT_LABEL[cancelTarget.tax_category] ?? cancelTarget.tax_category], ["源泉税額", `¥${cancelTarget.withholding_total.toLocaleString("en-US")}`], ["納付日", cancelTarget.paid_on ? fmtMD(cancelTarget.paid_on) : "—"]]}
+          note="納付の記録だけを取り消します（元の行は操作履歴に残ります）。"
+          onCancel={() => setCancelTarget(null)} onSubmit={(reason) => cancelRecord(cancelTarget, reason)} />
+      )}
       <div className="nox-taxhead" style={{ display: "flex", alignItems: "center", gap: 10 }}>{/* ★便 PR-1 R-5 ①: 390px＝「再読込」を中央・幅 100% */}
         {/* E5b: t.cardTitle の再発明（800/champ）を本定数へ。パネル最上位見出しの 15px と margin はローカル上書き＝算出値は不変 */}
         <h2 style={{ ...t.cardTitle, fontSize: 15, margin: 0 }}>源泉所得税の納付管理</h2>
@@ -144,7 +151,7 @@ export default function PaymentTaxPanel({ hasUnpaidFinalized }: { hasUnpaidFinal
                         </span>
                       ) : r.paid_on ? (
                         <span style={{ display: "inline-flex", gap: 6, alignItems: "center" }}><span style={{ color: "var(--ok)" }} title={r.paid_on}>納付済み（{fmtMD(r.paid_on)}）</span>
-                          {mig0186On() && <button type="button" onClick={() => void cancelRecord(r)} disabled={busy} style={{ ...t.btnGhost, ...t.btnSm }} data-wh-pay-cancel={keyOf(r)}>取消</button>}</span>
+                          {mig0186On() && <button type="button" onClick={() => setCancelTarget(r)} disabled={busy} style={{ ...t.btnGhost, ...t.btnSm }} data-wh-pay-cancel={keyOf(r)}>取消</button>}</span>
                       ) : (
                         <span style={{ display: "flex", gap: 6, alignItems: "center" }}>
                           <input type="date" value={paidOn[keyOf(r)] ?? todayJst}

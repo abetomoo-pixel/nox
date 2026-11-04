@@ -143,7 +143,7 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
     } else setS((s) => applyType(s, id));
   }
   const W = useMemo(() => v5Checks(S), [S]);
-  const ctx: V5Ctx = useMemo(() => ({ storeId: store.id, current: store.current, deviceIdemKey: ids.current.device, staffIdemKeys: S.staff.map((_, i) => { if (!ids.current.staff[i]) ids.current.staff[i] = crypto.randomUUID(); return ids.current.staff[i]; }) }), [store.id, store.current, S.staff]);
+  const ctx: V5Ctx = useMemo(() => ({ storeId: store.id, current: store.current, setupDone: store.setupDone /* ★裁定443 1-① */, deviceIdemKey: ids.current.device, staffIdemKeys: S.staff.map((_, i) => { if (!ids.current.staff[i]) ids.current.staff[i] = crypto.randomUUID(); return ids.current.staff[i]; }) }), [store.id, store.current, store.setupDone, S.staff]);
   const planAll = useMemo(() => buildV5Plan(S, ctx), [S, ctx]);
 
   // ── 実行（この内容で始める）＝計画を順に・route は fetch・useResult は直前の結果を差す・guard は既存データで skip ──

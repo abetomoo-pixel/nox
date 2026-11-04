@@ -22,7 +22,7 @@ import * as t from "@/lib/nox/ui/theme";
 import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 import Modal from "@/components/ui/modal"; // ★0155（裁定309-3・便 S-3）: 廃棄の確認ダイアログ
 import { rpcErrJa } from "@/lib/nox/ui/rpc-err"; // ★0155: 'no mynumber'／'bad reason'／'forbidden' の日本語化
-import { mig0183On, mig0188On } from "@/lib/nox/rules-0175/flag"; // ★裁定432
+import { mig0183On, mig0188On, mig0193On } from "@/lib/nox/rules-0175/flag"; // ★裁定432 ★F193-4
 import { WITHHOLDING_ADVICE_NOTE, WITHHOLDING_KIND_LABEL, WITHHOLDING_KIND_SELECT_NOTE, WITHHOLDING_KIND_SHORT, PAYMENT_REPORT_NOTE, withholdingKindChoices, withholdingKindOf, defaultWithholdingKindOf } from "@/lib/nox/payroll/withholding-kind"; // ★裁定432 ★0188（裁定434）: 4 区分＋注記
 type Cast = { id: string; name: string };
 type Store = { id: string; name: string };
@@ -51,13 +51,28 @@ function relTime(iso: string): string {
 
 const ROLE_LABEL: Record<string, string> = { owner: "管理者", manager: "店長", staff: "スタッフ" };
 
-export default function SensitiveTaxPanel({ casts, stores, isOwner }: { casts: Cast[]; stores: Store[]; isOwner: boolean }) {
+// ★F193-4（0193・相談役 11/04 承認・2026-11-04 実装）: 店長にも機密の入力欄を開く。
+//   店長（自店）＝本名・生年月日・住所・電話・振込先の入力と閲覧（get／set_cast_sensitive_ext・get／set_cast_sensitive は 0193 で店長 自店 可）・
+//   マイナンバーは入力のみ（set_cast_sensitive）と末尾 4 桁の確認（get_cast_mynumber_masked）。全桁の表示（/api/cast/mynumber）・廃棄・支払調書は管理者のまま。
+//   閲覧履歴の節は管理者のまま。フラグ false では従来どおり管理者だけ。
+const EXT_KEYS = ["address", "phone", "bank_name", "bank_branch", "bank_account_type", "bank_account_no", "bank_account_holder_kana"] as const;
+type ExtKey = typeof EXT_KEYS[number];
+type Ext = Record<ExtKey, string>;
+const EXT_EMPTY: Ext = { address: "", phone: "", bank_name: "", bank_branch: "", bank_account_type: "", bank_account_no: "", bank_account_holder_kana: "" };
+const BANK_TYPE_LABEL: Record<string, string> = { ordinary: "普通", checking: "当座", savings: "貯蓄" };
+
+export default function SensitiveTaxPanel({ casts, stores, isOwner, isManager = false }: { casts: Cast[]; stores: Store[]; isOwner: boolean; isManager?: boolean }) {
   const supabase = createClient();
   const [castId, setCastId] = useState(casts[0]?.id ?? "");
   const [msg, setMsg] = useState<string | null>(null);
+  const canSensitive = isOwner || (mig0193On() && isManager); // ★F193-4: 店長（自店）も機密の入力欄を見る
 
-  // 機密（owner のみ）
+  // 機密（owner のみ → ★F193-4: canSensitive）
   const [realName, setRealName] = useState("");
+  // ★F193-4: 住所・電話・振込先（0193 の列・patch＝変わった項目だけ送る）と末尾 4 桁
+  const [ext, setExt] = useState<Ext>(EXT_EMPTY);
+  const [extCur, setExtCur] = useState<Ext>(EXT_EMPTY);
+  const [masked, setMasked] = useState<string | null>(null);
   const [birthday, setBirthday] = useState("");
   const [mynumber, setMynumber] = useState(""); // 平文入力・空=変更なし（保存後は必ずクリア）
   const [mynumberSet, setMynumberSet] = useState(false);
@@ -119,18 +134,22 @@ export default function SensitiveTaxPanel({ casts, stores, isOwner }: { casts: C
     setMynumber("");
     // cast 切替時・読込前に必ず初期化＝直前 cast の値が残って別 cast に上書き保存される事故を防ぐ。
     setRealName(""); setBirthday(""); setMynumberSet(false); setDiscarded(null); setDiscardOpen(false); setDiscardReason("");
+    setExt(EXT_EMPTY); setExtCur(EXT_EMPTY); setMasked(null); // ★F193-4
     setMode("委託"); setInvoice(""); setRegNo("");
     setSensitiveReady(false); setTaxReady(false);
     if (!castId) return;
-    // 機密の読み戻しは owner のみ（manager は get_cast_sensitive で forbidden＝封印）。成功時のみ ready＝保存可。
-    if (isOwner) {
-      const { data: s, error: eS } = await supabase.rpc("get_cast_sensitive", { p_cast_id: castId });
+    // 機密の読み戻しは owner のみ（manager は get_cast_sensitive で forbidden＝封印）→ ★F193-4: 0193 の後は店長（自店）も＝get_cast_sensitive_ext（1 つの jsonb・住所・電話・振込先も）。成功時のみ ready＝保存可。
+    if (canSensitive) {
+      const { data: s, error: eS } = mig0193On()
+        ? await supabase.rpc("get_cast_sensitive_ext", { p_cast_id: castId })
+        : await supabase.rpc("get_cast_sensitive", { p_cast_id: castId });
       if (eS) { setMsg(`機密読込エラー: ${eS.message}（もう一度キャストを選択してください）`); }
       else {
-        const row = (s ?? [])[0] as { real_name?: string | null; birthday?: string | null; mynumber_set?: boolean } | undefined;
+        const row = (mig0193On() ? (s ?? {}) : (s ?? [])[0]) as ({ real_name?: string | null; birthday?: string | null; mynumber_set?: boolean } & Partial<Record<ExtKey, string | null>>) | undefined;
         setRealName(row?.real_name ?? "");
         setBirthday(row?.birthday ?? "");
         setMynumberSet(row?.mynumber_set === true);
+        if (mig0193On()) { const e = { ...EXT_EMPTY }; for (const k of EXT_KEYS) e[k] = row?.[k] ?? ""; setExt(e); setExtCur(e); }
         setSensitiveReady(true);
         // ★0156（起票85・便 V-7）: 廃棄記録は cast_mynumber_discard_status（owner／manager 自店／cast 本人・audit なし・値を返さない）から読む（0155 便 S の audit_logs 読取を置換・+1）
         const { data: ds } = await supabase.rpc("cast_mynumber_discard_status", { p_cast_id: castId });
@@ -153,7 +172,7 @@ export default function SensitiveTaxPanel({ casts, stores, isOwner }: { casts: C
       setTaxReady(true);
     }
     if (mig0183On()) { const { data: wk } = await supabase.from("cast_tax_profiles").select("withholding_kind").eq("cast_id", castId).maybeSingle(); const v = ((wk?.withholding_kind as string | null) ?? ""); setWhKind(v); setWhKindCur(v); } // ★裁定432
-  }, [castId, isOwner, supabase]);
+  }, [castId, canSensitive, supabase]); // ★F193-4: 読取の条件は canSensitive
 
   useEffect(() => { void load(); }, [load]);
 
@@ -168,9 +187,27 @@ export default function SensitiveTaxPanel({ casts, stores, isOwner }: { casts: C
       p_mynumber, // 空=変更なし（既存 enc 温存）
     });
     if (error) { setMsg(`機密保存エラー: ${error.message}`); return; }
+    // ★F193-4: 住所・電話・振込先＝変わった項目だけ patch（空＝null で消す・口座番号は数字 8 桁まで＝RPC の鏡）
+    if (mig0193On()) {
+      const patch: Partial<Record<ExtKey, string | null>> = {};
+      for (const k of EXT_KEYS) if (ext[k].trim() !== extCur[k].trim()) patch[k] = ext[k].trim() === "" ? null : ext[k].trim();
+      if (patch.bank_account_no && !/^\d{1,8}$/.test(patch.bank_account_no)) { setMsg("口座番号は数字 8 桁までで入力してください"); return; }
+      if (Object.keys(patch).length > 0) {
+        const { error: eX } = await supabase.rpc("set_cast_sensitive_ext", { p_cast_id: castId, p_patch: patch });
+        if (eX) { setMsg(`住所・振込先の保存エラー: ${rpcErrJa(eX.message)}`); return; }
+      }
+    }
     setMynumber("");
     setMsg("機密情報を保存しました");
     void load();
+  }
+
+  // ★F193-4: 末尾 4 桁（get_cast_mynumber_masked＝本人・管理者・自店の店長・閲覧は記録）。全桁は管理者の「表示」（/api/cast/mynumber）のまま
+  async function revealMasked() {
+    setMsg(null); setMasked(null);
+    const { data, error } = await supabase.rpc("get_cast_mynumber_masked", { p_cast_id: castId });
+    if (error) { setMsg(`末尾 4 桁の表示エラー: ${rpcErrJa(error.message)}`); return; }
+    setMasked((data as string | null) ?? "（未登録）");
   }
 
   async function saveTax() {
@@ -257,7 +294,7 @@ export default function SensitiveTaxPanel({ casts, stores, isOwner }: { casts: C
       <div style={{ ...t.alert, display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
         <span style={{ minWidth: 0 }}>
           <b>機密情報へのアクセスは監査ログに記録されます</b>
-          <span style={{ display: "block", fontSize: 11, opacity: 0.85 }}>マイナンバーの表示・変更は管理者権限のみ実行できます。</span>
+          <span style={{ display: "block", fontSize: 11, opacity: 0.85 }}>{mig0193On() ? "マイナンバーの全桁の表示・廃棄と支払調書は管理者のみ。店長は自店のキャストの本名・住所・電話・振込先を入力でき、マイナンバーは入力と末尾 4 桁の確認だけです。" : "マイナンバーの表示・変更は管理者権限のみ実行できます。"}</span>{/* ★F193-4 */}
         </span>
       </div>
 
@@ -278,8 +315,8 @@ export default function SensitiveTaxPanel({ casts, stores, isOwner }: { casts: C
 
           {msg && <Toast msg={msg} style={{ marginTop: 8 }} />}
 
-          {/* 本人情報（owner のみ・manager は封印で読めないため非表示） */}
-          {isOwner && (
+          {/* 本人情報（owner のみ・manager は封印で読めないため非表示）→ ★F193-4: 0193 の後は店長（自店）も */}
+          {canSensitive && (
             <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--line)" }}>
               <p style={{ fontSize: 12, fontWeight: 800, color: "var(--champ)", margin: "0 0 8px" }}>本人情報</p>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
@@ -289,15 +326,16 @@ export default function SensitiveTaxPanel({ casts, stores, isOwner }: { casts: C
                   <span style={label}>マイナンバー</span>
                   {mynumberSet && (
                     <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "4px 0 6px", flexWrap: "wrap" }}>
-                      {revealed ? (
-                        <span style={{ fontFamily: "monospace", fontSize: 14, background: "var(--bg2)", color: "var(--champ)", border: "1px solid var(--line2)", padding: "2px 8px", borderRadius: 4 }}>{revealed}</span>
+                      {revealed || masked ? (
+                        <span style={{ fontFamily: "monospace", fontSize: 14, background: "var(--bg2)", color: "var(--champ)", border: "1px solid var(--line2)", padding: "2px 8px", borderRadius: 4 }} data-mynumber-shown={revealed ? "full" : "masked"}>{revealed ?? masked}</span>
                       ) : (
                         <span className="num" style={{ letterSpacing: 2, color: "var(--sub)" }}>•••• •••• ••••</span>
                       )}
-                      <button onClick={reveal} disabled={!castId} style={btnLight}>表示</button>
+                      {isOwner && <button onClick={reveal} disabled={!castId} style={btnLight}>表示</button>}{/* 全桁＝管理者のみ */}
+                      {mig0193On() && !isOwner && <button type="button" onClick={() => void revealMasked()} disabled={!castId} style={btnLight} data-mynumber-masked="1">末尾 4 桁</button>}{/* ★F193-4: 店長は末尾 4 桁だけ */}
                       {/* ★0155（裁定309-3・便 S-3）: 廃棄＝確認ダイアログ（理由必須 ≤200）→ cast_mynumber_discard（owner のみ・暗号文を消去し廃棄日時・実行者・方法を記録） */}
-                      <button type="button" onClick={() => { setDiscardReason(""); setDiscardOpen(true); }} disabled={!castId || !sensitiveReady}
-                        style={{ ...btnLight, color: "var(--bad)" }}>廃棄</button>
+                      {isOwner && <button type="button" onClick={() => { setDiscardReason(""); setDiscardOpen(true); }} disabled={!castId || !sensitiveReady}
+                        style={{ ...btnLight, color: "var(--bad)" }}>廃棄</button>}
                     </div>
                   )}
                   {!mynumberSet && discarded && (
@@ -312,6 +350,18 @@ export default function SensitiveTaxPanel({ casts, stores, isOwner }: { casts: C
                   </span>
                 </div>
               </div>
+              {mig0193On() && (/* ★F193-4（0193）: 住所・電話・振込先＝管理者と自店の店長が入力・閲覧（閲覧と変更は監査に残る） */
+                <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }} data-cast-sensitive-ext="1">
+                  <label style={{ ...label, gridColumn: "1 / -1" }}>住所<input value={ext.address} onChange={(e) => setExt({ ...ext, address: e.target.value })} maxLength={200} style={{ ...input, width: "100%" }} /></label>
+                  <label style={label}>電話<input value={ext.phone} onChange={(e) => setExt({ ...ext, phone: e.target.value })} inputMode="tel" maxLength={200} style={{ ...input, width: "100%" }} /></label>
+                  <label style={label}>銀行<input value={ext.bank_name} onChange={(e) => setExt({ ...ext, bank_name: e.target.value })} maxLength={200} style={{ ...input, width: "100%" }} /></label>
+                  <label style={label}>支店<input value={ext.bank_branch} onChange={(e) => setExt({ ...ext, bank_branch: e.target.value })} maxLength={200} style={{ ...input, width: "100%" }} /></label>
+                  <label style={label}>種別<select value={ext.bank_account_type} onChange={(e) => setExt({ ...ext, bank_account_type: e.target.value })} style={{ ...input, width: "100%" }} aria-label="口座の種別">
+                    <option value="">—</option>{Object.entries(BANK_TYPE_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
+                  <label style={label}>口座番号<input value={ext.bank_account_no} onChange={(e) => setExt({ ...ext, bank_account_no: e.target.value.replace(/[^\d]/g, "").slice(0, 8) })} inputMode="numeric" placeholder="数字 8 桁まで" style={{ ...input, width: "100%" }} /></label>
+                  <label style={label}>名義（カナ）<input value={ext.bank_account_holder_kana} onChange={(e) => setExt({ ...ext, bank_account_holder_kana: e.target.value })} maxLength={200} style={{ ...input, width: "100%" }} /></label>
+                </div>
+              )}
               <div className="nox-actions" style={{ marginTop: 8 }}>
                 <button onClick={saveSensitive} disabled={!castId || !sensitiveReady} style={btnDark}>機密情報を保存</button>
               </div>
@@ -375,7 +425,7 @@ export default function SensitiveTaxPanel({ casts, stores, isOwner }: { casts: C
             <div className="nox-actions" style={{ marginTop: 8 }}>
               <button onClick={saveTax} disabled={!castId || !taxReady} style={btnDark}>税務情報を保存</button>
             </div>
-            {!isOwner && <p style={{ fontSize: 11, color: "var(--sub)", margin: "8px 0 0" }}>※ 本名・マイナンバー等の機密情報の登録・閲覧は管理者のみ可能です。</p>}
+            {!canSensitive && <p style={{ fontSize: 11, color: "var(--sub)", margin: "8px 0 0" }}>※ 本名・マイナンバー等の機密情報の登録・閲覧は管理者のみ可能です。</p>}{/* ★F193-4: 0193 の後は店長にも入力欄が出る */}
           </div>
         </section>
 
@@ -388,12 +438,14 @@ export default function SensitiveTaxPanel({ casts, stores, isOwner }: { casts: C
               <div style={t.bdRow}><span style={t.bdKey}>管理者</span>
                 <span style={t.bdVal}>表示・編集・支払調書用の全表示 <b style={{ color: "var(--ok)" }}>●許可</b></span></div>
               <div style={t.bdRow}><span style={t.bdKey}>店長</span>
-                <span style={t.bdVal}>閲覧不可（封印） <b style={{ color: "var(--sub)" }}>●制限</b></span></div>
+                {mig0193On()
+                  ? <span style={t.bdVal}>自店の本名・住所・電話・振込先の表示・編集・マイナンバーは入力と末尾 4 桁 <b style={{ color: "var(--ok)" }}>●許可（自店）</b></span>
+                  : <span style={t.bdVal}>閲覧不可（封印） <b style={{ color: "var(--sub)" }}>●制限</b></span>}</div>{/* ★F193-4 */}
               <div style={t.bdRow}><span style={t.bdKey}>スタッフ</span>
                 <span style={t.bdVal}>閲覧不可 <b style={{ color: "var(--sub)" }}>●制限</b></span></div>
             </div>
             <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "8px 0 0" }}>
-              ※ 税務設定（雇用区分・インボイス・登録番号）は店長も閲覧・編集できます（機密＝本名・生年月日・マイナンバーのみ封印）。
+              {mig0193On() ? "※ マイナンバーの全桁の表示・廃棄と支払調書（全桁）は管理者だけ。店長の閲覧も操作履歴に残ります。" : "※ 税務設定（雇用区分・インボイス・登録番号）は店長も閲覧・編集できます（機密＝本名・生年月日・マイナンバーのみ封印）。"}
             </p>
           </section>
 

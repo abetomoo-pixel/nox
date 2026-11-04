@@ -69,7 +69,7 @@ export default function StaffBoard({
   isOwner, roleRaw = "", stores, myStoreId, myAuthUserId, tabs,
 }: {
   isOwner: boolean; roleRaw?: string; stores: Store[]; myStoreId: string; myAuthUserId: string; // ★追補 3 R-8: roleRaw＝本来の役割（フラグ true のとき admin が来る）
-  tabs?: React.ReactNode; // ★0172（裁定356・便 P172）: 一覧／勤怠・報酬のタブ（page が描く）
+  tabs?: React.ReactNode; // ★0172（裁定356・便 P172）: 一覧／勤怠・報酬のタブ（page が描く）→ ★M-64: タブは外し、page は「勤怠は 給与 › 勤怠（スタッフ）」の案内 1 行を渡す
 }) {
   const supabase = createClient();
   const isDemo = useIsDemo(); // ★N7-2 ③
@@ -376,7 +376,7 @@ export default function StaffBoard({
       <PageHead eyebrow="STAFF ACCOUNTS" title="スタッフ"
         desc="スタッフ・店長の権限と在籍を管理します（キャストはマスタ側で管理）。" />
       <Toast msg={msg} />
-      {tabs}{/* ★0172（裁定356・便 P172）: 一覧／勤怠・報酬 */}
+      {tabs}{/* ★0172（裁定356・便 P172）: 一覧／勤怠・報酬 → ★M-64: 案内 1 行（勤怠の正本は 給与 › 勤怠（スタッフ）） */}
 
       <div style={{ marginBottom: 8 }}>{/* ★便 M3 M-20 → ★便 M5b M-55: 一覧の上・中央・主ボタン（大）＝AddButton（キャストと同じ部品） */}
         {!isDemo && <AddButton testId="staff-add" onClick={openAdd} disabled={busy}><span data-staff-add="1">＋ スタッフを追加</span></AddButton>}{/* ★裁定381 */}{/* ★N7-2 ③: デモはスタッフ作成の導線を隠す */}

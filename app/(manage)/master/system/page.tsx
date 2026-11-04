@@ -131,7 +131,7 @@ export default async function MasterSystemPage() {
   tabs.push({
     key: "secrets", label: "▰ 機密・税務情報",
     node: <SensitiveTaxPanel casts={(casts ?? []) as { id: string; name: string }[]}
-      stores={(allStores ?? []) as { id: string; name: string }[]} isOwner={isOwner} />,
+      stores={(allStores ?? []) as { id: string; name: string }[]} isOwner={isOwner} isManager={role === "manager"} />, // ★F193-4: 店長にも機密の入力欄（0193）
   });
 
   return (

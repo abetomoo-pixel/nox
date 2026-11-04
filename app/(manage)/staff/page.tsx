@@ -4,10 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getSessionRole } from "@/lib/nox/auth";
 import { rules0175On } from "@/lib/nox/rules-0175/flag"; // ★追補 3 R-8
 import StaffBoard from "./staff-board";
-import StaffWorkPanel from "./staff-work-panel";
-import PageHead from "@/components/ui/page-head";
-import * as t from "@/lib/nox/ui/theme";
-import { STAFF_TABS, staffTabOf } from "@/lib/nox/staff/tabs";
+import { STAFF_WORK_HREF, staffTabOf } from "@/lib/nox/staff/tabs";
 
 export const dynamic = "force-dynamic";
 
@@ -16,33 +13,21 @@ export const dynamic = "force-dynamic";
 // 一覧は memberships＋users の直接 SELECT（束3-1 の裁定＝read RPC 不採用・既存 memberships_select で
 // owner=org 全店/manager=自店が読める）。stores も RLS 同スコープ＝owner は全店 select が配属先候補になる。
 // ★0172（裁定356・便 P172）: ?tab=work＝勤怠・報酬タブ（読取のみ・staff-work-panel）。既定＝一覧（従来どおり StaffBoard）。タブの解決＝lib/nox/staff/tabs.ts（page から export しない）。
+// ★M-64（2026-11-04 Agoora 決定）: 勤怠・報酬のタブは外した。正本＝給与 › 勤怠（スタッフ）（STAFF_WORK_HREF）。古い ?tab=work はそこへ redirect・一覧の上に案内のリンク 1 行。
 export default async function StaffPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
   const supabase = await createClient();
   const { role, roleRaw } = await getSessionRole();
   if (role !== "owner" && role !== "manager") redirect("/register");
-  const tab = staffTabOf((await searchParams).tab);
+  if (staffTabOf((await searchParams).tab) === "work") redirect(STAFF_WORK_HREF); // ★M-64
   const {
     data: { user },
   } = await supabase.auth.getUser();
   const { data: stores } = await supabase.from("stores").select("id, name").order("name");
   const { data: myStoreId } = await supabase.rpc("auth_store_id");
+  // ★M-64: タブの代わりに案内 1 行（勤怠の正本は 給与 › 勤怠（スタッフ））
   const tabs = (
-    <div role="tablist" aria-label="スタッフ" data-staff-tabs="1" style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-      {STAFF_TABS.map(([k, label, href]) => (
-        <Link key={k} href={href} role="tab" aria-selected={tab === k} data-staff-tab={k}
-          style={{ ...(tab === k ? t.btnGold : t.btnGhost), ...t.btnSm, minHeight: 44, textDecoration: "none", display: "inline-flex", alignItems: "center" }}>{label}</Link>
-      ))}
-    </div>
+    <p data-staff-work-link="1" style={{ fontSize: 12.5, color: "var(--sub)", margin: "0 0 12px" }}>勤怠は <Link href={STAFF_WORK_HREF} className="nox-link">給与 › 勤怠（スタッフ）</Link> で見ます（出勤・退勤の修正と月の確定もそこで）。</p>
   );
-  if (tab === "work") {
-    return (
-      <div className="nox-mv1 nox-mv1-m">
-        <PageHead eyebrow="STAFF WORK" title="スタッフ › 勤怠・報酬" desc="店の端末で打刻した出勤・退勤と、契約にもとづく報酬の見込み。" />
-        {tabs}
-        <StaffWorkPanel scope="store" stores={(stores ?? []) as { id: string; name: string }[]} />
-      </div>
-    );
-  }
   return (
     <StaffBoard
       isOwner={role === "owner"}

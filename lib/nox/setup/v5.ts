@@ -199,6 +199,8 @@ export const DIST_CODE: Record<string, string> = { "近": "near", "中": "mid", 
 export type V5Step = { key: string; group: string; label: string; rpc?: string; args?: Record<string, unknown>; api?: { url: string; body: Record<string, unknown>; resultKey?: string }; useResult?: { from: string; as: string }; guard?: "seats_empty" | "products_empty" | "plans_empty" | "rules_empty"; argsOf?: "product_overrides" };
 export type V5Ctx = {
   storeId: string; cutoff?: string;
+  /** ★裁定443 1-①（2026-11-04）: 初期設定が未完（settings_json.setup_done=false）の新しい店だけ、v5 STEP 8 の端数（S.round）を会計の丸め（set_store_pricing の round_mode）にも送る。既存の店（true／不明）は今の値 */
+  setupDone?: boolean;
   current: { round_unit: number; round_mode: string; time_mode: string; time_per: string; receipt: { address: string; tel: string; reg_no: string; footer: string }; mine: MineSettings;
     tax: { business_tax_status: string; price_display: string; invoice_status: string; invoice_reg_no: string | null; tax_rounding: string; card_surcharge_rate: number | null } };
   /** 端末登録（STEP 8）の idemKey＝下書きに持つ（再送で同じ） */ deviceIdemKey: string;
@@ -207,6 +209,9 @@ export type V5Ctx = {
 const seatKind = (seat: string): string | null => (seat === "vip" ? "VIP" : seat === "counter" ? "カウンター" : seat === "table" ? "卓" : null);
 const dowMask = (days: readonly string[]): number | null => { if (days.length >= 7) return null; let m = 0; days.forEach((d) => { const i = WD.indexOf(d as typeof WD[number]); if (i >= 0) m |= 1 << i; }); return m || null; };
 const minOf = (hm: string): number => mins(hm) % 1440;
+/** ★裁定443 1-①: v5 の端数（tax_rounding の語）→ 会計の丸め round_mode の語（stores_round_mode_check＝up／down／round） */
+export const ROUND_MODE_OF: Record<V5State["round"], "up" | "down" | "round"> = { round: "round", floor: "down", ceil: "up" };
+export const v5RoundModeOf = (S: V5State, ctx: V5Ctx): string => (ctx.setupDone === false ? ROUND_MODE_OF[S.round] : ctx.current.round_mode);
 /** 商品の type＝分類名から（product_bulk_insert の 5 値） */
 export function productTypeOf(cat: string, it: V5Item): "drink" | "champ" | "bottle" | "food" | "other" {
   if (/シャンパン|スパークリング/.test(cat)) return "champ";
@@ -275,7 +280,7 @@ export function buildV5Plan(S: V5State, ctx: V5Ctx): { steps: V5Step[]; deferred
   seatNames(S.seats).forEach(([name, v], i) => push({ key: `seat_${i}`, group: "seats", label: `席 ${name}`, rpc: "set_seat", guard: "seats_empty", args: { p_id: null, p_store_id: s, p_name: name, p_kind: v === "vip" ? "VIP" : i < S.seats.counter ? "カウンター" : "卓", p_sort_order: i + 1, p_is_active: true } }));
   // 4) 料金
   const r0 = S.rules[0];
-  push({ key: "pricing", group: "pricing", label: "指名料・同伴料・サービス料・カード手数料", rpc: "set_store_pricing", args: { p_store_id: s, p_hon_fee: S.fees.hon, p_jonai_fee: S.fees.jo, p_dohan_fee: S.fees.dohan, p_service_rate: Math.round(S.svc), p_card_tax_rate: Math.round(S.cardfee || 0), p_round_unit: ctx.current.round_unit, p_round_mode: ctx.current.round_mode } });
+  push({ key: "pricing", group: "pricing", label: "指名料・同伴料・サービス料・カード手数料", rpc: "set_store_pricing", args: { p_store_id: s, p_hon_fee: S.fees.hon, p_jonai_fee: S.fees.jo, p_dohan_fee: S.fees.dohan, p_service_rate: Math.round(S.svc), p_card_tax_rate: Math.round(S.cardfee || 0), p_round_unit: ctx.current.round_unit, p_round_mode: v5RoundModeOf(S, ctx) } }); // ★裁定443 1-①: 新しい店だけ v5 の端数
   if (r0) { const e0 = r0.ext.find((e) => e[2]) ?? r0.ext[0];
     push({ key: "time_pricing", group: "pricing", label: `${r0.min ? `セット ${r0.min}分 ¥${r0.set}` : `チャージ ¥${r0.set}`}・延長 ${e0 ? `${e0[0]}分 ¥${e0[1]}` : "なし"}`, rpc: "set_store_time_pricing", args: { p_store_id: s, p_set_min: r0.min || 60, p_set_fee: r0.set, p_ext_min: e0 ? e0[0] : 30, p_ext_fee: e0 ? e0[1] : 0, p_time_mode: ctx.current.time_mode, p_time_per: ctx.current.time_per } }); }
   const ruleBase = (key: string, label: string, args: Record<string, unknown>) => push({ key, group: "pricing", label, rpc: "set_pricing_rule", guard: "rules_empty", args: { p_id: null, p_store_id: s, p_fee_kind: "set", p_seat_kind: null, p_dow_mask: null, p_time_from_min: null, p_time_to_min: null, p_rank_id: null, p_amount: 0, p_duration_min: null, p_priority: 100, p_is_active: true, p_name: label, p_tax_category: "taxable_10", p_category_id: null, p_billing_unit: null, p_is_default_ext: false, ...args } });
