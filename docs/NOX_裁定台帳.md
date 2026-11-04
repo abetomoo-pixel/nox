@@ -5165,6 +5165,9 @@ DB 変更 0 の見込み。要れば 0190 起草のみ。」
 - 事後承認 B の 6 か所（docs/tmp/inventory_1102.md §4）＝相談役は未読・次のチャットで確定。
 - M-50〜M-61＝便 M5b と追補（b03ada7・内容は v56 §1 とコミットの本文）。次の M＝M-62。
 
+- **0193 の手貼りの前の確認の結果（2026-11-04・CC・読取のみ）**＝①他人の member_profiles を直接 select している client／route／server は **0 か所**（git grep の当たりは scripts/verify-nox-0175-0176.ts の表名の列挙 3 行だけ＝行は読まない）・本番で member_profiles を読む関数は member_profile_confirm／member_profile_self_save の 2 本で SECURITY DEFINER（RLS が効かない）・ビュー 0・本番の行 0 ②notices＝既存 7 行はすべて audience all・追加の条件は owners の行にしか効かない ③cast_sensitive／memberships＝null 可の列の追加だけ ④作り直す 12 関数＝引数・戻り値の型が live と同じ・jsonb のキーも同じ（get_printer_config 4・staff_punch 13・rotate_store_token）・staff_punch だけ月の確定で 'confirmed' を返す（本番の staff_attendance_locks 0 行＝起きない・文言はフラグ便で）⑤drift 0（事前確認 SQL の返りは貼り先証明 1 行・関数 403／表 114）＝再生成なし・sha16 は 93e57df1a1fe30c2 のまま＝**手貼りしてよい**。③の条件＝ブランチ draft/0193-client c629eed（push しない）。
+- **訂正**：「判断が要る 24 行」は数え違い＝0193_role_scan.md 第 2 節の仮分類「判断が要る」は **18 行**（2-a 1・2-b 16・2-c 1）。0194 の起草前に相談役へ出す一覧はこの 18 行（＋0193 で開かなかった「店長にも開く候補」2 行＝給与の支払済み化・スタッフのメール変更）。
+
 **教訓126（確定・相談役 2026-11-03）＝共用端末の画面は写しを置かず本体の包みにする**: キオスクのレジは register-board を同じ props で描き、固有部分（端末ログイン・解除・交代／離席・自動ロック・店舗固定）だけを包みに置く。写しを作ると本体の直しが届かない（0187 の割引欄・延長のご案内がキオスクに無かった）。K-0 と K client 第 2 便（components/nox/kiosk-workspace.tsx＝レジ／シフト／日報を同じ包みで分岐）で実証。
 **教訓129（確定・相談役 2026-11-03）＝f0 は lint を含まない。push の直前に lint＋tsc を単走する**: `npx next lint --dir app --dir lib --dir components --dir scripts` と `npx tsc --noEmit -p .` のどちらかが赤なら push しない（0190 のフラグ true 便が Vercel の build で止まった＝f0 2 連緑・tsc 0 でも ESLint の 1 件を見ていなかった）。
 **教訓130（確定・相談役 2026-11-03）＝f0 は timeout 付きの bash で走らせない・他の走りと並走しない**: bash の timeout（600000 ms）が f0 の背景実行を 10 分で kill し、止まった suite の finally（掃除）が走らず残留が出た（10/30 run A'＝receipt_issues 5 行）。f0 は detached（PowerShell の Start-Process）で起動し、撮影（Playwright）や他の f0 と同時に走らせない。dev サーバ（3200）の応答を f0 の前に確かめ、落ちたら消し残しを数えてから走り直す（教訓123）。
