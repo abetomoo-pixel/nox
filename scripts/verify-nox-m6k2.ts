@@ -33,9 +33,9 @@ check("m6(2-4) 初期設定＝テンプレートの欄（価格帯・割りも�
 // (3)
 const ws = src("components/nox/kiosk-workspace.tsx");
 check("m6(3-1) K2: /kiosk-shift・/kiosk-report・/kiosk-register は KioskWorkspace・在庫は案内のまま", ["shift", "report", "register"].every((f) => src(`app/kiosk-${f}/page.tsx`).includes(`<KioskWorkspace feature="${f}" />`)) && src("app/kiosk-inventory/page.tsx").includes('<KioskFeaturePage feature="inventory" />'));
-check("m6(3-2) K2: 包みの中で feature ごとの本体（レジ＝RegisterBoard・シフト＝KioskShiftView・日報＝KioskReportView）・タイル ready（シフト・日報 true／在庫 false）", ws.includes('{board && feature === "register" && (') && ws.includes('{board && feature === "shift" && <KioskShiftView storeId={board.storeId} />}') && ws.includes('{board && feature === "report" && <KioskReportView storeId={board.storeId} />}') && KIOSK_FEATURE_READY.shift && KIOSK_FEATURE_READY.report && !KIOSK_FEATURE_READY.inventory);
+check("m6(3-2) K2: 包みの中で feature ごとの本体（レジ＝RegisterBoard・シフト＝KioskShiftView・日報＝KioskReportView）・タイル ready（シフト・日報 true／在庫＝★0194 後 true）", ws.includes('{board && feature === "register" && (') && ws.includes('{board && feature === "shift" && <KioskShiftView storeId={board.storeId} />}') && ws.includes('{board && feature === "report" && <KioskReportView storeId={board.storeId} />}') && KIOSK_FEATURE_READY.shift && KIOSK_FEATURE_READY.report && KIOSK_FEATURE_READY.inventory /* ★0194（2026-11-04）: kiosk_stock_levels */);
 const kv = src("components/nox/kiosk-views.tsx");
-check("m6(3-3) K2: シフト＝確定シフト×打刻×連絡（読取だけ）・日報＝直近 1 件（読取だけ・締めは本店）", kv.includes('.eq("status", "confirmed")') && kv.includes('from("punches")') && kv.includes('from("attendance")') && kv.includes('from("daily_reports").select("biz_date, uri, slips, guests, closed_at")') && !/\.rpc\(/.test(kv));
+check("m6(3-3) K2: シフト＝確定シフト×打刻×連絡（読取だけ）・日報＝直近 1 件（読取だけ・締めは本店）", kv.includes('.eq("status", "confirmed")') && kv.includes('from("punches")') && kv.includes('from("attendance")') && kv.includes('from("daily_reports").select("biz_date, uri, slips, guests, closed_at")') && (kv.match(/\.rpc\(/g) ?? []).length === 1 && kv.includes('.rpc("kiosk_stock_levels")') /* ★0194: 在庫の読取 RPC だけ（書込の rpc は無い） */);
 
 // (4) スタッフ給与のコスト計上（client）
 const bd = bizDaysOfMonth("2026-11", new Set([0]), new Set(["2026-11-03"]), new Set(["2026-11-08"]));

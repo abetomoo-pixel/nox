@@ -1150,7 +1150,7 @@ async function main() {
       // ★mig0148（裁定272・2026-09-18）: check_add_referral（check_add_line の冒頭〜role 判定を逐語＝kiosk 腕あり）で 18→19・20→21・18→19。
       // ★mig0152（裁定298／299・2026-09-25）: check_add_referral を drop・check_referral_set／remove（同じ冒頭を逐語＝kiosk 腕あり）で 19→20・21→22・19→20。
       check("G31 register helper を使う会計RPC = 20本（0057 の12＋0084 shimei/dohan＋0089 extension＋0090 set_people＋0091 line_set_group＋0131 pricing_categories_for_register＋0152 check_referral_set／remove）",
-        reg.rows[0].n === 24, `got ${reg.rows[0].n}`); // ★0190（裁定436）: assert_on_duty（kiosk 腕＝auth_kiosk_register_store_id で店を解決）で 23→24 // ★mig0173（裁定385 追補）: check_set_ext_rule（kiosk 腕）で 22→23 // ★mig0153（裁定305-7）: bottle_keep_out（kiosk 腕）で 20→21 // ★mig0155（裁定309-10）: kiosk_check_keeps（kiosk 腕・読取）で 21→22
+        reg.rows[0].n === 25, `got ${reg.rows[0].n}`); // ★0194（裁定445 ③・2026-11-04）: kiosk_stock_levels（在庫タイルの読取＝auth_kiosk_register_store_id）で 24→25 // ★0190（裁定436）: assert_on_duty（kiosk 腕＝auth_kiosk_register_store_id で店を解決）で 23→24 // ★mig0173（裁定385 追補）: check_set_ext_rule（kiosk 腕）で 22→23 // ★mig0153（裁定305-7）: bottle_keep_out（kiosk 腕）で 20→21 // ★mig0155（裁定309-10）: kiosk_check_keeps（kiosk 腕・読取）で 21→22
       const op = await db.query(
         `select count(*)::int as n from pg_proc p join pg_namespace ns on ns.oid = p.pronamespace
          where ns.nspname = 'public' and p.prokind = 'f'
@@ -1158,7 +1158,7 @@ async function main() {
            and p.proname not in ('auth_kiosk_operator','kiosk_register_state','kiosk_check_detail')`,
       );
       check("G31 operator を使う関数 = 22本（write-arm 系 20＝0131 for_register・0152 check_referral_set／remove 込み＋audit_log_write＋drink_claims_on_line_delete）",
-        op.rows[0].n === 26, `got ${op.rows[0].n}`); // ★0190（裁定436）: assert_on_duty（auth_kiosk_operator＝操作担当の本人解決）で 25→26 // ★mig0173: check_set_ext_rule で 24→25 // ★mig0153: bottle_keep_out で 22→23 // ★mig0155: kiosk_check_keeps で 23→24
+        op.rows[0].n === 27, `got ${op.rows[0].n}`); // ★0194（裁定445 ③）: kiosk_stock_levels（操作担当の解除あり＝auth_kiosk_operator）で 26→27 // ★0190（裁定436）: assert_on_duty（auth_kiosk_operator＝操作担当の本人解決）で 25→26 // ★mig0173: check_set_ext_rule で 24→25 // ★mig0153: bottle_keep_out で 22→23 // ★mig0155: kiosk_check_keeps で 23→24
       const cv = await db.query(
         `select count(*)::int as n from pg_proc p join pg_namespace ns on ns.oid = p.pronamespace
          where ns.nspname = 'public' and p.prokind = 'f' and p.proname = 'check_void'

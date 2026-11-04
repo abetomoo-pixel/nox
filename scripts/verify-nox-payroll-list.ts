@@ -67,7 +67,7 @@ check("pl(2b) 行の csvEnabled が status と一致", rows.every((r) => r.csvEn
 
 // ══ 3 支払済み化 活性 ══
 check("pl(3a) owner ∧ finalized のみ true", markPaidEnabled("owner", "finalized") && !markPaidEnabled("owner", "draft") && !markPaidEnabled("owner", "paid"));
-check("pl(3b) manager／staff／null は finalized でも false", !markPaidEnabled("manager", "finalized") && !markPaidEnabled("staff", "finalized") && !markPaidEnabled(null, "finalized"));
+check("pl(3b) staff／null は finalized でも false・manager は ★0194（裁定444 ④・2026-11-04）後は true（自店＝route の guardPayroll）", markPaidEnabled("manager", "finalized") && !markPaidEnabled("staff", "finalized") && !markPaidEnabled(null, "finalized"));
 
 // ══ 4 decideReopenAccess（裁定 B5-5）══
 check("pl(4a) ★staff は can_reopen=true・自店でも forbidden（B5-5）", decideReopenAccess("staff", true, S1, S1) === "forbidden" && decideReopenAccess("staff", false, S1, S1) === "forbidden");

@@ -5268,7 +5268,7 @@ async function mainBody() {
         const { error: eMgrProv } = await mgr.rpc("kiosk_provision", {
           p_auth_user_id: randomUUID(), p_store_id: s35A1.id, p_label: "x",
         });
-        check("段35 manager kiosk_provision forbidden（owner 限定）", forbidden(eMgrProv), eMgrProv?.message ?? "通ってしまった");
+        check("段35 manager kiosk_provision＝★0194（裁定444 ①・2026-11-04）: 店長は自店の端末を発行できる（上限 3 台は不変＝ここでは 4 台目なので device limit・forbidden ではない）", has(eMgrProv, "device limit"), eMgrProv?.message ?? "通ってしまった");
 
         // ═══ a. ★遮断マトリクス（kiosk セッション＝auth_org_id() null の構成証明を実測）═══
         for (const tbl of ["casts", "punches", "shifts", "attendance", "cast_norms", "payslips", "checks"]) {
@@ -5624,7 +5624,7 @@ async function mainBody() {
         const { error: eRpM } = await mgr.rpc("set_store_receipt_profile", {
           p_store_id: s36A1.id, p_address: "", p_tel: "", p_reg_no: "", p_footer: "",
         });
-        check("段36 manager set_store_receipt_profile forbidden", forbidden(eRpM), eRpM?.message ?? "通ってしまった");
+        check("段36 manager set_store_receipt_profile＝★0194（裁定444 ②・2026-11-04）: 店長は自店の領収書の店情報を変えられる（finally で baseline36 に戻す）", !eRpM, eRpM?.message);
         const { error: eReg } = await owner.rpc("set_store_receipt_profile", {
           p_store_id: s36A1.id, p_address: "", p_tel: "", p_reg_no: "T12345678901234", p_footer: "",
         });

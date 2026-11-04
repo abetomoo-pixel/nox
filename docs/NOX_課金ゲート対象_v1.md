@@ -526,6 +526,10 @@ staff_deactivate / kiosk_deactivate
 - 読取 RPC（B(f) と同列・閲覧は audit）: get_cast_sensitive_ext（キャストの住所・電話・口座）・get_staff_sensitive（スタッフの機密）・member_profile_get（本人情報の閲覧＝member_profiles の直読みは本人だけに）
 （除外 208→**211**・全数 403→**409**（0193 ＋6＝A 3＋B 3））
 
+### B(v). 0194 新設の除外（1本・2026-11-04・0194 のフラグ true 便で収載）
+- 読取 RPC（B(f) と同列・裁定445 ③＝読取だけ）: kiosk_stock_levels（キオスクの在庫タイル＝端末の店・操作担当の解除あり・track_stock の品の在庫＝stock_logs の合計）
+（除外 211→**212**・全数 409→**410**（0194 ＋1＝B 1・A ±0＝staff_attendance_confirm は 4 引数に作り直し（対象のまま）・kiosk_provision／kiosk_delete／set_store_receipt_profile／staff_payroll_run_set_status／set_membership_role も対象のまま））
+
 ## C. kiosk 腕を持つ対象（実装注意・18本）
 A1 の check_open / check_add_line / check_remove_line / check_add_seat / check_remove_seat /
 check_move_seat / check_set_nominations / check_time_charge_apply / check_shimei_add / check_dohan_add /
