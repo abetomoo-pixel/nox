@@ -5,6 +5,8 @@ import { getSessionRole } from "@/lib/nox/auth";
 import KioskDevicePanel from "../kiosk-device-panel";
 import KioskPinPanel from "../kiosk-pin-panel";
 import PrinterPanel from "../printer-panel";
+import { mig0194On } from "@/lib/nox/rules-0175/flag"; // ★0194（裁定444 ①②）
+const isOwner0194 = (role: string | null | undefined): boolean => role === "owner" || (mig0194On() && role === "manager");
 import SensitiveTaxPanel from "../sensitive-tax-panel";
 import Link from "next/link"; // ★裁定330（便 MC2）: 機能の公開は店舗設定 ＞ 利用機能へ（案内行のリンク）
 import MasterPageHead from "../master-page-head";
@@ -36,6 +38,7 @@ export const dynamic = "force-dynamic";
 export default async function MasterSystemPage() {
   const { role } = await getSessionRole();
   const isManagerUp = role === "owner" || role === "manager";
+  const canDevices = isOwner0194(role); // ★0194（裁定444 ①②）: 店長（自店）にも端末の発行・削除とレシートの店情報
   if (!isManagerUp) redirect("/dashboard");
   const isOwner = role === "owner";
 
@@ -82,13 +85,13 @@ export default async function MasterSystemPage() {
   let deviceTotal: number | null = null;
   let deviceInactive = 0;
   const { data: orgDemo } = await supabase.from("orgs").select("is_demo").limit(1).maybeSingle(); // ★便 M3 M-28 ③: デモ org は端末を発行できない（403）＝KPI も 0 台（一覧と同じ元）
-  if (isOwner && orgDemo?.is_demo === true) { deviceTotal = 0; deviceInactive = 0; }
-  else if (isOwner) {
+  if (canDevices && orgDemo?.is_demo === true) { deviceTotal = 0; deviceInactive = 0; }
+  else if (canDevices) {
     const orgId = (store?.org_id as string | undefined) ?? "";
     if (orgId) {
       try {
         const admin = createAdminClient();
-        const { data: devs } = await admin.from("kiosk_devices").select("id, is_active").eq("org_id", orgId);
+        const { data: devs } = isOwner ? await admin.from("kiosk_devices").select("id, is_active").eq("org_id", orgId) : await admin.from("kiosk_devices").select("id, is_active").eq("org_id", orgId).eq("store_id", storeId ?? ""); // ★0194: 店長は自店の台数
         deviceTotal = (devs ?? []).length;
         deviceInactive = (devs ?? []).filter((d) => d.is_active !== true).length;
       } catch { /* KPI は補助表示＝失敗しても画面は生きる（現行の「—」へフォールバック） */ }
@@ -96,10 +99,10 @@ export default async function MasterSystemPage() {
   }
 
   const tabs: SystemTab[] = [];
-  if (isOwner) {
+  if (canDevices) {
     tabs.push({
       key: "devices", label: "▣ キオスク端末",
-      node: <KioskDevicePanel stores={(allStores ?? []) as { id: string; name: string }[]} />,
+      node: <KioskDevicePanel stores={(isOwner ? (allStores ?? []) : (allStores ?? []).filter((s2) => s2.id === storeId)) as { id: string; name: string }[]} />, // ★0194: 店長は自店だけ（route と RPC も自店で照合）
     });
   }
   // ★M-11b: PIN タブは manager にも出す（staff_pin_status が owner ∨ manager 自店を許可＝mig0108。
@@ -108,7 +111,7 @@ export default async function MasterSystemPage() {
     key: "pins", label: "● 操作担当PIN",
     node: <KioskPinPanel stores={(allStores ?? []) as { id: string; name: string }[]} isOwner={isOwner} />,
   });
-  if (isOwner && storeId) {
+  if (canDevices && storeId) { // ★0194（裁定444 ②）: 店長は自店の領収書の店情報（プリンタ設定は 0193 で開いた・発行者＝InvoiceProfileFields は管理者のまま＝isOwner）
     tabs.push({
       key: "receipts", label: "▤ レシート・プリンタ",
       node: (

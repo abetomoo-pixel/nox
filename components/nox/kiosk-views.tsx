@@ -78,3 +78,37 @@ export function KioskReportView({ storeId }: { storeId: string }) {
     </section>
   );
 }
+
+// ★0194（裁定445 ③・2026-11-04）: 在庫タイルの本体＝kiosk_stock_levels（端末の店・操作担当の解除あり・track_stock の品の現在庫＝stock_logs の合計）。読取だけ＝開栓・補充・棚卸は本店の「在庫」
+type StockRow = { product_id: string; name: string; category_id: string | null; qty: number; reorder_point: number | null; sort_order: number };
+export function KioskInventoryView() {
+  const [rows, setRows] = useState<StockRow[] | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  useEffect(() => {
+    (async () => {
+      const { data, error } = await createClient().rpc("kiosk_stock_levels");
+      if (error) { setErr(error.message.includes("forbidden") ? "操作担当の解除が切れています（もう一度 PIN を）" : `在庫の読み込みに失敗: ${error.message}`); return; }
+      setRows((data ?? []) as StockRow[]);
+    })();
+  }, []);
+  const low = (r: StockRow) => r.reorder_point !== null && r.qty <= r.reorder_point;
+  return (
+    <section className="nox-cardtop" style={t.card} data-kiosk-inventory="1">
+      <h3 style={{ ...t.cardTitle, margin: "0 0 4px" }}>在庫（在庫を数える商品）</h3>
+      <p style={{ ...t.sub, margin: "0 0 10px" }}>現在庫＝入出庫の記録の合計。開栓・補充・棚卸は本店の「在庫」で記録します。</p>
+      {err && <Message kind="error" style={{ margin: "0 0 8px" }}>{err}</Message>}
+      {rows && rows.length === 0 && <p style={{ ...t.sub, margin: 0 }}>在庫を数える商品がありません（商品の「在庫を数える」を ON にすると出ます）。</p>}
+      {rows && rows.length > 0 && (
+        <table className="nox-table" style={{ width: "100%" }}>
+          <thead><tr><th>商品</th><th className="num" style={{ textAlign: "right" }}>現在庫</th><th className="num" style={{ textAlign: "right" }}>発注点</th></tr></thead>
+          <tbody>{rows.map((r) => (
+            <tr key={r.product_id} data-kiosk-stock-row={r.product_id} data-kiosk-stock-low={low(r) ? "1" : "0"}>
+              <td>{r.name}</td>
+              <td className="num" style={{ color: low(r) ? "var(--bad)" : undefined, fontWeight: low(r) ? 800 : undefined }}>{r.qty}{low(r) && <span className="nox-stpill" style={{ marginLeft: 6 }}>発注点以下</span>}</td>
+              <td className="num">{r.reorder_point ?? "—"}</td>
+            </tr>))}</tbody>
+        </table>
+      )}
+    </section>
+  );
+}

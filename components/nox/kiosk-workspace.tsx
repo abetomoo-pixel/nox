@@ -17,7 +17,7 @@ import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import CastAvatar from "@/components/ui/cast-avatar";
 import RegisterBoard from "@/app/(manage)/register/register-board"; // ★K-0: 本店のレジと同一部品
-import { KioskReportView, KioskShiftView } from "@/components/nox/kiosk-views"; // ★K client 第 2 便
+import { KioskInventoryView, KioskReportView, KioskShiftView } from "@/components/nox/kiosk-views"; // ★K client 第 2 便 ★0194: 在庫
 import { mig0185On, mig0190On, rules0175On } from "@/lib/nox/rules-0175/flag";
 import KioskQrDisplay from "@/components/nox/kiosk-qr-display"; // ★QR 便（0185）: QR は近道として残す（裁定437）
 import { kioskIdleMsOf } from "@/lib/nox/rules-0175/kiosk-qr"; // ★QR 便: QR で開いた解除は無操作 3 分
@@ -48,8 +48,8 @@ const keyBtn: React.CSSProperties = { ...bigBtn, fontSize: 26, padding: 0, heigh
 const card: React.CSSProperties = t.card;
 const btnLight: React.CSSProperties = { ...t.btnGhost, ...t.btnSm };
 
-export type KioskWorkspaceFeature = "register" | "shift" | "report";
-const FEATURE_LABEL: Record<KioskWorkspaceFeature, string> = { register: "レジ", shift: "シフト", report: "日報" };
+export type KioskWorkspaceFeature = "register" | "shift" | "report" | "inventory"; // ★0194: 在庫
+const FEATURE_LABEL: Record<KioskWorkspaceFeature, string> = { register: "レジ", shift: "シフト", report: "日報", inventory: "在庫" };
 
 export default function KioskWorkspace({ feature = "register" }: { feature?: KioskWorkspaceFeature }) {
   const supabase = createClient();
@@ -381,6 +381,7 @@ export default function KioskWorkspace({ feature = "register" }: { feature?: Kio
             )}
             {board && feature === "shift" && <KioskShiftView storeId={board.storeId} />}{/* ★K client 第 2 便: 今日の確定シフト×打刻（読取だけ） */}
             {board && feature === "report" && <KioskReportView storeId={board.storeId} />}{/* ★K client 第 2 便: 直近の日報（読取だけ・締めは本店） */}
+            {board && feature === "inventory" && <KioskInventoryView />}{/* ★0194（裁定445 ③）: 在庫数の読取（kiosk_stock_levels・開栓・補充は本店） */}
           </div>
         )}
       </div>

@@ -11,6 +11,7 @@ import { finalizedPeriodsOf, periodCandidatesOf, periodOptionLabelOf, prevPeriod
 import { periodRangeOf, settlementCandidatesOf } from "@/lib/nox/payroll/settlement"; // ★0154 D4: 未登録候補
 import Link from "next/link";
 import PageHead from "@/components/ui/page-head";
+import { mig0194On } from "@/lib/nox/rules-0175/flag"; // ★0194（裁定444 ④）
 import Modal from "@/components/ui/modal";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
@@ -239,7 +240,7 @@ export default function PayrollList({ stores, isOwner }: { stores: Store[]; isOw
         )}
         <p style={{ ...t.sub, fontSize: 11, marginTop: 8 }}>
           総支給・差引支給は確定時に凍結した明細の合計（再計算しません）。確定・解除・CSV は「明細へ」から。
-          {isOwner ? "支払済み化は確定済みの期間のみ（owner）。" : "支払済み化は owner のみ。"}
+          {mig0194On() ? "支払済み化は確定済みの期間のみ（管理者・自店の店長）。" : isOwner ? "支払済み化は確定済みの期間のみ（owner）。" : "支払済み化は owner のみ。"}{/* ★0194（裁定444 ④） */}
         </p>
       </section>
 

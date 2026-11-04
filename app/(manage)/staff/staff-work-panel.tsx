@@ -17,7 +17,8 @@ import * as t from "@/lib/nox/ui/theme";
 import { ResponsiveTable } from "@/components/ui/responsive-kit";
 import { Message } from "@/components/ui/toast";
 import { staffContractLineOf, hmOf, staffHoursOf, staffMonthRangeOf, staffPayOf, type StaffContract, type StaffPunch } from "@/lib/nox/staff/pay";
-import { mig0183On, mig0188On, mig0192On } from "@/lib/nox/rules-0175/flag"; // ★裁定432（0183 ★4）・★0192 ★1／M-38: スタッフ勤怠の修正・確定・退勤の取消
+import { mig0183On, mig0188On, mig0192On, mig0194On } from "@/lib/nox/rules-0175/flag"; // ★裁定432（0183 ★4）・★0192 ★1／M-38: スタッフ勤怠の修正・確定・退勤の取消 ★0194: 確定額の凍結
+import { staffLaborRowOf } from "@/lib/nox/staff/labor"; // ★0194（裁定445 ①②）: 月の確定と同時に送る確定額の行（内訳つき）
 import Withholding432Panel from "@/components/nox/withholding-432-panel";
 import { WITHHOLDING_ADVICE_NOTE, WITHHOLDING_KIND_LABEL, WITHHOLDING_KIND_SELECT_NOTE, WITHHOLDING_KIND_SHORT, PAYMENT_REPORT_NOTE, defaultWithholdingKindOf, withholdingKindChoices, withholdingKindOf, type EmployeeDeductionKind, type EmployeeDeductionRow } from "@/lib/nox/payroll/withholding-kind";
 
@@ -51,6 +52,7 @@ export default function StaffWorkPanel({ scope, stores, daily = false, initialMe
   // ★0192 ★1: 店が付けた区分（membership|営業日→区分）・確定済みの店（この月）・日の編集フォーム（出退は 0〜47 域の HH:MM）
   const [dayStatus, setDayStatus] = useState<Record<string, StaffDayStatus>>({});
   const [lockedStores, setLockedStores] = useState<Set<string>>(new Set());
+  const [frozen, setFrozen] = useState<Record<string, { amount: number; time_pay: number }>>({}); // ★0194（裁定445 ④）: 確定後は凍結額（staff_labor_confirmed）を表示して再計算しない
   const [dayEdit, setDayEdit] = useState<{ mem: string; date: string; punches: boolean; inHm: string; outHm: string; status: "" | StaffDayStatus; note: string } | null>(null);
   const [attMsg, setAttMsg] = useState<{ kind: "success" | "error"; text: string } | null>(null);
   const [attBusy, setAttBusy] = useState(false);
@@ -81,6 +83,7 @@ export default function StaffWorkPanel({ scope, stores, daily = false, initialMe
       ]);
       setDayStatus(Object.fromEntries(((ds.data ?? []) as { membership_id: string; biz_date: string; status: string }[]).filter((r) => isStaffDayStatus(r.status)).map((r) => [`${r.membership_id}|${r.biz_date}`, r.status as StaffDayStatus])));
       setLockedStores(new Set(((ls.data ?? []) as { store_id: string }[]).map((r) => r.store_id)));
+      if (mig0194On()) { const { data: fz } = await supabase.from("staff_labor_confirmed").select("membership_id, amount, time_pay").eq("period", month); setFrozen(Object.fromEntries(((fz ?? []) as { membership_id: string; amount: number; time_pay: number }[]).map((r) => [r.membership_id, { amount: r.amount, time_pay: r.time_pay }]))); } // ★0194
     }
     if (mig0183On()) { // ★裁定432
       const [kk, oo, dd] = await Promise.all([
@@ -158,7 +161,7 @@ export default function StaffWorkPanel({ scope, stores, daily = false, initialMe
                 <td>{r.contract ? staffContractLineOf(r.contract) : <span style={t.sub}>契約未登録</span>}</td>
                 <td className="num">{r.days.length}</td>
                 <td className="num">{hmOf(r.days.reduce((s, d) => s + d.minutes, 0))}{r.days.some((d) => d.open) && <span style={{ ...t.sub, marginLeft: 4 }}>（退勤待ち）</span>}</td>
-                <td className="num">{r.pay ? yen(r.pay.gross) : "—"}</td>
+                <td className="num">{frozen[r.m.id] ? <>{yen(frozen[r.m.id].amount)}<span className="nox-stpill" style={{ marginLeft: 6 }} data-staff-frozen={r.m.id}>確定額</span></> : r.pay ? yen(r.pay.gross) : "—"}</td>{/* ★0194（裁定445 ④）: 確定後は凍結額 */}
                 <td className="num">{r.pay ? yen(r.pay.withholding) : "—"}{r.pay && <div style={{ ...t.sub, fontSize: 10.5 }}>{r.pay.withholdingNote}</div>}</td>
                 <td className="num">{r.pay ? yen(r.pay.net) : "—"}</td>
               </tr>
@@ -217,9 +220,11 @@ export default function StaffWorkPanel({ scope, stores, daily = false, initialMe
         };
         const confirmMonth = async (lock: boolean) => {
           if (attBusy) return; setAttBusy(true); setAttMsg(null);
-          const { error } = await supabase.rpc("staff_attendance_confirm", { p_store_id: r.m.store_id, p_period: month, p_lock: lock === true });
+          // ★0194（裁定445 ①②）: 確定のときは店の全員分の確定額（内訳つき）を同じ RPC で送る＝同一トランザクションで凍結（時給制は RPC が再計算して一致を確認）。解除は従来どおり（額も消える）
+          const p_labor = mig0194On() && lock ? rows.filter((x) => x.m.store_id === r.m.store_id && x.contract && x.pay).map((x) => staffLaborRowOf(x.m.id, x.contract!, x.pay!)) : null;
+          const { error } = await supabase.rpc("staff_attendance_confirm", { p_store_id: r.m.store_id, p_period: month, p_lock: lock === true, ...(p_labor ? { p_labor } : {}) });
           setAttBusy(false);
-          if (error) { setAttMsg({ kind: "error", text: error.message.includes("forbidden") ? (lock ? "権限がありません（自店の店長以上）" : "権限がありません（自店の店長以上）") : `失敗: ${rpcErrJa(error.message)}` }); return; }
+          if (error) { setAttMsg({ kind: "error", text: error.message.includes("forbidden") ? (lock ? "権限がありません（自店の店長以上）" : "権限がありません（自店の店長以上）") : error.message.includes("labor mismatch") ? `確定額の再計算が合いません（画面を読み直してからもう一度）: ${error.message}` : `失敗: ${rpcErrJa(error.message)}` }); return; }
           setAttMsg({ kind: "success", text: lock ? `${month.replace("-", "/")} のスタッフ勤怠を確定しました` : "確定を解除しました" }); await load();
         };
         const cancelOut = async () => {

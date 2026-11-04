@@ -8,7 +8,7 @@
 // 客単価＝売上/来客数（モック現物 sales/guests。相談役の「売上/組数」指示とは分母が異なるため報告で申告）。
 import { bizDaysOfMonth, staffLaborOf, type StaffLaborContract } from "@/lib/nox/staff/labor"; // ★便 M6
 import { staffHoursOf, type StaffPunch } from "@/lib/nox/staff/pay";
-import { mig0192On } from "@/lib/nox/rules-0175/flag";
+import { mig0192On, mig0194On } from "@/lib/nox/rules-0175/flag";
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
@@ -146,6 +146,10 @@ export default function MonthReport({ stores, defaultStoreId, isManagerUp }: {
       const absentOf = (mid: string) => new Set(((ab.data ?? []) as { membership_id: string; biz_date: string }[]).filter((x) => x.membership_id === mid).map((x) => x.biz_date));
       const total = ((mm.data ?? []) as { id: string }[]).reduce((a, m) => a + staffLaborOf(contracts.get(m.id) ?? null, staffHoursOf(punches.filter((x) => x.membership_id === m.id)).map((d) => ({ bizDate: d.bizDate, minutes: d.minutes })), absentOf(m.id), bizDays).total, 0);
       sl = { total, confirmed: ((lk.data ?? []) as unknown[]).length > 0 };
+      if (mig0194On() && sl.confirmed) { // ★0194（裁定445 ④）: 確定後は凍結額（staff_labor_confirmed）を表示して再計算しない（凍結の行が無い＝0192 の確定だけの月は見込みの式）
+        const { data: fr } = await supabase.from("staff_labor_confirmed").select("amount").eq("store_id", storeId).eq("period", period);
+        if (fr && fr.length > 0) sl = { total: (fr as { amount: number }[]).reduce((a, r) => a + r.amount, 0), confirmed: true };
+      }
     }
     setStaffLabor(sl);
     setH1(s1); setH2(s2); setLabor(lab); setLoading(false);

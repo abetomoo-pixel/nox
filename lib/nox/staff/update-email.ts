@@ -35,11 +35,18 @@ export function decideOwnerAccess(role: unknown, orgId: unknown): { ok: true } |
   if (role !== "owner" || !orgId) return { ok: false, status: 403, error: "forbidden" };
   return { ok: true };
 }
+/** ★0194（裁定444 ⑤）: 0194 の後は店長も（自店の staff だけ＝対象の判定は decideEmailTarget の actor で）。with0194=false は従来の owner 限定 */
+export function decideEmailAccess(role: unknown, orgId: unknown, with0194: boolean): { ok: true } | { ok: false; status: 403; error: "forbidden" } {
+  if (with0194 && role === "manager" && !!orgId) return { ok: true };
+  return decideOwnerAccess(role, orgId);
+}
 
 /** 対象の判定（純関数）: 同 org の user で、アクティブ membership の role が staff／manager のときだけ許可。owner 自身（role=owner）・cast・不在は 403。 */
-export function decideEmailTarget(t: { found: boolean; sameOrg: boolean; role: string | null }): { ok: true } | { ok: false; status: 403; error: string } {
+export function decideEmailTarget(t: { found: boolean; sameOrg: boolean; role: string | null; storeId?: string | null }, actor?: { role: string; storeId: string | null }): { ok: true } | { ok: false; status: 403; error: string } {
   if (!t.found || !t.sameOrg) return { ok: false, status: 403, error: "forbidden user" };
   if (t.role !== "staff" && t.role !== "manager") return { ok: false, status: 403, error: "forbidden target" };
+  // ★0194（裁定444 ⑤）: 店長は自店の staff だけ（店長・他店は 403）
+  if (actor && actor.role === "manager" && (t.role !== "staff" || !actor.storeId || t.storeId !== actor.storeId)) return { ok: false, status: 403, error: "forbidden target" };
   return { ok: true };
 }
 
@@ -49,7 +56,7 @@ export function decideEmailTarget(t: { found: boolean; sameOrg: boolean; role: s
  */
 export async function performUpdateEmail(
   admin: SupabaseClient,
-  p: { orgId: string; userId: string; email: string },
+  p: { orgId: string; userId: string; email: string; actor?: { role: string; storeId: string | null } },
 ): Promise<RouteResult> {
   // ── 対象の先引き（org 照合＝owner の他 org 混入遮断・cast/invite の cast 先引きと同型） ──
   const { data: u, error: eU } = await admin
@@ -59,10 +66,10 @@ export async function performUpdateEmail(
     .maybeSingle();
   if (eU) return { status: 500, body: { error: `lookup failed: ${eU.message}` } };
   const { data: mem, error: eM } = u
-    ? await admin.from("memberships").select("role").eq("user_id", u.id as string).eq("is_active", true).limit(1).maybeSingle()
+    ? await admin.from("memberships").select("role, store_id").eq("user_id", u.id as string).eq("is_active", true).limit(1).maybeSingle()
     : { data: null, error: null };
   if (eM) return { status: 500, body: { error: `lookup failed: ${eM.message}` } };
-  const target = decideEmailTarget({ found: !!u, sameOrg: !!u && u.org_id === p.orgId, role: (mem?.role as string | undefined) ?? null });
+  const target = decideEmailTarget({ found: !!u, sameOrg: !!u && u.org_id === p.orgId, role: (mem?.role as string | undefined) ?? null, storeId: (mem?.store_id as string | undefined) ?? null }, p.actor); // ★0194: 店長は自店の staff だけ
   if (!target.ok) return { status: target.status, body: { error: target.error } };
   const authUserId = u!.auth_user_id as string;
 

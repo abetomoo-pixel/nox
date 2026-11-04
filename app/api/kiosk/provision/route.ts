@@ -22,6 +22,7 @@ import { NextResponse } from "next/server";
 import { randomInt } from "node:crypto";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { mig0194On } from "@/lib/nox/rules-0175/flag"; // ★0194（裁定444 ①）: 店長（自店）にも端末の発行・削除
 
 import { demoGuardErr } from "@/lib/nox/demo/guard"; // ★N7-1（裁定273-6）: デモ org は 403
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -39,21 +40,23 @@ function syntheticEmail(orgId: string, seed: string): string {
   return `k-${seed.replace(/-/g, "").slice(0, 8).toLowerCase()}@o-${orgId.replace(/-/g, "").slice(0, 8)}.nox.local`;
 }
 
-// owner セッション検証（401/403）＋ org サーバ導出。POST/GET 共通。
+// owner セッション検証（401/403）＋ org サーバ導出。POST/GET 共通。★0194（裁定444 ①）: 店長（自店）にも＝GET は自店の端末だけ・発行は自店だけ（RPC も自店で照合）・reissue は自店の端末だけ
 async function guardOwner() {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { ok: false as const, status: 401, body: { error: "unauthenticated" } };
-  const [{ data: role }, { data: orgId }] = await Promise.all([
+  const [{ data: role }, { data: orgId }, { data: storeId }] = await Promise.all([
     supabase.rpc("auth_role"),
     supabase.rpc("auth_org_id"),
+    supabase.rpc("auth_store_id"),
   ]);
-  if (role !== "owner" || !orgId)
+  const isManager = mig0194On() && role === "manager" && !!storeId; // ★0194（裁定444 ①）
+  if ((role !== "owner" && !isManager) || !orgId)
     return { ok: false as const, status: 403, body: { error: "forbidden" } };
   const demo = await demoGuardErr(orgId as string); if (demo) return demo; // ★N7-1: デモ org はキオスク発行不可
-  return { ok: true as const, supabase, orgId: orgId as string };
+  return { ok: true as const, supabase, orgId: orgId as string, managerStoreId: isManager ? (storeId as string) : null };
 }
 
 export async function GET() {
@@ -69,7 +72,8 @@ export async function GET() {
       //   ★0190: device_fp／bound_at／bound_ua＝端末の固定（fp そのものは client に返さない＝bound の boolean に写す）。
       .select("id, store_id, label, purpose, is_active, created_at, last_seen_at, device_fp, bound_at, bound_ua")
       .eq("org_id", g.orgId)
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .then((r) => (g.managerStoreId ? { ...r, data: (r.data ?? []).filter((d) => d.store_id === g.managerStoreId) } : r)); // ★0194: 店長は自店の端末だけ
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     const devices = ((data ?? []) as Array<Record<string, unknown>>).map(({ device_fp, ...rest }) => ({
       ...rest, bound: !!device_fp, bound_at: (rest.bound_at as string | null) ?? null, bound_ua: (rest.bound_ua as string | null) ?? null,
@@ -130,7 +134,8 @@ export async function POST(req: Request) {
       const deviceId = body.deviceId;
       if (typeof deviceId !== "string" || !UUID_RE.test(deviceId))
         return NextResponse.json({ error: "deviceId required (uuid)" }, { status: 400 });
-      const { data: dev } = await admin.from("kiosk_devices").select("auth_user_id, is_active").eq("id", deviceId).eq("org_id", g.orgId).single();
+      const { data: dev } = await admin.from("kiosk_devices").select("auth_user_id, is_active, store_id").eq("id", deviceId).eq("org_id", g.orgId).single();
+      if (g.managerStoreId && dev && dev.store_id !== g.managerStoreId) return NextResponse.json({ error: "forbidden" }, { status: 403 }); // ★0194: 店長は自店の端末だけ（RPC を通らない分岐）
       if (!dev?.auth_user_id) return NextResponse.json({ error: "not found" }, { status: 404 });
       if (!dev.is_active) return NextResponse.json({ error: "device inactive" }, { status: 409 });
       const password = genPassword();
@@ -191,6 +196,7 @@ export async function POST(req: Request) {
     const storeId = body.storeId;
     if (typeof storeId !== "string" || !UUID_RE.test(storeId))
       return NextResponse.json({ error: "storeId required (uuid)" }, { status: 400 });
+    if (g.managerStoreId && storeId !== g.managerStoreId) return NextResponse.json({ error: "forbidden" }, { status: 403 }); // ★0194: 店長は自店だけ（auth user を作る前に止める＝RPC でも照合）
     if (typeof body.idemKey !== "string" || !UUID_RE.test(body.idemKey))
       return NextResponse.json({ error: "idemKey required (uuid)" }, { status: 400 });
     const label =

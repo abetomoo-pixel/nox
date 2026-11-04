@@ -79,3 +79,10 @@ export const MIG_0193_APPLIED = true;
 let override0193: boolean | null = null;
 export function mig0193On(): boolean { return override0193 ?? MIG_0193_APPLIED; }
 export function __set0193ForTest(v: boolean | null): void { override0193 = v; }
+
+/** ★0194（2026-11-04 新 CC 起草・裁定444／439／445・Agoora が同日手貼り＝verify 19 行が期待値と全行一致・関数 410・表 116）: 店長に開く 5（端末の発行・削除／領収書の店情報／スタッフ給与 run の状態／給与の支払済み化／スタッフのメール変更）・
+ *  admin の CHECK 外し・スタッフ給与の確定額の凍結（staff_attendance_confirm の p_labor＝staff_labor_confirmed）・キオスクの在庫タイル（kiosk_stock_levels）。false の間は client は従来（店長は owner 限定の画面を見ない・確定額は送らない・在庫タイルは案内）。 */
+export const MIG_0194_APPLIED = true; // ★2026-11-04: 0194（sha16 c6ab2b20dc9b6167）を Agoora が手貼り（1 回で Success）＝verify 19 行が期待値と全行一致 → true
+let override0194: boolean | null = null;
+export function mig0194On(): boolean { return override0194 ?? MIG_0194_APPLIED; }
+export function __set0194ForTest(v: boolean | null): void { override0194 = v; }

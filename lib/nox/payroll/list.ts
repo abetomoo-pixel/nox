@@ -3,6 +3,8 @@
 //   金額は payslips の凍結値（breakdown_json.pay.gross＋Σextras＝CSV と同じ定義・net）を**足すだけ**＝再計算しない（golden 6 値不変）。
 //   1 run＝1 行（store×period・裁定 B5-2）。並びは period 降順→store_id 昇順で決定的。
 
+import { mig0194On } from "../rules-0175/flag"; // ★0194（裁定444 ④）: 支払済み化は店長（自店）にも
+
 export type ListRun = {
   id: string; store_id: string; period: string; status: string;
   finalized_at: string | null; paid_at: string | null; updated_at?: string | null;
@@ -32,7 +34,7 @@ export function payrollCsvEnabled(status: string): boolean {
 }
 /** 支払済み化の活性＝owner ∧ finalized（裁定 B5-6・RPC payroll_mark_paid は finalized→paid のみ）。 */
 export function markPaidEnabled(role: string | null, status: string): boolean {
-  return role === "owner" && status === "finalized";
+  return (role === "owner" || (mig0194On() && role === "manager")) && status === "finalized"; // ★0194（裁定444 ④）: 店長（自店）にも＝route は guardPayroll で自店を照合
 }
 
 export function buildPayrollListRows(

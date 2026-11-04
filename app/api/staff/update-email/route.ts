@@ -10,7 +10,8 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { decideOwnerAccess, parseUpdateEmailBody, performUpdateEmail } from "@/lib/nox/staff/update-email";
+import { decideEmailAccess, parseUpdateEmailBody, performUpdateEmail } from "@/lib/nox/staff/update-email";
+import { mig0194On } from "@/lib/nox/rules-0175/flag"; // ★0194（裁定444 ⑤）: 店長（自店の staff だけ）にも
 
 import { demoGuardErr } from "@/lib/nox/demo/guard"; // ★N7-1（裁定273-6）: デモ org は 403
 // owner セッション検証（401/403）＋ org サーバ導出（kiosk/provision の guardOwner と同文・判定式は decideOwnerAccess に置いた同式）。
@@ -20,14 +21,15 @@ async function guardOwner() {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { ok: false as const, status: 401, body: { error: "unauthenticated" } };
-  const [{ data: role }, { data: orgId }] = await Promise.all([
+  const [{ data: role }, { data: orgId }, { data: storeId }] = await Promise.all([
     supabase.rpc("auth_role"),
     supabase.rpc("auth_org_id"),
+    supabase.rpc("auth_store_id"), // ★0194: 店長の自店（サーバ導出）
   ]);
-  const d = decideOwnerAccess(role, orgId);
+  const d = decideEmailAccess(role, orgId, mig0194On()); // ★0194（裁定444 ⑤）: 店長も（対象は自店の staff だけ＝performUpdateEmail の actor）
   if (!d.ok) return { ok: false as const, status: d.status, body: { error: d.error } };
   const demo = await demoGuardErr(orgId as string); if (demo) return demo; // ★N7-1: デモ org はメール変更不可
-  return { ok: true as const, supabase, orgId: orgId as string, authUserId: user.id };
+  return { ok: true as const, supabase, orgId: orgId as string, authUserId: user.id, actor: { role: String(role), storeId: (storeId as string | null) ?? null } };
 }
 
 export async function POST(req: Request) {
@@ -45,7 +47,7 @@ export async function POST(req: Request) {
 
   try {
     const admin = createAdminClient();
-    const r = await performUpdateEmail(admin, { orgId: g.orgId, userId: parsed.value.userId, email: parsed.value.email });
+    const r = await performUpdateEmail(admin, { orgId: g.orgId, userId: parsed.value.userId, email: parsed.value.email, actor: g.actor }); // ★0194: 店長は自店の staff だけ
     return NextResponse.json(r.body, { status: r.status });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });

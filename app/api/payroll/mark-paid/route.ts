@@ -5,12 +5,13 @@
 import { NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { guardPayroll } from "@/lib/nox/payroll/route-guard";
+import { mig0194On } from "@/lib/nox/rules-0175/flag"; // ★0194（裁定444 ④）: 店長（自店）にも支払済み化を開く
 
 export async function POST(req: Request) {
   const g = await guardPayroll(req);
   if (!g.ok) return NextResponse.json(g.body, { status: g.status });
   // ★owner 限定（manager は forbidden＝finalize より狭い・裁定 B5-6）
-  if (g.role !== "owner") return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  if (g.role !== "owner" && !(mig0194On() && g.role === "manager")) return NextResponse.json({ error: "forbidden" }, { status: 403 }); // ★0194（裁定444 ④）: 店長は自店（guardPayroll＝decidePayrollAccess が自店を照合済み）
 
   // run 解決（store×period・1店1期間）。無ければ確定されていない＝支払済み化の対象なし。
   const { data: run } = await g.admin.from("payroll_runs").select("id").eq("store_id", g.storeId).eq("period", g.period).maybeSingle();

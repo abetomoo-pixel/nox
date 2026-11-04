@@ -2,7 +2,7 @@
 //   RULES_0175_APPLIED=false の間は従来（/kiosk＝打刻だけ・/kiosk-register＝操作担当を選んで PIN・15 分）。
 // ★0190 フラグ true 便（裁定435・2026-10-30）: キオスク＝日常業務の端末＝出退勤／レジ／シフト／在庫／日報の 5 タイル（給与・マスタ・顧客・分析・監査は出さない）。
 //   在庫・日報は mig0190On() のときだけタイルに出る（店設定 kiosk_features の無いキーは true）。
-import { mig0190On } from "./flag";
+import { mig0190On, mig0194On } from "./flag"; // ★0194: 在庫タイル（kiosk_stock_levels）
 export type KioskFeature = "punch" | "register" | "shift" | "inventory" | "report";
 export const KIOSK_FEATURES_ALL: readonly KioskFeature[] = ["punch", "register", "shift", "inventory", "report"];
 export const KIOSK_FEATURE_LABEL: Record<KioskFeature, string> = { punch: "出退勤", register: "レジ", shift: "シフト", inventory: "在庫", report: "日報" };
@@ -14,7 +14,7 @@ export function kioskTilesOf(settings: Record<string, unknown> | null | undefine
   return all.filter((k) => f[k] !== false);
 }
 /** タイルの行き先がこの便で開くか（シフト・在庫・日報の本体は K client 第 2 便＝今は案内画面） */
-export const KIOSK_FEATURE_READY: Record<KioskFeature, boolean> = { punch: true, register: true, shift: true, inventory: false, report: true }; // ★K client 第 2 便（2026-11-02）: シフト・日報は本体（読取）＝ready・在庫は DDL 待ち
+export const KIOSK_FEATURE_READY: Record<KioskFeature, boolean> = { punch: true, register: true, shift: true, inventory: mig0194On(), report: true }; // ★0194（裁定445 ③）: 在庫＝読取の本体（kiosk_stock_levels） // ★K client 第 2 便（2026-11-02）: シフト・日報は本体（読取）＝ready・在庫は DDL 待ち
 /** 無操作で自動ロックする秒数＝店設定 kiosk_idle_sec（60〜900・既定 180） */
 export function kioskIdleSecOf(settings: Record<string, unknown> | null | undefined, fallback = 180): number {
   const v = settings?.kiosk_idle_sec;

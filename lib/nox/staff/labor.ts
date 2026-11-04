@@ -47,3 +47,13 @@ export function staffLaborOf(c: StaffLaborContract | null, days: readonly StaffL
   }
   return { byDay, total: Object.values(byDay).reduce((a, v) => a + v, 0) };
 }
+
+// ★0194（裁定445 ①・2026-11-04）: 月の確定（staff_attendance_confirm の p_labor）に送る 1 人分の行＝内訳つき。
+//   時給制の行は RPC が 時給×実働÷60（端数＝店設定 labor_rounding・既定 down＝floorYen）を再計算して time_pay と amount（＝time_pay＋fixed）の一致を確認する＝staffPayOf（timePay＝floorYen・gross＝timePay＋fixed）と同じ式。
+//   月給／日給の行は RPC では再計算しない（amount＝staffPayOf の gross をそのまま）。deductions＝社員の控除の内訳（412 の行）。calc_version＝計算の版（表示のため）。
+export const STAFF_LABOR_CALC_VERSION = "staffPayOf 2026-11 (floorYen)";
+export type StaffLaborRow = { membership_id: string; pay_kind: "hourly" | "daily" | "monthly"; hourly: number; minutes: number; time_pay: number; fixed: number; monthly: number; daily: number; days: number; amount: number; deductions: { kind: string; name?: string | null; amount: number }[]; calc_version: string };
+export function staffLaborRowOf(membershipId: string, c: { pay_kind?: string | null; hourly: number; fixed_allowance: number; monthly?: number | null; daily?: number | null }, pay: { minutes: number; timePay: number; fixed: number; gross: number; days: number; employeeDeductions?: readonly { kind: string; name?: string | null; amount: number }[] }): StaffLaborRow {
+  const kind: StaffLaborRow["pay_kind"] = c.pay_kind === "daily" ? "daily" : c.pay_kind === "monthly" || c.pay_kind === "monthly_fixed" ? "monthly" : "hourly";
+  return { membership_id: membershipId, pay_kind: kind, hourly: kind === "hourly" ? c.hourly : 0, minutes: pay.minutes, time_pay: kind === "hourly" ? pay.timePay : 0, fixed: kind === "hourly" ? pay.fixed : 0, monthly: c.monthly ?? 0, daily: c.daily ?? 0, days: pay.days, amount: pay.gross, deductions: (pay.employeeDeductions ?? []).map((d) => ({ kind: d.kind, name: d.name ?? null, amount: d.amount })), calc_version: STAFF_LABOR_CALC_VERSION };
+}
