@@ -5173,6 +5173,16 @@ DB 変更 0 の見込み。要れば 0190 起草のみ。」
 **教訓130（確定・相談役 2026-11-03）＝f0 は timeout 付きの bash で走らせない・他の走りと並走しない**: bash の timeout（600000 ms）が f0 の背景実行を 10 分で kill し、止まった suite の finally（掃除）が走らず残留が出た（10/30 run A'＝receipt_issues 5 行）。f0 は detached（PowerShell の Start-Process）で起動し、撮影（Playwright）や他の f0 と同時に走らせない。dev サーバ（3200）の応答を f0 の前に確かめ、落ちたら消し残しを数えてから走り直す（教訓123）。
 **教訓131（追加・相談役 2026-11-03）＝デモの payload は月相対（{$m}）と営業日相対（{$rel}）が月初に同じ日へ写る＝一意キーで重なる**: 11/01 の reset で ACE（cast_plan のキャスト×11/01）と NEST（shifts／attendance のキャスト×10/28）が一意キー違反で load 失敗。処置＝lib/nox/demo/dateshift.ts の shiftPayload に一意キーの guard（shifts／attendance／cast_plan／daily_reports・衝突は {$rel} を残す・valid_to < valid_from の cast_plan を落とす）＝7c6da83・6 店×400 日の走査で重複 0（2027-03 の 2/28 畳み込みも検出）。日付を写す生成物は、一意キーで重ならないことを先の日付まで走査してから出す。
 
+### 便 0194 フラグ true（2026-11-04 夕・Agoora 手貼り後＝v57 §8-3・MIG_0194_APPLIED=true・DB 恒久変更 0）
+
+- **手貼り**＝1 回で Success（lock_timeout は本文に含めた＝教訓132）。verify **19 行＝期待値と全行一致**（Agoora の返り＝CC の読取と同じ・差の 1 行は無し＝handpaste の本文の「20 行」が数え違い）。本番 関数 **410**・表 **116**。収蔵＝supabase/migrations/0194_manager_open5.sql（sha16 c6ab2b20dc9b6167）・docs/demo/handpaste_0194.md（手貼りの記録つき）。
+- **live**＝docs/tmp/live_0194.mjs（BEGIN…ROLLBACK）＝14/14・DB 変更 0（店長の自店＝領収書の店情報・端末の発行／無効化／削除・run の確定／他店 forbidden／admin は bad role／確定＋凍結 1 RPC・本人の RLS・labor mismatch・解除で額も消える／在庫タイル＝端末でない人 forbidden・解除後の端末は読める）。
+- **同乗 client（裁定444 ④⑤・裁定445 ④）**＝④ api/payroll/mark-paid（manager 自店＝guardPayroll）と markPaidEnabled（manager も finalized で true）・一覧の注記／⑤ api/staff/update-email（decideEmailAccess＝0194 後は manager・performUpdateEmail の actor＝店長は自店の staff だけ・decideOwnerAccess は不変）／① api/kiosk/provision（manager 自店＝GET は自店の端末だけ・発行は auth user を作る前に自店で止める・reissue は自店の端末だけ・無効化／再開／削除は RPC が自店を照合）＋ master/system の端末タブ（店長は自店の 1 店・台数も自店）／② レシートのタブを店長にも（発行者 InvoiceProfileFields は管理者のまま）／③ スタッフ給与 run の状態＝**画面は無い**（staff_payroll_runs を作る口が無く staff-work-panel は状態の表示だけ＝教訓25 で押せないボタンは置かない・DB だけ開いた＝run の作成の口は別途）／確定額の凍結＝lib/nox/staff/labor.ts の staffLaborRowOf（時給＝timePay＋fixed＝gross・RPC の再計算と同じ式・calc_version）・staff-work-panel は「この月を確定」で店の全員分の p_labor を同じ RPC で送り（labor mismatch の文言）・確定後は支給見込みの列に凍結額「確定額」・月報は staff_labor_confirmed の合計（凍結の行が無い＝0192 の確定だけの月は見込みの式）／在庫タイル＝KIOSK_FEATURE_READY.inventory＝mig0194On()・/kiosk-inventory は包み KioskWorkspace・KioskInventoryView（kiosk_stock_levels・発注点以下は赤・書込なし）。
+- **suite**＝verify:nox-0194c（11）を新設＝f0 の末尾（170→**171 段**）。pin 張替え 13 本＝anon-guard 段35（manager は device limit＝forbidden ではない）・段36（manager 可）／grants G31 24→25・26→27／billing 名簿 B(v)＝除外 211→212・全数 410／0158 s-3・t-1／p172(6-4)／0188(F-4)／0190 FN_PIN／0175-0176(1-4b)＝CHECK に admin なし／m3(28-1) canDevices／k(435-1)・m6k2(3-2)(3-3)＝在庫 ready・包み・rpc 1 本／payroll-list pl(3b)＝manager true。単走＝全 165 本を先に回し（赤 12）→張替え後に 15 本緑。
+- **f0**＝**171 段 7,149** の 2 連緑（run A 15:45→16:09・run B 16:09→16:34・golden 不変＝玲奈 5931／125802）。tsc 0・lint Error 0（警告 4 は既存）。
+- 裁定446（読み替え 2 点）を本台帳に収載（次の裁定 447）。
+- 次＝便 A（M-65〜M-69＋M-71／M-72・docs/tmp/benA_B_plan.md）→ 便 B（M-70）。
+
 ### 便 M63（2026-11-04 午後・新 CC の最初の便＝v57 §3-2 の 1〜5・client のみ・DB 恒久変更 0）
 
 - **M-63**＝勤怠（スタッフ）明細の下部の「＋ 日を追加・修正」「この月を確定」（今は左右端）を .nox-actions の既定（中央・gap 8＝裁定242／教訓122）で 2 つ並べて中央（marginLeft:auto と inline の flex 指定を外した・data-staff-att-actions）。本体は staff-work-panel 1 つ＝給与 › 勤怠（スタッフ）で直る。撮影＝push 後に本番の公開デモで（ログインの要る画面）。
@@ -5241,6 +5251,20 @@ Agoora が 7 本を手貼り（0185→0180→0181→0182→0183→0184→0186）
 - **小さな直しの候補（次の mig に同乗・今は起草しない）**: remove_store_special_day に billing_writable_of の確認が無い（set_store_special_day にはある）＝揃える。
 - **0183 の (a)**: payroll_withholding_overrides／payroll_employee_deductions の period は YYYY-MM＝payroll_runs.period も CHECK で YYYY-MM・period_bounds も月だけ＝run は精算方式（settlement_cycle）に関係なく月単位で、half／weekly／daily は源泉の暦日数の注記と日払いの種別だけ（本番 10 店とも settlement_cycle 未設定＝月次）＝今は足りる。半月・週の run を作るときは run・上書き・控除の 3 つの period を一緒に設計し直す。
 - **0183 の (b)**: キャストの源泉区分は「税務情報を保存」で set_cast_tax_profile（upsert＝行を作る）の後に set_withholding_kind を呼ぶ＝not found にならない。スタッフは契約の行がある人だけ区分の選択が出る（行を作る動線＝B の 6-④）。
+
+## 裁定447（2026-11-04 確定・相談役・Agoora＝差し替え版）控除マスタは今のまま・日ごとの控除ルールの既定と「この日の控除」・日計の「控除」列・キャスト別の上書き
+
+出典＝相談役 11/04（前版「控除マスタを拡張（項目名／頻度／額／種別・預り金なし）」を同日に差し替え）。適用＝0195（計画＝docs/tmp/0195_plan.md・起草は相談役の確認後）。
+「控除マスタ（名称・種別・額・単位 日ごと／月ごと／売上%・有効）は今のまま・預り金の種別は作らない。足すのは ①日ごとの控除ルールに既定（毎出勤に引く／その日に選ぶ）②キャストの勤怠の修正モーダルとキオスクの退勤に「この日の控除」＝日ごとのルールごとのチェック（既定どおり on／off・その日だけ変更）③日計に「控除」列（その日に引いた日ごとの控除の合計）④キャスト別の額の上書き（読取で無ければ）。源泉は法定どおり報酬の総額から・控除は手取りだけ（T18 の 2・3）。」
+CC の読取（2026-11-04）: 日ごとの控除は今は日計に乗らない（per=day＝amount×出勤日数で月の合計・勤怠表では「月のまとめ」の固定）・日付×キャスト×ルールの on/off は無い・キャスト別の上書きは run 別（payroll_run_deduction_overrides・0156）だけ＝持続する上書きは無い。計画＝表 cast_day_deductions（既定と違う日だけ行）＋deductions.day_rule＋RPC cast_day_deductions_set（kiosk 腕）＝関数 411・表 117・golden 不変（fixedDedOf の dayCount は渡さなければ同値）。確認待ち 4 点は計画の §5。
+- **M-73（裁定447 追記・2026-11-04・0195 と同じ便）**: 控除マスタの ①単位＝日ごと／月ごと／報酬の%（支払額に対する率＝新 'pay_rate'・計算は手取りの前の支払額に対して・源泉は総額から）／売上の%（今の 'rate'）の 4 つ ②種別＝キャストの画面では 実費（ヘアメ・衣装・ロッカー・送りなど）／その他（店の任意の項目）の 2 択だけ・「法定控除」「不就労分」はキャストでは出さない（内部の値は残す・社員の控除画面にだけ従来の 3 分類）③既存行の種別は表示だけ変える ④select はボタン群・各単位に 1 行の説明。DDL＝per の CHECK に pay_rate を足す（計画 §6・「その他」の内部の値は確認待ち）。
+- **裁定447 ④（具体化・2026-11-04）**: 控除ルールにキャスト別の適用＝表 deduction_rule_casts（rule_id・cast_id・enabled・amount_override）を 0195 に。マスタの一覧行に「対象：全員／◯名」。キャスト詳細「待遇・バック」に「控除」の節＝店のルールを一覧・使う／使わないのトグルと額の上書き（空＝店の額）。計算はキャスト別の enabled と amount_override を優先・無ければ店のルール。日ごとの控除は enabled のキャストだけ出勤ごとの on／off の対象。確定済みの月には遡らない。計画 §7（関数 413・表 118・golden 不変＝行なし＝全員）。
+- **M-74（便 A）**: 控除ルール一覧の単位を日本語（日ごと／月ごと／売上の%）・額に ¥ と桁区切り。
+
+## 裁定446（2026-11-04 確定・相談役）0194 の読み替え 2 点＝解除は staff_attendance_confirm の p_lock=false の経路で額も消す・端数の店設定は settings_json.labor_rounding
+
+出典＝docs/demo/handpaste_0194.md「CC 注（裁定445 の読み替え 2 点）」→ 相談役 11/04（手貼りの合図と同時に収載の指示）。適用＝0194（2026-11-04 Agoora 手貼り・verify 19 行一致）。
+「① 解除の関数は別に作らない。0192 の staff_attendance_confirm の p_lock=false がそのまま解除の経路で、そこで staff_labor_confirmed の行も消す。② スタッフ給与の端数の店設定は settings_json.labor_rounding（down＝切捨て（既定・今の staffPayOf の floorYen と同じ）／up／round）を RPC が読む。UI は作らない（既定のまま）。」
 
 ## 裁定445（2026-11-04 確定・相談役）0194 の確認 4 点＝確定額は内訳ごと凍結し時給は RPC で再計算・保存は staff_attendance_confirm 1 本・在庫タイルは読取だけ・フラグ true 便の client
 
@@ -8058,7 +8082,7 @@ anon-guard 段28 が無差別 `limit(1)` でそれを拾い 'bad amount'/BV=unde
 
 ## 次の番号（2026-11-04 午後・相談役 11/04 の確定と 434 ④・教訓132 を収載した時点）
 
-- **次の裁定＝446**（439〜442＝2026-11-03 確定・443／444／445＝2026-11-04 確定で収載・445＝0194 の確認 4 点）。**次の M＝M-63**（M-50〜M-61＝便 M5b と追補・M-62＝キオスクの確定済みの文言）。**次の教訓＝133**（126／129／130＝確定・131＝追加・127＝欠番のまま・**132＝2026-11-04 採番確定＝mig の begin 直後に set local lock_timeout**）。**次の mig＝0194**（0193＝2026-11-04 適用済み）→ 0194（ローンチ前に必須・中身＝裁定444 の 5＋admin の CHECK 外し＋staff_labor_confirmed＋kiosk_stock_levels・18 行の判断は裁定444 で済み）。**M-63／M-64＝2026-11-04 新 CC の最初の便で実装（次の M＝M-65）**。
+- **次の裁定＝448**（439〜442＝2026-11-03 確定・443〜447＝2026-11-04 確定で収載・445＝0194 の確認 4 点・446＝0194 の読み替え 2 点・447＝日ごとの控除ルール＝0195 の計画）。**次の M＝M-63**（M-50〜M-61＝便 M5b と追補・M-62＝キオスクの確定済みの文言）。**次の教訓＝133**（126／129／130＝確定・131＝追加・127＝欠番のまま・**132＝2026-11-04 採番確定＝mig の begin 直後に set local lock_timeout**）。**次の mig＝0194**（0193＝2026-11-04 適用済み）→ 0194（ローンチ前に必須・中身＝裁定444 の 5＋admin の CHECK 外し＋staff_labor_confirmed＋kiosk_stock_levels・18 行の判断は裁定444 で済み）。**M-63／M-64＝2026-11-04 新 CC の最初の便で実装（次の M＝M-65）**。
 
 ## 次の番号（2026-10-30 便 M5 時点）
 
