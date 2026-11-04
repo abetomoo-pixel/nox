@@ -22,10 +22,12 @@ check("w10(0-1) 画面の「準備中」「未実装」＝0（コメントを除
 
 // #2 要確認
 const L = (o: Partial<{ id: string; action: string; target: string; at: string; before_json: Record<string, unknown> | null; after_json: Record<string, unknown> | null; reason: string | null }>) => ({ id: "x", action: "check_void", target: "checks:1", actor_user_id: "u", at: "2026-10-26T12:00:00Z", before_json: null, after_json: null, ...o });
-const al = auditAlertsOf([L({ id: "a", after_json: { total: 60000 } }), L({ id: "b", after_json: { total: 49999 } }), L({ id: "c", action: "read_cast_sensitive", at: "2026-10-26T01:30:00Z" }), L({ id: "d", action: "read_cast_sensitive", at: "2026-10-26T13:00:00Z" })]);
-check("w10(2-1) 要確認＝取消の伝票額 ¥50,000 以上（49,999 は出ない）・機微情報の閲覧が 6〜17 時台（JST 10:30 は出る・22:00 は出ない）", J(al.map((a) => [a.id, a.kind])) === J([["a", "high_void"], ["c", "off_hours_sensitive"]]), al);
+// ★裁定443 9-①（2026-11-04）: 営業時間外＝定数 [6,18] をやめ店設定の営業時間から（hoursOf）＝夜の店 20:00〜翌05:00 を渡す
+const NIGHT = [0, 1, 2, 3, 4, 5, 6].map((dow) => ({ dow, is_closed: false, open_hm: "20:00", close_hm: "29:00" }));
+const al = auditAlertsOf([L({ id: "a", after_json: { total: 60000 } }), L({ id: "b", after_json: { total: 49999 } }), L({ id: "c", action: "read_cast_sensitive", at: "2026-10-26T01:30:00Z" }), L({ id: "d", action: "read_cast_sensitive", at: "2026-10-26T13:00:00Z" })].map((l) => ({ ...l, store_id: "s1" })), { hoursOf: () => NIGHT });
+check("w10(2-1) 要確認＝取消の伝票額 ¥50,000 以上（49,999 は出ない）・機微情報の閲覧が店設定の営業時間の外（夜の店＝JST 10:30 は出る・22:00 は出ない）★裁定443 9-①", J(al.map((a) => [a.id, a.kind])) === J([["a", "high_void"], ["c", "off_hours_sensitive"]]), al);
 const ab = src("app/(manage)/audit/audit-board.tsx");
-check("w10(2-2) 配線＝直近 30 日の取消・機微アクセスを読んで auditAlertsOf・件数のピル", ab.includes("setAlerts(auditAlertsOf((data ?? []) as Log[]));") && ab.includes("data-audit-alerts={alerts.length}"));
+check("w10(2-2) 配線＝直近 30 日の取消・機微アクセスと店ごとの営業時間（store_business_hours）を読んで auditAlertsOf（hoursOf）・件数のピル", ab.includes("setAlerts(auditAlertsOf((data ?? []) as Log[], { hoursOf: (sid) => (sid ? hoursByStore.get(sid) ?? null : null) }));") && ab.includes("data-audit-alerts={alerts.length}"));
 // #5
 check("w10(5-1) 取消の承認者と理由＝after_json の voided_by／void_reason（無ければ note・audit の reason）・一覧の列に出す", J(voidApproverReasonOf(L({ after_json: { voided_by: "u2", void_reason: " 打ち間違い " } }))) === J({ approverUserId: "u2", reason: "打ち間違い" }) && voidApproverReasonOf(L({ reason: "理由" })).reason === "理由" && voidApproverReasonOf(L({})).approverUserId === null && ab.includes("const v = voidApproverReasonOf(l);"));
 // #7

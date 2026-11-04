@@ -75,8 +75,8 @@ check("p172(2-4) 純関数: termsGateRedirectOf＝デモ null・同意済み nul
 
 // ── (3) 356
 const sp = src("app/(manage)/staff/page.tsx"); const sw = src("app/(manage)/staff/staff-work-panel.tsx"); const sme = src("app/(manage)/staff/me/page.tsx");
-check("p172(3-1) /staff: ?tab=work＝勤怠・報酬（StaffWorkPanel scope store）・既定 一覧・タブは lib/nox/staff/tabs（page から export しない）／nav: staff に「勤怠」（/staff/me）",
-  sp.includes('import { STAFF_TABS, staffTabOf } from "@/lib/nox/staff/tabs";') && !sp.includes("export const staffTabOf") && sp.includes('<StaffWorkPanel scope="store"') && sp.includes('data-staff-tabs="1"') && sme.includes('<StaffWorkPanel scope="me"') && sme.includes('if (role === "cast") redirect("/mine");')
+check("p172(3-1) /staff: ?tab=work＝勤怠・報酬（StaffWorkPanel scope store）→ ★M-64（2026-11-04）: タブは外し ?tab=work は 給与 › 勤怠（スタッフ）へ redirect・タブの解決は lib/nox/staff/tabs（page から export しない）／nav: staff に「勤怠」（/staff/me）",
+  sp.includes('import { STAFF_WORK_HREF, staffTabOf } from "@/lib/nox/staff/tabs";') && !sp.includes("export const staffTabOf") && !sp.includes("StaffWorkPanel") && sp.includes("redirect(STAFF_WORK_HREF)") && sme.includes('<StaffWorkPanel scope="me"') && sme.includes('if (role === "cast") redirect("/mine");')
   && lay.includes('...(role === "staff" ? [{ href: "/staff/me", label: "勤怠" }] : []),') && staffTabOf("work") === "work" && staffTabOf(undefined) === "list");
 check("p172(3-2) staff-work-panel: staff_contracts／staff_punches を直 SELECT（RLS）・月切替・★便 P174 T-7 で確定ボタン（無効）を撤去→確定状況（staff_payroll_runs の読取）＝確定の RPC は 0175（教訓25）・契約未登録の注記",
   sw.includes('supabase.from("staff_contracts").select("membership_id, contract_kind, hourly, fixed_allowance, tax_class, withholding_rate")') /* ★0188: フラグ false の経路（true は withholding_rate を読まない＝verify:nox-0188 C-6） */ && sw.includes('supabase.from("staff_punches").select("membership_id, biz_date, kind, punched_at")') && !sw.includes('data-staff-pay-finalize="1"') && sw.includes("data-staff-pay-run=") && sw.includes('supabase.from("staff_payroll_runs").select("status")') && sw.includes("<span style={t.sub}>契約未登録</span>") /* ★便 X13-H H-12 ③ */);
