@@ -15,7 +15,7 @@ import { rpcErrJa } from "@/lib/nox/ui/rpc-err";
 import { mig0183On, mig0188On } from "@/lib/nox/rules-0175/flag";
 import { staffContractLineOf, type StaffContract } from "@/lib/nox/staff/pay";
 import {
-  WITHHOLDING_KIND_LABEL, WITHHOLDING_KIND_SELECT_NOTE, WITHHOLDING_KIND_SHORT, defaultWithholdingKindOf, withholdingKindChoices, withholdingKindOf,
+  WITHHOLDING_KIND_SELECT_NOTE, WITHHOLDING_KIND_SHORT, defaultWithholdingKindOf, withholdingKindChoices, withholdingKindOf,
   type EmployeeDeductionKind, type EmployeeDeductionRow,
 } from "@/lib/nox/payroll/withholding-kind";
 import { CONTRACT_KIND_OPTS, monthOfToday, monthShiftOf, payAmountKeyOf, payKindOptsOf } from "@/lib/nox/staff/work"; // 純関数（verify と共有）
@@ -80,7 +80,7 @@ export default function StaffWorkSection({ memId, contract, canEdit, initialOpen
 
   const kindOpts: ReadonlyArray<readonly [string, string]> = [
     ["", `既定（${WITHHOLDING_KIND_SHORT[defaultWithholdingKindOf({ subject: "staff", contractKind: contract?.contract_kind })]}）`],
-    ...withholdingKindChoices().map((k) => [k, WITHHOLDING_KIND_LABEL[k]] as const),
+    ...withholdingKindChoices().map((k) => [k, WITHHOLDING_KIND_SHORT[k]] as const), // 短い名前（長い説明は給与側の select に）＝ボタン群が折り返さない
   ];
   return (
     <div ref={ref} data-staff-edit-work={contract ? "set" : "none"} style={{ marginTop: 14, paddingTop: 10, borderTop: "1px solid var(--line2)" }}>
