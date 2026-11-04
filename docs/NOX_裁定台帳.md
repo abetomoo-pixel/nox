@@ -5283,6 +5283,7 @@ grep で洗い出した左右振り分けのボタンは一覧報告だけでな
 
 - **実装**＝lib/nox/register/ext-estimate.ts（純関数 extEstimateRowsOf＝延長 1〜3 回後の合計＝会計と同じ groupDueFull に延長行（fee_kind extension・単価×人数・taxable_10＝check_extension_add と同じ形）を n 本足す・加算＝前の行との差・終了時刻＝着席＋セット＋回数×単位・人数割りの店（time_per person・2 名以上）は 1 人あたり＝切り上げ・自動店は実時計の回数（timeStatusOf）から・手動店は追加済みの行数（extAddedBlocksOf）から）／components/nox/ext-estimate-table.tsx（表＝延長回数／終了時刻／加算／合計（税サ込）／1 人あたり）／register-board＝会計タブ「時間料金（自動）」「時間料金（手動）」の枠に表・操作バーに「見積」（data-ext-estimate-open）＝注文・指名・席タブからも同じ表を Modal で。単価・単位は伝票の凍結値（checks.ext_fee／ext_min）。キオスクのレジ＝同じ RegisterBoard＝同じ表。
 - **verify**＝verify:nox-m70（DB・9）＝A1 を manual／person に一時設定→2 名で開栓→見積 3 行→check_extension_add ×1〜3 の各回で伝票の合計（check_lines→groupDueFull）と 1 円の差もなく一致（人数倍 4,000 の行・taxable_10）→反転＝単価＋500 円の見積は一致しない（＋1 円は店の丸め 100 円に吸われ同値になる＝反転の値を 500 に）→純関数（翌表記・max の丸め）→client の pin（表 3 か所・見積ボタン・Modal）。f0 の末尾（172→**173 段**）。
+- **直し（Agoora 20:59 の指摘＝「通常・週末・VIP 延長のそれぞれの延長時間を出すべき・VIP 席なのに VIP 延長代が分からないと意味がない」）**＝伝票の凍結メニュー（ext_menu_snap）の**全行**についてそれぞれ表（ラベル・分・額＝平日通常 延長 60 分／VIP 延長／週末通常 延長…）・今の既定パターンは「適用中」の印・snap なしの旧伝票は既定 1 つ（extEstimatePatternsOf・ExtEstimateTable は patterns を受ける）。verify m70(5-3) を追加（10）。f0 は LP v4 便と同じ 2 連で。
 - **留意**＝自動店は会計タブを開いた時点で時間料金が明細に反映される（apply）＝他タブのポップオーバーは明細の反映前なら 1 ブロック遅れることがある（表示だけ・権威はサーバ）。
 - 単走 20 本緑・tsc 0・lint Error 0・**f0 173 段 7,183 の 2 連緑**（19:32→19:50・19:50→20:11・golden 不変）・commit＝client 5a576de／test 483e8df／docs（本コミット）・push 済み・deploy 20:14 確認（公開デモ MUSE T1 に「見積」）・6 店 reset 20:14 全 200・撮影 docs/tmp/shots_b＝m70_muse_t1_estimate_0ext（3 名・外税・見積 38,901／46,887／54,873・1 人あたり 12,967〜）／1ext（延長 1 回追加後＝2〜4 回目 46,887／54,873／62,859＝追加前の 1 回目の値と一致＝live でも 1 円の差なし）／popover（1024・390）。同乗＝便 A の源泉区分ボタン群のラベルを短い名前に（撮影で折り返しの欠けを発見）。
 
@@ -5292,6 +5293,17 @@ grep で洗い出した左右振り分けのボタンは一覧報告だけでな
 - ②（unfollow でブロック）③（紐付け解除）は 0195 待ち（docs/tmp/0195_plan.md §8）。
 - **verify**＝verify:nox-m77（純関数＋pin・5）＝f0 173→**174 段**。
 - 単走 18 本緑・tsc 0・lint Error 0・**f0 174 段 7,188 の 2 連緑**（20:13→20:29・20:30→20:51・golden 不変）・commit＝client ac9141d／test 48ea515／docs（本コミット）・push。live の確認＝公開デモでは route が 204（送らない）＝文面と宛先は verify（m77 1-1〜1-3）で担保・本番の初回は docs/demo/line_first_run.md の手順の中で。
+
+### LP v4 の反映便の記録（2026-11-04 20:5x〜・docs/handoff/lp/NOX-LP.html（Agoora 11/02）を /lp に・client のみ・DB 不触）
+
+- **実装**＝app/lp/page.tsx を v4 の構成に書き換え（ヒーロー／01 つながる店舗管理（3 列＋details 2）／02 画面で見る（操作画面 4 枚＝public/lp/v4 に HTML の base64 から抽出＝register／shift／cast／payroll＋hero.jpg）／03 立場＋FAQ 5／料金（**月額 29,800 円／店舗（税込）＝HTML どおり**・裁定344 の「金額の行は出さない」は Agoora の v4 で上書き）／問い合わせ（HTML どおりプレビュー＝送信・保存しない・確認→完了の 2 画面）／6 店（店長でログイン／キャストでログイン＝/demo?store=&role=manager|cast）／フッター）。文言は HTML 逐語・**「オーナー」→「管理者」**（立場の見出し）。帯＝DEMO_RESET_TIME_JA・条文＝DEMO_TERMS（二重化しない）・ロゴ＝BrandLogo（sh(5)）。
+- **CSS**＝app/lp/lp-v4.css（HTML の <style> を機械変換で .lpv4 配下に閉じ込め＝:root／body→.lpv4・html は捨てる・他画面に漏らさない・生成＝scratchpad patch_lp.cjs）。★dialog のセレクタをコンマで足すと複合セレクタが壊れ dialog が display:block（画像が全部出る）＝接頭だけにして解消（ローカルの撮影で発覚）。
+- **動く部分**＝components/nox/lp-v4-client.tsx（ScreenZoom＝dialog で拡大・InquiryForm＝プレビュー）だけ・page は force-static・noindex のまま・OG 画像＝/lp/v4/hero.jpg。
+- **verify**＝verify-nox-lp の lp(1) を v4 に張替え（lp(1-v4-1〜5)＝12）・旧 M-41 の lp(1) は if (false) で残置（M-41 の文言は v4 で置換済み）。単走 10 本緑（c2／s-lane／shb2／m／nav／layout-bottom／lp／x13／demo-guard／messages）・tsc 0・lint Error 0。
+- **撮影**＝docs/tmp/shots_lp（ローカル lp_v4_local_1280／390・console error 0・画像 11 枚 natural 読込・立場 4＝管理者／店長／スタッフ／キャスト・店 6）。本番は push→deploy 後に lp_v4_live_1280／390。
+- 公開デモのリンク＝/demo?store=<key>&role=manager|cast（DemoEntry は ?store=&role= を読む＝lp(2)）。
+- **逐語からの差し替え 1 語**＝問い合わせフォームの店舗名のプレースホルダ「開業準備中の方は」→「開業前の方は」（w10(0-1)＝画面の「準備中」「未実装」を 0 に保つ pin に当たったため・意味は同じ）。
+- **f0 174 段 7,187 の 2 連緑**（21:14→21:37・21:38→22:05・golden 不変・M-70 の直しと同じ木＝1 本目の前の走りは w10 の pin で赤 1→語を直して再走）・commit＝M-70 の直し 33c28fd／LP client e32f8a9／LP test d5ebe2e／docs（本コミット）・push→deploy→撮影（lp_v4_live_1280／390・m70b_ace_vip1_patterns）は続く行で。
 
 ### 便 0194 フラグ true（2026-11-04 夕・Agoora 手貼り後＝v57 §8-3・MIG_0194_APPLIED=true・DB 恒久変更 0）
 
