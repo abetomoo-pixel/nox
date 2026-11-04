@@ -12,7 +12,7 @@ import { FIXTURE_USERS, STORE_A1, loadEnvOrExit } from "./fixtures-f0";
 import { groupDueFull, type CheckDueSettings, type DueLine } from "../lib/nox/check-calc";
 import { dueSettingsOf } from "../lib/nox/rules-0175/rounding";
 import { rules0175On } from "../lib/nox/rules-0175/flag";
-import { EXT_ESTIMATE_MAX, extAddedBlocksOf, extEstimateEndLabelOf, extEstimateRowsOf } from "../lib/nox/register/ext-estimate";
+import { EXT_ESTIMATE_MAX, extAddedBlocksOf, extEstimateEndLabelOf, extEstimatePatternsOf, extEstimateRowsOf } from "../lib/nox/register/ext-estimate";
 
 const env = loadEnvOrExit(["NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "SUPABASE_SECRET_KEY", "SEED_PASSWORD"]);
 let pass = 0; const fails: string[] = [];
@@ -90,8 +90,16 @@ async function main() {
       && extEstimateRowsOf({ ...base, max: 9 }).length === 3 && extEstimateRowsOf({ ...base, max: 0 }).length === 1);
     const rb = src("app/(manage)/register/register-board.tsx"), tb = src("components/nox/ext-estimate-table.tsx");
     check("m70(5-2) client＝会計タブ「時間料金」（自動・手動）の枠に見積の表・操作バーの「見積」ボタン（注文・指名・席タブからも同じ表をポップオーバー＝Modal）・自動店は実時計の回数・手動店は追加済みの行数から・同じ部品 ExtEstimateTable",
-      rb.includes('data-ext-estimate-open="1"') && rb.includes("<ExtEstimateTable rows={extEstimateRows}") && (rb.match(/<ExtEstimateTable rows=\{extEstimateRows\}/g) ?? []).length === 3
+      rb.includes('data-ext-estimate-open="1"') && rb.includes("<ExtEstimateTable patterns={extEstimatePatterns}") && (rb.match(/<ExtEstimateTable patterns=\{extEstimatePatterns\}/g) ?? []).length === 3
       && rb.includes("baseBlocks: timeMode === \"auto\" ? timeStatusOf(") && rb.includes("extAddedBlocksOf(lines)") && rb.includes("{extEstimateOpen && check && (") && tb.includes('data-ext-estimate-row={r.n}') && tb.includes("1 人あたり"));
+    // ★Agoora 指摘（20:59）: パターンごと＝snap の全行（平日通常／週末通常／VIP）にそれぞれ表・適用中の印・snap なしは既定 1 つ
+    const snap = [{ rule_id: "r60", duration_min: 60, amount: 13000, label: "平日通常 延長 60 分", is_default: true }, { rule_id: "rv", duration_min: 30, amount: 9000, label: "VIP 延長" }, { rule_id: "rw", duration_min: 30, amount: 4000, label: "週末通常 延長" }];
+    const pats = extEstimatePatternsOf(snap, { extMin: 60, extAmount: 13000, ruleId: null }, base);
+    check("m70(5-3) パターンごとの見積＝snap の 3 行に 3 表（ラベル・分・額）・適用中＝ext_rule_id か額と分の一致（平日通常）・既定の印・各表の合計はその単価の見積と同じ・snap なしは既定 1 つ（label「延長 30分」）",
+      pats.length === 3 && pats.map((p) => p.label).join("|") === "平日通常 延長 60 分|VIP 延長|週末通常 延長" && pats[0].current && pats[0].isDefault && !pats[1].current && pats[1].extAmount === 9000 && pats[1].extMin === 30
+      && pats[1].rows[0].total === extEstimateRowsOf({ ...base, extAmount: 9000, extMin: 30 })[0].total && pats[2].rows[2].endAtMs === startedAtMs + (60 + 30 * 3) * 60_000
+      && extEstimatePatternsOf(null, { extMin: 30, extAmount: 2000, ruleId: null }, base).map((p) => p.label + ":" + p.current).join() === "延長 30分:true" && extEstimatePatternsOf(snap, { extMin: 30, extAmount: 9000, ruleId: "rv" }, base)[1].current === true
+      && tb.includes("data-ext-estimate-pattern={p.key}") && tb.includes('data-ext-estimate-pill="current"'), pats.map((p) => [p.label, p.current, p.rows[0].total]));
   } finally { await cleanup(); }
   if (fails.length) { console.error(`FAIL ${fails.length} 件 / pass ${pass}`); for (const f of fails) console.error(" - " + f); process.exit(1); }
   console.log(`verify:nox-m70 ALL PASS (${pass} assertions)`);

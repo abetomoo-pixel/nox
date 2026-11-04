@@ -62,5 +62,18 @@ export function extEstimateEndLabelOf(endAtMs: number, startedAtMs: number): str
   return d.getUTCDate() !== s.getUTCDate() ? `翌${hm}` : hm;
 }
 
+/** ★Agoora 指摘（2026-11-04 20:59）: 伝票の凍結メニュー（ext_menu_snap＝平日通常／週末通常／VIP 延長…）の全行についてそれぞれ見積を出す。snap が無い（旧伝票）は伝票の既定（ext_fee／ext_min）1 つ。current＝今の既定パターン（ext_rule_id・無ければ額と分の一致） */
+export type ExtSnapLike = { rule_id: string; duration_min: number; amount: number; label: string; is_default?: boolean };
+export type ExtEstimatePattern = { key: string; label: string; extMin: number; extAmount: number; isDefault: boolean; current: boolean; rows: ExtEstimateRow[] };
+export function extEstimatePatternsOf(snap: readonly ExtSnapLike[] | null | undefined, cur: { extMin: number; extAmount: number; ruleId?: string | null }, base: Omit<ExtEstimateInput, "extAmount" | "extMin">): ExtEstimatePattern[] {
+  const items = (snap ?? []).filter((m) => m.duration_min > 0 && m.amount >= 0);
+  if (items.length === 0) {
+    if (cur.extMin <= 0 || cur.extAmount <= 0) return [];
+    return [{ key: "default", label: `延長 ${cur.extMin}分`, extMin: cur.extMin, extAmount: cur.extAmount, isDefault: true, current: true, rows: extEstimateRowsOf({ ...base, extAmount: cur.extAmount, extMin: cur.extMin }) }];
+  }
+  const curKey = cur.ruleId && items.some((m) => m.rule_id === cur.ruleId) ? cur.ruleId : (items.find((m) => m.amount === cur.extAmount && m.duration_min === cur.extMin)?.rule_id ?? null);
+  return items.map((m) => ({ key: m.rule_id, label: m.label, extMin: m.duration_min, extAmount: m.amount, isDefault: m.is_default === true, current: m.rule_id === curKey, rows: extEstimateRowsOf({ ...base, extAmount: m.amount, extMin: m.duration_min }) }));
+}
+
 export const EXT_ESTIMATE_TITLE = "延長の見積";
 export const EXT_ESTIMATE_NOTE = "伝票の料金表（開いた時点の凍結値）と今の明細から、延長を足したときの合計（税・サービス料・丸め込み）です。";

@@ -14,7 +14,7 @@ import { dueBreakdownOf } from "@/lib/nox/check-calc"; // ★便 X13-G W-15: 合
 import { discountArgsOf, discountRateTextOf, payDiscountBaseOf, payDiscountKeyOf, payDiscountModesFor, payDiscountPreviewOf, payDiscountRatesOf, payDiscountRowTextOf, payReceiveOf, PAY_DISCOUNT_BASE_SHORT } from "@/lib/nox/rules-0175/pay-discount"; // ★0187（便 CASH・M-17・2026-10-27 夜）: 入金ごとの割引と受け取る額（フラグ配下）
 import { extGuideLabelOf, extGuidePriceOf, extGuideRowsOf, type ExtSnapItem } from "@/lib/nox/register/ext-guide";
 import ExtEstimateTable from "@/components/nox/ext-estimate-table"; // ★便 B M-70（2026-11-04）: 延長シミュレーション（表）
-import { EXT_ESTIMATE_TITLE, extAddedBlocksOf, extEstimateRowsOf } from "@/lib/nox/register/ext-estimate"; // ★便 B M-70: 延長 1〜3 回後の合計（会計と同じ関数） // ★0187（便 EXT）: 延長のご案内（お客様向け全画面・フラグ配下）
+import { EXT_ESTIMATE_TITLE, extAddedBlocksOf, extEstimatePatternsOf } from "@/lib/nox/register/ext-estimate"; // ★便 B M-70: 延長 1〜3 回後の合計（会計と同じ関数） // ★0187（便 EXT）: 延長のご案内（お客様向け全画面・フラグ配下）
 import ReceiptPrintSheet from "@/components/nox/receipt-print"; // ★便 GV-C C-13: 領収書の印字実体（共用）
 import GroupedNumberInput from "@/components/ui/grouped-number-input"; // ★便 X13-G W-12 ④: 3 桁区切りの入力欄
 import { renderSVG } from "uqr"; // R2-c: 領収書公開 URL の QR（依存ゼロの軽量ライブラリ・裁定 R2-13）
@@ -1780,9 +1780,10 @@ export default function RegisterBoard({
   const extGuideRows = check && mig0187On() ? extGuideRowsOf((check.ext_menu_snap ?? []) as ExtSnapItem[], bizClockOf(new Date(nowMs), cutoffHm).min, (check as { ext_rule_id?: string | null }).ext_rule_id ?? null) : [];
   // ★便 B M-70（2026-11-04）: 延長シミュレーション＝延長 1〜3 回後の合計（会計と同じ関数 groupDueFull・伝票の凍結値 ext_fee／ext_min・人数制は人数倍）。
   //   自動店は実時計の回数（timeStatusOf）から・手動店は追加済みの延長の行数から続ける。表示だけ（権威はサーバ）。
-  const extEstimateRows = check && check.status === "open" && check.ext_fee > 0 && check.ext_min > 0 ? extEstimateRowsOf({
+  //   ★Agoora 指摘（20:59）: 延長パターンごと（平日通常／週末通常／VIP 延長＝ext_menu_snap の全行）に表を出す。snap が無い旧伝票は既定 1 つ
+  const extEstimatePatterns = check && check.status === "open" ? extEstimatePatternsOf(check.ext_menu_snap, { extMin: check.ext_min, extAmount: check.ext_fee, ruleId: (check as { ext_rule_id?: string | null }).ext_rule_id ?? null }, {
     lines: lines.filter((l) => l.pay_group === "A"), settings: dueSettingsOf(check, estStore, rules0175On()), referralCustomer: referral?.burden === "customer" ? referral.amount : 0,
-    extAmount: check.ext_fee, extMin: check.ext_min, units: check.time_per === "person" ? (check.people ?? 1) : 1, people: check.people, perPerson: check.time_per === "person",
+    units: check.time_per === "person" ? (check.people ?? 1) : 1, people: check.people, perPerson: check.time_per === "person",
     baseBlocks: timeMode === "auto" ? timeStatusOf(new Date(check.started_at).getTime(), nowMs, check.set_min, check.ext_min).blocks : extAddedBlocksOf(lines),
     startedAtMs: new Date(check.started_at).getTime(), setMin: check.set_min,
   }) : [];
@@ -2736,7 +2737,7 @@ export default function RegisterBoard({
       {extEstimateOpen && check && (/* ★便 B M-70: 見積のポップオーバー＝時間料金の枠と同じ部品 */
         <Modal onClose={() => setExtEstimateOpen(false)} maxWidth={520}>
           <h3 style={{ margin: "0 0 10px" }}>{EXT_ESTIMATE_TITLE}（セット {check.set_min}分・{timeMode === "auto" ? "自動延長" : "手動延長"}）</h3>
-          <ExtEstimateTable rows={extEstimateRows} startedAtMs={new Date(check.started_at).getTime()} extMin={check.ext_min} extAmount={check.ext_fee} units={check.time_per === "person" ? (check.people ?? 1) : 1} />
+          <ExtEstimateTable patterns={extEstimatePatterns} startedAtMs={new Date(check.started_at).getTime()} units={check.time_per === "person" ? (check.people ?? 1) : 1} />
           <div className="nox-actions" style={{ marginTop: 10 }}><button type="button" style={btnLight} onClick={() => setExtEstimateOpen(false)}>閉じる</button></div>
         </Modal>
       )}
@@ -2841,7 +2842,7 @@ export default function RegisterBoard({
           })()}
           {/* ★便 X-8-7 (a)（裁定306 の型）: 2 段目＝延長／合計／伝票取消（／合算）。PC は display: contents＝従来の 1 行の並びのまま・≤899px は 100% 幅の 1 段（横はみ出し 0） */}
           <div className="nox-backbar-row2">
-          {extEstimateRows.length > 0 && (/* ★便 B M-70: 見積＝延長 1〜3 回後の合計（注文・指名・席タブからも同じ表をポップオーバー） */
+          {extEstimatePatterns.length > 0 && (/* ★便 B M-70: 見積＝延長 1〜3 回後の合計（注文・指名・席タブからも同じ表をポップオーバー） */
             <button type="button" style={btnLight} data-ext-estimate-open="1" onClick={() => setExtEstimateOpen(true)}>見積</button>
           )}
           {mig0187On() && check.status === "open" && extGuideRows.length > 0 && (/* ★0187（便 EXT）: 延長のご案内（お客様向け全画面）＝延長パターンがある店だけ */
@@ -3370,8 +3371,8 @@ export default function RegisterBoard({
                 延長 <span style={t.num}>{yen(timeCalc.ext_c)}</span> ＝ 合計 <span style={{ ...t.num, fontWeight: 700, color: "var(--v2-text)" }}>{yen(timeCalc.total)}</span>
               </p>
             )}
-            {extEstimateRows.length > 0 && (/* ★便 B M-70: 延長シミュレーション（自動店＝実時計の回数から） */
-              <div style={{ marginTop: 10 }} data-ext-estimate-card="auto"><ExtEstimateTable rows={extEstimateRows} startedAtMs={new Date(check.started_at).getTime()} extMin={check.ext_min} extAmount={check.ext_fee} units={check.time_per === "person" ? (check.people ?? 1) : 1} /></div>
+            {extEstimatePatterns.length > 0 && (/* ★便 B M-70: 延長シミュレーション（自動店＝実時計の回数から・パターンごと） */
+              <div style={{ marginTop: 10 }} data-ext-estimate-card="auto"><ExtEstimateTable patterns={extEstimatePatterns} startedAtMs={new Date(check.started_at).getTime()} units={check.time_per === "person" ? (check.people ?? 1) : 1} /></div>
             )}
             {timeMsg && <Toast msg={timeMsg} style={{ margin: "8px 0 0" }} />}
           </div>
@@ -3416,8 +3417,8 @@ export default function RegisterBoard({
                 </button>
               </div>
             )}
-            {extEstimateRows.length > 0 && (/* ★便 B M-70: 延長シミュレーション（手動店＝追加済みの回数からの続き） */
-              <div style={{ marginTop: 10 }} data-ext-estimate-card="manual"><ExtEstimateTable rows={extEstimateRows} startedAtMs={new Date(check.started_at).getTime()} extMin={check.ext_min} extAmount={check.ext_fee} units={check.time_per === "person" ? (check.people ?? 1) : 1} /></div>
+            {extEstimatePatterns.length > 0 && (/* ★便 B M-70: 延長シミュレーション（手動店＝追加済みの回数からの続き・パターンごと） */
+              <div style={{ marginTop: 10 }} data-ext-estimate-card="manual"><ExtEstimateTable patterns={extEstimatePatterns} startedAtMs={new Date(check.started_at).getTime()} units={check.time_per === "person" ? (check.people ?? 1) : 1} /></div>
             )}
             {mig0187On() && extGuideRows.length > 0 && (/* ★0187（便 EXT）: お客様に見せる全画面＝今の時間帯の延長時間を全部・タップで追加（確認 1 回）・主ボタン中央 */
               <div className="nox-actions" style={{ marginTop: 8 }}><button type="button" style={btnLight} data-ext-guide-open="1" onClick={() => { setExtGuideConfirm(null); setExtGuide(true); }}>延長のご案内（お客様向け）</button></div>
