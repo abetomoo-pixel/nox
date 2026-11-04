@@ -54,4 +54,4 @@ export const LINE_BIND_NOTE = "このリンクを本人の LINE へ送ってく�
 /** 台帳の kind＝0176 の CHECK（line_push_log.kind）と 1 字一致（4 つ）。キャスト通知は shift_*→shift_changed／それ以外→notice に写す */
 export const LINE_PUSH_KINDS = ["shift_published", "shift_changed", "punch_unclosed", "notice"] as const;
 export type LinePushKind = (typeof LINE_PUSH_KINDS)[number];
-export const linePushKindOfNotif = (kind: string): LinePushKind => (kind.startsWith("shift_") ? "shift_changed" : "notice");
+export const linePushKindOfNotif = (kind: string): LinePushKind => (kind === "shift_published" ? "shift_published" : kind.startsWith("shift_") ? "shift_changed" : "notice"); // ★便 C① M-77 ①: 期間の公開は台帳 kind shift_published

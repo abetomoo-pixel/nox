@@ -36,6 +36,22 @@ export function remindWishBody(p: { start_date: string; end_date: string; wish_d
   const md = (ymd: string) => `${Number(ymd.slice(5, 7))}/${Number(ymd.slice(8, 10))}`;
   return `シフト希望（${md(p.start_date)}〜${md(p.end_date)}）の提出をお願いします${p.wish_deadline ? `。締切 ${md(p.wish_deadline)}` : ""}`;
 }
+/** ★便 C① M-77 ①（2026-11-04）: 期間の公開＝その期間に配置（確定）されたキャスト全員に 1 通。本人の出勤日つき・cast_notifications の kind は 'other'（CHECK の 6 種のまま）・LINE 台帳の kind は 'shift_published'（既存） */
+export type ShiftPublishedDay = { date: string; start: string; end: string };
+export function shiftPublishedTargetsOf(rows: readonly { cast_id: string; date: string; start_hm: string; end_hm: string; status: string }[]): Map<string, ShiftPublishedDay[]> {
+  const m = new Map<string, ShiftPublishedDay[]>();
+  for (const r of [...rows].filter((x) => x.status === "confirmed").sort((a, b) => a.date.localeCompare(b.date) || a.start_hm.localeCompare(b.start_hm))) {
+    (m.get(r.cast_id) ?? m.set(r.cast_id, []).get(r.cast_id)!).push({ date: r.date, start: r.start_hm, end: r.end_hm });
+  }
+  return m;
+}
+export function shiftPublishedBody(p: { start_date: string; end_date: string }, days: readonly ShiftPublishedDay[]): string {
+  const md = (ymd: string) => `${Number(ymd.slice(5, 7))}/${Number(ymd.slice(8, 10))}`;
+  const head = `${md(p.start_date)}〜${md(p.end_date)} のシフトが公開されました。`;
+  const full = `${head}あなたの出勤日: ${days.map((d) => `${mdDowOf(d.date)} ${win(d.start, d.end)}`).join("、")}`;
+  return full.length <= CAST_NOTIF_BODY_MAX ? full : `${head}あなたの出勤日は ${days.length} 日です（マイページで確認してください）`;
+}
+export const SHIFT_PUBLISHED_LINE_KIND = "shift_published";
 /** ref＝「表:id」（120 字まで＝RPC が left(120)） */
 export const notifRefOf = (table: "shifts" | "shift_periods" | "availability", id: string): string => `${table}:${id}`;
 

@@ -52,8 +52,8 @@ import MonthNav, { useYmQuery } from "@/components/nox/month-nav"; // ★裁定3
 import { recruitNoteOf } from "@/lib/nox/ui/month-nav"; // ★306-2 募集期間の注記・306-10 は staff-shift-manage
 import { nextPeriodDefaults, overlappingPeriods, mdOf } from "@/lib/nox/shift/period"; // ★便 T（2026-09-18）: 期間の既定日付・重なり判定（純関数）
 import Modal from "@/components/ui/modal";
-import { notifyCast } from "@/lib/nox/people/notify"; // ★便 ON-3（0176 ★5 (d)・裁定413）: 確定シフトの追加／外し・送り返し・催促の通知（cast_notifications＋LINE）
-import { notifRefOf, remindNoticeDefaultOf, remindWishBody, shiftAddedBody, shiftChangedBody, shiftProposedBody, shiftRemovedBody } from "@/lib/nox/people/notify-text";
+import { notifyCast, notifyCasts } from "@/lib/nox/people/notify"; // ★便 ON-3（0176 ★5 (d)・裁定413）: 確定シフトの追加／外し・送り返し・催促の通知（cast_notifications＋LINE）
+import { SHIFT_PUBLISHED_LINE_KIND, notifRefOf, remindNoticeDefaultOf, remindWishBody, shiftAddedBody, shiftChangedBody, shiftProposedBody, shiftPublishedBody, shiftPublishedTargetsOf, shiftRemovedBody } from "@/lib/nox/people/notify-text"; // ★便 C① M-77 ①
 import { PERIOD_NEEDS_NOTE, emptyPeriodNeedsForm, periodNeedRequiredOf, periodNeedRowsOf, periodNeedsChipOf, periodNeedsErrorOf, periodNeedsFormOf, type PeriodNeedRow, type PeriodNeedsForm } from "@/lib/nox/shift/period-needs"; // ★便 ON-3（0176 ★5 (a)）: 期間ごとの必要人数
 import { declineTextOf } from "@/lib/nox/shift/decline"; // ★便 ON-3（0176 ★5 (c)・裁定406）: 辞退の印
 import { bandHmLabelOf, bandMinLabelOf, bandOptionsOf, periodShortOf } from "@/lib/nox/shift/half-hour"; // ★便 M2 M-16: 必要人数の時間帯＝30 分刻みの選択肢
@@ -791,6 +791,12 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
     });
     setMsg(error ? `計画の状態変更に失敗: ${rpcErrJa(error.message)}`
       : st === "published" ? "キャストに公開しました（マイページに確定シフトが出ます）" : `計画を「${PERIOD_ST_LABEL[st] ?? st}」にしました`); // ★裁定253 R12(e)
+    if (!error && st === "published") { // ★便 C① M-77 ①（2026-11-04）: 公開＝その期間に配置（確定）されたキャスト全員に 1 通（本人の出勤日つき・LINE 台帳 kind shift_published・デモは route が 204）
+      const { data: ss } = await supabase.from("shifts").select("cast_id, date, start_hm, end_hm, status").eq("store_id", storeId).eq("status", "confirmed").gte("date", pe.start_date).lte("date", pe.end_date).order("date").limit(2000);
+      const targets = shiftPublishedTargetsOf((ss ?? []) as { cast_id: string; date: string; start_hm: string; end_hm: string; status: string }[]);
+      const r = await notifyCasts(supabase, [...targets.keys()], (id) => ({ kind: "other", lineKind: SHIFT_PUBLISHED_LINE_KIND, body: shiftPublishedBody(pe, targets.get(id) ?? []), ref: notifRefOf("shift_periods", pe.id) }));
+      setMsg(`キャストに公開しました（配置された ${targets.size} 人に通知${r.failed.length ? `・失敗 ${r.failed.length}` : ""}・マイページに確定シフトが出ます）`);
+    }
     await load();
   }
 
