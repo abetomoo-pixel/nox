@@ -463,7 +463,7 @@ async function main() {
       check("G9 0153 check_lines_kind_check＝11 値（+keep_out）", (k153.rows[0]?.d as string).includes("'keep_out'") && ((k153.rows[0]?.d as string).match(/::text/g) || []).length === 11, k153.rows[0]?.d);
       // ★0155（裁定309-3）: cast_sensitive 11 列（+mynumber_deleted_at／mynumber_deleted_by／mynumber_deletion_method・別表なし）
       const c155 = await db.query(`select count(*)::int n, bool_and(column_name in ('mynumber_deleted_at','mynumber_deleted_by','mynumber_deletion_method')) filter (where column_name like 'mynumber_del%') three from information_schema.columns where table_schema='public' and table_name='cast_sensitive'`);
-      check("G9 0155 列集合: cast_sensitive 11（+廃棄記録 3 列）", c155.rows[0]?.n === 11 && c155.rows[0]?.three === true, JSON.stringify(c155.rows));
+      check("G9 0155 列集合: cast_sensitive 18（+廃棄記録 3 列・★0193 +住所／電話／口座 5＝7 列）", c155.rows[0]?.n === 18 /* ★0193（2026-11-04）: 11→18 */ && c155.rows[0]?.three === true, JSON.stringify(c155.rows));
       // ★0156（裁定309-6／8／9）: 列集合＝punches 14（+okuri）／daily_pays 12／payroll_run_deduction_overrides 10・新表 2 の policy＝select 1 本ずつ・unique（run_id, cast_id, deduction_id）
       const c156 = await db.query(`select table_name, count(*)::int n from information_schema.columns where table_schema='public' and table_name in ('punches','daily_pays','payroll_run_deduction_overrides') group by 1 order by 1`);
       const n156 = Object.fromEntries(c156.rows.map((r) => [r.table_name, r.n]));

@@ -1847,7 +1847,7 @@ async function mainBody() {
         const { error: eD3 } = await mgr.rpc("staff_deactivate", { p_membership_id: memD2 });
         check("段17 ④ manager 他店 D2 forbidden（店スコープ）", forbidden(eD3), eD3?.message ?? "通ってしまった");
         const { error: eD4 } = await owner.rpc("staff_deactivate", { p_membership_id: memOwner.id });
-        check("段17 ④ 対象 owner = bad target（owner 解除封じ）", has(eD4, "bad target"), eD4?.message ?? "通ってしまった");
+        check("段17 ④ 対象 owner＝唯一の管理者は 'last owner'（★0193: 管理者も退店できる・最後の 1 人は不可）", has(eD4, "last owner"), eD4?.message ?? "通ってしまった");
         const { error: eD5 } = await owner.rpc("staff_deactivate", { p_membership_id: randomUUID() });
         check("段17 ④ 不在 membership = not found", has(eD5, "not found"), eD5?.message ?? "通ってしまった");
         const { error: eD6 } = await mgr.rpc("staff_deactivate", { p_membership_id: memD1 });
@@ -5442,6 +5442,7 @@ async function mainBody() {
     const HEX24 = /^[0-9a-f]{24}$/;
 
     const { data: s36A1 } = await admin.from("stores").select("id, org_id, settings_json").eq("name", STORE_A1).single();
+    const { data: s36A2 } = await admin.from("stores").select("id").eq("name", STORE_A2).single(); // ★0193: 店長の他店 forbidden の相手
     const baseline36 = (s36A1?.settings_json ?? null) as Record<string, unknown> | null;
     const { data: seat36 } = s36A1
       ? await admin.from("seats").select("id").eq("store_id", s36A1.id).limit(1).single()
@@ -5521,12 +5522,15 @@ async function mainBody() {
           (cfg1 as { has_token: boolean })?.has_token === true && !JSON.stringify(cfg1).includes(token), JSON.stringify(cfg1));
 
         // ═══ c. owner 限定負系 ═══
-        const { error: eM1 } = await mgr.rpc("set_printer_config", { p_store_id: s36A1.id, p_enabled: true, p_serial: null });
-        check("段36 manager set_printer_config forbidden", forbidden(eM1), eM1?.message ?? "通ってしまった");
-        const { error: eM2 } = await mgr.rpc("rotate_store_token", { p_store_id: s36A1.id });
-        check("段36 manager rotate_store_token forbidden", forbidden(eM2), eM2?.message ?? "通ってしまった");
-        const { error: eM3 } = await mgr.rpc("get_printer_config", { p_store_id: s36A1.id });
-        check("段36 manager get_printer_config forbidden", forbidden(eM3), eM3?.message ?? "通ってしまった");
+        // ★0193（2026-11-04）: 店長は自店のプリンタ設定を読める・書ける＝他店（A2）は forbidden（自店の rotate は token が変わり後段の claim が切れるので打たない）
+        const { error: eM1 } = await mgr.rpc("set_printer_config", { p_store_id: s36A2!.id, p_enabled: true, p_serial: null });
+        check("段36 manager 他店 set_printer_config forbidden（★0193）", forbidden(eM1), eM1?.message ?? "通ってしまった");
+        const { error: eM2 } = await mgr.rpc("rotate_store_token", { p_store_id: s36A2!.id });
+        check("段36 manager 他店 rotate_store_token forbidden（★0193）", forbidden(eM2), eM2?.message ?? "通ってしまった");
+        const { data: cfgM, error: eM3 } = await mgr.rpc("get_printer_config", { p_store_id: s36A1.id });
+        check("段36 manager 自店 get_printer_config 成功・token 値は非含有（★0193）", !eM3 && (cfgM as { has_token: boolean })?.has_token === true && !JSON.stringify(cfgM).includes(token), eM3?.message ?? JSON.stringify(cfgM));
+        const { error: eM4 } = await mgr.rpc("get_printer_config", { p_store_id: s36A2!.id });
+        check("段36 manager 他店 get_printer_config forbidden（★0193）", forbidden(eM4), eM4?.message ?? "通ってしまった");
         const { error: eN1 } = await owner.rpc("set_printer_config", { p_store_id: s36A1.id, p_enabled: null, p_serial: null });
         check("段36 set_printer_config null = bad enabled", has(eN1, "bad enabled"), eN1?.message ?? "通ってしまった");
 

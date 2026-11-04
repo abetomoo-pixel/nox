@@ -344,6 +344,11 @@ kiosk_provision（新規 kiosk の追加＝拡大操作）
 - 0192 M-34 未発行キャストの基本の働き方: availability_set_cast
 （対象 188→**195**・live 実測＝'billing locked' **195**・述語参照 196・挿入行の形 195。0192 の改稿 19 本（kiosk の helper 2＋RPC 12＋上限 2・set_store_profile・availability_set／availability_list）は名前不変で本数不変）
 
+### A16. 0193（3本・2026-11-04 本番適用（Agoora 手貼り・2 回目で Success・verify 30 行一致）・0193 のフラグ true 便で収載・規則A形でゲート内蔵・kiosk 腕なし）
+- 0193 ★2 個人情報: set_cast_sensitive_ext（キャストの住所・電話・口座）・set_staff_sensitive（スタッフの機密）
+- 0193 ★3 肩書: set_membership_title
+（対象 195→**198**・live 実測＝'billing locked' **198**・述語参照 199・挿入行の形 198。0193 の改稿 12 本（プリンタ 3・端末 3・staff_attendance_confirm・get_cast_sensitive・get_cast_mynumber_masked・set_membership_role・staff_deactivate・staff_punch）は名前不変で本数不変）
+
 ## B. 除外（99本）
 
 ### B(a) 構造除外＝authenticated 実行不可（service/内部・28本）→ ゲート不要（B7 回避型(1)）
@@ -516,6 +521,10 @@ staff_deactivate / kiosk_deactivate
 - 読取 RPC（B(f) と同列・M-45）: cast_pin_status（マスタ › システム › PIN のキャストの行）
 - 構造除外＝authenticated 実行不可（service_role 専用・B(a) と同列・0192_plan 項目 9 案 A）: demo_reset_mark_failed（公開デモ cron の失敗の監査）
 （除外 206→**208**・全数 394→**403**（0192 ＋9＝A 7＋B 2））
+
+### B(u). 0193 新設の除外（3本・2026-11-04・0193 のフラグ true 便で収載）
+- 読取 RPC（B(f) と同列・閲覧は audit）: get_cast_sensitive_ext（キャストの住所・電話・口座）・get_staff_sensitive（スタッフの機密）・member_profile_get（本人情報の閲覧＝member_profiles の直読みは本人だけに）
+（除外 208→**211**・全数 403→**409**（0193 ＋6＝A 3＋B 3））
 
 ## C. kiosk 腕を持つ対象（実装注意・18本）
 A1 の check_open / check_add_line / check_remove_line / check_add_seat / check_remove_seat /

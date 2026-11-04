@@ -47,7 +47,7 @@ async function main() {
     const before = JSON.stringify(await one(snapSql, [A1.id]));
     // masked は不触（md5 6f401f45・戻り text）
     const msk = await one<{ m: string; rt: string }>("select md5(replace(prosrc, E'\\r', '')) m, pg_get_function_result(oid) rt from pg_proc where pronamespace='public'::regnamespace and proname='get_cast_mynumber_masked'");
-    check("dp(5-0) get_cast_mynumber_masked は不触（md5 6f401f45・戻り text）＝309 追補2 (f)", msk?.m.slice(0, 8) === "6f401f45" && msk?.rt === "text", JSON.stringify(msk));
+    check("dp(5-0) get_cast_mynumber_masked（md5 d44d4f3c＝★0193 で店長の腕・戻り text）＝309 追補2 (f)", msk?.m.slice(0, 8) === "d44d4f3c" /* ★0193（2026-11-04）: 6f401f45→d44d4f3c */ && msk?.rt === "text", JSON.stringify(msk));
 
     await db.query("begin");
     try {

@@ -123,7 +123,7 @@ check("m2(19-1) 確定シフトの日モーダル＝その日専用の DayAddPan
 // ── A 15-③ ──
 const sf = src("app/(manage)/staff/staff-board.tsx");
 check("m2(A-1) オーナーの譲渡＝オーナー本人だけ・相手は有効な管理者／店長・確認ダイアログ（相手の名前・「譲渡する」・.nox-actions 中央）→owner_transfer→画面を読み直す",
-  sf.includes('roleRaw === "owner" && sel.is_active && !isSelf(sel) && rules0175On() && (sel.role === "admin" || sel.role === "manager")') && sf.includes(">オーナーを譲渡</button>")
+  sf.includes('roleRaw === "owner" && sel.is_active && !isSelf(sel) && rules0175On() && !mig0193On() && (sel.role === "admin" || sel.role === "manager")') /* ★0193: 管理者は複数＝譲渡は 0193 の後は出さない */ && sf.includes(">オーナーを譲渡</button>")
   && sf.includes("オーナーを譲渡しますか？</h3>") && sf.includes('譲渡する相手：<b>{users[transferTo.user_id]?.name ?? "—"}</b>')
   && sf.includes('<div className="nox-actions">\n              <button style={btnGhost} disabled={busy} onClick={() => setTransferTo(null)}>やめる</button>') && sf.includes('rpc("オーナーを譲渡", "owner_transfer", { p_membership_id: transferTo.id })') && sf.includes(">譲渡する</button>"));
 

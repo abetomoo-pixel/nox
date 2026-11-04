@@ -5173,6 +5173,17 @@ DB 変更 0 の見込み。要れば 0190 起草のみ。」
 **教訓130（確定・相談役 2026-11-03）＝f0 は timeout 付きの bash で走らせない・他の走りと並走しない**: bash の timeout（600000 ms）が f0 の背景実行を 10 分で kill し、止まった suite の finally（掃除）が走らず残留が出た（10/30 run A'＝receipt_issues 5 行）。f0 は detached（PowerShell の Start-Process）で起動し、撮影（Playwright）や他の f0 と同時に走らせない。dev サーバ（3200）の応答を f0 の前に確かめ、落ちたら消し残しを数えてから走り直す（教訓123）。
 **教訓131（追加・相談役 2026-11-03）＝デモの payload は月相対（{$m}）と営業日相対（{$rel}）が月初に同じ日へ写る＝一意キーで重なる**: 11/01 の reset で ACE（cast_plan のキャスト×11/01）と NEST（shifts／attendance のキャスト×10/28）が一意キー違反で load 失敗。処置＝lib/nox/demo/dateshift.ts の shiftPayload に一意キーの guard（shifts／attendance／cast_plan／daily_reports・衝突は {$rel} を残す・valid_to < valid_from の cast_plan を落とす）＝7c6da83・6 店×400 日の走査で重複 0（2027-03 の 2/28 畳み込みも検出）。日付を写す生成物は、一意キーで重ならないことを先の日付まで走査してから出す。
 
+### 便 0193 フラグ true（2026-11-04・Agoora 手貼り後・MIG_0193_APPLIED=true・DB 恒久変更 0）
+
+- **手貼り**＝1 回目 deadlock で ROLLBACK（単一トランザクションで無傷）→ 2 回目は begin の直後に `set local lock_timeout = '10s';` を足して Success（docs/demo/handpaste_0193.md に記録・mig ファイルは手貼りした本体と同じ＝sha16 93e57df1a1fe30c2）。verify 30 行＝期待値と全行一致（Agoora の返り・CC の読取の両方）。本番 関数 **409**・表 **115**。
+- **教訓 132 候補**＝表の ALTER（ポリシー・列・CHECK）と稼働中の関数の CREATE OR REPLACE を 1 本で流すと、営業中の読み書きとロックの順が交差して deadlock になりうる＝次の mig から begin の直後に `set local lock_timeout` を入れておく（相談役採番）。
+- **client**＝ブランチ draft/0193-client（53e71c0／c629eed）を main へ（cherry-pick）・フラグ true・同乗 ① 画面の「オーナー」→「管理者」56 か所（コメントと LP は不変＝LP は v4 の便で）② **M-62** キオスクの staff_punch 'confirmed'＝「この月の勤怠は確定済みです」③ admin を選択肢に出さない（確認＝0193c 4-1／4-2／7-1）。
+- **仮決め（相談役案で確定扱い・事後承認）**：F193-1 スタッフ詳細の「オーナーを譲渡」は 0193 の後は出さない（管理者は複数置ける＝任命は「管理者にする」・owner_transfer は残す）／F193-2 勤怠の確定の解除の文言＝「解除は店長以上」（0193 ① で店長に開いた）／F193-3 0175 の旧ラベル表（フラグ false 用）と LP（app/lp）は置換しない／F193-4 sensitive-tax-panel の店長の入力欄（マイナンバー入力のみ・末尾 4 桁）は画面をまだ開いていない＝DB は開いた（次の client 便）。
+- **live**＝RPC 層 19/19（BEGIN…ROLLBACK・409／115 不変）。
+- **pin 張替え 13 suite**＝anon-guard（段17 last owner・段36 店長は自店のプリンタ可・他店 forbidden）／rls（F2b・F2d 店長は自店の機密と末尾 4 桁）／grants（G9 cast_sensitive 18 列）／billing（対象 198・除外 211・述語参照 199＝課金ゲート名簿 A16／B(u)）／daily-pay（masked の md5 d44d4f3c）／0158・0188・p172・0190（409／115・'billing locked' 198）／0190（店長の unbind・reactivate）／x13・p172・m2・m3・p175prep（文言）／0193c（10）。
+- **f0**＝run A 緑（169 段 7,127）→ run B は 0158(6-9) が 1 回赤（punch_self の out が通らず transport_issue_self に null＝トランザクション内で now() が固定＝打刻が同時刻で並び順の同点に当たる型＝0190 の 10/30 と同じ・単走は緑・今回の変更外）→ **run C／D の 2 連緑（169 段 7,127・golden 不変）**。lint（app／lib／components）Error 0・tsc 0。
+- 次の M＝**M-63**。
+
 ### Agoora 確定 10/27（4）＝M-24（実機指摘 10/27 15:52・デモ LUNA・キャスト詳細）
 
 出典＝相談役ブロック 2026-10-27（Agoora の実機指摘）。便 M3 に入れる（日払いの種別の 1 項目は 0188 の便の client 分に追記）。390px 基準・live に 390 相当と「主ボタン中央」。**本文（逐語）**:
@@ -8007,7 +8018,7 @@ anon-guard 段28 が無差別 `limit(1)` でそれを拾い 'bad amount'/BV=unde
 
 ## 次の番号（2026-11-04・相談役 11/03 の確定を収載した時点）
 
-- **次の裁定＝443**（439〜442＝2026-11-03 確定で収載）。**次の M＝M-62**（M-50〜M-61＝便 M5b と追補）。**次の教訓＝132**（126／129／130＝確定・131＝追加・127＝欠番のまま）。**次の mig＝0193**（下書き docs/tmp/0193_roles_privacy.sql・手貼り待ち）→ 0194（ローンチ前に必須・起草前に 24 行を相談役へ）。
+- **次の裁定＝443**（439〜442＝2026-11-03 確定で収載）。**次の M＝M-63**（M-50〜M-61＝便 M5b と追補・M-62＝キオスクの確定済みの文言）。**次の教訓＝132**（126／129／130＝確定・131＝追加・127＝欠番のまま・132 候補＝mig に lock_timeout）。**次の mig＝0194**（0193＝2026-11-04 適用済み）→ 0194（ローンチ前に必須・起草前に 24 行を相談役へ）。
 
 ## 次の番号（2026-10-30 便 M5 時点）
 

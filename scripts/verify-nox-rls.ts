@@ -1344,7 +1344,7 @@ async function main() {
       const { error: eTax } = await m.rpc("set_cast_tax_profile", { p_cast_id: castIdA, p_mode: "委託", p_invoice: "免税", p_reg_no: null, p_reg_valid_from: null, p_reg_valid_to: null, p_reg_notified_on: null });
       check("F2b manager set_cast_tax_profile 成功", !eTax, eTax?.message);
       const { error: eGet } = await m.rpc("get_cast_sensitive", { p_cast_id: castIdA });
-      check("F2b T6a: manager get_cast_sensitive 拒否", forbidden(eGet), eGet?.message ?? "通ってしまった");
+      check("F2b T6a: manager 自店 get_cast_sensitive 成功（★0193 ★2＝店長は自店の本名を読める）", !eGet, eGet?.message);
       const { error: eSel } = await m.from("cast_sensitive").select("cast_id").limit(1);
       check("F2b 物理封鎖: manager 直 SELECT permission denied（grant0）", denied(eSel), eSel?.message ?? "読めてしまった");
       const { data: tax } = await m.from("cast_tax_profiles").select("cast_id, mode").eq("cast_id", castIdA);
@@ -1474,7 +1474,7 @@ async function main() {
     check("F2d masked: cast 他人拒否（本人 cast_id 限定）", forbidden(eMaskOther), eMaskOther?.message ?? "通ってしまった");
     // masked: manager 拒否（cast 本人限定・owner/manager 不可）
     const { error: eMaskMgr } = await m.rpc("get_cast_mynumber_masked", { p_cast_id: castIdA });
-    check("F2d masked: manager 拒否（cast 本人限定 RPC）", forbidden(eMaskMgr), eMaskMgr?.message ?? "通ってしまった");
+    check("F2d masked: manager 自店は末尾 4 桁のみ（★0193 ★2）", !eMaskMgr, eMaskMgr?.message);
     // ★封印不変: 暗号化後も cast_sensitive 直 SELECT は permission denied（grant0 維持）
     const { error: eSel } = await ca.from("cast_sensitive").select("cast_id").limit(1);
     check("F2d 封印不変: 暗号化後も cast 直 SELECT permission denied（grant0 維持）", !!eSel?.message?.includes("permission denied"), eSel?.message ?? "読めてしまった");

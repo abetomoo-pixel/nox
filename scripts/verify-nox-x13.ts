@@ -36,7 +36,7 @@ const src = (p: string) => fs.readFileSync(p, "utf8");
 {
   const s = src("components/ui/header-chips.tsx");
   check("x13(header-sheet-1) 自分の情報＝メール行なし・登録名／役割／店舗・ログアウト（POST /auth/signout）", !s.includes("<dt>メール</dt>") && s.includes("<dt>登録名</dt>") && s.includes("<dt>役割</dt>") && s.includes("<dt>店舗</dt>") && s.includes('<form action="/auth/signout" method="post"'));
-  check("x13(header-sheet-2) 変更の案内 1 行は残る・≤900 は既存シート（variant top＝≥901 のみ・globals.css）", s.includes("登録名・メールの変更はスタッフ画面（オーナー）から行います。") && s.includes('variant="top"') && /@media \(min-width: 901px\) \{\s*\.nox-modal-top/.test(src("app/globals.css")));
+  check("x13(header-sheet-2) 変更の案内 1 行は残る・≤900 は既存シート（variant top＝≥901 のみ・globals.css）", s.includes("登録名・メールの変更はスタッフ画面（管理者）から行います。") /* ★0193 フラグ便 */ && s.includes('variant="top"') && /@media \(min-width: 901px\) \{\s*\.nox-modal-top/.test(src("app/globals.css")));
 }
 // quota-table
 {

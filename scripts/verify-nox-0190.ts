@@ -22,7 +22,7 @@ let ok = 0; const fails: string[] = [];
 const expect = (label: string, cond: boolean, detail?: unknown) => { if (cond) ok++; else fails.push(`${label}${detail !== undefined ? `: ${JSON.stringify(detail)}` : ""}`); };
 const ENTRY = ["kiosk_login", "kiosk_unlock", "kiosk_qr_secret", "kiosk_qr_poll", "cast_leave", "staff_deactivate"];
 const NEW_FNS = ["duty_gate_of", "on_duty_of", "assert_on_duty", "kiosk_device_bind", "kiosk_device_unbind", "kiosk_reactivate", "kiosk_delete"];
-const FN_PIN = 403; // ★0192（2026-11-02 適用）: 394→403（新設 9）← ★0191（2026-10-30 適用）: 393→394（setup_draft_set）← ★0190: 386→393
+const FN_PIN = 409; // ★0193（2026-11-04）: 403→409（新設 6） // ★0192（2026-11-02 適用）: 394→403（新設 9）← ★0191（2026-10-30 適用）: 393→394（setup_draft_set）← ★0190: 386→393
 const FN_COUNT_SQL = `select count(*)::int n from pg_proc where pronamespace='public'::regnamespace`;
 
 async function main() {
@@ -116,7 +116,7 @@ async function main() {
     const ub2 = await tx.as(owner, `select public.kiosk_device_unbind($1::uuid)`, [dev]);
     const bd5 = await tx.as(owner, `select public.kiosk_device_bind('fp-bbbbbbbbbbbb', 'y') r`);
     const au = await tx.one<{ n: string }>(`select count(*)::text n from public.audit_logs where action in ('kiosk_device_bind','kiosk_device_unbind') and target = 'kiosk_devices:' || $1`, [dev]);
-    expect("kiosk_device_unbind＝manager は forbidden・オーナーで解除→別の fp で再束縛できる・audit に bind 2＋unbind 1", !ub1.ok && /forbidden/.test(tx.errOf(ub1)) && ub2.ok && bd5.ok && (bd5.rows[0].r as { bound: boolean }).bound === true && au?.n === "3", { ub1: tx.errOf(ub1), ub2: tx.errOf(ub2), bd5: tx.errOf(bd5), au });
+    expect("kiosk_device_unbind＝★0193 で自店の店長も解除できる・オーナーの解除も通る→別の fp で再束縛できる・audit に bind 2＋unbind 2", ub1.ok && ub2.ok && bd5.ok && (bd5.rows[0].r as { bound: boolean }).bound === true && au?.n === "4", { ub1: tx.errOf(ub1), ub2: tx.errOf(ub2), bd5: tx.errOf(bd5), au });
     // ── 退店＝PIN 削除・kiosk_sessions 'retired' ──
     await c.query(`insert into public.staff_pin (membership_id, org_id, store_id, pin_hash) values ($1, $2, $3, 'x') on conflict (membership_id) do update set pin_hash = 'x'`, [staffM, A1.org_id, A1.id]);
     const ses = (await tx.one<{ id: string }>(`insert into public.kiosk_sessions (org_id, store_id, device_id, membership_id, operator_user_id, token_hash) values ($1, $2, $3, $4, $5, 'h') returning id`, [A1.org_id, A1.id, dev, staffM, staffU.id]))!.id;
@@ -162,11 +162,12 @@ async function main() {
     const re1 = kd1 ? await tx.as(owner, `select public.kiosk_reactivate($1::uuid)`, [kd1]) : { ok: false, err: "no device" } as const;
     const de2 = kd1 ? await tx.as(owner, `select public.kiosk_deactivate($1::uuid)`, [kd1]) : { ok: false, err: "no device" } as const;
     const reM = kd1 ? await tx.as(mgr, `select public.kiosk_reactivate($1::uuid)`, [kd1]) : { ok: false, err: "no device" } as const;
+    const de3 = reM.ok ? await tx.as(owner, `select public.kiosk_deactivate($1::uuid)`, [kd1]) : { ok: false, err: "reM failed" } as const; // ★0193: 店長の再開が通る＝削除の前にもう一度無効化
     const delA = kp5.ok ? await tx.as(owner, `select public.kiosk_delete($1::uuid)`, [(kp5.rows[0] as { r: string }).r]) : { ok: false, err: "no device" } as const;
     const del1 = kd1 ? await tx.as(owner, `select public.kiosk_delete($1::uuid)`, [kd1]) : { ok: false, err: "no device" } as const;
     const gone = kd1 ? (await tx.one<{ n: number }>(`select count(*)::int n from public.kiosk_devices where id = $1`, [kd1]))!.n : -1;
     const aud = (await tx.one<{ n: number }>(`select count(*)::int n from public.audit_logs where action in ('kiosk_reactivate','kiosk_delete') and target = 'kiosk_devices:' || $1`, [kd1 ?? ""]))!.n;
-    expect("⑦ M-29 無効化→（枠が空く＝5 台目 OK）→再発行して有効化＝上限に達していると 'device limit'→無効化→manager は forbidden→有効な端末の削除は 'still active'→無効化済みの削除で行が消える・audit 2 行", de.ok && kp5.ok && !re1.ok && /device limit/.test(tx.errOf(re1)) && de2.ok && !reM.ok && /forbidden/.test(tx.errOf(reM)) && !delA.ok && /still active/.test(tx.errOf(delA)) && del1.ok && gone === 0 && aud >= 1, { de: tx.errOf(de), kp5: tx.errOf(kp5), re1: tx.errOf(re1), de2: tx.errOf(de2), reM: tx.errOf(reM), delA: tx.errOf(delA), del1: tx.errOf(del1), gone, aud });
+    expect("⑦ M-29 無効化→（枠が空く＝5 台目 OK）→再発行して有効化＝上限に達していると 'device limit'→無効化→★0193 自店の manager は forbidden ではない（枠が埋まっていれば device limit）→有効な端末の削除は 'still active'→無効化済みの削除で行が消える・audit 2 行", de.ok && kp5.ok && !re1.ok && /device limit/.test(tx.errOf(re1)) && de2.ok && !/forbidden/.test(tx.errOf(reM)) && (reM.ok ? de3.ok : /device limit/.test(tx.errOf(reM))) /* ★0193: 自店の店長は再開の権限あり（ここでは 5 台目が枠を使っているので上限で止まる） */ && !delA.ok && /still active/.test(tx.errOf(delA)) && del1.ok && gone === 0 && aud >= 1, { de: tx.errOf(de), kp5: tx.errOf(kp5), re1: tx.errOf(re1), de2: tx.errOf(de2), reM: tx.errOf(reM), delA: tx.errOf(delA), del1: tx.errOf(del1), gone, aud });
     const lock10 = (await tx.one<{ ok: boolean }>(`select (prosrc like '%::int, 10));%') ok from pg_proc where pronamespace='public'::regnamespace and proname = 'kiosk_login'`))!.ok;
     expect("⑧ K-1 kiosk_login の既定ロック＝10 分", lock10 === true);
     out.md5 = Object.fromEntries((await tx.q<{ proname: string; m: string }>(`select proname, left(md5(replace(prosrc, chr(13), '')), 8) m from pg_proc where pronamespace='public'::regnamespace and proname in ('duty_gate_of','on_duty_of','assert_on_duty','kiosk_device_bind','kiosk_device_unbind','kiosk_login','kiosk_unlock','kiosk_qr_secret','kiosk_qr_poll','cast_leave','staff_deactivate','set_store_profile','check_open','check_add_line','check_pay','check_close','kiosk_provision','kiosk_reactivate','kiosk_delete') order by proname`)).map((r) => [r.proname, r.m]));
