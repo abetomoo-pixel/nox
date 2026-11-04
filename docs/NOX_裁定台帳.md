@@ -5183,7 +5183,8 @@ DB 変更 0 の見込み。要れば 0190 起草のみ。」
 - **suite**＝verify:nox-m63（11）を新設＝f0 の末尾（169→**170 段**）。pin 張替え 2 本（p172／w10）。単走 21 本緑（m63／w10／s3／ob2／setup／0193c／c2／m3／p174／x13g／nav／layout-bottom／staff-photo／m2／gvd／on3／p175prep／k／0188／432／p172）。
 - **f0**＝**170 段 7,138** の 2 連緑（run A 13:55→14:11・run B 14:12→14:33・golden 不変＝玲奈 5931／125802）。tsc 0・lint Error 0（警告 4＝既存の setup-wizard 3・toast 1）。
 - **0194 の起草**＝docs/tmp/0194_manager_open5.sql（334 行・sha16 **216e190c7a5b55d2**・live から生成＝docs/tmp/gen_0194.cjs・begin の直後に set local lock_timeout = '10s'＝教訓132）＋docs/tmp/0194_verify.sql＋docs/tmp/handpaste_0194.md。試走 docs/tmp/try_0194.mjs＝BEGIN…ROLLBACK **23/23・409／115 →（tx 内 411／116）→ 409／115＝DB 変更 0**。中身＝裁定444 の 5 のうち DDL の 4 関数（kiosk_provision／kiosk_delete／set_store_receipt_profile／staff_payroll_run_set_status＝自店の店長）＋admin の CHECK 外し（行が残っていれば貼れない DO ブロック・set_membership_role から admin の受け口を外す）＋staff_labor_confirmed（表＋staff_labor_confirmed_set＝月の確定が前提・解除で消す）＋kiosk_stock_levels（読取のみ・操作担当の解除あり）。④ mark-paid ⑤ update-email は route＝フラグ true 便の client。**相談役確認待ち 4 点**＝handpaste_0194.md（確定額は client の計算をそのまま凍結／保存の動線は 2 RPC／在庫タイルは読取だけ／フラグ true 便の client の範囲）。
-- 次の M＝**M-65**。次の mig＝0194（手貼り待ち）。
+- **0194 の下書き v2（裁定445 反映・2026-11-04 15:2x）**＝docs/tmp/0194_manager_open5.sql（336 行・sha16 **c6ab2b20dc9b6167**・v1 216e190c7a5b55d2 は破棄）。変更＝staff_labor_confirmed を内訳つき（hourly／minutes／time_pay／fixed／monthly／daily／days／amount／deductions／calc_version＝17 列）に・別 RPC staff_labor_confirmed_set を廃止し staff_attendance_confirm を 4 引数（p_labor jsonb default null）に作り直し（旧署名 drop＋ACL 再付与）・時給制の行は RPC が時給×実働÷60 を再計算（端数＝settings_json.labor_rounding down／up／round・既定 down）して time_pay と amount の一致を確認（違えば 'labor mismatch'）・解除（p_lock=false）で額も消す・audit に人数と合計。試走 try_0194.mjs＝**28/28・409／115 →（tx 内 410／116）→ 409／115＝DB 変更 0**。verify 20 行＝handpaste_0194.md の期待値。
+- 次の M＝**M-65**。次の mig＝0194（手貼り待ち・v2）。
 
 ### 相談役・Agoora 11/04 午後の確定（434 ④・裁定444 の開く 5・教訓132 採番・M-63／M-64 の対象）
 
@@ -5240,6 +5241,12 @@ Agoora が 7 本を手貼り（0185→0180→0181→0182→0183→0184→0186）
 - **小さな直しの候補（次の mig に同乗・今は起草しない）**: remove_store_special_day に billing_writable_of の確認が無い（set_store_special_day にはある）＝揃える。
 - **0183 の (a)**: payroll_withholding_overrides／payroll_employee_deductions の period は YYYY-MM＝payroll_runs.period も CHECK で YYYY-MM・period_bounds も月だけ＝run は精算方式（settlement_cycle）に関係なく月単位で、half／weekly／daily は源泉の暦日数の注記と日払いの種別だけ（本番 10 店とも settlement_cycle 未設定＝月次）＝今は足りる。半月・週の run を作るときは run・上書き・控除の 3 つの period を一緒に設計し直す。
 - **0183 の (b)**: キャストの源泉区分は「税務情報を保存」で set_cast_tax_profile（upsert＝行を作る）の後に set_withholding_kind を呼ぶ＝not found にならない。スタッフは契約の行がある人だけ区分の選択が出る（行を作る動線＝B の 6-④）。
+
+## 裁定445（2026-11-04 確定・相談役）0194 の確認 4 点＝確定額は内訳ごと凍結し時給は RPC で再計算・保存は staff_attendance_confirm 1 本・在庫タイルは読取だけ・フラグ true 便の client
+
+出典＝相談役 11/04（docs/tmp/handpaste_0194.md の「相談役確認待ち 4 点」への返事）。適用＝0194（下書きを直して再生成・2026-11-04）。
+「① 確定額は額と一緒に入力（実働分・時給／月給・控除の内訳・計算版）を凍結し、時給制の行は RPC 内で 時給 × 実働 を再計算して一致を確認（端数は店設定・不一致は raise）。② 保存は 1 RPC＝staff_attendance_confirm に p_labor jsonb を足して確定と凍結を同一トランザクション（arity 変更＝DROP 旧署名＋ACL 再付与＋verify の件数更新）・解除（staff_attendance_unlock）で額も消す。③ kiosk_stock_levels は読取だけ。④ フラグ true 便の client＝mark-paid／update-email の route・店長に開く 3 画面（端末の発行・削除／領収書の店情報／スタッフ給与 run の状態）・確定後は凍結額を表示して再計算しない・キオスクの在庫タイル。」
+CC 注（本文ではない）: 解除の関数は別に無い＝staff_attendance_confirm の p_lock=false がその経路（0192 のまま）＝そこで額も消す。「端数は店設定」＝スタッフ給与の端数の店設定は無い（staffPayOf＝floorYen）ため、settings_json.labor_rounding（down 既定／up／round）を RPC が読む形で仮置き（UI は作らない・既定＝切捨て＝今の計算と同じ）。staff_labor_confirmed_set（下書き v1 の別 RPC）は廃止。
 
 ## 裁定444（2026-11-04 確定・相談役）0194 で店長に開くのは 5 つ＝残り 13 行は管理者のまま
 
@@ -8051,7 +8058,7 @@ anon-guard 段28 が無差別 `limit(1)` でそれを拾い 'bad amount'/BV=unde
 
 ## 次の番号（2026-11-04 午後・相談役 11/04 の確定と 434 ④・教訓132 を収載した時点）
 
-- **次の裁定＝445**（439〜442＝2026-11-03 確定・443／444＝2026-11-04 確定で収載）。**次の M＝M-63**（M-50〜M-61＝便 M5b と追補・M-62＝キオスクの確定済みの文言）。**次の教訓＝133**（126／129／130＝確定・131＝追加・127＝欠番のまま・**132＝2026-11-04 採番確定＝mig の begin 直後に set local lock_timeout**）。**次の mig＝0194**（0193＝2026-11-04 適用済み）→ 0194（ローンチ前に必須・中身＝裁定444 の 5＋admin の CHECK 外し＋staff_labor_confirmed＋kiosk_stock_levels・18 行の判断は裁定444 で済み）。**M-63／M-64＝2026-11-04 新 CC の最初の便で実装（次の M＝M-65）**。
+- **次の裁定＝446**（439〜442＝2026-11-03 確定・443／444／445＝2026-11-04 確定で収載・445＝0194 の確認 4 点）。**次の M＝M-63**（M-50〜M-61＝便 M5b と追補・M-62＝キオスクの確定済みの文言）。**次の教訓＝133**（126／129／130＝確定・131＝追加・127＝欠番のまま・**132＝2026-11-04 採番確定＝mig の begin 直後に set local lock_timeout**）。**次の mig＝0194**（0193＝2026-11-04 適用済み）→ 0194（ローンチ前に必須・中身＝裁定444 の 5＋admin の CHECK 外し＋staff_labor_confirmed＋kiosk_stock_levels・18 行の判断は裁定444 で済み）。**M-63／M-64＝2026-11-04 新 CC の最初の便で実装（次の M＝M-65）**。
 
 ## 次の番号（2026-10-30 便 M5 時点）
 
