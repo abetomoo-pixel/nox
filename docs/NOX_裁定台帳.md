@@ -5284,7 +5284,14 @@ grep で洗い出した左右振り分けのボタンは一覧報告だけでな
 - **実装**＝lib/nox/register/ext-estimate.ts（純関数 extEstimateRowsOf＝延長 1〜3 回後の合計＝会計と同じ groupDueFull に延長行（fee_kind extension・単価×人数・taxable_10＝check_extension_add と同じ形）を n 本足す・加算＝前の行との差・終了時刻＝着席＋セット＋回数×単位・人数割りの店（time_per person・2 名以上）は 1 人あたり＝切り上げ・自動店は実時計の回数（timeStatusOf）から・手動店は追加済みの行数（extAddedBlocksOf）から）／components/nox/ext-estimate-table.tsx（表＝延長回数／終了時刻／加算／合計（税サ込）／1 人あたり）／register-board＝会計タブ「時間料金（自動）」「時間料金（手動）」の枠に表・操作バーに「見積」（data-ext-estimate-open）＝注文・指名・席タブからも同じ表を Modal で。単価・単位は伝票の凍結値（checks.ext_fee／ext_min）。キオスクのレジ＝同じ RegisterBoard＝同じ表。
 - **verify**＝verify:nox-m70（DB・9）＝A1 を manual／person に一時設定→2 名で開栓→見積 3 行→check_extension_add ×1〜3 の各回で伝票の合計（check_lines→groupDueFull）と 1 円の差もなく一致（人数倍 4,000 の行・taxable_10）→反転＝単価＋500 円の見積は一致しない（＋1 円は店の丸め 100 円に吸われ同値になる＝反転の値を 500 に）→純関数（翌表記・max の丸め）→client の pin（表 3 か所・見積ボタン・Modal）。f0 の末尾（172→**173 段**）。
 - **留意**＝自動店は会計タブを開いた時点で時間料金が明細に反映される（apply）＝他タブのポップオーバーは明細の反映前なら 1 ブロック遅れることがある（表示だけ・権威はサーバ）。
-- 単走 20 本緑・tsc 0・lint Error 0・**f0 173 段 7,183 の 2 連緑**（19:32→19:50・19:50→20:11・golden 不変）・commit＝client 5a576de／test 483e8df／docs（本コミット）・push→deploy→6 店 reset→撮影（docs/tmp/shots_b＝MUSE T1）は続く行で。同乗＝便 A の源泉区分ボタン群のラベルを短い名前に（撮影で折り返しの欠けを発見）。
+- 単走 20 本緑・tsc 0・lint Error 0・**f0 173 段 7,183 の 2 連緑**（19:32→19:50・19:50→20:11・golden 不変）・commit＝client 5a576de／test 483e8df／docs（本コミット）・push 済み・deploy 20:14 確認（公開デモ MUSE T1 に「見積」）・6 店 reset 20:14 全 200・撮影 docs/tmp/shots_b＝m70_muse_t1_estimate_0ext（3 名・外税・見積 38,901／46,887／54,873・1 人あたり 12,967〜）／1ext（延長 1 回追加後＝2〜4 回目 46,887／54,873／62,859＝追加前の 1 回目の値と一致＝live でも 1 円の差なし）／popover（1024・390）。同乗＝便 A の源泉区分ボタン群のラベルを短い名前に（撮影で折り返しの欠けを発見）。
+
+### 便 C① の記録（2026-11-04 20:1x〜・M-77 ①＝期間の公開で配置キャスト全員に 1 通・client＋route の写像のみ・DDL なし）
+
+- **実装**＝shift-board の setPeriodStatus（shift_period_set の成功後・published のとき）＝自店の確定シフト（shifts・store_id・status confirmed・期間の日付）を読み、キャストごとにまとめて notifyCasts（cast_notifications は kind other＝0176 の CHECK 6 種のまま・ref shift_periods:<id>・LINE 台帳の kind は既存の **shift_published**＝notifyCast に lineKind を足し route の写像 linePushKindOfNotif が shift_published をそのまま通す）。文面＝「11/1〜11/15 のシフトが公開されました。あなたの出勤日: 11/5（木） 20:00–翌00:00、…」（fmtWin＝他画面と同じ「翌」表記・500 字を超えるときは日数だけ）。完了文言に人数（「配置された N 人に通知」）。デモ org は route が 204（送らない）。
+- ②（unfollow でブロック）③（紐付け解除）は 0195 待ち（docs/tmp/0195_plan.md §8）。
+- **verify**＝verify:nox-m77（純関数＋pin・5）＝f0 173→**174 段**。
+- 単走 18 本緑・tsc 0・lint Error 0・**f0 174 段 7,188 の 2 連緑**（20:13→20:29・20:30→20:51・golden 不変）・commit＝client ac9141d／test 48ea515／docs（本コミット）・push。live の確認＝公開デモでは route が 204（送らない）＝文面と宛先は verify（m77 1-1〜1-3）で担保・本番の初回は docs/demo/line_first_run.md の手順の中で。
 
 ### 便 0194 フラグ true（2026-11-04 夕・Agoora 手貼り後＝v57 §8-3・MIG_0194_APPLIED=true・DB 恒久変更 0）
 
