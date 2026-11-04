@@ -84,7 +84,7 @@ check("p174(5-1) kiosk: kiosk_staff_list（読めなければ空）・キャス�
 check("p174(5-2) 操作担当 PIN の候補＝owner／manager／staff（can_register 条件なし＝0173）", pin.includes('m.role === "owner" || m.role === "manager" || m.role === "staff"') && !pin.includes('(m.role === "staff" && m.can_register)'));
 // ── (6) 356
 check("p174(6-1) 給与画面: キャスト／スタッフ切替（?who=staff＝StaffWorkPanel scope store）・勤怠・報酬は確定状況（staff_payroll_runs）＝押せない確定ボタンなし",
-  pay.includes("data-payroll-who={who}") && pay.includes('<StaffWorkPanel scope="store" stores={storeList} />') && sw.includes("data-staff-pay-run=") && !sw.includes("報酬を確定する（準備中）"));
+  pay.includes("data-payroll-who={who}") && pay.includes('<StaffWorkPanel scope="store" stores={storeList} />') && !sw.includes("data-staff-pay-run=") /* ★裁定449 */ && !sw.includes("報酬を確定する（準備中）"));
 // ── (7) payload
 {
   const pl = (c: string) => JSON.parse(src(`docs/demo/payload/${c}.json`)).tables as Record<string, Record<string, unknown>[]>;

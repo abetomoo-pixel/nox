@@ -148,7 +148,7 @@ check("ms(2-10) 裁定318: normalizeHHMM（2000→20:00・20:00・9:30→09:30�
   && HM_FORMAT_ERR === "時刻の形式が不正です（例 2000・20:00）" && messageKindOf(HM_FORMAT_ERR) === "error"
   && hmSrc.includes('inputMode="numeric"') && hmSrc.includes("onBlur=") && hmSrc.includes("normalizeHHMM(e.target.value, maxHour)")
   && !/HH:MM（00:00〜47:59）で入力してください|HH:MM 形式で入力してください/.test(fs.readFileSync("lib/nox/shift/punch-correction.ts", "utf8") + shiftSrc)
-  && (shiftSrc.match(/<TimeInput /g) ?? []).length === 4); // ★便 M5b M-51: HmInput→TimeInput（時刻の共通部品＝時と分を選ぶ・打っても可） // ★裁定380（便 GV-B）: 希望の調整モーダル（開始／終了）で +2 ★便 M2 M-16: 必要人数の時間帯は 30 分刻みの選択式へ（−2）
+  && (shiftSrc.match(/<TimeInput /g) ?? []).length === 6); // ★便 A M-76（2026-11-04）: 必要人数の追加行の開始／終了を TimePicker（TimeInput）に＝+2 // ★便 M5b M-51: HmInput→TimeInput（時刻の共通部品＝時と分を選ぶ・打っても可） // ★裁定380（便 GV-B）: 希望の調整モーダル（開始／終了）で +2 ★便 M2 M-16: 必要人数の時間帯は 30 分刻みの選択式へ（−2）
 // ★裁定317（便 X-9-3）: 送りの既定額の順（店設定→直近の送り→空欄必須）・金額の検査・文言の種別・shift-board は「送り」→ダイアログ→punch_proxy(p_okuri true)→transport_issue_bulk(idem＝punch id)
 const okuriDlgSrc = fs.readFileSync("components/nox/okuri-out-dialog.tsx", "utf8");
 const reportSrc2 = fs.readFileSync("app/(manage)/report/report-board.tsx", "utf8");
@@ -306,7 +306,7 @@ check("ms(2-25) 起票94: 画面高 600px でポップオーバー上端（72）
   box600.top === HEADER_H + POP_GAP && box600.top >= HEADER_H && box600.maxHeight === 600 - HEADER_H - POP_GAP * 2 && popoverBoxOf(200).maxHeight === 120
   && cssSrc.includes(`.nox-modal-top { align-items: flex-start; padding-top: ${HEADER_H + POP_GAP}px; }`) && cssSrc.includes(`.nox-modal-top .nox-modal-card { max-height: calc(100vh - ${HEADER_H + POP_GAP * 2}px); }`)
   && cssSrc.indexOf("@media (min-width: 901px) {\n  .nox-modal-top") > 0 && /\.nox-tb \{[^}]*height: 64px/.test(cssSrc)
-  && (chipsSrc.match(/variant="top"/g) ?? []).length === 1 && !chipsSrc.includes("maxWidth={520} scroll>") && modalSrc.includes('(variant === "top" ? " nox-modal-top" : "")') && modalSrc.includes('variant === "drawer" || variant === "top" || scroll ? { overflow: "auto" as const }'));
+  && (chipsSrc.match(/variant="top"/g) ?? []).length === 1 && !chipsSrc.includes("maxWidth={520} scroll>") && modalSrc.includes('(variant === "top" ? " nox-modal-top" : "")') && modalSrc.includes('overflow: "auto" as const,') && !modalSrc.includes('scroll ? { overflow: "auto" as const } : null')); // ★便 A M-81: 全モーダル常に overflow auto
 
 // ★便 L-3-2（仮決め）: 日払いの過徴収 warn＝累計＋今回 > 見込み手取り（日払い前）→ warn・発行は止めない・プレビュー未取得は出さない
 const dpf3 = fs.readFileSync("components/nox/daily-pay-form.tsx", "utf8");

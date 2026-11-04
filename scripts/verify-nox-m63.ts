@@ -10,7 +10,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { auditAlertsOf } from "../lib/nox/audit/alerts";
-import { buildV5Plan, v5DefaultState, applyType, ROUND_MODE_OF, v5RoundModeOf, type V5Ctx } from "../lib/nox/setup/v5";
+import { buildV5Plan, v5DefaultState, applyType, ROUND_MODE_LABEL, v5RoundModeOf, v5RoundUnitOf, type V5Ctx } from "../lib/nox/setup/v5";
 import { MINE_SETTINGS_DEFAULT } from "../lib/nox/store/mine-settings";
 import { STAFF_TABS, STAFF_WORK_HREF, staffTabOf } from "../lib/nox/staff/tabs";
 import { OTHER_204_MANUAL_NOTE } from "../lib/nox/payroll/withholding-kind";
@@ -41,10 +41,10 @@ check("m63(2-2) M-64 正本＝給与 › 勤怠（スタッフ）は不変（?wh
 const ctx: V5Ctx = { storeId: "11111111-1111-4111-8111-111111111111", current: { round_unit: 100, round_mode: "down", time_mode: "manual", time_per: "person", receipt: { address: "", tel: "", reg_no: "", footer: "" }, mine: { ...MINE_SETTINGS_DEFAULT }, tax: { business_tax_status: "taxable", price_display: "tax_excluded", invoice_status: "unregistered", invoice_reg_no: "", tax_rounding: "floor", card_surcharge_rate: 0 } } as unknown as V5Ctx["current"], deviceIdemKey: "22222222-2222-4222-8222-222222222222", staffIdemKeys: [] };
 const S = applyType(v5DefaultState("2026-11-04"), "cabaret");
 const modeOf = (c: V5Ctx) => (buildV5Plan(S, c).steps.find((s) => s.key === "pricing")!.args as { p_round_mode: string; p_round_unit: number });
-check("m63(3-1) 443 1-① 新しい店（setupDone false）＝v5 STEP 8 の端数（既定 四捨五入＝round）を round_mode に・既存の店（true／不明）＝今の値（down）・単位は常に今の値",
-  J(ROUND_MODE_OF) === J({ round: "round", floor: "down", ceil: "up" }) && modeOf({ ...ctx, setupDone: false }).p_round_mode === "round" && modeOf({ ...ctx, setupDone: true }).p_round_mode === "down" && modeOf(ctx).p_round_mode === "down" && modeOf({ ...ctx, setupDone: false }).p_round_unit === 100
-  && v5RoundModeOf({ ...S, round: "floor" }, { ...ctx, setupDone: false }) === "down" && v5RoundModeOf({ ...S, round: "ceil" }, { ...ctx, setupDone: false }) === "up"
-  && src("app/(manage)/setup/setup-wizard.tsx").includes("setupDone: store.setupDone"));
+check("m63(3-1) 443 1-① → ★便 A M-71: 新しい店（setupDone false）＝v5 ③ の端数の既定（1,000 円・切り捨て＝round_mode down・round_unit 1000）・既存の店（true／不明）＝今の値（down／100）・丸め方の語は down／up／round",
+  modeOf({ ...ctx, setupDone: false }).p_round_mode === "down" && modeOf({ ...ctx, setupDone: false }).p_round_unit === 1000 && modeOf({ ...ctx, setupDone: true }).p_round_mode === "down" && modeOf(ctx).p_round_unit === 100
+  && v5RoundModeOf({ ...S, roundMode: "up" }, { ...ctx, setupDone: false }) === "up" && v5RoundUnitOf({ ...S, roundUnit: 500 }, { ...ctx, setupDone: false }) === 500 && v5RoundUnitOf({ ...S, roundUnit: 500 }, ctx) === 100
+  && J(Object.keys(ROUND_MODE_LABEL)) === J(["down", "up", "round"]) && src("app/(manage)/setup/setup-wizard.tsx").includes("setupDone: store.setupDone"));
 
 // ── (3) 裁定443 9-①
 const L = (o: Partial<{ id: string; action: string; at: string; store_id: string | null; after_json: Record<string, unknown> | null }>) => ({ id: "x", action: "read_cast_sensitive", target: "cast_sensitive:1", actor_user_id: "u", at: "2026-11-04T12:00:00Z", before_json: null, after_json: null, store_id: "s1", ...o });

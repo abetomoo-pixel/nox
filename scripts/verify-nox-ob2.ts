@@ -25,7 +25,7 @@ const J = JSON.stringify;
 const TYPES: V5Type[] = ["cabaret", "girlsbar", "snack", "lounge", "bar"];
 const ctxOf = (storeId: string): V5Ctx => ({ storeId, deviceIdemKey: "00000000-0000-4000-8000-000000000001", staffIdemKeys: ["00000000-0000-4000-8000-000000000002"],
   current: { round_unit: 1, round_mode: "down", time_mode: "fixed", time_per: "table", receipt: { address: "", tel: "", reg_no: "", footer: "" }, mine: { ...MINE_SETTINGS_DEFAULT }, tax: { business_tax_status: "taxable", price_display: "tax_excluded", invoice_status: "unregistered", invoice_reg_no: null, tax_rounding: "floor", card_surcharge_rate: null } } });
-const stateOf = (t: V5Type): V5State => { const s = applyType(v5DefaultState("2026-10-29"), t); s.shop.name = `v5 ${t}`; s.shop.addr = "東京都"; s.staff = [{ n: "佐藤", role: "店長", perm: "manager", shiftOk: true, kind: "正社員", basis: "月給", amt: 300000, pin: "1234" }]; s.devReg = true; return s; };
+const stateOf = (t: V5Type): V5State => { const s = applyType(v5DefaultState("2026-10-29"), t); s.shop.name = `v5 ${t}`; s.shop.addr = "東京都"; s.staff = [{ n: "佐藤", role: "店長", perm: "manager", shiftOk: true, kind: "正社員", basis: "月給", amt: 300000, pin: "1234" }]; s.devReg = true; s.timeMode = "manual"; /* ★便 A M-72: 延長の付け方は必須（モックに無い＝検査では手動） */ return s; };
 
 async function main() {
   // ── (A) 正本と写経 ──

@@ -98,7 +98,7 @@ async function main() {
     && o5old.to[o5old.to.length - 1] === "24:00" && HALF_HOUR_HMS_2DAY.length === 97, { o5to: o5.to.slice(-3), o0to: o0.to.slice(-2) });
   check("0189(E-2) 表示＝26:00→「翌02:00」・48:00→「翌24:00」・24:00 はそのまま・23:30 はそのまま・一覧（分）も同じ", bandHmLabelOf("26:00") === "翌02:00" && bandHmLabelOf("48:00") === "翌24:00" && bandHmLabelOf("24:00") === "24:00" && bandHmLabelOf("23:30") === "23:30" && bandMinLabelOf(1560) === "翌02:00" && bandMinLabelOf(2880) === "翌24:00" && bandMinLabelOf(1200) === "20:00");
   const sb = src("app/(manage)/shift/shift-board.tsx");
-  check("0189(E-3) 配線＝必要人数の選択肢と一覧が翌表記（bandHmLabelOf／bandMinLabelOf）", sb.includes("bandOptionsOf(bhRows, nDow).to.map((v) => <option key={v} value={v}>{bandHmLabelOf(v)}</option>)") && sb.includes("`${bandMinLabelOf(n.from_min)}〜${bandMinLabelOf(n.to_min)}`"));
+  check("0189(E-3) 配線＝必要人数の選択肢と一覧が翌表記（bandHmLabelOf／bandMinLabelOf）", sb.includes("startAt={bandOptionsOf(bhRows, nDow).to.slice(-1)[0]") /* ★便 A M-76（2026-11-04）: 選択肢は TimePicker（範囲の末尾を初期値に）＝翌表記は部品が付ける */ && sb.includes("`${bandMinLabelOf(n.from_min)}〜${bandMinLabelOf(n.to_min)}`"));
 
   // ── (F) 本番 DB ──
   const url = process.env.SUPABASE_DB_URL;
