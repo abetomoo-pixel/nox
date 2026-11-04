@@ -5303,7 +5303,8 @@ grep で洗い出した左右振り分けのボタンは一覧報告だけでな
 - **撮影**＝docs/tmp/shots_lp（ローカル lp_v4_local_1280／390・console error 0・画像 11 枚 natural 読込・立場 4＝管理者／店長／スタッフ／キャスト・店 6）。本番は push→deploy 後に lp_v4_live_1280／390。
 - 公開デモのリンク＝/demo?store=<key>&role=manager|cast（DemoEntry は ?store=&role= を読む＝lp(2)）。
 - **逐語からの差し替え 1 語**＝問い合わせフォームの店舗名のプレースホルダ「開業準備中の方は」→「開業前の方は」（w10(0-1)＝画面の「準備中」「未実装」を 0 に保つ pin に当たったため・意味は同じ）。
-- **f0 174 段 7,187 の 2 連緑**（21:14→21:37・21:38→22:05・golden 不変・M-70 の直しと同じ木＝1 本目の前の走りは w10 の pin で赤 1→語を直して再走）・commit＝M-70 の直し 33c28fd／LP client e32f8a9／LP test d5ebe2e／docs（本コミット）・push→deploy→撮影（lp_v4_live_1280／390・m70b_ace_vip1_patterns）は続く行で。
+- **f0 174 段 7,187 の 2 連緑**（21:14→21:37・21:38→22:05・golden 不変・M-70 の直しと同じ木＝1 本目の前の走りは w10 の pin で赤 1→語を直して再走）・commit＝M-70 の直し 33c28fd／LP client e32f8a9／LP test d5ebe2e／docs（本コミット）・push 済み・deploy 22:08 確認（/lp に .lpv4）・6 店 reset 22:08〜22:09 全 200・撮影＝docs/tmp/shots_lp/lp_v4_live_1280／390（console error 0・立場 4＝管理者／店長／スタッフ／キャスト・店 6）・docs/tmp/shots_b/m70b_ace_vip1_patterns_1024／390（CLUB ACE VIP-1・4 名＝平日通常 延長 60 分【適用中】151,377／220,017／288,657・VIP 延長 130,257／177,777／225,297・週末通常 延長 103,857／124,977／146,097・1 人あたりつき）。
+- **締め便**＝docs/handoff/NOX_相談役引き継ぎ_2026-11-04_v58_draft.md（sha256 88a486bf6c485e27f9e024fd347953d67a3d46276735ea1b65911a977c558ba7）＝相談役の朝の裁定（0195 の仮置き 9 点・0196 の確認 4 点）待ち。夜の自走便で止まった便＝なし（便 A〜C①・LP v4・0196 計画・0195 起草・17-⑨ 読取・締め便＝全部完了）。
 
 ### 便 0194 フラグ true（2026-11-04 夕・Agoora 手貼り後＝v57 §8-3・MIG_0194_APPLIED=true・DB 恒久変更 0）
 
