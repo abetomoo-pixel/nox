@@ -5275,9 +5275,16 @@ grep で洗い出した左右振り分けのボタンは一覧報告だけでな
 - **固定手当の複数行**（M-80 追記②）＝保存先なし→ docs/tmp/0195_plan.md §9（staff_allowances＋staff_allowances_set＋confirm の式）に同乗。
 - **verify**＝verify:nox-m65 新設（25＝m65／m67／m68／m69／m71／m72／m74／m75／m76／m79／m80 12-1〜12-6／m66 13-1／m81 14-1〜14-2）＝f0 171→**172 段**。pin 張替え＝m63(3-1)／m5b(4-6)／m2／m3(23-4)／ob2(C-1)／0189(E-3)／p172(3-2)／p174(6-1)／messages ms(2-10)(2-25)／gvb(10-1)／x13h(1-2)＝date-picker の末日を lib/nox/month へ。単走 33 suite 緑・tsc 0・lint Error 0（警告 4 は既存）。
 - **f0**＝172 段 **7,174** の 1 本目緑（18:08→18:36・docs/tmp/f0_1104_l.log）・2 本目 **7,174**（19:07→19:23）の 2 連緑（golden 5931／125802 不変）。★1 本目の前の走り（17:41 起動）は M-81 受領のため 76/172 で止めた＝actions-center が走査の間だけ足す規約同意の行（terms_acceptances・NOX-VERIFY-A・0.9）が残留（教訓123）→ 2 本目（18:37）が dev サーバの瞬断（ERR_CONNECTION_REFUSED・赤 0 件）で落ちた際に発覚・参照 0 を確かめて 1 行消し、2 本目を 19:07 に再起動（docs/tmp/f0_1104_n.log）。
-- **撮影**＝docs/tmp/shots_a（M-81＝m81_staff_register_top_375／bottom_375＝ローカル dev・検証 org）・本番デモの撮影（shot_a.mts）は push→reset 後。
+- **撮影**＝docs/tmp/shots_a（M-81＝m81_staff_register_top_375／bottom_375＝ローカル dev・検証 org）＋本番デモ（deploy 19:27 確認・6 店 reset 19:27〜19:28 全 200）＝m65_picker_ace_1116／m65_bulk_ace_202611／m67_cast_hinano_1103（1024・390）／m67_staff_kobayashi_1101／m68_muse_tanaka_202611（1024・modal 390）／m69_setup_step7・step4_bykind／m71_m72_setup_step3／m75_ace_1109_modal（ラベル「＋ 11/9 に追加配置」）／m76_period_needs（needs 6・定休 1）／m79_luna_staff_owner・manager（ボタン 1）／m80_luna_staff_edit_work・edit_0193（1024・390）。★M-65 の「不可」の見本はデモに出ない＝デモ 6 org とも availability（基本の働き方）の行が 0（payload に無い）→ あい 11/16 は「シフトなし」。不可／相談の 4 段は verify（m65 1-1〜）の純関数で担保。見本を出すなら gen-demo に availability を足す（次便の候補）。
 - **375×667 の計測**（M-81）＝スタッフ登録 scrollH 1,394／clientH 665・頭 13px・脚は画面内／スタッフ編集 1,631／585／キャスト詳細 2,297／585（overflow auto・max-height 587）／スタッフの日の修正 459（スクロール不要）。勤怠の修正（キャスト）と ReasonModal は検証 org に行が無く開けず＝同じ Modal 部品なので同じ挙動（本番デモで目視）。
 - commit＝client 5aad9ca／test b368c7b／docs（本コミット）・push／6 店 reset／live の撮影は続く行で
+
+### 便 B の記録（2026-11-04 19:2x〜・M-70 延長シミュレーション・client＋verify・DB 不触・課金はしない）
+
+- **実装**＝lib/nox/register/ext-estimate.ts（純関数 extEstimateRowsOf＝延長 1〜3 回後の合計＝会計と同じ groupDueFull に延長行（fee_kind extension・単価×人数・taxable_10＝check_extension_add と同じ形）を n 本足す・加算＝前の行との差・終了時刻＝着席＋セット＋回数×単位・人数割りの店（time_per person・2 名以上）は 1 人あたり＝切り上げ・自動店は実時計の回数（timeStatusOf）から・手動店は追加済みの行数（extAddedBlocksOf）から）／components/nox/ext-estimate-table.tsx（表＝延長回数／終了時刻／加算／合計（税サ込）／1 人あたり）／register-board＝会計タブ「時間料金（自動）」「時間料金（手動）」の枠に表・操作バーに「見積」（data-ext-estimate-open）＝注文・指名・席タブからも同じ表を Modal で。単価・単位は伝票の凍結値（checks.ext_fee／ext_min）。キオスクのレジ＝同じ RegisterBoard＝同じ表。
+- **verify**＝verify:nox-m70（DB・9）＝A1 を manual／person に一時設定→2 名で開栓→見積 3 行→check_extension_add ×1〜3 の各回で伝票の合計（check_lines→groupDueFull）と 1 円の差もなく一致（人数倍 4,000 の行・taxable_10）→反転＝単価＋500 円の見積は一致しない（＋1 円は店の丸め 100 円に吸われ同値になる＝反転の値を 500 に）→純関数（翌表記・max の丸め）→client の pin（表 3 か所・見積ボタン・Modal）。f0 の末尾（172→**173 段**）。
+- **留意**＝自動店は会計タブを開いた時点で時間料金が明細に反映される（apply）＝他タブのポップオーバーは明細の反映前なら 1 ブロック遅れることがある（表示だけ・権威はサーバ）。
+- 単走 20 本緑・tsc 0・lint Error 0・**f0 173 段 7,183 の 2 連緑**（19:32→19:50・19:50→20:11・golden 不変）・commit＝client 5a576de／test 483e8df／docs（本コミット）・push→deploy→6 店 reset→撮影（docs/tmp/shots_b＝MUSE T1）は続く行で。同乗＝便 A の源泉区分ボタン群のラベルを短い名前に（撮影で折り返しの欠けを発見）。
 
 ### 便 0194 フラグ true（2026-11-04 夕・Agoora 手貼り後＝v57 §8-3・MIG_0194_APPLIED=true・DB 恒久変更 0）
 
