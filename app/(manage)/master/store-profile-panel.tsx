@@ -451,7 +451,7 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
           キャストの希望は「希望どおり採用（即確定）」「調整して確定」「調整して送り返す（キャスト確認待ち）」の 3 つで処理します。店ごとの切替はありません。
         </p>
         {/* ★0172（裁定380・便 P172）: 自動確定時間＝店設定 shift_auto_confirm_hours（0＝しない・1〜168 時間）。実行器＝/api/cron/shift-auto-confirm（15 分間隔・cron_setup.md §6）。owner は切替・manager は現在値のみ */}
-        <label style={{ display: "grid", gap: 4, maxWidth: 320 }}>
+        <label style={{ display: "grid", gap: 4, maxWidth: 560 }}>{/* ★M-82 fix: 4 択のボタン群が 320px で切れる（撮影で発見）＝560 に */}
           <span style={t.fieldLabel}>送り返しの自動確定時間</span>
           <span data-shift-auto-confirm="1" style={{ display: "block" }}><SegSelect value={form.shift_auto_confirm_hours} disabled={busy || !loaded || !isOwner} onChange={(v) => setForm((f) => ({ ...f, shift_auto_confirm_hours: v }))} options={SHIFT_AUTO_CONFIRM_OPTIONS} ariaLabel="送り返しの自動確定時間" wrap /></span>{/* ★M-82: 4 択＝ボタン群 */}
           <span style={{ fontSize: 11, color: "var(--sub)" }}>送り返したまま確認されない希望を、設定した時間後に自動で確定します（15 分ごとに確認）。</span>
