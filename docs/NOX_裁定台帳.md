@@ -5262,6 +5262,11 @@ grep で洗い出した左右振り分けのボタンは一覧報告だけでな
 上部の 名前／メール／ログインの方法 に届かない。モーダル本体を max-height: 100dvh（safe-area 込み）・overflow-y: auto に、ヘッダ（題名・×）と下部の「登録する／キャンセル」は sticky で常に見える形に。同じ型のモーダル（スタッフ編集・キャスト管理・勤怠の修正・ReasonModal など共通の Modal 部品）を 1 か所で直し、375×667 で全部のモーダルが最上部まで届くことを確認。撮影＝スマホ幅で登録モーダルの最上部と最下部 2 枚。
 - CC の処置（便 A）＝共通 Modal（components/ui/modal.tsx）を常に overflow:auto・globals.css の .nox-modal-card に max-height 100dvh−36px（≤900 は 100dvh−safe-area-top）＝scroll を渡さない全モーダルに効く・.nox-formmodal-head を sticky（脚は既に sticky）・スタッフ登録モーダルは題名を head（×つき）・登録する／キャンセルを foot に。375×667 の計測（ローカル dev・検証 org）＝登録モーダル scrollH 1,394／clientH 665・頭 13px・脚は画面内／スタッフ編集 1,631／585・頭 93px／スタッフの日の修正 459（スクロール不要）。
 
+## M-99（2026-11-05 受領・相談役・client・便 D の候補）/staff 一覧の契約チップ（「正社員・月給 ¥300,000」）のコントラスト
+
+「地と文字のコントラスト不足。役割チップ（店長／スタッフ）と同じトークン（本文色・輪郭だけ・地は透明か薄い）にそろえ、文字は本文と同じ濃さ。同じ見た目のチップをほかの画面でも使っていれば（キャスト管理の契約チップ・給与の契約列）同じ部品で一緒に直す。撮影＝/staff 一覧。」
+CC の読取＝契約チップ＝staff-board.tsx:421 `<button className="nox-stpill" data-staff-contract-chip…>`（.nox-stpill＝font 10.5／800・border var(--v2-line)・**color var(--v2-muted)**＝薄い文字）。役割チップ＝同じ行の `rolePillMini(m.role)`（staff-board 内の関数＝本文色・輪郭だけ）。直し＝契約チップを rolePillMini と同じトークン（色は本文・輪郭だけ・地は透明）にした共通の「契約チップ」部品にし、キャスト管理（casts-board の契約・待遇の pill）と給与 › 勤怠（スタッフ）の契約列（staffContractLineOf の表示）も同じ部品で。client だけ。
+
 ## M-98（2026-11-05 受領・Agoora 実機・client・便 D の候補）売掛を使わない店では日報の「売掛」タブと「売掛 本日発生」の枠を出さない
 
 「店の設定で売掛を使わない店では、日報の『売掛』タブと『売掛 本日発生』の枠を出さない。読取＝売掛の有無の設定キー（初期設定 ③ か店舗設定）。」
