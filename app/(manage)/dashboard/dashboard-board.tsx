@@ -27,6 +27,7 @@ import { resolveOrgId, signCastPhotos } from "@/lib/nox/cast-photo";
 // ★B6-12（2026-09-11）: 出勤扱いの状態集合は cast-stats に集約（旧 PRESENT 直書きと同じ 3 値）
 import { PRESENT_STATUSES } from "@/lib/nox/analytics/cast-stats";
 import DrinkClaimQueue from "../register/drink-claim-queue";
+import LineQuotaCard from "@/components/nox/line-quota-card"; // ★便 D M-101
 // ★夜間便 N4-3（裁定282-3）: 保証時給の期限が近いキャスト（純関数・cast_plan 1 select）
 import { guaranteeNoticesOf, type PlanRowLike } from "@/lib/nox/cast/guarantee";
 import { Message } from "@/components/ui/toast";
@@ -217,6 +218,7 @@ export default function DashboardBoard({ storeId, storeName, cutoff, casts, shor
           )}
           <span className="num" style={{ fontSize: 13, color: "var(--sub)" }}>営業日 {bizToday}</span>
         </>} />
+      {isManagerUp && <LineQuotaCard storeId={curStoreId} />}{/* ★便 D M-101: LINE の送信数（店長以上・未設定の店は設定への 1 行） */}
 
       {/* 段H2: KPI 帯＝既存4KPI のまま（材料も式も不変）。S-1 の .nox-kpi2 へ寄せ、
           モック .cmp にあたる補足行を既存データから足しただけ（新規取得なし）。

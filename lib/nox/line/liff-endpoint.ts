@@ -11,6 +11,14 @@ export const LINE_USER_ID_RE = /^U[0-9a-f]{32}$/;
 export type LineConfig = { login_channel_id?: string | null; liff_id?: string | null; bot_destination?: string | null; channel_secret_ref?: string | null; access_token_ref?: string | null };
 
 const site = (s: string) => s.replace(/\/+$/, "");
+/** ★便 D M-102（2026-11-05）: LINE の招待リンク・入口 URL・返事の URL・liff.login の redirectUri は site 固定の 1 値（NEXT_PUBLIC_SITE_URL）から組む。
+ *  未設定なら今の origin（vercel.app でログイン中に発行したリンクが vercel.app 始まりになり LIFF のエンドポイント（noxapp.jp）と不一致＝access.line.me 400 の直し）。 */
+export const siteOriginOf = (fallbackOrigin: string): string => { const v = (process.env.NEXT_PUBLIC_SITE_URL ?? "").trim(); return site(v ? v : fallbackOrigin); };
+/** ★M-102: 今の URL の host だけ site 値に差し替える（path＋query＋hash は保つ）。site 値が無い／不正なら元の URL */
+export function siteHrefOf(href: string, siteUrl: string): string {
+  const s = site((siteUrl ?? "").trim()); if (!s) return href;
+  try { const u = new URL(href); const b = new URL(s); u.protocol = b.protocol; u.host = b.host; return u.toString(); } catch { return href; }
+}
 export const liffEntryUrlOf = (siteUrl: string, storeId: string): string => `${site(siteUrl)}/liff/${storeId}`;
 /** 紐付け（bind）の入口＝入口 URL ＋ ?t=<平文トークン>&m=bind（1 回だけ・7 日） */
 export const liffBindUrlOf = (siteUrl: string, storeId: string, token: string): string => `${liffEntryUrlOf(siteUrl, storeId)}?t=${encodeURIComponent(token)}&m=bind`;

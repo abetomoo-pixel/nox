@@ -5,6 +5,7 @@
 //   送信後は自分の申請一覧（承認待ち／承認／却下＋理由）をカード内に出す。取消の RPC は無い＝注記（仮決め）。人数・備考は RPC に無い＝送らない（仮決め）。
 //   和文は rpcErrJa（'bad customer'／'bad reserved_at'／'bad kind'／'closed day'／'billing locked'）。メッセージは Toast（裁定281）。
 import TimeInput from "@/components/ui/time-input"; // ★便 M5b M-51: 時刻欄の共通部品（時計アイコン・時と分を選ぶ・翌の表示）
+import NumStepper from "@/components/ui/num-stepper"; // ★便 D M-107
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
@@ -78,8 +79,7 @@ export default function ReservationRequestCard({ storeId, bizToday }: { storeId:
           {mig0183On() && mode === "guest" ? (
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }} data-rsv-guest="1">
               <input value={guestName} onChange={(e) => setGuestName(e.target.value)} maxLength={40} placeholder="お客様の呼び名（例: 田中様）" style={{ ...input, flex: "1 1 180px" }} aria-label="お客様の呼び名" />
-              <input inputMode="numeric" value={partySize} onChange={(e) => setPartySize(e.target.value.replace(/[^0-9]/g, "").slice(0, 2))} style={{ ...input, width: 70 }} aria-label="人数" />
-              <span style={{ alignSelf: "center", fontSize: 12.5 }}>名</span>
+              <NumStepper value={Math.max(1, Number(partySize) || 1)} onChange={(n) => setPartySize(String(n))} min={1} max={20} unit="名" ariaLabel="人数" disabled={busy} dataKey="data-rsv-party" />{/* ★便 D M-107: −／＋のステッパー（1〜20・直接入力も可） */}
               <span style={{ flexBasis: "100%", fontSize: 11.5, color: "var(--sub)" }}>来店時にお店が顧客カルテに紐づけ、あなたの担当客に登録されます。</span>
             </div>
           ) : (

@@ -514,7 +514,10 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
             <Field label="中距離（1 回）"><Money value={pr.okuriTiers[1]} unit="円" pre onChange={(n) => up((s) => { s.payroll.okuriTiers[1] = n; })} width={90} /></Field>
             <Field label="遠距離（1 回）"><Money value={pr.okuriTiers[2]} unit="円" pre onChange={(n) => up((s) => { s.payroll.okuriTiers[2] = n; })} width={90} /></Field></div>}
           {pr.okuriMode === "actual" && <div style={{ marginTop: 8 }}><Field label="送りの基本額（1 回）"><Money value={pr.okuri} unit="円" pre onChange={(n) => up((s) => { s.payroll.okuri = n; })} width={90} /></Field></div>}
-          <p style={note}>遅刻・当欠の精算調整は「控除・送り」であとから設定できます。源泉は精算調整やノルマ未達を引く前の額で計算し、整数で丸めます。</p>
+          <div style={{ ...grid(160), marginTop: 8 }} data-setup-penalty="1">{/* ★便 D 裁定455-3（2026-11-05）: 遅刻控除／当欠控除の額＝settlement_presets late／absent（勤怠の修正で遅刻／当欠を付けると自動で精算調整に登録・空欄＝0＝登録しない） */}
+            <Field label="遅刻控除（1 回・委託）"><Money value={pr.lateAmt ?? 0} unit="円" pre onChange={(n) => up((s) => { s.payroll.lateAmt = n; })} width={90} /></Field>
+            <Field label="当欠控除（1 回・委託）"><Money value={pr.absentAmt ?? 0} unit="円" pre onChange={(n) => up((s) => { s.payroll.absentAmt = n; })} width={90} /></Field></div>
+          <p style={note}>遅刻控除・当欠控除は勤怠で遅刻／当欠を付けたときに自動で精算調整に入ります（0 円なら入りません）。ほかの精算調整は「控除・送り」であとから設定できます。源泉は精算調整やノルマ未達を引く前の額で計算し、整数で丸めます。</p>
           <h3 style={h3}>キャストのマイページに出すもの</h3>
           <p style={lead}>キャストが自分のスマホで見る画面です。打刻とシフト希望はいつも出ます。</p>
           <Opt title="給与明細" sub="確定した給与をどこまで見せるか。"><SegSelect value={pr.mypage} onChange={(v) => up((s) => { s.payroll.mypage = v as "none" | "net" | "full"; })} options={[["none", "出さない"], ["net", "手取りと期間だけ"], ["full", "明細まで"]] as const} ariaLabel="給与明細" /></Opt>

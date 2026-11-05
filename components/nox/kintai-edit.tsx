@@ -19,6 +19,7 @@ import Modal from "@/components/ui/modal";
 import { Message } from "@/components/ui/toast";
 import { hm47Ja, isoOfBizHm, kintaiEditPlanOf, type AttendanceDayRow } from "@/lib/nox/payroll/attendance-sheet"; // ★便 A M-67: hm47OfInput（手打ちの解釈）は使わない
 import { hm2min, min2hm } from "@/lib/nox/shift-time";
+import { applyAutoPenalty } from "@/lib/nox/payroll/auto-penalty"; // ★便 D 裁定455-3: 遅刻／当欠を付けたら遅刻控除／当欠控除（ひな形の額・0 なら登録しない）
 
 export const ATT_STATUS_OPTIONS = [["", "変えない"], ["shukkin", "出勤"], ["late", "遅刻"], ["absent", "当欠"], ["off", "休み"], ["dohan", "同伴"]] as const;
 
@@ -106,6 +107,12 @@ export default function KintaiEdit({ storeId, castId, castName, row, periodStart
     const { error } = await supabase.rpc(name, args);
     return error ? kintaiErrJa(error.message) : null;
   }
+  /** ★便 D 裁定455-3: attendance_set（late／absent）の後＝自動登録の注記（店 id が無い呼び出し・額 0・雇用・二重は空） */
+  async function penaltyNoteOf(st: string | null, biz: string, shiftId: string | null): Promise<string> {
+    if (!storeId || (st !== "late" && st !== "absent")) return "";
+    const r = await applyAutoPenalty(supabase, { storeId, castId, biz, shiftId, target: st });
+    return r.kind === "added" ? `・${r.text}` : r.kind === "error" ? `・${st === "late" ? "遅刻控除" : "当欠控除"}の登録に失敗: ${kintaiErrJa(r.text)}` : "";
+  }
 
   async function save() {
     setErr(null);
@@ -128,8 +135,9 @@ export default function KintaiEdit({ storeId, castId, castName, row, periodStart
         const e2 = await rpc("punch_correction_request", { p_cast_id: castId, p_punch_id: null, p_biz_date: date, p_kind: "in", p_after_at: isoOfBizHm(date, inHm), p_reason: reason.trim() });
         if (e2) { setErr(`出の記録に失敗: ${e2}`); return; }
         if (outHm) { const e3 = await rpc("punch_correction_request", { p_cast_id: castId, p_punch_id: null, p_biz_date: date, p_kind: "out", p_after_at: isoOfBizHm(date, outHm), p_reason: reason.trim() }); if (e3) { setErr(`退の記録に失敗: ${e3}`); return; } }
-        if (status) { const e4 = await rpc("attendance_set", { p_cast_id: castId, p_date: date, p_status: status, p_eta: null, p_reason: note.trim() || null }); if (e4) { setErr(`区分の記録に失敗: ${e4}`); return; } }
-        await onSaved(`${castName} の ${md(date)} を追加しました`);
+        let pn = "";
+        if (status) { const e4 = await rpc("attendance_set", { p_cast_id: castId, p_date: date, p_status: status, p_eta: null, p_reason: note.trim() || null }); if (e4) { setErr(`区分の記録に失敗: ${e4}`); return; } pn = await penaltyNoteOf(status, date, null); }
+        await onSaved(`${castName} の ${md(date)} を追加しました${pn}`);
         return;
       }
       const plan = kintaiEditPlanOf(row!, { inHm, outHm, status: status || null, reason: note.trim() || null }, { status: curStatus, reason: null });
@@ -138,10 +146,11 @@ export default function KintaiEdit({ storeId, castId, castName, row, periodStart
         const e = await rpc("punch_correction_request", { p_cast_id: castId, p_punch_id: c.punchId, p_biz_date: row!.bizDate, p_kind: c.kind, p_after_at: c.afterIso, p_reason: reason.trim() });
         if (e) { setErr(`${c.kind === "in" ? "出" : "退"}の修正に失敗: ${e}`); return; }
       }
-      if (plan.attendance) { const e = await rpc("attendance_set", { p_cast_id: castId, p_date: row!.bizDate, p_status: plan.attendance.status, p_eta: null, p_reason: plan.attendance.reason }); if (e) { setErr(`区分の記録に失敗: ${e}`); return; } }
+      let pn = "";
+      if (plan.attendance) { const e = await rpc("attendance_set", { p_cast_id: castId, p_date: row!.bizDate, p_status: plan.attendance.status, p_eta: null, p_reason: plan.attendance.reason }); if (e) { setErr(`区分の記録に失敗: ${e}`); return; } pn = await penaltyNoteOf(plan.attendance.status, row!.bizDate, row!.shiftId ?? null); }
       if (dedRows) { const e = await rpc("cast_day_deductions_set", { p_cast_id: castId, p_biz_date: row!.bizDate, p_rows: dedRows }); if (e) { setErr(`この日の控除の記録に失敗: ${e}`); return; } } // ★0195
       if (plan.corrections.length === 0 && !plan.attendance && !dedRows) { setErr("変更がありません"); return; }
-      await onSaved(`${castName} の ${md(row!.bizDate)} を保存しました`);
+      await onSaved(`${castName} の ${md(row!.bizDate)} を保存しました${pn}`);
     } finally { setBusy(false); }
   }
 

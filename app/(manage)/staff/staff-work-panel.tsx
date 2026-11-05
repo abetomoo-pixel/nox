@@ -5,6 +5,7 @@
 //   計算＝lib/nox/staff/pay.ts（雇用＝時給×実働＋固定手当・源泉 0＝税額表は器なし／委託＝時給×実働 or 日額×日数・源泉率は T11 待ち＝0）。
 //   書込（契約の登録・打刻の修正・確定）は器のみ＝RPC は次便・staff_payroll_runs への確定ボタンは置くが無効（第 2 期の注記）。
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import ContractChip from "@/components/nox/contract-chip"; // ★便 D M-99
 import Link from "next/link"; // ★便 M3 M-23 ②: 「日ごとの勤怠を開く」（給与 › 勤怠（スタッフ）へ）
 import BottomSheet, { useNarrow } from "@/components/ui/bottom-sheet"; // ★便 M3 M-23 ③: 390px＝シート化（C2-7 と同型）
 import KintaiRow, { KintaiHead } from "@/components/nox/kintai-row"; // ★便 M3 M-23 ①: キャストの勤怠と同じ部品
@@ -168,7 +169,7 @@ export default function StaffWorkPanel({ scope, stores, daily = false, initialMe
               <Fragment key={r.m.id}><tr data-staff-work-row={r.m.id} onClick={daily ? () => setDailyMem((v) => (v === r.m.id ? null : r.m.id)) : scope === "store" ? () => setOpenMem((v) => (v === r.m.id ? null : r.m.id)) : undefined} style={daily || scope === "store" ? { cursor: "pointer", background: dailyMem === r.m.id ? "var(--card2)" : undefined } : undefined}>
                 <td>{r.name}<span style={{ ...t.sub, marginLeft: 6 }}>{t.roleLabelJa(r.m.role)}</span></td>
                 {scope === "store" && <td>{r.store}</td>}
-                <td>{r.contract ? staffContractLineOf(r.contract) : <span style={t.sub}>契約未登録</span>}</td>
+                <td>{r.contract ? <ContractChip text={staffContractLineOf(r.contract)} dataKey="data-staff-work-contract" /> : <span style={t.sub}>契約未登録</span>}</td>{/* ★便 D M-99: 共通の契約チップ */}
                 <td className="num">{r.days.length}</td>
                 <td className="num">{hmOf(r.days.reduce((s, d) => s + d.minutes, 0))}{r.days.some((d) => d.open) && <span style={{ ...t.sub, marginLeft: 4 }}>（退勤待ち）</span>}</td>
                 <td className="num">{frozen[r.m.id] ? <>{yen(frozen[r.m.id].amount)}<span className="nox-stpill" style={{ marginLeft: 6 }} data-staff-frozen={r.m.id}>確定額</span></> : r.pay ? yen(r.pay.gross) : "—"}</td>{/* ★0194（裁定445 ④）: 確定後は凍結額 */}

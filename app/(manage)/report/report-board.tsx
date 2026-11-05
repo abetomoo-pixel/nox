@@ -135,6 +135,15 @@ export default function ReportBoard({
 }: { storeId: string; cutoff: string; cardTaxRate: number; isManagerUp: boolean; isOwner: boolean; stores: { id: string; name: string }[]; isCast?: boolean }) {
   const supabase = createClient();
   const [tab, setTab] = useState<"day" | "month" | "ar">("day"); // A4: 日報/月報 タブ＋B6: 売掛タブ（案7-A・owner/manager のみ）
+  const [arOff, setArOff] = useState(false); // ★便 D M-98（2026-11-05・Agoora 実機）: stores.receivable_policy='disabled'（売掛を使わない店）＝「売掛」タブと「売掛 本日発生」を出さない
+  useEffect(() => {
+    if (!storeId) return;
+    let alive = true;
+    void (async () => { const { data } = await supabase.from("stores").select("receivable_policy").eq("id", storeId).maybeSingle(); if (alive) setArOff((data as { receivable_policy?: string | null } | null)?.receivable_policy === "disabled"); })();
+    return () => { alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storeId]);
+  useEffect(() => { if (arOff && tab === "ar") setTab("day"); }, [arOff, tab]);
   const [bizDate, setBizDate] = useState(bizDateOf(new Date().toISOString(), cutoff));
   const [preview, setPreview] = useState<Preview | null>(null);
   const [reports, setReports] = useState<Report[]>([]);
@@ -736,7 +745,7 @@ export default function ReportBoard({
           ★キー・ラベル・isManagerUp の出し分け・setTab は1文字も変えていない。 */}
       <div className="nox-ctoolbar">
         <div className="nox-seg">
-          {(isManagerUp ? (["day", "month", "ar"] as const) : (["day", "month"] as const)).map((k) => (
+          {(isManagerUp && !arOff ? (["day", "month", "ar"] as const) : (["day", "month"] as const)).map((k) => (/* ★便 D M-98: 売掛を使わない店はタブなし */
             <button key={k} className={tab === k ? "on" : ""} onClick={() => setTab(k)}>
               {k === "day" ? "日報" : k === "month" ? "月報" : "売掛"}
             </button>
@@ -1027,13 +1036,14 @@ export default function ReportBoard({
 
         {/* ★B2-a（裁定202/203/204・D12/D14/D15）: 追加 KPI 行＝売掛 本日発生／未処理の入出金（日払い・送り代）／取消・返金（owner）。
             値は loadDayExtras の件数＋合計のみ（締めの集計式・RPC は不触）。立替は器なし＝対象外と注記（裁定203）。 */}
-        {isManagerUp && (arNew || pending) && (
+        {isManagerUp && ((arNew && !arOff) || pending) && (
           <div className={`nox-repsum${isOwner ? "" : " three"}`} data-repsum-extra="1">{/* ★便 GV-D #2: 列数は class（390 は 2 列＝見出しが切れない） */}
+            {!arOff && (/* ★便 D M-98: 売掛を使わない店は「売掛 本日発生」を出さない */
             <div className="nox-rs">
               <div className="l">売掛 本日発生</div>
               <div className="v num">{arNew ? `${arNew.n}件` : "—"}</div>
               {arNew && <div className="l" style={{ marginTop: 2 }}>{yen(arNew.sum)}</div>}
-            </div>
+            </div>)}
             <div className="nox-rs">
               <div className="l">日払い（前借り）未処理</div>
               <div className="v num">{pending ? `${pending.advN}件` : "—"}</div>

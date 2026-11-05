@@ -31,7 +31,8 @@ import { photoActionLabelOf, removeUserPhoto, signUserPhotos, uploadUserPhoto } 
 import { mig0183On, mig0190On, rules0175On } from "@/lib/nox/rules-0175/flag"; // ★追補 3 R-8 // ★便 M-9（0183） // ★0190（裁定436 ①c）: 在籍解除の失効（route）
 import { ownerOnlyNoteOf, roleChangeTargetsOf, roleChangeTextOf, roleLabelOf, rolePillKindOf, staffListRolesOf } from "@/lib/nox/rules-0175/roles";
 import { INVITE_STATE_LABEL, LOGIN_METHOD_NOTE, LOGIN_METHOD_OPTIONS, inviteErrJa, inviteExpiryTextOf, inviteFormErrorOf, inviteStateOf, type LoginMethod } from "@/lib/nox/people/invite"; // ★便 ON-3（0176 ★2 I-1）: 登録→招待の 2 段
-import { LINE_BIND_NOTE, liffBindUrlOf } from "@/lib/nox/line/liff-endpoint"; // ★便 ON-3（0176 ★1 401）: LINE 連携のリンク
+import { LINE_BIND_NOTE, liffBindUrlOf, siteOriginOf } from "@/lib/nox/line/liff-endpoint";
+import ContractChip from "@/components/nox/contract-chip"; // ★便 D M-99 // ★便 ON-3（0176 ★1 401）: LINE 連携のリンク
 import ContactChangesPanel from "@/components/nox/contact-changes-panel"; // ★便 ON-3（0176 ★4 400）: 連絡先の変更（未確認） // ★追補 3 R-8（裁定425 候補）: 役割「管理者」
 type Mem = {
   id: string; user_id: string; store_id: string; role: string; is_active: boolean;
@@ -251,7 +252,7 @@ export default function StaffBoard({
     const { data, error } = await supabase.rpc("line_bind_token_create", { p_subject_kind: "membership", p_subject_id: m.id, p_purpose: "bind" });
     setBusy(false);
     if (error || typeof data !== "string") { setMsg(`LINE 連携のリンクを発行できませんでした: ${rpcErrJa(error?.message ?? "")}`); return; }
-    setBindUrl(liffBindUrlOf(window.location.origin, m.store_id, data));
+    setBindUrl(liffBindUrlOf(siteOriginOf(window.location.origin), m.store_id, data)); // ★便 D M-102: site 固定
   }
 
   function openAdd() {
@@ -418,8 +419,8 @@ export default function StaffBoard({
                   <span style={{ marginLeft: 6, fontSize: 11, fontWeight: 700, color: m.is_active ? "var(--ok)" : "var(--bad)" }}>
                     {m.is_active ? "在籍" : "解除"}
                   </span>
-                  <button type="button" className="nox-stpill" data-staff-contract-chip={contracts[m.id] ? "set" : "none"} style={{ marginLeft: 6, cursor: "pointer" }} title="働き方を編集"
-                    onClick={(e) => { e.stopPropagation(); openEdit(m, true); }}>{contracts[m.id] ? staffContractLineOf(contracts[m.id]) : "働き方を登録"}</button>{/* ★便 A M-80 追記: 契約の要約チップ＝押すと「働き方」を開いた状態で編集 */}
+                  <ContractChip dataKey="data-staff-contract-chip" dataSet={contracts[m.id] ? "set" : "none"} style={{ marginLeft: 6 }} title="働き方を編集"
+                    onClick={(e) => { e.stopPropagation(); openEdit(m, true); }} text={contracts[m.id] ? staffContractLineOf(contracts[m.id]) : "働き方を登録"} />{/* ★便 D M-99: 共通の契約チップ（本文色・輪郭だけ） */}{/* ★便 A M-80 追記: 契約の要約チップ＝押すと「働き方」を開いた状態で編集 */}
                 </div>
                 <div className="role">
                   {u?.email ?? "—"}{isOwner ? ` / ${storeName(m.store_id)}` : ""}{m.tel ? <> / <TelLink tel={m.tel} /></> : null}{/* ★0172（裁定381）: tel: リンク */}

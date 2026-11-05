@@ -13,6 +13,7 @@ import Toast from "@/components/ui/toast";
 import Modal from "@/components/ui/modal";
 import Link from "next/link";
 import { noticeLineResultOf } from "@/lib/nox/line/notice-line"; // ★便 W-10 #21
+import LineQuotaCard from "@/components/nox/line-quota-card"; // ★便 D M-101
 
 type Notice = {
   id: string; title: string; body: string; audience: string;
@@ -99,7 +100,7 @@ const chkLabel: React.CSSProperties = { ...t.fieldLabel, display: "flex", alignI
 //   null は「数えられなかった」＝画面では「—」に落とす（嘘の 0 を出さない）。
 export type AudienceCounts = { cast: number | null; staff: number | null };
 
-export default function NoticesBoard({ isManagerUp, audienceCounts, storeName, cutoff }: {
+export default function NoticesBoard({ isManagerUp, audienceCounts, storeName, cutoff, storeId = null }: { /** ★便 D M-101: 送信数カードの店 */ storeId?: string | null;
   isManagerUp: boolean;
   audienceCounts: AudienceCounts;
   storeName?: string | null;
@@ -236,6 +237,7 @@ export default function NoticesBoard({ isManagerUp, audienceCounts, storeName, c
       <PageHead eyebrow="ANNOUNCEMENTS" title="お知らせ・通知"
         desc="店舗の連絡をスタッフ・キャストのマイページに掲載します。" />
       <Toast msg={msg} />
+      {isManagerUp && <LineQuotaCard storeId={storeId} compact />}{/* ★便 D M-101: 一覧の上に LINE の送信数 */}
 
       {/* ★DP-R: モック冒頭の案内帯（LINE を基本に配信・連携管理への導線）。★便 W-10 #21: LINE 連携は店舗設定の LINE 連携タブ（0176）＝導線を結ぶ */}
       <div className="nox-alert" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>

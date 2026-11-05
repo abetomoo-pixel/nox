@@ -182,7 +182,7 @@ console.log("s4(DB) transport.mode／set_store_okuri_mode の 4 値／RPC の 'o
     && tabFromSearch("?tab=make&step=3&period=p") === "queue" && searchOfTab("?period=p", "queue", "p") === "?period=p&tab=make&step=3" && stepOfTab("publish") === 4);
   const sb = src("app/(manage)/shift/shift-board.tsx"), css = src("app/globals.css");
   check("shb(4) shift-board＝手順 ol（data-shift-steps）・②提出一覧（募集中の期間切替・締切まで／提出済み／未提出・未提出の名前・提出済みの表・「今すぐ締め切って ③ シフト配置へ」＝shift_period_set closed）",
-    sb.includes('data-shift-steps="1"') && sb.includes('data-shift-submit="1"') && sb.includes('data-period-tabs={to}') && sb.includes("<div className=\"l\">締切まで</div>") && sb.includes('data-shift-not-submitted="1"') && sb.includes("data-shift-submitted={c.id}")
+    sb.includes('data-shift-steps={storeDecides ? "2" : "1"}') /* ★便 D M-96: 店が決める店は 2 段 */ && sb.includes('data-shift-submit="1"') && sb.includes('data-period-tabs={to}') && sb.includes("<div className=\"l\">締切まで</div>") && sb.includes('data-shift-not-submitted="1"') && sb.includes("data-shift-submitted={c.id}")
     && sb.includes('data-shift-close-recruit="1"') && sb.includes('await setPeriodStatus(p, "closed"); openPeriodInStep(p, "queue");'));
   check("shb(5) ③ シフト配置＝配置中の期間切替＋「④ 公開シフトへ」・承認リスト（queue）と月カレンダー（旧 calendar）は ③ の中・④ 公開シフト＝「キャストに公開する」（published→確定シフトへ）＋不足日（dayStat の required>assigned・「③ で配置する」）",
     sb.includes('data-shift-place-head="1"') && sb.includes('data-shift-go-publish="1"') && sb.includes('(tab === "calendar" || tab === "queue" || tab === "publish") && (') && sb.includes('data-shift-publish-btn="1"')

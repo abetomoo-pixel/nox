@@ -28,6 +28,24 @@ export function lineStatusTextOf(st: LineStatus, limit: number, rejected429: num
   const r = rejected429 > 0 ? `LINE から上限に達したと返されました（${rejected429} 件）。` : "";
   return [base, r].filter(Boolean).join(" ");
 }
+/** ★便 D M-101（2026-11-05・相談役）: 送信数カード（LineQuotaCard）の表示値＝見出し・大きな数・2 色の横バー（送信済み＝濃・着地見込み＝淡）・凡例・90% 以上で注意。DB を知らない */
+export type LineQuotaView = { title: string; big: string; sentPct: number; forecastPct: number; legend: string; warn: boolean; forecast: number; status: LineStatus };
+export function lineQuotaViewOf(input: { sent: number; limit: number; rejected429?: number; month: string; dayOfMonth: number; daysInMonth: number }): LineQuotaView {
+  const limit = Math.max(1, input.limit);
+  const forecast = lineForecastOf(input.sent, input.dayOfMonth, input.daysInMonth);
+  const status = lineStatusOf(input.sent, limit, forecast, input.dayOfMonth);
+  const pct = (n: number) => Math.max(0, Math.min(100, Math.round((n / limit) * 100)));
+  return {
+    title: `LINE の送信数（${Number(input.month.slice(5, 7))}月）`,
+    big: `${input.sent.toLocaleString()} ／ ${limit.toLocaleString()} 通`,
+    sentPct: pct(input.sent), forecastPct: pct(forecast),
+    legend: `送信済み ${input.sent.toLocaleString()} 通・月末の着地見込み ${forecast.toLocaleString()} 通`,
+    warn: input.sent >= limit * 0.9 || status !== "normal" || (input.rejected429 ?? 0) > 0,
+    forecast, status,
+  };
+}
+/** カードの注記＝無料枠を使う通知の種類（実装どおり＝台帳 kind のうち送っているもの。退勤忘れは未送信・Webhook の返事は reply＝無料枠を使わない） */
+export const LINE_QUOTA_KINDS_NOTE = "数えられる通知＝シフトの公開・シフトの変更（追加／外し／時間変更・送り返し・基本の働き方の変更・催促）・お知らせの「LINE で送る」。友だち追加への返事は数えません。";
 export const LINE_STATUS_LABEL: Record<LineStatus, string> = { normal: "通常", near: "上限に近い", over: "上限超え" };
 /** カードの 1 行＝「今月 12 通・着地見込み 40 通／200 通」 */
 export function lineMonthLineOf(r: LineMonthRow, dayOfMonth: number, daysInMonth: number): string {

@@ -46,3 +46,6 @@ yarn-error.log*
 .claude/settings.local.json
 # scratch（裁定279-2・2026-09-18）
 docs/tmp/
+
+# CC の作業用（live の関数ダンプなど＝repo に入れない）
+scratchpad/

@@ -24,7 +24,7 @@ import { createClient } from "@/lib/supabase/client";
 import { bizDateOf, bizDateRange, addDays } from "@/lib/nox/biz-date";
 import { fmtWin, fmtBand30, hm2min, min2hm, spanMinutes } from "@/lib/nox/shift-time";
 import { lateMinutesOf } from "@/lib/nox/shift/late"; // ★裁定268: 遅刻分数（KPI 未着判定と行表示の単一式）
-import { SHIFT_VIEWS, VIEW_TABS, searchOfTab, stepOfTab, tabFromSearch, tabOfView, viewOfTab, type ShiftTab } from "@/lib/nox/shift/tabs"; // ★裁定406（便 SH-UI-b）: 上段 3 タブ＋手順 4 段・URL（?tab=make&step=3&period=） // ★裁定274（R15）: 3 タブの写像
+import { SHIFT_VIEWS, VIEW_TABS, makeStepsOf, searchOfTab, stepOfTab, tabFromSearch, tabOfView, viewOfTab, type ShiftTab } from "@/lib/nox/shift/tabs"; // ★裁定406（便 SH-UI-b）: 上段 3 タブ＋手順 4 段・URL（?tab=make&step=3&period=） // ★裁定274（R15）: 3 タブの写像
 import { matchPunches, LATE_GRACE_MIN_DEFAULT } from "@/lib/nox/punch-match"; // ★裁定257 R20-a: 遅刻判定は給与側と同じ純関数
 import { buildMatchInput, type PunchRow } from "@/lib/nox/punch-io";
 // ★便 AT2（2026-09-24）: 今日タブの出退勤表示＝純関数（退勤ボタンの出し分け・時刻文字列・最初の in／最後の out）
@@ -1190,6 +1190,9 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   // ★0156（裁定309-9・便 V-5）: 店の送り方式（settings_json.okuri_mode）＝'actual' の店だけ退勤に「送り」チェックを出す（+1・RLS 越しの stores 読取）
   const [okuriActual, setOkuriActual] = useState(false); // ★裁定414: 名前は従来のまま＝意味は「送りの導線を出す店」（'none' 以外）
   const [okuriMode, setOkuriMode] = useState<OkuriMode>("flat");
+  const [storeDecides, setStoreDecides] = useState(false);
+  useEffect(() => { if (storeDecides && (tab === "build" || tab === "submit")) setTab("queue"); // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storeDecides, tab]); // ★便 D M-96（2026-11-05）: 店設定 shift_request_mode='store'（店が決めて本人に通知）＝シフト作成は ③配置→④公開 の 2 段（①期間 ②提出一覧 を出さない）
   const [proxyPunchOn, setProxyPunchOn] = useState(true); // ★0164（便 W5-2b）: 店設定 punch_methods.proxy（代行の退勤ボタン・出勤区分後の in 打刻の出し分け）
   // ★裁定317（便 X-9-3）: 「送り」→金額ダイアログ→確定で退勤打刻（p_okuri=true）＋transport_issue_bulk 1 件（idem＝punch id）。旧チェックボックス（okuriMark）は廃止
   const [okuriBase, setOkuriBase] = useState<unknown>(null);
@@ -1205,7 +1208,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
     void (async () => {
       const { data } = await supabase.from("stores").select("settings_json, punch_methods").eq("id", storeId).maybeSingle(); // ★0164（便 W5-2b）: punch_methods（代行の出し分け）
       const sj = (data?.settings_json ?? {}) as Record<string, unknown>;
-      if (alive) { const om = okuriModeOf(sj); setOkuriMode(om); setOkuriActual(okuriAsks(om)); setOkuriBase(sj.okuri_base_amount ?? null); setProxyPunchOn(opsProfileOf(data as Record<string, unknown> | null).punch_methods.proxy); }
+      if (alive) { const om = okuriModeOf(sj); setOkuriMode(om); setOkuriActual(okuriAsks(om)); setOkuriBase(sj.okuri_base_amount ?? null); setProxyPunchOn(opsProfileOf(data as Record<string, unknown> | null).punch_methods.proxy); setStoreDecides(sj.shift_request_mode === "store"); /* ★M-96 */ }
     })();
     return () => { alive = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1436,10 +1439,10 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
       </nav>
       {/* ★裁定406（便 SH-UI-b）: 「シフト作成」＝手順 4 段（①期間を作る ②提出一覧 ③シフト配置 ④公開シフト）。旧 calendar（仮シフト）は ③ の中。今日・確定シフトは手順を出さない */}
       {viewOfTab(tab) === "make" && (
-        <ol className="nox-steps" aria-label="手順" data-shift-steps="1">
-          {VIEW_TABS.make.map(([k, label], i) => (
+        <ol className="nox-steps" aria-label="手順" data-shift-steps={storeDecides ? "2" : "1"}>
+          {makeStepsOf(storeDecides).map(([k, label], i) => (/* ★便 D M-96: 店が決める店＝③配置→④公開 の 2 段（番号は 1・2 で振り直す） */
             <li key={k}>
-              <button type="button" className={stepOfTab(tab) === i + 1 ? "on" : ""} aria-current={stepOfTab(tab) === i + 1 ? "step" : undefined} data-shift-step={i + 1} onClick={() => { setDayModal(""); setTab(k); }}>
+              <button type="button" className={stepOfTab(tab) === stepOfTab(k) ? "on" : ""} aria-current={stepOfTab(tab) === stepOfTab(k) ? "step" : undefined} data-shift-step={i + 1} onClick={() => { setDayModal(""); setTab(k); }}>
                 <span className="num">{i + 1}</span><span>{label}</span>{k === "queue" && wishes.length > 0 ? <span className="nox-tabcnt num">{wishes.length}</span> : null}
               </button>
             </li>
@@ -2201,7 +2204,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                 const stage = periodCellStageOf(periodsAll, ymd, bizToday);
                 return (
                   <CalCell key={ymd} ymd={ymd} stat={st} stage={stage} past={isPast(ymd)} sel={ymd === selDate} today={ymd === bizToday} closed={isClosedDay(ymd)} /* ★便 NR-1 B① */
-                    onClick={() => { if (periodNoneOf(ymd) && isManagerUp) { openNewPeriodAt(ymd); return; } setSelDate(ymd); setDayModal("calendar"); }} /* ★B2-1: 期間なしの日＝①の新規作成へ・★C2-19 ⑦: その日の配置ダイアログはそのまま */
+                    onClick={() => { setSelDate(ymd); setDayModal("calendar"); }} /* ★便 D M-95（2026-11-05・Agoora 実機）: 期間なしの日も割当モーダル（shifts.period_id は null 可＝期間なしの配置）。旧 B2-1「①の新規作成へ」は外した（①は手順の段から） */
                     title={`${ymd}・${FILL_LABEL[st.fill]}（確定${st.confirmed}/確認待ち${st.proposed}/予定${st.planned}）${st.over > 0 ? `・余剰${st.over}` : ""}`}
                     yen={isManagerUp && fc && fc.total > 0 ? yen(fc.total) : null}
                     extra={st.over > 0 ? <span className="num" style={{ fontSize: 8.5, opacity: 0.8 }}>余剰+{st.over}</span> : null} />
@@ -2261,7 +2264,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                 {closedDow && <span data-need-closed={dow} style={{ color: "var(--sub)" }}>定休日（必要人数 0・入力不可）</span>}
                 {!closedDow && bs.length === 0 && <span style={{ color: "var(--v2-muted)" }}>未設定</span>}
                 {!closedDow && bs.map((n) => (
-                  <span key={`${n.id}:${n.required}:${n.to_min}`} style={{ display: "inline-flex", alignItems: "center", gap: 6, border: "1px solid var(--line)", borderRadius: 8, padding: "3px 8px" }}>
+                  <span key={`${n.id}:${n.required}:${n.to_min}`} style={{ display: "inline-flex", alignItems: "center", gap: 6, border: "1px solid var(--line)", borderRadius: 8, padding: "3px 8px", flexWrap: "wrap", maxWidth: "100%", boxSizing: "border-box" }} data-need-band="1">{/* ★便 D M-97: 375 幅で枠からはみ出さない（折り返し） */}
                     <span className="num" style={{ color: "var(--sub)" }}>{bandLabel(n)}</span>
                     <input
                       type="number" min={0} defaultValue={n.required}

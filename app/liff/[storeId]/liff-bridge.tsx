@@ -1,5 +1,6 @@
 "use client";
 
+import { siteHrefOf, siteOriginOf } from "@/lib/nox/line/liff-endpoint"; // ★便 D M-102
 // ★便 ON-3（2026-10-26・0176 ★1＝401）: LIFF の橋＝SDK を読み込み liff.init → 未ログインなら liff.login → getIDToken → クエリで分岐（t と m=bind＝POST /api/line/bind／無し＝POST /api/line/session）→ 行き先へ。
 //   id_token はこの POST にだけ乗せる（URL・ログに出さない）。失敗は画面に 1 行（route の語→日本語）。
 import { useEffect, useState } from "react";
@@ -28,7 +29,7 @@ export default function LiffBridge({ storeId, liffId }: { storeId: string; liffI
         if (!window.liff) await new Promise<void>((ok, ng) => { const s = document.createElement("script"); s.src = SDK; s.async = true; s.onload = () => ok(); s.onerror = () => ng(new Error("sdk")); document.head.appendChild(s); });
         const liff = window.liff!;
         await liff.init({ liffId });
-        if (!liff.isLoggedIn()) { setMsg("LINE のログイン画面へ移動します…"); liff.login({ redirectUri: window.location.href }); return; }
+        if (!liff.isLoggedIn()) { setMsg("LINE のログイン画面へ移動します…"); liff.login({ redirectUri: siteHrefOf(window.location.href, siteOriginOf(window.location.origin)) }); return; } // ★便 D M-102: redirectUri は site 固定の host
         const idToken = liff.getIDToken();
         if (!idToken) throw new Error("bad id_token");
         const q = new URLSearchParams(window.location.search);

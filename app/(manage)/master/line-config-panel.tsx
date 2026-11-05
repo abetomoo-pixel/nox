@@ -10,7 +10,7 @@ import * as t from "@/lib/nox/ui/theme";
 import Toast, { Message } from "@/components/ui/toast";
 import { rpcErrJa } from "@/lib/nox/ui/rpc-err";
 import { useIsDemo } from "@/lib/nox/demo/context";
-import { LINE_CONFIG_KEYS, LINE_CONFIG_LABEL, LINE_LIMIT_NOTE, LINE_PLAN_TIERS, LINE_SECRET_KINDS, LINE_SECRET_LABEL, LINE_SECRET_PLACEHOLDER, liffEntryUrlOf, lineConfigErrorOf, lineConfigPatchOf, lineConfiguredOf, lineLimitErrorOf, lineLimitLabelOf, lineLimitStepOf, lineLoginReadyOf, webhookUrlOf, type LineConfig, type LineConfigKey, type LineSecretKind } from "@/lib/nox/line/liff-endpoint";
+import { LINE_CONFIG_KEYS, LINE_CONFIG_LABEL, LINE_LIMIT_NOTE, LINE_PLAN_TIERS, LINE_SECRET_KINDS, LINE_SECRET_LABEL, LINE_SECRET_PLACEHOLDER, liffEntryUrlOf, siteOriginOf, lineConfigErrorOf, lineConfigPatchOf, lineConfiguredOf, lineLimitErrorOf, lineLimitLabelOf, lineLimitStepOf, lineLoginReadyOf, webhookUrlOf, type LineConfig, type LineConfigKey, type LineSecretKind } from "@/lib/nox/line/liff-endpoint";
 import { jstMonthOf, lineForecastOf, lineMonthLineOf, lineStatusOf, lineStatusTextOf, type LineMonthRow } from "@/lib/nox/line/push-forecast";
 
 type Store = { id: string; name: string };
@@ -29,7 +29,7 @@ export default function LineConfigPanel({ stores, isOwner }: { stores: Store[]; 
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
-  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const origin = siteOriginOf(typeof window !== "undefined" ? window.location.origin : ""); // ★便 D M-102: 発行する URL は site 固定の 1 値
 
   const load = useCallback(async () => {
     if (!storeId) return;

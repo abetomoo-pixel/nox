@@ -95,3 +95,17 @@ export const MIG_0195_APPLIED = true; // ★2026-11-05: 0195（sha16 90ed3a2656a
 let override0195: boolean | null = null;
 export function mig0195On(): boolean { return override0195 ?? MIG_0195_APPLIED; }
 export function __set0195ForTest(v: boolean | null): void { override0195 = v; }
+
+/** ★0196（未起草・便 D で置き場だけ＝2026-11-05）: キオスクの便（裁定448 B 方式・453・§9＝M-103 の保存の腕＝cast_day_deductions_set の cast セルフ腕・kiosk_punch の p_day_deductions・
+ *  kiosk_punch_state の day_rules・kiosk_operator_list の判定）。false の間は /mine とキオスクの出勤の「今日の控除」のチェックを出さない（UI は便 D で入れ済み）。 */
+export const MIG_0196_APPLIED = false;
+let override0196: boolean | null = null;
+export function mig0196On(): boolean { return override0196 ?? MIG_0196_APPLIED; }
+export function __set0196ForTest(v: boolean | null): void { override0196 = v; }
+
+/** ★0197（未起草・便 E で置き場＝2026-11-05）: 裁定455＝打刻の 3 択目 punch_mode（'store'＝打刻しない）・on_duty_of の確定シフトの窓・register_day_grants（今日だけ許可）。
+ *  false の間は punchModeOf が常に 'punch'＝初期設定／店舗設定の 3 択目・レジの柵の文言・実働の分岐はどれも従来どおり。 */
+export const MIG_0197_APPLIED = false;
+let override0197: boolean | null = null;
+export function mig0197On(): boolean { return override0197 ?? MIG_0197_APPLIED; }
+export function __set0197ForTest(v: boolean | null): void { override0197 = v; }

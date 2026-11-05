@@ -85,6 +85,23 @@ export function penaltyArgsOf(input: { runId: string; castId: string; preset: Se
   return { ok: true, args: { ...a.args, p_reason: r ? `${a.args.p_reason as string}・${r}`.slice(0, 200) : a.args.p_reason } };
 }
 
+/** ★便 D 裁定455-3（2026-11-05）: 勤怠の修正モーダルで遅刻／当欠を付けたときの自動登録＝名称「遅刻控除」「当欠控除」（＋M/D）・額＝ひな形の既定額（0 なら登録しない＝呼び出し元で判定） */
+export const AUTO_PENALTY_NAME: Record<"late" | "absent", string> = { late: "遅刻控除", absent: "当欠控除" };
+export function autoPenaltyReasonOf(target: "late" | "absent", biz: string): string {
+  const md = /^\d{4}-\d{2}-\d{2}$/.test(biz) ? `（${Number(biz.slice(5, 7))}/${Number(biz.slice(8, 10))}）` : "";
+  return `${AUTO_PENALTY_NAME[target]}${md}`;
+}
+export function autoPenaltyArgsOf(input: { runId: string; castId: string; preset: SettlementPreset; target: "late" | "absent"; biz: string; shiftId: string | null }): { ok: true; args: Record<string, unknown> } | { ok: false; err: string } {
+  const a = settlementArgsOf({ runId: input.runId, castId: input.castId, preset: input.preset, amount: input.preset.amount, biz: input.biz, shiftId: input.shiftId });
+  if (!a.ok) return a;
+  return { ok: true, args: { ...a.args, p_reason: autoPenaltyReasonOf(input.target, input.biz) } };
+}
+/** 初期設定 ⑦ の 2 欄（遅刻控除／当欠控除の額）→ settlement_presets（既定 2 件の額を差し替え・空欄＝0＝登録しない） */
+export function presetsWithAmountsOf(late: number | null | undefined, absent: number | null | undefined): SettlementPreset[] {
+  const amt = (n: number | null | undefined) => (Number.isFinite(n) && (n as number) > 0 ? Math.trunc(n as number) : 0);
+  return DEFAULT_SETTLEMENT_PRESETS.map((p) => ({ ...p, amount: p.target === "late" ? amt(late) : p.target === "absent" ? amt(absent) : p.amount }));
+}
+
 /** 月次一覧「精算調整の未登録候補: n 件」＝期間内の遅刻／当欠（attendance）の件数 − 登録済み settlement 行（0 未満は 0） */
 export function settlementCandidatesOf(input: { attendance: readonly { status: string }[]; settlements: number }): number {
   const detected = input.attendance.filter((a) => a.status === "late" || a.status === "absent").length;

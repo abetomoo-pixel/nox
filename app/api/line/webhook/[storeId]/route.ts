@@ -4,7 +4,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getLineSecret, lineSignatureOk, replyLine } from "@/lib/nox/line/server";
-import { liffEntryUrlOf } from "@/lib/nox/line/liff-endpoint";
+import { liffEntryUrlOf, siteOriginOf } from "@/lib/nox/line/liff-endpoint"; // ★便 D M-102: 返事の URL は site 固定
 import { UUID_RE, lineStoreOf } from "@/lib/nox/line/subject";
 
 export const runtime = "nodejs";
@@ -29,7 +29,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ storeId: strin
   if (store.config.bot_destination && j.destination && j.destination !== store.config.bot_destination) return new NextResponse("unauthorized", { status: 401 });
   if (store.isDemo) return new NextResponse("ok", { status: 200 }); // デモ org は返事もしない
   const token = await getLineSecret(admin, storeId, "access_token");
-  const entry = liffEntryUrlOf(new URL(req.url).origin, storeId);
+  const entry = liffEntryUrlOf(siteOriginOf(new URL(req.url).origin), storeId);
   for (const ev of j.events ?? []) {
     // ★0195（M-77 ②）: unfollow＝line_links を「ブロック」（blocked_at）にして以後の push を止める（service_role だけの RPC・戻り＝更新行数・再追加→再紐付けで戻る）
     if (ev.type === "unfollow" && ev.source?.userId) { await admin.rpc("line_link_block", { p_store_id: storeId, p_line_user_id: ev.source.userId }); continue; }

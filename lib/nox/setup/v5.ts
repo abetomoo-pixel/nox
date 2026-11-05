@@ -3,7 +3,7 @@
 //   器が無い項目（V5_SAVE_MAP の has=false）は画面に出すが保存は「後で（マスタから）」＝0191 起草（MIG_0191_APPLIED=false の配下）。
 import type { MineSettings } from "../store/mine-settings";
 import { mineSettingsPatchOf } from "../store/mine-settings";
-import { DEFAULT_SETTLEMENT_PRESETS } from "../payroll/settlement";
+import { presetsWithAmountsOf } from "../payroll/settlement"; // ★便 D 裁定455-3: 既定 2 件の額は ⑦ の 2 欄から
 import { mig0190On, mig0191On } from "../rules-0175/flag"; // ★0190／0191 のフラグ true 便: 器なし項目を実保存に（false の間は従来＝「後で（マスタから）」）
 /** ★0191 ★1: 締め日の表記→settlement_close_day（15／20／25／31＝末日） */
 export const CLOSE_DAY_OF: Record<string, 15 | 20 | 25 | 31> = { "15": 15, "20": 20, "25": 25, "末日": 31 };
@@ -43,7 +43,7 @@ export type V5State = {
   pt: { hon: number; jo: number; dohan: number; salesPer: number };
   normaAxes: { days: boolean; dohan: boolean; hon: boolean; sales: boolean }; normaGoal: { days: number; hon: number; dohan: number; sales: number };
   normaPen: Record<"days" | "hon" | "dohan" | "sales", { m: V5PenMode; a: number }>; bonusMode: "max" | "sum";
-  payroll: { period: "month" | "half" | "daily"; close: string; payday: number; whtCast: "hostess" | "none"; whtStaff: "none" | "other_204"; advance: boolean; settle: boolean; okuriMode: "fixed" | "actual" | "store" | "none"; okuri: number; okuriTiers: [number, number, number]; mypage: "none" | "net" | "full" };
+  payroll: { period: "month" | "half" | "daily"; close: string; payday: number; /** ★便 D 裁定455-3: 遅刻控除／当欠控除の額（settlement_presets の late／absent・0＝登録しない） */ lateAmt?: number; absentAmt?: number; whtCast: "hostess" | "none"; whtStaff: "none" | "other_204"; advance: boolean; settle: boolean; okuriMode: "fixed" | "actual" | "store" | "none"; okuri: number; okuriTiers: [number, number, number]; mypage: "none" | "net" | "full" };
   staff: V5Staff[];
   shift: { mode: "want" | "off" | "store"; due: number; auto: number; need: number[] };
   punch: { judge: "soft" | "hard"; how: "device" | "any"; round: 1 | 5 | 15 | 30; gate: boolean };
@@ -345,7 +345,7 @@ export function buildV5Plan(S: V5State, ctx: V5Ctx): { steps: V5Step[]; deferred
   // 10) 店の端末（route）
   if (S.reg.kiosk && S.devReg) push({ key: "device", group: "reg", label: `店の端末「${S.devName}」を登録（端末アカウントの発行）`, api: { url: "/api/kiosk/provision", body: { action: "provision", storeId: s, label: S.devName, idemKey: ctx.deviceIdemKey, purpose: "register" }, resultKey: "device_id" } });
   // 11) 完了（setup_done）
-  push({ key: "done", group: "done", label: "初期設定の完了", rpc: "set_store_profile", args: { p_store_id: s, p_patch: { setup_done: true, slide_apply: "next", settlement_presets: DEFAULT_SETTLEMENT_PRESETS } } });
+  push({ key: "done", group: "done", label: "初期設定の完了", rpc: "set_store_profile", args: { p_store_id: s, p_patch: { setup_done: true, slide_apply: "next", settlement_presets: presetsWithAmountsOf(S.payroll.lateAmt, S.payroll.absentAmt) } } }); // ★便 D 裁定455-3
   // 器が無い項目（0191）
   if (!mig0191On() && (S.payroll.whtCast !== "hostess" || S.payroll.whtStaff !== "none")) deferred.push({ item: "源泉区分の既定（委託キャスト／委託スタッフ）", note: "店の既定＝0191（人ごとの区分は給与の画面で）" });
   if (!mig0191On() && (S.kindRate.hon !== 100 || S.kindRate.jo !== 50 || S.kindRate.free !== 30)) deferred.push({ item: "指名区分ごとの割合（店）", note: "店の割合＝0191（商品ごとの場内／フリーは円のとき保存済み）" });

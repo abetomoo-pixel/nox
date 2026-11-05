@@ -50,7 +50,7 @@ export default function ContactForm({ contactEmail, phone }: { contactEmail: str
           <label style={{ display: "grid", gap: 4, fontSize: 12.5 }}>{CONTACT_FIELD_LABEL.phone}
             <input inputMode="tel" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} style={input} placeholder="090-0000-0000" maxLength={20} data-mine-contact-phone="1" />
           </label>
-          <div style={{ display: "flex", gap: 8 }}>
+          <div className="nox-actions" data-mine-contact-actions="1">{/* ★便 D M-105（2026-11-05・Agoora 実機・教訓133）: 保存／やめる は行の中央 */}
             <button type="submit" disabled={busy} style={{ ...t.btnGold, padding: "8px 20px", minHeight: 40 }} data-mine-contact-save="1">{busy ? "保存中…" : "保存"}</button>
             <button type="button" disabled={busy} style={{ ...t.btnGhost, padding: "8px 16px", minHeight: 40 }} onClick={() => { setEdit(false); setForm({ contact_email: contactEmail ?? "", phone: phone ?? "" }); setMsg(null); }}>やめる</button>
           </div>

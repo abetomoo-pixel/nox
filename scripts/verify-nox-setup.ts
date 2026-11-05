@@ -84,7 +84,7 @@ for (const biz of BIZ_ALL) {
   const done = steps[steps.length - 1];
   const patch = steps[0].args?.p_patch as Record<string, unknown>;
   check(`su(2-7) ${biz}: 完了 step＝set_store_profile {setup_done, slide_apply:'next', settlement_presets 3}・先頭 step に biz_type／billing_mode／sys_* 9（明示 boolean）／okuri_base_amount 1000・slide_apply は完了 step だけ`,
-    done.rpc === "set_store_profile" && JSON.stringify(done.args?.p_patch) === JSON.stringify({ setup_done: true, slide_apply: "next", settlement_presets: DEFAULT_SETTLEMENT_PRESETS })
+    done.rpc === "set_store_profile" && JSON.stringify(done.args?.p_patch) === JSON.stringify({ setup_done: true, slide_apply: "next", settlement_presets: DEFAULT_SETTLEMENT_PRESETS }) /* ★便 D 裁定455-3: 額の欄が空＝既定と同値（額つきは verify:nox-bend） */
     && patch.biz_type === biz && patch.billing_mode === "table" && SYSTEM_KEYS.every((k) => typeof patch[k] === "boolean") && patch.okuri_base_amount === 1000 && !("slide_apply" in patch)
     && steps[1].rpc === "set_store_receivable_policy" && steps[1].args?.p_policy === (templateOf(biz).features.accounts_receivable ? "customer_only" : "disabled"));
   const noProd = planOf(biz, f, { includeProducts: false });

@@ -36,9 +36,18 @@ export default function SideNav({ groups, storeLabel , homeHref = "/" }: { /** �
     sync(); mq.addEventListener("change", sync);
     return () => mq.removeEventListener("change", sync);
   }, []);
-  const drawerRoute = path === "/register" || path.startsWith("/register/") || path === "/floor" || path.startsWith("/floor/");
-  const mode: "full" | "rail" | "hidden" = drawerRoute ? "hidden" : (pref ?? (wide ? "full" : "rail"));
-  const toggle = () => { const next = mode === "rail" ? "full" : "rail"; setPref(next); try { window.localStorage.setItem("nox.sidenav", next); } catch { /* noop */ } };
+  // ★便 D M-94（2026-11-05・相談役）: 通常ログインの /register も共通レイアウト＝既定は畳んだレール（アイコンだけ）・»で広げる（記憶は別キー nox.sidenav.register）。
+  //   レジ専用の ≡（ドロワー）は外す＝スマホ幅は他画面と同じ下タブの「メニュー」。/floor はこれまでどおりドロワー。キオスク（/kiosk・本人セッション）はこの部品を通らない＝不変。
+  const registerRoute = path === "/register" || path.startsWith("/register/");
+  const drawerRoute = path === "/floor" || path.startsWith("/floor/");
+  const [regPref, setRegPref] = useState<"rail" | "full" | null>(null);
+  useEffect(() => { try { const v = window.localStorage.getItem("nox.sidenav.register"); if (v === "rail" || v === "full") setRegPref(v); } catch { /* noop */ } }, []);
+  const mode: "full" | "rail" | "hidden" = drawerRoute ? "hidden" : registerRoute ? (regPref ?? "rail") : (pref ?? (wide ? "full" : "rail"));
+  const toggle = () => {
+    const next = mode === "rail" ? "full" : "rail";
+    if (registerRoute) { setRegPref(next); try { window.localStorage.setItem("nox.sidenav.register", next); } catch { /* noop */ } return; }
+    setPref(next); try { window.localStorage.setItem("nox.sidenav", next); } catch { /* noop */ }
+  };
   const flat = groups.flatMap((g) => g.items);
   const active = flat.reduce<string>((best, it) => {
     const hit = path === it.href || path.startsWith(it.href + "/");
@@ -52,7 +61,7 @@ export default function SideNav({ groups, storeLabel , homeHref = "/" }: { /** �
       <button type="button" className="nox-navburger show" aria-label="メニューを開く" data-nav-burger="1"
         onClick={() => window.dispatchEvent(new CustomEvent(OPEN_MENU_EVENT, { detail: { section: "drawer" } }))}>≡</button>
     )}
-    <aside className={`nox-side${mode === "rail" ? " is-rail" : mode === "hidden" ? " is-hidden" : ""}`} data-side-mode={mode}>
+    <aside className={`nox-side${mode === "rail" ? " is-rail" : mode === "hidden" ? " is-hidden" : ""}`} data-side-mode={mode} data-side-register={registerRoute ? "1" : undefined}>
       {/* E2: モック .brand（brandmark＋NOX＋店名）。リンクではない＝遷移を増やさない。 */}
       <div className="brand">{/* ★便 SH-UI-a A-2: 「N／NOX」の文字ロゴ→横組みロゴ（暗地）。店名は従来のまま小字。★便 SH-UI-b2 B2-2: ロゴ＝その role のホームへ */}
         <Link href={homeHref} aria-label="ホームへ" className="nox-brandlink" data-brand-home={homeHref}><BrandLogo height={34} /></Link>

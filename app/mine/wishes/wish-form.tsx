@@ -8,7 +8,7 @@
 //   取り下げ＝既存 shift_wish_withdraw（WithdrawButton）のまま。締切超過は案内のみ（裁定43）。1 日 1 枠は DB の部分 unique が守る。
 import TimeInput from "@/components/ui/time-input"; // ★便 M5b M-51: 時刻欄の共通部品（時計アイコン・時と分を選ぶ・翌の表示）
 import { useCallback, useEffect, useState } from "react";
-import { hmRangeErrorOf } from "@/lib/nox/time/hhmm"; // ★裁定318（便 X-9-2）: 時刻入力の共通部品（blur で HH:MM に正規化）
+import { hmLabelOf, hmRangeErrorOf } from "@/lib/nox/time/hhmm"; // ★裁定318（便 X-9-2）: 時刻入力の共通部品（blur で HH:MM に正規化）
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
@@ -231,7 +231,7 @@ export default function WishForm({ mode = "shift" }: { mode?: WishMode }) {
           <b style={{ fontSize: 12.5 }}>時間（一括）</b>
           <TimeInput value={defStart} onChange={setDefStart} maxHour={23} placeholder="20:00" ariaLabel="開始（一括）" style={input} disabled={busy} />
           <span style={{ fontSize: 13, color: "var(--sub)" }}>〜</span>
-          <TimeInput value={defEnd} onChange={setDefEnd} placeholder="26:00" ariaLabel="終了（一括）" style={input} disabled={busy} />
+          <TimeInput value={defEnd} onChange={setDefEnd} placeholder={hmLabelOf("26:00")} ariaLabel="終了（一括）" style={input} disabled={busy} />{/* ★便 D M-106: 表示は「翌02:00」（26:00 は出さない） */}
           <span style={{ fontSize: 10.5, color: "var(--v2-muted)" }}>日ごとに変えるときは下で上書き</span>
         </div>
         ) : (
@@ -244,18 +244,20 @@ export default function WishForm({ mode = "shift" }: { mode?: WishMode }) {
             {selDates.map((ymd) => {
               const o = sel[ymd];
               return (
-                <div key={ymd} style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", fontSize: 12.5 }}>
-                  <span className="num" style={{ minWidth: 72, color: failed[ymd] ? "var(--bad)" : "var(--ink)" }}>{mdDowOf(ymd)}</span>
-                  {needsTimes ? (<>
-                  <TimeInput value={o?.start ?? ""} maxHour={23} placeholder={defStart} ariaLabel={`${mdDowOf(ymd)} 開始`} style={input} disabled={busy}
+                <div key={ymd} style={{ display: "grid", gap: 4, fontSize: 12.5, padding: "4px 0", borderBottom: "1px solid var(--line2)" }} data-wish-day-row={ymd}>{/* ★便 D M-106（2026-11-05・Agoora 実機）: 375 幅ではみ出さない＝日付 1 行目・時刻 2 つと「外す」2 行目 */}
+                  <span className="num" style={{ color: failed[ymd] ? "var(--bad)" : "var(--ink)", fontWeight: 700 }}>{mdDowOf(ymd)}{!needsTimes && <span style={{ color: "var(--sub)", fontWeight: 400, marginLeft: 8 }}>休み</span>}</span>
+                  <span style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", minWidth: 0 }}>
+                  {needsTimes && (<>
+                  <TimeInput value={o?.start ?? ""} maxHour={23} placeholder={hmLabelOf(defStart)} ariaLabel={`${mdDowOf(ymd)} 開始`} style={{ ...input, width: 72 }} disabled={busy}
                     onChange={(v) => setSel((s) => setOverride(s, ymd, { start: v, end: o?.end ?? "" }))} />
                   <span style={{ color: "var(--sub)" }}>〜</span>
-                  <TimeInput value={o?.end ?? ""} placeholder={defEnd} ariaLabel={`${mdDowOf(ymd)} 終了`} style={input} disabled={busy}
-                    onChange={(v) => setSel((s) => setOverride(s, ymd, { start: o?.start ?? "", end: v }))} />
+                  <TimeInput value={o?.end ?? ""} placeholder={hmLabelOf(defEnd)} ariaLabel={`${mdDowOf(ymd)} 終了`} style={{ ...input, width: 72 }} disabled={busy}
+                    onChange={(v) => setSel((s) => setOverride(s, ymd, { start: o?.start ?? "", end: v }))} />{/* ★M-106: 終了の表示は一括と同じ「翌02:00」（TimeInput の表示規則） */}
                   {o && (o.start || o.end) && <button type="button" style={{ ...btnLight, padding: "2px 8px" }} disabled={busy} onClick={() => setSel((s) => setOverride(s, ymd, null))}>一括に戻す</button>}
-                  </>) : <span style={{ color: "var(--sub)" }}>休み</span>}
-                  <button type="button" style={{ ...btnLight, padding: "2px 8px" }} disabled={busy} onClick={() => { setSel((s) => toggleDay(s, ymd)); setFailed((f) => { const n = { ...f }; delete n[ymd]; return n; }); }}>外す</button>
-                  {failed[ymd] && <span style={{ width: "100%", fontSize: 11, color: "var(--bad)" }}>{failed[ymd]}</span>}
+                  </>)}
+                  <button type="button" style={{ ...btnLight, padding: "2px 8px", marginLeft: "auto" }} disabled={busy} onClick={() => { setSel((s) => toggleDay(s, ymd)); setFailed((f) => { const n = { ...f }; delete n[ymd]; return n; }); }}>外す</button>
+                  </span>
+                  {failed[ymd] && <span style={{ fontSize: 11, color: "var(--bad)" }}>{failed[ymd]}</span>}
                 </div>
               );
             })}

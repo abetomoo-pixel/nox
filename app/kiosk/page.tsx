@@ -17,7 +17,8 @@ import { Message } from "@/components/ui/toast"; // ★裁定281（便 U）: メ
 import { okuriSelfPlanOf, OKURI_PENDING_NOTE, type OkuriSelfPlan } from "@/lib/nox/shift/okuri-self";
 import { okuriOutTextOf, okuriRecordedTextOf } from "@/lib/nox/shift/okuri-mode"; // ★裁定414（S-4）: 方式の 1 文・「記録」
 import { rpcErrJa } from "@/lib/nox/ui/rpc-err"; // ★裁定327（0161・便 M1-4）: 順序検査の拒否 3 語は端末にも同じ和文
-import { mig0190On, mig0191On, rules0175On } from "@/lib/nox/rules-0175/flag"; // ★追補 2 同乗 R-7 ★0190: mig0190On
+import { mig0190On, mig0191On, mig0196On, rules0175On } from "@/lib/nox/rules-0175/flag";
+import { DAY_DED_PICK_HEAD, dayDedPickLabelOf, dayDedPickRowsOf, type DayDedPickRule } from "@/lib/nox/payroll/day-ded-pick"; // ★便 D M-103 // ★追補 2 同乗 R-7 ★0190: mig0190On
 import { bindErrJa, browserDeviceFp } from "@/lib/nox/kiosk/device-fp"; // ★0190（裁定436 ①b）: 端末の束縛＝ログイン直後に kiosk_device_bind
 import { KIOSK_FEATURE_READY } from "@/lib/nox/rules-0175/kiosk"; // ★0190（裁定435）: 5 タイル（シフト・在庫・日報は案内画面）
 import CastAvatar from "@/components/ui/cast-avatar"; // ★便 M5 M-42: 写真＝本体画面と同じ部品（url は /api/kiosk/photos の署名 URL）
@@ -26,7 +27,7 @@ import { KIOSK_PERSON_LINK } from "@/lib/nox/kiosk/person-login"; // ★便 M5 M
 import { startKioskPersonLogin } from "@/lib/nox/kiosk/person-login-client"; // ★便 M5 M-49: 端末のセッションを控えて /login?kiosk=1
 type KRow = { cast_id: string; cast_name: string; has_pin: boolean; staff?: boolean }; // ★便 P174 T-6（355）: staff＝true は cast_id に membership_id（スタッフ群）
 type SRow = { membership_id: string; user_name: string; role: string; has_pin: boolean; last_kind: string | null; last_at: string | null }; // ★便 P174 T-6: kiosk_staff_list（0174 ★5）
-type Phase = "loading" | "login" | "denied" | "select" | "pin" | "okuri" | "result";
+type Phase = "loading" | "login" | "denied" | "select" | "pin" | "okuri" | "dayded" | "result"; // ★便 D M-103: dayded＝出勤時の「今日の控除」（0196 まで出ない）
 type PunchResult =
   | { kind: "ok"; name: string; type: "in" | "out"; time: string; note?: string }
   | { kind: "ng"; message: string };
@@ -60,6 +61,8 @@ export default function KioskPage() {
   const [loginErr, setLoginErr] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [okuriPlan, setOkuriPlan] = useState<OkuriSelfPlan | null>(null);
+  const [dayDed, setDayDed] = useState<DayDedPickRule[]>([]); // ★便 D M-103: その店の pick ルール（kiosk_punch_state の day_rules＝0196）
+  const [dayDedOn, setDayDedOn] = useState<Record<string, boolean>>({});
   const [castPunchOff, setCastPunchOff] = useState(false); // ★便 X13-G W-23 ①: キャストの打刻を使わない店＝キャスト群を出さない（スタッフ群は今のまま）
   const [bindMsg, setBindMsg] = useState<string | null>(null); // ★0190: 端末の束縛（'device bound'＝別の端末に固定済み→denied）
   const [photoUrls, setPhotoUrls] = useState<{ casts: Record<string, string>; operators: Record<string, string> }>({ casts: {}, operators: {} }); // ★便 M5 M-42: 端末は署名できない（auth_org_id null）＝route が admin で署名
@@ -127,6 +130,18 @@ export default function KioskPage() {
     setPin((p) => (p.length >= (mig0191On() ? 6 : 4) ? p : p + d)); // 関数型更新（連打でも取りこぼさない）★0191 ★3: 4〜6 桁
   }
 
+  /** ★便 D M-103（保存は 0196 の kiosk_punch p_day_deductions）: 出勤＝pick ルールがある店は先に「今日の控除」を聞く（読取に失敗したら聞かずに従来どおり打刻）。0196 まで＝従来どおり */
+  async function startIn() {
+    if (!target || !pinOk(pin) || busy) return;
+    if (target.staff || !mig0196On()) { void punch("in"); return; }
+    setBusy(true);
+    const { data, error } = await supabase.rpc("kiosk_punch_state", { p_cast_id: target.cast_id });
+    setBusy(false);
+    const rules = error ? [] : (((data as { day_rules?: unknown } | null)?.day_rules ?? []) as DayDedPickRule[]);
+    if (rules.length === 0) { void punch("in"); return; }
+    setDayDed(rules); setDayDedOn({}); setPhase("dayded");
+  }
+
   /** 退勤: 実費の店なら先に「送り あり／なし」を聞く（読取に失敗したら聞かずに従来どおり打刻） */
   async function startOut() {
     if (!target || !pinOk(pin) || busy) return;
@@ -139,12 +154,14 @@ export default function KioskPage() {
     setOkuriPlan(plan); setPhase("okuri");
   }
 
-  async function punch(type: "in" | "out", okuri?: boolean) {
+  async function punch(type: "in" | "out", okuri?: boolean, dayRows?: { deduction_id: string; enabled: boolean }[] | null) {
     if (!target || !pinOk(pin) || busy) return;
     setBusy(true);
     const { data, error } = target.staff
       ? await supabase.rpc("staff_punch", { p_membership_id: target.cast_id, p_pin: pin, p_kind: type }) // ★便 P174 T-6（355・0174 ★5）
-      : await supabase.rpc("kiosk_punch", okuri === undefined
+      : await supabase.rpc("kiosk_punch", dayRows
+        ? { p_cast_id: target.cast_id, p_pin: pin, p_type: type, p_okuri: false, p_day_deductions: dayRows } // ★便 D M-103: 出勤と同時に「今日の控除」（0196 の 5 引数目）
+        : okuri === undefined
         ? { p_cast_id: target.cast_id, p_pin: pin, p_type: type }
         : { p_cast_id: target.cast_id, p_pin: pin, p_type: type, p_okuri: okuri });
     // 送り あり: 基本額がある店だけ発行（失敗しても打刻は残る＝店が締めで確定）
@@ -316,8 +333,8 @@ export default function KioskPage() {
               <button style={{ ...keyBtn, fontSize: 20, color: "var(--sub)" }} onClick={() => setPin((p) => p.slice(0, -1))}>⌫</button>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 18 }}>
-              <button disabled={!pinOk(pin) || busy} onClick={() => void punch("in")}
-                style={{ ...t.btnGold, padding: "20px 0", fontSize: 20, fontWeight: 900, borderRadius: 14, opacity: pinOk(pin) ? 1 : 0.4 }}>
+              <button disabled={!pinOk(pin) || busy} onClick={() => void startIn()}
+                style={{ ...t.btnGold, padding: "20px 0", fontSize: 20, fontWeight: 900, borderRadius: 14, opacity: pinOk(pin) ? 1 : 0.4 }}>{/* ★便 D M-103: pick ルールがあれば先に聞く（0196 まで従来どおり） */}
                 出勤
               </button>
               <button disabled={!pinOk(pin) || busy} onClick={() => void startOut()}
@@ -329,6 +346,22 @@ export default function KioskPage() {
           </div>
         )}
 
+        {phase === "dayded" && target && (/* ★便 D M-103: 出勤時の「今日の控除」（既定 off・名称と額）→ 出勤する＝kiosk_punch(p_day_deductions) */
+          <div style={{ maxWidth: 380, margin: "0 auto" }} data-kiosk-day-ded="1">
+            <p style={{ textAlign: "center", fontSize: 17, fontWeight: 800, margin: "0 0 4px" }}>{target.cast_name}</p>
+            <p style={{ textAlign: "center", ...t.sub, margin: "0 0 14px" }}>{DAY_DED_PICK_HEAD}</p>
+            <div style={{ display: "grid", gap: 8, marginBottom: 14 }}>
+              {dayDed.map((r) => (
+                <label key={r.id} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 16, padding: "10px 12px", border: "1px solid var(--line2)", borderRadius: 12, background: dayDedOn[r.id] ? "var(--goldface2)" : "transparent" }}>
+                  <input type="checkbox" checked={!!dayDedOn[r.id]} disabled={busy} onChange={(e) => setDayDedOn((m) => ({ ...m, [r.id]: e.target.checked }))} style={{ width: 20, height: 20 }} data-kiosk-day-ded-rule={r.id} />{dayDedPickLabelOf(r)}
+                </label>
+              ))}
+            </div>
+            <button disabled={busy} onClick={() => void punch("in", undefined, dayDedPickRowsOf(dayDed, dayDedOn) ?? [])}
+              style={{ ...t.btnGold, padding: "20px 0", fontSize: 20, fontWeight: 900, borderRadius: 14, width: "100%" }}>出勤する</button>
+            <button onClick={() => setPhase("pin")} disabled={busy} style={{ ...t.btnGhost, ...t.btnSm, marginTop: 16, width: "100%" }}>もどる</button>
+          </div>
+        )}
         {phase === "okuri" && target && okuriPlan && (
           <div style={{ maxWidth: 380, margin: "0 auto" }}>
             <p style={{ textAlign: "center", fontSize: 17, fontWeight: 800, margin: "0 0 4px" }}>{target.cast_name}</p>

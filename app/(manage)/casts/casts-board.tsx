@@ -39,7 +39,8 @@ const CAST_RELOAD_COLS: string = okuriTiersOn() ? "id, name, user_id, photo_upda
 import { rules0175On } from "@/lib/nox/rules-0175/flag"; // ★便 P175-prep P-4
 import AvailabilityEditor from "@/components/nox/availability-editor"; // ★便 P175-prep P-4（裁定397＋413）: 基本の働き方
 import ContactChangesPanel from "@/components/nox/contact-changes-panel"; // ★便 ON-3（0176 ★4 400）: 連絡先の変更（未確認）
-import { LINE_BIND_NOTE, liffBindUrlOf } from "@/lib/nox/line/liff-endpoint"; // ★便 ON-3（0176 ★1 401）: LINE 連携のリンク
+import { LINE_BIND_NOTE, liffBindUrlOf, siteOriginOf } from "@/lib/nox/line/liff-endpoint";
+import ContractChip from "@/components/nox/contract-chip"; // ★便 D M-99 // ★便 ON-3（0176 ★1 401）: LINE 連携のリンク
 import Picker from "@/components/nox/picker"; // ★裁定306-13: 待遇プランの候補（件数可変＝picker）
 import { isSystemOn } from "@/lib/nox/store-systems";
 import { firstInLastOut, isTodayWorking, todayStateOf, type TodayState } from "@/lib/nox/shift/today-row"; // ★裁定353（便 N1014 A-2）: 今日の状態＝今日タブと同じ純関数
@@ -117,7 +118,7 @@ export default function CastsBoard({
     setBindUrl(null); setBindCopied(false);
     const { data, error } = await supabase.rpc("line_bind_token_create", { p_subject_kind: "cast", p_subject_id: c.id, p_purpose: "bind" });
     if (error || typeof data !== "string") { setMsg(`LINE 連携のリンクを発行できませんでした: ${rpcErrJa(error?.message ?? "")}`); return; }
-    setBindUrl(liffBindUrlOf(window.location.origin, c.store_id, data));
+    setBindUrl(liffBindUrlOf(siteOriginOf(window.location.origin), c.store_id, data)); // ★便 D M-102: site 固定
   }
   const [trials, setTrials] = useState<Trial[]>(initialTrials);
   const [busy, setBusy] = useState(false);
@@ -1008,7 +1009,7 @@ export default function CastsBoard({
                   {(rankNameOf(c) || planNameOf(c.id) || guaBadgeOf(c.id) || isTrialCast(c)) && (
                     <div className="csub" style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 2 }}>
                       {rankNameOf(c) && <span className="nox-stpill" style={{ color: "var(--v2-text)" }}>{rankNameOf(c)}</span>}
-                      {planNameOf(c.id) && <span className="nox-stpill" style={{ color: "var(--v2-muted)" }}>{planNameOf(c.id)}</span>}
+                      {planNameOf(c.id) && <ContractChip text={planNameOf(c.id)!} dataKey="data-cast-plan-chip" />}{/* ★便 D M-99: 待遇（プラン名）も共通の契約チップ */}
                       {/* ★夜間便 N4-2（裁定282-3）: 保証時給の期限が 7 日以内＝「保証 あと n 日」（warn 色・期限切れ当日以降は出さない） */}
                       {guaBadgeOf(c.id) && !isTrialCast(c) && <span className="nox-stpill warn">保証 あと{guaBadgeOf(c.id)!.daysLeft}日</span>}
                       {isTrialCast(c) && trialDaysLeftChipOf(guaranteeStateOf(planRowsOf[c.id] ?? [], today).daysLeft) && <span className="nox-stpill warn" data-trial-days="1">{trialDaysLeftChipOf(guaranteeStateOf(planRowsOf[c.id] ?? [], today).daysLeft)}</span>}{/* ★GV-C C-14f（裁定396）: 体入カードは保証の残日数を常に */}

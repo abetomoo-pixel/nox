@@ -1108,9 +1108,9 @@ ${md.message}（入れずに確定すると控除 0 のまま確定します）`
                     )}
                     {adjMsg && <Toast msg={adjMsg} style={{ margin: "6px 0 0" }} />}
                     {/* ★0156（裁定309-8＝300 追補1・便 V-3）: 固定控除＝店の deductions を行ごとに ON／OFF＋金額上書き（draft のみ編集・finalized は読取表示）→ override_set／clear */}
-                    <p style={{ fontSize: 11.5, fontWeight: 800, color: "var(--champ)", margin: "10px 0 2px" }}>固定控除{adjEditable ? "" : "（確定済み・読取のみ）"}</p>
-                    {dedRows.length === 0 && <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 4px" }}>この店に有効な固定控除はありません</p>}
-                    {dedRows.map((d) => {
+                    {adjEditable && <p style={{ fontSize: 11.5, fontWeight: 800, color: "var(--champ)", margin: "10px 0 2px" }} data-ded-rules-head="1">控除ルール（この月だけの上書き）</p>}{/* ★便 D M-104（2026-11-05）: 確定済みの月は live の控除マスタ一覧を出さない（凍結された控除の内訳だけ）＝見出しも未確定の月だけ */}
+                    {adjEditable && dedRows.length === 0 && <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 4px" }}>この店に有効な固定控除はありません</p>}
+                    {(adjEditable ? dedRows : []).map((d) => {
                       const ov = ovRows.find((o) => o.cast_id === r.castId && o.deduction_id === d.id);
                       const on = ov ? ov.enabled : true;
                       const eff = ov?.amount_override ?? d.amount;

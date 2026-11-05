@@ -393,7 +393,7 @@ export default function ShiftAddForm({
           onCancel={() => setUnavailTarget(null)} onSubmit={(reason) => setUnavailable(unavailTarget, reason)} />
       )}
       <div data-bulk-add="1" />{/* ★便 M-5: 390px の目印（.nox-modal-card:has([data-bulk-add])＝フルスクリーン） */}
-      <div className="nox-modalhead">
+      <div className="nox-modalhead nox-formmodal-head" style={{ marginBottom: 0 }} data-bulk-add-head="1">{/* ★便 D M-97（2026-11-05・Agoora 実機）: 題名と × はスクロールしても見える（M-81 の共通クラス＝sticky） */}
         <h3 style={{ ...secTitle, margin: 0 }}>シフトを追加</h3>
         <button type="button" style={{ ...btnLight, padding: "2px 10px" }} onClick={onClose}>×</button>
       </div>
@@ -599,7 +599,7 @@ export default function ShiftAddForm({
         </div>
       </div>
       {/* フッター（裁定112-H: 0件時 disabled・「保存して次のキャスト」は成功後に選択のみリセット） */}
-      <div className="nox-bulkadd-foot" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 9, padding: "12px 16px", borderTop: "1px solid var(--line)" }}>{/* ★便 A M-65 (c)・教訓133: 下段のボタンは中央寄せ */}
+      <div className="nox-bulkadd-foot nox-formmodal-foot" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 9, padding: "12px 16px", borderTop: "1px solid var(--line)" }} data-bulk-add-foot="1">{/* ★便 D M-97: 脚（保存ボタン）は PC 幅でも固定＝M-81 の共通クラス（sticky bottom） */}{/* ★便 A M-65 (c)・教訓133: 下段のボタンは中央寄せ */}
         <small style={{ color: "var(--sub)" }} className="num">{selCast?.name ?? "—"} ／ {selCount}日分</small>
         <span className="nox-bulkadd-btns nox-actions" style={{ display: "inline-flex", gap: 9 }}>
           <button style={btnLight} className="nox-bulkadd-cancel" onClick={onClose}>キャンセル</button>

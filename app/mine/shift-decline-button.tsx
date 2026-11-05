@@ -37,7 +37,7 @@ export default function ShiftDeclineButton({ shiftId }: { shiftId: string }) {
         <span style={{ display: "grid", gap: 6, flexBasis: "100%", padding: "6px 0" }}>
           <span style={{ fontSize: 12, color: "var(--sub)" }}>{DECLINE_CONFIRM}</span>
           <input value={reason} onChange={(e) => setReason(e.target.value)} maxLength={DECLINE_REASON_MAX} placeholder="理由（任意）" style={{ ...t.input, width: "100%", padding: "8px 10px" }} data-shift-decline-reason="1" />
-          <span style={{ display: "flex", gap: 8 }}>
+          <span className="nox-actions" data-shift-decline-actions="1">{/* ★便 D M-105: 辞退する／やめる は行の中央 */}
             <button type="button" disabled={busy} onClick={() => void decline()} style={{ ...t.btnGold, fontSize: 12, padding: "6px 14px", borderRadius: 999 }}>{busy ? "送信中…" : "辞退する"}</button>
             <button type="button" disabled={busy} onClick={() => { setOpen(false); setErr(null); }} style={{ ...t.btnGhost, fontSize: 12, padding: "6px 14px", borderRadius: 999 }}>やめる</button>
           </span>

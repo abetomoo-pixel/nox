@@ -21,6 +21,11 @@ export const VIEW_TABS: Record<ShiftView, ReadonlyArray<readonly [ShiftTab, stri
   fixed: [["roster", "確定シフト"]],
 };
 
+/** ★便 D M-96（2026-11-05）: 店設定 shift_request_mode='store'（店が決めて本人に通知）の店＝①期間を作る ②提出一覧 を出さない 2 段（③配置→④公開）。段の番号は表示側で振り直す */
+export function makeStepsOf(storeDecides: boolean): ReadonlyArray<readonly [ShiftTab, string]> {
+  return storeDecides ? VIEW_TABS.make.filter(([k]) => k === "queue" || k === "publish") : VIEW_TABS.make;
+}
+
 /** 旧キー 5 本＋406 の 2 本（深リンク・state の写像元＝1 本も落とさない） */
 export const LEGACY_SHIFT_TABS: ReadonlyArray<ShiftTab> = ["today", "queue", "build", "calendar", "roster", "submit", "publish"];
 

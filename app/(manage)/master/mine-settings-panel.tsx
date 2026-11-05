@@ -140,10 +140,10 @@ export default function MineSettingsPanel({ stores, isOwner = false }: { stores:
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap", borderTop: "1px solid var(--line2)", padding: "8px 0" }}>
         <div style={{ minWidth: 0, flex: "1 1 240px" }}>
           <div style={rowLabel}>{MINE_SETTING_LABEL.shift_request_mode}</div>
-          <p style={rowDesc}>「シフト希望」は出たい日と時間を提出。「休み希望のみ」は休みたい日だけ提出し、提出のない日は出勤できる日として扱います</p>
+          <p style={rowDesc}>「シフト希望」は出たい日と時間を提出。「休み希望のみ」は休みたい日だけ提出し、提出のない日は出勤できる日として扱います。「店が決める」は希望を集めず、店が配置して本人に通知します（シフト作成は 配置→公開 の 2 段）</p>
         </div>
         <SegSelect value={form.shift_request_mode} onChange={(v) => setForm((f) => ({ ...f, shift_request_mode: v as ShiftRequestMode }))}
-          options={(["shift", "off_only"] as const).map((v) => [v, SHIFT_REQUEST_MODE_LABEL[v]] as const)} disabled={busy || !loaded} ariaLabel={MINE_SETTING_LABEL.shift_request_mode} />
+          options={(["shift", "off_only", "store"] as const).map((v) => [v, SHIFT_REQUEST_MODE_LABEL[v]] as const)} disabled={busy || !loaded} ariaLabel={MINE_SETTING_LABEL.shift_request_mode} />{/* ★便 D M-96: 'store'＝店が決めて本人に通知（0191 ★4 で受理済み）＝シフト作成は 2 段・/mine は希望の提出なし */}
       </div>
       {msg && <Toast msg={msg} style={{ margin: "10px 0 0" }} />}
       <div className="nox-actions" style={{ marginTop: 12 }}>
