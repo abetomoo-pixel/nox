@@ -5268,6 +5268,16 @@ grep で洗い出した左右振り分けのボタンは一覧報告だけでな
 読取②（Webhook の再送）＝webhookEventId／isRedelivery の重複捨ては無いが効果として冪等＝書くのは unfollow の line_link_block だけ（blocked_at null の行だけ update・変わらなければ audit も書かない）・follow／テキストは reply（1 回限りの replyToken・台帳に入れない）＝LINE の「再送」ON でよい。端＝unfollow の再送が再紐付けの後に届くと再び blocked。
 提案（M-100）＝①署名が通った最初のイベントで destination が空なら admin で line_config.bot_destination に保存し以後の違いを 401 に（欄は「自動で取得済み」表示）②`deliveryContext.isRedelivery === true` の unfollow は捨てる。DDL なし。
 
+## M-104（2026-11-05 受領・相談役・client・便 D）給与の明細パネル＝確定済みの月では live の控除マスタの一覧を出さない
+
+「給与の明細パネルの『固定控除（確定済み・読取のみ）』の下に今の控除マスタを一覧している行は、確定済みの明細では出さない（凍結された控除の内訳だけ）。run 別の上書き欄は未確定の月だけ『控除ルール（この月だけの上書き）』の見出しで出す。撮影＝確定済みの月と未確定の月の 2 枚。」
+CC の読取（M-103 の読取 1 で発見）＝payroll-board の run 別上書きの欄（dedRows＝live の deductions）が確定済みの run でも出ていて、凍結値（payslips.breakdown_json・fixedDed）と混ざって見える（あい 10 月＝凍結 fixedDed 0 なのに「ヘアメ代 日額 ¥1,000」が見えた）。
+
+## M-103（2026-11-05 Agoora 確定・便 D＝UI／0196＝保存の腕）「その日に選ぶ」の控除は出勤時に聞く
+
+「『その日に選ぶ』（per=day・day_rule=pick）の控除は出勤時に聞く。①/mine の出勤ボタンの下に、その店の pick ルールごとのチェック（既定 off・名称と額）。出勤と同時に送る。client は便 D で UI を入れ、保存は 0196 の cast セルフ腕（auth_cast_id() 本人・自分の行・当日だけ・cast_day_deductions_set と同じ行の形）＝0196 のフラグ便で有効化（それまでは UI を出さない）。②キオスクの出勤（kiosk_punch）にも同じチェック＝0196 §9（day_rules の読取の口＋PIN の本人確認で書ける腕＝kiosk_punch の引数 p_day_deductions jsonb を推奨）。③退勤では聞かない。店の勤怠の修正モーダル『この日の控除』は今のまま（押し忘れの直し）。0196_plan.md に §9 として追記し、確認 4 点と並べて起草に入れる。」
+CC の読取（根拠）＝本人は deductions（per=day）を読める（RLS＝org ∧ 自店）が cast_day_deductions_set は 管理者／自店の店長／kiosk 腕（操作担当あり）だけ＝本人は forbidden（ひなの で実測）・打刻端末も操作担当なしでは forbidden。0196_plan.md §9 を本裁定で書き替え（2026-11-05）。
+
 ## M-102（2026-11-05 受領・相談役・client＋route・便 D）LINE の招待リンク・入口 URL・友だち追加の返事の URL は site 固定の 1 値から組む
 
 「window.location.origin や request の origin ではなく、site 固定の 1 値（NEXT_PUBLIC_SITE_URL＝https://noxapp.jp・未設定なら今の origin）から組む。対象＝casts-board／staff-board／店舗設定 line-config-panel の発行と /api/line/webhook の返事。LIFF 内の liff.login の redirectUri も同じ site 値＋現在の path＋query で組む（host だけ差し替え）。verify に pin 1 行（発行された URL のホストが site 値）。Vercel の env に NEXT_PUBLIC_SITE_URL=https://noxapp.jp を足すのは Agoora（切替手順 ⑤ に 1 行足す）。」
@@ -8377,7 +8387,7 @@ anon-guard 段28 が無差別 `limit(1)` でそれを拾い 'bad amount'/BV=unde
 
 ## 次の番号（2026-11-05・0195 のフラグ true 便＝裁定453／454 を収載した時点）
 
-- **次の裁定＝455**（454＝裁定451 ② の訂正・ACE の延長パターン・M-83・0196 のスコープ＝デモデータ便と 0196 の計画で適用・453＝0195 の手貼り後の処置＝収蔵→フラグ true 便・450＝0195 の仮置き 9 点（6 だけ RPC 側でも検証）・451＝デモデータ便（availability・ext_fee 平日通常）・452＝M-67 の残りはローンチ前「店が毎日触る画面」だけ＝M-82）。**次の M＝M-103**（M-102＝LINE の URL は site 固定＝便 D・M-101＝LINE の送信数カード LineQuotaCard＝便 D・M-100＝提案中＝bot destination の自動取得と再送の捨て・M-99＝/staff の契約チップのコントラスト＝便 D の候補・M-95〜M-98＝Agoora 実機指摘（期間なしの割当・店が決める店の 2 段・はみ出し・売掛なしの日報）＝便 D の候補・M-94＝便 D＝/register を共通レイアウトへ・M-93＝欠番（キオスクの操作者一覧の読取は (a)＝0196 行き）・M-88〜M-92＝デモデータ便で実装（M-88 読取＝汎用・client だけ）・M-87＝不具合＝/mine 末尾の基本の働き方が本人に出ない＝memberships の本人読み→auth_membership_id・client だけ・M-85＝/mine 打刻枠の今日の確定シフト 1 行・M-86＝/mine ヘッダーに店名＝デモデータ便に同乗・M-84＝/login の「パスワードをお忘れの方」＝resetPasswordForEmail・デモデータ便に同乗・M-82＝裁定452 の M-67 の残り・M-83＝裁定454 の 4＝見積の「30 分あたり」＝デモデータ便に同乗・M-65〜M-81＝便 A／便 B／便 C① で実装・M-73／M-74 の DDL 分と M-77 ②③・M-80 追記②は 0195）。**次の教訓＝135**（134＝2026-11-05 採番＝deploy の検知は共有チャンクのハッシュ差・133＝操作ボタンは中央・日付／時刻は共通ピッカー）。**次の mig＝0196**（0195＝2026-11-05 Agoora 手貼り・verify 21 行一致・収蔵 f492c77・フラグ true 便 済み。0196＝計画 docs/tmp/0196_plan.md・確認 4 点＝§6 待ち）。
+- **次の裁定＝455**（454＝裁定451 ② の訂正・ACE の延長パターン・M-83・0196 のスコープ＝デモデータ便と 0196 の計画で適用・453＝0195 の手貼り後の処置＝収蔵→フラグ true 便・450＝0195 の仮置き 9 点（6 だけ RPC 側でも検証）・451＝デモデータ便（availability・ext_fee 平日通常）・452＝M-67 の残りはローンチ前「店が毎日触る画面」だけ＝M-82）。**次の M＝M-105**（M-104＝確定済みの明細に live のマスタ一覧を出さない＝便 D・M-103＝Agoora 確定＝その日に選ぶ控除は出勤時に聞く＝UI は便 D・保存は 0196・M-102＝LINE の URL は site 固定＝便 D・M-101＝LINE の送信数カード LineQuotaCard＝便 D・M-100＝提案中＝bot destination の自動取得と再送の捨て・M-99＝/staff の契約チップのコントラスト＝便 D の候補・M-95〜M-98＝Agoora 実機指摘（期間なしの割当・店が決める店の 2 段・はみ出し・売掛なしの日報）＝便 D の候補・M-94＝便 D＝/register を共通レイアウトへ・M-93＝欠番（キオスクの操作者一覧の読取は (a)＝0196 行き）・M-88〜M-92＝デモデータ便で実装（M-88 読取＝汎用・client だけ）・M-87＝不具合＝/mine 末尾の基本の働き方が本人に出ない＝memberships の本人読み→auth_membership_id・client だけ・M-85＝/mine 打刻枠の今日の確定シフト 1 行・M-86＝/mine ヘッダーに店名＝デモデータ便に同乗・M-84＝/login の「パスワードをお忘れの方」＝resetPasswordForEmail・デモデータ便に同乗・M-82＝裁定452 の M-67 の残り・M-83＝裁定454 の 4＝見積の「30 分あたり」＝デモデータ便に同乗・M-65〜M-81＝便 A／便 B／便 C① で実装・M-73／M-74 の DDL 分と M-77 ②③・M-80 追記②は 0195）。**次の教訓＝135**（134＝2026-11-05 採番＝deploy の検知は共有チャンクのハッシュ差・133＝操作ボタンは中央・日付／時刻は共通ピッカー）。**次の mig＝0196**（0195＝2026-11-05 Agoora 手貼り・verify 21 行一致・収蔵 f492c77・フラグ true 便 済み。0196＝計画 docs/tmp/0196_plan.md・確認 4 点＝§6 待ち）。
 
 ## 次の番号（2026-11-04 午後・相談役 11/04 の確定と 434 ④・教訓132 を収載した時点）
 
