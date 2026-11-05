@@ -9,8 +9,8 @@ import BrandLogo from "@/components/ui/brand-logo";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import { Message } from "@/components/ui/toast";
+import { FORGOT_SENT_TEXT } from "@/lib/nox/auth/forgot"; // ★page から定数を export しない（next build の制約）
 
-export const FORGOT_SENT_TEXT = "送信しました。登録のあるメールアドレスには、パスワード再設定の案内が届きます（届かないときは迷惑メールもご確認ください）。";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
