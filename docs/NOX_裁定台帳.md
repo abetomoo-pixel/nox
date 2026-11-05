@@ -5262,6 +5262,26 @@ grep で洗い出した左右振り分けのボタンは一覧報告だけでな
 上部の 名前／メール／ログインの方法 に届かない。モーダル本体を max-height: 100dvh（safe-area 込み）・overflow-y: auto に、ヘッダ（題名・×）と下部の「登録する／キャンセル」は sticky で常に見える形に。同じ型のモーダル（スタッフ編集・キャスト管理・勤怠の修正・ReasonModal など共通の Modal 部品）を 1 か所で直し、375×667 で全部のモーダルが最上部まで届くことを確認。撮影＝スマホ幅で登録モーダルの最上部と最下部 2 枚。
 - CC の処置（便 A）＝共通 Modal（components/ui/modal.tsx）を常に overflow:auto・globals.css の .nox-modal-card に max-height 100dvh−36px（≤900 は 100dvh−safe-area-top）＝scroll を渡さない全モーダルに効く・.nox-formmodal-head を sticky（脚は既に sticky）・スタッフ登録モーダルは題名を head（×つき）・登録する／キャンセルを foot に。375×667 の計測（ローカル dev・検証 org）＝登録モーダル scrollH 1,394／clientH 665・頭 13px・脚は画面内／スタッフ編集 1,631／585・頭 93px／スタッフの日の修正 459（スクロール不要）。
 
+## M-98（2026-11-05 受領・Agoora 実機・client・便 D の候補）売掛を使わない店では日報の「売掛」タブと「売掛 本日発生」の枠を出さない
+
+「店の設定で売掛を使わない店では、日報の『売掛』タブと『売掛 本日発生』の枠を出さない。読取＝売掛の有無の設定キー（初期設定 ③ か店舗設定）。」
+CC の読取＝キー＝**stores.receivable_policy**（列・'disabled'／'customer_only'／'cast_liability_allowed'＝set_store_receivable_policy・owner）。初期設定 v5 は ⑧ 会計・レジの「売掛（使う／使わない）」＝S.reg.uri → set_store_receivable_policy（v5.ts:275）。日報（report-board）は tab 'ar' と当日サマリを owner／manager に常に出している＝client だけ（'disabled' のとき 2 か所を出さない）。
+
+## M-97（2026-11-05 受領・Agoora 実機・client・便 D の候補）はみ出しの直し＝「キャスト別にまとめて追加」モーダル・必要人数の行
+
+「『キャスト別にまとめて追加』モーダルが PC 幅でも画面の高さを超える（M-81 と同じ根＝モーダル内でスクロール・ヘッダーとフッターの保存ボタンは固定）／必要人数（曜日・時間帯別）の行と『期間を作る』の必要人数の −／＋ の行が枠からはみ出す。撮影＝1280 幅と 375 幅。」
+CC の読取＝まとめて追加＝shift-add-form.tsx の `<Modal onClose={onClose} maxWidth={980} scroll>`（M-81 で直した共通 Modal の scroll＝本体のスクロール・head／foot の固定はモーダル側の構成次第）・必要人数の行＝shift-board（PERIOD_NEEDS・曜日×時間帯の行）＝client だけ。
+
+## M-96（2026-11-05 受領・Agoora 実機・便 D の候補）「店が決めて本人に通知する」の店はシフト作成を 2 段（配置→公開）に
+
+「初期設定 ⑦『シフトの集め方』＝『店が決めて本人に通知する』の店では、シフト作成を ①期間を作る・②提出一覧 を出さない 2 段（配置→公開）にする。読取＝この設定のキーと、シフト作成の 4 段・/mine の『希望を提出』がこの設定を見ているか（見ていなければ直す範囲）。マスタ › 店舗設定で切り替え可。」
+CC の読取＝キー＝**settings_json（mine_settings）.shift_request_mode**＝'shift'／'off_only'／**'store'**（0191 ★4 で 'store'＝店が決める を set_store_mine_settings が受理済み＝DDL 不要）。初期設定 v5 ⑦ は S.shift.mode 'store' を 'store' で保存（0191 後）。**/mine は見ている**（wish-mode.ts storeDecidesOf／resolveWishMode＝'store' は「希望の提出はありません」の案内・休み希望の入口に倒す）。**シフト作成の 4 段は見ていない**（shift-board はキャスト個別の pill だけ）＝直す範囲（client）＝shift-board が店の shift_request_mode を読み 'store' なら ①②を出さず ③配置→④公開の 2 段（期間は配置時に自動で作るか「期間なしの配置」M-95 と合わせる）・マスタ › 店舗設定（mine-settings-panel）の切替に 'store' の選択肢。
+
+## M-95（2026-11-05 受領・Agoora 実機・client・便 D の候補）/shift 配置の月カレンダーで「期間なし」の日を押しても割当モーダルを開く
+
+「期間が無い日（『期間なし』）のセルを押しても『① 期間を作る』へ飛ばさず、その日の割当モーダルを開いて配置できる（まとめて追加と同じ＝期間なしの配置）。読取＝今の日のセルの分岐（なぜ ① へ飛ぶか・shifts が期間に紐付く前提か）を 2 行で。」
+CC の読取＝①分岐＝shift-board.tsx:2204 `if (periodNoneOf(ymd) && isManagerUp) { openNewPeriodAt(ymd); return; }`（便 SH-UI-b2 B2-1＝裁定406「期間なしの日を押す＝①の新規作成へ」の設計）。②shifts.period_id は **null 可**（0101: 「null＝期間外／従来行」）＝shift_set は期間を前提にしない（まとめて追加・日の割当は period なしで登録できている）＝client だけ（分岐を外して setSelDate＋dayModal "calendar"）。不足日の数え方（C2-19 ⑥＝期間のある日だけ）はそのまま。
+
 ## M-94（2026-11-05 受領・相談役・client・便 D＝デモデータ便の後）通常ログインの /register を共通レイアウト（左のアイコン列）に乗せる
 
 出典＝相談役 11/05（「推奨で」の後・便 D）。適用＝便 D（デモデータ便の締めの後）。
