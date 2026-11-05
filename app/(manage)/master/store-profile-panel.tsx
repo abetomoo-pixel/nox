@@ -8,6 +8,7 @@
 //   保存後は同じ select で再取得して現値を表示。エラーは storeProfileErrJa で日本語へ。
 //   配置＝保存ボタンは .nox-actions で中央（裁定244）・トグルは切替＝例外。
 import { UnitBox } from "@/components/ui/unit-input"; // ★便 M5b M-50
+import DatePicker from "@/components/ui/date-picker"; // ★M-82（裁定452・教訓133）: 日付は共通のピッカー
 import { PUNCH_CHOICE_NOTE, PUNCH_CHOICE_OPTIONS, punchModeOf, registerWindowOf } from "@/lib/nox/shift/punch-mode"; // ★便 E（0197 用）
 import UnitInput from "@/components/ui/unit-input"; // ★便 M5b M-50
 import { kioskPersonIdleMinutesOf } from "@/lib/nox/kiosk/person-login"; // ★0192 M-49
@@ -237,16 +238,12 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
             {/* ★0172（裁定349・便 P172）: 精算方式（源泉の暦日数の単位＝月次／半月／週次／日次）と途中払い（なし／前払）＝settings_json の 2 キー（set_store_profile の白名単） */}
             {on("profile") && <label style={{ display: "block", minWidth: 0 }}>
               <span style={label}>精算方式<span style={{ fontWeight: 400, marginLeft: 6 }}>源泉の計算期間（暦日数）の単位</span></span>
-              <select value={form.settlement_cycle} disabled={busy || !loaded} onChange={(e) => setForm((f) => ({ ...f, settlement_cycle: e.target.value }))} style={input} aria-label="精算方式" data-settlement-cycle="1">
-                {SETTLEMENT_CYCLE_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-              </select>
+              <span data-settlement-cycle="1" style={{ display: "block" }}><SegSelect value={form.settlement_cycle} disabled={busy || !loaded} onChange={(v) => setForm((f) => ({ ...f, settlement_cycle: v }))} options={SETTLEMENT_CYCLE_OPTIONS} ariaLabel="精算方式" /></span>{/* ★M-82 */}
             </label>}
             {/* ★便 P173（裁定386・0173）: 途中合流＝セット終了後の＋は合流セット行（既定）／延長のみ。−は引き直さない */}
             {on("profile") && <label style={{ display: "block", minWidth: 0 }}>
               <span style={label}>途中合流<span style={{ fontWeight: 400, marginLeft: 6 }}>セット終了後に人数が増えたとき</span></span>
-              <select value={form.join_mode} disabled={busy || !loaded} onChange={(e) => setForm((f) => ({ ...f, join_mode: e.target.value as JoinMode }))} style={input} aria-label="途中合流" data-join-mode="1">
-                {(Object.keys(JOIN_MODE_LABEL) as JoinMode[]).map((v) => <option key={v} value={v}>{JOIN_MODE_LABEL[v]}</option>)}
-              </select>
+              <span data-join-mode="1" style={{ display: "block" }}><SegSelect value={form.join_mode} disabled={busy || !loaded} onChange={(v) => setForm((f) => ({ ...f, join_mode: v as JoinMode }))} options={(Object.keys(JOIN_MODE_LABEL) as JoinMode[]).map((v) => [v, JOIN_MODE_LABEL[v]] as const)} ariaLabel="途中合流" /></span>{/* ★M-82 */}
               <span style={{ display: "block", fontSize: 11.5, color: "var(--sub)", marginTop: 4 }}>セット料金は引き直しません（減った場合も同じ）。合流セット＝増えた人数分のセット料金を 1 行追加。</span>
             </label>}
             {/* ★便 P173（裁定393・0173）: 支払方法別の手数料（お客様負担）＝入金額×率・伝票に行・日報に合計 1 行・キャスト売上には含めない。既存店は欠損＝0（新規店の初期値はカード 10%） */}
@@ -264,9 +261,7 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
                     onChange={(e) => setForm((f) => ({ ...f, pay_disc_cash: e.target.value.replace(/[^0-9.]/g, "").slice(0, 5) }))} style={{ ...input, marginTop: 2 }} placeholder="10" /></UnitBox>
                 </label>
                 <label style={{ display: "block", minWidth: 0, fontSize: 12 }}>割引対象
-                  <select value={form.pay_disc_base} disabled={busy || !loaded} onChange={(e) => setForm((f) => ({ ...f, pay_disc_base: e.target.value === "subtotal" ? "subtotal" : "total" }))} style={{ ...input, marginTop: 2 }} aria-label="割引対象" data-pay-disc-base="1">
-                    {(["total", "subtotal"] as PayDiscountBase[]).map((v) => <option key={v} value={v}>{PAY_DISCOUNT_BASE_LABEL[v]}</option>)}
-                  </select>
+                  <span data-pay-disc-base="1" style={{ display: "block" }}><SegSelect value={form.pay_disc_base} disabled={busy || !loaded} onChange={(v) => setForm((f) => ({ ...f, pay_disc_base: v === "subtotal" ? "subtotal" : "total" }))} options={(["total", "subtotal"] as PayDiscountBase[]).map((v) => [v, PAY_DISCOUNT_BASE_LABEL[v]] as const)} ariaLabel="割引対象" style={{ marginTop: 2 }} /></span>{/* ★M-82 */}
                 </label>
                 <span style={{ gridColumn: "1 / -1", fontSize: 11.5, color: "var(--sub)", lineHeight: 1.6 }}>合計から＝税・サービス料込みの残額×率を最後に引き、店の端数処理で丸めます（既定・税理士の確認待ちの仮置き）。小計から＝税・サービス料の前の小計から引いてから税・サービス料。入金のたびに「率を指定／額を指定／なし」で上書きできます（店長以上）。</span>
               </div>}
@@ -285,9 +280,7 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
             </div>}
             {on("profile") && <label style={{ display: "block", minWidth: 0 }}>
               <span style={label}>途中払い<span style={{ fontWeight: 400, marginLeft: 6 }}>前払（仮払）は控除なし＝期の精算で控除</span></span>
-              <select value={form.mid_pay} disabled={busy || !loaded} onChange={(e) => setForm((f) => ({ ...f, mid_pay: e.target.value }))} style={input} aria-label="途中払い" data-mid-pay="1">
-                {MID_PAY_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-              </select>
+              <span data-mid-pay="1" style={{ display: "block" }}><SegSelect value={form.mid_pay} disabled={busy || !loaded} onChange={(v) => setForm((f) => ({ ...f, mid_pay: v }))} options={MID_PAY_OPTIONS} ariaLabel="途中払い" /></span>{/* ★M-82 */}
             </label>}
             {/* ★MC2: データ管理の面には操作ログの保持（7 年固定）の注記を同じカードに */}
             {on("data") && !on("ar") && (
@@ -317,7 +310,7 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 12 }}>
               <label style={{ display: "block", minWidth: 0 }}>
                 <span style={label}>インボイス登録日<span style={{ fontWeight: 400, marginLeft: 6 }}>登録日より前の会計には登録番号を印字しません・空欄＝未登録</span></span>
-                <input type="date" value={form.ops.invoice_registered_on} disabled={busy} onChange={(e) => setOps({ invoice_registered_on: e.target.value })} style={input} aria-label="インボイス登録日" />
+                <DatePicker value={form.ops.invoice_registered_on} disabled={busy} onChange={(v) => setOps({ invoice_registered_on: v })} ariaLabel="インボイス登録日" />{/* ★M-82 */}
               </label>
               <label style={{ display: "block", minWidth: 0 }}>
                 <span style={label}>給与の支払日<span style={{ fontWeight: 400, marginLeft: 6 }}>翌月 1〜31 日・締め日は月末固定・表示と案内に使います</span></span>
@@ -460,9 +453,7 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
         {/* ★0172（裁定380・便 P172）: 自動確定時間＝店設定 shift_auto_confirm_hours（0＝しない・1〜168 時間）。実行器＝/api/cron/shift-auto-confirm（15 分間隔・cron_setup.md §6）。owner は切替・manager は現在値のみ */}
         <label style={{ display: "grid", gap: 4, maxWidth: 320 }}>
           <span style={t.fieldLabel}>送り返しの自動確定時間</span>
-          <select value={form.shift_auto_confirm_hours} disabled={busy || !loaded || !isOwner} style={t.input} onChange={(e) => setForm((f) => ({ ...f, shift_auto_confirm_hours: e.target.value }))} aria-label="送り返しの自動確定時間" data-shift-auto-confirm="1">
-            {SHIFT_AUTO_CONFIRM_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-          </select>
+          <span data-shift-auto-confirm="1" style={{ display: "block" }}><SegSelect value={form.shift_auto_confirm_hours} disabled={busy || !loaded || !isOwner} onChange={(v) => setForm((f) => ({ ...f, shift_auto_confirm_hours: v }))} options={SHIFT_AUTO_CONFIRM_OPTIONS} ariaLabel="送り返しの自動確定時間" wrap /></span>{/* ★M-82: 4 択＝ボタン群 */}
           <span style={{ fontSize: 11, color: "var(--sub)" }}>送り返したまま確認されない希望を、設定した時間後に自動で確定します（15 分ごとに確認）。</span>
         </label>
         {isOwner && <div className="nox-actions" style={{ marginTop: 10 }}>

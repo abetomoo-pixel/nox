@@ -194,10 +194,7 @@ export default function StaffWorkPanel({ scope, stores, daily = false, initialMe
                   {!daily && <div className="nox-actions" style={{ margin: "0 0 8px" }}><Link href={`/payroll?tab=attendance&who=staff&mem=${r.m.id}`} style={{ ...t.btnGhost, ...t.btnSm, textDecoration: "none", display: "inline-flex", alignItems: "center" }} data-staff-daily-link={r.m.id}>日ごとの勤怠を開く</Link></div>}{/* ★便 M3 M-23 ②: 正本（給与 › 勤怠（スタッフ））へ */}
                   {r.kind && r.pay && (<>{/* ★便 A M-80 ②: 源泉区分・控除は契約がある人だけ */}
                   <label style={{ ...t.fieldLabel, display: "block", marginBottom: 6 }}>源泉区分{" "}
-                    <select value={w432.kind[r.m.id] ?? ""} onChange={(e) => void setKind(r.m.id, e.target.value)} style={{ ...t.input, width: "auto", minHeight: 40 }} aria-label="源泉区分">
-                      <option value="">既定（{WITHHOLDING_KIND_SHORT[defaultWithholdingKindOf({ subject: "staff", contractKind: r.contract?.contract_kind })]}）</option>
-                      {withholdingKindChoices().map((k) => <option key={k} value={k}>{WITHHOLDING_KIND_LABEL[k]}</option>)}{/* ★0188（裁定434 ①）: none／hostess／other_204／manual */}
-                    </select>
+                    <SegSelect value={w432.kind[r.m.id] ?? ""} onChange={(v) => void setKind(r.m.id, v)} options={[["", `既定（${WITHHOLDING_KIND_SHORT[defaultWithholdingKindOf({ subject: "staff", contractKind: r.contract?.contract_kind })]}）`] as const, ...withholdingKindChoices().map((k) => [k, WITHHOLDING_KIND_LABEL[k]] as const)]} ariaLabel="源泉区分" wrap />{/* ★M-82: 源泉区分＝ボタン群 ★0188（裁定434 ①）: none／hostess／other_204／manual */}
                   </label>
                   {mig0188On() && <p style={{ ...t.sub, margin: "0 0 6px" }} data-withholding-kind-note="1">{WITHHOLDING_KIND_SELECT_NOTE}{PAYMENT_REPORT_NOTE[r.kind] ? "・" + PAYMENT_REPORT_NOTE[r.kind] : ""}</p>}{/* ★0188（裁定434 ②③） */}
                   {kindMsg && <Message kind={kindMsg.includes("エラー") ? "error" : "success"} style={{ margin: "0 0 6px" }}>{kindMsg}</Message>}

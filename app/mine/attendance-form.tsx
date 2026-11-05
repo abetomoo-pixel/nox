@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import DatePicker from "@/components/ui/date-picker"; // ★M-82（裁定452・教訓133）: 日付は共通のピッカー
 import { HM_FORMAT_ERR, hmRangeErrorOf, normalizeHHMM } from "@/lib/nox/time/hhmm";
 import SegSelect from "@/components/ui/seg-select";
 import { useRouter } from "next/navigation";
@@ -46,7 +47,7 @@ export default function AttendanceForm({ defaultDate, startHm = null }: { defaul
   const input: React.CSSProperties = { ...t.input, width: "auto", padding: "8px 10px", borderRadius: 9 };
   return (
     <form onSubmit={submit} style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-      <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required style={input} />
+      <DatePicker value={date} onChange={setDate} ariaLabel="日付" />{/* ★M-82 */}
       <SegSelect value={status} onChange={(v) => setStatus(v as "late" | "absent")}
             options={[["late", "遅刻"], ["absent", "当欠"]] as const} />
       {status === "late" && startHm && (/* ★便 M-3（Agoora 確定 ④）: 予定開始からのチップ＋その他（当欠では出さない） */

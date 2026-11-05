@@ -5,6 +5,7 @@
 //   RULES_0175_APPLIED=false の間はどこにも mount されない（キャスト詳細と /mine が rules0175On() で出し分け）＝表も RPC も触らない。
 //   通知は audit だけ（RPC 側）。保存＝availability_set（p_rows 7 行・p_terms）。membership は casts.user_id → memberships（store・active）で解く（★便 ON-1）。
 import TimeInput from "@/components/ui/time-input"; // ★便 M5b M-51 追補 2
+import DatePicker from "@/components/ui/date-picker"; // ★M-82（裁定452・教訓133）: 日付は共通のピッカー
 import { hmPickOf } from "@/lib/nox/time/hhmm";
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
@@ -146,8 +147,7 @@ export default function AvailabilityEditor({ castId, storeId, employment, bySelf
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", fontSize: 12.5 }}>
             <label>週の目安 <input type="number" min={0} max={7} value={form.terms.week_days_target ?? ""} disabled={busy} aria-label="週の出勤日数の目安" style={{ ...t.input, width: 56, padding: "2px 6px" }}
               onChange={(e) => setForm((f) => ({ ...f, terms: { ...f.terms, week_days_target: e.target.value === "" ? null : Math.max(0, Math.min(7, Number(e.target.value))) } }))} /> 日</label>
-            <label>適用開始日 <input type="date" value={form.terms.effective_from ?? ""} disabled={busy} aria-label="適用開始日" style={{ ...t.input, width: 150, padding: "2px 6px" }}
-              onChange={(e) => setForm((f) => ({ ...f, terms: { ...f.terms, effective_from: e.target.value || null } }))} /></label>
+            <label>適用開始日 <DatePicker value={form.terms.effective_from ?? ""} disabled={busy} ariaLabel="適用開始日" width={150} onChange={(v) => setForm((f) => ({ ...f, terms: { ...f.terms, effective_from: v || null } }))} /></label>{/* ★M-82 */}
           </div>
           <input value={form.terms.memo ?? ""} placeholder="メモ（200 字まで）" maxLength={200} disabled={busy} aria-label="基本の働き方のメモ" style={{ ...t.input }}
             onChange={(e) => setForm((f) => ({ ...f, terms: { ...f.terms, memo: e.target.value || null } }))} />

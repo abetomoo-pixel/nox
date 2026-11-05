@@ -3,6 +3,7 @@
 // ★便 P175-prep P-3（裁定418 CANON 型・0175 v2 ★3／★11 店設定キー）: 「使う制度」の下に出る 0175 の店設定＝ドリンクバック ON／OFF・売上小計の範囲・支払サイクル（週払いの締め曜日と支払までの日数）・税の既定（新規店＝外税）。
 //   RULES_0175_APPLIED=false の間は systems-board が mount しない（白名単に無いキーは set_store_profile が 'bad key'）。保存＝親の onPatch（set_store_profile の patch・audit は RPC 側）。
 import OnOffSeg from "@/components/ui/on-off";
+import SegSelect from "@/components/ui/seg-select"; // ★M-82（裁定452・教訓133）: 固定の選択肢はボタン群
 import * as t from "@/lib/nox/ui/theme";
 import { DOW_LABEL, NEW_STORE_PRICE_DISPLAY_0175, SALES_SUBTOTAL_MODE_LABEL, STORE_KEYS_0175, drinkCountBackOn, payCycleOf, payCycleTextOf, salesSubtotalModeOf } from "@/lib/nox/rules-0175/settings";
 
@@ -33,10 +34,7 @@ export default function StoreRules0175Panel({ settings, payDay = null, onPatch, 
           <div className="nox-onoff-head" style={{ fontSize: 13, fontWeight: 800 }}>売上小計の範囲</div>
           <p className="nox-onoff-body" style={{ fontSize: 11.5, color: "var(--sub)", margin: "2px 0 0", lineHeight: 1.6 }}>報酬率やバックの母数にする売上。会計額か、税・サービス料と割引を除いた小計か。</p>
         </div>
-        <select value={ssm} disabled={readOnly || busy} aria-label="売上小計の範囲" style={{ ...t.input, width: "auto" }}
-          onChange={(e) => void onPatch({ [STORE_KEYS_0175.salesSubtotalMode]: e.target.value }, `売上小計の範囲を「${SALES_SUBTOTAL_MODE_LABEL[e.target.value as Ssm]}」`)}>
-          {(Object.keys(SALES_SUBTOTAL_MODE_LABEL) as Ssm[]).map((k) => <option key={k} value={k}>{SALES_SUBTOTAL_MODE_LABEL[k]}</option>)}
-        </select>
+        <SegSelect value={ssm} disabled={readOnly || busy} ariaLabel="売上小計の範囲" onChange={(v) => void onPatch({ [STORE_KEYS_0175.salesSubtotalMode]: v }, `売上小計の範囲を「${SALES_SUBTOTAL_MODE_LABEL[v as Ssm]}」`)} options={(Object.keys(SALES_SUBTOTAL_MODE_LABEL) as Ssm[]).map((k) => [k, SALES_SUBTOTAL_MODE_LABEL[k]] as const)} />{/* ★M-82 */}
       </div>
       <div style={row} data-pay-cycle={cyc.cycle}>
         <div style={{ minWidth: 0, flex: "1 1 260px" }}>

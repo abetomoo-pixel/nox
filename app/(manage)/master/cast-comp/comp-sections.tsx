@@ -1,5 +1,6 @@
 "use client";
 import { UnitBox } from "@/components/ui/unit-input"; // ★便 M5b M-50: 単位は入力欄の右の箱
+import DatePicker from "@/components/ui/date-picker"; // ★M-82（裁定452・教訓133）: 日付は共通のピッカー
 import UnitInput from "@/components/ui/unit-input"; // ★便 M5b M-50
 import { OKURI_DEDUCTION_BLOCK_MSG, okuriDeductionBlockedOf, okuriDeductionWarnOf, type OkuriMode } from "@/lib/nox/shift/okuri-mode"; // ★裁定431 ③
 import GroupedNumberInput from "@/components/ui/grouped-number-input"; // ★便 X13-G W-12 ④: 3 桁区切りの入力欄
@@ -737,9 +738,7 @@ export function AssignTab({ plans, casts, castPlans, isManagerUp, setMsg, reload
                   <td>
                     {isManagerUp ? (
                       <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                        <input type="date" value={rowDate[c.id] ?? ""} onChange={(e) => setRowDate((m) => ({ ...m, [c.id]: e.target.value }))}
-                          style={{ ...input, width: 140 }}
-                          title="空＝今すぐ（いまの設定を上書き）。指定＝その日から適用（それまでの給与は前の設定のまま）" />
+                        <DatePicker value={rowDate[c.id] ?? ""} onChange={(v) => setRowDate((m) => ({ ...m, [c.id]: v }))} width={140} ariaLabel="適用日（空＝今すぐ）" placeholder="今すぐ" />{/* ★M-82: 空＝今すぐ（いまの設定を上書き）・指定＝その日から適用 */}
                         {cp && (
                           <button type="button" onClick={() => void toggleHist(c.id)} title="適用履歴（期間つき・読み取りのみ）"
                             style={{ ...t.btnGhost, ...t.btnSm, border: histOpen === c.id ? "1px solid var(--gold)" : t.btnGhost.border }}>
@@ -1009,9 +1008,7 @@ export function DeductionTab({ deductions, isManagerUp, storeId, setMsg, reload,
               </label>
             ) : (
             <label style={{ fontSize: 12 }}>種別{" "}
-              <select value={kind} onChange={(e) => setKind(e.target.value)} style={{ ...input, width: 170 }}>
-                {Object.entries(DED_KIND_JA).map(([k, ja]) => <option key={k} value={k}>{ja}</option>)}
-              </select>
+              <SegSelect value={kind} onChange={setKind} options={Object.entries(DED_KIND_JA).map(([k, ja]) => [k, ja] as const)} ariaLabel="控除の種別" wrap />{/* ★M-82: 7 択＝ボタン群（折返し） */}
             </label>
             )}
             <label style={{ fontSize: 12 }}>金額 <MoneyInput value={amount} onChange={(v) => setAmount(Number(v || 0))} style={input} width={110} ariaLabel="金額" /></label>
@@ -1198,23 +1195,13 @@ export function BackTab({ backs, isManagerUp, storeId, setMsg, reload }: { backs
           {/* ★裁定106 B2: 計算方法3種（本数×円／固定額／売上×%）＝v3 準拠の見せ方。保存語彙 basis/value は不変
               （本数×円＝既存の数量 basis 群・固定額＝flat・売上×%＝sales）。 */}
           <label style={{ fontSize: 12 }}>計算方法{" "}
-            <select value={basis === "flat" ? "flat" : basis === "sales" ? "sales" : "count"}
-              onChange={(e) => {
-                const m = e.target.value;
-                if (m === "flat") setBasis("flat");
-                else if (m === "sales") setBasis("sales");
-                else if (basis === "flat" || basis === "sales") setBasis("hon");
-              }} style={input}>
-              <option value="count">本数×円</option>
-              <option value="flat">固定額</option>
-              <option value="sales">売上×%</option>
-            </select>
+            <SegSelect value={basis === "flat" ? "flat" : basis === "sales" ? "sales" : "count"}
+              onChange={(m) => { if (m === "flat") setBasis("flat"); else if (m === "sales") setBasis("sales"); else if (basis === "flat" || basis === "sales") setBasis("hon"); }}
+              options={[["count", "本数×円"], ["flat", "固定額"], ["sales", "売上×%"]] as const} ariaLabel="計算の型" />{/* ★M-82: 3 択＝ボタン群 */}
           </label>
           {basis !== "flat" && basis !== "sales" && (
             <label style={{ fontSize: 12 }}>基準{" "}
-              <select value={basis} onChange={(e) => setBasis(e.target.value)} style={input}>
-                {METRICS.filter((m) => m !== "sales").map((m) => <option key={m} value={m}>{metricJa(m)}</option>)}
-              </select>
+              <SegSelect value={basis} onChange={setBasis} options={METRICS.filter((m) => m !== "sales").map((m) => [m, metricJa(m)] as const)} ariaLabel="基準" wrap />{/* ★M-82: 7 択＝ボタン群（折返し） */}
             </label>
           )}
           <label style={{ fontSize: 12 }}>値{basis === "sales" ? "(%)" : "(円)"} <input type="number" min={0} value={value} onChange={(e) => setValue(Number(e.target.value))} className="nox-numfield num" inputMode="numeric" onWheel={numWheelBlur} style={numFieldStyle(basis === "sales" ? 4 : 7)} /></label>

@@ -12,6 +12,7 @@
 //   ★RPC・引数・エラー文言・対象条件は逐語で不変。set_staff_pin の送信は従来と同じ1本。
 //   ★モーダルの検証は 4桁・確認一致のみ（サーバに繰り返し禁止規則は無い＝逆転を作らない）。
 import { useCallback, useEffect, useState } from "react";
+import SegSelect from "@/components/ui/seg-select"; // ★M-82（裁定452・教訓133）: 固定の選択肢はボタン群
 import { createClient } from "@/lib/supabase/client";
 import { mig0191On, mig0192On } from "@/lib/nox/rules-0175/flag"; // ★0191 ★3: PIN 4〜6 桁・★便 M5 M-45: 0192 cast_pin_status
 import Link from "next/link"; // ★便 M5 M-45: キャストの行→キャスト詳細
@@ -291,16 +292,10 @@ export default function KioskPinPanel({ stores, isOwner }: { stores: Store[]; is
           )}
           <div style={t.bdRow}><span style={t.bdKey}>桁数</span><span style={t.bdVal}><span className="nox-stpill">数字4桁</span></span></div>
           <label style={{ display: "grid", gap: 3 }}><span style={t.fieldLabel}>連続失敗でロック</span>
-            <select value={maxFail} disabled={!isOwner || polBusy}
-              onChange={(e) => setMaxFail(parseInt(e.target.value, 10))} style={inp}>
-              {MAX_FAIL_OPTIONS.map((n) => <option key={n} value={n}>{n}回</option>)}
-            </select>
+            <SegSelect value={String(maxFail)} disabled={!isOwner || polBusy} onChange={(v) => setMaxFail(parseInt(v, 10))} options={MAX_FAIL_OPTIONS.map((n) => [String(n), `${n}回`] as const)} ariaLabel="失敗回数" />{/* ★M-82 */}
           </label>
           <label style={{ display: "grid", gap: 3 }}><span style={t.fieldLabel}>ロック時間</span>
-            <select value={lockMin} disabled={!isOwner || polBusy}
-              onChange={(e) => setLockMin(parseInt(e.target.value, 10))} style={inp}>
-              {LOCK_MIN_OPTIONS.map((n) => <option key={n} value={n}>{n}分</option>)}
-            </select>
+            <SegSelect value={String(lockMin)} disabled={!isOwner || polBusy} onChange={(v) => setLockMin(parseInt(v, 10))} options={LOCK_MIN_OPTIONS.map((n) => [String(n), `${n}分`] as const)} ariaLabel="ロック時間" />{/* ★M-82 */}
           </label>
           <div style={t.bdRow}><span style={t.bdKey}>ロック解除</span><span style={t.bdVal}>{mig0192On() ? "左の表の「解除」・PIN の再設定・または時間の経過で解除" : "正しい PIN の入力・または PIN の再設定で即時解除"}</span></div>
           {isOwner ? (

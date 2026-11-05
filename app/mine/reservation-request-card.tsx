@@ -5,6 +5,7 @@
 //   送信後は自分の申請一覧（承認待ち／承認／却下＋理由）をカード内に出す。取消の RPC は無い＝注記（仮決め）。人数・備考は RPC に無い＝送らない（仮決め）。
 //   和文は rpcErrJa（'bad customer'／'bad reserved_at'／'bad kind'／'closed day'／'billing locked'）。メッセージは Toast（裁定281）。
 import TimeInput from "@/components/ui/time-input"; // ★便 M5b M-51: 時刻欄の共通部品（時計アイコン・時と分を選ぶ・翌の表示）
+import DatePicker from "@/components/ui/date-picker"; // ★M-82（裁定452・教訓133）: 日付は共通のピッカー
 import NumStepper from "@/components/ui/num-stepper"; // ★便 D M-107
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
@@ -87,7 +88,7 @@ export default function ReservationRequestCard({ storeId, bizToday }: { storeId:
             onPick={setCustomerId} onClear={() => setCustomerId("")} placeholder="担当客を検索" />
           )}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-            <input type="date" value={date} min={bizToday} disabled={busy} onChange={(e) => setDate(e.target.value)} style={{ ...input, maxWidth: 156 }} aria-label="来店日" />
+            <DatePicker value={date} min={bizToday} disabled={busy} onChange={setDate} width={156} ariaLabel="来店日" />{/* ★M-82 */}
             <TimeInput value={time} onChange={(v) => setTime(v)} maxHour={23} disabled={busy} ariaLabel="来店予定時刻" width={112} />
             <SegSelect value={kind} onChange={setKind} options={RSV_KIND_OPTIONS} disabled={busy} ariaLabel="区分" />
           </div>

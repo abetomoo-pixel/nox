@@ -7,6 +7,7 @@
 //   器が無い項目（V5_SAVE_MAP has=false）は画面に出して保存は「後で（マスタから）」の注記。主ボタンは中央（.nox-actions・教訓122）・iPad 横 1,024 と 390 の両方。既存の org（初期設定済み）には page が出さない。
 //   UI 規約 238〜244・新トークン 0。書込は既存 RPC（v5.ts の計画）＋route 3 本（/api/staff/create・/api/kiosk/provision・/api/cast/invite）。
 import { applyMenuTemplate, menuTemplatesFor, tplStartBlockedOf, type TplConfirm } from "@/lib/nox/setup/menu-template"; // ★便 M6
+import DatePicker from "@/components/ui/date-picker"; // ★M-82（裁定452・教訓133）: 日付は共通のピッカー
 import { PUNCH_CHOICE_NOTE, PUNCH_CHOICE_OPTIONS } from "@/lib/nox/shift/punch-mode"; // ★便 E（0197 用）
 import TimeInput from "@/components/ui/time-input"; // ★便 M5b M-51: 時刻欄の共通部品（時計アイコン・時と分を選ぶ・翌の表示）
 import UnitInput from "@/components/ui/unit-input"; // ★便 M5b M-50
@@ -539,10 +540,10 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
           {S.staff.map((st, i) => (
             <div key={i} style={{ ...t.card, padding: 10, marginBottom: 8, ...grid(150) }} data-staff-row={i}>
               <Field label="名前"><Text value={st.n} onChange={(v) => up((s) => { s.staff[i].n = v; })} placeholder="例：佐藤 健一" width="100%" ariaLabel="名前" /></Field>
-              <Field label="職種"><select value={st.role} onChange={(e) => up((s) => { s.staff[i].role = e.target.value; })} style={input} aria-label="職種">{["店長", "ホール", "キッチン", "送りドライバー", "その他"].map((r) => <option key={r}>{r}</option>)}</select></Field>
+              <Field label="職種"><SegSelect value={st.role} onChange={(v) => up((s) => { s.staff[i].role = v; })} options={["店長", "ホール", "キッチン", "送りドライバー", "その他"].map((r) => [r, r] as const)} ariaLabel="職種" wrap /></Field>{/* ★M-82 */}
               <Field label="権限"><SegSelect value={st.perm} onChange={(v) => up((s) => { s.staff[i].perm = v as "manager" | "staff"; })} options={[["manager", "店長（取消・割引・締め解除まで）"], ["staff", "スタッフ"]] as const} ariaLabel="権限" wrap /></Field>
               {st.perm === "staff" ? <label style={{ display: "flex", gap: 8, alignItems: "center", minHeight: 48, alignSelf: "end" }}><input type="checkbox" checked={st.shiftOk} onChange={(e) => up((s) => { s.staff[i].shiftOk = e.target.checked; })} style={{ width: 22, height: 22 }} /><span>シフトを組める</span></label> : <div />}
-              <Field label="雇用形態"><select value={st.kind} onChange={(e) => up((s) => { s.staff[i].kind = e.target.value; })} style={input} aria-label="雇用形態">{["正社員", "契約社員", "アルバイト", "業務委託"].map((r) => <option key={r}>{r}</option>)}</select></Field>
+              <Field label="雇用形態"><SegSelect value={st.kind} onChange={(v) => up((s) => { s.staff[i].kind = v; })} options={["正社員", "契約社員", "アルバイト", "業務委託"].map((r) => [r, r] as const)} ariaLabel="雇用形態" wrap /></Field>{/* ★M-82 */}
               <Field label="給与"><SegSelect value={st.basis} onChange={(v) => up((s) => { s.staff[i].basis = v; })} options={[["時給", "時給"], ["月給", "月給"], ["日給", "日給"]] as const} ariaLabel="給与" /></Field>
               <Field label="金額"><Money value={st.amt} unit="円" pre onChange={(n) => up((s) => { s.staff[i].amt = n; })} /></Field>
               <Field label={<>PIN（4〜6 桁）{!mig0191On() && st.pin && !/^\d{4}$/.test(st.pin) && later("5〜6 桁は 0191")}</>}><Text value={st.pin} onChange={(v) => up((s) => { s.staff[i].pin = v.replace(/\D/g, "").slice(0, 6); })} placeholder="空なら自動" width={110} ariaLabel="PIN" /></Field>
@@ -567,8 +568,8 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
           <h3 style={h3}>最初のシフト期間</h3>
           <p style={lead}>初期設定が終わったら、この期間の希望を集め始めます（シフト画面で直せます）。</p>
           <div style={grid(160)}>
-            <Field label="開始日"><input type="date" value={S.firstShift.from} onChange={(e) => up((s) => { s.firstShift.from = e.target.value; })} style={input} aria-label="開始日" /></Field>
-            <Field label="終了日"><input type="date" value={S.firstShift.to} onChange={(e) => up((s) => { s.firstShift.to = e.target.value; })} style={input} aria-label="終了日" /></Field>
+            <Field label="開始日"><DatePicker value={S.firstShift.from} onChange={(v) => up((s) => { s.firstShift.from = v; })} ariaLabel="開始日" /></Field>{/* ★M-82 */}
+            <Field label="終了日"><DatePicker value={S.firstShift.to} onChange={(v) => up((s) => { s.firstShift.to = v; })} ariaLabel="終了日" /></Field>{/* ★M-82 */}
           </div>
           <label style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 8 }}><input type="checkbox" checked={S.firstShift.start} onChange={(e) => up((s) => { s.firstShift.start = e.target.checked; })} style={{ width: 22, height: 22 }} /><span>初期設定の完了と同時に募集を始める</span></label>
           <h3 style={h3}>曜日別の必要人数</h3>
@@ -668,7 +669,7 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
               <div style={grid(180)}>
                 <Field label="源氏名（必須）"><Text value={f.g} onChange={(v) => up((s) => { s.castForm.g = v; })} placeholder="例：ひなの" width="100%" ariaLabel="源氏名" /></Field>
                 <Field label="本名"><Text value={f.n} onChange={(v) => up((s) => { s.castForm.n = v; })} placeholder="支払調書・源泉に使います" width="100%" ariaLabel="本名" /></Field>
-                <Field label="生年月日（18 歳の確認）"><input type="date" value={f.birthday} onChange={(e) => up((s) => { s.castForm.birthday = e.target.value; })} style={input} aria-label="生年月日" /></Field>
+                <Field label="生年月日（18 歳の確認）"><DatePicker value={f.birthday} onChange={(v) => up((s) => { s.castForm.birthday = v; })} ariaLabel="生年月日" /></Field>{/* ★M-82 */}
                 <div><span style={t.fieldLabel}>在籍区分</span><br /><SegSelect value={f.st} onChange={(v) => up((s) => { s.castForm.st = v; })} options={[["在籍", "在籍"], ["体入", "体験入店"]] as const} ariaLabel="在籍区分" /></div>
                 <div><span style={t.fieldLabel}>契約区分</span><br /><SegSelect value={f.kind} onChange={(v) => up((s) => { s.castForm.kind = v; })} options={[["業務委託", "業務委託"], ["雇用", "雇用"]] as const} ariaLabel="契約区分" /></div>
                 <Field label="待遇プラン"><SegSelect value={f.plan} onChange={(v) => up((s) => { s.castForm.plan = v; })} options={[["基本プラン", "基本プラン"], ["体験入店", "体験入店"]] as const} ariaLabel="待遇プラン" /></Field>

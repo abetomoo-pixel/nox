@@ -8,6 +8,7 @@
 // 意図せず一括作成しない＝行なし「未設定」は後方互換で予約を縛らない状態のまま残せる）。
 // owner 複数店は store select・manager は RLS で自店 1 件のため select 非表示。
 import TimeInput from "@/components/ui/time-input"; // ★便 M5b M-51: 時刻欄の共通部品（時計アイコン・時と分を選ぶ・翌の表示）
+import SegSelect from "@/components/ui/seg-select"; // ★M-82（裁定452・教訓133）: 固定の選択肢はボタン群
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
@@ -252,15 +253,7 @@ export default function BusinessHoursPanel({
             </p>
           </div>
           {isOwner ? (
-            <select
-              value={cutoffHm}
-              disabled={cutoffBusy || !storeSel}
-              onChange={(e) => void saveCutoff(e.target.value)}
-              style={input}
-              aria-label="営業日の切替時刻"
-            >
-              {CUTOFF_OPTIONS.map((hm) => <option key={hm} value={hm}>{hm}</option>)}
-            </select>
+            <SegSelect value={cutoffHm} disabled={cutoffBusy || !storeSel} onChange={(v) => void saveCutoff(v)} options={CUTOFF_OPTIONS.map((hm) => [hm, hm] as const)} ariaLabel="営業日の切替時刻" /> /* ★M-82: 4 択＝ボタン群 */
           ) : (
             <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
               <b className="num" style={{ fontSize: 16 }}>{cutoffHm}</b>

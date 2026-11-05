@@ -8,6 +8,7 @@
 //   一覧＝現在有効行（同名の effective_from ≤ 営業日 の最大）＋予約行（effective_from > 営業日）・過去行は折りたたみ。
 //   削除は未来行のみボタン表示（RPC 側も effective_from_not_future／pattern_in_use で二重）。
 import { hmLabelOf } from "@/lib/nox/time/hhmm"; // ★便 M5b M-51 追補: 日をまたぐ時刻は「翌02:00」
+import DatePicker from "@/components/ui/date-picker"; // ★M-82（裁定452・教訓133）: 日付は共通のピッカー
 import TimeInput from "@/components/ui/time-input"; // ★便 M5b M-51: 時刻欄の共通部品（時計アイコン・時と分を選ぶ・翌の表示）
 import { UnitBox } from "@/components/ui/unit-input"; // ★便 M5b M-50
 import { useCallback, useEffect, useState } from "react";
@@ -253,7 +254,7 @@ export default function StaffShiftPanel({ stores }: { stores: Store[] }) {
             <input type="checkbox" checked={fNext} onChange={(e) => setFNext(e.target.checked)} />翌日
           </label>
           <span style={t.fieldLabel}>◯日から</span>
-          <input type="date" value={fFrom} min={bizToday} onChange={(e) => setFFrom(e.target.value)} style={input} />
+          <DatePicker value={fFrom} min={bizToday} onChange={setFFrom} ariaLabel="開始日" />{/* ★M-82 */}
           <button style={btnDark} disabled={busy} onClick={() => void addPattern()}>追加</button>
         </div>
         <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "6px 0 0" }}>同じ名前で新しい適用日を追加すると、その日以降はその時間が有効になります（既存の行は消えず履歴として残ります）。</p>
@@ -270,7 +271,7 @@ export default function StaffShiftPanel({ stores }: { stores: Store[] }) {
           <UnitBox post="日前"><input type="number" min={0} max={60} value={dDays} onChange={(e) => setDDays(Number.parseInt(e.target.value || "0", 10))} style={{ ...input, width: 56 }} /></UnitBox>{/* ★便 M5b M-50 */}
           <TimeInput value={dHm} onChange={(v) => setDHm(v)} maxHour={23} width={112} />
           <span style={t.fieldLabel}>◯日から</span>
-          <input type="date" value={dFrom} min={bizToday} onChange={(e) => setDFrom(e.target.value)} style={input} />
+          <DatePicker value={dFrom} min={bizToday} onChange={setDFrom} ariaLabel="開始日" />{/* ★M-82 */}
           <button style={btnDark} disabled={busy} onClick={() => void addDeadline()}>設定</button>
         </div>
         <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "6px 0 0" }}>締切はスタッフの希望入力にだけ効きます（店長の配置・時刻上書きは締切後も可）。</p>

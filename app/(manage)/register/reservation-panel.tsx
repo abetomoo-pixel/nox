@@ -14,6 +14,7 @@
 //   判定は lib/nox/business-hours.ts（DB helper と同じ cutoff 変換・深夜帯=前営業日）。
 //   編集は予約の店が register の店と一致する場合のみ UI 判定（不一致=owner の他店予約は RPC 二層目が守る）。
 import TimeInput from "@/components/ui/time-input"; // ★便 M5b M-51: 時刻欄の共通部品（時計アイコン・時と分を選ぶ・翌の表示）
+import DatePicker from "@/components/ui/date-picker"; // ★M-82（裁定452・教訓133）: 日付は共通のピッカー
 import { UnitBox } from "@/components/ui/unit-input"; // ★便 M5b M-50
 import { useCallback, useEffect, useState } from "react";
 import SegSelect from "@/components/ui/seg-select";
@@ -452,7 +453,7 @@ export default function ReservationPanel({
                 <div className="nox-inset" style={{ display: "grid", gap: 8, marginTop: 8, padding: 10 }}>
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
                     <span style={t.fieldLabel}>日付</span>
-                    <input type="date" value={eDate} onChange={(ev) => setEDate(ev.target.value)} style={{ ...input, maxWidth: 156 }} />
+                    <DatePicker value={eDate} onChange={setEDate} width={156} ariaLabel="日付" />{/* ★M-82 */}
                     <span style={t.fieldLabel}>時刻</span>
                     <TimeInput value={eTime} onChange={(v) => setETime(v)} maxHour={23} width={112} />
                     <span style={t.fieldLabel}>人数</span>
@@ -506,9 +507,7 @@ export default function ReservationPanel({
                           ))}
                         </select>
                         <span style={t.fieldLabel}>滞在</span>
-                        <select value={eStay} onChange={(ev) => setEStay(Number(ev.target.value))} style={input}>
-                          {STAY_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-                        </select>
+                        <SegSelect value={String(eStay)} onChange={(v) => setEStay(Number(v))} options={STAY_OPTIONS.map(([v, l]) => [String(v), l] as const)} ariaLabel="滞在時間" />{/* ★M-82 */}
                       </>
                     ) : (
                       r.seat_id && <span style={{ fontSize: 11.5, color: "var(--sub)" }}>OFF で保存すると卓の確保を解除します（卓なし予約になります）</span>
@@ -713,7 +712,7 @@ export default function ReservationPanel({
       <section className="nox-cardtop" style={{ ...card, ...(wide && editRow ? { display: "none" } : {}) }} data-rsv-new-form="1">
         <h2 style={secTitle}>新規予約</h2>
         <div className="nox-rsv-dtp" data-rsv-dtp="1" style={{ marginBottom: 8 }}>{/* ★便 M2 M-18（補遺）: 390 は「日付・時刻・人数」を 1 段（3 列・ラベルは上） */}
-          <label><span style={t.fieldLabel}>日付</span><input type="date" value={fDate} onChange={(e) => setFDate(e.target.value)} style={input} /></label>
+          <label><span style={t.fieldLabel}>日付</span><DatePicker value={fDate} onChange={setFDate} ariaLabel="日付" /></label>{/* ★M-82 */}
           <label><span style={t.fieldLabel}>時刻</span><TimeInput value={fTime} onChange={(v) => setFTime(v)} maxHour={23} /></label>
           <label><span style={t.fieldLabel}>人数</span><UnitBox post="名" width="100%"><input type="number" min={1} value={fPeople} onChange={(e) => setFPeople(Number(e.target.value))} style={input} /></UnitBox></label>
         </div>
@@ -749,9 +748,7 @@ export default function ReservationPanel({
                 {storeSeats.map((s) => <option key={s.id} value={s.id}>{s.name}{s.kind ? `（${s.kind}）` : ""}</option>)}
               </select>
               <span style={t.fieldLabel}>滞在</span>
-              <select value={fStay} onChange={(e) => setFStay(Number(e.target.value))} style={input}>
-                {STAY_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-              </select>
+              <SegSelect value={String(fStay)} onChange={(v) => setFStay(Number(v))} options={STAY_OPTIONS.map(([v, l]) => [String(v), l] as const)} ariaLabel="滞在時間" />{/* ★M-82 */}
             </>
           )}
         </div>

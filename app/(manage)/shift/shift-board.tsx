@@ -6,6 +6,7 @@
 //   予約用 businessHoursStatus（cutoff 変換）をシフトに使うと深夜帯で1日ズレるため使用禁止。
 //   希望の採否は「採用のみ定休日ブロック・見送りは定休日でも可」の非対称を UI に出す（裁定B-3）。
 import { hmLabelOf } from "@/lib/nox/time/hhmm"; // ★便 M5b M-51 追補: 日をまたぐ時刻は「翌02:00」
+import DatePicker from "@/components/ui/date-picker"; // ★M-82（裁定452・教訓133）: 日付は共通のピッカー
 import { REGISTER_DAY_GRANT_LABEL, REGISTER_DAY_GRANT_NOTE, storeDecidesPunchOf } from "@/lib/nox/shift/punch-mode"; // ★便 E（0197 用）
 import { mig0196On, mig0197On } from "@/lib/nox/rules-0175/flag"; // ★便 E（0196 用）: staff の代行 ★0197: 今日だけ許可
 import TimeInput from "@/components/ui/time-input"; // ★便 M5b M-51: 時刻欄の共通部品（時計アイコン・時と分を選ぶ・翌の表示）
@@ -2397,11 +2398,11 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
         <div className="nox-periodform" style={{ marginTop: 10 }}>{/* ★306-7: 新規フォーム＝開始／終了 1 行・希望締切／状態 1 行・「作成」は最下段右端。状態は SegSelect（4 択）＝picker を使わない */}
           <div className="pf-row">
             <span style={{ fontSize: 12, color: "var(--sub)" }}>{pEditId ? "編集中" : "新規"}</span>
-            <label style={{ fontSize: 12 }}>開始 <input type="date" value={pStart} onChange={(e) => { setPTouched(true); setPStart(e.target.value); }} style={input} /></label>
-            <label style={{ fontSize: 12 }}>終了 <input type="date" value={pEnd} onChange={(e) => { setPTouched(true); setPEnd(e.target.value); }} style={input} /></label>
+            <label style={{ fontSize: 12 }}>開始 <DatePicker value={pStart} onChange={(v) => { setPTouched(true); setPStart(v); }} ariaLabel="開始" /></label>{/* ★M-82 */}
+            <label style={{ fontSize: 12 }}>終了 <DatePicker value={pEnd} onChange={(v) => { setPTouched(true); setPEnd(v); }} ariaLabel="終了" /></label>{/* ★M-82 */}
           </div>
           <div className="pf-row">
-            <label style={{ fontSize: 12 }}>希望締切 <input type="date" value={pDeadline} onChange={(e) => { setPTouched(true); setPDeadline(e.target.value); }} style={input} /></label>
+            <label style={{ fontSize: 12 }}>希望締切 <DatePicker value={pDeadline} onChange={(v) => { setPTouched(true); setPDeadline(v); }} ariaLabel="希望締切" /></label>{/* ★M-82 */}
             <SegSelect value={pStatus} onChange={(v) => setPStatus(v)} options={PERIOD_ST_OPTIONS} ariaLabel="状態" />
           </div>
           {/* ★便 ON-3（0176 ★5 (a)）: この期間だけの必要人数（曜日別・空欄＝店の既定）＝shift_period_needs_set（保存と同時に全置換） */}

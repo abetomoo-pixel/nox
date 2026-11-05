@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import DatePicker from "@/components/ui/date-picker"; // ★M-82（裁定452・教訓133）: 日付は共通のピッカー
 import MoneyInput from "@/components/ui/money-input"; // ★便 X-11-6: 金額欄の共通部品（数字のみ・3 桁区切り・右に「円」）
 import SegSelect from "@/components/ui/seg-select";
 import { createClient } from "@/lib/supabase/client";
@@ -105,7 +106,7 @@ export default function IncentivePanel({ storeId, casts, initialDate, cutoff }: 
       <h2 style={secTitle}>出勤ボーナス（当日出勤者に給与へ加算・manager 以上）</h2>
       <Toast msg={msg} />
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
-        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={input} />
+        <DatePicker value={date} onChange={setDate} ariaLabel="日付" />{/* ★M-82 */}
         <SegSelect value={mode} onChange={(v) => setMode(v as "per_head" | "pooled")}
             options={[["per_head", "定額/人（各受給者に同額）"], ["pooled", "プール按分（総額を受給者数で分配）"]] as const} />
         <MoneyInput value={amount} onChange={(v) => setAmount(Number.parseInt(v || "0", 10))} width={130} style={input} ariaLabel="金額" />

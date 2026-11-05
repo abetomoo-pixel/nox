@@ -1,6 +1,8 @@
 "use client";
 
 import { hmLabelOf } from "@/lib/nox/time/hhmm"; // ★便 M5b M-51 追補: 日をまたぐ時刻は「翌02:00」
+import SegSelect from "@/components/ui/seg-select"; // ★M-82（裁定452・教訓133）: 固定の選択肢はボタン群
+import DatePicker from "@/components/ui/date-picker"; // ★M-82（裁定452・教訓133）: 日付は共通のピッカー
 import { useCallback, useEffect, useRef, useState } from "react";
 import { upperKindOf } from "@/lib/nox/register/p173"; // ★便 P173（裁定391／393）: 2 分類・手数料
 import MoneyInput from "@/components/ui/money-input"; // ★便 X-11-6: 金額欄の共通部品（数字のみ・3 桁区切り・右に「円」）
@@ -918,11 +920,7 @@ export default function ReportBoard({
             </label>
             {/* ★D45（mig0143）: 回収方法（receivable_collect の p_method＝既存引数・既定 cash）。card／other は理論在高に入らない */}
             <label style={{ ...t.fieldLabel, fontSize: 12 }}>回収方法{" "}
-              <select value={collectMethod} onChange={(e) => setCollectMethod(e.target.value as "cash" | "card" | "other")} style={{ ...input, width: 120 }}>
-                <option value="cash">現金</option>
-                <option value="card">カード</option>
-                <option value="other">その他</option>
-              </select>
+              <SegSelect value={collectMethod} onChange={(v) => setCollectMethod(v as "cash" | "card" | "other")} options={[["cash", "現金"], ["card", "カード"], ["other", "その他"]] as const} ariaLabel="回収方法" />{/* ★M-82 */}
             </label>
             <button style={btnDark} onClick={() => void submitCollect()}>
               {collectAmt === "" ? "全額を回収" : `${yen(Number(collectAmt) || 0)} を回収`}
@@ -946,7 +944,7 @@ export default function ReportBoard({
             {duePick.customers?.name ?? "フリー"} ・ 残額 {yen(remainOf(duePick))}
           </p>
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-            <input type="date" value={dueVal} onChange={(e) => setDueVal(e.target.value)} style={input} />
+            <DatePicker value={dueVal} onChange={setDueVal} ariaLabel="回収予定日" />{/* ★M-82 */}
             <button style={btnDark} onClick={() => void submitDue()}>{dueVal ? "設定する" : "期日をクリア"}</button>
             <button style={btnLight} onClick={() => setDuePick(null)}>キャンセル</button>
           </div>
@@ -1157,7 +1155,7 @@ export default function ReportBoard({
         </h3>
         <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10 }}>
           <span style={{ fontSize: 13, color: "var(--v2-text)" }}>営業日</span>
-          <input type="date" value={bizDate} onChange={(e) => setBizDate(e.target.value)} style={input} />
+          <DatePicker value={bizDate} onChange={setBizDate} ariaLabel="営業日" />{/* ★M-82 */}
           {/* ★裁定150（v2.1 D7）: 「区切り」→モック語「営業日切替 翌HH:MM」（値は settings_json.biz_cutoff_hm のまま） */}
           <span style={{ ...t.sub, fontSize: 12 }}>営業日切替 翌{cutoff}（範囲: 当日{cutoff}〜翌日{cutoff}）</span>
           {/* ★B2-a（裁定205・D6）: 表示中営業日の曜日の営業時間（store_business_hours・行が無い店は非表示） */}

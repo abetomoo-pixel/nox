@@ -526,9 +526,7 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
         {/* ★裁定338＋追補1（0168・便 P168）: 判定期間＝3 択（月次（既定）／半月／日次）・owner・保存は set_comp_plan 23 引数。青ピルと説明文は期間で切替（翌日反映の語は使わない）。判定基準・対象（C5）は準備中のまま */}
         <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 8px", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <span>判定期間:</span>
-          <select value={draft.slidePeriod} disabled={!isOwner} aria-label="スライドの判定期間" onChange={(e) => d({ slidePeriod: e.target.value as SlidePeriod })} style={{ ...t.input, width: "auto", padding: "4px 8px", fontSize: 12.5 }}>
-            <option value="monthly">月次（既定）</option><option value="half">半月</option><option value="daily">日次</option>
-          </select>
+          <SegSelect value={draft.slidePeriod} disabled={!isOwner} ariaLabel="スライドの判定期間" onChange={(v) => d({ slidePeriod: v as SlidePeriod })} options={[["monthly", "月次（既定）"], ["half", "半月"], ["daily", "日次"]] as const} />{/* ★M-82 */}
           <span className="nox-stpill">{slidePillOf(draft.slidePeriod, effApply === "next")}</span>
           <span>対象: <b style={{ color: "var(--v2-text)" }}>時給</b>（固定）</span>
         </p>
@@ -562,9 +560,7 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
         {/* ★裁定343（0170・便 W5-2b）: 判定基準（売上／本指名の件数／同伴の件数）と対象ランク（空＝全員）＝プランの属性（set_comp_plan 25 引数）。338 の判定期間とは直交。対象外のキャストは基本率のまま */}
         <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 8px", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <span>判定基準:</span>
-          <select value={draft.slideBasis} disabled={!isOwner} aria-label="売上スライドの判定基準" onChange={(e) => d({ slideBasis: e.target.value as SlideBasis })} style={{ ...t.input, width: "auto", padding: "4px 8px", fontSize: 12.5 }}>
-            <option value="sales">売上（既定）</option><option value="hon_count">本指名の件数</option><option value="dohan_count">同伴の件数</option>
-          </select>
+          <SegSelect value={draft.slideBasis} disabled={!isOwner} ariaLabel="売上スライドの判定基準" onChange={(v) => d({ slideBasis: v as SlideBasis })} options={[["sales", "売上（既定）"], ["hon_count", "本指名の件数"], ["dohan_count", "同伴の件数"]] as const} />{/* ★M-82 */}
           <span>対象ランク:</span>
           {ranks.length === 0 ? <span style={{ color: "var(--sub)" }}>ランク未登録＝全員</span> : ranks.map((r) => (
             <label key={r.id} style={{ display: "inline-flex", gap: 4, alignItems: "center" }}>

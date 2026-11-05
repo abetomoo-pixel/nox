@@ -3,6 +3,7 @@
 // ★0154 D1（2026-09-24・裁定294-2／295）: /mine 本人の打刻修正申請（punch_id または営業日＋区分・時刻・理由必須→punch_correction_request＝pending）。
 //   今日の自分の打刻（punches＝RLS 本人）から直す打刻を選ぶ or「打刻を追加」。メッセージは裁定281 の型。
 import TimeInput from "@/components/ui/time-input"; // ★便 M5b M-51: 時刻欄の共通部品（時計アイコン・時と分を選ぶ・翌の表示）
+import DatePicker from "@/components/ui/date-picker"; // ★M-82（裁定452・教訓133）: 日付は共通のピッカー
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -47,7 +48,7 @@ export default function PunchCorrectionForm({ castId, bizToday, punches, term, f
     <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
         <SegSelect value={kind} onChange={(v) => { setKind(v as PunchKind); setTarget("new"); }} options={[["in", "出勤"], ["out", "退勤"]]} />
-        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required style={input} />
+        <DatePicker value={date} onChange={setDate} ariaLabel="日付" />{/* ★M-82 */}
       </div>
       {candidates.length > 0 && date === bizToday && (
         <select value={target} onChange={(e) => { setTarget(e.target.value); const p = candidates.find((x) => x.id === e.target.value); if (p) setHm(hmOnBizOf(p.punched_at, bizToday)); }} style={{ ...input, width: "100%" }} aria-label="直す打刻">

@@ -4,6 +4,7 @@
 // 操作は全て RPC 経由＝trial_register/trial_update/trial_hire/trial_reject／cast_create。
 // 真の防御は trials RLS（owner/manager 限定）＋各 RPC ゲート（UI は操作面）。
 import { LoadMoreBar, useLoadMore } from "@/components/ui/load-more"; // ★便 M5b M-60
+import DatePicker from "@/components/ui/date-picker"; // ★M-82（裁定452・教訓133）: 日付は共通のピッカー
 import AddButton from "@/components/ui/add-button"; // ★便 M5b M-55
 import { hmLabelOf } from "@/lib/nox/time/hhmm"; // ★便 M5b M-51 追補: 日をまたぐ時刻は「翌02:00」
 import { useCallback, useEffect, useState } from "react";
@@ -1116,8 +1117,7 @@ export default function CastsBoard({
                   <span className="v" style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
                     <input value={profName} placeholder="源氏名" disabled={busy}
                       onChange={(e) => setProfName(e.target.value)} style={{ ...input, width: 160 }} />
-                    <input type="date" value={profJoined} disabled={busy}
-                      onChange={(e) => setProfJoined(e.target.value)} style={{ ...input, width: 150 }} />
+                    <DatePicker value={profJoined} disabled={busy} onChange={setProfJoined} width={150} ariaLabel="入店日" />{/* ★M-82 */}
                     <button style={{ ...t.btnGold, ...t.btnSm }} disabled={busy || !profName.trim() || !profJoined}
                       onClick={async () => {
                         const ok = await rpc("プロフィールを更新", "set_cast_profile",
@@ -1199,10 +1199,8 @@ export default function CastsBoard({
                 <div style={{ marginTop: 12, marginBottom: 12 }} data-cast-okuri-tier="1">
                   <h3 style={{ ...secTitle, margin: "0 0 6px" }}>送り区分（定額徴収）</h3>
                   <label style={{ fontSize: 12.5 }}>区分{" "}
-                    <select value={selCast.okuri_tier ?? ""} disabled={busy} aria-label="送り区分" onChange={(e) => void setOkuriTier(selCast, e.target.value || null)} style={{ ...t.input, width: "auto", padding: "6px 10px", fontSize: 13 }}>
-                      <option value="">区分なし（ベース額 ¥{okuriOf(selCast.store_id).base.toLocaleString()}）</option>
-                      {okuriTiersOf(selCast.store_id).map((tr) => <option key={tr.code} value={tr.code}>{okuriTierLabelOf(tr)}</option>)}
-                    </select>
+                    <SegSelect value={selCast.okuri_tier ?? ""} disabled={busy} ariaLabel="送り区分" onChange={(v) => void setOkuriTier(selCast, v || null)}
+                      options={[["", `区分なし（ベース額 ¥${okuriOf(selCast.store_id).base.toLocaleString()}）`] as const, ...okuriTiersOf(selCast.store_id).map((tr) => [tr.code, okuriTierLabelOf(tr)] as const)]} wrap />{/* ★M-82: 送り区分（≤3＋なし）＝ボタン群 */}
                   </label>
                   <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "4px 0 0" }}>退勤時の送りはこの区分の額が既定（当日だけ変更可）。区分は店設定「控除・送り」で作ります。</p>
                 </div>
@@ -1272,13 +1270,9 @@ export default function CastsBoard({
               <div className="nox-frow">
                 <span className="k">シフト希望の方式</span>
                 <span className="v">
-                  <select value={selCast.shift_request_mode ?? ""} disabled={busy} aria-label="シフト希望の方式"
-                    onChange={(e) => void setShiftMode(selCast, e.target.value === "" ? null : (e.target.value as "shift" | "off_only"))}
-                    style={{ ...t.input, width: "auto", padding: "6px 9px", fontSize: 12.5 }}>
-                    <option value="">店の既定に従う（{SHIFT_REQUEST_MODE_LABEL[mineSettingsOf(stores.find((st) => st.id === selCast.store_id)?.settings_json).shift_request_mode]}）</option>
-                    <option value="shift">{SHIFT_REQUEST_MODE_LABEL.shift}</option>
-                    <option value="off_only">{SHIFT_REQUEST_MODE_LABEL.off_only}</option>
-                  </select>
+                  <SegSelect value={selCast.shift_request_mode ?? ""} disabled={busy} ariaLabel="シフト希望の方式"
+                    onChange={(v) => void setShiftMode(selCast, v === "" ? null : (v as "shift" | "off_only"))}
+                    options={[["", `店の既定に従う（${SHIFT_REQUEST_MODE_LABEL[mineSettingsOf(stores.find((st) => st.id === selCast.store_id)?.settings_json).shift_request_mode]}）`], ["shift", SHIFT_REQUEST_MODE_LABEL.shift], ["off_only", SHIFT_REQUEST_MODE_LABEL.off_only]] as const} wrap />{/* ★M-82: 3 択＝ボタン群 */}
                   <span style={{ fontSize: 11, color: "var(--v2-muted)", marginLeft: 8 }}>キャストのスマホ（シフト希望／休み希望）と自動配置の候補に効きます</span>
                 </span>
               </div>
@@ -1352,7 +1346,7 @@ export default function CastsBoard({
                   <Picker dense items={activePlans.map((p) => ({ id: p.id, label: p.name }))} value={planForm.planId} onPick={(id) => setPlanForm({ ...planForm, planId: id })} disabled={busy} placeholder="プランを検索" empty="（有効なプランがありません）" />
                   {(() => { const w = trialPlanWarnOf(selCast.kind, activePlans.find((p) => p.id === planForm.planId)?.name); return w ? <Message kind="warn" style={{ margin: "8px 0 0" }}>{w}</Message> : null; })()}{/* ★GV-C C-14f（裁定396）: 在籍キャストへの体験入店は警告 */}
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end", marginTop: 12 }}>
-                    <label style={lbl}>適用開始日（既定＝次の給与期の初日）<br /><input type="date" value={planForm.from} min={today} disabled={busy} onChange={(e) => setPlanForm({ ...planForm, from: e.target.value })} style={{ ...input, width: 160 }} /></label>
+                    <label style={lbl}>適用開始日（既定＝次の給与期の初日）<br /><DatePicker value={planForm.from} min={today} disabled={busy} onChange={(v) => setPlanForm({ ...planForm, from: v })} width={160} ariaLabel="適用開始日" /></label>{/* ★M-82 */}
                     <button style={btnGold} disabled={busy} onClick={() => void savePlan(selCast)}>切り替える</button>
                     <button style={btnGhost} disabled={busy} onClick={() => { setPlanForm(null); setPlanMsg(null); }}>やめる</button>
                   </div>
@@ -1378,16 +1372,14 @@ export default function CastsBoard({
                         onClick={() => { setEmpMsg(null); setEmpForm({ employment: emp ?? "委託", from: nextPeriodStartOf(today) }); }}>契約区分を変更</button>}
                     </div>
                     <div className="nox-frow" data-cast-withholding-kind="1"><span className="k">源泉区分</span><span className="v">{WITHHOLDING_KIND_SHORT[withholdingKindOf(castWhKind[selCast.id] ?? null, defaultWithholdingKindOf({ subject: "cast", taxMode: emp ?? "委託" }))]}{(castWhKind[selCast.id] ?? null) === null ? "（既定）" : ""}
-                      {mig0183On() && <select value={castWhKind[selCast.id] ?? ""} onChange={(e) => void saveCastKind(selCast.id, e.target.value)} disabled={busy} style={{ ...input, width: "auto", marginLeft: 8 }} aria-label="源泉区分（キャスト）"><option value="">既定</option>{withholdingKindChoices().map((k) => <option key={k} value={k}>{WITHHOLDING_KIND_LABEL[k]}</option>)}</select>}</span></div>{/* ★便 M3 M-21: 働き方＝契約区分＋源泉区分（人ごと・set_withholding_kind） */}
+                      {mig0183On() && <span style={{ display: "inline-block", marginLeft: 8 }}><SegSelect value={castWhKind[selCast.id] ?? ""} onChange={(v) => void saveCastKind(selCast.id, v)} disabled={busy} options={[["", "既定"] as const, ...withholdingKindChoices().map((k) => [k, WITHHOLDING_KIND_LABEL[k]] as const)]} ariaLabel="源泉区分（キャスト）" wrap /></span>}</span></div>{/* ★M-82: 源泉区分＝ボタン群 ／ ★便 M3 M-21: 働き方＝契約区分＋源泉区分（人ごと・set_withholding_kind） */}
                     {mig0188On() && <p style={{ ...t.sub, margin: "0 0 4px" }} data-cast-withholding-note="1">{WITHHOLDING_KIND_SELECT_NOTE}</p>}
                     <div className="nox-frow"><span className="k">契約区分</span><span className="v">{emp ?? "未設定（委託として計算）"}{selCast.employment_valid_from ? <span style={{ fontSize: 11, color: "var(--v2-muted)", marginLeft: 6 }}>（{selCast.employment_valid_from} から）</span> : null}</span></div>
                     <div className="nox-frow"><span className="k">報酬型</span><span className="v">{curLabel}{cur.amount !== null ? <span className="num" style={{ marginLeft: 6 }}>¥{cur.amount.toLocaleString()}{cur.rule === "per_shift" ? "／稼働" : "／期"}</span> : null}</span></div>
                     {ruleForm && (
                       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end", marginTop: 8 }}>
                         <label style={lbl}>報酬型<br />
-                          <select value={ruleForm.rule} disabled={busy} onChange={(e) => setRuleForm({ ...ruleForm, rule: e.target.value as PayRule })} style={{ ...input, width: 190 }}>
-                            {opts.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                          </select></label>
+                          <SegSelect value={ruleForm.rule} disabled={busy} onChange={(v) => setRuleForm({ ...ruleForm, rule: v as PayRule })} options={opts.map((o) => [o.value, o.label] as const)} ariaLabel="報酬型" wrap /></label>{/* ★M-82: 報酬型＝ボタン群 */}
                         {amountKeyOf(ruleForm.rule) && (
                           <label style={lbl}>{ruleForm.rule === "per_shift" ? "1 稼働の額" : "期の定額"}<br />
                             <MoneyInput value={ruleForm.amount} disabled={busy} onChange={(v) => setRuleForm({ ...ruleForm, amount: v })} style={input} width={140} ariaLabel="報酬型の額" /></label>
@@ -1400,7 +1392,7 @@ export default function CastsBoard({
                     {empForm && (
                       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end", marginTop: 8 }}>
                         <SegSelect value={empForm.employment} onChange={(v) => setEmpForm({ ...empForm, employment: v as Employment })} options={[["委託", "委託"], ["雇用", "雇用"]]} ariaLabel="契約区分" />
-                        <label style={lbl}>適用開始（給与期の初日）<br /><input type="date" value={empForm.from} disabled={busy} onChange={(e) => setEmpForm({ ...empForm, from: e.target.value })} style={{ ...input, width: 150 }} /></label>
+                        <label style={lbl}>適用開始（給与期の初日）<br /><DatePicker value={empForm.from} disabled={busy} onChange={(v) => setEmpForm({ ...empForm, from: v })} width={150} ariaLabel="適用開始" /></label>{/* ★M-82 */}
                         <button style={btnGold} disabled={busy} onClick={() => void saveEmployment(selCast)}>変更する</button>
                         <button style={btnGhost} disabled={busy} onClick={() => { setEmpForm(null); setEmpMsg(null); }}>やめる</button>
                       </div>
@@ -1446,12 +1438,10 @@ export default function CastsBoard({
                           ? <>
                               <label style={lbl}>金額<br /><MoneyInput value={guaForm.amount} disabled={busy}
                                 onChange={(v) => setGuaForm({ ...guaForm, amount: v })} style={input} width={130} ariaLabel="保証時給の金額" /></label>
-                              <label style={lbl}>開始日<br /><input type="date" min={today} value={guaForm.start} disabled={busy}
-                                onChange={(e) => setGuaForm({ ...guaForm, start: e.target.value, end: guaForm.end < e.target.value ? addDays(e.target.value, 29) : guaForm.end })} style={{ ...input, width: 150 }} /></label>
+                              <label style={lbl}>開始日<br /><DatePicker min={today} value={guaForm.start} disabled={busy} onChange={(v) => setGuaForm({ ...guaForm, start: v, end: guaForm.end < v ? addDays(v, 29) : guaForm.end })} width={150} ariaLabel="開始日" /></label>{/* ★M-82 */}
                             </>
                           : <span style={{ fontSize: 12, color: "var(--sub)", paddingBottom: 8 }}>¥{Number(guaForm.amount).toLocaleString()}・{mdOf(guaForm.start)} から続けて</span>}
-                        <label style={lbl}>終了日<br /><input type="date" min={guaForm.start} value={guaForm.end} disabled={busy}
-                          onChange={(e) => setGuaForm({ ...guaForm, end: e.target.value })} style={{ ...input, width: 150 }} /></label>
+                        <label style={lbl}>終了日<br /><DatePicker min={guaForm.start} value={guaForm.end} disabled={busy} onChange={(v) => setGuaForm({ ...guaForm, end: v })} width={150} ariaLabel="終了日" /></label>{/* ★M-82 */}
                         <button style={btnGold} disabled={busy} onClick={() => void saveGuarantee(selCast)}>{guaForm.mode === "extend" ? "延長する" : "設定する"}</button>
                         <button style={btnGhost} disabled={busy} onClick={() => { setGuaForm(null); setGuaMsg(null); }}>やめる</button>
                       </div>
@@ -1794,24 +1784,22 @@ function RegisterForm({
         </div>
         <div className="nox-field">
           <span className="lab">生年月日<span className="req">*</span></span>
-          <input type="date" value={birthday} onChange={(e) => setBirthday(e.target.value)} style={{ ...input, width: "100%" }} />
+          <DatePicker value={birthday} onChange={setBirthday} width="100%" ariaLabel="生年月日" />{/* ★M-82 */}
         </div>
         {!fixedKind && !withTrialFields && (/* ★便 X13-H H-11 ①: 入店日（必須・既定＝今日）＝本入店日 */
           <div className="nox-field" data-joined-on="1">
             <span className="lab">入店日<span className="req">*</span></span>
-            <input type="date" value={joinedOn} onChange={(e) => setJoinedOn(e.target.value)} style={{ ...input, width: "100%" }} aria-label="入店日" />
+            <DatePicker value={joinedOn} onChange={setJoinedOn} width="100%" ariaLabel="入店日" />{/* ★M-82 */}
           </div>
         )}
         {!fixedKind && <div className="nox-field">
           <span className="lab">区分</span>
-          <select value={tier} onChange={(e) => setTier(e.target.value)} style={{ ...input, width: "100%" }}>
-            {TIERS.map((x) => <option key={x} value={x}>{x}</option>)}
-          </select>
+          <SegSelect value={tier} onChange={setTier} options={TIERS.map((x) => [x, x] as const)} ariaLabel="ランク" wrap />{/* ★M-82: 4 択＝ボタン群 */}
         </div>}
         {withTrialFields && (
           <div className="nox-field">
             <span className="lab">体入日</span>
-            <input type="date" value={trialDate} onChange={(e) => setTrialDate(e.target.value)} style={{ ...input, width: "100%" }} />
+            <DatePicker value={trialDate} onChange={setTrialDate} width="100%" ariaLabel="体入日" />{/* ★M-82 */}
           </div>
         )}
       </div>
