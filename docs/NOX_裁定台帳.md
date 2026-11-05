@@ -5262,6 +5262,12 @@ grep で洗い出した左右振り分けのボタンは一覧報告だけでな
 上部の 名前／メール／ログインの方法 に届かない。モーダル本体を max-height: 100dvh（safe-area 込み）・overflow-y: auto に、ヘッダ（題名・×）と下部の「登録する／キャンセル」は sticky で常に見える形に。同じ型のモーダル（スタッフ編集・キャスト管理・勤怠の修正・ReasonModal など共通の Modal 部品）を 1 か所で直し、375×667 で全部のモーダルが最上部まで届くことを確認。撮影＝スマホ幅で登録モーダルの最上部と最下部 2 枚。
 - CC の処置（便 A）＝共通 Modal（components/ui/modal.tsx）を常に overflow:auto・globals.css の .nox-modal-card に max-height 100dvh−36px（≤900 は 100dvh−safe-area-top）＝scroll を渡さない全モーダルに効く・.nox-formmodal-head を sticky（脚は既に sticky）・スタッフ登録モーダルは題名を head（×つき）・登録する／キャンセルを foot に。375×667 の計測（ローカル dev・検証 org）＝登録モーダル scrollH 1,394／clientH 665・頭 13px・脚は画面内／スタッフ編集 1,631／585・頭 93px／スタッフの日の修正 459（スクロール不要）。
 
+## M-100（提案中・2026-11-05・CC の提案＝相談役の読取 2 件への答え・client＋route・便 D の候補）bot の destination の自動取得と Webhook の再送
+
+読取①（bot の destination）＝使い道は Webhook の追加の柵 1 つ（値があり受信の destination と違えば 401）。push の宛先にも署名検証にも使わない（署名は Vault の channel_secret の HMAC）。空欄は柵を飛ばすだけで自動で埋めない。
+読取②（Webhook の再送）＝webhookEventId／isRedelivery の重複捨ては無いが効果として冪等＝書くのは unfollow の line_link_block だけ（blocked_at null の行だけ update・変わらなければ audit も書かない）・follow／テキストは reply（1 回限りの replyToken・台帳に入れない）＝LINE の「再送」ON でよい。端＝unfollow の再送が再紐付けの後に届くと再び blocked。
+提案（M-100）＝①署名が通った最初のイベントで destination が空なら admin で line_config.bot_destination に保存し以後の違いを 401 に（欄は「自動で取得済み」表示）②`deliveryContext.isRedelivery === true` の unfollow は捨てる。DDL なし。
+
 ## M-101（2026-11-05 受領・相談役・client・便 D）LINE の送信数カード（LineQuotaCard）＝ホームとお知らせ画面に
 
 「店舗設定 › LINE 連携 の『月の送信上限』『今月の送信数』『着地見込み』を 1 枚のカード部品（LineQuotaCard）にして、ホームとお知らせ画面（一覧の上）に置く。見た目は TRACOS のダッシュボードと同型＝見出し『LINE の送信数（11月）』／小文字『無料枠は月 200 通。こちらから送るメッセージ（プッシュ）だけが数えられます』（上限は店の設定値・プラン名を併記）／大きく『11 ／ 200 通』／2 色の横バー（送信済み＝濃・月末の着地見込み＝淡）／凡例『送信済み 11 通・月末の着地見込み 110 通』／注記 1 行＝NOX で無料枠を使う通知の種類（実装どおりの一覧を読取で確定して書く）。LINE 未設定（通知不可）の店はカードの代わりに『LINE 連携を設定する』の 1 行リンク。上限の 90% を超えたら数字を警告色。クリックで店舗設定 › LINE 連携 へ。verify に pin 1 行・撮影＝ホーム（PC・375）。」
