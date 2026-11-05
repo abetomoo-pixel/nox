@@ -39,6 +39,18 @@ export default function StaffShiftManage({ storeId, month, bizToday, patterns, d
   const [members, setMembers] = useState<Member[]>([]);
   const [names, setNames] = useState<Map<string, string>>(new Map());
   const [photoByMember, setPhotoByMember] = useState<Map<string, string>>(new Map()); // ★0162: membership id → 署名 URL
+  const [availByStaff, setAvailByStaff] = useState<Record<string, Partial<Record<number, "ok" | "ng" | "ask">>>>({}); // ★M-88: membership id → 曜日 → 可否
+  useEffect(() => {
+    let alive = true;
+    void supabase.from("availability").select("membership_id, dow, avail").eq("store_id", storeId).not("membership_id", "is", null).then(({ data }) => {
+      if (!alive) return;
+      const m: Record<string, Partial<Record<number, "ok" | "ng" | "ask">>> = {};
+      for (const r of (data ?? []) as { membership_id: string; dow: number; avail: "ok" | "ng" | "ask" }[]) (m[r.membership_id] ??= {})[r.dow] = r.avail;
+      setAvailByStaff(m);
+    });
+    return () => { alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storeId, shifts]);
   const [busy, setBusy] = useState(false);
   const [selDay, setSelDay] = useState<string>(bizToday.startsWith(month) ? bizToday : `${month}-01`);
   const [ov, setOv] = useState<StaffShift | null>(null);
@@ -277,7 +289,7 @@ export default function StaffShiftManage({ storeId, month, bizToday, patterns, d
 
       {placeDay && (
         <StaffPlaceDayModal day={placeDay} bizToday={bizToday} patterns={patterns} staff={staffList} wishes={wishes} shifts={shifts} busy={busy}
-          cancelRpc={cancelRpc} onPlace={placeShift} onCancel={cancelShift} onClose={() => setPlaceDay(null)} />
+          cancelRpc={cancelRpc} onPlace={placeShift} onCancel={cancelShift} onClose={() => setPlaceDay(null)} availByStaff={availByStaff} /* ★M-88 */ />
       )}
       {byStaff && (
         <StaffPlaceByStaffModal storeId={storeId} bizToday={bizToday} initialMonth={month} patterns={patterns} staff={staffList} busy={busy}

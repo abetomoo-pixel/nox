@@ -75,5 +75,8 @@ export function extEstimatePatternsOf(snap: readonly ExtSnapLike[] | null | unde
   return items.map((m) => ({ key: m.rule_id, label: m.label, extMin: m.duration_min, extAmount: m.amount, isDefault: m.is_default === true, current: m.rule_id === curKey, rows: extEstimateRowsOf({ ...base, extAmount: m.amount, extMin: m.duration_min }) }));
 }
 
+/** ★M-83（裁定454 の 4・2026-11-05）: パターン見出しの「30 分あたり ¥X／人」＝extAmount×30÷extMin（円未満は四捨五入・1 人あたり＝単価は人数制の 1 人ぶん） */
+export const extPer30Of = (extAmount: number, extMin: number): number => (extMin > 0 ? Math.round((extAmount * 30) / extMin) : 0);
+export const extPer30TextOf = (extAmount: number, extMin: number, perPerson: boolean): string => `30 分あたり ¥${extPer30Of(extAmount, extMin).toLocaleString("en-US")}${perPerson ? "／人" : ""}`;
 export const EXT_ESTIMATE_TITLE = "延長の見積";
 export const EXT_ESTIMATE_NOTE = "伝票の料金表（開いた時点の凍結値）と今の明細から、延長を足したときの合計（税・サービス料・丸め込み）です。";

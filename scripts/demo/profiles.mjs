@@ -119,8 +119,9 @@ export const BONUS_TIERS = [{ pct: 100, amount: 10000 }];
  *  ACE＝平日の通常（メイン）に 3 本（30 分 ¥7,000〈既定〉／60 分 ¥13,000／VIP 延長 30 分 ¥9,000＝席種は限定しない＝レジの延長ボタンで 3 択）。他店は従来どおり 1 本。 */
 export const EXT_PATTERNS = {
   // ★便 SH-UI-c2 C2-14 ①（相談役案）: ACE は 3 本（上限 3）＝平日通常 60 分 ¥13,000（既定）／週末通常 30 分 ¥4,000（元データの行＝EXT_PATTERNS の外）／VIP 30 分 ¥9,000。平日 30 分 ¥7,000 は外した（4 本目＝上限超え）
+  // ★裁定454（2026-11-05・デモデータ便）: ACE＝VIP 席の見本＝平日通常 延長 60／13,000（既定・月〜木）・VIP 延長 60／18,000（seat_kind VIP・月〜木）・週末通常 延長 60／15,000（金土＝extra＝元データの 4,000／30 を置き換え）＝単位は店内で 60 にそろえる
   ace: { group: "平日通常", rows: [
     { key: "ext60", name: "平日通常 延長 60 分", minutes: 60, amount: 13000, isDefault: true },
-    { key: "extvip", name: "VIP 延長", minutes: 30, amount: 9000, isDefault: false },
-  ] },
+    { key: "extvip", name: "VIP 延長", minutes: 60, amount: 18000, isDefault: false, seatKind: "VIP" },
+  ], extra: { "週末通常": [{ key: "extwe", name: "週末通常 延長", minutes: 60, amount: 15000, isDefault: false }] } },
 };

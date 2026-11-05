@@ -44,7 +44,7 @@ import DrinkClaimForm from "./drink-claim-form";
 import PrintPayslipButton from "./print-payslip-button";
 import { isSectionOn, type StoreSettings } from "@/lib/nox/store-systems"; // ★裁定269: 使う制度の出し分け
 import { mineSettingsOf } from "@/lib/nox/store/mine-settings"; // ★裁定326-8（便 M1-3）: mine_settings の出し分け（既存の自店読取に相乗り＝新規 fetch 0）
-import { punchHeadOf, punchStateOf } from "@/lib/nox/shift/punch-state";
+import { punchHeadOf, punchStateOf, todayShiftLineOf } from "@/lib/nox/shift/punch-state";
 import { castPunchOffOf, opsProfileOf } from "@/lib/nox/store/ops-profile"; // ★0164（便 W5-2b）: punch_methods.self の出し分け // ★裁定326 追補3（便 M1-4）: 打刻カードの 3 状態（todayPunches から＝新規 fetch 0）
 
 export const dynamic = "force-dynamic";
@@ -273,6 +273,7 @@ export default async function MinePage({ searchParams }: { searchParams?: Promis
         <p className="nox-pstate" data-cast-punch-off="1" style={{ margin: "0 0 12px" }}>出勤・退勤は店が記録します</p>
       ) : (/* ★便 X13-G W-23 ①: キャストの打刻を使わない店は打刻カードを出さない */
       <section className="nox-panel">
+        <p className="nox-pstate num" data-mine-today-shift={(((shiftsAll ?? []) as ShiftLite[]).find((x) => x.date === bizToday && x.status === "confirmed")) ? "1" : "0"} style={{ margin: "0 0 6px", fontWeight: 700 }}>{todayShiftLineOf({ shift: (((shiftsAll ?? []) as ShiftLite[]).find((x) => x.date === bizToday && x.status === "confirmed")) ?? null, state: ps.state, inAt: ps.inAt, nowMs: Date.now(), bizToday })}</p>{/* ★M-85（2026-11-05）: 今日の確定シフトの 1 行（残りは 15 分単位） */}
         <h3>打刻{punchHeadOf(ps.state, ps.inAt) && <span className="num" style={{ marginLeft: "auto", fontSize: 12.5, fontWeight: 700, color: "var(--ok)" }}>{punchHeadOf(ps.state, ps.inAt)}</span>}</h3>{/* ★326 追補3: 出勤中は見出し横に「出勤中 HH:MM〜」 */}
         {/* ★0164（便 W5-2b）: 店設定 punch_methods.self が OFF の店は本人打刻のボタンを出さない（RPC punch_self は拒否しない＝UI の出し分けだけ・裁定要） */}
         {opsProfileOf(myStore as Record<string, unknown> | undefined).punch_methods.self ? (

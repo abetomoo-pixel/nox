@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link"; // ★M-84
 import BrandLogo from "@/components/ui/brand-logo"; // ★便 SH-UI-a A-2: ロゴ（Concept 2 改）
 import { useRouter } from "next/navigation";
 import { KIOSK_PERSON_DENY, kioskPersonAllowedOf } from "@/lib/nox/kiosk/person-login"; // ★便 M5 M-49
@@ -80,6 +81,7 @@ export default function LoginPage() {
             {busy ? "確認中…" : "ログイン"}
           </button>
         </form>
+        <p style={{ textAlign: "center", marginTop: 14, fontSize: 12.5 }}><Link href="/auth/forgot" className="nox-link" data-login-forgot="1">パスワードをお忘れの方</Link></p>{/* ★M-84（2026-11-05）: resetPasswordForEmail（redirectTo＝/auth/set-password）の 1 画面へ */}
       </div>
     </main>
   );

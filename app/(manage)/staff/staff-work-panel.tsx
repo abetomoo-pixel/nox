@@ -21,6 +21,7 @@ import { ResponsiveTable } from "@/components/ui/responsive-kit";
 import { Message } from "@/components/ui/toast";
 import { attachStaffAllowances, staffContractLineOf, hmOf, staffHoursOf, staffMonthRangeOf, staffPayOf, type StaffAllowanceRow, type StaffContract, type StaffPunch } from "@/lib/nox/staff/pay"; // ★0195: attachStaffAllowances
 import { mig0183On, mig0188On, mig0192On, mig0194On, mig0195On } from "@/lib/nox/rules-0175/flag"; // ★裁定432（0183 ★4）・★0192 ★1／M-38: スタッフ勤怠の修正・確定・退勤の取消 ★0194: 確定額の凍結
+import { effectivePayKindOf } from "@/lib/nox/staff/work"; // ★M-90
 import { staffLaborRowOf } from "@/lib/nox/staff/labor"; // ★0194（裁定445 ①②）: 月の確定と同時に送る確定額の行（内訳つき）
 import Withholding432Panel from "@/components/nox/withholding-432-panel";
 import { WITHHOLDING_ADVICE_NOTE, WITHHOLDING_KIND_LABEL, WITHHOLDING_KIND_SELECT_NOTE, WITHHOLDING_KIND_SHORT, PAYMENT_REPORT_NOTE, defaultWithholdingKindOf, withholdingKindChoices, withholdingKindOf, type EmployeeDeductionKind, type EmployeeDeductionRow } from "@/lib/nox/payroll/withholding-kind";
@@ -70,7 +71,12 @@ export default function StaffWorkPanel({ scope, stores, daily = false, initialMe
     ]);
     const e = mm.error ?? cc.error ?? pp.error;
     if (e) { setErr(`読み込みに失敗: ${e.message}`); setLoaded(true); return; }
-    const rows = (mm.data ?? []) as Mem[];
+    let rows = (mm.data ?? []) as Mem[];
+    if (scope === "me" && rows.length === 0) { // ★M-87（2026-11-05）: 本人（staff）は memberships を読めない（RLS は owner／manager だけ）＝RPC で自分の行を組む
+      const [{ data: mid }, { data: role }, { data: sid }, { data: au }] = await Promise.all([supabase.rpc("auth_membership_id"), supabase.rpc("auth_role"), supabase.rpc("auth_store_id"), supabase.auth.getUser()]);
+      const { data: me } = au?.user ? await supabase.from("users").select("id").eq("auth_user_id", au.user.id).maybeSingle() : { data: null };
+      if (typeof mid === "string" && typeof role === "string" && typeof sid === "string" && me?.id) rows = [{ id: mid, user_id: me.id as string, store_id: sid, role, is_active: true } as Mem];
+    }
     const ids = [...new Set(rows.map((m) => m.user_id))];
     const map: Record<string, UserRow> = {};
     if (ids.length) { const { data: us } = await supabase.from("users").select("id, name").in("id", ids); for (const u of (us ?? []) as UserRow[]) map[u.id] = u; }
@@ -121,7 +127,7 @@ export default function StaffWorkPanel({ scope, stores, daily = false, initialMe
   const PAY_KIND_OPTS = [["hourly", "時給"], ["daily", "日給"], ["monthly", "月給"]] as const;
   function openContract(memId: string) {
     const c = contracts[memId] as (StaffContract & { pay_kind?: string | null; monthly?: number | null; daily?: number | null }) | undefined;
-    const pk = c?.pay_kind ?? (c && c.hourly === 0 && c.fixed_allowance > 0 ? "monthly" : "hourly");
+    const pk = effectivePayKindOf(c); // ★M-90: pay_kind 'hourly'（列の既定）＋時給 0・月額>0 は月給として開く
     const amt = pk === "monthly" ? (c?.monthly ?? c?.fixed_allowance ?? 0) : pk === "daily" ? (c?.daily ?? c?.fixed_allowance ?? 0) : (c?.hourly ?? 0);
     setContractForm({ mem: memId, contract_kind: c?.contract_kind ?? "parttime", pay_kind: pk, amount: amt ? String(amt) : "" }); setContractMsg(null);
   }

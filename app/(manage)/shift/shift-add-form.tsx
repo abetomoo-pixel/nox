@@ -34,7 +34,7 @@ import { type BusinessHourRow } from "@/lib/nox/business-hours";
 import { hm2min } from "@/lib/nox/shift-time";
 // ★裁定245-6: 日セルの「不足 n」＝純関数 gapOf（required−assigned・選択中は −1・0 は充足）
 import { gapOf } from "@/lib/nox/shift/gap";
-import { dayCastStateOf } from "@/lib/nox/shift/half-hour"; // ★便 A M-65 (c): 割当ピッカーと同じ 1 本の判定（希望＞基本の働き方）
+import { dayCastStateOf, availHmOf, availTimeCellOf } from "@/lib/nox/shift/half-hour"; // ★便 A M-65 (c): 割当ピッカーと同じ 1 本の判定（希望＞基本の働き方）
 import type { Avail } from "@/lib/nox/rules-0175/availability";
 
 import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
@@ -98,7 +98,7 @@ function rpcErrJa(msg: string | undefined): string {
 const SKIP_JA: Record<string, string> = { closed: "定休日", duplicate: "既に登録あり", unavailable: "出勤不可（理由未入力）" };
 
 export default function ShiftAddForm({
-  casts, photoUrls, initialCast, bhRows, initialDate, initialStatus, open, onClose, onSaved, needs = [], assignedByDate = {}, availByCast = {},
+  casts, photoUrls, initialCast, bhRows, initialDate, initialStatus, open, onClose, onSaved, needs = [], assignedByDate = {}, availByCast = {}, availTimeByCast = {},
 }: {
   /** 左ペイン CastPicker の母集団（裁定108: select 禁止＝Picker 維持） */
   casts: Cast[];
@@ -116,6 +116,8 @@ export default function ShiftAddForm({
   initialStatus: string;
   /** ★便 A M-65 (b): 基本の働き方（cast_id → 曜日 → 可／不可／相談）＝日セルの「不可」「相談」 */
   availByCast?: Record<string, Partial<Record<number, Avail>>>;
+  /** ★M-91: cast_id → 曜日 → 時刻の制限 */
+  availTimeByCast?: Record<string, Partial<Record<number, { from: number; to: number }>>>;
   open: boolean;
   onClose: () => void;
   /** 登録が成功したときだけ呼ばれる（親が load() を回す） */
@@ -217,6 +219,8 @@ export default function ShiftAddForm({
     if (ex) return { start: ex.start_hm, end: ex.end_hm, src: "edit", shiftId: ex.id, origStatus: ex.status };
     const w = wishOf(ymd);
     if (w) return { start: w.start_hm, end: w.end_hm, src: "wish", wishId: w.id, wishStart: w.start_hm, wishEnd: w.end_hm };
+    const at = selCast ? availTimeByCast[selCast.id]?.[dowOf(ymd)] ?? null : null; // ★M-91: 希望 → 基本の働き方の時刻 → 営業時間
+    if (at) return { start: availHmOf(at.from), end: availHmOf(at.to), src: "new", override };
     const h = hoursOf(ymd, bhRows);
     return { start: h ? h[0] : FALLBACK_START, end: h ? h[1] : FALLBACK_END, src: "new", override };
   };
@@ -446,6 +450,7 @@ export default function ShiftAddForm({
                     const un = unavail.has(ymd);
                     const ng = !closed && !un && availNgOf(ymd); // ★便 A M-65 (b): 基本の働き方の曜日が不可（RPC の不可とは別）
                     const ask = !closed && !un && !ng && consultOf(ymd);
+                    const atCell = !closed && !un && !ng && selCast ? availTimeCellOf(availTimeByCast[selCast.id]?.[dowOf(ymd)] ?? null) : null; // ★M-91: 時刻の制限＝「23:00〜01:00」
                     const conflict = e?.src === "new" && !!ex;
                     const style: React.CSSProperties = {
                       ...(closed ? { background: "var(--line)", opacity: 0.55, cursor: "not-allowed" } : {}),
@@ -463,6 +468,7 @@ export default function ShiftAddForm({
                         data-day-avail={ng ? "ng" : ask ? "ask" : undefined}>
                         <span className="nox-cald-n num">{Number(ymd.slice(8))}</span>
                         {closed && <span style={{ fontSize: 8.5, color: "var(--sub)" }}>休</span>}
+                        {!ex && atCell && <span className="num" style={{ fontSize: 8.5, color: "var(--sub)" }} data-day-avail-time="1">{atCell}</span>}{/* ★M-91 */}
                         {!closed && ex && (
                           <span className="num" style={{ fontSize: 8.5, color: e?.src === "edit" ? "var(--gold2)" : "var(--ok)" }}>
                             {hmLabelOf(ex.start_hm)}〜{fmtNext(ex.end_hm)}

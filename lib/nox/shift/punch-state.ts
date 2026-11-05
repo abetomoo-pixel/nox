@@ -31,3 +31,18 @@ export const PUNCH_STATE_NOTE: Record<PunchState, string | null> = {
 export function punchHeadOf(state: PunchState, inAt: string | null): string | null {
   return state === "open" && inAt ? `出勤中 ${hmJstOf(inAt)}〜` : null;
 }
+
+/** ★M-85（2026-11-05）: /mine 打刻枠の先頭の 1 行＝今日の確定シフト。未出勤＝「今日の出勤 20:00〜翌02:00（あと 4 時間 30 分）」（残りは 15 分単位に丸め・開始を過ぎたら「開始から ○分 経過」）・
+ *  出勤中＝「出勤 19:35（退勤予定 翌02:00）」・退勤済み＝「今日の出勤 20:00〜翌02:00（退勤済み）」・確定シフトが無い日＝「今日のシフトはありません」。hm は 0〜47 時（翌は hm47Ja と同じ表記）。 */
+export function todayShiftLineOf(p: { shift: { start_hm: string; end_hm: string } | null; state: PunchState; inAt: string | null; nowMs: number; bizToday: string }): string {
+  const hm47 = (hm: string): string => { const [h, m] = hm.split(":").map(Number); return h >= 24 ? `翌${String(h - 24).padStart(2, "0")}:${String(m).padStart(2, "0")}` : `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`; };
+  if (!p.shift) return "今日のシフトはありません";
+  const span = `${hm47(p.shift.start_hm)}〜${hm47(p.shift.end_hm)}`;
+  if (p.state === "open" && p.inAt) return `出勤 ${hmJstOf(p.inAt)}（退勤予定 ${hm47(p.shift.end_hm)}）`;
+  if (p.state === "closed") return `今日の出勤 ${span}（退勤済み）`;
+  const [sh, sm] = p.shift.start_hm.split(":").map(Number);
+  const startMs = Date.parse(`${p.bizToday}T00:00:00+09:00`) + (sh * 60 + sm) * 60_000;
+  const diffMin = Math.round((startMs - p.nowMs) / 60_000);
+  if (diffMin > 0) { const r = Math.round(diffMin / 15) * 15; const h = Math.floor(r / 60), m = r % 60; return `今日の出勤 ${span}（あと ${h > 0 ? `${h} 時間` : ""}${h > 0 && m > 0 ? " " : ""}${m > 0 || h === 0 ? `${m} 分` : ""}）`; }
+  return `今日の出勤 ${span}（開始から ${-diffMin} 分 経過）`;
+}

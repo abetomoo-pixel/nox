@@ -218,7 +218,7 @@ export async function runDemoReset(admin: SupabaseClient, orgId: string, payload
 }
 
 export type DemoFinalizeStore = { store: string; status: "finalized" | "skipped" | "failed"; castCount?: number; ms: number; reason?: string };
-export type AfterResetResult = { canon?: { plans: number; bands: number; tiers: number; reason?: string }; closedDays?: { stores: number; shifts: number; wishes: number; reason?: string }; photos: { casts: number; users: number }; payroll: { period: string; stores: DemoFinalizeStore[]; ms: number; reason?: string }; fine?: { status: "added" | "skipped" | "failed"; reason?: string; ms: number } };
+export type AfterResetResult = { lane?: { availability: number; terms: number; vipChecks: number; reason?: string }; /* ★裁定451 ①／454（デモデータ便） */ canon?: { plans: number; bands: number; tiers: number; reason?: string }; closedDays?: { stores: number; shifts: number; wishes: number; reason?: string }; photos: { casts: number; users: number }; payroll: { period: string; stores: DemoFinalizeStore[]; ms: number; reason?: string }; fine?: { status: "added" | "skipped" | "failed"; reason?: string; ms: number } };
 
 /**
  * 再生後の後処理（裁定276-4）:
@@ -248,6 +248,8 @@ export async function afterResetHooks(admin: SupabaseClient, orgId: string, _biz
       out.photos.users = data?.length ?? 0;
     }
   } catch (e) { console.error(`afterResetHooks: ${e instanceof Error ? e.message : String(e)}`); }
+  // ★裁定451 ①／454（デモデータ便・2026-11-05）: c_load に無い表（availability／availability_terms）と FK の順で payload に載せられない列（checks.ext_rule_id）を reset 後に admin で置く
+  try { out.lane = await demoLaneHooksFor(admin, orgId); } catch (e) { out.lane = { availability: 0, terms: 0, vipChecks: 0, reason: e instanceof Error ? e.message : String(e) }; console.error(`afterResetHooks(lane): ${out.lane.reason}`); }
   // ★X-13-13（便 X-13b・2026-10-08）: 先月分を正規経路で確定（payroll_run_create → computePayrollDraft（owner 文脈）→ payroll_finalize（service））。
   //   冪等＝その店×先月に finalized／paid の run があれば skip（reset は payroll_runs を wipe するため毎回作り直す）。失敗 org は audit 'demo.finalize.failed' に理由・写真 hook も reset も止めない。
   //   owner 文脈＝demo owner の magiclink をサーバ内で消費（入場 route と同じ・メールは送らない）。報酬参考との差は 328 追補6 の仕様差。
@@ -392,4 +394,64 @@ export async function finalizePrevMonthForDemo(admin: SupabaseClient, orgId: str
   }
   result.ms = Date.now() - t0;
   return result;
+}
+
+// ★裁定451 ①／454（デモデータ便・2026-11-05）: reset 後に置くデモの行（payload では置けないもの）。
+//   ①基本の働き方（availability／availability_terms＝c_load に無い表・FK は memberships／casts に cascade＝wipe で消える）：
+//     CLUB ACE＝ひなの（membership）＝金 不可・他 可 20:00〜翌01:00・週 5 日／あい（アカウント未発行＝cast_id の行）＝月 不可・他 可。ほかの 5 店＝代表キャスト（membership）＝水 相談・他 可・週 4 日。
+//   ②CLUB ACE の VIP 席の開栓済み伝票＝ext_rule_id を「VIP 延長」（seat_kind VIP）に・ext_fee／ext_min＝18,000／60（payload は ext_rule_id を載せられない＝c_load は checks が pricing_rules より先）。
+//   冪等＝店ごとに delete → insert（reset のたび）。失敗は呼び出し側が reason に残し reset は止めない。
+export const DEMO_LANE_AVAIL = {
+  hinano: { ng: [5], from: 1200, to: 1500, week: 5 },   // 金 不可・他 可 20:00〜翌01:00（1500＝25:00）
+  ai: { ng: [1], week: null },                           // 月 不可・他 可（時刻なし）
+  rep: { ask: [3], week: 4 },                            // 水 相談・他 可
+} as const;
+export async function demoLaneHooksFor(admin: SupabaseClient, orgId: string): Promise<{ availability: number; terms: number; vipChecks: number; reason?: string }> {
+  const out = { availability: 0, terms: 0, vipChecks: 0 };
+  const { data: stores, error: eS } = await admin.from("stores").select("id, name").eq("org_id", orgId).order("name");
+  if (eS) throw new Error(`stores: ${eS.message}`);
+  for (const st of (stores ?? []) as { id: string; name: string }[]) {
+    const { data: casts } = await admin.from("casts").select("id, name, user_id").eq("store_id", st.id).eq("is_active", true).order("name");
+    const cs = (casts ?? []) as { id: string; name: string; user_id: string | null }[];
+    const membOf = async (userId: string | null): Promise<string | null> => {
+      if (!userId) return null;
+      const { data: m } = await admin.from("memberships").select("id").eq("user_id", userId).eq("store_id", st.id).eq("is_active", true).limit(1).maybeSingle();
+      return (m?.id as string | undefined) ?? null;
+    };
+    type Row = { org_id: string; store_id: string; membership_id: string | null; cast_id: string; dow: number; avail: "ok" | "ng" | "ask"; from_min: number | null; to_min: number | null; memo: string | null };
+    const rows: Row[] = []; const terms: { org_id: string; store_id: string; membership_id: string | null; cast_id: string; week_days_target: number | null; fixed_off_dows: number[]; effective_from: string | null; memo: string | null }[] = [];
+    const add = (cast: { id: string }, mid: string | null, spec: { ng?: readonly number[]; ask?: readonly number[]; from?: number; to?: number; week: number | null }) => {
+      for (let dow = 0; dow < 7; dow++) {
+        const avail: Row["avail"] = spec.ng?.includes(dow) ? "ng" : spec.ask?.includes(dow) ? "ask" : "ok";
+        const timed = avail !== "ng" && typeof spec.from === "number" && typeof spec.to === "number";
+        rows.push({ org_id: orgId, store_id: st.id, membership_id: mid, cast_id: cast.id, dow, avail, from_min: timed ? spec.from! : null, to_min: timed ? spec.to! : null, memo: null });
+      }
+      terms.push({ org_id: orgId, store_id: st.id, membership_id: mid, cast_id: cast.id, week_days_target: spec.week, fixed_off_dows: [...(spec.ng ?? [])], effective_from: null, memo: null });
+    };
+    if (st.name === "CLUB ACE") {
+      const hinano = cs.find((c) => c.name === "ひなの"), ai = cs.find((c) => c.name === "あい");
+      if (hinano) add(hinano, await membOf(hinano.user_id), DEMO_LANE_AVAIL.hinano);
+      if (ai) add(ai, await membOf(ai.user_id), DEMO_LANE_AVAIL.ai);
+    } else {
+      const rep = cs.find((c) => !!c.user_id) ?? cs[0];
+      if (rep) add(rep, await membOf(rep.user_id), DEMO_LANE_AVAIL.rep);
+    }
+    const { error: eD1 } = await admin.from("availability").delete().eq("store_id", st.id); if (eD1) throw new Error(`availability delete: ${eD1.message}`);
+    const { error: eD2 } = await admin.from("availability_terms").delete().eq("store_id", st.id); if (eD2) throw new Error(`availability_terms delete: ${eD2.message}`);
+    if (rows.length) { const { error } = await admin.from("availability").insert(rows); if (error) throw new Error(`availability insert: ${error.message}`); out.availability += rows.length; }
+    if (terms.length) { const { error } = await admin.from("availability_terms").insert(terms); if (error) throw new Error(`availability_terms insert: ${error.message}`); out.terms += terms.length; }
+    if (st.name === "CLUB ACE") { // ②VIP 席の開栓済み伝票＝ext_rule_id を VIP 延長に
+      const { data: rule } = await admin.from("pricing_rules").select("id, amount, duration_min").eq("store_id", st.id).eq("fee_kind", "extension").eq("seat_kind", "VIP").eq("is_active", true).order("name").limit(1).maybeSingle();
+      if (rule?.id) {
+        const { data: vipSeats } = await admin.from("seats").select("id").eq("store_id", st.id).eq("kind", "VIP");
+        const ids = ((vipSeats ?? []) as { id: string }[]).map((x) => x.id);
+        if (ids.length) {
+          const { data: upd, error } = await admin.from("checks").update({ ext_rule_id: rule.id as string, ext_fee: rule.amount as number, ext_min: rule.duration_min as number }).eq("store_id", st.id).eq("status", "open").in("seat_id", ids).select("id");
+          if (error) throw new Error(`checks ext_rule_id: ${error.message}`);
+          out.vipChecks += upd?.length ?? 0;
+        }
+      }
+    }
+  }
+  return out;
 }

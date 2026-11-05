@@ -66,3 +66,17 @@ export function dayCastStateOf(wishesOfDay: readonly { start_hm: string; end_hm:
 }
 /** 不可の曜日の確認文（選択時に 1 回） */
 export const availNgConfirmOf = (dowJa: string): string => `${dowJa}曜は不可の設定です。追加しますか`;
+
+/** ★M-91（2026-11-05）: 基本の働き方の時刻の制限（from_min／to_min＝0〜2879 分）の表示。badge＝「23:00〜翌01:00」（割当モーダル）・cell＝「23:00〜01:00」（まとめて追加のセル＝翌を省く） */
+export type AvailTime = { from: number; to: number };
+export const availTimeBadgeOf = (t: AvailTime | null | undefined): string | null => (t ? `${bandMinLabelOf(t.from)}〜${bandMinLabelOf(t.to)}` : null);
+export const availTimeCellOf = (t: AvailTime | null | undefined): string | null => (t ? `${bandMinLabelOf(t.from)}〜${bandMinLabelOf(t.to % 1440)}` : null);
+/** 分 → 'HH:MM'（24 時以降はそのまま 25:00 の形＝シフトの start_hm／end_hm と同じ 0〜47 時） */
+export const availHmOf = (min: number): string => `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
+/** 選んだときの初期時間＝希望 → 基本の働き方の時刻 → 営業時間（preset）→ 既定 */
+export function initialSpanOf(wish: { start_hm: string; end_hm: string } | null | undefined, avail: AvailTime | null | undefined, preset: readonly [string, string] | null | undefined, fallback: readonly [string, string]): { start: string; end: string } {
+  if (wish) return { start: wish.start_hm.slice(0, 5), end: wish.end_hm.slice(0, 5) };
+  if (avail) return { start: availHmOf(avail.from), end: availHmOf(avail.to) };
+  if (preset) return { start: preset[0], end: preset[1] };
+  return { start: fallback[0], end: fallback[1] };
+}

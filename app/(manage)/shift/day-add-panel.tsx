@@ -18,7 +18,7 @@ import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import CastAvatar from "@/components/ui/cast-avatar";
 import { type BusinessHourRow } from "@/lib/nox/business-hours";
-import { dayCastStateOf, availNgConfirmOf, DAY_CAST_STATE_LABEL, type DayCastState } from "@/lib/nox/shift/half-hour"; // ★便 A M-65: 4 段の判定（希望＞基本の働き方）＝(b) まとめて追加と同じ 1 本
+import { dayCastStateOf, DAY_CAST_STATE_LABEL, availTimeBadgeOf, initialSpanOf, type DayCastState } from "@/lib/nox/shift/half-hour"; // ★M-91: 時刻の制限・初期時間（availNgConfirmOf は理由必須に置き換え） // ★便 A M-65: 4 段の判定（希望＞基本の働き方）＝(b) まとめて追加と同じ 1 本
 import type { Avail } from "@/lib/nox/rules-0175/availability";
 import TimeInput from "@/components/ui/time-input"; // ★便 M5b M-51
 
@@ -35,7 +35,6 @@ const STATE_STYLE: Record<DayCastState, React.CSSProperties> = {
   unavailable: { color: "var(--bad)", borderColor: "rgba(217, 138, 138, .5)" },
   consult: { color: "var(--gold2)", borderColor: "rgba(201, 162, 74, .5)" }, // ★便 A M-65: 相談＝黄
 };
-const DOW_JA = ["日", "月", "火", "水", "木", "金", "土"] as const;
 
 // 既定の勤務時間（営業時間が引けないときのフォールバック＝ShiftAddForm と同値）
 const FALLBACK_START = "20:00";
@@ -65,10 +64,12 @@ function rpcErrJa(msg: string | undefined): string {
 }
 
 export default function DayAddPanel({
-  date, casts, photoUrls, bhRows, assignedCastIds, onSaved, onDirtyChange, wishes = [], closed = false, availByCast = {},
+  date, casts, photoUrls, bhRows, assignedCastIds, onSaved, onDirtyChange, wishes = [], closed = false, availByCast = {}, availTimeByCast = {},
 }: {
   /** ★便 A M-65: 基本の働き方（cast_id → 曜日 → 可／不可／相談）＝不可は赤「不可」・相談は黄「相談」（希望が優先） */
   availByCast?: Record<string, Partial<Record<number, Avail>>>;
+  /** ★M-91: cast_id → 曜日 → 時刻の制限（from_min／to_min） */
+  availTimeByCast?: Record<string, Partial<Record<number, { from: number; to: number }>>>;
   date: string;
   casts: Cast[];
   photoUrls: Map<string, string>;
@@ -110,16 +111,11 @@ export default function DayAddPanel({
     if (busy || assigned.has(c.id)) return;
     setMsg(null);
     const st = stateOf(c.id);
-    // ★便 A M-65 (a): 不可の人も選べるが、基本の働き方の曜日が不可のときは確認を 1 回（休み希望の不可は「それでも追加」＝理由必須のまま）
-    if (st.why === "avail_ng" && !rows.some((r) => r.castId === c.id) && !window.confirm(availNgConfirmOf(DOW_JA[dow]))) return;
+    // ★便 A M-65 (a) → ★M-91: 不可（休み希望・基本の働き方の曜日が不可）は「それでも登録」＝理由必須（まとめて追加と同じ・確認ダイアログはやめた）。初期時間＝希望 → 基本の働き方の時刻 → 営業時間
+    const span = initialSpanOf(st.wish, availTimeByCast[c.id]?.[dow] ?? null, preset ?? null, [FALLBACK_START, FALLBACK_END]);
     setRows((prev) => prev.some((r) => r.castId === c.id)
       ? prev.filter((r) => r.castId !== c.id)
-      : [...prev, {
-          castId: c.id,
-          start: st.wish?.start_hm.slice(0, 5) ?? preset?.[0] ?? FALLBACK_START,
-          end: st.wish?.end_hm.slice(0, 5) ?? preset?.[1] ?? FALLBACK_END,
-          err: null, needReason: st.why === "wish_off", reason: "",
-        }]);
+      : [...prev, { castId: c.id, start: span.start, end: span.end, err: null, needReason: st.why === "wish_off" || st.why === "avail_ng", reason: "" }]);
   };
   const setRow = (id: string, patch: Partial<Row>) =>
     setRows((prev) => prev.map((r) => (r.castId === id ? { ...r, ...patch, err: null } : r)));
@@ -192,6 +188,7 @@ export default function DayAddPanel({
                   <span style={{ ...t.tag, fontSize: 10.5, padding: "1px 7px", ...STATE_STYLE[st.state] }}>
                     {st.state === "wish" && st.wish ? `${DAY_CAST_STATE_LABEL.wish} ${st.wish.start_hm.slice(0, 5)}〜` : DAY_CAST_STATE_LABEL[st.state]}
                   </span>
+                  {st.state !== "wish" && st.state !== "unavailable" && availTimeBadgeOf(availTimeByCast[c.id]?.[dow] ?? null) && <span className="nox-stpill num" data-day-add-avail-time={String(dow)}>{availTimeBadgeOf(availTimeByCast[c.id]?.[dow] ?? null)}</span>}{/* ★M-91: その曜日の時刻の制限＝「23:00〜翌01:00」 */}
                   {on && <span className="nox-stpill ok">選択中</span>}
                 </button>
               );

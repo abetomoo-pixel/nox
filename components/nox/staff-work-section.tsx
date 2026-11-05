@@ -15,11 +15,12 @@ import * as t from "@/lib/nox/ui/theme";
 import { rpcErrJa } from "@/lib/nox/ui/rpc-err";
 import { mig0183On, mig0188On, mig0195On } from "@/lib/nox/rules-0175/flag";
 import { staffContractLineOf, type StaffContract } from "@/lib/nox/staff/pay";
+import AvailabilityEditor from "@/components/nox/availability-editor"; // ★M-88: スタッフの基本の働き方（availability＝membership 軸・availability_set）
 import {
   WITHHOLDING_KIND_SELECT_NOTE, WITHHOLDING_KIND_SHORT, defaultWithholdingKindOf, withholdingKindChoices, withholdingKindOf,
   type EmployeeDeductionKind, type EmployeeDeductionRow,
 } from "@/lib/nox/payroll/withholding-kind";
-import { CONTRACT_KIND_OPTS, monthOfToday, monthShiftOf, payAmountKeyOf, payKindOptsOf } from "@/lib/nox/staff/work"; // 純関数（verify と共有）
+import { CONTRACT_KIND_OPTS, effectivePayKindOf, monthOfToday, monthShiftOf, payAmountKeyOf, payKindOptsOf } from "@/lib/nox/staff/work"; // 純関数（verify と共有）
 
 export type StaffWorkContract = StaffContract & { pay_kind?: string | null; monthly?: number | null; daily?: number | null; withholding_kind?: string | null };
 
@@ -29,15 +30,15 @@ type Form = { contract_kind: string; pay_kind: string; amount: string; fixed: st
 export const allowanceRowsOf = (c: StaffWorkContract | null): AllowRow[] => [...(c && c.fixed_allowance > 0 ? [{ name: "固定手当", amount: String(c.fixed_allowance) }] : []), ...((c?.allowances ?? []).map((x) => ({ name: x.name, amount: String(x.amount) })))];
 const formOf = (c: StaffWorkContract | null): Form => {
   const ck = c?.contract_kind ?? "parttime";
-  const pk0 = c?.pay_kind ?? (c && c.hourly === 0 && c.fixed_allowance > 0 ? "monthly" : "hourly");
+  const pk0 = effectivePayKindOf(c); // ★M-90
   const pk = payKindOptsOf(ck).some(([v]) => v === pk0) ? pk0 : payKindOptsOf(ck)[0][0];
   const key = payAmountKeyOf(pk);
   const amt = key === "hourly" ? (c?.hourly ?? 0) : key === "daily" ? (c?.daily ?? c?.fixed_allowance ?? 0) : (c?.monthly ?? c?.fixed_allowance ?? 0);
   return { contract_kind: ck, pay_kind: pk, amount: amt ? String(amt) : "", fixed: c?.fixed_allowance && pk === "hourly" ? String(c.fixed_allowance) : "", allow: mig0195On() && pk === "hourly" ? allowanceRowsOf(c) : [] };
 };
 
-export default function StaffWorkSection({ memId, contract, canEdit, initialOpen = false, onSaved }: {
-  memId: string; contract: StaffWorkContract | null; canEdit: boolean; initialOpen?: boolean;
+export default function StaffWorkSection({ memId, contract, canEdit, initialOpen = false, onSaved, storeId = null }: {
+  memId: string; contract: StaffWorkContract | null; canEdit: boolean; initialOpen?: boolean; /** ★M-88: 店（基本の働き方の営業時間の既定・無ければ節を出さない） */ storeId?: string | null;
   onSaved: () => void | Promise<void>;
 }) {
   const supabase = createClient();
@@ -174,6 +175,11 @@ export default function StaffWorkSection({ memId, contract, canEdit, initialOpen
         </div>
       )}
       {mig0183On() && !contract && <p style={{ ...t.sub, margin: "6px 0 0" }} data-staff-edit-withholding="none">源泉区分と控除は働き方を登録すると選べます。</p>}
+      {storeId && (/* ★M-88（2026-11-05）: スタッフにもキャストと同じ基本の働き方（曜日×可／相談／不可・時刻・週の目安・適用開始日・メモ）＝表は membership 軸で汎用・保存は availability_set（管理者／自店の店長）＝client だけ */
+        <div style={{ marginTop: 10 }} data-staff-availability={memId}>
+          <AvailabilityEditor castId="" storeId={storeId} employment={null} bySelf={false} membershipId={memId} readOnly={!canEdit} />
+        </div>
+      )}
       {msg && <Message kind={msg.kind} style={{ margin: "6px 0 0" }}>{msg.text}</Message>}
     </div>
   );

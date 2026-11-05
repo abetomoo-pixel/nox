@@ -60,7 +60,8 @@ export default function WishForm({ mode = "shift" }: { mode?: WishMode }) {
     if (!rules0175On()) return;
     let alive = true; const sb = createClient();
     void (async () => {
-      const { data: m } = await sb.from("memberships").select("id").eq("is_active", true).limit(1).maybeSingle();
+      const { data: mid } = await sb.rpc("auth_membership_id"); // ★M-87（2026-11-05）: 本人は memberships を読めない（RLS）＝RPC で解く
+      const m = typeof mid === "string" ? { id: mid } : null;
       if (!m?.id) return;
       const [{ data: rows }, { data: terms }] = await Promise.all([
         sb.from("availability").select("dow, avail, from_min, to_min, memo").eq("membership_id", m.id as string),

@@ -211,7 +211,8 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   const [remindTarget, setRemindTarget] = useState<{ period: Period; castIds: string[]; title: string; body: string } | null>(null);
   // ★SD V2-2: 表示月の wishes 全 status（原型対比・4段フロー）／period／配置ルール
   const [wishAll, setWishAll] = useState<Wish[]>([]);
-  const [availByCast, setAvailByCast] = useState<Record<string, Partial<Record<number, Avail>>>>({}); // ★便 A M-65: cast_id → 曜日 → 可／不可／相談（availability＝membership か cast_id）
+  const [availByCast, setAvailByCast] = useState<Record<string, Partial<Record<number, Avail>>>>({});
+  const [availTimeByCast, setAvailTimeByCast] = useState<Record<string, Partial<Record<number, { from: number; to: number }>>>>({}); // ★M-91: cast_id → 曜日 → 時刻の制限（from_min／to_min） // ★便 A M-65: cast_id → 曜日 → 可／不可／相談（availability＝membership か cast_id）
   const [specialDays, setSpecialDays] = useState<{ day: string; kind: string }[]>([]); // ★便 A M-75: 特別営業日／臨時休業（定休日の判定）
   const [periods, setPeriods] = useState<Period[]>([]);
   // ★便 T-1: 既定日付と重なり判定は「表示月」ではなく店の全期間で見る（periods は表示月に重なる分だけ）
@@ -519,19 +520,21 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
     // ★便 A M-65: 基本の働き方＝availability（membership_id か cast_id・RLS＝店スコープ）→ cast_id に写す（memberships.user_id＝casts.user_id）
     {
       const [{ data: av }, { data: cu }, { data: mu }] = await Promise.all([
-        supabase.from("availability").select("membership_id, cast_id, dow, avail").eq("store_id", storeId),
+        supabase.from("availability").select("membership_id, cast_id, dow, avail, from_min, to_min").eq("store_id", storeId), // ★M-91: +時刻
         supabase.from("casts").select("id, user_id").eq("store_id", storeId),
         supabase.from("memberships").select("id, user_id").eq("store_id", storeId),
       ]);
       const castByUser = new Map(((cu ?? []) as { id: string; user_id: string | null }[]).filter((c) => !!c.user_id).map((c) => [c.user_id as string, c.id]));
       const castByMem = new Map(((mu ?? []) as { id: string; user_id: string }[]).map((m) => [m.id, castByUser.get(m.user_id) ?? null]));
       const out: Record<string, Partial<Record<number, Avail>>> = {};
-      for (const r of (av ?? []) as { membership_id: string | null; cast_id: string | null; dow: number; avail: Avail }[]) {
+      const outT: Record<string, Partial<Record<number, { from: number; to: number }>>> = {}; // ★M-91
+      for (const r of (av ?? []) as { membership_id: string | null; cast_id: string | null; dow: number; avail: Avail; from_min: number | null; to_min: number | null }[]) {
         const cid = r.cast_id ?? (r.membership_id ? castByMem.get(r.membership_id) ?? null : null);
         if (!cid) continue;
         (out[cid] ??= {})[r.dow] = r.avail;
+        if (r.avail !== "ng" && r.from_min !== null && r.to_min !== null) (outT[cid] ??= {})[r.dow] = { from: r.from_min, to: r.to_min };
       }
-      setAvailByCast(out);
+      setAvailByCast(out); setAvailTimeByCast(outT);
       const { data: sd } = await supabase.from("store_special_days").select("day, kind").eq("store_id", storeId).gte("day", addDays(bizToday, -7)).lte("day", addDays(bizToday, 62));
       setSpecialDays((sd ?? []) as { day: string; kind: string }[]);
     }
@@ -2650,7 +2653,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
         <Modal onClose={() => setTodayAdd(false)} maxWidth={560}>
           <h3 style={{ ...t.cardTitle, margin: "0 0 8px" }} data-today-add-head={todayDate}>{Number(todayDate.slice(5, 7))}/{Number(todayDate.slice(8, 10))}（{DOW[dowOf(todayDate)]}）に追加配置</h3>
           <p style={{ ...t.sub, margin: "0 0 8px" }}>{todayDate === bizToday ? "今日のシフトに入っている人は出ません。出勤不可の人は理由を入れると登録できます。保存すると確定のシフトになり、今日のタブの行で「出勤」を押せます。" : "この日のシフトに入っている人は出ません。出勤不可の人は理由を入れると登録できます。保存すると確定のシフトになり、その日のタブに出ます。"}</p>
-          <DayAddPanel date={todayDate} casts={casts} photoUrls={photoUrls} bhRows={bhRows} wishes={wishAll} closed={isClosedForAdd(todayDate)} availByCast={availByCast}
+          <DayAddPanel date={todayDate} casts={casts} photoUrls={photoUrls} bhRows={bhRows} wishes={wishAll} closed={isClosedForAdd(todayDate)} availByCast={availByCast} availTimeByCast={availTimeByCast} /* ★M-91 */
             assignedCastIds={shiftsOn(todayDate).map((s) => s.cast_id)}
             onSaved={async () => { setMsg(`${Number(todayDate.slice(5, 7))}/${Number(todayDate.slice(8, 10))} に追加配置しました（確定）`); setTodayAdd(false); await load(); }} onDirtyChange={() => {}} />
         </Modal>
@@ -2658,7 +2661,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
       {isManagerUp && (
         <ShiftAddForm
           casts={casts} photoUrls={photoUrls} initialCast={addCast} bhRows={bhRows}
-          initialDate={addDate} initialStatus={addStatus} availByCast={availByCast} /* ★便 A M-65 (b) */
+          initialDate={addDate} initialStatus={addStatus} availByCast={availByCast} /* ★便 A M-65 (b) */ availTimeByCast={availTimeByCast} /* ★M-91 */
           needs={needs} assignedByDate={assignedByDate} /* ★裁定245-6: 不足 n の材料（staffing_needs と日別配置数） */
           open={addModal} onClose={() => setAddModal(false)}
           onSaved={() => { setMsg("シフトを保存しました"); void load(); }}

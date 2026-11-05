@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import { Message } from "@/components/ui/toast";
+import MoneyInput from "@/components/ui/money-input"; // ★M-89
 import {
   EMPLOYEE_DEDUCTION_LABEL, OTHER_204_MANUAL_NOTE, OTHER_FEE_PROVISIONAL_NOTE, WITHHOLDING_ADVICE_NOTE, WITHHOLDING_KIND_SHORT, copyPrevDeductionsOf, employeeDeductionFormOf, employeeDeductionRowsOfForm,
   overrideLineOf, prevPeriodOf, type EmployeeDeductionKind, type EmployeeDeductionRow, type WithholdingKind,
@@ -115,7 +116,7 @@ export default function Withholding432Panel({ period, subjectKind, subjectId, ki
                 {f.kind === "other"
                   ? <input value={f.name} placeholder="その他（名前）" maxLength={40} disabled={!editable} onChange={(e) => setForm((xs) => xs.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))} style={t.input} aria-label="その他の名前" data-emp-ded-name={i} />
                   : <span style={{ fontSize: 12.5 }}>{EMPLOYEE_DEDUCTION_LABEL[f.kind]}</span>}
-                <input value={f.amount} placeholder="0" inputMode="numeric" disabled={!editable} onChange={(e) => setForm((xs) => xs.map((x, j) => (j === i ? { ...x, amount: e.target.value } : x)))} style={t.input} aria-label={`${f.kind === "other" ? f.name || "その他" : EMPLOYEE_DEDUCTION_LABEL[f.kind]}の金額`} data-emp-ded-amount={f.kind} />
+                <span data-emp-ded-amount={f.kind} style={{ display: "block" }}><MoneyInput value={f.amount} placeholder="0" disabled={!editable} onChange={(v) => setForm((xs) => xs.map((x, j) => (j === i ? { ...x, amount: v } : x)))} width="100%" ariaLabel={`${f.kind === "other" ? f.name || "その他" : EMPLOYEE_DEDUCTION_LABEL[f.kind]}の金額`} /></span>{/* ★M-89（2026-11-05）: ¥ 接頭辞＝M-74 と同じ部品（3 桁区切り・数字のみ） */}
                 {f.kind === "other" && editable && <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} onClick={() => setForm((xs) => xs.filter((_, j) => j !== i))} aria-label="この行を消す">消す</button>}
               </div>
             ))}

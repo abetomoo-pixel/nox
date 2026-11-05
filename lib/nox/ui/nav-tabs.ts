@@ -69,9 +69,11 @@ export function activeHrefOf(path: string, items: readonly NavItem[]): string {
 }
 
 /** ヘッダー右の「登録名｜役割」の表示文字（登録名が無ければメール・それも無ければ役割のみ） */
-export function userChipLabelOf(input: { name: string | null | undefined; email: string | null | undefined; roleJa: string }): string {
+export function userChipLabelOf(input: { name: string | null | undefined; email: string | null | undefined; roleJa: string; storeLabel?: string | null }): string {
   const n = (input.name ?? "").trim() || (input.email ?? "").trim();
-  return n ? `${n}｜${input.roleJa}` : input.roleJa;
+  const body = n ? `${n}｜${input.roleJa}` : input.roleJa;
+  const st = (input.storeLabel ?? "").trim();
+  return st ? `${st} ・ ${body}` : body; // ★M-86（2026-11-05）: キャスト画面は店名を前置（複数所属は今の店）
 }
 
 /** ★裁定306-11（≥900px）: 押した項目が「今いるページのハッシュ」なら scrollIntoView の対象 id（違えば null） */

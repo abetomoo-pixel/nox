@@ -500,7 +500,7 @@ export default function StaffBoard({
           <div className="nox-actions" data-staff-edit-actions="1" style={{ marginTop: 10 }}>{/* ★便 A M-80 ④（教訓133）: 保存は中央 */}
             <button type="button" style={{ ...btnGold, minHeight: 48, minWidth: 180, fontSize: 15 }} disabled={busy} data-staff-save="1" onClick={() => void saveEdit()}>{busy ? "保存中…" : "保存"}</button>
           </div>
-          <StaffWorkSection key={`${sel.id}-${eWorkOpen ? "w" : "c"}`} memId={sel.id} contract={contracts[sel.id] ?? null} initialOpen={eWorkOpen} onSaved={() => load()}
+          <StaffWorkSection key={`${sel.id}-${eWorkOpen ? "w" : "c"}`} memId={sel.id} contract={contracts[sel.id] ?? null} initialOpen={eWorkOpen} onSaved={() => load()} storeId={sel.store_id} /* ★M-88 */
             canEdit={isOwner || (sel.role === "staff" && sel.store_id === myStoreId)} />{/* ★便 A M-80 ①②: 働き方＝staff_contract_set／源泉区分／控除（給与 › 勤怠（スタッフ）と同じ保存先・店長は自店の staff だけ） */}
           {isOwner && stores.length > 1 && sel.is_active && (
             <div style={{ display: "grid", gap: 8, marginTop: 12 }} data-staff-transfer="1">{/* ★便 A M-80 ④: 配属店（異動先）は select ではなくボタン群（教訓27）・実行は中央 */}

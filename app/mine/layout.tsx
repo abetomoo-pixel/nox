@@ -61,7 +61,7 @@ export default async function MineLayout({ children }: { children: React.ReactNo
         <header className="nox-topbar">
           <Link href="/mine" aria-label="ホームへ" className="nox-brandlink" data-brand-home="/mine"><BrandLogo height={26} /></Link>{/* ★便 SH-UI-a A-2: ロゴ・★便 SH-UI-b2 B2-2: キャストのホーム（/mine）へ */}
           <span style={{ marginLeft: "auto" }}>
-            <UserChip name={(meRow?.name as string | null) ?? null} email={null} roleJa={t.roleLabelJa(role as string)} storeLabel={(storeRow?.name as string | undefined) ?? undefined} isDemo={isDemo} />
+            <UserChip name={(meRow?.name as string | null) ?? null} email={null} roleJa={t.roleLabelJa(role as string)} storeLabel={(storeRow?.name as string | undefined) ?? undefined} storeInLabel isDemo={isDemo} />{/* ★M-86: 「CLUB ACE ・ ひなの｜キャスト」 */}
           </span>
         </header>
         <main className="nox-main">

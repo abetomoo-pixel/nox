@@ -20,8 +20,10 @@ const btnLight: React.CSSProperties = { ...t.btnGhost, ...t.btnSm };
 const btnDanger: React.CSSProperties = { ...t.btnGhost, ...t.btnSm, border: "1px solid var(--bad)", color: "var(--bad)" };
 const ST: Record<string, string> = { proposed: "確認待ち", confirmed: "確定" };
 
-export default function StaffPlaceDayModal({ day, bizToday, patterns, staff, wishes, shifts, busy, cancelRpc, onPlace, onCancel, onClose }: {
+export default function StaffPlaceDayModal({ day, bizToday, patterns, staff, wishes, shifts, busy, cancelRpc, onPlace, onCancel, onClose, availByStaff = {} }: {
   day: string; bizToday: string; patterns: Pattern[]; staff: StaffLike[]; wishes: Wish[]; shifts: StaffShift[]; busy: boolean;
+  /** ★M-88: membership id → 曜日 → 可／不可／相談（availability＝店スコープ）。不可＝赤「不可」・相談＝黄「相談」（M-65 と同じ） */
+  availByStaff?: Record<string, Partial<Record<number, "ok" | "ng" | "ask">>>;
   /** staff_shift_cancel の有無（0151 手貼り前＝'missing'＝取消ボタンを出さない） */
   cancelRpc: "unknown" | "ok" | "missing";
   /** 配置（propose→必要なら override）。失敗文言を返す（null＝成功） */
@@ -92,6 +94,7 @@ export default function StaffPlaceDayModal({ day, bizToday, patterns, staff, wis
                   <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {r.staff.name}{r.staff.role && r.staff.role !== "staff" && <span style={{ fontSize: 10.5, color: "var(--sub)", marginLeft: 4 }}>（{r.staff.role}）</span>}
                   </span>
+                  {(() => { const a = availByStaff[r.staff.id]?.[new Date(`${day}T00:00:00+09:00`).getUTCDay()] ?? null; return a === "ng" ? <span className="nox-stpill" style={{ color: "var(--bad)", borderColor: "var(--bad)" }} data-staff-avail="ng">不可</span> : a === "ask" ? <span className="nox-stpill" style={{ color: "var(--gold2)", borderColor: "var(--gold-bd)" }} data-staff-avail="ask">相談</span> : null; })()}{/* ★M-88: その曜日の基本の働き方 */}
                   {r.wishes.map((w) => <span key={w.id} className="nox-stpill" style={{ color: "var(--blue)" }}>希 {patName(w.pattern_id)}</span>)}
                   {r.placed && <span className="nox-stpill ok">配置済み・{patName(r.placed.pattern_id)}</span>}
                 </button>

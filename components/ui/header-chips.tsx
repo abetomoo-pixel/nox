@@ -49,8 +49,8 @@ export function HeaderGear({ groups }: { groups: NavGroup[] }) {
   );
 }
 
-export function UserChip({ name, email, roleJa, storeLabel, meId = null, mePhotoAt = null, canPhoto = false, isDemo = false, isOwner = false }: {
-  name: string | null; email: string | null; roleJa: string; storeLabel?: string;
+export function UserChip({ name, email, roleJa, storeLabel, storeInLabel = false, meId = null, mePhotoAt = null, canPhoto = false, isDemo = false, isOwner = false }: {
+  name: string | null; email: string | null; roleJa: string; storeLabel?: string; /** ★M-86: チップの文字にも店名を前置（キャスト画面） */ storeInLabel?: boolean;
   /** ★便 GV-C C-14h（X-13-2）: 「登録名・メールの変更は…」の注記はオーナーのときだけ（店長・スタッフ・キャストには出さない） */
   isOwner?: boolean;
   /** ★0162（便 M5-1）: 自分の users.id・写真の最終更新・写真を触れる役割（owner／manager／staff＝cast は /mine）・デモは導線を隠す */
@@ -107,7 +107,7 @@ export function UserChip({ name, email, roleJa, storeLabel, meId = null, mePhoto
       setBusy(false);
     }
   }
-  const label = userChipLabelOf({ name, email, roleJa });
+  const label = userChipLabelOf({ name, email, roleJa, storeLabel: storeInLabel ? storeLabel : null }); // ★M-86
   return (
     <>
       <button ref={chipRef} type="button" className="nox-hdrbtn nox-userchip" title="自分の情報" onClick={() => setOpen(true)}>{label}</button>

@@ -3,7 +3,7 @@
 // ★便 B M-70（2026-11-04）: 延長シミュレーションの表＝延長回数／終了時刻／加算／合計（税サ込）（人数割りの店は 1 人あたり）。
 //   会計タブ「時間料金」の枠と、操作バー「見積」のポップオーバー（注文・指名・席タブからも同じ表）で同じ部品。計算は lib/nox/register/ext-estimate.ts（表示だけ）。
 import * as t from "@/lib/nox/ui/theme";
-import { EXT_ESTIMATE_NOTE, extEstimateEndLabelOf, type ExtEstimatePattern, type ExtEstimateRow } from "@/lib/nox/register/ext-estimate";
+import { EXT_ESTIMATE_NOTE, extEstimateEndLabelOf, extPer30Of, extPer30TextOf, type ExtEstimatePattern, type ExtEstimateRow } from "@/lib/nox/register/ext-estimate"; // ★M-83: 30 分あたり
 
 const yen = (n: number) => `¥${n.toLocaleString("en-US")}`;
 
@@ -28,6 +28,7 @@ function PatternTable({ p, startedAtMs, units }: { p: ExtEstimatePattern; starte
         <b>{p.label}</b>
         {p.current && <span className="nox-stpill ok" data-ext-estimate-pill="current">適用中</span>}{!p.current && p.isDefault && <span className="nox-stpill" data-ext-estimate-pill="default">既定</span>}
         <span style={t.sub}>延長 <span className="num">{yen(p.extAmount * Math.max(1, units))}</span> / {p.extMin}分{units > 1 ? `（${yen(p.extAmount)}×${units}名）` : ""}</span>
+        <span style={t.sub} className="num" data-ext-estimate-per30={extPer30Of(p.extAmount, p.extMin)}>{extPer30TextOf(p.extAmount, p.extMin, units > 1 || perPerson)}</span>{/* ★M-83（裁定454 の 4）: 単位が違うパターンを同じ尺で */}
       </p>
       <table className="nox-table" style={{ width: "100%" }}>
         <thead><tr><th>延長回数</th><th>終了時刻</th><th className="num" style={{ textAlign: "right" }}>加算</th><th className="num" style={{ textAlign: "right" }}>合計（税サ込）</th>{perPerson && <th className="num" style={{ textAlign: "right" }}>1 人あたり</th>}</tr></thead>
