@@ -10,7 +10,8 @@ import { payOf, type PayResult, type TaxMode } from "../pay";
 import { allocDue } from "../sales-alloc"; // #32 pooled の最大剰余法（sales 按分と同一の整数分配・純関数）
 import { takeHomeFloor } from "../money"; // F2e-1 手取り0下限（social gate TODO）
 import { resolvePayrollWindow, periodDaysBetween } from "./window";
-import { collectPeriod, loadPayrollAdjustments, loadDailyPays, loadDeductionOverrides } from "./collect"; // ★0156: 日払い済み・run 別控除上書き
+import { collectPeriod, loadPayrollAdjustments, loadDailyPays, loadDeductionOverrides, loadDeductionRuleCasts, loadDayDeductions } from "./collect"; // ★0156: 日払い済み・run 別控除上書き ★0195: キャスト別の適用・日ごとの on／off
+import { mig0195On } from "../rules-0175/flag"; // ★0195
 import { shortfallRowsOf, type ShortfallRow } from "./shortfall"; // ★裁定324-3／324-4（便 L-2-4）: 不就労控除の行（'shift' の店だけ・route が payroll_shortfall_sync へ渡す）
 import { LATE_GRACE_MIN_DEFAULT } from "../punch-match";
 import { guaranteeEndNoteOf, guaranteeStateOf } from "../cast/guarantee"; // ★便 L-3-1: 保証時給の終了の注記（当期内または 7 日以内）
@@ -159,9 +160,13 @@ export async function computePayrollDraft(
   // ★0156（裁定309-6／309-8・便 V-2）: 日払い済み（期間内 daily_pays の cast 別合計）と run 別控除上書きを cast に載せる（buildPayInput が両段の payOf へ素通し）。
   //   無い cast はキーを持たない＝従来と 1 バイト同値。
   const [dailyByCast, ovByCast] = await Promise.all([loadDailyPays(admin, storeId, win), loadDeductionOverrides(admin, storeId, period)]);
+  // ★0195（裁定447 差し替え版＋④）: キャスト別の適用（deduction_rule_casts）と日ごとの on／off（cast_day_deductions）＝フラグ true のときだけ読む・無い cast はキーを持たない＝従来と 1 バイト同値
+  const [rcByCast, ddByCast] = mig0195On() ? await Promise.all([loadDeductionRuleCasts(admin, storeId), loadDayDeductions(admin, storeId, win)]) : [new Map<string, never[]>(), new Map<string, never[]>()];
   for (const c of casts) {
     const dp = dailyByCast.get(c.castId); if (dp) c.dailyPaid = dp;
     const ov = ovByCast.get(c.castId); if (ov && ov.length) c.deductionOverrides = ov;
+    const rc = rcByCast.get(c.castId); if (rc && rc.length) c.ruleCastOverrides = rc;
+    const dd = ddByCast.get(c.castId); if (dd && dd.length) c.dayDeductions = dd;
   }
 
   // #32: cast の出勤インセンティブ extras を算出（受給者=final∈{ok,late}・確認1／pooled は最大剰余法・端数+1=cast_id 最小）。

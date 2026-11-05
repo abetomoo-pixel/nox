@@ -90,7 +90,13 @@ export type CastRaw = {
   // ★0156（裁定309-6／309-8・便 V-2）: 日払い済み（期間内の daily_pays 合計）と run 別控除上書き（当該 cast 分）。core が格納・fixture は省略＝従来と同値
   dailyPaid?: { gross: number; withheld: number; n: number; settlementGross?: number; advanceGross?: number }; // ★0172（裁定349）: 種別別の合計（collect が格納）
   deductionOverrides?: DeductionOverride[];
+  /** ★0195（裁定447 ④）: キャスト別の適用（deduction_rule_casts＝enabled／amount_override）。run 別（deductionOverrides）はこの後＝最優先のまま。無ければキーなし＝従来と同値 */
+  ruleCastOverrides?: DeductionOverride[];
+  /** ★0195（裁定447 差し替え版）: その期の cast_day_deductions（既定と違う日だけ行）。無ければキーなし＝従来と同値 */
+  dayDeductions?: DayDeductionRow[];
 };
+/** ★0195: 日ごとの控除の on／off の行（cast_day_deductions） */
+export type DayDeductionRow = { deductionId: string; bizDate: string; enabled: boolean };
 
 // ★0156（裁定309-8＝300 追補1）: run 別・cast 別の固定控除の上書き行（payroll_run_deduction_overrides）。
 export type DeductionOverride = { deductionId: string; enabled: boolean; amountOverride: number | null };
@@ -109,6 +115,45 @@ export function applyDeductionOverrides(deductions: Deduction[], overrides: Dedu
     out.push(o.amountOverride != null ? { ...d, amount: o.amountOverride } : d);
   }
   return { deductions: out, applied };
+}
+
+/** ★0195（裁定447 ④）: 店のルール → キャスト別の適用（enabled／amount_override）→ run 別の上書き（0156＝最優先）の順に当てた控除（純関数・どちらも無ければ同じ配列） */
+export function effectiveDeductionsOf(deductions: Deduction[], ruleCast: DeductionOverride[] | undefined, runOverrides: DeductionOverride[] | undefined): Deduction[] {
+  return applyDeductionOverrides(applyDeductionOverrides(deductions, ruleCast).deductions, runOverrides).deductions;
+}
+/** ★0195（裁定447 差し替え版）: per=day の「引く日数」＝always は 出勤日数 − off にした出勤日・pick は on にした出勤日（出勤していない日の行は数えない）。行も pick も無ければ同じ配列（golden 不変） */
+export function dayDeductionCountsOf(deductions: Deduction[], rows: readonly DayDeductionRow[] | undefined, workedDates: ReadonlySet<string>, days: number): Deduction[] {
+  const rs = (rows ?? []).filter((r) => workedDates.has(r.bizDate));
+  let changed = false;
+  const out = deductions.map((d) => {
+    if (d.per !== "day") return d;
+    const mine = rs.filter((r) => r.deductionId === d.id);
+    if (d.dayRule === "pick") { changed = true; return { ...d, dayCount: new Set(mine.filter((r) => r.enabled).map((r) => r.bizDate)).size }; }
+    if (mine.length === 0) return d;
+    changed = true;
+    return { ...d, dayCount: Math.max(0, days - new Set(mine.filter((r) => !r.enabled).map((r) => r.bizDate)).size) };
+  });
+  return changed ? out : deductions;
+}
+/** ★0195: 日計の「控除」列＝その日に引いた日ごとの控除（always＝off の行が無い出勤日・pick＝on の行がある出勤日）＝金額と内訳 */
+export function dailyDeductionsOf(deductions: readonly Deduction[], rows: readonly DayDeductionRow[] | undefined, workedDates: ReadonlySet<string>): Map<string, { amount: number; notes: string[] }> {
+  const m = new Map<string, { amount: number; notes: string[] }>();
+  const dayRules = deductions.filter((d) => d.per === "day");
+  if (dayRules.length === 0) return m;
+  const key = (id: string, d: string) => `${id}|${d}`;
+  const state = new Map<string, boolean>();
+  for (const r of rows ?? []) state.set(key(r.deductionId, r.bizDate), r.enabled);
+  for (const d of [...workedDates].sort()) {
+    for (const rule of dayRules) {
+      const st = state.get(key(rule.id, d));
+      const on = st ?? rule.dayRule !== "pick";
+      if (!on || !(rule.amount > 0)) continue;
+      const cur = m.get(d) ?? { amount: 0, notes: [] };
+      cur.amount += rule.amount; cur.notes.push(`${rule.name}（¥${rule.amount.toLocaleString("en-US")}）`);
+      m.set(d, cur);
+    }
+  }
+  return m;
 }
 
 // 店共通マスタ（loadStoreMasters が組む）。
@@ -225,7 +270,7 @@ export function buildPayInput(
     pointProducts: raw.pointProducts,
     customBackDefs: masters.customBackDefs,
     metrics: { champCnt: raw.champCnt, bottleCnt: raw.bottleCnt }, // 論点1: check_lines kind から集計
-    deductions: applyDeductionOverrides(masters.deductions, raw.deductionOverrides).deductions, // ★0156（309-8）: cast 別の上書き（無ければ店の控除そのまま）
+    deductions: dayDeductionCountsOf(effectiveDeductionsOf(masters.deductions, raw.ruleCastOverrides, raw.deductionOverrides), raw.dayDeductions, new Set(raw.daily.filter((d) => d.hours > 0).map((d) => d.bizDate)), raw.days), // ★0195: キャスト別の適用 → run 別 → 日ごとの引く日数（どれも無ければ従来と同じ配列） // ★0156（309-8）: cast 別の上書き（無ければ店の控除そのまま）
     penalty: masters.penalty,
     ...(masters.salesBackTable ? { salesBackTable: masters.salesBackTable } : {}), // ★便 GV-C C-10（R-5c）: OFF の店だけ []
     normConfig: masters.normConfig,

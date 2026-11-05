@@ -7,7 +7,9 @@
 //     確定シフトがあり打刻が無い日（退勤記録なし）は同じ編集で埋める。
 //   ③取消＝理由必須。打刻は削除（punch_correction_request の p_after_at null）・シフトは shift_remove・区分は休み（理由に「取消: …」）＝行は「取消済み」で残る（器 cancelled_at は無い＝0175 行き）。
 //   編集後は呼び出し側が再読込＝合計行と給与画面の同じ数字が即時に一致（同じ関数）。≤900px は Modal がボトムシート（全幅）になる。
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { mig0195On } from "@/lib/nox/rules-0175/flag"; // ★0195
+import { dedAmountLabelOf, DAY_RULE_JA } from "@/lib/nox/payroll/deduction-labels"; // ★0195
 import DatePicker from "@/components/ui/date-picker"; // ★便 A M-67（教訓133 追記）: 日付は共通のカレンダー（ネイティブ date は使わない）
 import TimePicker from "@/components/ui/time-picker"; // ★便 A M-67: 時刻は共通のピッカー（時・分の 2 列・翌の表示・26:00 の手打ちは廃止）
 import SegSelect from "@/components/ui/seg-select"; // ★便 A M-67: 区分はボタン群（ネイティブ select は使わない）
@@ -29,6 +31,8 @@ export function kintaiErrJa(msg: string): string {
   if (/bad status/.test(msg)) return "区分が正しくありません";
   if (/unavailable|override/.test(msg)) return "その日は出勤できない日として登録されています（理由を入れて保存してください）";
   if (/forbidden/.test(msg)) return "権限がありません（店長・管理者のみ）";
+  if (/^finalized$/.test(msg)) return "確定済みの月の日は変えられません"; // ★0195: cast_day_deductions_set
+  if (/not day rule/.test(msg)) return "日ごとの控除ルールではありません（画面を再読込してください）";
   return msg;
 }
 
@@ -39,7 +43,16 @@ export function addShiftSpanOf(inHm: string, outHm: string | null): { start: str
   return { start: min2hm(s), end: min2hm(Math.min(e, 47 * 60 + 59)) };
 }
 
-export default function KintaiEdit({ castId, castName, row, periodStart, periodEnd, todayBiz, existingDates, onClose, onSaved }: {
+/** ★0195: その日の控除（日ごとのルール）の行＝店のルール（per=day・有効・キャスト別の適用で使わないは除く）と既定・その日の on／off */
+export type DayDedRule = { id: string; name: string; amount: number; dayRule: "always" | "pick" };
+/** 既定（always＝on／pick＝off）どおりの行は送らない＝RPC が消す・違う行だけ upsert。変化が無ければ null（送らない） */
+export function dayDedRowsOf(rules: readonly DayDedRule[], initial: Readonly<Record<string, boolean>>, state: Readonly<Record<string, boolean>>): { deduction_id: string; enabled: boolean }[] | null {
+  const cur = (id: string, r: DayDedRule) => state[id] ?? initial[id] ?? (r.dayRule !== "pick");
+  const changed = rules.some((r) => cur(r.id, r) !== (initial[r.id] ?? (r.dayRule !== "pick")));
+  return changed ? rules.map((r) => ({ deduction_id: r.id, enabled: cur(r.id, r) })) : null;
+}
+
+export default function KintaiEdit({ storeId, castId, castName, row, periodStart, periodEnd, todayBiz, existingDates, onClose, onSaved }: {
   storeId?: string; castId: string; castName: string;
   /** null＝追加 */
   row: AttendanceDayRow | null;
@@ -59,6 +72,32 @@ export default function KintaiEdit({ castId, castName, row, periodStart, periodE
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [cancelMode, setCancelMode] = useState(false);
+  // ★0195（裁定447 差し替え版 ②）: 「この日の控除」＝日ごとのルールごとのチェック（既定どおり on／off・その日だけ変更）→ cast_day_deductions_set
+  const [dayDed, setDayDed] = useState<{ rules: DayDedRule[]; initial: Record<string, boolean> } | null>(null);
+  const [dedState, setDedState] = useState<Record<string, boolean>>({});
+  useEffect(() => {
+    if (!mig0195On() || add || !row) { setDayDed(null); return; }
+    let alive = true;
+    void (async () => {
+      const q = supabase.from("deductions").select("id, name, amount, per, day_rule, store_id").eq("per", "day").eq("is_active", true);
+      const [dR, rcR, ddR] = await Promise.all([
+        storeId ? q.eq("store_id", storeId) : q,
+        supabase.from("deduction_rule_casts").select("rule_id, enabled, amount_override").eq("cast_id", castId),
+        supabase.from("cast_day_deductions").select("deduction_id, enabled").eq("cast_id", castId).eq("biz_date", row.bizDate),
+      ]);
+      if (!alive) return;
+      const rc = new Map(((rcR.data ?? []) as { rule_id: string; enabled: boolean; amount_override: number | null }[]).map((x) => [x.rule_id, x]));
+      const rules: DayDedRule[] = ((dR.data ?? []) as { id: string; name: string; amount: number; day_rule: string | null }[])
+        .filter((d) => rc.get(d.id)?.enabled !== false)
+        .map((d) => ({ id: d.id, name: d.name, amount: rc.get(d.id)?.amount_override ?? d.amount, dayRule: d.day_rule === "pick" ? "pick" : "always" }));
+      const initial: Record<string, boolean> = {};
+      for (const x of (ddR.data ?? []) as { deduction_id: string; enabled: boolean }[]) initial[x.deduction_id] = x.enabled;
+      setDayDed({ rules, initial }); setDedState({});
+    })();
+    return () => { alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [castId, row?.bizDate, add, storeId]);
+  const dedRows = dayDed ? dayDedRowsOf(dayDed.rules, dayDed.initial, dedState) : null;
 
   const curStatus = row ? (row.absent ? "absent" : row.late ? "late" : null) : null;
   const md = (d: string) => d.slice(5).replace("-", "/");
@@ -100,7 +139,8 @@ export default function KintaiEdit({ castId, castName, row, periodStart, periodE
         if (e) { setErr(`${c.kind === "in" ? "出" : "退"}の修正に失敗: ${e}`); return; }
       }
       if (plan.attendance) { const e = await rpc("attendance_set", { p_cast_id: castId, p_date: row!.bizDate, p_status: plan.attendance.status, p_eta: null, p_reason: plan.attendance.reason }); if (e) { setErr(`区分の記録に失敗: ${e}`); return; } }
-      if (plan.corrections.length === 0 && !plan.attendance) { setErr("変更がありません"); return; }
+      if (dedRows) { const e = await rpc("cast_day_deductions_set", { p_cast_id: castId, p_biz_date: row!.bizDate, p_rows: dedRows }); if (e) { setErr(`この日の控除の記録に失敗: ${e}`); return; } } // ★0195
+      if (plan.corrections.length === 0 && !plan.attendance && !dedRows) { setErr("変更がありません"); return; }
       await onSaved(`${castName} の ${md(row!.bizDate)} を保存しました`);
     } finally { setBusy(false); }
   }
@@ -138,6 +178,15 @@ export default function KintaiEdit({ castId, castName, row, periodStart, periodE
         <div style={field}><label style={lbl}>区分</label>
           <SegSelect value={status} onChange={setStatus} options={ATT_STATUS_OPTIONS} ariaLabel="区分" wrap />{/* ★便 A M-67: 区分はボタン群（data-kintai-status は親で） */}
           <span style={t.sub}>早退は退の時刻から判定します（区分ではありません）</span></div>
+        {dayDed && dayDed.rules.length > 0 && (/* ★0195（裁定447 ②）: この日の控除＝日ごとのルールごとのチェック（既定どおり on／off・その日だけ変更） */
+          <div style={field} data-kintai-day-ded={String(dayDed.rules.length)}><label style={lbl}>この日の控除（日ごとのルール）</label>
+            {dayDed.rules.map((d) => { const on = dedState[d.id] ?? dayDed.initial[d.id] ?? (d.dayRule !== "pick"); return (
+              <label key={d.id} style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 12.5 }} data-kintai-day-ded-rule={d.id} data-kintai-day-ded-on={on ? "1" : "0"}>
+                <input type="checkbox" checked={on} disabled={busy} onChange={(e) => setDedState({ ...dedState, [d.id]: e.target.checked })} />
+                <span>{d.name} {dedAmountLabelOf("day", d.amount)}</span><span style={t.sub}>（既定＝{DAY_RULE_JA[d.dayRule]}）</span>
+              </label>); })}
+            <span style={t.sub}>既定どおりに戻すとその日の行は消えます。確定済みの月は変えられません。</span></div>
+        )}
         <div style={field}><label style={lbl}>備考（区分の理由・本人の連絡）</label><input value={note} onChange={(e) => setNote(e.target.value)} style={t.input} data-kintai-note="1" maxLength={200} /></div>
         <div style={field}><label style={lbl}>{cancelMode ? "取消の理由（必須）" : "修正の理由（時刻を変えるときは必須・店の修正に残ります）"}</label><input value={reason} onChange={(e) => setReason(e.target.value)} style={t.input} data-kintai-reason="1" maxLength={200} placeholder={add ? "飛び入り出勤" : "打刻の忘れ 等"} /></div>
         {err && <div style={{ marginBottom: 8 }}><Message kind="error">{err}</Message></div>}

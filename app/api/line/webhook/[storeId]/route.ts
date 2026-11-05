@@ -10,7 +10,7 @@ import { UUID_RE, lineStoreOf } from "@/lib/nox/line/subject";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type LineEvent = { type: string; replyToken?: string; message?: { type?: string; text?: string } };
+type LineEvent = { type: string; replyToken?: string; message?: { type?: string; text?: string }; source?: { userId?: string } };
 
 export async function GET() { return new NextResponse("ok", { status: 200 }); } // LINE コンソールの「検証」は POST＝GET は到達確認だけ
 
@@ -31,6 +31,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ storeId: strin
   const token = await getLineSecret(admin, storeId, "access_token");
   const entry = liffEntryUrlOf(new URL(req.url).origin, storeId);
   for (const ev of j.events ?? []) {
+    // ★0195（M-77 ②）: unfollow＝line_links を「ブロック」（blocked_at）にして以後の push を止める（service_role だけの RPC・戻り＝更新行数・再追加→再紐付けで戻る）
+    if (ev.type === "unfollow" && ev.source?.userId) { await admin.rpc("line_link_block", { p_store_id: storeId, p_line_user_id: ev.source.userId }); continue; }
     if (!ev.replyToken || !token) continue;
     if (ev.type === "follow") await replyLine(token, ev.replyToken, `友だち追加ありがとうございます。${store.name} のシフトはこちら：${entry}`);
     else if (ev.type === "message" && ev.message?.type === "text") await replyLine(token, ev.replyToken, `シフトはこちら：${entry}`);

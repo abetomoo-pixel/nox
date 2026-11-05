@@ -10,7 +10,7 @@ import { okuriDeductOf } from "@/lib/nox/shift/okuri-mode"; // ★裁定414（S-
 import { periodCalendarDays, type PayrollWindow } from "./window";
 import { sumCastSales } from "./cast-sales"; // ★裁定346: cast 別合算の純関数（ランキング・/mine ノルマ進捗と共用）
 import { normAxesOf, normTargetsOf, resolveNormTargetsOf, shimeiScopeOf, type NormTargets, type QuotaSource } from "../store/norm-axes"; // ★裁定347 追補2（便 N1014 A-4）: 達成ボーナスの目標＝/mine と同じ純関数
-import type { CastRaw, StoreMasters, DeductionOverride } from "./assemble";
+import type { CastRaw, StoreMasters, DeductionOverride, DayDeductionRow } from "./assemble"; // ★0195: DayDeductionRow
 import { isSystemOn } from "../store-systems"; // ★便 GV-C C-10（R-5c） // ★0156: DeductionOverride（run 別控除上書き）
 import { calcPeriodOf } from "./assemble"; // ★0154 D6
 import { baseOverrideOf } from "./base-override"; // ★便 P174 T-5（R-11 (d)）
@@ -106,7 +106,7 @@ async function loadMasters(admin: SupabaseClient, storeId: string, period: strin
       .or(`valid_to.is.null,valid_to.gte.${period}-01`),
     admin.from("penalty_config").select("*").eq("store_id", storeId).maybeSingle(),
     // ★裁定98: kind（sanction 分離）と basis_confirmed_at（表示用）を読む＝sim-data.ts:33 と二面鏡（片方だけ触らない）
-    admin.from("deductions").select("id, name, amount, per, kind, basis_confirmed_at").eq("store_id", storeId).eq("is_active", true),
+    admin.from("deductions").select("id, name, amount, per, kind, basis_confirmed_at, day_rule").eq("store_id", storeId).eq("is_active", true), // ★0195: +day_rule
     admin.from("custom_back_defs").select("id, name, basis, value, cond_json").eq("store_id", storeId).eq("is_active", true),
     admin.from("cast_norms").select("cast_id, days_target, dohan_target, sales_target, shimei_target").eq("store_id", storeId).eq("period", period), // ★347 追補2: shimei も（解決の入力）
     admin.from("cast_tax_profiles").select("cast_id, mode, dependents_form").eq("store_id", storeId), // ★0172（裁定349）: +dependents_form（雇用の甲／乙）
@@ -218,6 +218,7 @@ async function loadMasters(admin: SupabaseClient, storeId: string, period: strin
     deductions: ((dedR.data ?? []) as Record<string, unknown>[]).map((d) => ({
       id: d.id as string, name: d.name as string, amount: d.amount as number, per: d.per as Deduction["per"],
       kind: d.kind as Deduction["kind"], basisConfirmedAt: (d.basis_confirmed_at ?? null) as string | null, // ★裁定98
+      ...(d.day_rule === "pick" ? { dayRule: "pick" as const } : {}), // ★0195: pick のときだけキー（always＝従来と 1 バイト同値）
     })),
     customBackDefs: ((cbR.data ?? []) as Record<string, unknown>[]).map((b) => ({
       id: b.id as string, name: b.name as string, basis: b.basis as BackDef["basis"], value: b.value as number,
@@ -655,6 +656,31 @@ export async function loadDeductionOverrides(admin: SupabaseClient, storeId: str
   for (const r of (data ?? []) as { cast_id: string; deduction_id: string; enabled: boolean; amount_override: number | null }[]) {
     const cur = byCast.get(r.cast_id) ?? [];
     cur.push({ deductionId: r.deduction_id, enabled: r.enabled, amountOverride: r.amount_override });
+    byCast.set(r.cast_id, cur);
+  }
+  return byCast;
+}
+
+// ★0195（裁定447 ④）: キャスト別の適用（deduction_rule_casts＝rule×cast・enabled／amount_override）を cast 別に読む（run 別の上書きと同じ形）。行が無い cast は Map に無い。
+export async function loadDeductionRuleCasts(admin: SupabaseClient, storeId: string): Promise<Map<string, DeductionOverride[]>> {
+  const byCast = new Map<string, DeductionOverride[]>();
+  const { data, error } = await admin.from("deduction_rule_casts").select("cast_id, rule_id, enabled, amount_override").eq("store_id", storeId);
+  if (error) throw new Error(`deduction_rule_casts: ${error.message}`);
+  for (const r of (data ?? []) as { cast_id: string; rule_id: string; enabled: boolean; amount_override: number | null }[]) {
+    const cur = byCast.get(r.cast_id) ?? [];
+    cur.push({ deductionId: r.rule_id, enabled: r.enabled, amountOverride: r.amount_override });
+    byCast.set(r.cast_id, cur);
+  }
+  return byCast;
+}
+// ★0195（裁定447 差し替え版）: その期の cast_day_deductions（既定と違う日だけ行）を cast 別に読む。
+export async function loadDayDeductions(admin: SupabaseClient, storeId: string, win: { periodStart: string; periodEnd: string }): Promise<Map<string, DayDeductionRow[]>> {
+  const byCast = new Map<string, DayDeductionRow[]>();
+  const { data, error } = await admin.from("cast_day_deductions").select("cast_id, deduction_id, biz_date, enabled").eq("store_id", storeId).gte("biz_date", win.periodStart).lte("biz_date", win.periodEnd);
+  if (error) throw new Error(`cast_day_deductions: ${error.message}`);
+  for (const r of (data ?? []) as { cast_id: string; deduction_id: string; biz_date: string; enabled: boolean }[]) {
+    const cur = byCast.get(r.cast_id) ?? [];
+    cur.push({ deductionId: r.deduction_id, bizDate: String(r.biz_date), enabled: r.enabled });
     byCast.set(r.cast_id, cur);
   }
   return byCast;

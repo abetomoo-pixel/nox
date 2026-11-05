@@ -16,8 +16,9 @@ import MoneyInput from "@/components/ui/money-input"; // ★便 X-12-1（起票9
 import Toast, { Message, type MessageKind } from "@/components/ui/toast";
 import { rpcErrJa, isRpcMissingError } from "@/lib/nox/ui/rpc-err";
 import SegSelect from "@/components/ui/seg-select"; // ★0154 D6: 契約区分
+import { dedAmountLabelOf, dedUnitLabelOf } from "@/lib/nox/payroll/deduction-labels"; // ★0195（裁定447 ④）: キャスト別の控除
 import { WITHHOLDING_KIND_LABEL, WITHHOLDING_KIND_SELECT_NOTE, WITHHOLDING_KIND_SHORT, defaultWithholdingKindOf, withholdingKindChoices, withholdingKindOf } from "@/lib/nox/payroll/withholding-kind"; // ★便 M3 M-21
-import { mig0183On, mig0188On, mig0190On, mig0191On } from "@/lib/nox/rules-0175/flag"; // ★便 M3 M-21 // ★0190（裁定436 ①c）: 退店の失効（route）
+import { mig0183On, mig0188On, mig0190On, mig0191On, mig0195On } from "@/lib/nox/rules-0175/flag"; // ★便 M3 M-21 // ★0190（裁定436 ①c）: 退店の失効（route）
 import { NOTE_EMPLOYMENT, NOTE_LABOR, amountKeyOf, laborNoteNeeded, nextPeriodStartOf, overridesWithRule, payRuleLabelOf, payRuleOptionsOf, ruleOfOverrides, type Employment } from "@/lib/nox/cast/pay-rule"; // ★0154 D2／D6
 import type { PayRule } from "@/lib/nox/pay";
 // ★夜間便 N4（裁定282-2／282-3／287-3・0151 ★3）: 保証時給の表示用純関数（DB を知らない）
@@ -100,7 +101,18 @@ export default function CastsBoard({
   const [lineLinked, setLineLinked] = useState<Set<string>>(new Set());
   const [bindUrl, setBindUrl] = useState<string | null>(null);
   const [bindCopied, setBindCopied] = useState(false);
-  useEffect(() => { void (async () => { const { data } = await supabase.from("line_links").select("subject_id").eq("subject_kind", "cast"); setLineLinked(new Set(((data ?? []) as { subject_id: string }[]).map((x) => x.subject_id))); })(); }, [supabase]);
+  const [lineBlocked, setLineBlocked] = useState<Set<string>>(new Set()); // ★0195（M-77 ②）: unfollow でブロック中（blocked_at）
+  const [lineTick, setLineTick] = useState(0);
+  useEffect(() => { void (async () => { const { data } = await supabase.from("line_links").select(mig0195On() ? "subject_id, blocked_at" : "subject_id").eq("subject_kind", "cast"); const rows = (data ?? []) as unknown as { subject_id: string; blocked_at?: string | null }[]; setLineLinked(new Set(rows.map((x) => x.subject_id))); setLineBlocked(new Set(rows.filter((x) => !!x.blocked_at).map((x) => x.subject_id))); })(); }, [supabase, lineTick]);
+  // ★0195（M-77 ③）: 「LINE の紐付けを解除」＝line_link_remove（管理者・自店の店長・audit）。再紐付けは招待リンク（bind_line＝blocked_at も戻る）
+  async function unlinkLine(c: CastLogin) {
+    if (busy || !window.confirm(`${c.name} の LINE の紐付けを解除しますか？（通知は届かなくなります。もう一度つなぐには連携のリンクを発行します）`)) return;
+    setBusy(true); setMsg(null);
+    const { error } = await supabase.rpc("line_link_remove", { p_subject_kind: "cast", p_subject_id: c.id });
+    setBusy(false);
+    if (error) { setMsg(`LINE の紐付けを解除できませんでした: ${rpcErrJa(error.message)}`); return; }
+    setBindUrl(null); setLineTick((n) => n + 1); setMsg("LINE の紐付けを解除しました");
+  }
   async function issueBind(c: CastLogin) {
     setBindUrl(null); setBindCopied(false);
     const { data, error } = await supabase.rpc("line_bind_token_create", { p_subject_kind: "cast", p_subject_id: c.id, p_purpose: "bind" });
@@ -209,6 +221,34 @@ export default function CastsBoard({
   const [quotaBusy, setQuotaBusy] = useState(false);
   const [quotaMsg, setQuotaMsg] = useState<{ kind: MessageKind; text: string } | null>(null);
   const selCastId = sel?.kind === "cast" ? sel.id : null;
+  // ★0195（裁定447 ④）: キャスト詳細「待遇・バック」の「控除」の節＝店のルールを一覧・使う／使わない・額の上書き（空＝店の額）＝deduction_rule_cast_set／deduction_rule_casts_get
+  const [dedRules, setDedRules] = useState<{ id: string; name: string; amount: number; per: string; day_rule: string | null }[]>([]);
+  const [dedRuleCasts, setDedRuleCasts] = useState<{ rule_id: string; cast_id: string; enabled: boolean; amount_override: number | null }[]>([]);
+  const [dedOv, setDedOv] = useState<Record<string, string>>({});
+  const [dedTick, setDedTick] = useState(0);
+  useEffect(() => {
+    if (!mig0195On() || !selCastId || dtab !== "comp") return;
+    let alive = true;
+    void (async () => {
+      const { data: cst } = await supabase.from("casts").select("store_id").eq("id", selCastId).maybeSingle();
+      const sid = (cst as { store_id?: string } | null)?.store_id; if (!sid) return;
+      const [dR, rcR] = await Promise.all([
+        supabase.from("deductions").select("id, name, amount, per, day_rule").eq("store_id", sid).eq("is_active", true).order("name"),
+        supabase.rpc("deduction_rule_casts_get", { p_store_id: sid }),
+      ]);
+      if (!alive) return;
+      setDedRules((dR.data ?? []) as typeof dedRules); setDedRuleCasts((rcR.data ?? []) as typeof dedRuleCasts); setDedOv({});
+    })();
+    return () => { alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selCastId, dtab, dedTick]);
+  async function setDedRuleCast(ruleId: string, castId: string, enabled: boolean, override: number | null) {
+    if (busy) return; setBusy(true); setMsg(null);
+    const { error } = await supabase.rpc("deduction_rule_cast_set", { p_rule_id: ruleId, p_cast_id: castId, p_enabled: enabled, p_amount_override: override });
+    setBusy(false);
+    if (error) { setMsg(`控除の適用を保存できませんでした: ${rpcErrJa(error.message)}`); return; }
+    setDedTick((n) => n + 1); setMsg("控除の適用を保存しました");
+  }
   useEffect(() => {
     let alive = true;
     setQuotaMsg(null);
@@ -1422,6 +1462,39 @@ export default function CastsBoard({
                   </div>
                 );
               })()}
+              {mig0195On() && (/* ★0195（裁定447 ④）: 控除＝店のルールの一覧・使う／使わない・額の上書き（空＝店の額）。行が無い＝店の額で全員に適用。確定済みの月には遡らない */
+                <div style={{ marginTop: 10, paddingTop: 8, borderTop: "1px solid var(--line2)" }} data-cast-ded-rules={String(dedRules.length)}>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: "var(--champ)", marginBottom: 4 }}>控除（店のルールの適用）</div>
+                  {dedRules.length === 0 ? <p style={{ fontSize: 12, color: "var(--v2-muted)", margin: 0 }}>この店に有効な控除ルールはありません（マスタ › 控除）</p> : dedRules.map((d) => {
+                    const rc = dedRuleCasts.find((x) => x.rule_id === d.id && x.cast_id === selCast.id) ?? null;
+                    const on = rc ? rc.enabled : true; const ov = rc?.amount_override ?? null; const canEditDed = isOwner || selCast.store_id === myStoreId;
+                    return (
+                      <div key={d.id} className="nox-frow" data-cast-ded-rule={d.id} data-cast-ded-on={on ? "1" : "0"}>
+                        <span className="k" style={{ opacity: on ? 1 : 0.6 }}>{d.name}<span style={{ display: "block", fontSize: 10.5, color: "var(--sub)" }}>{dedUnitLabelOf(d.per, d.day_rule)}・店の額 {dedAmountLabelOf(d.per, d.amount)}</span></span>
+                        <span className="v" style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                          <span className="num" style={{ fontWeight: 700 }}>{on ? dedAmountLabelOf(d.per, ov ?? d.amount) : "使わない"}{on && ov != null && <span className="nox-stpill" style={{ marginLeft: 6 }}>上書き</span>}</span>
+                          {canEditDed && (
+                            <>
+                              <div className="nox-seg" role="group" aria-label={`${d.name} を使う／使わない`}>
+                                <button type="button" className={on ? "on" : ""} disabled={busy} onClick={() => void setDedRuleCast(d.id, selCast.id, true, ov)}>使う</button>
+                                <button type="button" className={!on ? "on" : ""} disabled={busy} onClick={() => void setDedRuleCast(d.id, selCast.id, false, null)}>使わない</button>
+                              </div>
+                              {on && (
+                                <>
+                                  <MoneyInput value={dedOv[d.id] ?? ""} onChange={(v) => setDedOv((m) => ({ ...m, [d.id]: v }))} placeholder={`上書き（空＝店の額 ${dedAmountLabelOf(d.per, d.amount)}）`} width={170} ariaLabel={`${d.name} の上書き`} disabled={busy} />
+                                  <button type="button" style={btnGhost} disabled={busy || !/^\d+$/.test(dedOv[d.id] ?? "")} onClick={() => void setDedRuleCast(d.id, selCast.id, true, Number(dedOv[d.id]))}>額を上書き</button>
+                                  {ov != null && <button type="button" style={btnGhost} disabled={busy} onClick={() => void setDedRuleCast(d.id, selCast.id, true, null)}>店の額に戻す</button>}
+                                </>
+                              )}
+                            </>
+                          )}
+                        </span>
+                      </div>
+                    );
+                  })}
+                  <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "6px 0 0", lineHeight: 1.7 }}>日ごとのルールは「使う」にした人だけが出勤ごとの対象です。確定済みの月には遡りません。</p>
+                </div>
+              )}
               {/* ★待遇プランの編集経路は現行この画面に存在しない（マスタ側）。
                   新規 RPC も新規フォームも作らず、管理場所への案内だけを置く＝機能不変。 */}
               <p style={{ fontSize: 12.5, color: "var(--v2-muted)", margin: "0 0 10px", lineHeight: 1.8 }}>
@@ -1451,6 +1524,8 @@ export default function CastsBoard({
                 <span className="v" style={{ display: "grid", gap: 4 }} data-cast-line-bind={lineLinked.has(selCast.id) ? "linked" : "none"}>
                   <span style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
                     <span style={{ color: lineLinked.has(selCast.id) ? "var(--ok)" : "var(--v2-muted)" }}>{lineLinked.has(selCast.id) ? "連携済み（LINE に通知が届きます）" : "未連携"}</span>
+                    {lineBlocked.has(selCast.id) && <span className="nox-stpill" style={{ color: "var(--bad)" }} data-cast-line-blocked="1">LINE ブロック中（通知は止まっています・友だち追加し直すと復帰）</span>}{/* ★0195 M-77 ② */}
+                    {mig0195On() && lineLinked.has(selCast.id) && !isDemo && <button style={btnGhost} disabled={busy} data-cast-line-unlink="1" onClick={() => void unlinkLine(selCast)}>紐付けを解除</button>}{/* ★0195 M-77 ③ */}
                     {isDemo ? <span style={{ fontSize: 11, color: "var(--v2-muted)" }}>デモでは連携できません</span>
                       : <button style={btnGhost} disabled={busy} onClick={() => void issueBind(selCast)}>{lineLinked.has(selCast.id) ? "付け替えのリンク" : "連携のリンクを発行"}</button>}
                   </span>

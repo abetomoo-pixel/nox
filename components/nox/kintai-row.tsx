@@ -10,7 +10,7 @@ import { BASIS_MARK, correctionTextOf, flagsTextOf, hm47Ja, kintaiOutCellOf, typ
 import { backsDetailTextOf, yenCellOf } from "@/lib/nox/payroll/daily-pay";
 
 export const KINTAI_HEADS = ["日付", "確定シフト", "出", "退", "店の修正", "遅刻・当欠・早退", "実働", "送り", "備考"] as const;
-export const KINTAI_PAY_HEADS = ["時給分", "バック", "罰金・減額", "日計"] as const;
+export const KINTAI_PAY_HEADS = ["時給分", "バック", "罰金・減額", "控除", "日計"] as const; // ★0195（裁定447 ③）: 「控除」列＝その日に引いた日ごとの控除
 /** 390px で隠す列（.opt）＝確定シフト・店の修正・区分・実働・送り・備考と、日計以外の金額列 */
 const OPT = new Set([1, 4, 5, 6, 7, 8]);
 
@@ -18,7 +18,7 @@ export function KintaiHead({ withPay = false, wageOnly = false }: { withPay?: bo
   return (
     <thead><tr>
       {KINTAI_HEADS.map((h, i) => <th key={h} className={OPT.has(i) ? "opt" : undefined} style={{ ...t.th, textAlign: i === 6 ? "right" : "left" }}>{h}</th>)}
-      {withPay && KINTAI_PAY_HEADS.map((h, i) => <th key={h} className={i === 3 ? "pay" : "opt pay"} style={{ ...t.th, textAlign: "right" }} data-kintai-pay-head={h}>{h}</th>)}
+      {withPay && KINTAI_PAY_HEADS.map((h, i) => <th key={h} className={i === KINTAI_PAY_HEADS.length - 1 ? "pay" : "opt pay"} style={{ ...t.th, textAlign: "right" }} data-kintai-pay-head={h}>{h}</th>)}
       {!withPay && wageOnly && <th className="pay" style={{ ...t.th, textAlign: "right" }} data-kintai-pay-head="時給分">時給分</th>}
     </tr></thead>
   );
@@ -69,14 +69,15 @@ export default function KintaiRow({ r, withBy, onEdit, withPay = r.pay !== undef
           <td className="opt pay num" style={{ ...t.td, textAlign: "right" }} data-kintai-wage={p?.wage ?? 0}>{p ? yenCellOf(p.wage) : "—"}</td>
           <td className="opt pay num" style={{ ...t.td, textAlign: "right" }} data-kintai-backs={p?.backs.total ?? 0} title={p ? backsDetailTextOf(p.backs) : undefined}>{p ? yenCellOf(p.backs.total) : "—"}</td>
           <td className="opt pay num" style={{ ...t.td, textAlign: "right", color: p && p.fine > 0 ? "var(--bad)" : undefined }} data-kintai-fine={p?.fine ?? 0} title={p?.fineNotes.join("・") || undefined}>{p ? yenCellOf(p.fine, { neg: true }) : "—"}</td>
+          <td className="opt pay num" style={{ ...t.td, textAlign: "right", color: p && p.ded > 0 ? "var(--bad)" : undefined }} data-kintai-ded={p?.ded ?? 0} title={p?.dedNotes.join("・") || undefined}>{p ? yenCellOf(p.ded, { neg: true }) : "—"}</td>{/* ★0195: 控除（日ごと） */}
           <td className="pay num" style={{ ...t.td, textAlign: "right", fontWeight: 700 }} data-kintai-total={p?.total ?? 0}>{p ? yenCellOf(p.total) : "—"}</td>
         </>)}
         {!withPay && wageCell !== undefined && <td className="pay num" style={{ ...t.td, textAlign: "right", fontWeight: 700 }} data-kintai-wage={wageCell ?? ""}>{wageCell === null || r.working ? "—" : yenCellOf(wageCell)}</td>}{/* ★便 A M-68 */}
       </tr>
       {open && (
-        <tr className="nox-kintai-more" data-kintai-more={r.bizDate}><td colSpan={9 + (withPay ? 4 : 0)} style={{ ...t.td, fontSize: 12, color: "var(--sub)" }}>
+        <tr className="nox-kintai-more" data-kintai-more={r.bizDate}><td colSpan={9 + (withPay ? KINTAI_PAY_HEADS.length : 0)} style={{ ...t.td, fontSize: 12, color: "var(--sub)" }}>
           確定シフト {r.shift ? `${r.shift.start}–${hm47Ja(r.shift.end)}` : "—"}／実働 {hoursTxt}{r.hours > 0 ? `（${BASIS_MARK[r.basis]}）` : ""}／{flags || "遅刻・当欠・早退なし"}／送り {r.okuri.n > 0 ? `${r.okuri.n}（${r.okuri.modes.join("・")}）` : "なし"}／{r.corrections.length > 0 ? r.corrections.map((c) => correctionTextOf(c, withBy)).join(" / ") : "店の修正なし"}{r.note ? `／${r.note}` : ""}
-          {withPay && p && <><br />時給分 {yenCellOf(p.wage)}{p.hourly ? `（¥${p.hourly.toLocaleString("en-US")}/h × ${p.hours}h）` : ""}／バック {yenCellOf(p.backs.total)}{p.backs.total !== 0 ? `（${backsDetailTextOf(p.backs)}）` : ""}／罰金・減額 {yenCellOf(p.fine, { neg: true })}{p.fineNotes.length ? `（${p.fineNotes.join("・")}）` : ""}／日計 {yenCellOf(p.total)}</>}
+          {withPay && p && <><br />時給分 {yenCellOf(p.wage)}{p.hourly ? `（¥${p.hourly.toLocaleString("en-US")}/h × ${p.hours}h）` : ""}／バック {yenCellOf(p.backs.total)}{p.backs.total !== 0 ? `（${backsDetailTextOf(p.backs)}）` : ""}／罰金・減額 {yenCellOf(p.fine, { neg: true })}{p.fineNotes.length ? `（${p.fineNotes.join("・")}）` : ""}／控除 {yenCellOf(p.ded, { neg: true })}{p.dedNotes.length ? `（${p.dedNotes.join("・")}）` : ""}／日計 {yenCellOf(p.total)}</>}
         </td></tr>
       )}
     </>

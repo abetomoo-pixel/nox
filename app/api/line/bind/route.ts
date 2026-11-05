@@ -29,6 +29,7 @@ export async function POST(req: Request) {
   }
   const r = (data ?? {}) as { subject_kind?: string; subject_id?: string; org_id?: string };
   if (!r.subject_kind || !r.subject_id || r.org_id !== store.orgId) return NextResponse.json({ error: "bind failed" }, { status: 500 });
+  await admin.from("line_links").update({ blocked_at: null, updated_at: new Date().toISOString() }).eq("subject_kind", r.subject_kind).eq("subject_id", r.subject_id); // ★0195（M-77 ②）: 再紐付け＝ブロックを解く（push が戻る）
   const au = await authUserOfSubject(admin, r.subject_kind as "cast" | "membership", r.subject_id);
   if ("error" in au) return NextResponse.json({ ok: true, linked: true, error: au.error }, { status: 409 }); // 紐付けは済み・ログインは招待待ち
   const supabase = await createClient();

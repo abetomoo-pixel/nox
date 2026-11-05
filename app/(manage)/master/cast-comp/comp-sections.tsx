@@ -8,6 +8,8 @@ import { NORM_AXES, NORM_AXIS_LABEL, NORM_AXIS_UNIT, normAxesOf, normTargetsOf, 
 import type { StoreSettings } from "@/lib/nox/store-systems";
 import { useCallback, useEffect, useState } from "react";
 import SegSelect from "@/components/ui/seg-select";
+import { DAY_RULE_NOTE, DAY_RULE_OPTS, DED_KIND_CAST_OPTS, DED_PER_NOTE, DED_PER_OPTS_0195, dedAmountLabelOf, dedKindCastLabelOf, dedTargetLabelOf, dedUnitLabelOf } from "@/lib/nox/payroll/deduction-labels"; // ★0195（M-73）
+import { mig0195On } from "@/lib/nox/rules-0175/flag"; // ★0195
 import { ResponsiveTable, SegmentTabs } from "@/components/ui/responsive-kit"; // ★裁定382（GV-B W-1）・373（W-3）
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
@@ -86,9 +88,9 @@ export type CompRow = {
 const COMP_KIND_LABEL: Record<string, string> = { guarantee_min: "最低保証", achievement_bonus: "達成ボーナス" };
 export type Norm = { id: string; cast_id: string; period: string; days_target: number; dohan_target: number; sales_target: number; shimei_target: number };
 /** ★便 A M-74（2026-11-04）: 控除ルールの単位の日本語（0195 で 'pay_rate'＝報酬の% を足す） */
-export const DED_PER_JA: Record<string, string> = { day: "日ごと", month: "月ごと", rate: "売上の%" };
+export const DED_PER_JA: Record<string, string> = { day: "日ごと", month: "月ごと", rate: "売上の%", pay_rate: "報酬の%" }; // ★0195（M-73）: pay_rate
 export type Deduction = { id: string; name: string; amount: number; per: string; is_active: boolean;
-  kind: string; basis_confirmed_at: string | null; basis_note: string | null }; // ★裁定98（mig0117）
+  kind: string; basis_confirmed_at: string | null; basis_note: string | null; day_rule?: string | null }; // ★裁定98（mig0117）★0195: day_rule（always／pick）
 // ★裁定98: 控除種別6値の表示ラベル（DB 固定語彙と1:1）
 export const DED_KIND_JA: Record<string, string> = {
   unworked: "不就労分", sanction: "制裁（懲戒減給）", statutory: "法定控除",
@@ -224,7 +226,7 @@ export function useCompData(storeId: string, onError?: (m: string) => void) {
       // ★mig0114: 期間化後は現在行のみ（valid_to is null）。履歴行が生まれる挙動段の前に必須の追随。
       supabase.from("cast_plan").select("cast_id, plan_id, overrides_json").is("valid_to", null),
       supabase.from("cast_norms").select("id, cast_id, period, days_target, dohan_target, sales_target, shimei_target").order("period"),
-      supabase.from("deductions").select("id, name, amount, per, is_active, kind, basis_confirmed_at, basis_note").order("name"), // ★裁定98
+      supabase.from("deductions").select("id, name, amount, per, is_active, kind, basis_confirmed_at, basis_note, day_rule").order("name"), // ★裁定98 ★0195: +day_rule
       supabase.from("custom_back_defs").select("id, name, basis, value, cond_json, is_active").order("name"),
       supabase.from("penalty_config").select("*").eq("store_id", storeId).maybeSingle(),
     ]);
@@ -934,9 +936,19 @@ export function normBulkArgsOf(b: NormBulk, cur: Pick<Norm, "days_target" | "doh
 }
 
 // ── 控除（manager 以上）──
-export function DeductionTab({ deductions, isManagerUp, storeId, setMsg, reload, okuriMode = "none" }: { deductions: Deduction[]; isManagerUp: boolean; storeId: string; setMsg: (m: string) => void; reload: () => Promise<void>; okuriMode?: OkuriMode }) {
+export function DeductionTab({ deductions, isManagerUp, storeId, setMsg, reload, okuriMode = "none", castCount = 0 }: { deductions: Deduction[]; isManagerUp: boolean; storeId: string; setMsg: (m: string) => void; reload: () => Promise<void>; okuriMode?: OkuriMode; /** ★0195: 「対象」列の分母（店の有効なキャスト数） */ castCount?: number }) {
   const supabase = createClient();
   const [id, setId] = useState<string | null>(null);
+  // ★0195（裁定447 差し替え版・M-73・裁定447 ④）: 日ごとの既定（always／pick）・単位 4・種別 2 択・「対象」列（deduction_rule_casts_get）
+  const [dayRule, setDayRule] = useState("always");
+  const [ruleCasts, setRuleCasts] = useState<{ rule_id: string; cast_id: string; enabled: boolean; amount_override: number | null }[]>([]);
+  useEffect(() => {
+    if (!mig0195On() || !storeId) return;
+    let alive = true;
+    void supabase.rpc("deduction_rule_casts_get", { p_store_id: storeId }).then(({ data }) => { if (alive) setRuleCasts((data ?? []) as typeof ruleCasts); });
+    return () => { alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storeId, deductions]);
   const [name, setName] = useState("");
   const [amount, setAmount] = useState(0);
   const [per, setPer] = useState("day");
@@ -947,17 +959,19 @@ export function DeductionTab({ deductions, isManagerUp, storeId, setMsg, reload,
   const [basisNote, setBasisNote] = useState("");
   function edit(d: Deduction) {
     setId(d.id); setName(d.name); setAmount(d.amount); setPer(d.per); setActive(d.is_active);
-    setKind(d.kind ?? "agreed_cost"); setBasisConfirmed(false); setBasisNote(d.basis_note ?? "");
+    setKind(d.kind ?? "agreed_cost"); setBasisConfirmed(false); setBasisNote(d.basis_note ?? ""); setDayRule(d.day_rule ?? "always"); // ★0195
   }
-  function resetForm() { setId(null); setName(""); setAmount(0); setKind("agreed_cost"); setBasisConfirmed(false); setBasisNote(""); }
+  function resetForm() { setId(null); setName(""); setAmount(0); setKind("agreed_cost"); setBasisConfirmed(false); setBasisNote(""); setDayRule("always"); }
   async function save() {
     if (okuriDeductionBlockedOf(okuriMode, name)) { setMsg(OKURI_DEDUCTION_BLOCK_MSG); return; } // ★裁定431 ③
     // ★裁定98: 9引数を常に明示送信（kind を省略する経路を作らない＝教訓43 型）。非 sanction は false/null 固定。
+    if ((per === "rate" || per === "pay_rate") && (amount < 0 || amount > 100)) { setMsg("率は 0〜100 の範囲で入力してください"); return; } // ★0195: RPC の bad amount と同じ柵
     const { error } = await supabase.rpc("set_deduction", {
       p_id: id, p_store_id: storeId, p_name: name, p_amount: amount, p_per: per, p_is_active: active,
       p_kind: kind,
       p_basis_confirmed: kind === "sanction" ? basisConfirmed : false,
       p_basis_note: kind === "sanction" ? (basisNote.trim() || null) : null,
+      ...(mig0195On() ? { p_day_rule: per === "day" ? dayRule : "always" } : {}), // ★0195: 10 引数（day 以外は always＝RPC の既定と同じ値を明示）
     });
     setMsg(error ? compErrJa(error.message) : id ? "控除を更新しました" : "控除を登録しました");
     if (!error) { resetForm(); await reload(); }
@@ -967,14 +981,15 @@ export function DeductionTab({ deductions, isManagerUp, storeId, setMsg, reload,
       {(() => { const w = okuriDeductionWarnOf(okuriMode, deductions.filter((d) => d.is_active).map((d) => d.name)); return w ? <div data-okuri-ded-warn="1" style={{ margin: "0 0 8px" }}><Message kind="warn">{w}</Message></div> : null; })()}{/* ★裁定431 ③: 既存の送り代は警告（自動で消さない） */}
       <div className="nox-tablewrap plain">{/* ★M1 第 2 レーン（裁定251・2026-09-18）: 横スクロール容器 */}
       <table className="nox-table" style={{ marginBottom: 10 }}>
-        <thead><tr>{["名称", "種別", "額", "単位", "根拠確認日", "状態"].map((h) => <th key={h}>{h}</th>)}</tr></thead>
+        <thead><tr>{["名称", "種別", "額", "単位", ...(mig0195On() ? ["対象"] : []), "根拠確認日", "状態"].map((h) => <th key={h}>{h}</th>)}</tr></thead>{/* ★0195: 「対象」＝全員／◯名 */}
         <tbody>
           {deductions.map((d) => (
             <tr key={d.id} onClick={() => isManagerUp && edit(d)} style={{ cursor: isManagerUp ? "pointer" : "default" }}>
               <td>{d.name}</td>
-              <td style={{ color: d.kind === "sanction" ? "var(--bad)" : undefined }}>{DED_KIND_JA[d.kind] ?? d.kind}</td>
-              <td className="num">{d.per === "rate" ? `${d.amount}%` : `¥${Number(d.amount).toLocaleString("en-US")}`}</td>{/* ★便 A M-74: 額に ¥ と桁区切り */}
-              <td>{DED_PER_JA[d.per] ?? d.per}</td>{/* ★便 A M-74: 単位を日本語 */}
+              <td style={{ color: d.kind === "sanction" ? "var(--bad)" : undefined }} title={DED_KIND_JA[d.kind] ?? d.kind}>{mig0195On() ? dedKindCastLabelOf(d.kind, DED_KIND_JA[d.kind]) : (DED_KIND_JA[d.kind] ?? d.kind)}</td>{/* ★0195 M-73 ③: 表示だけ 実費／その他（値は触らない） */}
+              <td className="num">{mig0195On() ? dedAmountLabelOf(d.per, d.amount) : d.per === "rate" ? `${d.amount}%` : `¥${Number(d.amount).toLocaleString("en-US")}`}</td>{/* ★便 A M-74: 額に ¥ と桁区切り */}
+              <td data-ded-unit={d.per}>{mig0195On() ? dedUnitLabelOf(d.per, d.day_rule) : (DED_PER_JA[d.per] ?? d.per)}</td>{/* ★便 A M-74: 単位を日本語 ★0195: 日ごとは既定も */}
+              {mig0195On() && <td data-ded-target={d.id}>{dedTargetLabelOf(ruleCasts, d.id, castCount)}</td>}
               <td>{d.basis_confirmed_at ? d.basis_confirmed_at.slice(0, 10) : "—"}</td>
               <td style={{ color: d.is_active ? "var(--ok)" : "var(--sub)" }}>{d.is_active ? "有効" : "無効"}</td>
             </tr>
@@ -987,14 +1002,32 @@ export function DeductionTab({ deductions, isManagerUp, storeId, setMsg, reload,
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
             <span style={note}>{id ? "編集中" : "新規"}</span>
             <input placeholder="名称（送り代等）" value={name} onChange={(e) => setName(e.target.value)} style={{ ...input, width: 150 }} />
+            {mig0195On() ? (/* ★0195 M-73 ②④: 種別＝実費／その他の 2 択（ボタン群）・既存行の従来の種別は「（従来）」の 1 つを足して値を保つ */
+              <label style={{ fontSize: 12 }}>種別<br />
+                <SegSelect value={kind} onChange={(v) => setKind(v)} ariaLabel="種別" wrap
+                  options={[...DED_KIND_CAST_OPTS, ...(kind !== "agreed_cost" && kind !== "other" ? [[kind, `${DED_KIND_JA[kind] ?? kind}（従来）`] as const] : [])]} />
+              </label>
+            ) : (
             <label style={{ fontSize: 12 }}>種別{" "}
               <select value={kind} onChange={(e) => setKind(e.target.value)} style={{ ...input, width: 170 }}>
                 {Object.entries(DED_KIND_JA).map(([k, ja]) => <option key={k} value={k}>{ja}</option>)}
               </select>
             </label>
+            )}
             <label style={{ fontSize: 12 }}>金額 <MoneyInput value={amount} onChange={(v) => setAmount(Number(v || 0))} style={input} width={110} ariaLabel="金額" /></label>
+            {mig0195On() ? (/* ★0195 M-73 ①④: 単位 4（ボタン群）＋各単位に 1 行の説明・日ごとは既定（毎出勤に引く／その日に選ぶ） */
+              <div style={{ flexBasis: "100%", display: "grid", gap: 4 }} data-ded-per-0195={per}>
+                <label style={{ fontSize: 12 }}>単位<br /><SegSelect value={per} onChange={(v) => setPer(v)} options={DED_PER_OPTS_0195} ariaLabel="単位" wrap /></label>
+                <span style={note} data-ded-per-note={per}>{DED_PER_NOTE[per] ?? ""}</span>
+                {per === "day" && (
+                  <label style={{ fontSize: 12 }} data-ded-day-rule={dayRule}>日ごとの既定<br /><SegSelect value={dayRule} onChange={(v) => setDayRule(v)} options={DAY_RULE_OPTS} ariaLabel="日ごとの既定" />
+                    <span style={{ ...note, display: "block" }}>{DAY_RULE_NOTE}</span></label>
+                )}
+              </div>
+            ) : (
             <SegSelect value={per} onChange={(v) => setPer(v)}
               options={[["day", DED_PER_JA.day], ["month", DED_PER_JA.month], ["rate", DED_PER_JA.rate]] as const} />
+            )}
             <label style={{ fontSize: 12 }}><input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} /> 有効</label>
             <div className="nox-actions" style={{ flexBasis: "100%", width: "100%" }}>{/* ★便 BTN（裁定242）: 主ボタン（＋補助）は行の中央 */}
               <button style={btnDark} onClick={save}>{id ? "更新" : "登録"}</button>

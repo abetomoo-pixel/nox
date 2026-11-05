@@ -10,7 +10,10 @@ import { resolvePayrollWindow } from "./window";
 import { bizDateOf } from "../biz-date";
 import { attendanceDayRowsOf, attendanceSummaryOf, type AttendanceDayRow, type AttendanceSummary, type SheetAttendance } from "./attendance-sheet";
 import { castPayTotalsOf, dailyBacksOf, dailyFinesOf, dailyPayRowsOf, dailyWageOf, monthSummaryOf, type CastPayTotals, type DailyBackInput, type DailyPayRow, type MonthSummary } from "./daily-pay";
-import type { PayResult } from "../pay";
+import type { Deduction, PayResult } from "../pay";
+import { dailyDeductionsOf, effectiveDeductionsOf, type DayDeductionRow, type DeductionOverride } from "./assemble"; // ★0195: 日計の「控除」列（給与と同じ式）
+import { loadDayDeductions, loadDeductionOverrides, loadDeductionRuleCasts } from "./collect"; // ★0195
+import { mig0195On } from "../rules-0175/flag"; // ★0195
 
 export type KintaiCast = {
   castId: string; castName: string; active: boolean;
@@ -48,6 +51,14 @@ export async function buildKintaiSheet(admin: SupabaseClient, managerClient: Sup
   ]);
   for (const r of [castsR, shiftsR, attR, punchR, corrR, trR, salesR, shimeiR, backsR, claimsR]) if (r.error) throw new Error(r.error.message);
   const run = (runR.data ?? null) as { id: string; status: string } | null;
+  // ★0195（裁定447 差し替え版）: 日計の「控除」列＝店の日ごとのルール（per=day・有効）→ キャスト別の適用 → run 別の上書き → その日の on／off（cast_day_deductions）＝給与（assemble）と同じ式
+  let dayRules: Deduction[] = []; let rcByCast = new Map<string, DeductionOverride[]>(); let ddByCast = new Map<string, DayDeductionRow[]>(); let ovByCast = new Map<string, DeductionOverride[]>();
+  if (mig0195On()) {
+    const dR = await admin.from("deductions").select("id, name, amount, per, kind, day_rule").eq("store_id", storeId).eq("is_active", true).eq("per", "day");
+    if (dR.error) throw new Error(dR.error.message);
+    dayRules = ((dR.data ?? []) as Rec[]).map((d) => ({ id: d.id as string, name: d.name as string, amount: num(d.amount), per: "day" as const, kind: d.kind as Deduction["kind"], ...(d.day_rule === "pick" ? { dayRule: "pick" as const } : {}) }));
+    [rcByCast, ddByCast, ovByCast] = await Promise.all([loadDeductionRuleCasts(admin, storeId), loadDayDeductions(admin, storeId, win), loadDeductionOverrides(admin, storeId, period)]);
+  }
   const finalized = !!run && (run.status === "finalized" || run.status === "paid");
   // 罰金・減額＝この期の run の adjustments（sanction／shortfall）＝日に紐づく行だけ日別へ（残りは月のまとめ）
   const adjR = run ? await admin.from("payroll_adjustments").select("cast_id, amount, reason, source, biz_date, target_shift_id, mode").eq("run_id", run.id).in("source", ["sanction", "settlement", "shortfall"]) : { data: [] as Rec[], error: null };
@@ -96,7 +107,9 @@ export async function buildKintaiSheet(admin: SupabaseClient, managerClient: Sup
       const wage = dailyWageOf(src.wdays, period);
       const backs = dailyBacksOf(src.plan ? { honBack: src.plan.honBack, jonaiBack: src.plan.jonaiBack, dohanBack: src.plan.dohanBack, honBackMode: src.plan.honBackMode, honBackRate: src.plan.honBackRate, jonaiBackMode: src.plan.jonaiBackMode, jonaiBackRate: src.plan.jonaiBackRate } : null, [...(backInput.get(c.id)?.values() ?? [])]);
       const fines = dailyFinesOf(((adjR.data ?? []) as Rec[]).filter((a) => a.cast_id === c.id && a.mode === "fixed").map((a) => ({ amount: num(a.amount), reason: String(a.reason ?? ""), source: String(a.source ?? ""), biz_date: (a.biz_date as string | null) ?? null, target_shift_id: (a.target_shift_id as string | null) ?? null })), shiftDateById);
-      const dailyRows: DailyPayRow[] = dailyPayRowsOf({ dates: rows.filter((r) => !r.future).map((r) => r.bizDate), wage, backs, fines });
+      const worked = new Set(rows.filter((r) => !r.future && !r.cancelled && !!r.inHm).map((r) => r.bizDate)); // ★0195: 出勤した日（打刻あり）だけ日ごとの控除の対象
+      const deds = dayRules.length ? dailyDeductionsOf(effectiveDeductionsOf(dayRules, rcByCast.get(c.id), ovByCast.get(c.id)), ddByCast.get(c.id), worked) : undefined;
+      const dailyRows: DailyPayRow[] = dailyPayRowsOf({ dates: rows.filter((r) => !r.future).map((r) => r.bizDate), wage, backs, fines, ...(deds ? { deds } : {}) });
       const byDate = new Map(dailyRows.map((r) => [r.bizDate, r]));
       for (const r of rows) { const p = byDate.get(r.bizDate); if (p) r.pay = p; }
       const month = monthSummaryOf({ gross: src.gross, net: src.net, rows: dailyRows, frozen: !!frozen });

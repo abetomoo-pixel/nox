@@ -33,7 +33,7 @@ export default function DeductionBoard({ storeId, isManagerUp, isOwner, casts, o
       {/* ① 固定控除の種別（deductions・per=day/month/rate） */}
       {isSectionOn(settings, "compDeductionTab") && (<section className="nox-cardtop" style={{ ...card, marginBottom: 14 }}>{/* ★裁定269-4: compDeductionTab */}
         <h2 style={secTitle}>控除ルール一覧</h2>
-        <DeductionTab deductions={data.deductions} isManagerUp={isManagerUp} storeId={storeId}
+        <DeductionTab deductions={data.deductions} isManagerUp={isManagerUp} storeId={storeId} castCount={(data as { casts?: unknown[] }).casts?.length ?? 0}
           setMsg={setMsg} reload={data.reload} okuriMode={okuriMode} />{/* ★裁定431 ③: 送りの控除との二重を防ぐ */}
       </section>)}
 

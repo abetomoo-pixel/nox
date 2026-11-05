@@ -445,8 +445,8 @@ export default async function MinePage({ searchParams }: { searchParams?: Promis
               <KintaiHead withPay={!!kintaiPay} />
               <tbody>{kintaiRows.map((r) => <KintaiRow key={r.bizDate} r={r} withBy={false} link={false} />)}</tbody>
               {kintaiPay && (<tfoot data-mine-kintai-month="1">
-                <tr><td colSpan={9} style={{ ...t.td, fontWeight: 800 }}>日計の合計</td><td className="opt pay" colSpan={3} style={t.td} /><td className="pay num" style={{ ...t.td, textAlign: "right", fontWeight: 800 }} data-kintai-sum-daily={kintaiPay.month.sumDaily}>{yenCellOf(kintaiPay.month.sumDaily)}</td></tr>
-                {kintaiPay.month.rows.map((m) => (<tr key={m.key} data-kintai-month-row={m.key}><td colSpan={9} style={{ ...t.td, color: m.key === "net" ? undefined : "var(--sub)" }}>{m.key === "net" ? m.label : `月のまとめ：${m.label}`}</td><td className="opt pay" colSpan={3} style={t.td} /><td className="pay num" style={{ ...t.td, textAlign: "right", fontWeight: m.key === "net" ? 800 : 500 }}>{m.key === "deductions" ? yenCellOf(m.amount, { neg: m.amount > 0 }) : yenCellOf(m.amount)}</td></tr>))}
+                <tr><td colSpan={9} style={{ ...t.td, fontWeight: 800 }}>日計の合計</td><td className="opt pay" colSpan={4} style={t.td} /><td className="pay num" style={{ ...t.td, textAlign: "right", fontWeight: 800 }} data-kintai-sum-daily={kintaiPay.month.sumDaily}>{yenCellOf(kintaiPay.month.sumDaily)}</td></tr>
+                {kintaiPay.month.rows.map((m) => (<tr key={m.key} data-kintai-month-row={m.key}><td colSpan={9} style={{ ...t.td, color: m.key === "net" ? undefined : "var(--sub)" }}>{m.key === "net" ? m.label : `月のまとめ：${m.label}`}</td><td className="opt pay" colSpan={4} style={t.td} /><td className="pay num" style={{ ...t.td, textAlign: "right", fontWeight: m.key === "net" ? 800 : 500 }}>{m.key === "deductions" ? yenCellOf(m.amount, { neg: m.amount > 0 }) : yenCellOf(m.amount)}</td></tr>))}
               </tfoot>)}
             </table>
           </div>

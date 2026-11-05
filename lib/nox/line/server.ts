@@ -83,7 +83,7 @@ export async function replyLine(accessToken: string, replyToken: string, text: s
 
 /** 紐付いた LINE を引く（subject＝cast／membership）。無ければ null */
 export async function lineUserIdOf(admin: SupabaseClient, subjectKind: "cast" | "membership", subjectId: string): Promise<{ lineUserId: string; storeId: string; orgId: string } | null> {
-  const { data } = await admin.from("line_links").select("line_user_id, store_id, org_id").eq("subject_kind", subjectKind).eq("subject_id", subjectId).maybeSingle();
+  const { data } = await admin.from("line_links").select("line_user_id, store_id, org_id").eq("subject_kind", subjectKind).eq("subject_id", subjectId).is("blocked_at", null).maybeSingle(); // ★0195（M-77 ②）: ブロック中（unfollow）の行には push しない
   return data ? { lineUserId: data.line_user_id as string, storeId: data.store_id as string, orgId: data.org_id as string } : null;
 }
 export { linePushKindOfNotif };

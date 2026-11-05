@@ -163,7 +163,11 @@ export type Deduction = {
   id: string;
   name: string;
   amount: number;
-  per: "day" | "month" | "rate"; // rate は売上に対する %
+  per: "day" | "month" | "rate" | "pay_rate"; // rate は売上に対する %・★0195（M-73）: pay_rate＝報酬（手取りの前の支払額＝gross）に対する %
+  /** ★0195（裁定447 差し替え版）: 日ごとのルールの既定（always＝毎出勤に引く／pick＝その日に選ぶ）。未指定＝always（従来） */
+  dayRule?: "always" | "pick";
+  /** ★0195: per=day の「引く日数」（assemble が cast_day_deductions から数える）。未指定＝出勤日数（従来と 1 バイト同値） */
+  dayCount?: number;
   // ★裁定98: kind 未指定は非 sanction 扱い（既存 fixture・旧呼び出しと1バイト互換）。
   kind?: DeductionKind;
   basisConfirmedAt?: string | null; // sanction の根拠確認日時（表示用・計算には使わない）
@@ -529,20 +533,23 @@ export function customBacks(defs: BackDef[], metrics: Metrics): CBack[] {
   });
 }
 
-/** 控除マスタの合算（モック te 内 qa）: per=day→×日数 / rate→売上% / month→定額 */
+/** 控除マスタの合算（モック te 内 qa）: per=day→×日数（★0195: d.dayCount があればその日数） / rate→売上% / pay_rate→報酬%（★0195 M-73: gross＝源泉の前の支払額・渡さなければ 0） / month→定額 */
 export function fixedDedOf(
   deductions: Deduction[],
   days: number,
   sales: number,
+  gross = 0,
 ): number {
   return deductions.reduce(
     (sum, d) =>
       sum +
       (d.per === "day"
-        ? d.amount * days
+        ? d.amount * (d.dayCount ?? days)
         : d.per === "rate"
           ? roundYen(((sales || 0) * d.amount) / 100)
-          : d.amount),
+          : d.per === "pay_rate"
+            ? roundYen(((gross || 0) * d.amount) / 100)
+            : d.amount),
     0,
   );
 }
@@ -751,10 +758,10 @@ export function payOf(input: PayInput): PayResult {
   // 控除 ── ★裁定98: sanction（制裁）を他の kind から分離（二層ガード）。非 sanction は現行式と1バイト同値。
   const sanctionRows = (input.deductions ?? []).filter((d) => d.kind === "sanction");
   const otherDeds = sanctionRows.length ? input.deductions.filter((d) => d.kind !== "sanction") : input.deductions;
-  const fixedDedBase = fixedDedOf(otherDeds, effDays, cast.sales);
+  const fixedDedBase = fixedDedOf(otherDeds, effDays, cast.sales, gross); // ★0195: pay_rate の分母＝gross（源泉の前）
   let sanction: SanctionResult | null = null;
   if (sanctionRows.length > 0) {
-    const original = fixedDedOf(sanctionRows, effDays, cast.sales); // 現行式（cap 前）
+    const original = fixedDedOf(sanctionRows, effDays, cast.sales, gross); // 現行式（cap 前）★0195: pay_rate も
     if (input.employment === "雇用") {
       // 労基法91条: 1回 = 平均賃金の半日分・総額 = 一賃金支払期の賃金総額（=gross）の 1/10。
       // 平均賃金 null は暫定式 = max(floor(gross/暦日数), floor(gross/出勤日数×0.6))（整数演算・effDays=0 は前者のみ）。
@@ -767,8 +774,8 @@ export function payOf(input: PayInput): PayResult {
       let subtotal = 0;
       for (const d of sanctionRows) {
         // 1回あたりの額は現行式（rate は売上%）。回数: day=effDays / month=1 / rate=1。
-        const eachRaw = d.per === "rate" ? roundYen(((cast.sales || 0) * d.amount) / 100) : d.amount;
-        const count = d.per === "day" ? effDays : 1;
+        const eachRaw = d.per === "rate" ? roundYen(((cast.sales || 0) * d.amount) / 100) : d.per === "pay_rate" ? roundYen(((gross || 0) * d.amount) / 100) : d.amount; // ★0195: pay_rate
+        const count = d.per === "day" ? (d.dayCount ?? effDays) : 1; // ★0195: 日ごとのルールの引く日数
         subtotal += Math.min(eachRaw, capEach) * count;
       }
       const applied = Math.min(subtotal, capTotal);

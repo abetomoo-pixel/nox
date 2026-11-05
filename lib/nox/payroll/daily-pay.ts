@@ -11,7 +11,7 @@ export type DailyBackInput = { bizDate: string; hon: number; jonai: number; doha
 export type BackPlanLike = { honBack: number; jonaiBack: number; dohanBack: number; honBackMode?: "per_count" | "rate"; honBackRate?: number | null; jonaiBackMode?: "per_count" | "rate"; jonaiBackRate?: number | null };
 export type DailyFineInput = { amount: number; reason: string; source: string; biz_date?: string | null; target_shift_id?: string | null };
 export type DailyBacks = { hon: number; jonai: number; dohan: number; drink: number; champ: number; bottle: number; calc: number; total: number };
-export type DailyPayRow = { bizDate: string; hours: number; hourly: number | null; wage: number; backs: DailyBacks; fine: number; fineNotes: string[]; total: number };
+export type DailyPayRow = { bizDate: string; hours: number; hourly: number | null; wage: number; backs: DailyBacks; fine: number; fineNotes: string[]; ded: number; dedNotes: string[]; total: number }; // ★0195: ded＝その日に引いた日ごとの控除
 export type MonthSummaryRow = { key: "month_adj" | "deductions" | "net"; label: string; amount: number };
 export type MonthSummary = { rows: MonthSummaryRow[]; sumDaily: number; identityOk: boolean; frozen: boolean };
 
@@ -64,12 +64,12 @@ export function dailyFinesOf(adjs: readonly DailyFineInput[], shiftDateById: Rea
 export const ZERO_BACKS: DailyBacks = { hon: 0, jonai: 0, dohan: 0, drink: 0, champ: 0, bottle: 0, calc: 0, total: 0 };
 
 /** 日別の行＝dates（表の行の日付）∪ 時給分／バック／罰金のある日。並びは日付昇順 */
-export function dailyPayRowsOf(input: { dates: readonly string[]; wage: ReadonlyMap<string, { hours: number; hourly: number; wage: number }>; backs: ReadonlyMap<string, DailyBacks>; fines: ReadonlyMap<string, { amount: number; notes: string[] }> }): DailyPayRow[] {
-  const dates = new Set<string>([...input.dates, ...input.wage.keys(), ...input.backs.keys(), ...input.fines.keys()]);
+export function dailyPayRowsOf(input: { dates: readonly string[]; wage: ReadonlyMap<string, { hours: number; hourly: number; wage: number }>; backs: ReadonlyMap<string, DailyBacks>; fines: ReadonlyMap<string, { amount: number; notes: string[] }>; deds?: ReadonlyMap<string, { amount: number; notes: string[] }> }): DailyPayRow[] {
+  const dates = new Set<string>([...input.dates, ...input.wage.keys(), ...input.backs.keys(), ...input.fines.keys(), ...(input.deds?.keys() ?? [])]);
   return [...dates].sort().map((bizDate) => {
-    const w = input.wage.get(bizDate), b = input.backs.get(bizDate) ?? ZERO_BACKS, f = input.fines.get(bizDate);
-    const wage = w?.wage ?? 0, fine = f?.amount ?? 0;
-    return { bizDate, hours: w?.hours ?? 0, hourly: w?.hourly ?? null, wage, backs: b, fine, fineNotes: f?.notes ?? [], total: wage + b.total - fine };
+    const w = input.wage.get(bizDate), b = input.backs.get(bizDate) ?? ZERO_BACKS, f = input.fines.get(bizDate), dd = input.deds?.get(bizDate);
+    const wage = w?.wage ?? 0, fine = f?.amount ?? 0, ded = dd?.amount ?? 0;
+    return { bizDate, hours: w?.hours ?? 0, hourly: w?.hourly ?? null, wage, backs: b, fine, fineNotes: f?.notes ?? [], ded, dedNotes: dd?.notes ?? [], total: wage + b.total - fine - ded }; // ★0195: 日計＝時給分＋バック−罰金・減額−控除
   });
 }
 
@@ -77,12 +77,13 @@ export function dailyPayRowsOf(input: { dates: readonly string[]; wage: Readonly
 export function monthSummaryOf(input: { gross: number; net: number; rows: readonly DailyPayRow[]; frozen?: boolean }): MonthSummary {
   const sumWageBacks = input.rows.reduce((a, r) => a + r.wage + r.backs.total, 0);
   const sumFine = input.rows.reduce((a, r) => a + r.fine, 0);
+  const sumDed = input.rows.reduce((a, r) => a + r.ded, 0); // ★0195: 日ごとの控除は Σ日計へ移る
   const sumDaily = input.rows.reduce((a, r) => a + r.total, 0);
   const monthAdj = input.gross - sumWageBacks;
-  const deductions = (input.gross - input.net) - sumFine;
+  const deductions = (input.gross - input.net) - sumFine - sumDed;
   const rows: MonthSummaryRow[] = [
     { key: "month_adj", label: "月で決まる支給（スライド調整・売上バック・手当・丸め）", amount: monthAdj },
-    { key: "deductions", label: "控除（固定・源泉・前借り・送り・月の調整）", amount: deductions },
+    { key: "deductions", label: "控除（月額控除・源泉・前借り・送り・月の調整）", amount: deductions }, // ★0195（§5-3）: 「固定」→「月額控除」（日ごとの分は Σ日計）
     { key: "net", label: input.frozen ? "差引支給額（確定）" : "差引支給額（現時点）", amount: input.net },
   ];
   return { rows, sumDaily, identityOk: sumDaily + monthAdj - deductions === input.net, frozen: !!input.frozen };
@@ -96,16 +97,16 @@ export const backsDetailTextOf = (b: DailyBacks): string =>
   (Object.keys(BACK_LABEL) as (keyof typeof BACK_LABEL)[]).filter((k) => b[k] !== 0).map((k) => `${BACK_LABEL[k]} ¥${b[k].toLocaleString("en-US")}`).join("・") || "—";
 
 /** 1 人の表の列（CSV・印刷も同じ順・attendance-sheet の SHEET_COLUMNS の後ろに足す） */
-export const DAILY_PAY_COLUMNS = ["時給分", "バック", "罰金・減額", "日計"] as const;
-export const dailyPayCellsOf = (p: DailyPayRow | null | undefined): string[] => (p ? [String(p.wage), String(p.backs.total), String(p.fine), String(p.total)] : ["", "", "", ""]);
+export const DAILY_PAY_COLUMNS = ["時給分", "バック", "罰金・減額", "控除", "日計"] as const; // ★0195: 「控除」列
+export const dailyPayCellsOf = (p: DailyPayRow | null | undefined): string[] => (p ? [String(p.wage), String(p.backs.total), String(p.fine), String(p.ded), String(p.total)] : ["", "", "", "", ""]);
 
 /** 合計表（人ごと）の 4 列＝時給分｜バック｜罰金・減額｜現時点の差引支給（＝給与画面の同じ人の net） */
-export type CastPayTotals = { wage: number; backs: number; fine: number; net: number; frozen: boolean };
+export type CastPayTotals = { wage: number; backs: number; fine: number; ded: number; net: number; frozen: boolean }; // ★0195: ded
 export const castPayTotalsOf = (rows: readonly DailyPayRow[], net: number, frozen: boolean): CastPayTotals =>
-  ({ wage: rows.reduce((a, r) => a + r.wage, 0), backs: rows.reduce((a, r) => a + r.backs.total, 0), fine: rows.reduce((a, r) => a + r.fine, 0), net, frozen });
+  ({ wage: rows.reduce((a, r) => a + r.wage, 0), backs: rows.reduce((a, r) => a + r.backs.total, 0), fine: rows.reduce((a, r) => a + r.fine, 0), ded: rows.reduce((a, r) => a + r.ded, 0), net, frozen });
 export const sumCastPayTotalsOf = (list: readonly (CastPayTotals | null | undefined)[]): CastPayTotals => {
   const xs = list.filter((x): x is CastPayTotals => !!x);
-  return { wage: xs.reduce((a, x) => a + x.wage, 0), backs: xs.reduce((a, x) => a + x.backs, 0), fine: xs.reduce((a, x) => a + x.fine, 0), net: xs.reduce((a, x) => a + x.net, 0), frozen: xs.length > 0 && xs.every((x) => x.frozen) };
+  return { wage: xs.reduce((a, x) => a + x.wage, 0), backs: xs.reduce((a, x) => a + x.backs, 0), fine: xs.reduce((a, x) => a + x.fine, 0), ded: xs.reduce((a, x) => a + x.ded, 0), net: xs.reduce((a, x) => a + x.net, 0), frozen: xs.length > 0 && xs.every((x) => x.frozen) };
 };
 /** 注記＝未確定の月は「現時点（10/23 まで）」・確定済みは「確定」 */
 export const payTotalsNoteOf = (frozen: boolean, todayBiz: string): string => (frozen ? "確定" : `現時点（${Number(todayBiz.slice(5, 7))}/${Number(todayBiz.slice(8, 10))} まで）`);
