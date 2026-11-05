@@ -181,7 +181,7 @@ check("c2(2-8) CSV・印刷用にも同じ列＝従来の 10 列＋時給分｜�
   const ext = ace.tables.pricing_rules.filter((r) => r.fee_kind === "extension");
   const fees = new Set(ace.tables.checks.map((c) => `${c.ext_min}/${c.ext_fee}`));
   const lines = ace.tables.check_lines.filter((l) => l.fee_kind === "extension");
-  check("c2(9-1) C2-14 ACE の延長パターン＝3 本（平日通常 60 分 ¥13,000／VIP 30 分 ¥9,000／週末通常 30 分 ¥4,000）・伝票の ext_min／ext_fee＝その伝票の開卓時のパターン（60/13000・30/9000・30/4000 の 3 種だけ）・延長行の単価も同じ値", ext.length === 3 && ext.some((r) => r.duration_min === 60 && r.amount === 13000) && ext.some((r) => r.duration_min === 30 && r.amount === 9000) && ext.some((r) => r.duration_min === 30 && r.amount === 4000) && [...fees].sort().join(",") === "30/4000,30/9000,60/13000" && lines.length > 0 && lines.every((l) => [13000, 9000, 4000].includes(Number(l.unit_price_snapshot))), J({ ext: ext.map((r) => [r.name, r.duration_min, r.amount]), fees: [...fees], lines: lines.length }));
+  check("c2(9-1) C2-14→裁定454 ACE の延長パターン＝3 本（平日通常 60 分 ¥13,000／VIP 延長 60 分 ¥18,000（seat_kind VIP）／週末通常 60 分 ¥15,000）・伝票の ext_min／ext_fee＝その伝票の開卓時のパターン（60/13000・60/18000・60/15000 の 3 種だけ）・延長行の単価も同じ値", ext.length === 3 && ext.some((r) => r.duration_min === 60 && r.amount === 13000) && ext.some((r) => r.duration_min === 60 && r.amount === 18000 && r.seat_kind === "VIP") && ext.some((r) => r.duration_min === 60 && r.amount === 15000) && [...fees].sort().join(",") === "60/13000,60/15000,60/18000" && lines.length > 0 && lines.every((l) => [13000, 18000, 15000].includes(Number(l.unit_price_snapshot))), J({ ext: ext.map((r) => [r.name, r.duration_min, r.amount]), fees: [...fees], lines: lines.length }));
 }
 
 // ── (10) C2-15 店設定「税・サービス料」の保存 ──

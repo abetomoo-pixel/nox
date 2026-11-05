@@ -47,8 +47,8 @@ check("0192c(3-4) M-49 店設定: kiosk_person_idle_minutes は mig0192On() の�
   spp.includes("if (mig0192On() && form.kiosk_person_idle !== cur.kiosk_person_idle) out.kiosk_person_idle_minutes = Number(form.kiosk_person_idle);") && spp.includes(`{mig0192On() && (/* ★0192 M-49`) && spp.includes("kiosk_person_idle: String(kioskPersonIdleMinutesOf(sj))"));
 const av = src("components/nox/availability-editor.tsx");
 check("0192c(3-5) M-34 基本の働き方: 未発行＝!membershipId && mig0192On() && !bySelf のときだけ availability_set_cast（cast_id）・通知しない・発行済みは従来の availability_set",
-  av.includes("const noAccount = !membershipId && mig0192On() && !bySelf;") && av.includes(`rpc("availability_set_cast", { p_cast_id: castId, ...availPatchOf(form) })`) && av.includes(`rpc("availability_set", { p_membership_id: membershipId, ...availPatchOf(form) })`) && av.includes("if (!membershipId) { setMsg(")
-  && av.includes("{!readOnly && !edit && canEdit && <button") && av.includes("{canEdit ? `${availChipsOf(form)}") /* ★11/02 live: 未発行でも編集ボタンと要約を出す（フラグ便の撮影で「設定できません」が残っていた） */);
+  av.includes("const noAccount = !membershipId && mig0192On() && !bySelf;") && av.includes(`rpc("availability_set_cast", { p_cast_id: castId, ...patch })`) /* ★M-91: patch＝適用開始日 空は保存日 */ && av.includes(`rpc("availability_set", { p_membership_id: membershipId, ...patch })`) && av.includes("if (!membershipId) { setMsg(")
+  && av.includes("{!readOnly && !bySelf && !edit && canEdit && <button") /* ★M-87: 本人画面は読取専用 */ && av.includes("{canEdit ? `${availChipsOf(form)}") /* ★11/02 live: 未発行でも編集ボタンと要約を出す（フラグ便の撮影で「設定できません」が残っていた） */);
 
 // ── (4) ★9 cron route ──
 const cron = src("app/api/cron/demo-reset/route.ts");
