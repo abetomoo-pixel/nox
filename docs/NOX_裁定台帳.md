@@ -5400,7 +5400,7 @@ Agoora が 7 本を手貼り（0185→0180→0181→0182→0183→0184→0186）
 
 出典＝相談役 11/05 朝（v58 確定版 §0-2b＝docs/demo/handpaste_0195.md の「★推奨案で仮置きした点」への返事）。適用＝0195（gen_0195.cjs に反映して live から再生成・試走 BEGIN…ROLLBACK・handpaste_0195.md 更新・手貼りの合図は相談役＝新チャット）。
 「1・2・3・4・5・7・8・9 の 8 点は推奨案のまま承認。6 だけ変更＝staff_allowances の凍結は RPC 側でも検証する＝staff_attendance_confirm が行の allowances（jsonb）の月額を合計し、内訳の fixed と一致しなければ 'labor mismatch' で raise（裁定445 ①と同じ型＝client の合計を信用しない）。amount＝time_pay＋fixed の検査はそのまま。calc_version は client で上げる。」
-CC の処置（2026-11-05）＝gen_0195.cjs の ★5 に 3 行（要素の形＝'bad allowances'・Σ amount を v_allow に・v_allow <> fixed は 'labor mismatch: fixed % <> sum(allowances) %'）＝pay_kind に関係なく全行・allowances を送らない行は Σ 0 として扱う（fixed 0 なら通る＝旧 client の行は壊れない・fixed>0 なら raise＝フラグ true 便の client は契約の fixed_allowance 1 本も allowances の 1 行として送る）。試走の ★5 に 5 段を追加（41→46）。
+CC の処置（2026-11-05）＝gen_0195.cjs の ★5 に 3 行（要素の形＝'bad allowances'・Σ amount を v_allow に・v_allow <> fixed は 'labor mismatch: fixed % <> sum(allowances) %'）＝pay_kind に関係なく全行・allowances を送らない行は Σ 0 として扱う（fixed 0 なら通る＝旧 client の行は壊れない・fixed>0 なら raise＝フラグ true 便の client は契約の fixed_allowance 1 本も allowances の 1 行として送る）。試走の ★5 に 5 段を追加（41→46）。再生成＝2026-11-05・sha16 **50d8359957b32506 → 90ed3a2656aed407**（444→449 行・LF）・試走 BEGIN…ROLLBACK **46/46・DB 変更 0**（410／116 → tx 内 416／119 → 410／116・verify 22 行一致）・handpaste_0195.md 更新・手貼りの合図は相談役（新チャット）。
 
 ## 裁定449（2026-11-04 確定・相談役）スタッフ給与 run の作成の口は作らない
 
