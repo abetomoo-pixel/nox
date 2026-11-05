@@ -5268,6 +5268,21 @@ grep で洗い出した左右振り分けのボタンは一覧報告だけでな
 読取②（Webhook の再送）＝webhookEventId／isRedelivery の重複捨ては無いが効果として冪等＝書くのは unfollow の line_link_block だけ（blocked_at null の行だけ update・変わらなければ audit も書かない）・follow／テキストは reply（1 回限りの replyToken・台帳に入れない）＝LINE の「再送」ON でよい。端＝unfollow の再送が再紐付けの後に届くと再び blocked。
 提案（M-100）＝①署名が通った最初のイベントで destination が空なら admin で line_config.bot_destination に保存し以後の違いを 401 に（欄は「自動で取得済み」表示）②`deliveryContext.isRedelivery === true` の unfollow は捨てる。DDL なし。
 
+## M-107（2026-11-05 受領・Agoora 実機・client・便 D）指名・同伴の予約申請の「名」の人数欄＝−／＋のステッパー
+
+「指名・同伴の予約申請の『名』の人数欄を −／＋ のステッパー（M-76 と同じ部品・1〜20・直接入力も可）。」
+CC の処置＝components/ui/num-stepper.tsx（NumStepper＝clampStep・−／＋＋直接入力・単位）を新設し app/mine/reservation-request-card.tsx の人数欄に（1〜20・data-rsv-party）。シフトの必要人数（M-76）の行は据え置き（pin が多い＝部品化は次の機会）。
+
+## M-106（2026-11-05 受領・Agoora 実機・client・便 D）シフト希望の「日ごとに変える」の行が 375 幅ではみ出す
+
+「シフト希望の『日ごとに変える』の行（日付・開始〜終了・外す）が 375 幅でカードからはみ出す。日付を 1 行目・時刻 2 つと『外す』を 2 行目に折る（または時刻の幅を縮める）。終了の表示は一括と同じ『翌02:00』に統一（『26:00』は出さない＝TimePicker の表示規則）。同じ型の行が /mine・/staff/me・予約申請にもあれば一緒に。撮影＝375。」
+CC の処置＝app/mine/wishes/wish-form.tsx の行を grid（日付 1 行目・時刻 2 つ＋一括に戻す＋外す 2 行目・時刻の幅 72・data-wish-day-row）に。終了の placeholder は hmLabelOf（「翌02:00」）・一括の終了も同じ。同じ型の行（「一括に戻す」）はこの 1 か所だけ（grep）。
+
+## M-105（2026-11-05 受領・Agoora 実機・client・便 D）キャスト画面の操作ボタンを中央寄せ（教訓133）
+
+「/mine の連絡先の『保存／やめる』と、シフト希望の『3 日を提出』など操作ボタンを中央寄せ（教訓133）。キャスト画面（/mine 配下 3 タブ）の操作ボタンを grep して右寄せ・左寄せが残る箇所を一覧で報告し、同じ便で直す（除外は教訓122 の 36 の型＝行内ツール・×）。」
+CC の一覧（grep＝app/mine 配下の button の容れ物）＝左寄せが残っていたのは 2 か所＝①app/mine/contact-form.tsx 保存／やめる（display flex・gap 8）②app/mine/shift-decline-button.tsx 辞退する／やめる（同）→ どちらも .nox-actions（中央）に。除外（教訓122 の型）＝withdraw-button「取り下げ」（行内・marginLeft auto）・schedule-card「＋ 希望を提出」（リンク）・/mine の /kq リンク（flex-end・リンク）・PrintPayslipButton（印刷）・attendance-form「送信」と punch-correction-form「修正」（入力と同じ行の行内ボタン）。wish-form「n 日を提出」・drink-claim-form・reservation-request-card「申請する」・contract-ack-gate は既に .nox-actions（中央）＝Agoora の見た「3 日を提出」は実機で再確認（375 の撮影）。
+
 ## M-104（2026-11-05 受領・相談役・client・便 D）給与の明細パネル＝確定済みの月では live の控除マスタの一覧を出さない
 
 「給与の明細パネルの『固定控除（確定済み・読取のみ）』の下に今の控除マスタを一覧している行は、確定済みの明細では出さない（凍結された控除の内訳だけ）。run 別の上書き欄は未確定の月だけ『控除ルール（この月だけの上書き）』の見出しで出す。撮影＝確定済みの月と未確定の月の 2 枚。」
@@ -5530,6 +5545,12 @@ CC の読取（2026-11-05・根拠）＝「適用中」＝checks.ext_rule_id（�
 
 - **締め（17:2x〜17:4x JST）**＝Vercel の failure は /auth/forgot の page の export が原因と**確定**（定数を lib に移した 901cbc3 で success・直す前の再現はせず結果で確認）。撮影で /mine の「定休日」（M-92）が出ない＝store_business_hours の RLS がキャストを除外＝client では読めない → /mine が server（admin）で定休日の曜日を読んで AvailabilityEditor に渡す（b4fefb5・deploy success 17:3x）。撮影＝docs/tmp/shots_lane（lane_ace_vip1_estimate＝VIP 延長 適用中 ¥18,000×3 名・30 分あたり ¥9,000／人／lane_ace_a3_estimate＝平日通常 適用中／lane_shift_2026-11-23_dayadd＝あい「不可」・ひなの「20:00〜翌01:00」（11/9 は あい が配置済みで一覧に出ない＝11/23 月曜で撮影）／lane_shift_2026-11-11_dayadd／lane_shift_bulk_ai＝月曜のセル 5 つが不可／lane_casts_ai_availability＝日曜「定休日（店の設定）」・月 不可／lane_staff_work_availability＝M-88／lane_mine_top 1024・375＝「CLUB ACE ・ ひなの｜キャスト」「今日の出勤 20:00〜翌02:00（あと 2 時間 30 分）」／lane_mine_availability 1024・375＝読取専用の表＋日曜 定休日／lane_login 375・lane_forgot 375）。
 - **受領（便の間）**＝M-94〜M-104（本文は各 M の節）＝便 D へ。読取の答え＝裁定455 候補 1〜6・キオスクの操作者一覧（(a)＝kiosk_operator_list が旧キー cast_register_enabled＝0196 行き）・M-88（汎用）・M-90（不具合）・M-91（effective_from は判定で見ない）・bot destination／Webhook の再送／LIFF の 400＝報告のとおり。
+
+### 便 D の記録（2026-11-05 夜の自走便 1・client＝M-94〜M-99・M-101〜M-107・裁定455 の 3）
+- 入れたもの＝M-102（lib/nox/line/liff-endpoint.ts の siteOriginOf／siteHrefOf＝casts-board・staff-board・line-config-panel・Webhook の返事・liff.login の redirectUri の 5 か所・domain_switch.md §4 に env の 1 行）／M-95（期間なしの日＝割当モーダル・openNewPeriodAt は残る）／M-96（lib/nox/shift/tabs.ts の makeStepsOf＝店が決める店は ③配置→④公開 の 2 段・①②に居たら ③へ・店舗設定の 3 択目「店が決める」）／M-98（stores.receivable_policy='disabled'＝「売掛」タブと「売掛 本日発生」を出さない）／M-99（components/nox/contract-chip.tsx＝本文色・輪郭だけ・地は透明＝/staff 一覧・給与 › 勤怠（スタッフ）の契約列・キャスト管理のプラン名）／M-104（確定済みの月は live の控除マスタ一覧を出さない・未確定は「控除ルール（この月だけの上書き）」）／裁定455 の 3（lib/nox/payroll/auto-penalty.ts＝kintai-edit の attendance_set（late／absent）の後に遅刻控除／当欠控除を精算調整に自動登録＝ひな形の額・0 なら登録しない・雇用と二重と確定済み run は skip／初期設定 ⑦ の 2 欄→presetsWithAmountsOf）／M-101（components/nox/line-quota-card.tsx＝ホーム（店長以上）とお知らせ（一覧の上）・lineQuotaViewOf・90% で注意・未設定は「LINE 連携を設定する」の 1 行）／M-103 UI（/mine PunchActions の出勤の上に「今日の控除」の 2 択ボタン・キオスクの dayded 段＝MIG_0196_APPLIED=false の間は出ない）／M-94（/register＝共通レイアウト・畳んだレールが既定・別キー nox.sidenav.register・≡ のドロワーは /floor だけ）／M-97（まとめて追加＝nox-formmodal-head／foot・必要人数の帯の折り返し）／M-105（contact-form・shift-decline-button → .nox-actions＝一覧は M-105 の節）／M-106（日ごとの行＝2 行・翌02:00）／M-107（components/ui/num-stepper.tsx＝1〜20）。
+- verify＝scripts/verify-nox-bend.ts（30・f0 の末尾＝177 段目）・pin 張替え 6（shb2(2-2)／st(5-2)／sr(1)／su(2-7)／m80(12-2)／shb(4)）・ms(2-21) の「/mine に <input> を置かない」で M-103 の checkbox を 2 択ボタンに。tsc／lint 緑。
+- f0 2 連緑＝177 段 7,270 ×2（2026-11-05 09:1x／09:5x JST）（177 段・基準線の数え方）。commit＝c3d8e42。
+- 同じ便の間に起草（夜の自走便 2・3＝手貼りは相談役の合図）＝**0196**（キオスクの便＝docs/tmp/0196_kiosk_person.sql sha16 91e387cabf51b8db・571 行・試走 27/27・DB 変更 0・handpaste_0196.md＝仮置き 10 点）／**0197**（裁定455＝docs/tmp/0197_punch_mode.sql sha16 f28f737489916c38・1,029 行・試走 19/19・DB 変更 0・handpaste_0197.md＝仮置き 5 点・順序＝0196 の後）。MIG_0196_APPLIED／MIG_0197_APPLIED は false の置き場だけ（lib/nox/rules-0175/flag.ts）。
 
 ### 0195 フラグ true 便の記録（2026-11-05・裁定453＝手貼り後の処置・0195＝日ごとの控除ルール＋M-73＋裁定447 ④＋M-77 ②③＋M-80 追記②＋裁定450 の 6）
 
@@ -8407,7 +8428,7 @@ anon-guard 段28 が無差別 `limit(1)` でそれを拾い 'bad amount'/BV=unde
 
 ## 次の番号（2026-11-05・0195 のフラグ true 便＝裁定453／454 を収載した時点）
 
-- **次の裁定＝456**（455＝打刻の 3 択目 punch_mode・実働＝確定シフト・遅刻／当欠控除＝精算調整の preset・スマホのレジの柵＋今日だけ許可・mig 0196＝キオスク／0197＝裁定455・454＝裁定451 ② の訂正・ACE の延長パターン・M-83・0196 のスコープ＝デモデータ便と 0196 の計画で適用・453＝0195 の手貼り後の処置＝収蔵→フラグ true 便・450＝0195 の仮置き 9 点（6 だけ RPC 側でも検証）・451＝デモデータ便（availability・ext_fee 平日通常）・452＝M-67 の残りはローンチ前「店が毎日触る画面」だけ＝M-82）。**次の M＝M-105**（M-104＝確定済みの明細に live のマスタ一覧を出さない＝便 D・M-103＝Agoora 確定＝その日に選ぶ控除は出勤時に聞く＝UI は便 D・保存は 0196・M-102＝LINE の URL は site 固定＝便 D・M-101＝LINE の送信数カード LineQuotaCard＝便 D・M-100＝提案中＝bot destination の自動取得と再送の捨て・M-99＝/staff の契約チップのコントラスト＝便 D の候補・M-95〜M-98＝Agoora 実機指摘（期間なしの割当・店が決める店の 2 段・はみ出し・売掛なしの日報）＝便 D の候補・M-94＝便 D＝/register を共通レイアウトへ・M-93＝欠番（キオスクの操作者一覧の読取は (a)＝0196 行き）・M-88〜M-92＝デモデータ便で実装（M-88 読取＝汎用・client だけ）・M-87＝不具合＝/mine 末尾の基本の働き方が本人に出ない＝memberships の本人読み→auth_membership_id・client だけ・M-85＝/mine 打刻枠の今日の確定シフト 1 行・M-86＝/mine ヘッダーに店名＝デモデータ便に同乗・M-84＝/login の「パスワードをお忘れの方」＝resetPasswordForEmail・デモデータ便に同乗・M-82＝裁定452 の M-67 の残り・M-83＝裁定454 の 4＝見積の「30 分あたり」＝デモデータ便に同乗・M-65〜M-81＝便 A／便 B／便 C① で実装・M-73／M-74 の DDL 分と M-77 ②③・M-80 追記②は 0195）。**次の教訓＝135**（134＝2026-11-05 採番＝deploy の検知は共有チャンクのハッシュ差・133＝操作ボタンは中央・日付／時刻は共通ピッカー）。**次の mig＝0196**（キオスク＝裁定448・453・§9・kiosk_operator_list・計画 docs/tmp/0196_plan.md＝便 D の push 後に起草）→ **0197**（裁定455＝punch_mode・on_duty_of・register_day_grants＝docs/tmp/0197_plan.md）。
+- **次の裁定＝456**（455＝打刻の 3 択目 punch_mode・実働＝確定シフト・遅刻／当欠控除＝精算調整の preset・スマホのレジの柵＋今日だけ許可・mig 0196＝キオスク／0197＝裁定455・454＝裁定451 ② の訂正・ACE の延長パターン・M-83・0196 のスコープ＝デモデータ便と 0196 の計画で適用・453＝0195 の手貼り後の処置＝収蔵→フラグ true 便・450＝0195 の仮置き 9 点（6 だけ RPC 側でも検証）・451＝デモデータ便（availability・ext_fee 平日通常）・452＝M-67 の残りはローンチ前「店が毎日触る画面」だけ＝M-82）。**次の M＝M-108**（M-107＝予約申請の人数＝ステッパー・M-106＝日ごとの行の折り返し・M-105＝キャスト画面のボタン中央＝便 D・M-104＝確定済みの明細に live のマスタ一覧を出さない＝便 D・M-103＝Agoora 確定＝その日に選ぶ控除は出勤時に聞く＝UI は便 D・保存は 0196・M-102＝LINE の URL は site 固定＝便 D・M-101＝LINE の送信数カード LineQuotaCard＝便 D・M-100＝提案中＝bot destination の自動取得と再送の捨て・M-99＝/staff の契約チップのコントラスト＝便 D の候補・M-95〜M-98＝Agoora 実機指摘（期間なしの割当・店が決める店の 2 段・はみ出し・売掛なしの日報）＝便 D の候補・M-94＝便 D＝/register を共通レイアウトへ・M-93＝欠番（キオスクの操作者一覧の読取は (a)＝0196 行き）・M-88〜M-92＝デモデータ便で実装（M-88 読取＝汎用・client だけ）・M-87＝不具合＝/mine 末尾の基本の働き方が本人に出ない＝memberships の本人読み→auth_membership_id・client だけ・M-85＝/mine 打刻枠の今日の確定シフト 1 行・M-86＝/mine ヘッダーに店名＝デモデータ便に同乗・M-84＝/login の「パスワードをお忘れの方」＝resetPasswordForEmail・デモデータ便に同乗・M-82＝裁定452 の M-67 の残り・M-83＝裁定454 の 4＝見積の「30 分あたり」＝デモデータ便に同乗・M-65〜M-81＝便 A／便 B／便 C① で実装・M-73／M-74 の DDL 分と M-77 ②③・M-80 追記②は 0195）。**次の教訓＝135**（134＝2026-11-05 採番＝deploy の検知は共有チャンクのハッシュ差・133＝操作ボタンは中央・日付／時刻は共通ピッカー）。**次の mig＝0196**（起草済み 2026-11-05 夜＝docs/tmp/0196_kiosk_person.sql sha16 91e387cabf51b8db・試走 27/27・handpaste_0196.md 仮置き 10 点＝手貼りは相談役の合図）→ **0197**（起草済み＝docs/tmp/0197_punch_mode.sql sha16 f28f737489916c38・試走 19/19・handpaste_0197.md 仮置き 5 点・順序＝0196 の後）。
 
 ## 次の番号（2026-11-04 午後・相談役 11/04 の確定と 434 ④・教訓132 を収載した時点）
 
