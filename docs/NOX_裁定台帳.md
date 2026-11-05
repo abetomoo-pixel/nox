@@ -5303,6 +5303,33 @@ CC の読取＝①分岐＝shift-board.tsx:2204 `if (periodNoneOf(ymd) && isMana
 出典＝相談役 11/05（「推奨で」の後・便 D）。適用＝便 D（デモデータ便の締めの後）。
 「通常ログインの /register をほかの画面と同じ共通レイアウト（左のアイコン列）に乗せる。レジでは列を既定で畳んだ状態（アイコンだけ）で開き、『≫』で広げられる。スマホ幅はほかの画面と同じハンバーガー。今のレジ専用のハンバーガーは外す。キオスクのレジ（端末セッション・本人セッションとも）は変えない（裁定448＝キャストにナビを出さない）。撮影＝PC 幅と 375 幅。」
 
+## 教訓134（2026-11-05 採番）本番 deploy の検知は webpack ランタイムのハッシュではなく共有チャンクのハッシュ差で見る
+
+出典＝相談役 11/05（デモデータ便の指示 4）。0195 のフラグ true 便で、push 後に /kiosk の `webpack-<hash>.js` が変わらず 27 分待った＝Vercel の deployment は GitHub の status で success・共有チャンク 1718／197 のハッシュは変わっていた。CLAUDE.md の verify 節に収載。
+
+## M-92（2026-11-05 受領・相談役・client・デモデータ便に同乗）基本の働き方＝店の定休日の曜日は「定休日」とだけ表示
+
+「基本の働き方（キャスト管理 › 基本／M-88 のスタッフ／M-87 の /mine の読取表）で、店の定休日の曜日は 可／相談／不可 の選択と時刻欄を出さず『定休日』とだけ表示（保存値は触らない・判定は定休日を優先＝不可扱い）。特別営業日は日の割当で個別に登録できる（不可と同じ『それでも登録』）。定休日が変わったら表示も追従（設定値を読むだけ）。verify に pin 1 行（ACE 日曜＝定休日の表示）。撮影＝あい の基本の働き方。」
+CC の処置＝AvailabilityEditor が store_business_hours.is_closed を読み、編集の行は「定休日（店の設定）」（data-avail-closed）・/mine の表は 1 セル（data-avail-self-closed）。判定＝割当モーダルは closed（定休日・特別営業日は isClosedForAdd）を従来どおり優先・まとめて追加のセルは「休」。pin＝verify:nox-m83（8-5）＋verify:nox-demo-lane（3-5＝ACE 日曜 is_closed）。
+
+## M-91（2026-11-05 受領・相談役・client・デモデータ便に同乗）割当モーダルの各行に基本の働き方（不可・相談・時刻の制限）
+
+「/shift 日の割当モーダル『＋ キャストを追加』の一覧に、その日の曜日の基本の働き方を各行に出す（M-65 と同じ見え方）＝『不可』赤／『相談』黄／時刻の制限があれば『23:00〜翌01:00』をバッジで（『シフトなし』の横）。不可でも『それでも登録』で登録できる（理由必須＝まとめて追加と同じ）。選んだときの初期時間は 希望の時間 → 基本の働き方の時刻 → 営業時間 の順。まとめて追加のカレンダー側も、時刻の制限がある曜日はセルに『23:00〜01:00』を出す。読取＝適用開始日 空で保存したときの availability_terms とシフト画面の判定。空＝保存日から有効 と扱うべき。撮影＝11/10（火）の割当モーダルで あい が『不可』、水曜に時刻制限を付けた見本 1 人。」
+CC の読取＝availability_terms.effective_from はシフト画面の判定（dayCastStateOf）で参照されない＝null でも値があっても常に有効（「空だと効かない」ではない）。処置＝保存時に空なら保存日（JST）を入れる（記録として残す・判定は不変）。M-91 の実装＝shift-board が from_min／to_min を読み availTimeByCast に・割当モーダルの各行にバッジ（data-day-add-avail-time）・不可は理由必須（確認ダイアログは撤去）・初期時間 initialSpanOf（希望→基本の働き方→営業時間→既定）・まとめて追加のセルに「23:00〜01:00」（data-day-avail-time）と entryFor の初期時間。
+
+## M-90（不具合・2026-11-05 受領・相談役・client・デモデータ便に同乗）給与 › 勤怠（スタッフ）の「働き方」の編集欄が「正社員・月給 ¥300,000」でも「時給」で額が空
+
+CC の読取＝不具合。staff_contracts.pay_kind の列の既定が 'hourly' で、旧データ（デモの 4 店の正社員）は hourly 0・fixed_allowance 300,000・monthly null のまま＝一覧の「月給 ¥300,000」は staffContractLineOf が hourly 0＋fixed_allowance>0 を月給と読むが、編集欄は pay_kind をそのまま信じて「時給」で開いていた。処置＝lib/nox/staff/work.ts effectivePayKindOf（pay_kind 'hourly' でも 時給 0・月額>0 は monthly・日額>0 は daily）を給与側 openContract と /staff の formOf の両方に。
+
+## M-89（2026-11-05 受領・相談役・client・デモデータ便に同乗）給与 › 勤怠（スタッフ）の「源泉と控除（給与）」の額の欄に ¥ 接頭辞
+
+「社会保険料・源泉所得税・住民税・その他を追加 の額の欄に ¥ 接頭辞（M-74 と同じ部品）。」処置＝Withholding432Panel の額の input を MoneyInput に（data-emp-ded-amount は包みの span に）。
+
+## M-88（2026-11-05 受領・相談役・デモデータ便に同乗）スタッフにもキャストと同じ「基本の働き方」
+
+「スタッフにもキャストと同じ基本の働き方（曜日×可／相談／不可・時刻・週の目安・適用開始日・メモ）を持たせ、入口はスタッフ編集モーダルの『働き方』の節（M-80）。スタッフのシフト作成（割当ピッカー・まとめて追加）で『不可』の曜日は赤で『不可』・相談は黄（M-65 と同じ）。まず読取＝availability／availability_terms がキャスト専用か subject 汎用かを 2 行で報告。」
+CC の読取＝**汎用**。availability／availability_terms は membership_id（user×store）が軸で cast_id はアカウント未発行のキャスト用の補助列。RPC availability_set(p_membership_id) は本人か owner／自店 manager＝org 内のどの membership でも書ける（casts の行が無くても通る＝雇用キャストの時刻制限だけ casts を見る）＝**client だけで進めた**（DDL なし）。処置＝StaffWorkSection に AvailabilityEditor（membershipId＝membership 軸・storeId は staff-board から）・スタッフの配置ピッカー（その日に配置＝StaffPlaceDayModal）の各行に 不可＝赤／相談＝黄（staff-shift-manage が availability を読む）。「スタッフから配置」（StaffPlaceByStaffModal＝カレンダー）は今回触っていない（次の便の候補）。
+
 ## M-87（不具合・2026-11-05 受領・相談役・デモデータ便に同乗）/mine 末尾の「基本の働き方」が本人に出ない（「アカウント未発行＝基本の働き方は設定できません」）
 
 出典＝相談役 11/05（前通の「読取してから」は取り消し＝直す）。適用＝デモデータ便。
@@ -5460,6 +5487,14 @@ Agoora が 7 本を手貼り（0185→0180→0181→0182→0183→0184→0186）
 4. M-83（client だけ・デモデータ便に同乗）：見積の各パターン見出しに「30 分あたり ¥X／人」の 1 文（extAmount×30÷extMin・ext-estimate.ts の純関数＋ext-estimate-table.tsx・verify:nox-m70 に pin 1 行）。
 5. キオスク退勤の「今日の控除」は 0196 のスコープに追加（打刻端末が当日の有効な per=day ルール名と既定を読める口＝kiosk_punch_state の拡張か kiosk 腕の RPC・cast_day_deductions_set の kiosk 腕は 0195 で済み）。0196_plan.md に 1 節足す。」
 CC の読取（2026-11-05・根拠）＝「適用中」＝checks.ext_rule_id（開卓時に pricing_resolve_core が曜日・時刻・席種で解決）→ 無ければ凍結値と一致する行 → is_default（extCurrentOf・extEstimatePatternsOf）。凍結メニュー＝ext_menu_build（その営業日の曜日・席種＝seat_kind null か一致の行を全部）。ACE の「VIP 延長」は seat_kind null（デモの定義「席種は限定しない」）＝VIP 席でも既定の平日通常が選ばれる＝仕様どおり（アプリの不具合ではない・payload の形）。単位は pricing_rules.duration_min＝パターンごと（stores.ext_min は行が無いときの既定）。本番 6 店の一覧は 11/05 の報告のとおり（ACE 60／13,000・30／9,000・30／4,000／LUNA／NOIR＝VIP 行は seat_kind VIP／LILY／MUSE／NEST なし）。0196_plan.md §9 に「キオスク退勤の今日の控除」を追加（2026-11-05）。
+
+### デモデータ便の記録（2026-11-05・裁定451 ①／454 の 1〜4／M-83〜M-92・client＋gen-demo＋seed の hook・DB の DDL／データは触らない）
+
+- **gen-demo**（scripts/demo/profiles.mjs／gen-demo.mjs → docs/demo/payload）＝ACE の延長パターン 3 本（平日通常 延長 60 分 60／13,000 既定・VIP 延長 60／18,000 seat_kind VIP・週末通常 延長 60／15,000＝extra で元データの 4,000／30 を置き換え）・stores.ext_fee＝60／13,000・凍結メニューは席種の行だけ（ext_menu_build と同じ）・開栓済みは店の既定（卓 13,000／60・VIP 席 18,000／60）。ext_rule_id は payload に載せられない（c_load は checks が pricing_rules より先）＝reset 後の hook で置く。
+- **seed.ts の hook**（afterResetHooks → demoLaneHooksFor）＝availability／availability_terms は c_load に無い表＝admin で店ごとに delete → insert（ひなの＝金 不可・他 可 20:00〜翌01:00・週 5／あい＝cast_id の行・月 不可／ほかの 5 店＝代表 1 人 水 相談・週 4）・ACE の VIP 席の開栓済み伝票＝ext_rule_id を VIP 延長に（ext_fee／ext_min も）。失敗は lane.reason に残し reset は止めない。
+- **client**＝M-83（見積の「30 分あたり ¥X／人」）／M-84（/login「パスワードをお忘れの方」→ /auth/forgot＝resetPasswordForEmail・文言は入力の有無で同じ）／M-85（/mine 打刻枠の今日の確定シフトの 1 行・15 分単位）／M-86（/mine ヘッダー「CLUB ACE ・ ひなの｜キャスト」）／M-87（本人は auth_membership_id() で解く＝availability-editor／wish-form／staff/me の 3 か所・/mine は読取専用の表・「アカウント未発行」の分岐は本人画面から外す）／M-88（スタッフの基本の働き方＝client だけ）／M-89（¥）／M-90（effectivePayKindOf）／M-91（割当モーダルの不可・相談・時刻の制限・理由必須・初期時間・まとめて追加のセル）／M-92（定休日）。memberships を本人が読めない前提の同じ引き方（client の from("memberships") で自分の行を期待）＝3 か所（availability-editor／wish-form／staff-work-panel scope me）＝すべて直した。
+- **verify**＝verify:nox-m83（純関数＋payload＋pin・23）を f0 の末尾へ（175→**176 段**）・verify:nox-demo-lane（live のデモ行＝reset 後に単走・f0 には入れない）。check-demo＝89 段・NG 19（従来の NG 5 の系＝パッケージ側の不一致・在庫と X-13c の件数＝本便と無関係＝docs/demo/check_20261105.md）。
+- **f0**＝176 段 7,240（記録の数え方・docs/tmp/f0_1105_e.log）／176 段 7,240（f0_1105_f.log） の 2 連緑（golden 5931／125802 不変）・tsc 0・lint Error 0・push 321f538（便）→ Vercel build failure（07:55Z＝/auth/forgot の page から定数を export していた＝App Router の page の export 制約・ローカル tsc では出ない）→ 901cbc3（定数を lib/nox/auth/forgot.ts へ・直した後のローカル next build 緑・直す前の再現はしていない）→ Vercel success 08:18Z・/login の page チャンク差で確認・6 店 reset＝17:19 JST 6/6 ok（wipe+load・hook＝availability／VIP-1）・verify:nox-demo-lane＝9/9 緑（ACE 延長 3 本 60 分・VIP-1 ext_rule_id＝VIP 延長 18,000／60・A3 13,000／60・ひなの 7 行＋週 5・あい cast_id 7 行・5 店 代表 水 相談・ACE 日曜 定休）。
 
 ### 0195 フラグ true 便の記録（2026-11-05・裁定453＝手貼り後の処置・0195＝日ごとの控除ルール＋M-73＋裁定447 ④＋M-77 ②③＋M-80 追記②＋裁定450 の 6）
 
@@ -8337,7 +8372,7 @@ anon-guard 段28 が無差別 `limit(1)` でそれを拾い 'bad amount'/BV=unde
 
 ## 次の番号（2026-11-05・0195 のフラグ true 便＝裁定453／454 を収載した時点）
 
-- **次の裁定＝455**（454＝裁定451 ② の訂正・ACE の延長パターン・M-83・0196 のスコープ＝デモデータ便と 0196 の計画で適用・453＝0195 の手貼り後の処置＝収蔵→フラグ true 便・450＝0195 の仮置き 9 点（6 だけ RPC 側でも検証）・451＝デモデータ便（availability・ext_fee 平日通常）・452＝M-67 の残りはローンチ前「店が毎日触る画面」だけ＝M-82）。**次の M＝M-88**（M-87＝不具合＝/mine 末尾の基本の働き方が本人に出ない＝memberships の本人読み→auth_membership_id・client だけ・M-85＝/mine 打刻枠の今日の確定シフト 1 行・M-86＝/mine ヘッダーに店名＝デモデータ便に同乗・M-84＝/login の「パスワードをお忘れの方」＝resetPasswordForEmail・デモデータ便に同乗・M-82＝裁定452 の M-67 の残り・M-83＝裁定454 の 4＝見積の「30 分あたり」＝デモデータ便に同乗・M-65〜M-81＝便 A／便 B／便 C① で実装・M-73／M-74 の DDL 分と M-77 ②③・M-80 追記②は 0195）。**次の教訓＝134**（133＝操作ボタンは中央・日付／時刻は共通ピッカー）。**次の mig＝0196**（0195＝2026-11-05 Agoora 手貼り・verify 21 行一致・収蔵 f492c77・フラグ true 便 済み。0196＝計画 docs/tmp/0196_plan.md・確認 4 点＝§6 待ち）。
+- **次の裁定＝455**（454＝裁定451 ② の訂正・ACE の延長パターン・M-83・0196 のスコープ＝デモデータ便と 0196 の計画で適用・453＝0195 の手貼り後の処置＝収蔵→フラグ true 便・450＝0195 の仮置き 9 点（6 だけ RPC 側でも検証）・451＝デモデータ便（availability・ext_fee 平日通常）・452＝M-67 の残りはローンチ前「店が毎日触る画面」だけ＝M-82）。**次の M＝M-102**（M-101＝LINE の送信数カード LineQuotaCard＝便 D・M-100＝提案中＝bot destination の自動取得と再送の捨て・M-99＝/staff の契約チップのコントラスト＝便 D の候補・M-95〜M-98＝Agoora 実機指摘（期間なしの割当・店が決める店の 2 段・はみ出し・売掛なしの日報）＝便 D の候補・M-94＝便 D＝/register を共通レイアウトへ・M-93＝欠番（キオスクの操作者一覧の読取は (a)＝0196 行き）・M-88〜M-92＝デモデータ便で実装（M-88 読取＝汎用・client だけ）・M-87＝不具合＝/mine 末尾の基本の働き方が本人に出ない＝memberships の本人読み→auth_membership_id・client だけ・M-85＝/mine 打刻枠の今日の確定シフト 1 行・M-86＝/mine ヘッダーに店名＝デモデータ便に同乗・M-84＝/login の「パスワードをお忘れの方」＝resetPasswordForEmail・デモデータ便に同乗・M-82＝裁定452 の M-67 の残り・M-83＝裁定454 の 4＝見積の「30 分あたり」＝デモデータ便に同乗・M-65〜M-81＝便 A／便 B／便 C① で実装・M-73／M-74 の DDL 分と M-77 ②③・M-80 追記②は 0195）。**次の教訓＝135**（134＝2026-11-05 採番＝deploy の検知は共有チャンクのハッシュ差・133＝操作ボタンは中央・日付／時刻は共通ピッカー）。**次の mig＝0196**（0195＝2026-11-05 Agoora 手貼り・verify 21 行一致・収蔵 f492c77・フラグ true 便 済み。0196＝計画 docs/tmp/0196_plan.md・確認 4 点＝§6 待ち）。
 
 ## 次の番号（2026-11-04 午後・相談役 11/04 の確定と 434 ④・教訓132 を収載した時点）
 

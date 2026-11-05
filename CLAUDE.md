@@ -78,6 +78,8 @@
   （「public 全体で authenticated=SELECT のみ」のスキーマ全体ガード＝テーブルが増えても自動回帰）。
 - **f0 を途中で止めたら、次の f0 の前に NOX-VERIFY の残留を見る（教訓123）**：止めた suite の finally（掃除）は走らず行が残り、次の f0 で別の suite が件数違いで赤になる（2026-10-27 anon-guard 段24 の顧客 2 行）。参照 0 を確かめてから消す。
 - **プロセスを止めるときは語（"verify" 等）で絞らない（教訓124）**：コマンドラインに NOX の repo のパス（C:\Users\abet\Dropbox\cloude\nox）を含むものだけに絞る（BANZEN＝makanai-shift など別 repo の verify が並走している前提）。照合用のコマンドに `npm run` の本物を書かない（`--dry-run` は npm script に渡らず本物が走る）。
+- **本番 deploy の検知は共有チャンクのハッシュ差で見る（教訓134・2026-11-05）**：Next の webpack ランタイム（`/_next/static/chunks/webpack-<hash>.js`）はビルドをまたいで同じ名前になることがあり（0195 便で実証）、変わらなくても deploy は済んでいる。本番 HTML のチャンク一覧（`/_next/static/chunks/…`）を push 前後で比べ、共有チャンク（例 1718-／197-）か該当ページのチャンクのハッシュ差で判定する。GitHub の commit status（Vercel success）も併用。
+- **f0 の基準線は「記録の数え方」1 本（裁定455 前の指示・2026-11-05）**：段数＝verify:f0 の chain の suite 数（package.json の `npm run verify:` の数）・件数＝各 suite の最終行の件数の和（docs/tmp/f0_count.cjs の本数）。f0_count.cjs の「段数」は件数を印字しない suite（5 本）を数えないため 5 少なく出る＝報告に併記しない。
 - **`seed:f0` は dev 専用・本番環境では実行しない**（verify 用 org/ユーザー NOX-VERIFY-* を nox-dev に常設）。
 
 ## コミット規約
