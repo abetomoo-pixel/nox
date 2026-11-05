@@ -68,7 +68,7 @@ check("m72(7-1) 延長の付け方＝必須の 2 択（既定なし・未選択�
   && v5TimeModeOf(S, ctx) === "manual" && timeOf({ ...S, timeMode: "auto" }, ctx).p_time_mode === "auto" && TIME_MODE_LABEL.auto === "自動"
   && sw.includes("disabled={(S.step === 0 && !type) || (S.step === 2 && !S.timeMode)}") && sw.includes('data-setup-time-mode={S.timeMode ?? "none"}') && sw.includes("自動＝時計が延長を決めます") && sw.includes("手動＝お客様に確認してから") && sw.includes('["延長", S.timeMode ? TIME_MODE_LABEL[S.timeMode] : "未選択"]'));
 // ── M-74
-check("m74(8-1) 控除ルール一覧＝単位を日本語（日ごと／月ごと／売上の%）・額に ¥ と桁区切り（売上の% は %）", J(DED_PER_JA) === J({ day: "日ごと", month: "月ごと", rate: "売上の%" }) && src("app/(manage)/master/cast-comp/comp-sections.tsx").includes("<td>{DED_PER_JA[d.per] ?? d.per}</td>") && src("app/(manage)/master/cast-comp/comp-sections.tsx").includes("`¥${Number(d.amount).toLocaleString(\"en-US\")}`"));
+check("m74(8-1) 控除ルール一覧＝単位を日本語（日ごと／月ごと／売上の%）・額に ¥ と桁区切り（売上の% は %）", J(DED_PER_JA) === J({ day: "日ごと", month: "月ごと", rate: "売上の%", pay_rate: "報酬の%" }) /* ★0195（M-73）: pay_rate */ && src("app/(manage)/master/cast-comp/comp-sections.tsx").includes("<td data-ded-unit={d.per}>{mig0195On() ? dedUnitLabelOf(d.per, d.day_rule) : (DED_PER_JA[d.per] ?? d.per)}</td>") /* ★0195: 日ごとは既定も */ && src("app/(manage)/master/cast-comp/comp-sections.tsx").includes("`¥${Number(d.amount).toLocaleString(\"en-US\")}`"));
 // ── M-75
 check("m75(9-1) 日タブの追加配置＝対象は選択中の日（todayDate）・ラベル「＋ 当日追加配置」／「＋ 11/8 に追加配置」・題名と説明も選択日・定休日（特別営業日でない／臨時休業）はボタンを出さず 1 行・追加後は選択日の表に即反映",
   sb.includes("isClosedForAdd(todayDate)") && sb.includes('data-today-add-closed={todayDate}>定休日（特別営業日にすると配置できます）</span>') && sb.includes('todayDate === bizToday ? "＋ 当日追加配置" : `＋ ${Number(todayDate.slice(5, 7))}/${Number(todayDate.slice(8, 10))} に追加配置`')

@@ -349,6 +349,12 @@ kiosk_provision（新規 kiosk の追加＝拡大操作）
 - 0193 ★3 肩書: set_membership_title
 （対象 195→**198**・live 実測＝'billing locked' **198**・述語参照 199・挿入行の形 198。0193 の改稿 12 本（プリンタ 3・端末 3・staff_attendance_confirm・get_cast_sensitive・get_cast_mynumber_masked・set_membership_role・staff_deactivate・staff_punch）は名前不変で本数不変）
 
+### A17. 0195（3本・2026-11-05 本番適用（Agoora 手貼り・本文 1 回 Run・verify 21 行一致）・0195 のフラグ true 便で収載・規則A形でゲート内蔵・cast_day_deductions_set は kiosk 腕あり＝v_org 直渡し）
+- 0195 ★2 日ごとの控除（裁定447 差し替え版）: cast_day_deductions_set（その日の控除の on／off＝管理者／自店の店長／kiosk 腕＝操作担当あり）
+- 0195 ★3 キャスト別の適用（裁定447 ④）: deduction_rule_cast_set（使う／使わない・額の上書き）
+- 0195 ★5 固定手当の複数行（M-80 追記②）: staff_allowances_set（全行置換・管理者＝org 内／自店の店長＝staff）
+（対象 198→**201**・live 実測＝'billing locked' **201**・述語参照 202・挿入行の形 201。0195 の作り直し 2 本（set_deduction＝10 引数・staff_attendance_confirm＝±0）は名前不変で本数不変）
+
 ## B. 除外（99本）
 
 ### B(a) 構造除外＝authenticated 実行不可（service/内部・28本）→ ゲート不要（B7 回避型(1)）
@@ -529,6 +535,12 @@ staff_deactivate / kiosk_deactivate
 ### B(v). 0194 新設の除外（1本・2026-11-04・0194 のフラグ true 便で収載）
 - 読取 RPC（B(f) と同列・裁定445 ③＝読取だけ）: kiosk_stock_levels（キオスクの在庫タイル＝端末の店・操作担当の解除あり・track_stock の品の在庫＝stock_logs の合計）
 （除外 211→**212**・全数 409→**410**（0194 ＋1＝B 1・A ±0＝staff_attendance_confirm は 4 引数に作り直し（対象のまま）・kiosk_provision／kiosk_delete／set_store_receipt_profile／staff_payroll_run_set_status／set_membership_role も対象のまま））
+
+### B(w). 0195 新設の除外（3本・2026-11-05・0195 のフラグ true 便で収載）
+- 読取 RPC（B(f) と同列）: deduction_rule_casts_get（店のキャスト別の適用の一覧＝管理者／自店の店長・スタッフ・STABLE 相当の読取）
+- 構造除外（B(a) と同列＝service_role だけ・authenticated 実行不可）: line_link_block（LINE の unfollow＝Webhook が blocked_at を立てる・戻り＝更新行数）
+- 非ゲート書込（B(m) と同列＝紐付けの解除は事実記録・課金の柵は置かない）: line_link_remove（管理者／自店の店長・line_links を delete・audit）
+（除外 212→**215**・全数 410→**416**（0195 ＋6＝A 3・B 3））
 
 ## C. kiosk 腕を持つ対象（実装注意・18本）
 A1 の check_open / check_add_line / check_remove_line / check_add_seat / check_remove_seat /
