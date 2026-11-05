@@ -5420,6 +5420,16 @@ Agoora が 7 本を手貼り（0185→0180→0181→0182→0183→0184→0186）
 5. キオスク退勤の「今日の控除」は 0196 のスコープに追加（打刻端末が当日の有効な per=day ルール名と既定を読める口＝kiosk_punch_state の拡張か kiosk 腕の RPC・cast_day_deductions_set の kiosk 腕は 0195 で済み）。0196_plan.md に 1 節足す。」
 CC の読取（2026-11-05・根拠）＝「適用中」＝checks.ext_rule_id（開卓時に pricing_resolve_core が曜日・時刻・席種で解決）→ 無ければ凍結値と一致する行 → is_default（extCurrentOf・extEstimatePatternsOf）。凍結メニュー＝ext_menu_build（その営業日の曜日・席種＝seat_kind null か一致の行を全部）。ACE の「VIP 延長」は seat_kind null（デモの定義「席種は限定しない」）＝VIP 席でも既定の平日通常が選ばれる＝仕様どおり（アプリの不具合ではない・payload の形）。単位は pricing_rules.duration_min＝パターンごと（stores.ext_min は行が無いときの既定）。本番 6 店の一覧は 11/05 の報告のとおり（ACE 60／13,000・30／9,000・30／4,000／LUNA／NOIR＝VIP 行は seat_kind VIP／LILY／MUSE／NEST なし）。0196_plan.md §9 に「キオスク退勤の今日の控除」を追加（2026-11-05）。
 
+### 0195 フラグ true 便の記録（2026-11-05・裁定453＝手貼り後の処置・0195＝日ごとの控除ルール＋M-73＋裁定447 ④＋M-77 ②③＋M-80 追記②＋裁定450 の 6）
+
+- **手貼りの突合**（読取だけ）＝verify 21 行（貼り先証明を含む）が期待値と全行一致・本番の set_deduction 8b319af5／staff_attendance_confirm 3fea3e3f＝0195_day_deductions.sql（90ed3a2656aed407）の本体の md5 と一致・新設 3 表の行 0。収蔵 f492c77・MIG_0195_APPLIED=true・handpaste_0195.md に手貼りの記録（事前確認が後になった旨）。
+- **client ①**（cb5c3a1）＝/staff の固定手当を名称つきの複数行（staff_allowances_set・1 本の額は「固定手当」の行に移し fixed_allowance は 0）・見込み staffPayOf と月報の日割り＝fixed_allowance＋Σ 行・月の確定 staffLaborRowOf は allowances（Σ＝fixed）を送り calc_version を上げる。
+- **client ②**（7bd09be）＝控除マスタ（単位 4・種別 2 択 実費／その他・日ごとの既定 always／pick・set_deduction 10 引数・「対象」列）／給与の計算（キャスト別の適用 → run 別 → 日ごとの引く日数 dayCount・pay_rate の分母 gross・golden 不変）／日計の「控除」列（kintai-sheet＝給与と同じ式・KINTAI_PAY_HEADS 5・月のまとめ「固定」→「月額控除」）／勤怠の修正モーダル「この日の控除」（cast_day_deductions_set）／キャスト詳細「控除」の節（deduction_rule_cast_set）／便 C②③＝LINE（push は blocked_at null だけ・Webhook unfollow→line_link_block・bind で解除・キャスト詳細に「LINE ブロック中」と「紐付けを解除」）。
+- **作らなかったもの**＝キオスクの退勤の「今日の控除」（0195_plan §2）。deductions の RLS は org だけ・kiosk_punch_state はルールを返さない＝打刻端末がルール名を読めない（DB の読み口が要る＝0196 候補＝kiosk_punch_state に day rules を足すか別 RPC）。cast_day_deductions_set の kiosk 腕は RPC 側に入っている。
+- **verify**＝verify:nox-0195 新設（30＝フラグ／純関数／live 読取／BEGIN…ROLLBACK＝DB 変更 0／client の pin）＝f0 174→**175 段**。pin 張替え＝関数 416・表 119（0194c／0188／0190／p172／0158）・gated 201（billing 5 か所）・G31 25→26／27→28・c2 の日計 5 列・m74 の単位 pay_rate・名簿 A17（3）／B(w)（3）＝全数 416。単走の billing 段47-3（shift_wish_submit period_not_open）は教訓125 の順序依存（cron が 7 月の期間を閉じ・f0 では rls が先に開け直す）。
+- **f0**＝1 本目は messages で赤（rpc-err の 'bad cast' を重複して足した＝93b3fee で除去）→ **170 段 7,217（f0_count.cjs・記録の数え方では 175 段）／170 段 7,217（docs/tmp/f0_1105_b.log／f0_1105_c.log・1 本目の走りは messages で赤→93b3fee） の 2 連緑**（golden 5931／125802 不変）。tsc 0・lint Error 0。
+- commit＝f492c77／cb5c3a1／7bd09be／7553e37／93b3fee＋docs（本コミット）・push bc01aea（code・2026-11-05 15:0x JST）＋docs a84cf32／3e7399e・Vercel の deployment は GitHub の status で success（06:28:30Z／06:32:16Z）・本番の共有チャンク 1718／197 のハッシュが変わったのを確認（webpack ランタイムのハッシュは不変＝検知には使えない）・6 店 reset＝15:34 JST 6/6 ok（muse／luna／noir／ace／lily／nest＝200・wipe+load・chunks 3〜5・4〜5 秒）。
+
 ## 裁定453（2026-11-05 確定・相談役）0195 は本番に適用済み（事前確認が後になった）＝verify 22 行の突合と md5 照合が OK なら前の指示どおり収蔵→フラグ true 便（＋便 C②③）→ f0 2 連 → push → 6 店 reset
 
 出典＝相談役 11/05（Agoora の手貼りの直後・新チャット）。適用＝0195 のフラグ true 便（2026-11-05）。
