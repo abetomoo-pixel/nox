@@ -8,6 +8,7 @@
 //   出勤/退勤 大ボタン → 結果表示（ok=名前+時刻／wrong_pin=残回数非表示でシンプル／locked=解除時刻）→
 //   数秒で name-select へ自動復帰。
 import { useCallback, useEffect, useRef, useState } from "react";
+import { PUNCH_STORE_OFF_NOTE } from "@/lib/nox/shift/punch-mode"; // ★便 E（0197 用）
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 
@@ -24,7 +25,8 @@ import { KIOSK_FEATURE_READY } from "@/lib/nox/rules-0175/kiosk"; // ★0190（�
 import CastAvatar from "@/components/ui/cast-avatar"; // ★便 M5 M-42: 写真＝本体画面と同じ部品（url は /api/kiosk/photos の署名 URL）
 import { KIOSK_FEATURE_HREF, KIOSK_FEATURE_LABEL, type KioskFeature } from "@/lib/nox/rules-0175/kiosk"; // ★追補 2 同乗 R-7（裁定423 候補）
 import { KIOSK_PERSON_LINK } from "@/lib/nox/kiosk/person-login"; // ★便 M5 M-49: 本人でログイン（店長以上）
-import { startKioskPersonLogin } from "@/lib/nox/kiosk/person-login-client"; // ★便 M5 M-49: 端末のセッションを控えて /login?kiosk=1
+import { startKioskPersonLogin } from "@/lib/nox/kiosk/person-login-client";
+import KioskPersonEntry from "@/components/nox/kiosk-person-entry"; // ★便 E（0196 用）: スタッフでログイン（PIN） // ★便 M5 M-49: 端末のセッションを控えて /login?kiosk=1
 type KRow = { cast_id: string; cast_name: string; has_pin: boolean; staff?: boolean }; // ★便 P174 T-6（355）: staff＝true は cast_id に membership_id（スタッフ群）
 type SRow = { membership_id: string; user_name: string; role: string; has_pin: boolean; last_kind: string | null; last_at: string | null }; // ★便 P174 T-6: kiosk_staff_list（0174 ★5）
 type Phase = "loading" | "login" | "denied" | "select" | "pin" | "okuri" | "dayded" | "result"; // ★便 D M-103: dayded＝出勤時の「今日の控除」（0196 まで出ない）
@@ -63,7 +65,8 @@ export default function KioskPage() {
   const [okuriPlan, setOkuriPlan] = useState<OkuriSelfPlan | null>(null);
   const [dayDed, setDayDed] = useState<DayDedPickRule[]>([]); // ★便 D M-103: その店の pick ルール（kiosk_punch_state の day_rules＝0196）
   const [dayDedOn, setDayDedOn] = useState<Record<string, boolean>>({});
-  const [castPunchOff, setCastPunchOff] = useState(false); // ★便 X13-G W-23 ①: キャストの打刻を使わない店＝キャスト群を出さない（スタッフ群は今のまま）
+  const [castPunchOff, setCastPunchOff] = useState(false);
+  const [storePunchOff, setStorePunchOff] = useState(false); // ★便 E（0197 用＝裁定455）: punch_mode='store'＝キャストもスタッフも打刻しない（店が勤怠を付ける） // ★便 X13-G W-23 ①: キャストの打刻を使わない店＝キャスト群を出さない（スタッフ群は今のまま）
   const [bindMsg, setBindMsg] = useState<string | null>(null); // ★0190: 端末の束縛（'device bound'＝別の端末に固定済み→denied）
   const [photoUrls, setPhotoUrls] = useState<{ casts: Record<string, string>; operators: Record<string, string> }>({ casts: {}, operators: {} }); // ★便 M5 M-42: 端末は署名できない（auth_org_id null）＝route が admin で署名
 
@@ -89,7 +92,7 @@ export default function KioskPage() {
     const { data: sd, error: se } = await supabase.rpc("kiosk_staff_list");
     setStaffs(se ? [] : ((sd ?? []) as SRow[]));
     void fetch("/api/kiosk/photos").then((r) => (r.ok ? r.json() : null)).then((j) => { if (j && j.casts) setPhotoUrls({ casts: j.casts ?? {}, operators: j.operators ?? {} }); }).catch(() => undefined); // ★便 M5 M-42: 失敗は頭文字のまま
-    void fetch("/api/kiosk/punch-methods").then((r) => (r.ok ? r.json() : null)).then((j) => { if (j && j.castPunchOff === true) { setCastPunchOff(true); setGroup("staff"); } if (rules0175On() && j && Array.isArray(j.tiles)) setKioskTiles(j.tiles as KioskFeature[]); }).catch(() => {}); // ★追補 2 同乗 R-7: タイル（フラグ true）
+    void fetch("/api/kiosk/punch-methods").then((r) => (r.ok ? r.json() : null)).then((j) => { if (j && j.castPunchOff === true) { setCastPunchOff(true); setGroup("staff"); } if (j && j.punchMode === "store") setStorePunchOff(true); /* ★便 E（0197） */ if (rules0175On() && j && Array.isArray(j.tiles)) setKioskTiles(j.tiles as KioskFeature[]); }).catch(() => {}); // ★追補 2 同乗 R-7: タイル（フラグ true）
     return true;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -267,14 +270,15 @@ export default function KioskPage() {
             </p>
             {/* ★便 M5 M-49（2026-10-30）: 本人でログイン＝店長以上がパスワードで本体画面を開く入口（タイルの構成＝裁定435 の 5 タイルは変えない・小さな文字リンク）。
                 開いた本体画面は無操作 N 分（店設定 kiosk_person_idle_minutes・既定 10）で自動ログアウト→端末のセッションを復元してこの画面へ戻る（KioskPersonGuard） */}
+            {mig0196On() ? <KioskPersonEntry /> : (/* ★便 E（0196 用＝裁定448 B 方式）: PIN の入口（フラグ false の間は M-49 のパスワードの入口のまま） */
             <p style={{ textAlign: "center", margin: "0 0 14px" }}>
               <button type="button" data-kiosk-person-login="1" onClick={() => void startKioskPersonLogin(supabase)}
                 style={{ background: "none", border: "none", padding: 0, fontFamily: "inherit", fontSize: 12.5, color: "var(--sub)", textDecoration: "underline", cursor: "pointer" }}>{KIOSK_PERSON_LINK}</button>
-            </p>
+            </p>)}
             {castPunchOff && (
-              <p data-kiosk-cast-off="1" style={{ textAlign: "center", fontSize: 13, color: "var(--sub)", margin: "0 0 12px" }}>この店ではキャストの出勤・退勤は店が記録します（キャストの打刻はありません）</p>
+              <p data-kiosk-cast-off="1" data-kiosk-store-off={storePunchOff ? "1" : undefined} style={{ textAlign: "center", fontSize: 13, color: "var(--sub)", margin: "0 0 12px" }}>{storePunchOff ? PUNCH_STORE_OFF_NOTE : "この店ではキャストの出勤・退勤は店が記録します（キャストの打刻はありません）"}</p>
             )}
-            {staffs.length > 0 && (/* ★便 P174 T-6（355）: キャスト群／スタッフ群の 2 段（スタッフがいる店だけ） */
+            {!storePunchOff && staffs.length > 0 && (/* ★便 E（0197）: 打刻しない店はスタッフ群も出さない */ /* ★便 P174 T-6（355）: キャスト群／スタッフ群の 2 段（スタッフがいる店だけ） */
               <div role="tablist" aria-label="打刻する人" data-kiosk-group={group} style={{ display: "flex", gap: 8, justifyContent: "center", margin: "0 0 14px" }}>
                 {([["cast", "キャスト"], ["staff", "スタッフ"]] as const).filter(([k]) => !(castPunchOff && k === "cast")).map(([k, label]) => (
                   <button key={k} role="tab" aria-selected={group === k} onClick={() => setGroup(k)}
@@ -282,7 +286,7 @@ export default function KioskPage() {
                 ))}
               </div>
             )}
-            {group === "staff" && staffs.length > 0 ? (
+            {!storePunchOff && group === "staff" && staffs.length > 0 ? (
               <div className="nox-kioskgrid" data-kiosk-grid="staff">
                 {staffs.map((m) => (
                   <button key={m.membership_id} onClick={() => pick({ cast_id: m.membership_id, cast_name: m.user_name, has_pin: m.has_pin, staff: true })} disabled={!m.has_pin}

@@ -5,6 +5,7 @@
 // 対象 cast（裁定C）= get_cast_sales の cast ∪ 窓内 punches の cast（is_active 不問・稼働ゼロは除外）。
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { punchModeOf } from "../shift/punch-mode"; // ★便 E（0197 用）
 import { wageCutRuleOf } from "@/lib/nox/store-systems"; // ★便 SH-UI-a A-1
 import { okuriDeductOf } from "@/lib/nox/shift/okuri-mode"; // ★裁定414（S-4 ③）: 店負担は控除しない
 import { periodCalendarDays, type PayrollWindow } from "./window";
@@ -16,7 +17,7 @@ import { calcPeriodOf } from "./assemble"; // ★0154 D6
 import { baseOverrideOf } from "./base-override"; // ★便 P174 T-5（R-11 (d)）
 import { attendanceWithDohanOf } from "@/lib/nox/shift/dohan-mark"; // ★便 PR-1 R-4（裁定417）: 同伴の正本＝伝票
 import { payTimeBasisOf } from "./time-basis"; // ★裁定324（便 L-2-3）
-import { mig0183On, rules0175On } from "@/lib/nox/rules-0175/flag"; // ★便 P175-prep: 0175 v2 の列・表を読むのはフラグ true のときだけ（false＝従来と 1 バイト同値）
+import { mig0183On, mig0197On, rules0175On } from "@/lib/nox/rules-0175/flag"; // ★便 P175-prep: 0175 v2 の列・表を読むのはフラグ true のときだけ（false＝従来と 1 バイト同値）
 import { loadCanonCtx, loadCastMeta0175, loadRateHistory, loadRules0175Store } from "./rules-0175-collect"; // ★便 P175-prep P-1／P-5
 import type { ShortfallDay } from "./shortfall"; // ★裁定324-3（便 L-2-4）: 不就労控除の入力（営業日ごとの確定シフト×打刻）: 勤務時間の計算基準（store 設定・期の初日で解決）
 /** ★0154 D2: 'HH:MM'（0-47 域）→ 分（shift-time.hm2min と同式・collect 内で閉じる） */
@@ -357,7 +358,7 @@ async function loadShimeiAmounts(admin: SupabaseClient, storeId: string, win: Pa
 // export: /api/mine/norm-progress が同一定義（final∈{ok,late}）で days を再利用（SQL 再実装しない＝定義乖離防止）。
 //   cast セッションの client を渡すと RLS パターン1 で自分の行のみ＝self スコープに自然に縮む。
 export async function loadPunch(admin: SupabaseClient, storeId: string, win: PayrollWindow, grace: { lateGrace?: number; earlyGrace?: number; overGrace?: number }) {
-  const [shiftsR, attR, punchR, dohanR] = await Promise.all([
+  const [shiftsR, attR, punchR, dohanR, stR] = await Promise.all([
     // ★SD-4（2026-08-21・設計書 §1）: 給与分母は confirmed のみ＝この .eq は不変。
     //   mig0101 で status が 3値化（planned→proposed→confirmed）されたが、中間 status（proposed）は
     //   キャスト確認待ちの未確定＝給与の出勤分母に数えない。ここを広げる変更は SD-4 の再裁定が要る。
@@ -366,6 +367,7 @@ export async function loadPunch(admin: SupabaseClient, storeId: string, win: Pay
     admin.from("punches").select("cast_id, punched_at, type").eq("store_id", storeId).gte("punched_at", win.startTs).lt("punched_at", win.endTs),
     // ★便 PR-1 R-4（裁定417）: 同伴の正本＝伝票（check_nominations.is_dohan・void 除く・窓は drink_claims と同じ checks!inner started_at [startTs, endTs)）→ 営業日に同伴があれば遅刻免除（applyAttendance の dohan）
     admin.from("check_nominations").select("cast_id, checks!inner(started_at, status, store_id)").eq("is_dohan", true).eq("checks.store_id", storeId).neq("checks.status", "void").gte("checks.started_at", win.startTs).lt("checks.started_at", win.endTs),
+    mig0197On() ? admin.from("stores").select("settings_json").eq("id", storeId).maybeSingle() : Promise.resolve({ data: null as { settings_json?: unknown } | null }), // ★便 E（0197 用）: punch_mode（フラグ false＝読まない）
   ]);
   for (const r of [shiftsR, attR, punchR, dohanR]) if (r.error) throw new Error(`打刻: ${r.error.message}`);
   const byCast = new Map<string, { shifts: ShiftRow[]; shiftIds: Map<string, string>; att: AttendanceRow[]; punches: PunchRow[] }>();
@@ -397,7 +399,7 @@ export async function loadPunch(admin: SupabaseClient, storeId: string, win: Pay
     let anomalyCount = 0;
     const missingOutDates: string[] = []; // ★N3 AV-4: 退勤の記録が無い勤務（in はあり out が無い営業日・表示のみ）
     // ★裁定342（便 P169）: 日数・遅刻・当欠は営業日の今日までの日だけ（未来日の確定シフトは数えない＝純関数 punchCountsUpToOf・旧 m.lateN／m.absentN は未来日を含んでいた）
-    const { days, lateN, absentN } = punchCountsUpToOf(m.days.map((d) => ({ bizDate: d.bizDate, finalType: d.final.type })), todayBiz);
+    let { days, lateN, absentN } = punchCountsUpToOf(m.days.map((d) => ({ bizDate: d.bizDate, finalType: d.final.type })), todayBiz); // ★便 E（0197）: 打刻しない店は下で上書き（let）
     // ★0154 D2: 確定シフトの時間（日別・shift_guarantee 用）と出勤区分（shukkin／late／dohan）の回数（per_shift 用）
     //   ★裁定342: 'shift' 基準の時給の母数も今日まで（未来日の確定シフトの時間は含めない＝shiftHoursUpToOf）
     const shiftHoursAll: Record<string, number> = {};
@@ -431,6 +433,14 @@ export async function loadPunch(admin: SupabaseClient, storeId: string, win: Pay
       const firstIn = ps.find((p) => p.type === "in");
       const lastOut = [...ps].reverse().find((p) => p.type === "out" && firstIn && p.t > firstIn.t);
       if (firstIn && lastOut) noShiftHours.set(d, (lastOut.t - firstIn.t) / 3600_000);
+    }
+    // ★便 E（0197 用＝裁定455 の 2）: 打刻しない店（punch_mode='store'）＝打刻が無い日は確定シフトの時間を実働・日数／遅刻／当欠は勤怠（attendance）で決める（今日まで）。フラグ false／'punch' は従来と 1 バイト同値
+    if (punchModeOf((stR.data?.settings_json ?? null) as Record<string, unknown> | null) === "store") {
+      const attBy = new Map(raw.att.map((a) => [a.date, a.status]));
+      const upTo = raw.shifts.filter((s) => s.date <= todayBiz);
+      const offDay = (d: string) => { const st = attBy.get(d); return st === "absent" || st === "off"; };
+      days = upTo.filter((s) => !offDay(s.date)).length; lateN = upTo.filter((s) => attBy.get(s.date) === "late").length; absentN = upTo.filter((s) => attBy.get(s.date) === "absent").length;
+      for (const s of upTo) if ((hoursByDate.get(s.date) ?? 0) === 0 && !offDay(s.date)) hoursByDate.set(s.date, Math.max(0, (hm2minOf(s.end_hm) - hm2minOf(s.start_hm)) / 60));
     }
     result.set(cid, { noShiftHours, noShiftDates, days, lateN, absentN, anomalyCount, missingOutDates, hoursByDate, shiftHoursByDate, attendanceDays, shortfallDays });
   }

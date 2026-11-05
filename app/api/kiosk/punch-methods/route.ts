@@ -2,6 +2,7 @@
 //   端末アカウントは stores を RLS で読めない＝auth_kiosk_store_id()（端末の店）で店を決めて admin で 1 列だけ読む。端末でなければ 403。
 //   返すのは kiosk（打刻端末でキャストが打刻するか）と castPunchOff（本人のスマホと打刻端末の両方が OFF＝店が勤怠を記録）だけ。
 import { NextResponse } from "next/server";
+import { punchModeOf } from "@/lib/nox/shift/punch-mode"; // ★便 E（0197 用）
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { castPunchOffOf, opsProfileOf } from "@/lib/nox/store/ops-profile";
@@ -16,5 +17,6 @@ export async function GET() {
   const pm = opsProfileOf((data ?? null) as Record<string, unknown> | null).punch_methods;
   // ★追補 2 同乗 R-7（裁定423 候補）: キオスクで使える機能（kiosk_features）と無操作秒数（kiosk_idle_sec）＝フラグ true のときだけ返す
   const sj = rules0175On() ? (((data ?? null) as unknown as { settings_json?: Record<string, unknown> | null } | null)?.settings_json ?? null) : null;
-  return NextResponse.json({ kiosk: pm.kiosk, castPunchOff: castPunchOffOf(pm), ...(sj ? { tiles: kioskTilesOf(sj), idleSec: kioskIdleSecOf(sj) } : {}) });
+  const punchMode = punchModeOf(sj); // ★便 E（0197 用＝裁定455）: 'store'＝打刻しない店（キャストもスタッフも）＝端末は打刻の名前を出さない
+  return NextResponse.json({ kiosk: pm.kiosk, castPunchOff: castPunchOffOf(pm) || punchMode === "store", punchMode, ...(sj ? { tiles: kioskTilesOf(sj), idleSec: kioskIdleSecOf(sj) } : {}) });
 }

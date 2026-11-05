@@ -7,6 +7,7 @@
 //   器が無い項目（V5_SAVE_MAP has=false）は画面に出して保存は「後で（マスタから）」の注記。主ボタンは中央（.nox-actions・教訓122）・iPad 横 1,024 と 390 の両方。既存の org（初期設定済み）には page が出さない。
 //   UI 規約 238〜244・新トークン 0。書込は既存 RPC（v5.ts の計画）＋route 3 本（/api/staff/create・/api/kiosk/provision・/api/cast/invite）。
 import { applyMenuTemplate, menuTemplatesFor, tplStartBlockedOf, type TplConfirm } from "@/lib/nox/setup/menu-template"; // ★便 M6
+import { PUNCH_CHOICE_NOTE, PUNCH_CHOICE_OPTIONS } from "@/lib/nox/shift/punch-mode"; // ★便 E（0197 用）
 import TimeInput from "@/components/ui/time-input"; // ★便 M5b M-51: 時刻欄の共通部品（時計アイコン・時と分を選ぶ・翌の表示）
 import UnitInput from "@/components/ui/unit-input"; // ★便 M5b M-50
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -18,7 +19,7 @@ import { Message } from "@/components/ui/toast";
 import {
   CSV_HEADER, PIN_RE, V5_STEPS, V5_TYPES, WD, applyType, buildV5Plan, castPlanOf, clone, genPin, kindVal, menuCount, normRule, parseCsv, rebuildBack, seatNames, slideTiersFor, v5Checks, v5DefaultState, v5TypeName,
   type V5Cast, type V5Ctx, type V5Rule, type V5State, type V5Step, type V5Type, ROUND_MODE_LABEL, TIME_MODE_LABEL } from "@/lib/nox/setup/v5";
-import { mig0190On, mig0191On } from "@/lib/nox/rules-0175/flag"; // ★0190／0191 のフラグ true 便: 器が入った項目は「後で（マスタから）」を出さない
+import { mig0190On, mig0191On, mig0197On } from "@/lib/nox/rules-0175/flag"; // ★0190／0191 のフラグ true 便: 器が入った項目は「後で（マスタから）」を出さない
 import type { ProductRow } from "@/lib/nox/setup/template-plan";
 
 const DRAFT_KEY = (storeId: string) => `nox.setup.v5.draft.${storeId}`;
@@ -574,7 +575,8 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
           <p style={lead}>シフト作成で「足りない日」を出すのに使います。定休日は 0 になります。時間帯ごと（30 分刻み）に分けるのはシフト画面であとから。</p>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: 6 }}>{WD.map((w, i) => { const hol = shop.holidays.includes(w); return <label key={w} style={{ textAlign: "center", display: "block" }}><span style={t.fieldLabel}>{w}{hol ? "（休）" : ""}</span><br />{hol ? <UnitInput value={0} type="number" unit="人" width="100%" ariaLabel={`${w}の必要人数（定休日）`} onChange={() => undefined} disabled /> : <UnitInput value={S.shift.need[i]} type="number" min={0} unit="人" width="100%" ariaLabel={`${w}の必要人数`} onChange={(v) => up((s) => { s.shift.need[i] = Math.max(0, Number(v || 0)); })} />}</label>; })}</div>{/* ★便 A M-69 ②: 単位「人」（「日前」「時間後」と同じ添字） */}
           <h3 style={h3}>打刻</h3>
-          <div><span style={t.fieldLabel}>打刻できる場所</span><SegSelect value={S.punch.how} onChange={(v) => up((s) => { s.punch.how = v as "device" | "any"; })} options={[["device", "店の端末（キオスク）だけ"], ["any", "本人のスマホからも"]] as const} ariaLabel="打刻できる場所" wrap /></div>
+          <div><span style={t.fieldLabel}>打刻できる場所</span><SegSelect value={S.punch.how} onChange={(v) => up((s) => { s.punch.how = v as "device" | "any" | "store"; })} options={mig0197On() ? PUNCH_CHOICE_OPTIONS : ([["device", "店の端末（キオスク）だけ"], ["any", "本人のスマホからも"]] as const)} ariaLabel="打刻できる場所" wrap />{/* ★便 E（0197 用＝裁定455 の 4）: 3 択目「打刻しない（店が勤怠を付ける）」 */}
+          {S.punch.how === "store" && <p style={note} data-setup-punch-store="1">{PUNCH_CHOICE_NOTE.store}</p>}</div>
           {S.punch.how === "any" && <div style={{ marginTop: 8 }}><span style={t.fieldLabel}>条件に合わないとき</span><SegSelect value={S.punch.judge} onChange={(v) => up((s) => { s.punch.judge = v as "soft" | "hard"; })} options={[["hard", "打刻させない"], ["soft", "打刻して記録だけ残す"]] as const} ariaLabel="条件に合わないとき" /></div>}
           <Opt title="出勤していない人はレジを使えない" sub={<>キャスト・スタッフが自分のスマホからレジ（開卓・注文・会計）を使えるのは、出勤の打刻があって退勤する前だけ。店長以上は対象外（操作は記録に残ります）。店の端末を置かないお店は OFF に。{later("打刻ゲート＝0190 の後")}</>}><OnOff on={S.punch.gate} onChange={(v) => up((s) => { s.punch.gate = v; })} label="出勤していない人はレジを使えない" /></Opt>
           <div style={{ marginTop: 8 }}><span style={t.fieldLabel}>勤務時間の丸め</span><SegSelect value={String(S.punch.round)} onChange={(v) => up((s) => { s.punch.round = Number(v) as 1 | 5 | 15 | 30; })} options={[["1", "丸めない"], ["5", "5分"], ["15", "15分"], ["30", "30分"]] as const} ariaLabel="勤務時間の丸め" /></div>

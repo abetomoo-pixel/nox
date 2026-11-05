@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import BrandLogo from "@/components/ui/brand-logo"; // ★便 SH-UI-a A-2: ロゴ（Concept 2 改）
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers"; // ★便 E（0196 用）: cookie nox_kiosk_person
 import { createClient } from "@/lib/supabase/server";
 import { getSessionRole } from "@/lib/nox/auth";
 import { rules0175On } from "@/lib/nox/rules-0175/flag"; // ★追補 3 R-8
@@ -20,6 +20,8 @@ import { castRegisterEntryOf } from "@/lib/nox/register/cast-entry-server"; // �
 import { isSetupPath, setupGateRedirectOf } from "@/lib/nox/setup/gate"; // ★便 SU（M-37）: /setup は専用の殻・未完の店は /setup へ
 import KioskPersonGuard from "@/components/nox/kiosk-person-guard"; // ★便 M5 M-49: キオスクからの本人ログイン＝無操作 N 分で戻す
 import { kioskPersonIdleMinutesOf } from "@/lib/nox/kiosk/person-login"; // ★便 M5 M-49
+import { KIOSK_PERSON_COOKIE, kioskNavOf, kioskPersonMustLeaveOf, parseKioskPersonCookie } from "@/lib/nox/kiosk/person-session"; // ★便 E（0196 用＝裁定448 B 方式）
+import { mig0196On } from "@/lib/nox/rules-0175/flag"; // ★便 E
 import * as t from "@/lib/nox/ui/theme";
 
 // 店側エリア（register/shift/report/master）の layout。auth_role() rpc は「ここで1回/リクエスト」のみ。
@@ -143,6 +145,11 @@ export default async function ManageLayout({ children }: { children: React.React
           ...(isOwnerRaw && !isDemo ? [{ href: "/billing", label: "ご契約" }] : []), // ★N7-2 ③: デモは Stripe の導線を隠す。★追補 3 R-8: 管理者には出さない（契約と請求はオーナーのみ）
         ] },
       ].filter((g) => g.items.length > 0); // 権限で空になった群は見出しごと出さない
+  // ★便 E（0196 用＝裁定448 B 方式）: キオスクの本人セッション（cookie nox_kiosk_person）＝ナビを 7 つ（レジ／打刻／予約／シフト／在庫／顧客／日報）に絞り、歯車とホームは出さない。
+  //   owner／cast の cookie は通さない（/kiosk へ＝防御の二重・真の防御は RLS と RPC）。フラグ false の間は cookie を見ない（従来どおり）。
+  const kioskPerson = mig0196On() ? parseKioskPersonCookie((await cookies()).get(KIOSK_PERSON_COOKIE)?.value) : null;
+  if (kioskPerson && kioskPersonMustLeaveOf(role)) redirect("/kiosk?person=deny");
+  const navGroups: NavGroup[] = kioskPerson && (role === "manager" || role === "staff") ? kioskNavOf(role, { crm: staffCrm, shift: staffShift, register: staffRegister }) : groups;
   return (
     /* ── E2（2026-08-17）: 共通シェルを mock/pages-2026-08 の骨格へ寄せた（presentation-only）──
        モック構造＝`.app{grid:238px minmax(0,1fr)}` の**左列にサイドバー（全高）**、
@@ -160,7 +167,7 @@ export default async function ManageLayout({ children }: { children: React.React
             ★レーン④a-4: 現在地ハイライトとアイコンのため client 部品 SideNav へ切り出した。
               渡す groups は上で組んだものそのまま＝項目集合・順序・role ゲートは非改変。
             ★E2: ブランド（店名）と脚の表示だけを props で渡す＝ナビのロジックには触れない。 */}
-        <SideNav groups={groups} storeLabel={storeLabel} homeHref="/" />{/* ★便 SH-UI-b2 B2-2 */}
+        <SideNav groups={navGroups} storeLabel={storeLabel} homeHref="/" />{/* ★便 SH-UI-b2 B2-2 */}
         <div className="nox-mainwrap">
           <header className="nox-tb">
             {/* モック topbar は「左＝パンくず（営業 / レジ）・右＝管理者チップ（A 管理者 店名）」。
@@ -174,7 +181,7 @@ export default async function ManageLayout({ children }: { children: React.React
             <div className="acts">
               {/* ★裁定275 追補2-2（N4）: 右＝歯車（マスタ・監査・ご契約＝gear 群・cast／staff は項目 0＝描かない）＋「登録名｜役割」（自分の情報＋ログアウト）。POST /auth/signout は不変 */}
               {role !== "cast" && <PendingBell storeId={null} />}{/* ★便 SH-UI-c2 C2-13 ④: ベル＝未処理の合計（/api/home/pending＝HOME のカードと同じ数）・押すと HOME の要承認カードへ */}
-              <HeaderGear groups={splitNav(groups, ["/dashboard", "/register", "/report", "/shift"]).gearGroups} />
+              <HeaderGear groups={splitNav(navGroups, ["/dashboard", "/register", "/report", "/shift"]).gearGroups} />
               <UserChip name={meName} email={meEmail} isOwner={role === "owner"} roleJa={roleJa} storeLabel={storeLabel} meId={(meRow?.id as string | null) ?? null} mePhotoAt={(meRow?.photo_updated_at as string | null) ?? null} canPhoto={role !== "cast"} isDemo={isDemo} />{/* ★0162（便 M5-1）: 本人の写真＝owner／manager／staff（cast は /mine）・デモは隠す */}
             </div>
           </header>
@@ -188,8 +195,8 @@ export default async function ManageLayout({ children }: { children: React.React
       {/* 段N: SP（≤899）はボトムタブ4本（ホーム/レジ/シフト/キャスト）＋「その他」シート。
           cast は項目が レジ 1本のみ＝その他は出ない（従来と同一）。 */}
       {/* ★裁定275 追補2-1（N4）: 下タブ 5 本＝ホーム／レジ／日報／シフト／メニュー（残り＋お知らせ）。歯車はヘッダー右へ */}
-      <TabBar groups={groups} spPriority={["/dashboard", "/register", "/report", "/shift"]} hideSide />
-      <KioskPersonGuard idleMinutes={kioskPersonIdleMinutesOf(storeRows?.[0]?.settings_json)} role={role as string} />{/* ★便 M5 M-49: 印が無ければ描画 0 */}
+      <TabBar groups={navGroups} spPriority={["/dashboard", "/register", "/report", "/shift"]} hideSide />
+      <KioskPersonGuard idleMinutes={kioskPersonIdleMinutesOf(storeRows?.[0]?.settings_json)} role={role as string} name={meName} />{/* ★便 M5 M-49: 印が無ければ描画 0 */}
     </div>
   );
 }

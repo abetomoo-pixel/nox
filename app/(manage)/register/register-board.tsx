@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { OFF_DUTY_TEXT_STORE, storeDecidesPunchOf } from "@/lib/nox/shift/punch-mode"; // ★便 E（0197 用）
 import MoneyInput from "@/components/ui/money-input"; // ★便 X-11-6: 金額欄の共通部品（数字のみ・3 桁区切り・右に「円」）
 import { UnitBox } from "@/components/ui/unit-input"; // ★便 M5b M-50
 import SegSelect from "@/components/ui/seg-select";
@@ -122,7 +123,9 @@ const C3_ERR_JA: [string, string][] = [
   ["reason_required", "理由は 1〜200 字で入力してください"],
   ["off duty", "出勤してからレジを開けます（店の端末で出勤の打刻をしてください）"], // ★0190（裁定436 ①a）: 打刻ゲート＝25 本の check_*／approval_* が返す（tb.flush の生文も含め全経路が c3ErrJa を通る）
 ];
-const c3ErrJa = (m: string) => C3_ERR_JA.find(([k]) => m.includes(k))?.[1] ?? m;
+let OFF_DUTY_STORE = false; // ★便 E（0197 用＝裁定455 の 5）: 打刻しない店（settings_json.punch_mode='store'）＝'off duty' の文言を窓の案内に（店設定の読取で更新・この画面だけ）
+const offDutyJa = (): string => (OFF_DUTY_STORE ? OFF_DUTY_TEXT_STORE : "出勤してからレジを開けます（店の端末で出勤の打刻をしてください）");
+const c3ErrJa = (m: string) => (m.includes("off duty") ? offDutyJa() : (C3_ERR_JA.find(([k]) => m.includes(k))?.[1] ?? m));
 const MSG_PAY = "pay";
 const MSG_TIME = "time";
 // feeMsg の描画点（1つ）＝指名カード。★0124: 同伴料カード撤去で FEE_DOHAN は廃止。
@@ -252,7 +255,7 @@ function apErrJa(msg: string | undefined): string {
   if (msg.includes("bad type")) return "種別が不正です";
   if (msg.includes("bad amount")) return "割引額の指定が不正です";
   if (msg.includes("bad reason")) return "理由は200字以内で入力してください";
-  if (msg.includes("off duty")) return "出勤してからレジを開けます"; // ★0190（裁定436 ①a）: approval_request／approval_direct の打刻ゲート
+  if (msg.includes("off duty")) return OFF_DUTY_STORE ? OFF_DUTY_TEXT_STORE : "出勤してからレジを開けます"; // ★0190（裁定436 ①a）: approval_request／approval_direct の打刻ゲート ★便 E（0197）: 打刻しない店は窓の案内
   if (msg.includes("forbidden")) return "権限がありません";
   return msg;
 }
@@ -265,7 +268,7 @@ function timeErrJa(msg: string | undefined): string {
   if (msg.includes("bad time settings")) return "店の時間料金設定が不正です（マスタで確認してください）";
   if (msg.includes("auto mode")) return "自動計算の店です（時間料金は会計タブで自動反映されます）"; // R-A3: check_extension_add の manual 専用ガード
   if (isBillingLocked(msg)) return BILLING_LOCKED_MSG;
-  if (msg.includes("off duty")) return "出勤してからレジを開けます"; // ★0190（裁定436 ①a）: check_time_charge_apply／check_extension_add の打刻ゲート
+  if (msg.includes("off duty")) return OFF_DUTY_STORE ? OFF_DUTY_TEXT_STORE : "出勤してからレジを開けます"; // ★0190（裁定436 ①a）: check_time_charge_apply／check_extension_add の打刻ゲート ★便 E（0197）
   if (msg.includes("forbidden")) return "権限がありません";
   return msg;
 }
@@ -296,10 +299,12 @@ const DTAB_ICON: Record<"order" | "nom" | "pay", React.ReactNode> = {
 };
 
 export default function RegisterBoard({
-  seats, products, categories, casts, isManagerUp, showReserve, storeId,
+  seats, products, categories, casts, isManagerUp, showReserve, storeId, kioskNoms,
 }: {
   seats: Seat[]; products: Product[]; categories: Category[]; casts: Cast[]; isManagerUp: boolean;
   showReserve: boolean; storeId: string;
+  /** ★便 E（0196 用＝裁定448 §6-4）: 端末セッションのレジ＝kiosk_register_state の checks[].nominations（checkId → cast_id[]）。RLS で check_nominations が読めない端末でも顔チップを出す */
+  kioskNoms?: Record<string, string[]>;
 }) {
   const supabase = createClient();
   // タブ（canonical の register セグメント。顧客・ボトルタブは顧客 UI 実装時に追加）
@@ -382,7 +387,7 @@ export default function RegisterBoard({
       ]);
       if (!alive) return;
       setEstRules((rs ?? []) as EstimateRule[]);
-      if (st) { const sj = (st.settings_json ?? {}) as Record<string, unknown>; setEstStore({ ...(st as unknown as EstimateStore), cutoff: typeof sj.biz_cutoff_hm === "string" && sj.biz_cutoff_hm ? (sj.biz_cutoff_hm as string) : "06:00" }); }
+      if (st) { const sj = (st.settings_json ?? {}) as Record<string, unknown>; OFF_DUTY_STORE = storeDecidesPunchOf(sj); /* ★便 E（0197） */ setEstStore({ ...(st as unknown as EstimateStore), cutoff: typeof sj.biz_cutoff_hm === "string" && sj.biz_cutoff_hm ? (sj.biz_cutoff_hm as string) : "06:00" }); }
     })();
     return () => { alive = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -700,7 +705,7 @@ export default function RegisterBoard({
         (nm[k] ??= []).push(r.cast_id as string);
       }
     }
-    setOpenTotal(tt); setOpenNoms(nm);
+    setOpenTotal(tt); setOpenNoms({ ...(kioskNoms ?? {}), ...nm }); // ★便 E: 端末は kiosk_register_state の指名を下敷きに（本店の RLS の行があればそちら）
     // ★便 S（S-5）: 卓タイルのお客様＝open 伝票の check_customers（RLS owner／manager／register の staff・cast 0 行）＋customers.name の埋め込み（1 クエリ・N+1 なし）。
     //   名前が読めない行（customers の RLS で null）は飛ばす＝出さない
     const cm: Record<string, string[]> = {};

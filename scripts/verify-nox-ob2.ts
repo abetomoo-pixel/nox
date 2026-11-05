@@ -8,7 +8,7 @@
  *  使い方: npm run verify:nox-ob2（env: SUPABASE_DB_URL＝(E)・無ければ (E) は FAIL）
  */
 import fs from "node:fs";
-import { mig0190On, mig0191On } from "../lib/nox/rules-0175/flag"; // ★0190／0191 フラグ true 便
+import { mig0190On, mig0191On, mig0197On } from "../lib/nox/rules-0175/flag"; // ★0190／0191 フラグ true 便
 import pg from "pg";
 import { pgTx } from "./fixtures-pgtx";
 import {
@@ -84,7 +84,7 @@ async function main() {
   const dp = buildV5Plan(sDef, ctxOf("11111111-1111-4111-8111-111111111111"));
   // ★0190／0191 のフラグ true 便（2026-10-30）: 器が入った項目は deferred から消え、V5_SAVE_MAP の has=false はマイページ 3 キー（mine_settings にキーが無い）の 1 件だけ。フラグ false は従来の 8／10／3。
   { const on91 = mig0191On(), on90 = mig0190On();
-    const expDp = on91 && on90 ? 1 : 8, expMap = on91 ? (on90 ? 1 : 2) : 10, expCab = on91 && on90 ? 1 : 3;
+    const expDp = on91 && on90 ? 1 : 8, expMap = (on91 ? (on90 ? 1 : 2) : 10) + (mig0197On() ? 0 : 1) /* ★便 E（0197 用）: 3 択目の行＝has は mig0197On()＝false の間は +1 */, expCab = on91 && on90 ? 1 : 3;
     check("ob2(B-8) 器が無い項目＝deferred と V5_SAVE_MAP の has=false の対応（フラグ true＝延長パターン 1 本だけ・has=false はマイページ 1 件・「店が決める」は 'store'／false＝8・10・3・off_only）・期間は draft・締切 null",
       dp.deferred.length === expDp && (on91 || dp.deferred.map((d) => d.item).join("|").includes("源泉区分の既定")) && V5_SAVE_MAP.filter((x) => !x.has).length === expMap && (dp.steps.find((s) => s.key === "mine")!.args!.p_settings as { shift_request_mode: string }).shift_request_mode === (on91 ? "store" : "off_only") && dp.steps.find((s) => s.key === "shift_period")!.args!.p_status === "draft" && dp.steps.find((s) => s.key === "shift_period")!.args!.p_wish_deadline === null
       && plans.cabaret.deferred.length === expCab && plans.cabaret.deferred.some((d) => d.item === "延長パターン 1 本") && (on91 || plans.cabaret.deferred.some((d) => d.item === "釣銭準備金（締めの基準額）")) && (on90 || plans.cabaret.deferred.some((d) => /打刻ゲート/.test(d.item)))

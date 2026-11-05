@@ -4,7 +4,7 @@
 import type { MineSettings } from "../store/mine-settings";
 import { mineSettingsPatchOf } from "../store/mine-settings";
 import { presetsWithAmountsOf } from "../payroll/settlement"; // ★便 D 裁定455-3: 既定 2 件の額は ⑦ の 2 欄から
-import { mig0190On, mig0191On } from "../rules-0175/flag"; // ★0190／0191 のフラグ true 便: 器なし項目を実保存に（false の間は従来＝「後で（マスタから）」）
+import { mig0190On, mig0191On, mig0197On } from "../rules-0175/flag"; // ★0190／0191 のフラグ true 便: 器なし項目を実保存に（false の間は従来＝「後で（マスタから）」）
 /** ★0191 ★1: 締め日の表記→settlement_close_day（15／20／25／31＝末日） */
 export const CLOSE_DAY_OF: Record<string, 15 | 20 | 25 | 31> = { "15": 15, "20": 20, "25": 25, "末日": 31 };
 const pct100 = (n: number): number => Math.max(0, Math.min(100, Math.round(n || 0)));
@@ -46,7 +46,7 @@ export type V5State = {
   payroll: { period: "month" | "half" | "daily"; close: string; payday: number; /** ★便 D 裁定455-3: 遅刻控除／当欠控除の額（settlement_presets の late／absent・0＝登録しない） */ lateAmt?: number; absentAmt?: number; whtCast: "hostess" | "none"; whtStaff: "none" | "other_204"; advance: boolean; settle: boolean; okuriMode: "fixed" | "actual" | "store" | "none"; okuri: number; okuriTiers: [number, number, number]; mypage: "none" | "net" | "full" };
   staff: V5Staff[];
   shift: { mode: "want" | "off" | "store"; due: number; auto: number; need: number[] };
-  punch: { judge: "soft" | "hard"; how: "device" | "any"; round: 1 | 5 | 15 | 30; gate: boolean };
+  punch: { judge: "soft" | "hard"; how: "device" | "any" | "store" /* ★便 E（0197 用）: store＝打刻しない */; round: 1 | 5 | 15 | 30; gate: boolean };
   reg: { kiosk: boolean; castReg: "off" | "order" | "pay"; uri: boolean; staffDisc?: "approve" | "limit" | "no" };
   cardfee: number; cashOff: boolean; cashRate: number; cashBase: "total" | "subtotal";
   receipt: { name: string; tno: string; tadashi: string }; round: "round" | "floor" | "ceil";
@@ -268,6 +268,7 @@ export function buildV5Plan(S: V5State, ctx: V5Ctx): { steps: V5Step[]; deferred
     patch.settlement_close_day = CLOSE_DAY_OF[S.payroll.close] ?? 31;
   }
   if (S.punch.how === "any") patch.punch_require_shift = S.punch.judge === "hard" ? "block" : "warn";
+  if (mig0197On()) patch.punch_mode = S.punch.how === "store" ? "store" : "punch";   // ★便 E（0197 用＝裁定455 の 1・4）: 3 択目＝punch_mode（白名単は 0197）。'store' のとき punch_methods は無視される
   if (S.seats.vip > 0 && S.svcVip !== S.svc) patch.service_rate_by_seat = { VIP: Math.max(0, Math.min(100, Math.round(S.svcVip))) };
   if (S.payroll.okuriMode === "fixed") patch.okuri_flat_tiers = [{ code: "near", name: "近距離", amount: S.payroll.okuriTiers[0] }, { code: "mid", name: "中距離", amount: S.payroll.okuriTiers[1] }, { code: "far", name: "遠距離", amount: S.payroll.okuriTiers[2] }];
   push({ key: "settings", group: "settings", label: "店舗設定（業態・使う制度・会計・シフト・打刻・キオスク）", rpc: "set_store_profile", args: { p_store_id: s, p_patch: patch } });
@@ -404,6 +405,7 @@ export const V5_SAVE_MAP: readonly V5SaveMap[] = [
   { step: 7, item: "シフトの集め方「店が決める」", dest: "なし（shift_request_mode は 2 値）", has: mig0191On() },
   { step: 7, item: "曜日別必要人数", dest: "set_staffing_need（0189＝翌 24:00 まで）", has: true },
   { step: 7, item: "打刻の場所・条件に合わないとき・丸め", dest: "settings punch_methods／punch_require_shift／punch_round_unit・mode", has: true },
+  { step: 7, item: "打刻の 3 択目「打刻しない（店が勤怠を付ける）」", dest: "settings_json punch_mode（0197）", has: mig0197On() },   // ★便 E（0197 用）
   { step: 7, item: "打刻ゲート（出勤していない人はレジを使えない）", dest: "なし（0190 duty_gate＝MIG_0190_APPLIED の配下）", has: mig0190On() },
   { step: 8, item: "キオスク ON・キャストのレジ 3 段階・スタッフの割引 3 段階・売掛", dest: "settings kiosk_features／sys_cast_register（裁定420）／sys_staff_discount（裁定421）／set_store_receivable_policy", has: true },
   { step: 8, item: "店の端末の登録（端末アカウント発行）", dest: "/api/kiosk/provision（purpose register・初期 PW は完了画面で 1 回）", has: true },

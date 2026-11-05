@@ -6,6 +6,7 @@
 //   店の修正＝punch_corrections（approved）＝修正者・時刻・元の値（audit_logs は owner 限定の RLS のため読まない）。
 //   送り＝transport（当日 biz_date・cancelled 除外・mode は 0177 後＝無ければ actual）。
 import { roundPt1 } from "../money";
+import { storeModeFinalOf, storeModeHoursOf } from "../shift/punch-mode"; // ★便 E（0197 用）
 import { buildMatchInput, dayWorkedHours, type AttendanceRow, type PunchRow, type ShiftRow } from "../punch-io";
 import { matchPunches, type DayResolution } from "../punch-match";
 import { punchCountsUpToOf } from "./anomaly";
@@ -86,6 +87,8 @@ export type AttendanceSheetInput = {
   grace?: { lateGrace?: number; earlyGrace?: number; overGrace?: number };
   /** 店の計算基準（'shift'＝確定シフトどおり・既定 'punch'） */
   payTimeBasis?: "punch" | "shift";
+  /** ★便 E（0197 用＝裁定455 の 2）: 'store'＝打刻しない店＝打刻が無い日は確定シフトの時間を実働（当欠／休み／未来日は 0）・区分は勤怠（attendance）だけで決める。既定 'punch'＝従来 */
+  punchMode?: "punch" | "store";
   /** 営業日の今日（未来日は合計に数えない＝裁定342） */
   todayBiz: string;
   /** 期間（YYYY-MM-DD・両端含む）。渡せば期間の全日を行にする（打刻の無い日も）・無ければ打刻／シフトのある日だけ */
@@ -152,19 +155,23 @@ export function attendanceDayRowsOf(input: AttendanceSheetInput): AttendanceDayR
     const trs = (input.transports ?? []).filter((t) => t.biz_date === bizDate && t.status !== "cancelled");
     const fines = (input.fines ?? []).filter((f) => f.biz_date === bizDate);
     const future = bizDate > input.todayBiz;
+    // ★便 E（0197 用）: 打刻しない店の実働と区分（フラグ false／'punch' の店は従来と 1 バイト同値）
+    const storeMode = input.punchMode === "store";
+    const hoursFinal = storeMode ? roundPt1(storeModeHoursOf({ rawHours, shiftHours: shiftHours[bizDate], attStatus: att?.status, future })) : hours;
+    const finalStore = storeMode ? storeModeFinalOf(att?.status, !!sh) : null;
     const noteParts: string[] = [];
     if (att?.reason) noteParts.push(att.reason);
     if (fines.length > 0) noteParts.push(`罰金 ${fines.map((f) => `¥${f.amount.toLocaleString()}`).join("・")}`);
     if (shiftRel === "before" || shiftRel === "after") noteParts.push(SHIFT_RELATION_NOTE[shiftRel]); // ★便 M5 M-40 (x)
     rows.push({
       bizDate, shift: sh ? { start: sh.start_hm, end: sh.end_hm } : null, inHm, outHm, corrections: corr,
-      late: !!d && d.final.type === "late" && !future, absent: !!d && d.final.type === "absent" && !future, early: !!d && d.raw.out.type === "early" && !future,
+      late: storeMode ? finalStore === "late" && !future : !!d && d.final.type === "late" && !future, absent: storeMode ? finalStore === "absent" && !future : !!d && d.final.type === "absent" && !future, early: !!d && d.raw.out.type === "early" && !future,
       contactAt: att && att.source === "self" && (att.status === "late" || att.status === "absent") ? jstHm(att.updated_at) : null,
-      hours, basis, okuri: { n: trs.length, modes: [...new Set(trs.map((t) => OKURI_MODE_LABEL[((t.mode ?? "actual") as OkuriMode)] ?? String(t.mode)))] },
+      hours: hoursFinal, basis: storeMode && rawHours === 0 && hoursFinal > 0 ? "shift" : basis, okuri: { n: trs.length, modes: [...new Set(trs.map((t) => OKURI_MODE_LABEL[((t.mode ?? "actual") as OkuriMode)] ?? String(t.mode)))] },
       note: noteParts.join("・"), missingOut: !!d && !future && bizDate !== input.todayBiz && d.raw.in.type !== "no_shift" && d.raw.in.type !== "absent" && d.raw.out.type === "noout" && !!inHm, future,
       missingIn: !future && bizDate !== input.todayBiz && !inHm && !!outHm, // ★便 M-14
       working: bizDate === input.todayBiz && !!inHm && !outHm, // ★便 M-14
-      final: d ? d.final.type : null,
+      final: storeMode ? (finalStore === "no_shift" ? (d ? d.final.type : null) : finalStore) : (d ? d.final.type : null),
       inPunchId: idsByDate.get(bizDate)?.inId ?? null, outPunchId: idsByDate.get(bizDate)?.outId ?? null, shiftId: sh?.id ?? null, // ★C2-2
       cancelled: !inHm && !outHm && !sh && corr.some((c) => c.after === null), // ★C2-2 ③
     });

@@ -13,6 +13,7 @@
 // 画面ガードは利便のみ＝kiosk_operator_list が 0行なら「レジ端末ではない」を表示するだけで、真の防御は RPC と RLS の kiosk 腕。
 // ★UI 契約（0059 (b)）: タイマーから RPC は一切呼ばない（idle 表示と自動ロックはローカル時計のみ）。
 import { useCallback, useEffect, useRef, useState } from "react";
+import { loadKioskNoms } from "@/lib/nox/kiosk/register-noms"; // ★便 E（0196 用）
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import CastAvatar from "@/components/ui/cast-avatar";
@@ -34,7 +35,7 @@ type Seat = { id: string; name: string; kind: string | null; store_id: string };
 type Product = { id: string; name: string; type: string; price: number; category_id: string | null; reorder_point: number | null; sort_order: number; back_exempt_from_split: boolean; track_stock?: boolean };
 type Category = { id: string; name: string; sort_order: number };
 type Cast = { id: string; name: string; photo_updated_at: string | null; rank_id?: string | null };
-type BoardData = { seats: Seat[]; products: Product[]; categories: Category[]; casts: Cast[]; storeId: string };
+type BoardData = { seats: Seat[]; products: Product[]; categories: Category[]; casts: Cast[]; storeId: string; noms?: Record<string, string[]> }; // ★便 E（0196 用）: noms＝卓カードの指名
 
 const ROLE_LABEL: Record<string, string> = { owner: "管理者", manager: "店長", staff: "スタッフ", cast: "キャスト", admin: "管理者" };
 const IDLE_MS = 3 * 60_000; // ★K-0: 無操作 3 分で自動ロック（店設定 kiosk_idle_sec があればそれ）＝サーバ側失効のローカル鏡像・表示と自動ロックのみ
@@ -167,7 +168,9 @@ export default function KioskWorkspace({ feature = "register" }: { feature?: Kio
     const stores = (storeRows ?? []) as { id: string; use_vip: boolean; use_counter: boolean }[];
     const storeId = stores[0]?.id ?? "";
     if (!storeId) { setBoardErr("この端末の店を読めませんでした（0190 の kiosk 腕が無いか、操作担当のセッションが切れています）。操作担当を選び直してください。"); return; }
+    const noms = await loadKioskNoms(supabase); // ★便 E（0196 用＝裁定448 §6-4）: 卓カードの指名（フラグ false＝undefined・従来どおり）
     setBoard({
+      noms,
       seats: seatsVisibleOf((seatsAll ?? []) as Seat[], stores),
       products: (products ?? []) as Product[],
       categories: (categories ?? []) as Category[],
@@ -377,7 +380,7 @@ export default function KioskWorkspace({ feature = "register" }: { feature?: Kio
             {board && feature === "register" && (
               /* ★K-0: 本店の register-board と同一部品・同じ props。予約タブは出さない（顧客の個人情報はキオスクに出さない＝裁定435） */
               <RegisterBoard seats={board.seats} products={board.products} categories={board.categories} casts={board.casts}
-                isManagerUp={isManagerUp} showReserve={false} storeId={board.storeId} />
+                isManagerUp={isManagerUp} showReserve={false} storeId={board.storeId} kioskNoms={board.noms} /> /* ★便 E: 卓カードの指名（0196＝kiosk_register_state の nominations） */
             )}
             {board && feature === "shift" && <KioskShiftView storeId={board.storeId} />}{/* ★K client 第 2 便: 今日の確定シフト×打刻（読取だけ） */}
             {board && feature === "report" && <KioskReportView storeId={board.storeId} />}{/* ★K client 第 2 便: 直近の日報（読取だけ・締めは本店） */}

@@ -6,6 +6,8 @@
 //   予約用 businessHoursStatus（cutoff 変換）をシフトに使うと深夜帯で1日ズレるため使用禁止。
 //   希望の採否は「採用のみ定休日ブロック・見送りは定休日でも可」の非対称を UI に出す（裁定B-3）。
 import { hmLabelOf } from "@/lib/nox/time/hhmm"; // ★便 M5b M-51 追補: 日をまたぐ時刻は「翌02:00」
+import { REGISTER_DAY_GRANT_LABEL, REGISTER_DAY_GRANT_NOTE, storeDecidesPunchOf } from "@/lib/nox/shift/punch-mode"; // ★便 E（0197 用）
+import { mig0196On, mig0197On } from "@/lib/nox/rules-0175/flag"; // ★便 E（0196 用）: staff の代行 ★0197: 今日だけ許可
 import TimeInput from "@/components/ui/time-input"; // ★便 M5b M-51: 時刻欄の共通部品（時計アイコン・時と分を選ぶ・翌の表示）
 import { UnitBox } from "@/components/ui/unit-input"; // ★便 M5b M-50
 import { dayStateLabelOf } from "@/lib/nox/mine/day-state"; // ★便 GV-C C-14（GV-60）: 日の状態の語と色（/mine と同じ）
@@ -1193,7 +1195,22 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   const [storeDecides, setStoreDecides] = useState(false);
   useEffect(() => { if (storeDecides && (tab === "build" || tab === "submit")) setTab("queue"); // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storeDecides, tab]); // ★便 D M-96（2026-11-05）: 店設定 shift_request_mode='store'（店が決めて本人に通知）＝シフト作成は ③配置→④公開 の 2 段（①期間 ②提出一覧 を出さない）
-  const [proxyPunchOn, setProxyPunchOn] = useState(true); // ★0164（便 W5-2b）: 店設定 punch_methods.proxy（代行の退勤ボタン・出勤区分後の in 打刻の出し分け）
+  const [proxyPunchOn, setProxyPunchOn] = useState(true);
+  const [punchStore, setPunchStore] = useState(false); // ★便 E（0197 用＝裁定455）: 打刻しない店＝今日タブに「今日だけ許可」
+  const [dayGrants, setDayGrants] = useState<Set<string>>(new Set()); // 当日の register_day_grants（cast）
+  useEffect(() => {
+    if (!storeId || !punchStore || !mig0197On()) { setDayGrants(new Set()); return; }
+    let alive = true;
+    void (async () => { const { data } = await supabase.from("register_day_grants").select("subject_id").eq("store_id", storeId).eq("biz_date", todayDate).eq("subject_kind", "cast"); if (alive) setDayGrants(new Set(((data ?? []) as { subject_id: string }[]).map((r) => r.subject_id))); })();
+    return () => { alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storeId, punchStore, todayDate, punchTick]);
+  async function toggleDayGrant(castId: string) {
+    const on = !dayGrants.has(castId);
+    const { error } = await supabase.rpc("register_day_grant_set", { p_subject_kind: "cast", p_subject_id: castId, p_biz_date: todayDate, p_on: on, p_reason: null });
+    setMsg(error ? `今日だけ許可の記録に失敗: ${rpcErrJa(error.message)}` : on ? `${castName(castId)} に今日だけスマホのレジを許可しました` : `${castName(castId)} の今日だけ許可を取り消しました`);
+    setPunchTick((v) => v + 1);
+  } // ★0164（便 W5-2b）: 店設定 punch_methods.proxy（代行の退勤ボタン・出勤区分後の in 打刻の出し分け）
   // ★裁定317（便 X-9-3）: 「送り」→金額ダイアログ→確定で退勤打刻（p_okuri=true）＋transport_issue_bulk 1 件（idem＝punch id）。旧チェックボックス（okuriMark）は廃止
   const [okuriBase, setOkuriBase] = useState<unknown>(null);
   const [okuriDlg, setOkuriDlg] = useState<{ castId: string; def: OkuriDefault; mode: "outAndIssue" | "issueOnly"; fromOut: boolean } | null>(null); // ★裁定357: mode＝退勤＋送り／送りのみ・fromOut＝「退勤」から開いた（2 択）
@@ -1208,7 +1225,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
     void (async () => {
       const { data } = await supabase.from("stores").select("settings_json, punch_methods").eq("id", storeId).maybeSingle(); // ★0164（便 W5-2b）: punch_methods（代行の出し分け）
       const sj = (data?.settings_json ?? {}) as Record<string, unknown>;
-      if (alive) { const om = okuriModeOf(sj); setOkuriMode(om); setOkuriActual(okuriAsks(om)); setOkuriBase(sj.okuri_base_amount ?? null); setProxyPunchOn(opsProfileOf(data as Record<string, unknown> | null).punch_methods.proxy); setStoreDecides(sj.shift_request_mode === "store"); /* ★M-96 */ }
+      if (alive) { const om = okuriModeOf(sj); setOkuriMode(om); setOkuriActual(okuriAsks(om)); setOkuriBase(sj.okuri_base_amount ?? null); setProxyPunchOn(opsProfileOf(data as Record<string, unknown> | null).punch_methods.proxy); setStoreDecides(sj.shift_request_mode === "store"); /* ★M-96 */ setPunchStore(storeDecidesPunchOf(sj)); /* ★便 E（0197） */ }
     })();
     return () => { alive = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1628,7 +1645,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                     const w = s.wish_id ? wishAll.find((x) => x.id === s.wish_id) : undefined;
                     const sClosed = closedOf(s.date, s.start_hm, s.end_hm);
                     // ★SC-8 ⑦（未来日ガード）: 出勤記録の書き込みは todayDate === bizToday のときだけ。
-                    const canRecord = isManagerUp && todayDate === bizToday;
+                    const canRecord = (isManagerUp || (mig0196On() && role === "staff")) && todayDate === bizToday; // ★便 E（0196 用＝裁定448 §3）: staff も「代わりに打刻」（punch_proxy＝自店の staff・actor は本人）
                     return (
                       <tr key={s.id}>
                         <td className="c-name" style={{ whiteSpace: "nowrap" }}>{/* ★AT2-3: sticky 列は折り返さない */}
@@ -1730,6 +1747,10 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                                 )}
                                 {canRecord && (view === "arrived" || view === "done") && (
                                   <span className="out">
+                                    {mig0197On() && punchStore && isManagerUp && (/* ★便 E（0197 用＝裁定455 の 5）: 打刻しない店＝スマホのレジの「今日だけ許可」（register_day_grant_set・取消も同じボタン） */
+                                      <button type="button" data-day-grant={dayGrants.has(s.cast_id) ? "1" : "0"} style={{ ...btnLight, padding: "4px 12px", fontSize: 12, borderColor: dayGrants.has(s.cast_id) ? "var(--gold)" : undefined }} title={REGISTER_DAY_GRANT_NOTE}
+                                        onClick={() => void toggleDayGrant(s.cast_id)}>{REGISTER_DAY_GRANT_LABEL}{dayGrants.has(s.cast_id) ? " 済" : ""}</button>
+                                    )}
                                     {/* ★裁定317／357: 「送り」＝okuriButtonOf（退勤後も営業日内は発行可＝退勤後は送りだけ）。退勤前＝退勤＋送り／退勤後＝送りだけ発行 */}
                                     {(() => { const okb = okuriButtonOf({ canRecord, okuriActual, attStatus: att?.status, hasIn: !!io?.inHm, issuedToday: okuriIssued.has(s.cast_id) }); return okb.show ? (
                                       <button type="button" style={{ ...btnLight, padding: "4px 12px", fontSize: 12, opacity: okb.enabled ? 1 : 0.5 }} data-okuri-issued={okuriIssued.has(s.cast_id) ? "1" : undefined}

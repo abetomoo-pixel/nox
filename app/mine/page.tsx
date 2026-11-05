@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { storeDecidesPunchOf } from "@/lib/nox/shift/punch-mode"; // ★便 E（0197 用）
 import KintaiRow, { KintaiHead } from "@/components/nox/kintai-row"; // ★便 SH-UI-c C-2 ④
 import { attendanceDayRowsOf, attendanceSummaryOf, type AttendanceDayRow } from "@/lib/nox/payroll/attendance-sheet";
 import { buildKintaiSheet } from "@/lib/nox/payroll/kintai-sheet";
@@ -275,7 +276,7 @@ export default async function MinePage({ searchParams }: { searchParams?: Promis
 
       {/* 段M2: 打刻はスマホで一番使うのでヘッダ直後へ（section の中身・PunchActions・最終打刻の
           文言はそのまま＝移設のみ）。 */}
-      {castPunchOffOf(opsProfileOf(myStore as Record<string, unknown> | undefined).punch_methods) ? (
+      {castPunchOffOf(opsProfileOf(myStore as Record<string, unknown> | undefined).punch_methods) || storeDecidesPunchOf((myStore?.settings_json ?? {}) as Record<string, unknown>) ? (/* ★便 E（0197 用＝裁定455）: punch_mode='store' も打刻カードなし */
         <p className="nox-pstate" data-cast-punch-off="1" style={{ margin: "0 0 12px" }}>出勤・退勤は店が記録します</p>
       ) : (/* ★便 X13-G W-23 ①: キャストの打刻を使わない店は打刻カードを出さない */
       <section className="nox-panel">

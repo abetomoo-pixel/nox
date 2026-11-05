@@ -5,6 +5,7 @@
 //   商品バック（check_cast_backs の凍結値＋承認済み drink_claims）・罰金（payroll_adjustments の sanction／settlement／shortfall＝target_shift_id／biz_date・月の行は月のまとめ）。
 //   確定済みの月＝payslips の凍結値（wdays・gross・net）を出す（確定時の値のまま）。
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { punchModeOf } from "../shift/punch-mode"; // ★便 E（0197 用）
 import { computePayrollDraft, type PreviewRow } from "./core";
 import { resolvePayrollWindow } from "./window";
 import { bizDateOf } from "../biz-date";
@@ -42,7 +43,7 @@ export async function buildKintaiSheet(admin: SupabaseClient, managerClient: Sup
     admin.from("punch_corrections").select("cast_id, punch_id, biz_date, kind, before_at, after_at, reason, decision, decided_by, decided_at").eq("store_id", storeId).eq("decision", "approved").gte("biz_date", win.periodStart).lte("biz_date", win.periodEnd),
     admin.from("transport").select("*").eq("store_id", storeId).gte("biz_date", win.periodStart).lte("biz_date", win.periodEnd),
     admin.from("penalty_config").select("late_grace_min, early_grace_min, over_grace_min").eq("store_id", storeId).maybeSingle(),
-    admin.from("stores").select("name").eq("id", storeId).maybeSingle(),
+    admin.from("stores").select("name, settings_json").eq("id", storeId).maybeSingle(), // ★便 E（0197 用）: punch_mode
     admin.from("payroll_runs").select("id, status").eq("store_id", storeId).eq("period", period).maybeSingle(),
     managerClient.rpc("get_cast_sales", { p_store_id: storeId, p_from: win.periodStart, p_to: win.periodEnd }),
     admin.from("check_lines").select("cast_id, fee_kind, line_total, checks!inner(started_at, status)").eq("store_id", storeId).in("fee_kind", ["hon_shimei", "jonai_shimei"]).not("cast_id", "is", null).not("checks.status", "in", "(void,merged)").gte("checks.started_at", win.startTs).lt("checks.started_at", win.endTs),
@@ -94,6 +95,7 @@ export async function buildKintaiSheet(admin: SupabaseClient, managerClient: Sup
       corrections: corrRows.filter((x) => x.cast_id === c.id).map((x) => ({ punch_id: x.punch_id as string | null, biz_date: x.biz_date as string, kind: x.kind as "in" | "out", before_at: x.before_at as string | null, after_at: x.after_at as string | null, reason: x.reason as string, decision: x.decision as string, decided_at: x.decided_at as string | null, decided_by_name: x.decided_by ? nameOf.get(x.decided_by as string) ?? null : null })),
       transports: ((trR.data ?? []) as Rec[]).filter((t) => t.cast_id === c.id).map((t) => ({ biz_date: t.biz_date as string, amount: t.amount as number, mode: (t.mode as string | null | undefined) ?? null, status: t.status as string })),
       cutoffHm: win.cutoffHm, closeHm: win.closeHm, grace, payTimeBasis: basis, todayBiz, periodStart: win.periodStart, periodEnd: win.periodEnd,
+      punchMode: punchModeOf((storeR.data?.settings_json ?? null) as Record<string, unknown> | null), // ★便 E（0197 用＝裁定455 の 2）: 打刻しない店＝確定シフトの時間
     });
     // ★裁定431 ⑥（Agoora 確定 10/26）: 雇用はシフト無し出勤の日も打刻の時間（出〜退）を実働に＝給与（collect）と同じ。委託は従来どおり 0
     if ((c as { employment?: string | null }).employment === "雇用") for (const r of rows) if (!r.shift && r.inHm && r.outHm && r.hours === 0 && !r.cancelled) { const mins = hm2minK(r.outHm) - hm2minK(r.inHm); if (mins > 0) r.hours = Math.round((mins / 60) * 10) / 10; }

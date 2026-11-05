@@ -11,6 +11,8 @@ const write = (k: string, v: string | null): void => { try { if (v === null) win
 
 /** 本人ログイン中の印があるか（本体画面の guard） */
 export const kioskPersonActive = (): boolean => !!read(KIOSK_PERSON_MARK);
+/** ★便 E（0196 用）: 印の中身＝{at, pin?}（pin true＝PIN の本人セッション＝終了は route /api/kiosk/person-end 経由） */
+export function kioskPersonMarkOf(): { at: string; pin?: boolean } | null { const raw = read(KIOSK_PERSON_MARK); if (!raw) return null; try { return JSON.parse(raw) as { at: string; pin?: boolean }; } catch { return null; } }
 
 /** キオスク（端末のセッション）→ /login?kiosk=1 */
 export async function startKioskPersonLogin(supabase: SupabaseClient): Promise<void> {

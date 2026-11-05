@@ -8,6 +8,7 @@
 //   保存後は同じ select で再取得して現値を表示。エラーは storeProfileErrJa で日本語へ。
 //   配置＝保存ボタンは .nox-actions で中央（裁定244）・トグルは切替＝例外。
 import { UnitBox } from "@/components/ui/unit-input"; // ★便 M5b M-50
+import { PUNCH_CHOICE_NOTE, PUNCH_CHOICE_OPTIONS, punchModeOf, registerWindowOf } from "@/lib/nox/shift/punch-mode"; // ★便 E（0197 用）
 import UnitInput from "@/components/ui/unit-input"; // ★便 M5b M-50
 import { kioskPersonIdleMinutesOf } from "@/lib/nox/kiosk/person-login"; // ★0192 M-49
 import { useCallback, useEffect, useState } from "react";
@@ -22,7 +23,7 @@ import MoneyInput from "@/components/ui/money-input";
 import SegSelect from "@/components/ui/seg-select";
 import { rpcErrJa } from "@/lib/nox/ui/rpc-err";
 import { JOIN_MODE_LABEL, PAY_FEE_KEYS, PAY_FEE_KEY_LABEL, joinModeOf, payFeeRatesOf, type JoinMode, type PayFeeKey } from "@/lib/nox/register/p173"; // ★便 P173（裁定386／393・0173）
-import { mig0187On, mig0190On, mig0191On, mig0192On } from "@/lib/nox/rules-0175/flag"; // ★0187（便 CASH） // ★0190（裁定436 ①a）: 打刻ゲート
+import { mig0187On, mig0190On, mig0191On, mig0192On, mig0197On } from "@/lib/nox/rules-0175/flag"; // ★0187（便 CASH） // ★0190（裁定436 ①a）: 打刻ゲート
 import { PAY_ADJUST_LABEL, PAY_ADJUST_MODES, PAY_DISCOUNT_BASE_LABEL, discountRateInputOf, payAdjustHasDisc, payAdjustHasFee, payAdjustModeOf, payDiscountBaseOf, payDiscountRatesOf, type PayAdjustMode, type PayDiscountBase, type PayDiscountKey } from "@/lib/nox/rules-0175/pay-discount"; // ★0187（便 CASH・Agoora 確定 10/27）: 支払方法の調整（なし／カード手数料／現金割引／両方）と割引対象
 import { PAY_TIME_BASIS_LABEL, payTimeBasisApplyNoteOf, payTimeBasisApplyOf, payTimeBasisViewOf, type PayTimeBasis, type PayTimeBasisView } from "@/lib/nox/payroll/time-basis"; // ★裁定324（0159・便 C-1）: 勤務時間の計算基準 // ★裁定317（0158・便 AB-6）: 送りの基本額（okuri_base_amount・0〜99,999 の整数・空欄＝未設定＝0 を送る）
 type Store = { id: string; name: string };
@@ -32,8 +33,8 @@ type Store = { id: string; name: string };
 import { OPS_DEFAULT, PAYMENT_METHOD_LABEL, PUNCH_METHOD_LABEL, opsPatchErrorOf, opsPatchOf, opsProfileOf, type OpsProfile, castPunchOffOf, castPunchMethodsOf, CAST_PUNCH_OFF_NOTE } from "@/lib/nox/store/ops-profile"; // 純関数＝lib（setup page（server）と共用）
 import { MID_PAY_OPTIONS, SETTLEMENT_CYCLE_OPTIONS, midPayOf, settlementCycleOf } from "@/lib/nox/payroll/settlement-cycle"; // ★0172（裁定349・便 P172）: 店設定 2 キー
 import { SHIFT_AUTO_CONFIRM_OPTIONS, autoConfirmHoursOf } from "@/lib/nox/shift/auto-confirm"; // ★0172（裁定380・便 P172）: 自動確定時間
-type Profile = { kind_back: { hon: string; jonai: string; free: string }; wht_cast: string; wht_staff: string; cash_float: string; close_day: string; /* ★0191 ★1（2026-10-30）: 店設定 5 キー（指名区分ごとの割合・源泉区分の既定 2・釣銭準備金・締め日）＝文字列で持ち patch で数値に */ duty_gate: boolean; kiosk_person_idle: string; /* ★0192 M-49: キオスクの本人でログイン＝無操作で戻す分（1〜120・欠損＝10） */ /* ★0190（裁定436 ①a）: 打刻ゲート＝settings_json.duty_gate（欠損＝true＝DB の duty_gate_of と同じ既定） */ pay_disc_cash: string; pay_disc_base: PayDiscountBase; pay_disc_rates_raw: Record<PayDiscountKey, number>; /* ★0187（便 CASH） */ name: string; short: string; store_code: string; display_name: string; shift_cast_confirm: boolean; customer_purpose: string; customer_retention_years: string; ar_enabled: boolean; okuri_base_amount: string; okuri_actual: boolean; ops: OpsProfile; settlement_cycle: string; mid_pay: string; shift_auto_confirm_hours: string; join_mode: JoinMode; pay_fee: Record<PayFeeKey, string> }; // ★便 P173: join_mode（386）・pay_fee（393・％の文字列・空＝0） // ★0153（裁定305-11／293-4）: 利用目的・保持年数（1〜10・既定 5）・★0172（裁定349／380）: 精算方式・途中払い・自動確定時間
-const EMPTY: Profile = { kind_back: { hon: "100", jonai: "50", free: "30" }, wht_cast: "hostess", wht_staff: "none", cash_float: "", close_day: "31", duty_gate: true, kiosk_person_idle: "10", pay_disc_cash: "", pay_disc_base: "total", pay_disc_rates_raw: { cash: 0, card: 0, other: 0 }, name: "", short: "", store_code: "", display_name: "", shift_cast_confirm: false, customer_purpose: "", customer_retention_years: "5", ar_enabled: false, okuri_base_amount: "", okuri_actual: false, settlement_cycle: "monthly", mid_pay: "none", shift_auto_confirm_hours: "0", ops: OPS_DEFAULT, join_mode: "join_set", pay_fee: { card: "", emoney: "", other: "" } };
+type Profile = { kind_back: { hon: string; jonai: string; free: string }; wht_cast: string; wht_staff: string; cash_float: string; close_day: string; /* ★0191 ★1（2026-10-30）: 店設定 5 キー（指名区分ごとの割合・源泉区分の既定 2・釣銭準備金・締め日）＝文字列で持ち patch で数値に */ duty_gate: boolean; kiosk_person_idle: string; punch_mode: "punch" | "store"; reg_win_before: string; reg_win_after: string; /* ★便 E（0197 用） */ /* ★0192 M-49: キオスクの本人でログイン＝無操作で戻す分（1〜120・欠損＝10） */ /* ★0190（裁定436 ①a）: 打刻ゲート＝settings_json.duty_gate（欠損＝true＝DB の duty_gate_of と同じ既定） */ pay_disc_cash: string; pay_disc_base: PayDiscountBase; pay_disc_rates_raw: Record<PayDiscountKey, number>; /* ★0187（便 CASH） */ name: string; short: string; store_code: string; display_name: string; shift_cast_confirm: boolean; customer_purpose: string; customer_retention_years: string; ar_enabled: boolean; okuri_base_amount: string; okuri_actual: boolean; ops: OpsProfile; settlement_cycle: string; mid_pay: string; shift_auto_confirm_hours: string; join_mode: JoinMode; pay_fee: Record<PayFeeKey, string> }; // ★便 P173: join_mode（386）・pay_fee（393・％の文字列・空＝0） // ★0153（裁定305-11／293-4）: 利用目的・保持年数（1〜10・既定 5）・★0172（裁定349／380）: 精算方式・途中払い・自動確定時間
+const EMPTY: Profile = { kind_back: { hon: "100", jonai: "50", free: "30" }, wht_cast: "hostess", wht_staff: "none", cash_float: "", close_day: "31", duty_gate: true, kiosk_person_idle: "10", punch_mode: "punch", reg_win_before: "30", reg_win_after: "60", pay_disc_cash: "", pay_disc_base: "total", pay_disc_rates_raw: { cash: 0, card: 0, other: 0 }, name: "", short: "", store_code: "", display_name: "", shift_cast_confirm: false, customer_purpose: "", customer_retention_years: "5", ar_enabled: false, okuri_base_amount: "", okuri_actual: false, settlement_cycle: "monthly", mid_pay: "none", shift_auto_confirm_hours: "0", ops: OPS_DEFAULT, join_mode: "join_set", pay_fee: { card: "", emoney: "", other: "" } };
 
 const secTitle: React.CSSProperties = t.cardTitle;
 const input: React.CSSProperties = { ...t.input, width: "100%", padding: "8px 10px", fontSize: 13 };
@@ -83,6 +84,7 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
       pay_fee: (() => { const r = payFeeRatesOf(sj); return { card: r.card ? String(r.card) : "", emoney: r.emoney ? String(r.emoney) : "", other: r.other ? String(r.other) : "" }; })(), // ★便 P173（裁定393）: 欠損＝0（空欄）
       pay_disc_cash: (() => { const r = payDiscountRatesOf(sj); return r.cash ? String(r.cash) : ""; })(), pay_disc_base: payDiscountBaseOf(sj), pay_disc_rates_raw: payDiscountRatesOf(sj), // ★0187（便 CASH）: 現金割引の率・基準・他キーの現値（patch で丸ごと送るため）
       kiosk_person_idle: String(kioskPersonIdleMinutesOf(sj)), // ★0192 M-49: 欠損＝10
+      punch_mode: punchModeOf(sj), reg_win_before: String(registerWindowOf(sj).before), reg_win_after: String(registerWindowOf(sj).after), // ★便 E（0197 用＝裁定455）: 3 択目と窓（フラグ false＝'punch'／30／60）
       duty_gate: sj.duty_gate !== false, // ★0190（裁定436 ①a）: 欠損＝ON（DB の duty_gate_of と同じ既定・false だけが OFF）
       // ★0191 ★1: 欠損＝既定（100／50／30・hostess／none・釣銭なし・末日）
       kind_back: (() => { const k = (sj.kind_back_rate && typeof sj.kind_back_rate === "object" ? sj.kind_back_rate : {}) as Record<string, unknown>; const n = (v: unknown, d: number) => (typeof v === "number" ? String(v) : String(d)); return { hon: n(k.hon, 100), jonai: n(k.jonai, 50), free: n(k.free, 30) }; })(),
@@ -124,6 +126,12 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
     if (mig0190On() && form.duty_gate !== cur.duty_gate) out.duty_gate = form.duty_gate === true;
     // ★0192 M-49（MIG_0192_APPLIED）: kiosk_person_idle_minutes＝整数 1〜120（白名単・検証は RPC＝'bad kiosk_person_idle_minutes'）。フラグ false の間は送らない
     if (mig0192On() && form.kiosk_person_idle !== cur.kiosk_person_idle) out.kiosk_person_idle_minutes = Number(form.kiosk_person_idle);
+    // ★便 E（0197 用＝裁定455）: punch_mode と窓の 2 キー（白名単は 0197＝フラグ false の間は送らない）
+    if (mig0197On()) {
+      if (form.punch_mode !== cur.punch_mode) out.punch_mode = form.punch_mode;
+      if (form.reg_win_before !== cur.reg_win_before) out.register_window_before_min = Number(form.reg_win_before);
+      if (form.reg_win_after !== cur.reg_win_after) out.register_window_after_min = Number(form.reg_win_after);
+    }
     // ★0191 ★1（MIG_0191_APPLIED）: 5 キー＝変更分だけ数値／文字列で（白名単・検証は RPC＝'bad kind_back_rate'／'bad withholding_default_*'／'bad cash_float_default'／'bad settlement_close_day'）。フラグ false の間は送らない
     if (mig0191On()) {
       if ((["hon", "jonai", "free"] as const).some((k) => form.kind_back[k] !== cur.kind_back[k])) out.kind_back_rate = { hon: Number(form.kind_back.hon), jonai: Number(form.kind_back.jonai), free: Number(form.kind_back.free) };
@@ -338,6 +346,24 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
                 </div>
               </div>
               <div style={{ minWidth: 0 }}>
+                {mig0197On() && (/* ★便 E（0197 用＝裁定455 の 4）: 3 択（店の端末だけ／本人のスマホからも／打刻しない）＝'store' のとき punch_methods は無視・窓の 2 欄 */
+                  <div style={{ margin: "0 0 10px" }} data-punch-choice={form.punch_mode === "store" ? "store" : form.ops.punch_methods.self ? "any" : "device"}>
+                    <span style={label}>打刻</span>
+                    <SegSelect value={form.punch_mode === "store" ? "store" : form.ops.punch_methods.self ? "any" : "device"}
+                      onChange={(v) => { if (v === "store") setForm((f) => ({ ...f, punch_mode: "store" })); else { setForm((f) => ({ ...f, punch_mode: "punch" })); setOps({ punch_methods: { ...form.ops.punch_methods, self: v === "any" } }); } }}
+                      options={PUNCH_CHOICE_OPTIONS} disabled={busy} ariaLabel="打刻" wrap />
+                    <span style={{ display: "block", fontSize: 11.5, color: "var(--sub)", marginTop: 4, lineHeight: 1.7 }}>{PUNCH_CHOICE_NOTE[form.punch_mode === "store" ? "store" : form.ops.punch_methods.self ? "any" : "device"]}</span>
+                    {form.punch_mode === "store" && (
+                      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginTop: 6, fontSize: 12.5 }} data-register-window="1">
+                        <span>スマホのレジを開ける窓＝確定シフトの開始</span>
+                        <input inputMode="numeric" value={form.reg_win_before} onChange={(e) => setForm((f) => ({ ...f, reg_win_before: e.target.value.replace(/[^0-9]/g, "").slice(0, 3) }))} style={{ ...t.input, width: 64 }} aria-label="開始の何分前" disabled={busy} />
+                        <span>分前 〜 終了</span>
+                        <input inputMode="numeric" value={form.reg_win_after} onChange={(e) => setForm((f) => ({ ...f, reg_win_after: e.target.value.replace(/[^0-9]/g, "").slice(0, 3) }))} style={{ ...t.input, width: 64 }} aria-label="終了の何分後" disabled={busy} />
+                        <span>分後（0〜240）</span>
+                      </div>
+                    )}
+                  </div>
+                )}
                 <span style={label}>キャストの打刻</span>{/* ★便 X13-G W-23: 使う／使わない（店が勤怠を記録）＝下の打刻方法（punch_methods）の組合せ */}
                 <div style={{ margin: "0 0 8px" }} data-cast-punch="1">
                   <SegSelect value={castPunchOffOf(form.ops.punch_methods) ? "off" : "on"} onChange={(v) => setOps({ punch_methods: castPunchMethodsOf(v === "on", form.ops.punch_methods) })}

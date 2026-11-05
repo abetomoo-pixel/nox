@@ -4,6 +4,7 @@
 // ★便 M5 M-40 (c)（2026-10-30）: reason（通さない理由語＝castRegisterDenyReasonOf）を添えて返す（allowed=true のとき null）。
 //   auth_cast_can_register は「店 ON ∧ 本人 can_register」を 1 つの boolean で返す＝店 OFF と本人不許可を分けるため、false のときだけ店設定 cast_register を読み分ける。
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { bizNowMinOf, inRegisterWindowOf, registerWindowOf, storeDecidesPunchOf, storeRegisterWindowTextOf } from "@/lib/nox/shift/punch-mode"; // ★便 E（0197 用）
 import { createAdminClient } from "@/lib/supabase/admin";
 import { castMineRegisterNavOf, castOwnSessionRegisterOf, castRegisterDenyReasonOf, castRegisterDeviceOf, type CastMineRegisterNav, type CastRegisterDenyReason } from "@/lib/nox/register/p173";
 import { mig0190On } from "@/lib/nox/rules-0175/flag"; // ★便 M5 M-44: 打刻ゲート（duty_gate）は 0190 の配下
@@ -23,6 +24,19 @@ export async function castMineRegisterNavEntryOf(supabase: SupabaseClient): Prom
   const dutyGate = mig0190On() && sj.duty_gate === true;
   if (!dutyGate) return castMineRegisterNavOf({ reason: null, dutyGate: false, onDuty: true });
   const cutoff = typeof sj.biz_cutoff_hm === "string" && sj.biz_cutoff_hm ? (sj.biz_cutoff_hm as string) : "06:00";
+  // ★便 E（0197 用＝裁定455 の 5）: 打刻しない店＝その営業日の確定シフトの窓（開始 −before 〜 終了 ＋after）か「今日だけ許可」（register_day_grants＝RLS 本人）で開ける。文言は窓の 1 行
+  if (storeDecidesPunchOf(sj)) {
+    const biz = bizDateOf(new Date().toISOString(), cutoff);
+    const [{ data: sh }, { data: gr }] = await Promise.all([
+      supabase.from("shifts").select("start_hm, end_hm").eq("date", biz).eq("status", "confirmed").order("start_hm").limit(1),
+      supabase.from("register_day_grants").select("id").eq("biz_date", biz).eq("subject_kind", "cast").limit(1),
+    ]);
+    const shift = ((sh ?? [])[0] as { start_hm: string; end_hm: string } | undefined) ?? null;
+    const win = registerWindowOf(sj);
+    const onDuty = ((gr ?? []).length > 0) || inRegisterWindowOf(shift, win, bizNowMinOf(Date.now(), cutoff));
+    const nav = castMineRegisterNavOf({ reason: null, dutyGate: true, onDuty });
+    return nav.show ? nav : { ...nav, note: `レジ：${storeRegisterWindowTextOf(shift, win)}` };
+  }
   const { startIso, endIso } = bizDateRange(bizDateOf(new Date().toISOString(), cutoff), cutoff);
   const { data: punches } = await supabase.from("punches").select("type, punched_at").gte("punched_at", startIso).lt("punched_at", endIso);
   const onDuty = punchStateOf((punches ?? []) as { type: string; punched_at: string }[]).state === "open";
