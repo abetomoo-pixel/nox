@@ -157,6 +157,8 @@ export default async function MinePage({ searchParams }: { searchParams?: Promis
   // ★便 SH-UI-c C-2 ④: 「今月の勤怠」＝給与と同じ計算の表（lib/nox/payroll/attendance-sheet・自分の行＝RLS）。送りは transport の自分の行（mode は 0177 後）
   const { data: mineTransport } = await supabase.from("transport").select("*").gte("biz_date", `${month}-01`);
   // ★便 SH-UI-c2 C2-3: 日別の算定給与＝店長の勤怠表と同じ builder（computePayrollDraft＝給与と同じ）。本人の cast で絞る・読めなければ従来の表（日計なし）
+  // ★M-92（2026-11-05）: 店の定休日の曜日＝store_business_hours は RLS でキャストが読めない＝admin で読んで AvailabilityEditor に渡す（表示だけ・設定値を読むだけ）
+  const mineClosedDows: number[] = myStore ? (((await createAdminClient().from("store_business_hours").select("dow, is_closed").eq("store_id", myStore.id as string)).data ?? []) as { dow: number; is_closed: boolean }[]).filter((x) => x.is_closed).map((x) => x.dow) : [];
   const kintaiBuilt = meCast && myStore ? await buildKintaiSheet(createAdminClient(), supabase, myStore.id as string, month, { castId: meCast.id as string }).catch(() => null) : null;
   const kintaiBuiltRows: AttendanceDayRow[] | null = kintaiBuilt?.casts[0]?.rows ?? null;
   const kintaiRows = (kintaiBuiltRows ?? attendanceDayRowsOf({
@@ -462,7 +464,7 @@ export default async function MinePage({ searchParams }: { searchParams?: Promis
       {rules0175On() && meCast?.id && myStore && (/* ★便 P175-prep P-4（裁定397＋413）: 基本の働き方（本人）＝雇用は時間帯を店が決める（表示＋メモ）。通知は audit のみ。フラグ false＝DOM 差分 0 */
         <section className="nox-panel" data-mine-availability="1">
           <h3>基本の働き方</h3>
-          <AvailabilityEditor castId={meCast.id as string} storeId={myStore.id as string} employment={((meCast as { employment?: string | null }).employment ?? null)} bySelf />
+          <AvailabilityEditor castId={meCast.id as string} storeId={myStore.id as string} employment={((meCast as { employment?: string | null }).employment ?? null)} bySelf closedDowsInit={mineClosedDows} />{/* ★M-92: 定休日は server（admin）で読んで渡す＝store_business_hours の RLS はキャストを除外 */}
         </section>
       )}
       {/* ★0154 D1（裁定294-2／294-4／295-1）: 出退勤の修正申請（本人）＝店の承認後に punches へ反映・承認分は本人が確認／異議あり */}

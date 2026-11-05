@@ -19,8 +19,10 @@ import { AVAIL_LABEL, DOW_JA, availChipsOf, availFormOf, availPatchOf, canEditTi
 const hm = (min: number | null): string => (min === null ? "" : `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`);
 const minOf = (s: string): number | null => { const m = /^(\d{1,2}):(\d{2})$/.exec(s.trim()); if (!m) return null; const v = Number(m[1]) * 60 + Number(m[2]); return Number.isFinite(v) ? v : null; };
 
-export default function AvailabilityEditor({ castId, storeId, employment, bySelf, readOnly = false, membershipId: fixedMembershipId = null }: {
+export default function AvailabilityEditor({ castId, storeId, employment, bySelf, readOnly = false, membershipId: fixedMembershipId = null, closedDowsInit = null }: {
   castId: string; storeId: string; employment: string | null; bySelf: boolean; readOnly?: boolean;
+  /** ★M-92: 店の定休日の曜日を server から渡す（/mine＝store_business_hours の RLS はキャストを除外＝client では読めない）。渡せば client では読まない */
+  closedDowsInit?: number[] | null;
   /** ★M-88: membership を直接渡す（スタッフ＝casts が無い）。渡せば casts.user_id → memberships の解決はしない */
   membershipId?: string | null;
 }) {
@@ -34,12 +36,12 @@ export default function AvailabilityEditor({ castId, storeId, employment, bySelf
   const [msg, setMsg] = useState<{ kind: "success" | "error"; text: string } | null>(null);
   const timeEditable = canEditTimeOf(employment, bySelf);
   const [bh, setBh] = useState<Record<number, { open: string; close: string }>>({});
-  const [closedDows, setClosedDows] = useState<Set<number>>(new Set()); // ★M-92: 店の定休日の曜日（store_business_hours.is_closed＝設定値を読むだけ） // ★便 M5b M-51 追補 2: 店の営業時間（曜日→開始／終了）＝時刻の初期値
+  const [closedDows, setClosedDows] = useState<Set<number>>(new Set(closedDowsInit ?? [])); // ★M-92: 店の定休日の曜日（store_business_hours.is_closed＝設定値を読むだけ・/mine は server から） // ★便 M5b M-51 追補 2: 店の営業時間（曜日→開始／終了）＝時刻の初期値
   const noAccount = !membershipId && mig0192On() && !bySelf; // ★0192 M-34: 未発行＝店が cast_id で置く（本人の確認は初回ログイン後の保存で membership へ引き取る）
   const canEdit = !!membershipId || noAccount;
 
   const load = useCallback(async () => {
-    void supabase.from("store_business_hours").select("dow, is_closed, open_hm, close_hm").eq("store_id", storeId).then(({ data }) => { setClosedDows(new Set(((data ?? []) as { dow: number; is_closed: boolean }[]).filter((x) => x.is_closed).map((x) => x.dow))); setBh(Object.fromEntries(((data ?? []) as { dow: number; is_closed: boolean; open_hm: string | null; close_hm: string | null }[]).filter((x) => !x.is_closed && x.open_hm && x.close_hm).map((x) => [x.dow, { open: x.open_hm!.slice(0, 5), close: x.close_hm!.slice(0, 5) }]))); }); // ★M-92: 定休日も読む
+    void supabase.from("store_business_hours").select("dow, is_closed, open_hm, close_hm").eq("store_id", storeId).then(({ data }) => { if (!closedDowsInit) setClosedDows(new Set(((data ?? []) as { dow: number; is_closed: boolean }[]).filter((x) => x.is_closed).map((x) => x.dow))); setBh(Object.fromEntries(((data ?? []) as { dow: number; is_closed: boolean; open_hm: string | null; close_hm: string | null }[]).filter((x) => !x.is_closed && x.open_hm && x.close_hm).map((x) => [x.dow, { open: x.open_hm!.slice(0, 5), close: x.close_hm!.slice(0, 5) }]))); }); // ★M-92: 定休日も読む
     // ★便 ON-1（2026-10-26）: memberships に cast_id 列は無い（user × store）＝casts.user_id → memberships（store・active）で解く
     // ★M-87（2026-11-05）: 本人（bySelf）は memberships を読めない（RLS は owner／manager だけ）＝RPC auth_membership_id() で解く。店側は従来どおり casts.user_id → memberships
     let mid: string | null = null;
