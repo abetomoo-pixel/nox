@@ -5493,6 +5493,23 @@ Agoora が 7 本を手貼り（0185→0180→0181→0182→0183→0184→0186）
 - **0183 の (a)**: payroll_withholding_overrides／payroll_employee_deductions の period は YYYY-MM＝payroll_runs.period も CHECK で YYYY-MM・period_bounds も月だけ＝run は精算方式（settlement_cycle）に関係なく月単位で、half／weekly／daily は源泉の暦日数の注記と日払いの種別だけ（本番 10 店とも settlement_cycle 未設定＝月次）＝今は足りる。半月・週の run を作るときは run・上書き・控除の 3 つの period を一緒に設計し直す。
 - **0183 の (b)**: キャストの源泉区分は「税務情報を保存」で set_cast_tax_profile（upsert＝行を作る）の後に set_withholding_kind を呼ぶ＝not found にならない。スタッフは契約の行がある人だけ区分の選択が出る（行を作る動線＝B の 6-④）。
 
+## 裁定455（2026-11-05 確定・相談役＝Agoora 方針）打刻の 3 択目「打刻しない（店が勤怠を付ける）」＝punch_mode・実働は確定シフト・遅刻／当欠控除は精算調整の preset・スマホのレジの柵＝確定シフトの時間内＋今日だけ許可・mig の割り当て 0196／0197
+
+出典＝相談役 11/05（CC の読取 1〜6 への裁定）。適用＝便 D（3）・便 E＝0197 のフラグ便（2・4・5 の client）・0196／0197（DDL）。
+「1. 『打刻しない（店が勤怠を付ける）』＝新キー settings_json.punch_mode（'punch'＝既定／'store'）。punch_methods の白名単は触らない（punch_mode='store' のとき punch_methods は無視）。RPC の受け口＝0197。
+2. 実働の式（punch-match／attendance-sheet）に punch_mode='store' の分岐＝確定シフトの時間を実働・当欠／休みは 0・時刻上書きは punches のまま＝TS だけ（便 E＝0197 のフラグ便）。
+3. 遅刻控除／当欠控除＝settlement_presets late／absent（0154 D3）を使う。attendance_set で遅刻／当欠を付けた後に client が payroll_adjustment_add（名称は『遅刻控除』『当欠控除』・額は初期設定 ⑦ の 2 欄＝空欄なら登録しない）。既定行は初期設定で置く。DDL 不要＝便 D に同乗。
+4. 初期設定 v5 ⑦ とマスタ › 店舗設定の 3 択目・打刻しない店で punch タイル／打刻ボタンを出さない＝client（値は 1 の後＝便 E）。
+5. スマホのレジの柵＝on_duty_of に『punch_mode='store'＝その日の確定シフトの時間内（開始前 30 分・終了後 60 分＝settings_json の 2 キー・既定）』・店長以上は今のまま・『今日だけ許可』＝新表 register_day_grants（store×subject×biz_date・付与者・audit）＋RPC 1 本＝0197。client（register-board／cast-entry-server の文言とボタン）＝便 E。
+キオスクの『操作する人』の (a)＝M-93 を差し替え＝kiosk_operator_list を castRegisterLevelOf と同じ判定（sys_cast_register>0 または旧 true）に直す RPC 1 本＝0196 に同乗。『出勤中のキャストはいません』の 1 行は不要。
+mig の割り当て＝0196＝キオスク（裁定448・453・§9＝kiosk_punch の p_day_deductions・day_rules の読取の口・cast セルフ腕・kiosk_operator_list・M-100 の destination 自動埋めが route で済まないなら同乗）／0197＝裁定455（punch_mode・on_duty_of・register_day_grants＋RPC）。0196_plan.md と新規 0197_plan.md に書き分ける。
+便 D を始めてよい＝M-94〜M-99・M-101・M-102・M-103 の UI（0196 まで非表示）・M-104・裁定455 の 3。締め＝f0 2 連 → push → 6 店 reset → 撮影 → 報告 3 行。push の後に 0196 の起草（確認 4 点＝裁定453・§9・kiosk_operator_list）に入り、live から生成・試走・handpaste_0196.md・sha16 を報告して止まる。本番の DDL／データは触らない。」
+CC の処置＝docs/tmp/0196_plan.md §10（スコープの確定）・docs/tmp/0197_plan.md（新規＝裁定455 の DDL と便 E）・M-93 の節を差し替え（下）。
+
+## M-93（2026-11-05 差し替え・裁定455＝0196 に同乗）キオスクの「操作する人を選ぶ」にキャストが出ない＝kiosk_operator_list の判定を castRegisterLevelOf と同じに
+
+読取（(a)）＝kiosk_operator_list は `m.role='cast' and m.can_register and settings_json.cast_register_enabled='true'` で絞るが、今の店設定は sys_cast_register（0／1／2・0175 v2）＝旧キーは 6 店とも null＝ACE 以外は出ない。打刻ゲートは一覧に効いていない。直し＝RPC 1 本（0196）＝`sys_cast_register>0 または旧 true`（client の castRegisterLevelOf と同じ）。アカウントの無いキャストは PIN が無い＝一覧に出せない（仕様）。「出勤中のキャストはいません」の 1 行は不要（裁定455）。
+
 ## 裁定454（2026-11-05 確定・相談役＝M-70 の読取を受けて）裁定451 ② の訂正＝ACE の平日通常は 60／13,000・ACE の延長パターンを VIP 席の見本に作り直す・M-83 見積の「30 分あたり」・キオスク退勤の「今日の控除」は 0196 のスコープ
 
 出典＝相談役 11/05（CC の M-70 読取＝「適用中」の決まり方・6 店の延長パターン一覧・換算列の変更箇所 への返事）。適用＝デモデータ便（裁定451 ①＋本裁定 1〜4）・0196 の計画（5）。
@@ -8390,7 +8407,7 @@ anon-guard 段28 が無差別 `limit(1)` でそれを拾い 'bad amount'/BV=unde
 
 ## 次の番号（2026-11-05・0195 のフラグ true 便＝裁定453／454 を収載した時点）
 
-- **次の裁定＝455**（454＝裁定451 ② の訂正・ACE の延長パターン・M-83・0196 のスコープ＝デモデータ便と 0196 の計画で適用・453＝0195 の手貼り後の処置＝収蔵→フラグ true 便・450＝0195 の仮置き 9 点（6 だけ RPC 側でも検証）・451＝デモデータ便（availability・ext_fee 平日通常）・452＝M-67 の残りはローンチ前「店が毎日触る画面」だけ＝M-82）。**次の M＝M-105**（M-104＝確定済みの明細に live のマスタ一覧を出さない＝便 D・M-103＝Agoora 確定＝その日に選ぶ控除は出勤時に聞く＝UI は便 D・保存は 0196・M-102＝LINE の URL は site 固定＝便 D・M-101＝LINE の送信数カード LineQuotaCard＝便 D・M-100＝提案中＝bot destination の自動取得と再送の捨て・M-99＝/staff の契約チップのコントラスト＝便 D の候補・M-95〜M-98＝Agoora 実機指摘（期間なしの割当・店が決める店の 2 段・はみ出し・売掛なしの日報）＝便 D の候補・M-94＝便 D＝/register を共通レイアウトへ・M-93＝欠番（キオスクの操作者一覧の読取は (a)＝0196 行き）・M-88〜M-92＝デモデータ便で実装（M-88 読取＝汎用・client だけ）・M-87＝不具合＝/mine 末尾の基本の働き方が本人に出ない＝memberships の本人読み→auth_membership_id・client だけ・M-85＝/mine 打刻枠の今日の確定シフト 1 行・M-86＝/mine ヘッダーに店名＝デモデータ便に同乗・M-84＝/login の「パスワードをお忘れの方」＝resetPasswordForEmail・デモデータ便に同乗・M-82＝裁定452 の M-67 の残り・M-83＝裁定454 の 4＝見積の「30 分あたり」＝デモデータ便に同乗・M-65〜M-81＝便 A／便 B／便 C① で実装・M-73／M-74 の DDL 分と M-77 ②③・M-80 追記②は 0195）。**次の教訓＝135**（134＝2026-11-05 採番＝deploy の検知は共有チャンクのハッシュ差・133＝操作ボタンは中央・日付／時刻は共通ピッカー）。**次の mig＝0196**（0195＝2026-11-05 Agoora 手貼り・verify 21 行一致・収蔵 f492c77・フラグ true 便 済み。0196＝計画 docs/tmp/0196_plan.md・確認 4 点＝§6 待ち）。
+- **次の裁定＝456**（455＝打刻の 3 択目 punch_mode・実働＝確定シフト・遅刻／当欠控除＝精算調整の preset・スマホのレジの柵＋今日だけ許可・mig 0196＝キオスク／0197＝裁定455・454＝裁定451 ② の訂正・ACE の延長パターン・M-83・0196 のスコープ＝デモデータ便と 0196 の計画で適用・453＝0195 の手貼り後の処置＝収蔵→フラグ true 便・450＝0195 の仮置き 9 点（6 だけ RPC 側でも検証）・451＝デモデータ便（availability・ext_fee 平日通常）・452＝M-67 の残りはローンチ前「店が毎日触る画面」だけ＝M-82）。**次の M＝M-105**（M-104＝確定済みの明細に live のマスタ一覧を出さない＝便 D・M-103＝Agoora 確定＝その日に選ぶ控除は出勤時に聞く＝UI は便 D・保存は 0196・M-102＝LINE の URL は site 固定＝便 D・M-101＝LINE の送信数カード LineQuotaCard＝便 D・M-100＝提案中＝bot destination の自動取得と再送の捨て・M-99＝/staff の契約チップのコントラスト＝便 D の候補・M-95〜M-98＝Agoora 実機指摘（期間なしの割当・店が決める店の 2 段・はみ出し・売掛なしの日報）＝便 D の候補・M-94＝便 D＝/register を共通レイアウトへ・M-93＝欠番（キオスクの操作者一覧の読取は (a)＝0196 行き）・M-88〜M-92＝デモデータ便で実装（M-88 読取＝汎用・client だけ）・M-87＝不具合＝/mine 末尾の基本の働き方が本人に出ない＝memberships の本人読み→auth_membership_id・client だけ・M-85＝/mine 打刻枠の今日の確定シフト 1 行・M-86＝/mine ヘッダーに店名＝デモデータ便に同乗・M-84＝/login の「パスワードをお忘れの方」＝resetPasswordForEmail・デモデータ便に同乗・M-82＝裁定452 の M-67 の残り・M-83＝裁定454 の 4＝見積の「30 分あたり」＝デモデータ便に同乗・M-65〜M-81＝便 A／便 B／便 C① で実装・M-73／M-74 の DDL 分と M-77 ②③・M-80 追記②は 0195）。**次の教訓＝135**（134＝2026-11-05 採番＝deploy の検知は共有チャンクのハッシュ差・133＝操作ボタンは中央・日付／時刻は共通ピッカー）。**次の mig＝0196**（キオスク＝裁定448・453・§9・kiosk_operator_list・計画 docs/tmp/0196_plan.md＝便 D の push 後に起草）→ **0197**（裁定455＝punch_mode・on_duty_of・register_day_grants＝docs/tmp/0197_plan.md）。
 
 ## 次の番号（2026-11-04 午後・相談役 11/04 の確定と 434 ④・教訓132 を収載した時点）
 
