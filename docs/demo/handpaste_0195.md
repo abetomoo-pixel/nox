@@ -18,7 +18,7 @@
 
 **結論 3 行**
 1. 0195＝裁定447 差し替え版（日ごとの控除ルール）＋M-73（pay_rate・other）＋裁定447 ④（deduction_rule_casts）＋M-77 ②③ の DDL＋M-80 追記②（staff_allowances）＝表 +3・列 +3・RPC 新設 6・作り直し 2（set_deduction 10 引数＝旧 9 引数 drop・staff_attendance_confirm ±0＝裁定450 の 6 の検査 3 行を追加）。
-2. live（0194 適用後・2026-11-05 に md5 を再照合＝set_deduction 8ca7f0df／staff_attendance_confirm 9bb9a0be＝11/04 と同じ）から生成（手打ちなし）・**begin の直後に set local lock_timeout = '10s'（教訓132）**・試走 BEGIN…ROLLBACK＝2026-11-05 **46/46・DB 変更 0**（410／116 → tx 内 416／119 → 410／116・verify 22 行が期待値と全行一致・11/04 の 41 に裁定450 の 6 の 5 段を追加）。
+2. live（0194 適用後・2026-11-05 に md5 を再照合＝set_deduction 8ca7f0df／staff_attendance_confirm 9bb9a0be＝11/04 と同じ）から生成（手打ちなし）・**begin の直後に set local lock_timeout = '10s'（教訓132）**・試走 BEGIN…ROLLBACK＝2026-11-05 **46/46・DB 変更 0**（410／116 → tx 内 416／119 → 410／116・verify 21 行（貼り先証明を含む＝22 は書き違い）が期待値と全行一致・11/04 の 41 に裁定450 の 6 の 5 段を追加）。
 3. 手順は 0194 と同じ＝本番 ref **hiqbfagmkrdpmlqhkmsu** の SQL Editor で事前確認 SQL（返り＝貼り先証明 1 行だけなら貼ってよい）→ 全文を 1 回 Run（begin〜commit）→ 検証クエリ（期待値と全行一致）→ CC に返り 22 行を貼る。
 
 | 項目 | 値 |
@@ -26,7 +26,7 @@
 | ファイル（裁定450 反映版） | docs/tmp/0195_day_deductions.sql（449 行・LF）→ 手貼り後に supabase/migrations/0195_day_deductions.sql へ収蔵 |
 | sha256 | 先頭 16 桁 **90ed3a2656aed407**（旧＝11/04 夜の下書き 50d8359957b32506・差分＝staff_attendance_confirm の declare 1 行＋検査 3 行＋コメント 4 か所） |
 | 翻訳元 | live pg_get_functiondef（2026-11-05 再取得・0194 適用後・md5 は 11/04 と同じ＝docs/tmp/dump_live_0192.mjs）＋生成器 docs/tmp/gen_0195.cjs（裁定450 の 6 を反映）・検証＝docs/tmp/0195_verify.sql（変更なし） |
-| 試走 | docs/tmp/try_0195.mjs（教訓128＝行頭マーカー・commit; の不在 assert・lock_timeout の 1 行 assert・関数数を tx の外で前後に）＝ 2026-11-05 **46/46・DB 変更 0**（410／116 → tx 内 416／119 → 410／116・verify 22 行が期待値と全行一致）。追加の 5 段＝Σ 5,000≠fixed 6,000 は labor mismatch／allowances なしで fixed 6,000 も labor mismatch／fixed 0 で allowances なしは通る／amount が数でない要素は bad allowances／2 行の合計＝fixed は通る（内訳 2 行を凍結） |
+| 試走 | docs/tmp/try_0195.mjs（教訓128＝行頭マーカー・commit; の不在 assert・lock_timeout の 1 行 assert・関数数を tx の外で前後に）＝ 2026-11-05 **46/46・DB 変更 0**（410／116 → tx 内 416／119 → 410／116・verify 21 行（貼り先証明を含む＝22 は書き違い）が期待値と全行一致）。追加の 5 段＝Σ 5,000≠fixed 6,000 は labor mismatch／allowances なしで fixed 6,000 も labor mismatch／fixed 0 で allowances なしは通る／amount が数でない要素は bad allowances／2 行の合計＝fixed は通る（内訳 2 行を凍結） |
 | 根拠 | 台帳 裁定447（差し替え版）／M-73／裁定447 ④／M-77／M-80 追記②／**裁定450**／docs/tmp/0195_plan.md §1〜§9 |
 | 関数数・表数 | 410／116 → **416／119**（新設 6＝cast_day_deductions_set・deduction_rule_cast_set・deduction_rule_casts_get・line_link_block・line_link_remove・staff_allowances_set） |
 
@@ -52,7 +52,7 @@ select 'already applied', 'yes' from information_schema.columns where table_sche
 ## 本文
 docs/tmp/0195_day_deductions.sql の全文（begin〜commit を 1 回 Run）。URL の ref＝hiqbfagmkrdpmlqhkmsu を目視してから。
 
-## 検証クエリ（貼った後）＝docs/tmp/0195_verify.sql（22 行・期待値は各行の見出しに）
+## 検証クエリ（貼った後）＝docs/tmp/0195_verify.sql（21 行＝貼り先証明＋20 行・期待値は各行の見出しに）
 | k | 期待 |
 |---|---|
 | nox-project-proof | orgs の件数（10） |
