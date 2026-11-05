@@ -9,6 +9,8 @@ import { monthRangeOf } from "../month"; // ★便 X13-H H-9: 暦月の日付は
 import { autoWithholdingOf, effectiveWithholdingOf, employeeDeductionLinesOf, WITHHOLDING_KIND_SHORT, type EmployeeDeductionRow, type WithholdingKind } from "../payroll/withholding-kind"; // ★裁定432
 
 export type StaffContractKind = "employee" | "parttime" | "contractor";
+/** ★0195（M-80 追記②・2026-11-05）: 名称つきの固定手当（staff_allowances の 1 行＝月額） */
+export type StaffAllowance = { name: string; amount: number };
 export type StaffContract = {
   membership_id: string;
   contract_kind: StaffContractKind;
@@ -16,7 +18,17 @@ export type StaffContract = {
   fixed_allowance: number;
   tax_class: "甲" | "乙" | null;
   withholding_rate?: number; // %（委託・既定 0＝T11 待ち）★0188（裁定434）: フラグ true では読まない（列は残るが画面から消す＝源泉は区分 withholding_kind で・委託スタッフの既定 none）
+  allowances?: readonly StaffAllowance[]; // ★0195（M-80 追記②）: 名称つきの固定手当（staff_allowances・is_active）＝雇用の月の支給に fixed_allowance と合わせて加える（無ければ従来と同値）
 };
+/** ★0195: 名称つきの固定手当の合計（行が無ければ 0＝従来と同値） */
+export const staffAllowanceSumOf = (c: { allowances?: readonly StaffAllowance[] | null }): number => (c.allowances ?? []).reduce((a, x) => a + (x.amount > 0 ? x.amount : 0), 0);
+export type StaffAllowanceRow = { membership_id: string; name: string; amount: number };
+/** ★0195: staff_allowances の行（RLS で読めた分）を契約に付ける（純関数） */
+export function attachStaffAllowances<T extends { membership_id: string }>(contracts: readonly T[], rows: readonly StaffAllowanceRow[] | null | undefined): (T & { allowances: StaffAllowance[] })[] {
+  const by = new Map<string, StaffAllowance[]>();
+  for (const r of rows ?? []) (by.get(r.membership_id) ?? by.set(r.membership_id, []).get(r.membership_id)!).push({ name: r.name, amount: r.amount });
+  return contracts.map((c) => ({ ...c, allowances: by.get(c.membership_id) ?? [] }));
+}
 export type StaffPunch = { membership_id: string; biz_date: string; kind: "in" | "out"; punched_at: string };
 
 export const STAFF_CONTRACT_LABEL: Record<StaffContractKind, string> = { employee: "正社員", parttime: "アルバイト", contractor: "業務委託" };
@@ -66,14 +78,15 @@ export function staffContractLineOf(c: StaffContract): string {
   const yen = (n: number) => "¥" + n.toLocaleString();
   const head = STAFF_CONTRACT_LABEL[c.contract_kind];
   if (isStaffEmployment(c.contract_kind) && c.hourly === 0 && c.fixed_allowance > 0) return `${head}・月給 ${yen(c.fixed_allowance)}`;
-  return `${head}・時給 ${yen(c.hourly)}${c.fixed_allowance ? `・手当 ${yen(c.fixed_allowance)}` : ""}`;
+  const allow = c.fixed_allowance + staffAllowanceSumOf(c); // ★0195: 名称つきの行も合わせて 1 つの額
+  return `${head}・時給 ${yen(c.hourly)}${allow ? `・手当 ${yen(allow)}` : ""}`;
 }
 export function staffPayOf(contract: StaffContract, days: readonly StaffDayHours[], opts?: { kind: WithholdingKind; override?: number | null; deductions?: readonly EmployeeDeductionRow[] }): StaffPayResult {
   const minutes = days.reduce((s, d) => s + d.minutes, 0);
   const workDays = days.length;
   const timePay = floorYen((contract.hourly * minutes) / 60);
   const employment = isStaffEmployment(contract.contract_kind);
-  const fixed = employment ? contract.fixed_allowance : contract.hourly > 0 ? 0 : contract.fixed_allowance * workDays;
+  const fixed = employment ? contract.fixed_allowance + staffAllowanceSumOf(contract) : contract.hourly > 0 ? 0 : contract.fixed_allowance * workDays; // ★0195: 雇用＝1 本＋名称つきの行（行が無ければ従来と 1 バイト同値）
   const gross = timePay + fixed;
   // ★便 X13-H H-12 ③: 委託＝源泉 10.21%（率が未設定＝0 の契約も 10.21% で見込み）・雇用＝甲欄／乙欄（見込みは源泉 0＝確定時に計算）
   const rate = employment ? 0 : (contract.withholding_rate ?? 0) > 0 ? (contract.withholding_rate ?? 0) : STAFF_CONTRACTOR_RATE;

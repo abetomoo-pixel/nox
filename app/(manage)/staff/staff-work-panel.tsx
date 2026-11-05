@@ -19,8 +19,8 @@ import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import { ResponsiveTable } from "@/components/ui/responsive-kit";
 import { Message } from "@/components/ui/toast";
-import { staffContractLineOf, hmOf, staffHoursOf, staffMonthRangeOf, staffPayOf, type StaffContract, type StaffPunch } from "@/lib/nox/staff/pay";
-import { mig0183On, mig0188On, mig0192On, mig0194On } from "@/lib/nox/rules-0175/flag"; // ★裁定432（0183 ★4）・★0192 ★1／M-38: スタッフ勤怠の修正・確定・退勤の取消 ★0194: 確定額の凍結
+import { attachStaffAllowances, staffContractLineOf, hmOf, staffHoursOf, staffMonthRangeOf, staffPayOf, type StaffAllowanceRow, type StaffContract, type StaffPunch } from "@/lib/nox/staff/pay"; // ★0195: attachStaffAllowances
+import { mig0183On, mig0188On, mig0192On, mig0194On, mig0195On } from "@/lib/nox/rules-0175/flag"; // ★裁定432（0183 ★4）・★0192 ★1／M-38: スタッフ勤怠の修正・確定・退勤の取消 ★0194: 確定額の凍結
 import { staffLaborRowOf } from "@/lib/nox/staff/labor"; // ★0194（裁定445 ①②）: 月の確定と同時に送る確定額の行（内訳つき）
 import Withholding432Panel from "@/components/nox/withholding-432-panel";
 import { WITHHOLDING_ADVICE_NOTE, WITHHOLDING_KIND_LABEL, WITHHOLDING_KIND_SELECT_NOTE, WITHHOLDING_KIND_SHORT, PAYMENT_REPORT_NOTE, defaultWithholdingKindOf, withholdingKindChoices, withholdingKindOf, type EmployeeDeductionKind, type EmployeeDeductionRow } from "@/lib/nox/payroll/withholding-kind";
@@ -75,7 +75,8 @@ export default function StaffWorkPanel({ scope, stores, daily = false, initialMe
     const map: Record<string, UserRow> = {};
     if (ids.length) { const { data: us } = await supabase.from("users").select("id, name").in("id", ids); for (const u of (us ?? []) as UserRow[]) map[u.id] = u; }
     setMems(rows); setUsers(map);
-    setContracts(Object.fromEntries(((cc.data ?? []) as StaffContract[]).map((c) => [c.membership_id, c])));
+    const { data: al } = mig0195On() ? await supabase.from("staff_allowances").select("membership_id, name, amount, sort").eq("is_active", true).order("sort") : { data: null }; // ★0195: 名称つきの固定手当＝見込み（staffPayOf）と確定（staffLaborRowOf の allowances）に
+    setContracts(Object.fromEntries(attachStaffAllowances((cc.data ?? []) as StaffContract[], al as StaffAllowanceRow[] | null).map((c) => [c.membership_id, c])));
     setPunches((pp.data ?? []) as StaffPunch[]);
     if (scope === "store") { const { data: rr } = await supabase.from("staff_payroll_runs").select("status").eq("period", month).limit(1); setRun(((rr ?? []) as { status: string }[])[0] ?? null); }
     if (stores[0]?.id) { const { data: tb } = await supabase.rpc("biz_date_of", { p_store_id: stores[0].id, p_at: new Date().toISOString() }); if (typeof tb === "string") setTodayBiz(tb); } // ★便 M3 M-23: 営業日の今日（勤務中／退勤記録なしの判定）

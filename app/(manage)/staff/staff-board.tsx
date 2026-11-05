@@ -5,7 +5,7 @@
 // 在籍解除/再雇用 staff_deactivate/reactivate（Q-1）・追加 POST /api/staff/create（Q-2）。
 // UI の出し分け（owner/manager・自店・自分の行）は利便のための表示制御＝真の防御は RPC ゲート（二重に守る）。
 import Staff0193 from "@/components/nox/staff-0193";
-import { mig0193On } from "@/lib/nox/rules-0175/flag"; // ★0193
+import { mig0193On, mig0195On } from "@/lib/nox/rules-0175/flag"; // ★0193
 import { LoadMoreBar, useLoadMore } from "@/components/ui/load-more"; // ★便 M5b M-60
 import AddButton from "@/components/ui/add-button"; // ★便 M5b M-55
 export const STAFF_ADD_DEMO_NOTE = "デモ環境ではスタッフを追加できません（本番ではここから登録→招待まで進めます）"; // ★M-79（2026-11-04）
@@ -18,7 +18,8 @@ import CastAvatar from "@/components/ui/cast-avatar";
 import PhotoEdit from "@/components/ui/photo-edit"; // ★X-13-4: 名前の横に写真（現在・変更・削除）＝キャスト詳細と同じ部品
 import Toast, { Message } from "@/components/ui/toast";
 import Modal from "@/components/ui/modal";
-import StaffWorkSection, { type StaffWorkContract } from "@/components/nox/staff-work-section"; // ★便 A M-80: 編集モーダルの「働き方」（給与側と同じ保存先）
+import StaffWorkSection, { type StaffWorkContract } from "@/components/nox/staff-work-section";
+import { attachStaffAllowances, type StaffAllowanceRow } from "@/lib/nox/staff/pay"; // ★0195: 名称つきの固定手当 // ★便 A M-80: 編集モーダルの「働き方」（給与側と同じ保存先）
 import { staffContractLineOf } from "@/lib/nox/staff/pay"; // ★便 A M-80: 一覧の契約チップ
 import { FieldStack, TelLink } from "@/components/ui/responsive-kit"; // ★裁定381（GV-B W-10）・★0172: TelLink（スタッフの電話）
 
@@ -190,7 +191,8 @@ export default function StaffBoard({
     setLineLinked(new Set(((ll ?? []) as { subject_id: string }[]).map((x) => x.subject_id)));
     { // ★便 A M-80: 働き方＝一覧の契約チップと編集モーダルの「働き方」（withholding_kind は 0183 の列）
       const { data: cc } = await supabase.from("staff_contracts").select(mig0183On() ? "membership_id, contract_kind, pay_kind, hourly, monthly, daily, fixed_allowance, tax_class, withholding_kind" : "membership_id, contract_kind, pay_kind, hourly, monthly, daily, fixed_allowance, tax_class");
-      setContracts(Object.fromEntries(((cc ?? []) as unknown as StaffWorkContract[]).map((c) => [c.membership_id, c])));
+      const { data: al } = mig0195On() ? await supabase.from("staff_allowances").select("membership_id, name, amount, sort").eq("is_active", true).order("sort") : { data: null }; // ★0195: 名称つきの固定手当（RLS＝owner 全店／manager 自店／本人）
+      setContracts(Object.fromEntries(attachStaffAllowances((cc ?? []) as unknown as StaffWorkContract[], al as StaffAllowanceRow[] | null).map((c) => [c.membership_id, c])));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

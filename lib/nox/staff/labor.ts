@@ -5,8 +5,9 @@
 //   見込み／確定＝その月が staff_attendance_locks で確定済みなら「確定」・それ以外は「見込み」（確定額の凍結の表は 0194 候補＝それまでは確定後も今の契約で計算）。
 //   営業日＝暦日のうち store_business_hours の定休曜日を除き、store_special_days の臨時休業を除き特別営業を足す（★相談役確認待ち：月報の「営業日数＝締め済み日報の件数」とは定義が違う）。
 import { daysInMonthOf } from "../month";
+import { staffAllowanceSumOf, type StaffAllowance } from "./pay"; // ★0195（M-80 追記②）: 名称つきの固定手当
 
-export type StaffLaborContract = { pay_kind?: string | null; hourly: number; fixed_allowance: number; monthly?: number | null; daily?: number | null };
+export type StaffLaborContract = { pay_kind?: string | null; hourly: number; fixed_allowance: number; monthly?: number | null; daily?: number | null; allowances?: readonly StaffAllowance[] }; // ★0195: allowances（無ければ従来と同値）
 export type StaffLaborDay = { bizDate: string; minutes: number };
 
 /** その月（YYYY-MM）の営業日（昇順） */
@@ -43,7 +44,7 @@ export function staffLaborOf(c: StaffLaborContract | null, days: readonly StaffL
     for (const x of days) if (x.minutes > 0 && !absent.has(x.bizDate)) add(x.bizDate, c.daily ?? 0);
   } else {
     for (const x of days) if (!absent.has(x.bizDate)) add(x.bizDate, Math.floor((c.hourly * x.minutes) / 60));
-    for (const [d, v] of Object.entries(spreadOverDays(c.fixed_allowance, bizDays))) add(d, v);
+    for (const [d, v] of Object.entries(spreadOverDays(c.fixed_allowance + staffAllowanceSumOf(c), bizDays))) add(d, v); // ★0195: 名称つきの行も営業日で日割り
   }
   return { byDay, total: Object.values(byDay).reduce((a, v) => a + v, 0) };
 }
@@ -51,9 +52,16 @@ export function staffLaborOf(c: StaffLaborContract | null, days: readonly StaffL
 // ★0194（裁定445 ①・2026-11-04）: 月の確定（staff_attendance_confirm の p_labor）に送る 1 人分の行＝内訳つき。
 //   時給制の行は RPC が 時給×実働÷60（端数＝店設定 labor_rounding・既定 down＝floorYen）を再計算して time_pay と amount（＝time_pay＋fixed）の一致を確認する＝staffPayOf（timePay＝floorYen・gross＝timePay＋fixed）と同じ式。
 //   月給／日給の行は RPC では再計算しない（amount＝staffPayOf の gross をそのまま）。deductions＝社員の控除の内訳（412 の行）。calc_version＝計算の版（表示のため）。
-export const STAFF_LABOR_CALC_VERSION = "staffPayOf 2026-11 (floorYen)";
-export type StaffLaborRow = { membership_id: string; pay_kind: "hourly" | "daily" | "monthly"; hourly: number; minutes: number; time_pay: number; fixed: number; monthly: number; daily: number; days: number; amount: number; deductions: { kind: string; name?: string | null; amount: number }[]; calc_version: string };
-export function staffLaborRowOf(membershipId: string, c: { pay_kind?: string | null; hourly: number; fixed_allowance: number; monthly?: number | null; daily?: number | null }, pay: { minutes: number; timePay: number; fixed: number; gross: number; days: number; employeeDeductions?: readonly { kind: string; name?: string | null; amount: number }[] }): StaffLaborRow {
+export const STAFF_LABOR_CALC_VERSION = "staffPayOf 2026-11 (floorYen, allowances 0195)"; // ★0195（裁定450 の 6）: 内訳 allowances を送る版＝client で上げる
+/** ★0195（裁定450 の 6）: 月の確定に送る固定手当の内訳＝契約の 1 本（「固定手当」）＋名称つきの行（0 円の行は送らない）。Σ＝fixed を RPC が検証する＝合わないときは fixed 1 行に畳む（RPC は client の合計を信用しない＝ここは同じ式の写し） */
+export function staffLaborAllowancesOf(c: { fixed_allowance: number; allowances?: readonly StaffAllowance[] }, fixed: number): StaffAllowance[] {
+  const rows: StaffAllowance[] = [...(c.fixed_allowance > 0 ? [{ name: "固定手当", amount: c.fixed_allowance }] : []), ...(c.allowances ?? []).filter((x) => x.amount > 0).map((x) => ({ name: x.name, amount: x.amount }))];
+  const sum = rows.reduce((a, x) => a + x.amount, 0);
+  if (sum === fixed) return rows;
+  return fixed > 0 ? [{ name: "固定手当", amount: fixed }] : [];
+}
+export type StaffLaborRow = { membership_id: string; pay_kind: "hourly" | "daily" | "monthly"; hourly: number; minutes: number; time_pay: number; fixed: number; monthly: number; daily: number; days: number; amount: number; deductions: { kind: string; name?: string | null; amount: number }[]; calc_version: string; allowances: StaffAllowance[] }; // ★0195: 固定手当の内訳（Σ＝fixed）
+export function staffLaborRowOf(membershipId: string, c: { pay_kind?: string | null; hourly: number; fixed_allowance: number; monthly?: number | null; daily?: number | null; allowances?: readonly StaffAllowance[] }, pay: { minutes: number; timePay: number; fixed: number; gross: number; days: number; employeeDeductions?: readonly { kind: string; name?: string | null; amount: number }[] }): StaffLaborRow {
   const kind: StaffLaborRow["pay_kind"] = c.pay_kind === "daily" ? "daily" : c.pay_kind === "monthly" || c.pay_kind === "monthly_fixed" ? "monthly" : "hourly";
-  return { membership_id: membershipId, pay_kind: kind, hourly: kind === "hourly" ? c.hourly : 0, minutes: pay.minutes, time_pay: kind === "hourly" ? pay.timePay : 0, fixed: kind === "hourly" ? pay.fixed : 0, monthly: c.monthly ?? 0, daily: c.daily ?? 0, days: pay.days, amount: pay.gross, deductions: (pay.employeeDeductions ?? []).map((d) => ({ kind: d.kind, name: d.name ?? null, amount: d.amount })), calc_version: STAFF_LABOR_CALC_VERSION };
+  return { membership_id: membershipId, pay_kind: kind, hourly: kind === "hourly" ? c.hourly : 0, minutes: pay.minutes, time_pay: kind === "hourly" ? pay.timePay : 0, fixed: kind === "hourly" ? pay.fixed : 0, monthly: c.monthly ?? 0, daily: c.daily ?? 0, days: pay.days, amount: pay.gross, deductions: (pay.employeeDeductions ?? []).map((d) => ({ kind: d.kind, name: d.name ?? null, amount: d.amount })), calc_version: STAFF_LABOR_CALC_VERSION, allowances: kind === "hourly" ? staffLaborAllowancesOf(c, pay.fixed) : [] }; // ★0195: 時給制だけ内訳（他は fixed 0＝[]）
 }

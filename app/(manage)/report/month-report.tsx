@@ -7,8 +7,9 @@
 // 役割別（裁定⑤）：人件費/人件費率は isManagerUp のみ（staff は payroll RLS でも 0行＝二重）。cast は layout で /mine へ（本タブに来ない）。
 // 客単価＝売上/来客数（モック現物 sales/guests。相談役の「売上/組数」指示とは分母が異なるため報告で申告）。
 import { bizDaysOfMonth, staffLaborOf, type StaffLaborContract } from "@/lib/nox/staff/labor"; // ★便 M6
+import { attachStaffAllowances, type StaffAllowanceRow } from "@/lib/nox/staff/pay"; // ★0195: 名称つきの固定手当
 import { staffHoursOf, type StaffPunch } from "@/lib/nox/staff/pay";
-import { mig0192On, mig0194On } from "@/lib/nox/rules-0175/flag";
+import { mig0192On, mig0194On, mig0195On } from "@/lib/nox/rules-0175/flag";
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
@@ -141,7 +142,8 @@ export default function MonthReport({ stores, defaultStoreId, isManagerUp }: {
       const closed = new Set(((bh.data ?? []) as { dow: number; is_closed: boolean }[]).filter((r) => r.is_closed).map((r) => r.dow));
       const sds = (sd.data ?? []) as { day: string; kind: string }[];
       const bizDays = bizDaysOfMonth(period, closed, new Set(sds.filter((x) => x.kind === "closed").map((x) => x.day)), new Set(sds.filter((x) => x.kind === "open").map((x) => x.day)));
-      const contracts = new Map(((cc.data ?? []) as (StaffLaborContract & { membership_id: string })[]).map((c) => [c.membership_id, c]));
+      const { data: al } = mig0195On() ? await supabase.from("staff_allowances").select("membership_id, name, amount, sort").eq("store_id", storeId).eq("is_active", true).order("sort") : { data: null }; // ★0195: 名称つきの固定手当も日割り
+      const contracts = new Map(attachStaffAllowances((cc.data ?? []) as (StaffLaborContract & { membership_id: string })[], al as StaffAllowanceRow[] | null).map((c) => [c.membership_id, c]));
       const punches = (pp.data ?? []) as StaffPunch[];
       const absentOf = (mid: string) => new Set(((ab.data ?? []) as { membership_id: string; biz_date: string }[]).filter((x) => x.membership_id === mid).map((x) => x.biz_date));
       const total = ((mm.data ?? []) as { id: string }[]).reduce((a, m) => a + staffLaborOf(contracts.get(m.id) ?? null, staffHoursOf(punches.filter((x) => x.membership_id === m.id)).map((d) => ({ bizDate: d.bizDate, minutes: d.minutes })), absentOf(m.id), bizDays).total, 0);
