@@ -1,4 +1,9 @@
-# 0195 手貼り案内（裁定450 反映版・2026-11-05＝11/04 夜の下書き 50d8359957b32506 を裁定450 の 6 で再生成・手貼りは相談役（新チャット）の合図まで待つ）
+# 0195 手貼り案内（裁定450 反映版・2026-11-05＝11/04 夜の下書き 50d8359957b32506 を裁定450 の 6 で再生成）
+
+## 手貼りの記録（2026-11-05・Agoora）
+- 本番 ref hiqbfagmkrdpmlqhkmsu に **本文（sha16 90ed3a2656aed407・449 行）を 1 回 Run**。★順序＝本文を Run した**後**に事前確認 SQL を流した（返り＝already applied yes・md5 drift set_deduction 8b319af5／staff_attendance_confirm 3fea3e3f＝0195 適用後の本文の md5）。次回からは事前確認→本文の順（手順 3 行目のとおり）。
+- CC の突合（読取だけ・2026-11-05）＝①verify（docs/tmp/0195_verify.sql）を本番に SELECT＝**21 行（貼り先証明を含む）が期待値と全行一致・不一致 0**（関数 416・表 119・set_deduction 10 引数 1／9 引数 0・新設 6・列 3 yes・CHECK 3 yes・RLS 3・grants SELECT×3／anon 0・anon exec 0／authenticated exec 7・line_link_block authenticated f／service_role t・policies 3・day_rule 非 always 0）。②本番の set_deduction／staff_attendance_confirm の prosrc md5（CR 除去・先頭 8）＝**8b319af5／3fea3e3f＝0195_day_deductions.sql（90ed3a2656aed407）の $function$ 本体の md5 と一致**＝貼ったのは裁定450 反映版（prosrc は SQL Editor の CRLF で逐語は違う＝0180〜0186 と同じ・md5 は CR 除去で同じ）。③新設 3 表の行 0・day_rule 非 always 0・blocked_at 0・直近 3 時間の audit 0＝データは動いていない。
+- 収蔵＝supabase/migrations/0195_day_deductions.sql（docs/tmp のバイトそのまま）・MIG_0195_APPLIED=true（lib/nox/rules-0175/flag.ts）→ フラグ true 便。
 
 ## ★仮置き 9 点＝裁定450（2026-11-05 朝・相談役）で確定＝1・2・3・4・5・7・8・9 は推奨案のまま承認・**6 だけ変更**（RPC 側でも検証）→ gen_0195.cjs に反映して live から再生成
 1. **§5-1 ④ キャスト別の額の上書き**＝裁定447 ④の具体化どおり **deduction_rule_casts**（rule×cast・enabled／amount_override・行が無い＝全員に店の額）。run 別の上書き（0156）は最優先のまま。

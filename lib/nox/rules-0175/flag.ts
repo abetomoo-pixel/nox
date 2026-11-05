@@ -86,3 +86,12 @@ export const MIG_0194_APPLIED = true; // ★2026-11-04: 0194（sha16 c6ab2b20dc9
 let override0194: boolean | null = null;
 export function mig0194On(): boolean { return override0194 ?? MIG_0194_APPLIED; }
 export function __set0194ForTest(v: boolean | null): void { override0194 = v; }
+
+/** ★0195（2026-11-05 Agoora 手貼り＝verify 21 行（貼り先証明を含む）が期待値と全行一致・関数 416・表 119・裁定447 差し替え版＋M-73＋裁定447 ④＋M-77 ②③＋M-80 追記②＋裁定450 の 6）:
+ *  日ごとの控除ルール（deductions.day_rule always／pick・cast_day_deductions＋cast_day_deductions_set＝kiosk 腕あり）・単位 pay_rate／種別 other（set_deduction 10 引数）・キャスト別の適用（deduction_rule_casts＋set／get）・
+ *  LINE の block（line_links.blocked_at＋line_link_block＝service_role／line_link_remove）・スタッフの固定手当の複数行（staff_allowances＋staff_allowances_set・staff_labor_confirmed.allowances＝Σ＝fixed を RPC が検証）。
+ *  false の間は client は従来（9 引数の set_deduction は無い＝10 引数の DEFAULT で従来どおり・新画面は出さない）。 */
+export const MIG_0195_APPLIED = true; // ★2026-11-05: 0195（sha16 90ed3a2656aed407）を Agoora が手貼り（本文 1 回 Run・事前確認は後になった）＝verify 21 行が期待値と全行一致・md5 8b319af5／3fea3e3f 一致 → true
+let override0195: boolean | null = null;
+export function mig0195On(): boolean { return override0195 ?? MIG_0195_APPLIED; }
+export function __set0195ForTest(v: boolean | null): void { override0195 = v; }
