@@ -12,7 +12,7 @@ export type CashPayoutParts = {
   salary: number;
 };
 export const CASH_PAYOUT_LABELS: Record<keyof CashPayoutParts, string> = {
-  okuri: "送り立替", advance: "前借り", daily: "日払い", salary: "給与支払（現金）", // ★裁定414（S-4）: 現金支払の行名＝「送り立替」（mode='actual' の当日分だけ）
+  okuri: "送り立替", advance: "前借り（貸付）", daily: "日払い", salary: "給与支払（現金）", // ★裁定414（S-4）: 現金支払の行名＝「送り立替」（mode='actual' の当日分だけ）
 };
 export const cashPayoutTotalOf = (p: CashPayoutParts): number => p.okuri + p.advance + p.daily + p.salary;
 export const cashPayoutRowsOf = (p: CashPayoutParts): { key: keyof CashPayoutParts; label: string; amount: number }[] =>

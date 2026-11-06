@@ -87,8 +87,18 @@ check("benf(6-3) ホーム＝予約の申請が先頭（approvals の前）・�
   check("benf(8-1) layout＝本人セッションでも通常の groups（kioskNavOf は使わない）・data-kiosk-person の印・owner／cast は /kiosk へ（従来）", lay.includes("const navGroups: NavGroup[] = groups;") && !lay.includes("? kioskNavOf(role,") && lay.includes('data-kiosk-person={kioskPersonOn ? "1" : "0"}') && lay.includes('redirect("/kiosk?person=deny")'));
   check("benf(8-2) 帯＝上に固定（top 0・38px）・名前・無操作の残り（15 秒ごと）・「ロック（端末へ戻る）」＝kiosk_person_end（lock）・「キオスクへ戻る」（manual）・無操作＝idle・本体の余白は globals.css",
     g.includes('position: "fixed", left: 0, right: 0, top: 0, zIndex: 60') && g.includes('document.documentElement.setAttribute("data-kiosk-person-bar", "1");') && g.includes("kioskPersonRemainTextOf(remainMin)") && g.includes('void endKioskPersonSession(createClient(), "lock")') && g.includes('endKioskPersonSession(createClient(), "manual")') && g.includes("isPin ? endKioskPersonSession(supabase, reason) : leaveKioskPersonLogin(supabase)")
-    && ps.includes('export const KIOSK_PERSON_LOCK = "ロック（端末へ戻る）";') && css2.includes('html[data-kiosk-person-bar="1"] .nox-layout { padding-top: 38px; }') && css2.includes('html[data-kiosk-person-bar="1"] .nox-tb { top: 38px; }'));
+    && ps.includes('export const KIOSK_PERSON_LOCK = "ロック（端末へ戻る）";') && css2.includes('html[data-kiosk-person-bar="1"] .nox-layout { padding-top: var(--nox-kpbar, 38px); }') && css2.includes('html[data-kiosk-person-bar="1"] .nox-tb { top: var(--nox-kpbar, 38px); }') && g.includes('document.documentElement.style.setProperty("--nox-kpbar"'));
   check("benf(8-3) 本店の部品そのまま＝卓カードの写真（register-board＝signCastPhotos）・予約の承認（ReservationDecide）・配置（staff-place-day）・日報（report-board）は本人セッションの分岐を持たない", rb2.includes("signCastPhotos") && !rb2.includes("kioskPerson") && !src("app/(manage)/report/report-board.tsx").includes("kioskPerson") && !src("app/(manage)/shift/staff-place-day.tsx").includes("kioskPerson") && !src("components/nox/pending-card.tsx").includes("kioskPerson"));
+}
+
+// (9) 夜便レーン 2＝前借り（貸付）の client（裁定458 ①④⑤・DDL なし分）
+{
+  const ao = src("lib/nox/payroll/advance-okuri.ts"), bl = src("lib/nox/payroll/breakdown-lines.ts"), pb2 = src("app/(manage)/payroll/payroll-board.tsx"), af = src("components/nox/advance-okuri-form.tsx"), cp2 = src("lib/nox/report/cash-payout.ts");
+  check("benf(9-1) 名称＝ISSUE_LABEL.advance「前借り（貸付）」・貸付日・明細の行「貸付返済（前借り）」（源泉の後）・給与一覧の列「貸付返済」・現金支払の行名・一括発行の見出し・天引きの節見出し・キャスト詳細の節",
+    ao.includes('advance: "前借り（貸付）"') && ao.includes('advance: "貸付日"') && bl.includes('dpush("adv", "貸付返済（前借り）"') && bl.indexOf('dpush("withholding"') < bl.indexOf('dpush("adv", "貸付返済（前借り）"') && pb2.includes(">貸付返済</th>") && cp2.includes('advance: "前借り（貸付）"')
+    && src("components/nox/issue-bulk-form.tsx").includes('"前借り（貸付）の一括発行（送りは「なし」の店）"') && src("app/(manage)/master/deduction-panel.tsx").includes(">天引き（前借り（貸付）・送り）</h2>") && src("app/(manage)/casts/casts-board.tsx").includes(">前借り（貸付）／送り実費</h3>"));
+  check("benf(9-2) 日払いの店＝advanceHiddenForStoreOf（settlement_cycle='daily'）・AdvanceOkuriForm が店の設定を 1 回読んで前借りの行を出さない（送り実費は残す・only=advance は注記だけ）",
+    ao.includes('export const advanceHiddenForStoreOf = (settings: Record<string, unknown> | null | undefined): boolean => settlementCycleOf(settings) === "daily";') && af.includes("setDailyStore(advanceHiddenForStoreOf(") && af.includes('data-advance-daily-hidden="1"') && af.includes('{only !== "transport" && !dailyStore && <IssueRow kind="advance"'));
 }
 
 // (5) M-115

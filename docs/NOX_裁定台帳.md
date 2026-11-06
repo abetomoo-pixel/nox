@@ -5569,6 +5569,16 @@ Agoora が 7 本を手貼り（0185→0180→0181→0182→0183→0184→0186）
 - **0183 の (a)**: payroll_withholding_overrides／payroll_employee_deductions の period は YYYY-MM＝payroll_runs.period も CHECK で YYYY-MM・period_bounds も月だけ＝run は精算方式（settlement_cycle）に関係なく月単位で、half／weekly／daily は源泉の暦日数の注記と日払いの種別だけ（本番 10 店とも settlement_cycle 未設定＝月次）＝今は足りる。半月・週の run を作るときは run・上書き・控除の 3 つの period を一緒に設計し直す。
 - **0183 の (b)**: キャストの源泉区分は「税務情報を保存」で set_cast_tax_profile（upsert＝行を作る）の後に set_withholding_kind を呼ぶ＝not found にならない。スタッフは契約の行がある人だけ区分の選択が出る（行を作る動線＝B の 6-④）。
 
+### 夜便レーン 2 の記録（2026-11-06 夜・前借り＝貸付（裁定458）の client 分＝DDL なしでできるもの）
+
+- ①名称＝ISSUE_LABEL.advance「前借り（貸付）」・ISSUE_DATE_LABEL「貸付日」・明細（breakdown-lines）の行「貸付返済（前借り）」・給与一覧の列「貸付返済」・キャスト詳細／給与の節「前借り（貸付）／送り実費」・天引きの節見出し「天引き（前借り（貸付）・送り）」・一括発行の見出しと種別・日報の現金支払の行名「前借り（貸付）」・シミュレータ「− 貸付返済（前借り）」・日計の控除ラベル・店の制度の説明・LP。CSV の見出し＝明細の行名と同じ関数（breakdown-lines）を通るので同時に変わる。pin 張替え＝picker／on4／messages／payroll-adjust。
+- ②待遇プランの「前借り（貸付）の取扱いに同意」＝comp_plans に列が無く set_comp_plan の白名単にも無い＝**DDL（0198 ★1）**へ＝client は 0198 のフラグ便で。
+- ③日払いの店（settlement_cycle='daily'）＝AdvanceOkuriForm が店の設定を 1 回読んで前借りの行を出さない（送り実費は残す・日報の「＋発行（前借り）」は注記だけ）＝advanceHiddenForStoreOf。
+- ④月末精算の表示順＝明細の控除は 固定控除 → 懲戒 → 精算調整 → 調整（源泉前）→ **源泉 → 貸付返済（前借り）** → 送り → 日払い済み の順＝既に裁定458 ② の順（計算も pay.ts＝返済額は源泉の母数から引かない）。「5,000 円×暦日数」の行は凍結明細に periodDays が無い＝出していない（出すなら breakdown の入力に periodDays を足す＝次便・裁定待ちではない）。
+- M-119 の追い＝375 で帯が 2〜3 行になる分＝帯の実高さを CSS 変数（--nox-kpbar）に写して本体の余白を合わせる（guard＋globals.css・benf の pin）。
+- verify＝verify:nox-benf（9-1／9-2）。撮影＝shots_lane2（ACE の給与明細・/mine）＝f0 の後。
+- **裁定458 と矛盾する既存仕様＝見つからず**（貸付時に源泉なし・5,000 円は暦日数・返済は源泉の後＝いずれも現行どおり）。残＝⑥（退店時の未返済・日払い店）は回答待ち。
+
 ### 便 F の記録（2026-11-06 夕〜夜・client＝M-116 → M-112〜M-115 → 読取 2 件・目視①・f0 段数の 1 行）
 
 - **M-116**（LINE の期限切れ ID トークン・承認済み）＝lib/nox/line/server.ts に verifyLineIdTokenEx（reason＝expired／invalid／aud／http／network・detail＝LINE の error／error_description・console.error に残す・id_token は出さない）・bind／session の 401 本文に reason／detail・liff-bridge は 401「bad id_token」で sessionStorage の鍵（nox_liff_retry:<storeId>）を立てて 1 回だけ liff.logout()→liff.login()（redirectUri は M-102 の site 固定）・2 回目は「LINE のログインが期限切れです。LINE アプリを閉じて開き直してください」・成功で鍵を消す。撮影なし＝Agoora の実機 1 回で確認。

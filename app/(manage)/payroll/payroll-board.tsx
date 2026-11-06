@@ -889,7 +889,7 @@ ${md.message}（入れずに確定すると控除 0 のまま確定します）`
                 <th className="fold" style={{ ...t.th, textAlign: "right" }}>総支給</th>
                 <th className="fold" style={{ ...t.th, textAlign: "right" }}>控除計</th>
                 <th className="fold" style={{ ...t.th, textAlign: "right" }}>売掛</th>
-                <th className="fold" style={{ ...t.th, textAlign: "right" }}>前借り</th>
+                <th className="fold" style={{ ...t.th, textAlign: "right" }}>貸付返済</th>{/* ★裁定458 ①④: 前借り（貸付）の返済 */}
                 <th className="fold" style={{ ...t.th, textAlign: "right" }}>{okuri4wayOn() ? OKURI_HEAD[okuriModeOf(storeSettings)] : "送り"}</th>{/* ★便 P175-prep P-7（裁定414）: 0177 後は方式を見出しに（実費／定額／店負担＝控除なし） */}
                 <th style={{ ...t.th, textAlign: "right" }}>差引支給</th>
                 <th className="fold" style={{ ...t.th, textAlign: "right" }}>不整合</th>
@@ -1158,7 +1158,7 @@ ${md.message}（入れずに確定すると控除 0 のまま確定します）`
                         editable={adjEditable} onSaved={async (m) => { setOvMsg(m); await preview(); }} />;
                     })()}
                     {/* ★裁定300-2（2026-09-25）: 前借り／送り実費の入口（このキャスト・この期に固定・確定後は読取のみ）＝共通部品・既存 RPC。発行後はプレビュー再計算（advanceDeduct／okuriDeduct に反映）。残高は 0156 */}
-                    <p style={{ fontSize: 11.5, fontWeight: 800, color: "var(--champ)", margin: "10px 0 2px" }}>前借り／送り実費{adjEditable ? "" : "（確定済み・読取のみ）"}</p>
+                    <p style={{ fontSize: 11.5, fontWeight: 800, color: "var(--champ)", margin: "10px 0 2px" }}>前借り（貸付）／送り実費{adjEditable ? "" : "（確定済み・読取のみ）"}</p>
                     <AdvanceOkuriForm storeId={storeId} casts={[]} castId={r.castId} castName={r.castName}
                       dateDefault={issueDateDefaultOf(new Date().toISOString().slice(0, 10), `${period}-01`, periodEndOf(period))}
                       readOnly={!adjEditable} onIssued={() => { void preview(); }} />
@@ -1254,14 +1254,14 @@ ${md.message}（入れずに確定すると控除 0 のまま確定します）`
       {/* ★0156（裁定309-7・便 V-6）: 貸付残高一覧＝advances_open_balance（cast 別 open 合計・件数・最古日）。年越しの過払債権は同一行で回収継続（別勘定なし）・貸倒は adv_cancel（理由必須・手動） */}
       {storeId && (
         <section className="nox-cardtop" style={t.card}>
-          <h3 style={{ ...t.cardTitle, margin: "0 0 4px" }}>貸付残高一覧（前借りの未回収）</h3>
+          <h3 style={{ ...t.cardTitle, margin: "0 0 4px" }}>貸付残高一覧（前借り（貸付）の未回収）</h3>
           <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 8px", lineHeight: 1.7 }}>
             open の前借り（額−天引き済み）の合計。年を越しても同じ行で天引きを続けます。貸倒にする場合は「控除・送り」の当日一覧から取消（理由必須）してください。
           </p>
           {openBal === null ? (
             <p style={{ fontSize: 12, color: "var(--sub)", margin: 0 }}>読み込み中…</p>
           ) : openBal.length === 0 ? (
-            <p style={{ fontSize: 12, color: "var(--sub)", margin: 0 }}>未回収の前借りはありません。</p>
+            <p style={{ fontSize: 12, color: "var(--sub)", margin: 0 }}>未回収の前借り（貸付）はありません。</p>
           ) : (
             <div style={{ display: "grid", gap: 4 }}>
               {openBal.map((b) => (

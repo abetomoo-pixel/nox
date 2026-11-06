@@ -396,7 +396,7 @@ export default function SimulatorPanel({
       {mode === "cast" && (
         <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13, margin: "4px 0 12px", color: s.body }}>
           <input type="checkbox" checked={applyDeducts} onChange={(e) => setApplyDeducts(e.target.checked)} />
-          未清算の前借り/送りを手取りから引く（前借り {yen(openAdv)}・送り {yen(openOkuri)}）
+          未清算の前借り（貸付）/送りを手取りから引く（貸付 {yen(openAdv)}・送り {yen(openOkuri)}）
         </label>
       )}
 
@@ -449,7 +449,7 @@ export default function SimulatorPanel({
               <Line label="総支給（gross）" v={yen(result.pay.gross)} bold />
               <Line label="− 固定控除" v={`−${yen(result.pay.fixedDed)}`} minus />
               <Line label={`− 源泉（${taxMode}）`} v={`−${yen(result.pay.withholding)}`} minus />
-              {result.pay.advanceDeduct > 0 && <Line label="− 前借り" v={`−${yen(result.pay.advanceDeduct)}`} minus />}
+              {result.pay.advanceDeduct > 0 && <Line label="− 貸付返済（前借り）" v={`−${yen(result.pay.advanceDeduct)}`} minus />}
               {result.pay.okuriDeduct > 0 && <Line label="− 送り実費" v={`−${yen(result.pay.okuriDeduct)}`} minus />}
             </tbody>
           </table>

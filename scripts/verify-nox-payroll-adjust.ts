@@ -193,7 +193,7 @@ function pureChecks() {
       const sanctionApplied = z(pay.sanction?.applied);
       const dedRows: [string, number][] = [
         ["源泉", z(pay.withholding)], ["送り", z(pay.okuriDeduct)], ["制裁", sanctionApplied],
-        ["前借り", z(pay.advanceDeduct)], ["売掛", z(pay.arDeduct)],
+        ["貸付返済（前借り）", z(pay.advanceDeduct)], ["売掛", z(pay.arDeduct)], /* ★裁定458 ④ */
         ["その他", z(pay.fixedDed) - sanctionApplied + z(pay.fine) + z(pay.normPenalty)],
       ];
       return dedRows.reduce((s, [, v]) => s + v, 0);

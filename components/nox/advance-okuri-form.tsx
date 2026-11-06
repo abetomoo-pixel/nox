@@ -4,12 +4,12 @@
 //   300-1: キャスト選択は共通 picker（裁定259）・金額／日付／メモ／発行は 1 段のフォーム行（.nox-issue-row・≤899px は 1 列＝M5 の型）。
 //   300-2: castId を渡すとキャスト固定（picker は出さない）・readOnly（確定後）は入口を出さず注記のみ。
 //   メッセージは裁定281 の型（Message・同じカード内・×で消す）。
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import MoneyInput from "@/components/ui/money-input"; // ★便 X-11-6: 金額欄の共通部品（数字のみ・3 桁区切り・右に「円」）
 import Picker from "@/components/nox/picker";
 import { Message } from "@/components/ui/toast";
 import * as t from "@/lib/nox/ui/theme";
-import { ISSUE_DATE_LABEL, ISSUE_LABEL, issueBodyOf, issueErrJa, okuriEnabledOf, carriedBulkNoteOf, type IssueKind } from "@/lib/nox/payroll/advance-okuri";
+import { ADVANCE_DAILY_STORE_NOTE, ISSUE_DATE_LABEL, ISSUE_LABEL, advanceHiddenForStoreOf, issueBodyOf, issueErrJa, okuriEnabledOf, carriedBulkNoteOf, type IssueKind } from "@/lib/nox/payroll/advance-okuri"; // ★裁定458 ⑤
 import { createClient } from "@/lib/supabase/client";
 
 export type IssueCast = { id: string; name: string };
@@ -34,14 +34,23 @@ export default function AdvanceOkuriForm({ storeId, casts, castId, castName, dat
   /** ★便 X13-G W-24 ②: 片方の行だけ（日報の内訳の ＋発行＝前借り） */
   only?: IssueKind;
 }) {
+  // ★裁定458 ⑤（夜便レーン 2）: 日払いの店（settlement_cycle='daily'）では前借り（貸付）の入口を出さない（送り実費は残す）＝店の設定を 1 回読む
+  const [dailyStore, setDailyStore] = useState<boolean | null>(null);
+  useEffect(() => {
+    let alive = true;
+    void createClient().from("stores").select("settings_json").eq("id", storeId).maybeSingle().then(({ data }) => { if (alive) setDailyStore(advanceHiddenForStoreOf((data?.settings_json ?? null) as Record<string, unknown> | null)); });
+    return () => { alive = false; };
+  }, [storeId]);
   if (readOnly) {
-    return <p style={{ fontSize: 12, color: "var(--sub)", margin: "4px 0 0" }}>{readOnlyNote ?? "確定済みのため、前借り／送り実費の発行はできません（読取のみ）。"}</p>;
+    return <p style={{ fontSize: 12, color: "var(--sub)", margin: "4px 0 0" }}>{readOnlyNote ?? "確定済みのため、前借り（貸付）／送り実費の発行はできません（読取のみ）。"}</p>;
   }
   const okuriOn = okuriEnabledOf(okuriMode);
+  if (only === "advance" && dailyStore) return <p style={{ fontSize: 12, color: "var(--sub)", margin: "4px 0 0" }} data-advance-daily-hidden="1">{ADVANCE_DAILY_STORE_NOTE}</p>;
   return (
     <div style={{ display: "grid", gap: 10 }}>
-      {only !== "transport" && <IssueRow kind="advance" storeId={storeId} casts={casts} castId={castId} castName={castName} dateDefault={dateDefault} disabled={false}
-        hint="給与から天引きされます（手取りが足りないときは翌月へ繰越）。残高は給与の前借り列で確認できます。" onIssued={onIssued} />}
+      {only !== "transport" && dailyStore && <p style={{ fontSize: 12, color: "var(--sub)", margin: 0 }} data-advance-daily-hidden="1">{ADVANCE_DAILY_STORE_NOTE}</p>}
+      {only !== "transport" && !dailyStore && <IssueRow kind="advance" storeId={storeId} casts={casts} castId={castId} castName={castName} dateDefault={dateDefault} disabled={false}
+        hint="貸付です（源泉は引かず、5,000 円控除も適用しません）。給与の「貸付返済」で天引きされます（手取りが足りないときは翌月へ繰越）。残高は給与の貸付残高一覧で確認できます。" onIssued={onIssued} />}
       {only !== "advance" && <IssueRow kind="transport" storeId={storeId} casts={casts} castId={castId} castName={castName} dateDefault={dateDefault} disabled={!okuriOn} defaultAmount={okuriBase}
         hint={okuriOn ? "当月精算（繰越なし）。手取り不足で引き切れない残は再回収されません。" : "※送り方式が「実費」の店のみ発行できます（控除・送りで切替）。"} onIssued={onIssued} />}
     </div>

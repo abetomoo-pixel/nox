@@ -35,7 +35,10 @@ export default function KioskPersonGuard({ idleMinutes, role, name = null }: { i
     document.documentElement.setAttribute("data-kiosk-person-bar", "1");
     const tick = () => setRemainMin(Math.max(0, Math.ceil((idleMinutes * 60_000 - (Date.now() - last.current)) / 60_000)));
     tick(); const tm = window.setInterval(tick, 15_000);
-    return () => { window.clearInterval(tm); document.documentElement.removeAttribute("data-kiosk-person-bar"); };
+    // ★M-119 追い（375 では帯が 2〜3 行＝高さ 38px を超える）: 帯の実高さを CSS 変数 --nox-kpbar に写し、本体の余白を帯に合わせる
+    const measure = () => { const el = document.querySelector<HTMLElement>("[data-kiosk-person-bar='1']:not(html)"); if (el) document.documentElement.style.setProperty("--nox-kpbar", `${Math.ceil(el.getBoundingClientRect().height)}px`); };
+    measure(); const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(measure) : null; const barEl = document.querySelector<HTMLElement>("[data-kiosk-person-bar='1']:not(html)"); if (ro && barEl) ro.observe(barEl); window.addEventListener("resize", measure);
+    return () => { window.clearInterval(tm); ro?.disconnect(); window.removeEventListener("resize", measure); document.documentElement.removeAttribute("data-kiosk-person-bar"); document.documentElement.style.removeProperty("--nox-kpbar"); };
   }, [active, idleMinutes]);
   if (!active) return null;
   return (

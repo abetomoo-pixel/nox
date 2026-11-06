@@ -1,3 +1,4 @@
+import { settlementCycleOf } from "./settlement-cycle"; // ★裁定458 ⑤
 // ★裁定300（2026-09-25）: 前借り／送り実費の発行の純関数（DB を知らない）。
 //   3 入口（マスタ「控除・送り」／casts 詳細／給与 run 明細の右パネル）が同じ部品（components/nox/advance-okuri-form.tsx）から
 //   同じ route（/api/advance/issue → adv_issue／/api/transport/issue → transport_issue）を呼ぶ＝新 RPC 0（300-2）。
@@ -31,8 +32,11 @@ export function carriedBulkNoteOf(date: string, deductPeriods: readonly (string 
   return `${head}翌月（${periods.join("・")}）の給与から控除`;
 }
 export const ISSUE_ENDPOINT: Record<IssueKind, string> = { advance: "/api/advance/issue", transport: "/api/transport/issue" };
-export const ISSUE_LABEL: Record<IssueKind, string> = { advance: "前借り", transport: "送り" }; // ★裁定414（S-4）: 4 方式＝「送り実費」と限らない
-export const ISSUE_DATE_LABEL: Record<IssueKind, string> = { advance: "前借り日", transport: "乗車日（営業日）" };
+export const ISSUE_LABEL: Record<IssueKind, string> = { advance: "前借り（貸付）", transport: "送り" }; // ★裁定458 ①（夜便レーン 2）: 名称＝前借り（貸付） // ★裁定414（S-4）: 4 方式＝「送り実費」と限らない
+export const ISSUE_DATE_LABEL: Record<IssueKind, string> = { advance: "貸付日", transport: "乗車日（営業日）" }; // ★裁定458 ①
+// ★裁定458 ⑤（夜便レーン 2）: 日払いの店（settlement_cycle='daily'）では前借り（貸付）の入口を出さない（送り実費は残す）
+export const ADVANCE_DAILY_STORE_NOTE = "日払いの店では前借り（貸付）は使えません（日払いで精算します）。送り実費はこの下から。";
+export const advanceHiddenForStoreOf = (settings: Record<string, unknown> | null | undefined): boolean => settlementCycleOf(settings) === "daily";
 
 export type IssueBody = { storeId: string; castId: string; amount: number; note: string | null } & ({ advancedOn: string } | { bizDate: string });
 

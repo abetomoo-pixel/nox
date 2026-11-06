@@ -248,7 +248,7 @@ export function breakdownLinesOf(input: BreakdownInput): Breakdown {
   dpush("adjAfterHidden", adjA.length ? "調整控除（源泉後・明細非表示）" : "調整控除（源泉後）", z(p.adjAfter) - adjA.reduce((s, a) => s + z(a.amount), 0));
   dpush("normPenalty", "ノルマ未達", z(p.normPenalty));
   dpush("ar", "売掛", input.deducted?.ar != null ? z(input.deducted.ar) : z(p.arDeduct));
-  dpush("adv", "前借り", input.deducted?.adv != null ? z(input.deducted.adv) : z(p.advanceDeduct));
+  dpush("adv", "貸付返済（前借り）", input.deducted?.adv != null ? z(input.deducted.adv) : z(p.advanceDeduct)); // ★裁定458 ④（夜便レーン 2）: 明細の行名＝貸付返済（源泉の後＝返済額は源泉の母数から引かない）
   if (input.okuriModes) { dpush("okuriActual", "送り立替", z(input.okuriModes.actual)); dpush("okuriFlat", "送り（定額）", z(input.okuriModes.flat)); } // ★裁定414（S-4 ④）
   else dpush("okuri", "送り", input.deducted?.okuri != null ? z(input.deducted.okuri) : z(p.okuriDeduct));
   dpush("dailyPaid", "日払い済み", z(p.dailyPaidGross)); // ★0156（裁定309-6）: 支給後控除（無ければ 0＝行は出ない）

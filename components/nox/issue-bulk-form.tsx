@@ -15,7 +15,7 @@ import { OKURI_MODE_LABEL, okuriModeOf } from "@/lib/nox/shift/okuri-mode"; // �
 /** ★便 ON-4（0177 残り・裁定414）: 一括フォームの見出し＝店の送り方式で。なし＝前借りだけ */
 export function bulkHeadOf(mode: string | null | undefined): string {
   const m = okuriModeOf({ okuri_mode: mode ?? undefined });
-  return m === "none" ? "前借りの一括発行（送りは「なし」の店）" : m === "actual" ? "前借り／送り（タクシー代の立替）の一括発行" : `前借り／送り（${OKURI_MODE_LABEL[m]}）の一括発行`;
+  return m === "none" ? "前借り（貸付）の一括発行（送りは「なし」の店）" : m === "actual" ? "前借り（貸付）／送り（タクシー代の立替）の一括発行" : `前借り（貸付）／送り（${OKURI_MODE_LABEL[m]}）の一括発行`;
 }
 import { Message } from "@/components/ui/toast";
 import * as t from "@/lib/nox/ui/theme";
@@ -134,7 +134,7 @@ export default function IssueBulkForm({ storeId, casts, okuriMode, okuriBase = 0
       <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 16 }}>
         <div>
           <div style={lbl}>種別</div>
-          <SegSelect value={kind} onChange={(v) => setKind(v as IssueKind)} options={[["advance", "前借り"], ["transport", "送り"]]} ariaLabel="発行の種別" />
+          <SegSelect value={kind} onChange={(v) => setKind(v as IssueKind)} options={[["advance", "前借り（貸付）"], ["transport", "送り"]]} ariaLabel="発行の種別" />
         </div>
         <label style={{ fontSize: 12, color: "var(--sub)", minWidth: 160 }}><span style={{ display: "block", marginBottom: 6 }}>{ISSUE_DATE_LABEL[kind]}</span>
           <input type="date" value={date} onChange={(e) => setDate(e.target.value)} disabled={disabled} style={inp} />

@@ -17,7 +17,7 @@ import { rpcErrJa } from "@/lib/nox/ui/rpc-err";
 import { createClient } from "@/lib/supabase/client";
 
 export type PayoutIssueKind = "daily" | "advance" | "okuri";
-export const PAYOUT_ISSUE_TITLE: Record<PayoutIssueKind, string> = { daily: "日払いの発行", advance: "前借りの発行", okuri: "送りの記録" }; // ★裁定414: 「発行」は送りに使わない
+export const PAYOUT_ISSUE_TITLE: Record<PayoutIssueKind, string> = { daily: "日払いの発行", advance: "前借り（貸付）の発行", okuri: "送りの記録" }; // ★裁定414: 「発行」は送りに使わない
 
 export default function CashPayoutIssue({ kind, storeId, bizDate, casts, okuriBase, okuriMode = "actual", onIssued, onClose }: {
   /** ★裁定414（S-4）: 店の送り方式（ダイアログの 1 文） */

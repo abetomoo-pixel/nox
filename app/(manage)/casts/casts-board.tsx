@@ -1206,7 +1206,7 @@ export default function CastsBoard({
                 </div>
               )}
               <div style={{ marginTop: 12, marginBottom: 12 }}>
-                <h3 style={{ ...secTitle, margin: "0 0 6px" }}>前借り／送り実費</h3>
+                <h3 style={{ ...secTitle, margin: "0 0 6px" }}>前借り（貸付）／送り実費</h3>
                 <AdvanceOkuriForm storeId={selCast.store_id} casts={[]} castId={selCast.id} castName={selCast.name}
                   dateDefault={issueDateDefaultOf(new Date().toISOString().slice(0, 10))}
                   okuriMode={okuriOf(selCast.store_id).mode} okuriBase={okuriOf(selCast.store_id).base} />

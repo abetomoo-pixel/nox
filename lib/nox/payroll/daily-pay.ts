@@ -83,7 +83,7 @@ export function monthSummaryOf(input: { gross: number; net: number; rows: readon
   const deductions = (input.gross - input.net) - sumFine - sumDed;
   const rows: MonthSummaryRow[] = [
     { key: "month_adj", label: "月で決まる支給（スライド調整・売上バック・手当・丸め）", amount: monthAdj },
-    { key: "deductions", label: "控除（月額控除・源泉・前借り・送り・月の調整）", amount: deductions }, // ★0195（§5-3）: 「固定」→「月額控除」（日ごとの分は Σ日計）
+    { key: "deductions", label: "控除（月額控除・源泉・貸付返済・送り・月の調整）", amount: deductions }, // ★0195（§5-3）: 「固定」→「月額控除」（日ごとの分は Σ日計）
     { key: "net", label: input.frozen ? "差引支給額（確定）" : "差引支給額（現時点）", amount: input.net },
   ];
   return { rows, sumDaily, identityOk: sumDaily + monthAdj - deductions === input.net, frozen: !!input.frozen };
