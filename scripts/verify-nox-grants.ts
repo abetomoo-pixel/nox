@@ -269,6 +269,22 @@ async function main() {
     check("G4e demo_entries_purge EXECUTE = service_role のみ（authenticated／anon／PUBLIC 不在）", row.svc_ok === true && row.auth_ok === false && !row.anon_ok && !row.public_ok, JSON.stringify([row.auth_ok, row.svc_ok, row.anon_ok, row.public_ok]));
   }
 
+  // G4e: mig0196（裁定448 B 方式・2026-11-06 本番適用）kiosk_person_claim／kiosk_person_end＝service_role 専用（route /api/kiosk/person-session／person-end から）＝SECURITY DEFINER・search_path=public・EXECUTE は service_role のみ
+  for (const fn of ["kiosk_person_claim", "kiosk_person_end"]) {
+    const r = await db.query(
+      `select p.proname, p.prosecdef, coalesce(array_to_string(p.proconfig, ','), '') as config,
+              has_function_privilege('authenticated', p.oid, 'execute') as auth_ok,
+              has_function_privilege('anon', p.oid, 'execute') as anon_ok,
+              has_function_privilege('service_role', p.oid, 'execute') as svc_ok,
+              exists (select 1 from aclexplode(p.proacl) a where a.grantee = 0 and a.privilege_type = 'EXECUTE') as public_ok
+         from pg_proc p where p.pronamespace = 'public'::regnamespace and p.proname = $1`, [fn],
+    );
+    check(`G4e 0196 ${fn} が 1 本存在`, r.rowCount === 1, `got ${r.rowCount}`);
+    const row = r.rows[0] ?? {};
+    check(`G4e ${fn} SECURITY DEFINER＋search_path=public`, row.prosecdef === true && String(row.config ?? "").includes("search_path=public"), String(row.config));
+    check(`G4e ${fn} EXECUTE = service_role のみ（authenticated／anon／PUBLIC 不在）`, row.svc_ok === true && row.auth_ok === false && !row.anon_ok && !row.public_ok, JSON.stringify([row.auth_ok, row.svc_ok, row.anon_ok, row.public_ok]));
+  }
+
   // G4c: C層② 内部ヘルパー 4 本（mig0136・0137 で can_manage は G4/G4b 側へ）＋C層③ 内部ヘルパー 3 本（mig0138）＝SECURITY DEFINER・search_path 固定・4 ロール明示 revoke（authenticated/anon/service_role/public 不在）
   {
     const INTERNAL = ["staff_shift_biz_today", "staff_shift_gate", "staff_pattern_effective", "staff_shift_deadline_at", // ★0137: can_manage は HELPERS へ（policy から呼ぶ）
@@ -1069,7 +1085,7 @@ async function main() {
     //   index 差し替え（旧不在/新逐語）＋kiosk_sessions 部分ユニーク逐語＋provision 4引数一意。
     //   auth_kiosk_register_store_id/auth_kiosk_operator の属性/ACL は HELPERS 追加で G4/G4b が自動回帰。
     //   staff_pin/kiosk_sessions の RLS 有効・grant 0 は TABLES 追加で G1/G2/G5 が自動回帰＝ここは policy 0本を能動 assert。
-    for (const fn of ["kiosk_login", "kiosk_logout", "kiosk_operator_list", "set_staff_pin"]) {
+    for (const fn of ["kiosk_login", "kiosk_logout", "kiosk_operator_list", "set_staff_pin", "kiosk_unlock" /* ★0196（2026-11-06・裁定457）: PIN の入口の 2 本目＝kiosk_login と同じ ACL */]) {
       const roles = await roleOf(fn);
       check(`G30 ${fn} EXECUTE = authenticated（anon/public 不在）`,
         roles.includes("authenticated") && !roles.includes("anon") && !roles.includes("public"),

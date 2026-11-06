@@ -542,6 +542,11 @@ staff_deactivate / kiosk_deactivate
 - 非ゲート書込（B(m) と同列＝紐付けの解除は事実記録・課金の柵は置かない）: line_link_remove（管理者／自店の店長・line_links を delete・audit）
 （除外 212→**215**・全数 410→**416**（0195 ＋6＝A 3・B 3））
 
+### B(x). 0196 新設の除外（2本・2026-11-06・0196 のフラグ true 便で収載）
+- 構造除外（B(a) と同列＝service_role だけ・authenticated 実行不可）: kiosk_person_claim（PIN の本人セッション＝route /api/kiosk/person-session が端末の uid と fp を渡す・束縛と役割を判定して印を付ける・裁定448 B 方式）
+- 構造除外（B(a) と同列＝service_role だけ・authenticated 実行不可）: kiosk_person_end（本人セッションの終了＝route /api/kiosk/person-end・kiosk_sessions を ended・audit）
+（除外 215→**217**・全数 416→**418**（0196 ＋2＝B 2・対象 201 不変＝作り直し 9 本（kiosk_lock／kiosk_register_state／cast_day_deductions_set／kiosk_punch／kiosk_punch_state／kiosk_operator_list／kiosk_login／kiosk_unlock／punch_proxy）は名前不変で本数不動））
+
 ## C. kiosk 腕を持つ対象（実装注意・18本）
 A1 の check_open / check_add_line / check_remove_line / check_add_seat / check_remove_seat /
 check_move_seat / check_set_nominations / check_time_charge_apply / check_shimei_add / check_dohan_add /

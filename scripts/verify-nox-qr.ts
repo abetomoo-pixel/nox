@@ -46,7 +46,7 @@ check("qr(3-1) 無操作＝QR は 3 分（店設定が短ければ店設定）�
 const pad = src("components/nox/kiosk-unlock-pad.tsx");
 const clientFiles = ["components/nox/kiosk-unlock-pad.tsx", "components/nox/kiosk-qr-display.tsx", "app/kq/kq-client.tsx", "app/mine/page.tsx", "components/nox/kiosk-workspace.tsx" /* ★K client 第 2 便: 包みを移した */];
 check("qr(4-1) 旧向き＝client から my_qr_secret／kiosk_unlock_qr を呼ばない・キオスクの解除パッドにカメラ（getUserMedia）が無い・旧トークン 'noxk:' の組み立てが無い", clientFiles.every((f) => !src(f).includes('"my_qr_secret"') && !src(f).includes('"kiosk_unlock_qr"')) && !pad.includes("getUserMedia") && !src("lib/nox/rules-0175/kiosk-qr.ts").includes("`noxk:"));
-check("qr(4-2) PIN（4〜6 桁）は維持＝kiosk_unlock・QR のタブは mig0185On() の間だけ（KioskQrDisplay）", pad.includes('supabase.rpc("kiosk_unlock", { p_pin: pin, p_membership_id: membershipId ?? null })') && pad.includes("const qrOk = mig0185On();") && pad.includes('{tab === "qr" && qrOk && <KioskQrDisplay onUnlocked={onUnlocked} />}'));
+check("qr(4-2) PIN（4〜6 桁）は維持＝kiosk_unlock・QR のタブは mig0185On() の間だけ（KioskQrDisplay）", pad.includes('supabase.rpc("kiosk_unlock", { p_pin: pin, p_membership_id: membershipId ?? null, ...(mig0190On() ? { p_device_fp: browserDeviceFp() } : {}) })') /* ★M-110（2026-11-06・0196 フラグ便）: 端末の印を添える */ && pad.includes("const qrOk = mig0185On();") && pad.includes('{tab === "qr" && qrOk && <KioskQrDisplay onUnlocked={onUnlocked} />}'));
 
 // ⑤ フラグ
 const fl = src("lib/nox/rules-0175/flag.ts"), fm = src("scripts/demo/rules-0175-flag.mjs");

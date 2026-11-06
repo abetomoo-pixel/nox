@@ -5268,6 +5268,12 @@ grep で洗い出した左右振り分けのボタンは一覧報告だけでな
 読取②（Webhook の再送）＝webhookEventId／isRedelivery の重複捨ては無いが効果として冪等＝書くのは unfollow の line_link_block だけ（blocked_at null の行だけ update・変わらなければ audit も書かない）・follow／テキストは reply（1 回限りの replyToken・台帳に入れない）＝LINE の「再送」ON でよい。端＝unfollow の再送が再紐付けの後に届くと再び blocked。
 提案（M-100）＝①署名が通った最初のイベントで destination が空なら admin で line_config.bot_destination に保存し以後の違いを 401 に（欄は「自動で取得済み」表示）②`deliveryContext.isRedelivery === true` の unfollow は捨てる。DDL なし。
 
+## M-111（候補・提案中・2026-11-06・CC 起票＝採番は相談役）kiosk_unlock の cast 判定に旧キー cast_register_enabled='true' の救済が無い
+
+読取（相談役の指示＝本番 6 店の settings_json を読み、旧キーだけの店の有無を報告）＝kiosk_unlock の cast の候補は `sys_cast_register>=1` だけ（0175 v2 から）・kiosk_login／kiosk_operator_list は 0196 で `sys_cast_register>=1 または cast_register_enabled='true'`（M-93）＝3 本で判定がずれる。
+本番の実測（2026-11-06・SELECT だけ）＝デモ 6 店＋CLUB NOX の 7 店中、**旧キーだけの店は 0**（CLUB ACE＝sys 2・旧 null／Girls Bar LILY＝sys 1・旧 null／CLUB NOX＝sys 2・旧 'true'（新キーで既に ≥1）／BAR NEST・CLUB LUNA・CLUB NOIR・SNACK MUSE＝両方 null）。
+提案＝実害は今は無い（旧キーだけの店が無い）。揃えるなら kiosk_unlock の cast 条件に `or coalesce(settings_json->>'cast_register_enabled','')='true'` を足す RPC 1 本（0197 に同乗か、旧キーを捨てる方向で kiosk_login／operator_list から旧キーの救済を外す＝どちらかに揃える）。採番と方向は相談役。
+
 ## M-110（2026-11-06 受領・相談役・client・0196 のフラグ true 便に同乗）KioskUnlockPad が kiosk_unlock に browserDeviceFp() を送る
 
 「KioskUnlockPad が kiosk_unlock に browserDeviceFp() を送る（束縛済み端末で unlock が 'device bound' になる）＝0196 のフラグ true 便に同乗。」（CC の読取＝components/nox/kiosk-unlock-pad.tsx は `kiosk_unlock(p_pin, p_membership_id)` の 2 引数＝0190 で束縛済みの端末では kiosk_unlock 自体が 'device bound'。DB 側は裁定457＝kiosk_unlock が inner の kiosk_login に p_device_fp を渡す＝0196）

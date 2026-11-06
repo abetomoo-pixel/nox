@@ -22,7 +22,7 @@ let ok = 0; const fails: string[] = [];
 const expect = (label: string, cond: boolean, detail?: unknown) => { if (cond) ok++; else fails.push(`${label}${detail !== undefined ? `: ${JSON.stringify(detail)}` : ""}`); };
 const ENTRY = ["kiosk_login", "kiosk_unlock", "kiosk_qr_secret", "kiosk_qr_poll", "cast_leave", "staff_deactivate"];
 const NEW_FNS = ["duty_gate_of", "on_duty_of", "assert_on_duty", "kiosk_device_bind", "kiosk_device_unbind", "kiosk_reactivate", "kiosk_delete"];
-const FN_PIN = 416; // ★0195（2026-11-05）: 410→416（新設 6） // ★0194（2026-11-04）: 409→410（kiosk_stock_levels） // ★0193（2026-11-04）: 403→409（新設 6） // ★0192（2026-11-02 適用）: 394→403（新設 9）← ★0191（2026-10-30 適用）: 393→394（setup_draft_set）← ★0190: 386→393
+const FN_PIN = 418; // ★0196（2026-11-06）: 416→418（新設 2＝kiosk_person_claim／kiosk_person_end） // ★0195（2026-11-05）: 410→416（新設 6） // ★0194（2026-11-04）: 409→410（kiosk_stock_levels） // ★0193（2026-11-04）: 403→409（新設 6） // ★0192（2026-11-02 適用）: 394→403（新設 9）← ★0191（2026-10-30 適用）: 393→394（setup_draft_set）← ★0190: 386→393
 const FN_COUNT_SQL = `select count(*)::int n from pg_proc where pronamespace='public'::regnamespace`;
 
 async function main() {

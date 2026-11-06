@@ -8,7 +8,8 @@ import { useCallback, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import Toast from "@/components/ui/toast";
-import { mig0185On } from "@/lib/nox/rules-0175/flag";
+import { mig0185On, mig0190On } from "@/lib/nox/rules-0175/flag";
+import { browserDeviceFp } from "@/lib/nox/kiosk/device-fp"; // ★M-110（2026-11-06・0196 フラグ便）: 束縛済み端末の印
 import KioskQrDisplay from "@/components/nox/kiosk-qr-display";
 import { unlockNextOf, type UnlockResult } from "@/lib/nox/rules-0175/kiosk";
 
@@ -33,7 +34,7 @@ export default function KioskUnlockPad({ onUnlocked }: { onUnlocked: (r: { membe
   async function unlockPin(membershipId?: string) {
     if (busy || pin.length < 4) return;
     setBusy(true); setMsg(null);
-    const { data, error } = await supabase.rpc("kiosk_unlock", { p_pin: pin, p_membership_id: membershipId ?? null });
+    const { data, error } = await supabase.rpc("kiosk_unlock", { p_pin: pin, p_membership_id: membershipId ?? null, ...(mig0190On() ? { p_device_fp: browserDeviceFp() } : {}) }); // ★M-110（裁定457）: 端末の印を添える（束縛済み端末で 'device bound' にならない＝kiosk-workspace の kiosk_login と同じ型）
     setBusy(false);
     if (error) { setMsg("この端末は現在使用できません（0175 適用前か店に確認）"); setPin(""); return; }
     await handle(data as UnlockResult);

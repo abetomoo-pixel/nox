@@ -14,7 +14,7 @@ const check = (label: string, ok: boolean, detail?: unknown) => { if (ok) pass++
 const src = (p: string) => fs.readFileSync(p, "utf8");
 
 // (1) 0196＝PIN の本人セッション
-check("bene(1-1) フラグ＝MIG_0196_APPLIED／MIG_0197_APPLIED は false（未起草＝手貼りは相談役の合図）・override", (MIG_0196_APPLIED as boolean) === false && (MIG_0197_APPLIED as boolean) === false && !mig0196On() && !mig0197On());
+check("bene(1-1) フラグ＝MIG_0196_APPLIED は true（2026-11-06 手貼り＝verify 22 行一致）・MIG_0197_APPLIED は false（手貼りは相談役の合図）・override", (MIG_0196_APPLIED as boolean) === true && (MIG_0197_APPLIED as boolean) === false && mig0196On() && !mig0197On());
 const u1 = "11111111-1111-4111-8111-111111111111", u2 = "22222222-2222-4222-8222-222222222222";
 check("bene(1-2) cookie nox_kiosk_person＝<session>:<device>:<role>・形が違えば null・role は manager／staff だけ", KIOSK_PERSON_COOKIE === "nox_kiosk_person" && JSON.stringify(parseKioskPersonCookie(kioskPersonCookieValueOf({ sessionId: u1, deviceId: u2, role: "staff" }))) === JSON.stringify({ sessionId: u1, deviceId: u2, role: "staff" }) && parseKioskPersonCookie(`${u1}:${u2}:owner`) === null && parseKioskPersonCookie("x") === null && parseKioskPersonCookie(null) === null);
 check("bene(1-3) 本人セッションを作れる役割＝manager／staff（owner／admin／cast は /kiosk へ）", kioskPersonSessionAllowedOf("manager") && kioskPersonSessionAllowedOf("staff") && !kioskPersonSessionAllowedOf("owner") && kioskPersonMustLeaveOf("owner") && kioskPersonMustLeaveOf("cast") && !kioskPersonMustLeaveOf("staff"));
