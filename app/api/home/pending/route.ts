@@ -6,7 +6,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { bizDateOf } from "@/lib/nox/biz-date";
 import { computePayrollDraft } from "@/lib/nox/payroll/core";
-import { missingOutOf, pendingTotalOf, wishGroupsOf, type PendingApproval, type PendingProposal, type PendingSummary } from "@/lib/nox/home/pending";
+import { missingOutOf, pendingTotalOf, wishGroupsOf, type PendingApproval, type PendingProposal, type PendingReservation, type PendingSummary } from "@/lib/nox/home/pending";
+import { pendingReservationsOf } from "@/lib/nox/home/pending-reservations"; // ★M-117
 
 type Rec = Record<string, unknown>;
 const one = <T,>(x: T | T[] | null | undefined): T | null => (Array.isArray(x) ? x[0] ?? null : x ?? null);
@@ -63,7 +64,9 @@ export async function GET(req: Request) {
         proposals = draft.rows.filter((r) => r.normProposal && r.normProposal.proposed > 0 && !r.normProposal.applied).map((r) => ({ castId: r.castId, castName: r.castName, amount: r.normProposal!.proposed, text: r.normProposal!.items.map((i) => i.text).join("・") }));
       } catch { proposals = []; }
     }
-    const out: PendingSummary = { approvals, wishes, proposals, missingOut, total: pendingTotalOf({ approvals, wishes, missingOut }) };
+    let reservations: PendingReservation[] = []; // ★M-117（2026-11-06・便 F）: 予約の承認待ち＝要承認の先頭・ベルの数に含める（今日タブと同じ取得）
+    try { reservations = (await pendingReservationsOf(supabase, storeId)).pending; } catch { reservations = []; }
+    const out: PendingSummary = { approvals, wishes, proposals, missingOut, reservations, total: pendingTotalOf({ approvals, wishes, missingOut, reservations }) };
     return NextResponse.json(out);
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });

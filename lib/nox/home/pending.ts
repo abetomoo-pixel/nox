@@ -8,15 +8,41 @@ export type PendingApproval = { id: string; checkId: string; seatName: string | 
 export type PendingWishGroup = { key: string; label: string; n: number; href: string; periodId: string | null };
 export type PendingProposal = { castId: string; castName: string; amount: number; text: string };
 export type PendingMissingOut = { castId: string; castName: string; bizDate: string };
+/** ★M-117（2026-11-06・便 F）: 予約の承認待ち（reservations.status='pending'＝キャストの申請）＝要承認の先頭・ベルの数に含める・今日タブの担当キャストの行にも同じ取得で出す */
+export type PendingReservation = { id: string; storeId: string; castId: string | null; castName: string | null; customerName: string | null; guestName: string | null; reservedAt: string; partySize: number | null; nomType: string | null; status: string; memo: string | null; requestedByCast: boolean };
 export type PendingSummary = {
   approvals: PendingApproval[]; wishes: PendingWishGroup[]; proposals: PendingProposal[]; missingOut: PendingMissingOut[];
+  /** ★M-117: 予約の承認待ち（来店時刻の近い順・時刻超過が先頭） */
+  reservations?: PendingReservation[];
   /** スタッフ＝自分の申請（最新 5 件） */
   mine?: PendingApproval[];
   total: number;
 };
 
-/** 見出しの N＝割引・無料の申請＋シフト希望の未処理＋退勤記録なし（提案は数えない） */
-export const pendingTotalOf = (s: Pick<PendingSummary, "approvals" | "wishes" | "missingOut">): number => s.approvals.length + s.wishes.reduce((a, w) => a + w.n, 0) + s.missingOut.length;
+/** 見出しの N＝予約の承認待ち（★M-117）＋割引・無料の申請＋シフト希望の未処理＋退勤記録なし（提案は数えない） */
+export const pendingTotalOf = (s: Pick<PendingSummary, "approvals" | "wishes" | "missingOut"> & { reservations?: readonly unknown[] }): number => (s.reservations?.length ?? 0) + s.approvals.length + s.wishes.reduce((a, w) => a + w.n, 0) + s.missingOut.length;
+
+// ★M-117: 予約の承認待ちの純関数（表示の語・並び・時刻超過の印）
+export const RESERVATION_NOM_LABEL: Record<string, string> = { hon: "本指名", jonai: "場内", dohan: "同伴", free: "フリー" };
+export const reservationHmOf = (iso: string): string => new Date(iso).toLocaleTimeString("ja-JP", { timeZone: "Asia/Tokyo", hour: "2-digit", minute: "2-digit", hour12: false });
+const mdOf = (iso: string): string => { const d = new Date(new Date(iso).getTime() + 9 * 3600_000); return `${d.getUTCMonth() + 1}/${d.getUTCDate()}`; };
+export const reservationCustomerOf = (r: Pick<PendingReservation, "customerName" | "guestName">): string => r.customerName ?? r.guestName ?? "（名前未設定）";
+/** 時刻超過＝来店予定時刻を過ぎた承認待ち（印をつけて先頭） */
+export const reservationOverdueOf = (r: Pick<PendingReservation, "reservedAt">, now: number = Date.now()): boolean => new Date(r.reservedAt).getTime() < now;
+/** 来店時刻の近い順（時刻超過＝過去＝自然に先頭） */
+export const sortPendingReservations = <T extends Pick<PendingReservation, "reservedAt" | "id">>(rows: readonly T[]): T[] => [...rows].sort((a, b) => a.reservedAt.localeCompare(b.reservedAt) || a.id.localeCompare(b.id));
+/** ホームの 1 行＝種別・日時・客名・人数・担当・申請元（375 は l1／l2 の 2 行に折れる） */
+export function reservationLineOf(r: PendingReservation, now: number = Date.now()): { head: string; sub: string; overdue: boolean } {
+  const kind = r.nomType ? RESERVATION_NOM_LABEL[r.nomType] ?? r.nomType : "予約";
+  const head = `${kind} ${mdOf(r.reservedAt)} ${reservationHmOf(r.reservedAt)} ${reservationCustomerOf(r)}${r.partySize ? ` ${r.partySize}名` : ""}`;
+  const sub = [r.castName ? `担当 ${r.castName}` : null, r.requestedByCast ? "申請 キャスト" : "申請 店", r.memo ? r.memo : null].filter(Boolean).join("・");
+  return { head, sub, overdue: reservationOverdueOf(r, now) };
+}
+/** 今日タブ＝担当キャストの名前の下の 1 行＝「同伴の申請 20:00 R様 2名」／承認済みの緑チップ「同伴 20:00 R様」 */
+export const reservationTodayLineOf = (r: PendingReservation): string => `${r.nomType ? RESERVATION_NOM_LABEL[r.nomType] ?? r.nomType : "予約"}の申請 ${reservationHmOf(r.reservedAt)} ${reservationCustomerOf(r)}${r.partySize ? ` ${r.partySize}名` : ""}`;
+export const reservationBookedChipOf = (r: PendingReservation): string => `${r.nomType ? RESERVATION_NOM_LABEL[r.nomType] ?? r.nomType : "予約"} ${reservationHmOf(r.reservedAt)} ${reservationCustomerOf(r)}`;
+export const RESERVATION_OVERDUE_MARK = "時刻超過";
+export const RESERVATION_OPEN_REGISTER = "レジの予約で開く ›";
 
 /** 経過分（申請から今まで） */
 export const elapsedMinOf = (createdAt: string, now: number = Date.now()): number => Math.max(0, Math.floor((now - new Date(createdAt).getTime()) / 60_000));

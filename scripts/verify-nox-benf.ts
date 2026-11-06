@@ -7,6 +7,7 @@
  *  使い方: npm run verify:nox-benf
  */
 import fs from "node:fs";
+import { reservationLineOf, reservationTodayLineOf, reservationBookedChipOf, sortPendingReservations, pendingTotalOf, type PendingReservation } from "../lib/nox/home/pending";
 import { LINE_NOTIFY_DEFAULT, LINE_NOTIFY_KINDS, lineNotifyKindOfNotif, lineNotifyOf, lineNotifyOnOf, noticeLineConfirmOf } from "../lib/nox/line/notify-kinds";
 let pass = 0; const fails: string[] = [];
 const check = (label: string, ok: boolean, detail?: unknown) => { if (ok) pass++; else fails.push(`${label}${detail !== undefined ? `: ${JSON.stringify(detail)}` : ""}`); };
@@ -44,6 +45,23 @@ check("benf(4-4) notifyCast＝種類が OFF の店は LINE に送らない（lin
 check("benf(4-5) 店舗設定 › LINE 連携＝種類ごとの表示（data-line-notify-kinds・既定 ON／OFF・保存は 0198 の後の注記）と「1 回の送信＝友だち数ぶん・無料枠 200 通」の注記／送信数カードにライトプランの 1 行／お知らせ＝送る前に確認（不足なら送らない・notice OFF の店は掲載だけ）",
   lp.includes('data-line-notify-kinds="1"') && lp.includes("{LINE_NOTIFY_COUNT_NOTE}") && lp.includes("{LINE_NOTIFY_SAVE_PENDING_NOTE}") && qc.includes('data-line-quota-plan="1"') && qc.includes("{LINE_PLAN_UPGRADE_NOTE}")
   && nb.includes("const cf = noticeLineConfirmOf({ recipients: lineLinked ?? 0, sent: row?.sent ?? 0, limit: row?.monthly_limit ?? Number(st?.line_monthly_limit ?? 200) });") && nb.includes("else if (!window.confirm(cf.text)) { sendLine = false;"));
+
+// (6) M-117＝予約の承認待ち（ホームの要承認の先頭・ベル・今日タブ＝同じ取得・同じ部品）
+const R = (o: Partial<PendingReservation> & { id: string; reservedAt: string }): PendingReservation => ({ storeId: "s", castId: "c", castName: "ひなの", customerName: "R様", guestName: null, partySize: 2, nomType: "dohan", status: "pending", memo: null, requestedByCast: true, ...o });
+const now = new Date("2026-11-06T12:00:00+09:00").getTime();
+const l1 = reservationLineOf(R({ id: "a", reservedAt: "2026-11-06T20:00:00+09:00" }), now), l2 = reservationLineOf(R({ id: "b", reservedAt: "2026-11-06T11:00:00+09:00", partySize: null, nomType: "hon", requestedByCast: false }), now);
+check("benf(6-1) 純関数＝1 行目「同伴 11/6 20:00 R様 2名」・2 行目「担当 ひなの・申請 キャスト」・時刻超過は過去の来店時刻・並びは来店時刻の近い順（過去＝先頭）・見出しの N に予約を合算",
+  l1.head === "同伴 11/6 20:00 R様 2名" && l1.sub === "担当 ひなの・申請 キャスト" && !l1.overdue && l2.overdue && l2.head === "本指名 11/6 11:00 R様" && l2.sub.includes("申請 店")
+  && sortPendingReservations([R({ id: "a", reservedAt: "2026-11-06T20:00:00+09:00" }), R({ id: "b", reservedAt: "2026-11-06T11:00:00+09:00" })]).map((r) => r.id).join() === "b,a"
+  && pendingTotalOf({ approvals: [], wishes: [], missingOut: [], reservations: [1, 2] }) === 2 && reservationTodayLineOf(R({ id: "a", reservedAt: "2026-11-06T20:00:00+09:00" })) === "同伴の申請 20:00 R様 2名" && reservationBookedChipOf(R({ id: "a", reservedAt: "2026-11-06T20:00:00+09:00", status: "booked" })) === "同伴 20:00 R様", J([l1, l2]));
+const pr = src("app/api/home/pending/route.ts"), pc = src("components/nox/pending-card.tsx"), rd = src("components/nox/reservation-decide.tsx"), prs = src("lib/nox/home/pending-reservations.ts"), sb2 = src("app/(manage)/shift/shift-board.tsx");
+check("benf(6-2) 取得は 1 本（pendingReservationsOf＝route とシフトの今日タブが同じ）・route は total に含める（ベル）・決裁の部品は 1 つ（ReservationDecide＝reservation_decide・却下は ReasonModal・「レジの予約で開く ›」）",
+  pr.includes("reservations = (await pendingReservationsOf(supabase, storeId)).pending;") && pr.includes("total: pendingTotalOf({ approvals, wishes, missingOut, reservations })") && prs.includes('q = q.in("status", ["pending", "booked"]).gte("reserved_at", rg.from).lt("reserved_at", rg.to);')
+  && rd.includes('supabase.rpc("reservation_decide", { p_reservation_id: r.id, p_decision: decision, p_reason: decision === "reject" ? reason : null })') && rd.includes('<ReasonModal title="予約の申請を却下する"') && rd.includes("{RESERVATION_OPEN_REGISTER}")
+  && sb2.includes("setTodayRsv(await pendingReservationsOf(supabase, storeId, { bizDate: todayDate, cutoffHm: cutoff }))") && !sb2.includes('rpc("reservation_decide"'));
+check("benf(6-3) ホーム＝予約の申請が先頭（approvals の前）・時刻超過の印・ReservationDecide／今日タブ＝担当キャストの名前の下に申請（承認／却下＝compact）と承認済みの緑チップ・nox:reservation-decided で取り直す",
+  pc.indexOf("data-pending-reservation={r.id}") < pc.indexOf("data-pending-approval={a.id}") && pc.includes('data-pending-overdue-mark="1"') && pc.includes("<ReservationDecide r={r} onDone=")
+  && sb2.includes("data-today-rsv-pending={r.id}") && sb2.includes("<ReservationDecide r={r} compact onDone=") && sb2.includes("data-today-rsv-booked={r.id}") && sb2.includes('window.addEventListener("nox:reservation-decided", on)'));
 
 // (5) M-115
 const gd = src("scripts/demo/gen-demo.mjs");

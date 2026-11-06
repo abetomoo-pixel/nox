@@ -55,7 +55,10 @@ import MonthNav, { useYmQuery } from "@/components/nox/month-nav"; // ★裁定3
 import { recruitNoteOf } from "@/lib/nox/ui/month-nav"; // ★306-2 募集期間の注記・306-10 は staff-shift-manage
 import { nextPeriodDefaults, overlappingPeriods, mdOf } from "@/lib/nox/shift/period"; // ★便 T（2026-09-18）: 期間の既定日付・重なり判定（純関数）
 import Modal from "@/components/ui/modal";
-import { lineNotifyAllowedOf, notifyCast, notifyCasts } from "@/lib/nox/people/notify"; // ★M-114（裁定459）: 催促の LINE は種類ごとの ON／OFF // ★便 ON-3（0176 ★5 (d)・裁定413）: 確定シフトの追加／外し・送り返し・催促の通知（cast_notifications＋LINE）
+import { lineNotifyAllowedOf, notifyCast, notifyCasts } from "@/lib/nox/people/notify"; // ★M-114（裁定459）: 催促の LINE は種類ごとの ON／OFF
+import { reservationBookedChipOf, reservationTodayLineOf, type PendingReservation } from "@/lib/nox/home/pending"; // ★M-117
+import { pendingReservationsOf } from "@/lib/nox/home/pending-reservations"; // ★M-117: ホームと同じ取得
+import ReservationDecide from "@/components/nox/reservation-decide"; // ★M-117: ホームと同じ承認部品 // ★便 ON-3（0176 ★5 (d)・裁定413）: 確定シフトの追加／外し・送り返し・催促の通知（cast_notifications＋LINE）
 import { SHIFT_PUBLISHED_LINE_KIND, notifRefOf, remindNoticeDefaultOf, remindWishBody, shiftAddedBody, shiftChangedBody, shiftProposedBody, shiftPublishedBody, shiftPublishedTargetsOf, shiftRemovedBody } from "@/lib/nox/people/notify-text"; // ★便 C① M-77 ①
 import { PERIOD_NEEDS_NOTE, emptyPeriodNeedsForm, periodNeedRequiredOf, periodNeedRowsOf, periodNeedsChipOf, periodNeedsErrorOf, periodNeedsFormOf, type PeriodNeedRow, type PeriodNeedsForm } from "@/lib/nox/shift/period-needs"; // ★便 ON-3（0176 ★5 (a)）: 期間ごとの必要人数
 import { declineTextOf } from "@/lib/nox/shift/decline"; // ★便 ON-3（0176 ★5 (c)・裁定406）: 辞退の印
@@ -1197,6 +1200,14 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   useEffect(() => { if (storeDecides && (tab === "build" || tab === "submit")) setTab("queue"); // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storeDecides, tab]); // ★便 D M-96（2026-11-05）: 店設定 shift_request_mode='store'（店が決めて本人に通知）＝シフト作成は ③配置→④公開 の 2 段（①期間 ②提出一覧 を出さない）
   const [proxyPunchOn, setProxyPunchOn] = useState(true);
+  // ★M-117（2026-11-06・便 F）: 今日タブ＝担当キャストの予約の申請（pending）と承認済み（booked）＝ホームと同じ取得（pendingReservationsOf）。決裁は nox:reservation-decided で取り直す
+  const [todayRsv, setTodayRsv] = useState<{ pending: PendingReservation[]; booked: PendingReservation[] }>({ pending: [], booked: [] });
+  const loadTodayRsv = useCallback(async () => {
+    if (!storeId || !todayDate) { setTodayRsv({ pending: [], booked: [] }); return; }
+    try { setTodayRsv(await pendingReservationsOf(supabase, storeId, { bizDate: todayDate, cutoffHm: cutoff })); } catch { setTodayRsv({ pending: [], booked: [] }); }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storeId, todayDate, cutoff]);
+  useEffect(() => { void loadTodayRsv(); const on = () => void loadTodayRsv(); window.addEventListener("nox:reservation-decided", on); return () => window.removeEventListener("nox:reservation-decided", on); }, [loadTodayRsv]);
   const [punchStore, setPunchStore] = useState(false); // ★便 E（0197 用＝裁定455）: 打刻しない店＝今日タブに「今日だけ許可」
   const [dayGrants, setDayGrants] = useState<Set<string>>(new Set()); // 当日の register_day_grants（cast）
   useEffect(() => {
@@ -1655,6 +1666,21 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                             {castName(s.cast_id)}
                           </span>
                         
+                          {(() => { /* ★M-117（2026-11-06・便 F）: 担当キャストの予約の申請＝名前の下に「同伴の申請 20:00 R様 2名」＋承認／却下（遅刻の連絡と同じ位置・ホームと同じ取得と部品）・承認済みは緑のチップ・却下／取消は消える */
+                            const pend = todayRsv.pending.filter((r) => r.castId === s.cast_id), booked = todayRsv.booked.filter((r) => r.castId === s.cast_id);
+                            if (pend.length === 0 && booked.length === 0) return null;
+                            return (
+                              <div data-today-rsv={s.cast_id} style={{ marginTop: 4, fontSize: 12, lineHeight: 1.5, whiteSpace: "normal", maxWidth: 260, display: "grid", gap: 3 }}>
+                                {pend.map((r) => (
+                                  <span key={r.id} data-today-rsv-pending={r.id} style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", fontWeight: 700, color: "var(--bad)" }}>
+                                    {reservationTodayLineOf(r)}
+                                    {isManagerUp && <ReservationDecide r={r} compact onDone={() => void loadTodayRsv()} onError={(m) => setMsg(`予約の申請を処理できませんでした: ${m}`)} />}
+                                  </span>
+                                ))}
+                                {booked.map((r) => <span key={r.id} className="nox-stpill" data-today-rsv-booked={r.id} style={{ color: "var(--ok)", borderColor: "var(--ok)", justifySelf: "start" }}>{reservationBookedChipOf(r)}</span>)}
+                              </div>
+                            );
+                          })()}
                           {(() => { const rp = castReportOf(attOf(s.cast_id, todayDate)); return rp ? (/* ★便 X13-H H-17 ①: 本人の連絡（未確認＝目立つ色）＋記録の 2 ボタン（既存の記録→委託は罰金ダイアログ） */
                             <div data-cast-report={rp.kind} style={{ marginTop: 4, fontSize: 12, fontWeight: 700, color: "var(--bad)", lineHeight: 1.5, whiteSpace: "normal", maxWidth: 260 }}>
                               {castReportLineOf(rp)}

@@ -5268,6 +5268,12 @@ grep で洗い出した左右振り分けのボタンは一覧報告だけでな
 読取②（Webhook の再送）＝webhookEventId／isRedelivery の重複捨ては無いが効果として冪等＝書くのは unfollow の line_link_block だけ（blocked_at null の行だけ update・変わらなければ audit も書かない）・follow／テキストは reply（1 回限りの replyToken・台帳に入れない）＝LINE の「再送」ON でよい。端＝unfollow の再送が再紐付けの後に届くと再び blocked。
 提案（M-100）＝①署名が通った最初のイベントで destination が空なら admin で line_config.bot_destination に保存し以後の違いを 401 に（欄は「自動で取得済み」表示）②`deliveryContext.isRedelivery === true` の unfollow は捨てる。DDL なし。
 
+## M-117（2026-11-06 受領・相談役・client・便 F）予約の承認待ちをホームとシフト今日タブに出す
+
+「ホーム＝①『要承認』の先頭に 1 件 1 行（種別・日時・客名・人数・担当・申請元）・シフト希望／ノルマ未達より上・件数は見出しに合算 ②行内にレジ › 予約と同じ『承認』『却下』の部品＋『レジの予約で開く ›』③ヘッダーのベルの数に含める ④来店時刻の近い順・時刻超過は印をつけて先頭 ⑤375 は 2 行に折る（M-109 の型）。
+シフト › 今日タブ＝⑥担当キャストの行の名前の下に『同伴の申請 20:00 R様 2名』＋『承認』『却下』（めいの『遅刻の連絡』と同じ部品・同じ位置）・承認済みは緑のチップ『同伴 20:00 R様』を残す・却下／取消は消す。ホームと今日タブは同じ取得・同じ承認部品を使う（二重実装しない）。撮影 375／390（デモ店 ACE の承認待ち 1 件・ホーム／今日タブ／承認後）。LINE 通知は触らない（裁定459）。」
+CC の処置（便 F）＝取得 1 本＝lib/nox/home/pending-reservations.ts（pendingReservationsOf＝route /api/home/pending と shift-board の今日タブが同じ・bizDate を渡すとその営業日の pending＋booked）・純関数＝lib/nox/home/pending.ts（reservationLineOf／reservationTodayLineOf／reservationBookedChipOf／sortPendingReservations・時刻超過＝来店時刻を過ぎた申請・pendingTotalOf に合算＝ベル）・部品 1 つ＝components/nox/reservation-decide.tsx（reservation_decide・却下は ReasonModal・「レジの予約で開く ›」）・ホーム（pending-card）の先頭・今日タブ（担当キャストの名前の下・compact・承認済みの緑チップ・nox:reservation-decided で取り直す）。375 は既存の .nox-pending-row（flex-wrap）で l1／l2 の 2 行。デモ ACE の承認待ち＝ひなの・R様・同伴 20:00（source にあり＝gen-demo の変更なし）。
+
 ## M-116（2026-11-06 承認・相談役・client＋route・便 F の先頭）LINE 連携の失敗＝期限切れ ID トークンの扱い（LIFF の 1 回だけ自動再ログイン＋verify の理由を 401 本文とログに）
 
 出来事（2026-11-06 16:37〜16:40 JST・CLUB NOX）＝POST /api/line/bind 401 ×4・/api/line/session 401 ×1。bind の外部呼び出し＝stores／orgs 200 → **POST api.line.me/oauth2/v2.1/verify 400（8ms）**＝LINE が ID トークンを無効と判定。11/5 は同じ経路で成功・LINE アプリの LIFF は 11/5 のログイン状態を保持。Runtime Logs 0 件。

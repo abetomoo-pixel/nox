@@ -11,7 +11,8 @@ import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import { Message } from "@/components/ui/toast";
 import ReasonModal from "@/components/nox/reason-modal"; // ★裁定443 18-⑦: 却下の理由は Modal（申請の内容を見せる・window.prompt は使わない）
-import { APPROVAL_STATUS_LABEL, approvalLineOf, bellLabelOf, rejectReasonOkOf, type PendingSummary } from "@/lib/nox/home/pending";
+import { APPROVAL_STATUS_LABEL, RESERVATION_OVERDUE_MARK, approvalLineOf, bellLabelOf, rejectReasonOkOf, reservationLineOf, type PendingSummary } from "@/lib/nox/home/pending";
+import ReservationDecide from "@/components/nox/reservation-decide"; // ★M-117: 予約の承認待ち（レジ › 予約と同じ部品）
 
 export const PENDING_CARD_ID = "pending-card";
 
@@ -76,6 +77,13 @@ export default function PendingCard({ storeId, role }: { storeId: string; role: 
       {msg && <div style={{ marginTop: 6 }}><Message kind={/できません|入力して/.test(msg) ? "error" : "success"}>{msg}</Message></div>}
       {data && !none && open && (
         <ul style={{ margin: "8px 0 0", paddingLeft: 0, listStyle: "none" }}>
+          {(data.reservations ?? []).map((r) => { const l = reservationLineOf(r); return (/* ★M-117（2026-11-06・便 F）: 予約の承認待ち＝先頭・1 件 1 行（種別・日時・客名・人数・担当・申請元）・時刻超過は印・承認／却下＝レジ › 予約と同じ部品 */
+            <li key={r.id} className="nox-pending-row" data-pending-reservation={r.id} data-pending-overdue={l.overdue ? "1" : "0"}>
+              <span className="nox-pending-l1"><span className="nox-stpill" style={{ marginRight: 6 }}>予約の申請</span>{l.overdue && <span className="nox-stpill" style={{ marginRight: 6, color: "var(--bad)", borderColor: "var(--bad)" }} data-pending-overdue-mark="1">{RESERVATION_OVERDUE_MARK}</span>}{l.head}</span>
+              <span className="nox-pending-l2"><span style={t.sub}>{l.sub}</span>
+                <ReservationDecide r={r} onDone={async (d) => { setMsg(d === "approve" ? "承認しました（予約として確定）" : "却下しました"); await load(); }} onError={(m) => setMsg(`処理できませんでした: ${m}`)} />
+              </span>
+            </li>); })}
           {data.approvals.map((a) => { const l = approvalLineOf(a); return (
             <li key={a.id} className="nox-pending-row" data-pending-approval={a.id}>
               <span className="nox-pending-l1"><span className="nox-stpill" style={{ marginRight: 6 }}>割引・無料</span>{l.head}</span>
