@@ -28,7 +28,7 @@
 - ★2 register_day_grants（id・org・store・subject_kind cast|staff・subject_id・biz_date・granted_by・reason・unique(store, kind, subject, date)）＋register_day_grant_set(p_subject_kind, p_subject_id, p_biz_date, p_on, p_reason)（owner＝org 内／manager＝自店・対象＝自店の有効なキャストか manager／staff の membership・今日か翌営業日・on＝upsert／off＝delete・audit）。
 - ★3 on_duty_of＝punch_mode='store' の店＝「今日だけ許可」があれば true／その営業日の確定シフト（cast＝shifts・staff＝staff_shifts）の開始 −before 〜 終了 ＋after の中なら true（営業時計 0〜47 時＝営業日の 0:00 JST から分で足す）／それ以外 false。'punch' は従来の最後の打刻が in。
 
-## 事前確認 SQL（貼る前・SELECT のみ）＝返りが貼り先証明 1 行だけなら OK（md5 は 2026-11-05 の dev＝0195 適用後・★0196 を貼った後は set_store_profile／on_duty_of の md5 は変わらない（0196 は触らない））
+## 事前確認 SQL（貼る前・SELECT のみ）＝返りが貼り先証明 1 行だけなら OK（md5 2 本＝**2026-11-06 に 0196 適用後の本番 ref hiqb… で再照合＝一致**（set_store_profile b9d361eb／on_duty_of dd0a738d・0196 はこの 2 本を触らない＝重なり 0・再生成なし・sha16 f28f737489916c38 のまま））
 ```sql
 select 'nox-project-proof' k, count(*)::text v from public.orgs
 union all
@@ -57,6 +57,7 @@ docs/tmp/0197_punch_mode.sql の全文（begin〜commit を 1 回 Run）。URL �
 | anon exec on 3 fns／authenticated exec on 3 fns | 0／3 |
 | stores with punch_mode store | 0 |
 
-## 試走の記録（dev・BEGIN…ROLLBACK・DB 変更 0）
+## 試走の記録（本番 ref hiqb…（SUPABASE_DB_URL）・BEGIN…ROLLBACK・DB 変更 0）
+- **2026-11-06（0196 適用後の再走・事前確認）**: 0197 が触る関数＝set_store_profile（作り直し）・on_duty_of（作り直し）・register_day_grant_set（新設）＝0196 の 11 本との重なり **0** → 再生成なし（sha16 **f28f737489916c38** のまま）。body 1,019 行・commit-free ok・lock_timeout ok → 関数 **418／表 119** → tx 内 **419／120** → ROLLBACK → 418／119（DB 変更 0）。verify 17 行＝期待値と全行一致（fn count 419・table count 120）。動作 **19/19**。
 - 2026-11-05: body 1,019 行・commit-free ok・lock_timeout ok → 416／119 → tx 内 417／120 → ROLLBACK → 416／119。verify 17 行＝fn count（417＝0196 なしの dev）以外は期待値どおり。
 - 動作 19/19＝★1 owner の保存 ok／bad punch_mode／窓 241＝bad／manager forbidden／★3 シフトなし false・終了+60 分過ぎ false・開始 −30 分の中 true・窓 10 分で false／★2 付与→true＋audit・取消→false・翌営業日 ok・2 日後／昨日 bad date・staff forbidden・staff の membership にも付与 ok・owner の membership は forbidden・RLS 自店 staff 読める／★3 'punch' の店＝窓の中でも打刻なしは false・最後の打刻 in で true（従来）。A2 の manager が無いため「他店の店長 forbidden」は未実行（RPC は store 照合＝manager 自店だけ）。
