@@ -5268,6 +5268,11 @@ grep で洗い出した左右振り分けのボタンは一覧報告だけでな
 読取②（Webhook の再送）＝webhookEventId／isRedelivery の重複捨ては無いが効果として冪等＝書くのは unfollow の line_link_block だけ（blocked_at null の行だけ update・変わらなければ audit も書かない）・follow／テキストは reply（1 回限りの replyToken・台帳に入れない）＝LINE の「再送」ON でよい。端＝unfollow の再送が再紐付けの後に届くと再び blocked。
 提案（M-100）＝①署名が通った最初のイベントで destination が空なら admin で line_config.bot_destination に保存し以後の違いを 401 に（欄は「自動で取得済み」表示）②`deliveryContext.isRedelivery === true` の unfollow は捨てる。DDL なし。
 
+## M-110（2026-11-06 受領・相談役・client・0196 のフラグ true 便に同乗）KioskUnlockPad が kiosk_unlock に browserDeviceFp() を送る
+
+「KioskUnlockPad が kiosk_unlock に browserDeviceFp() を送る（束縛済み端末で unlock が 'device bound' になる）＝0196 のフラグ true 便に同乗。」（CC の読取＝components/nox/kiosk-unlock-pad.tsx は `kiosk_unlock(p_pin, p_membership_id)` の 2 引数＝0190 で束縛済みの端末では kiosk_unlock 自体が 'device bound'。DB 側は裁定457＝kiosk_unlock が inner の kiosk_login に p_device_fp を渡す＝0196）
+CC の処置＝0196 のフラグ true 便で `p_device_fp: browserDeviceFp()` を足す（kiosk-workspace の kiosk_login と同じ型＝mig0190On() のとき）。次の M＝**M-111**。
+
 ## M-109（2026-11-06 受領・相談役・client・便 F の先頭）/register 375 幅の卓カードで「あと 59 分で延長」と金額が重なる
 
 「/register 375 幅の卓カードで『あと 59 分で延長』と金額が重なる＝2 行に折る（M-62 と同じ型）。撮影 375。」（便 D の撮影で CC が気づき・相談役が採番）
@@ -5517,6 +5522,12 @@ Agoora が 7 本を手貼り（0185→0180→0181→0182→0183→0184→0186）
 - **小さな直しの候補（次の mig に同乗・今は起草しない）**: remove_store_special_day に billing_writable_of の確認が無い（set_store_special_day にはある）＝揃える。
 - **0183 の (a)**: payroll_withholding_overrides／payroll_employee_deductions の period は YYYY-MM＝payroll_runs.period も CHECK で YYYY-MM・period_bounds も月だけ＝run は精算方式（settlement_cycle）に関係なく月単位で、half／weekly／daily は源泉の暦日数の注記と日払いの種別だけ（本番 10 店とも settlement_cycle 未設定＝月次）＝今は足りる。半月・週の run を作るときは run・上書き・控除の 3 つの period を一緒に設計し直す。
 - **0183 の (b)**: キャストの源泉区分は「税務情報を保存」で set_cast_tax_profile（upsert＝行を作る）の後に set_withholding_kind を呼ぶ＝not found にならない。スタッフは契約の行がある人だけ区分の選択が出る（行を作る動線＝B の 6-④）。
+
+## 裁定457（2026-11-06 確定・相談役）裁定456 の 1 は kiosk_unlock にも適用・kiosk_unlock の末尾は kiosk_login(v_mid, p_pin, p_device_fp) の 3 引数・kiosk_operator_list は変えない
+
+出典＝相談役 11/06（CC の 0196 再生成の報告＝PIN の入口の実経路が KioskUnlockPad→kiosk_unlock→kiosk_login である読取への裁定）。適用＝0196（再生成済み sha16 baab7cbbc665ec4b に既に反映＝再生成なし）。
+「裁定456 の 1 は kiosk_unlock にも適用。kiosk_unlock の末尾は kiosk_login(v_mid, p_pin, p_device_fp) の 3 引数を呼ぶ。kiosk_operator_list は変えない。」
+CC の処置（2026-11-06）＝0196_kiosk_person.sql（baab7cbbc665ec4b）の ★5 がそのとおり＝kiosk_login／kiosk_unlock の候補は `m.role = 'staff'`・kiosk_unlock の末尾は 3 引数・kiosk_operator_list は `(m.role = 'staff' and m.can_register)` のまま（verify 22 行の「login/unlock staff w/o can_register + unlock fp + operator_list keeps＝yes,yes,yes,yes」が pin）。client 側＝M-110（下）＝0196 のフラグ true 便に同乗。次の裁定＝**458**。
 
 ## 裁定456（2026-11-06 確定・相談役＝v59 確定版 §0-2）0196／0197／便 E／M-82 の仮置き 20 点＝変更 3 点（1・17・18）・ほか 17 点は推奨案のまま承認＋同梱（教訓135・M-109・M-105 の実機再確認）
 
@@ -8481,9 +8492,10 @@ anon-guard 段28 が無差別 `limit(1)` でそれを拾い 'bad amount'/BV=unde
   該当列なし）ため、消さずに理由を分けて残した。
   根拠の全文＝`docs/dp/survey_6-4.md`。
 
-## 次の番号（2026-11-06 朝・v59 確定版＝裁定456 を収載・0196 を裁定456 の 1 で再生成した時点）
+## 次の番号（2026-11-06 朝・v59 確定版＝裁定456／457・M-110 を収載・0196 を裁定456 の 1 で再生成した時点）
 
-- **次の裁定＝457**（456＝2026-11-06 確定＝v59_draft §0-2 の 20 点＝変更 3 点（1＝staff の PIN 入場は can_register を見ない・kiosk_operator_list は不変／17＝/mine 勤怠一覧は punch_mode='store' で確定シフトの日／18＝出勤インセンティブの受給者判定も確定シフト）・ほか 17 点は推奨案のまま・同梱＝教訓135・M-109・M-105 再確認）。**次の M＝M-110**（M-109＝収載済み・**M-108＝欠番**＝台帳に本文なし＝詰めない）。**次の教訓＝136**（135＝収載済み＝f0 の走行中は shared file を触らない）。**次の mig＝0196**（2026-11-06 再生成＝docs/tmp/0196_kiosk_person.sql **sha16 baab7cbbc665ec4b**・605 行・試走 31/31・DB 変更 0・handpaste_0196.md 更新＝手貼りは相談役の合図・旧 91e387cabf51b8db は破棄）→ **0197**（起草済み sha16 f28f737489916c38・不変・順序＝0196 の後）。
+- **次の裁定＝458**（457＝2026-11-06 確定＝裁定456 の 1 は kiosk_unlock にも・末尾は kiosk_login の 3 引数・kiosk_operator_list は不変＝0196 baab7cbbc665ec4b に反映済み）。**次の M＝M-111**（M-110＝KioskUnlockPad が kiosk_unlock に browserDeviceFp() を送る＝0196 のフラグ true 便に同乗）。（以下は 456 収載時点の記録）
+- 456＝2026-11-06 確定＝v59_draft §0-2 の 20 点＝変更 3 点（1＝staff の PIN 入場は can_register を見ない・kiosk_operator_list は不変／17＝/mine 勤怠一覧は punch_mode='store' で確定シフトの日／18＝出勤インセンティブの受給者判定も確定シフト）・ほか 17 点は推奨案のまま・同梱＝教訓135・M-109・M-105 再確認）。**次の M＝M-110**（M-109＝収載済み・**M-108＝欠番**＝台帳に本文なし＝詰めない）。**次の教訓＝136**（135＝収載済み＝f0 の走行中は shared file を触らない）。**次の mig＝0196**（2026-11-06 再生成＝docs/tmp/0196_kiosk_person.sql **sha16 baab7cbbc665ec4b**・605 行・試走 31/31・DB 変更 0・handpaste_0196.md 更新＝手貼りは相談役の合図・旧 91e387cabf51b8db は破棄）→ **0197**（起草済み sha16 f28f737489916c38・不変・順序＝0196 の後）。
 
 ## 次の番号（2026-11-05・0195 のフラグ true 便＝裁定453／454 を収載した時点）
 
