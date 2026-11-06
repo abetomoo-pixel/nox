@@ -5268,6 +5268,13 @@ grep で洗い出した左右振り分けのボタンは一覧報告だけでな
 読取②（Webhook の再送）＝webhookEventId／isRedelivery の重複捨ては無いが効果として冪等＝書くのは unfollow の line_link_block だけ（blocked_at null の行だけ update・変わらなければ audit も書かない）・follow／テキストは reply（1 回限りの replyToken・台帳に入れない）＝LINE の「再送」ON でよい。端＝unfollow の再送が再紐付けの後に届くと再び blocked。
 提案（M-100）＝①署名が通った最初のイベントで destination が空なら admin で line_config.bot_destination に保存し以後の違いを 401 に（欄は「自動で取得済み」表示）②`deliveryContext.isRedelivery === true` の unfollow は捨てる。DDL なし。
 
+## M-116（2026-11-06 承認・相談役・client＋route・便 F の先頭）LINE 連携の失敗＝期限切れ ID トークンの扱い（LIFF の 1 回だけ自動再ログイン＋verify の理由を 401 本文とログに）
+
+出来事（2026-11-06 16:37〜16:40 JST・CLUB NOX）＝POST /api/line/bind 401 ×4・/api/line/session 401 ×1。bind の外部呼び出し＝stores／orgs 200 → **POST api.line.me/oauth2/v2.1/verify 400（8ms）**＝LINE が ID トークンを無効と判定。11/5 は同じ経路で成功・LINE アプリの LIFF は 11/5 のログイン状態を保持。Runtime Logs 0 件。
+読取（CC）＝①client_id は stores.line_config.login_channel_id（店ごと）・nonce は送らない（LINE の verify は省略可）・**LINE の 400 本文を読まず一律 401「bad id_token」＝console.error も無い**（Runtime Logs 0 件の理由）。②見立て＝**ID トークンの期限切れ**＝liff.isLoggedIn() はアクセストークン（長い）で true のまま・liff.getIDToken() は 11/5 発行の ID トークン（約 1 時間で失効）を返す → LINE が 400。③bind／session の route に Site URL の分岐は無い（cookie の secure だけ）・依存は liff.login の redirectUri（M-102＝NEXT_PUBLIC_SITE_URL）だけ＝LIFF エンドポイントと同じ host（noxapp.jp）＝相談役が確認済み。
+承認＝「②のとおり実装＝client（liff-bridge の 1 回だけ自動再ログイン・sessionStorage の鍵でループ防止・2 回目は『LINE のログインが期限切れです。LINE アプリを閉じて開き直してください』）＋server（verifyLineIdToken の戻りに reason／detail・LINE の 400 本文を console.error・id_token は出さない・route の 401 本文に reason／detail）＋pin 3 本。便 F の先頭＝M-116 → M-112〜M-115 → 読取 2 件の順。撮影は不要・Agoora の実機 1 回で確認。」
+CC の処置＝便 F の先頭で実装（lib/nox/line/server.ts・app/api/line/bind／session の route・app/liff/[storeId]/liff-bridge.tsx＋suite の pin 3 本）。DDL なし。
+
 ## M-115（2026-11-06 受領・相談役・便 F＝B の後）gen-demo に「その日に選ぶ」の pick ルール 1 本
 
 「gen-demo に『その日に選ぶ』の pick ルール 1 本（ヘアメ代 ¥500・全員・有効）を足し、出勤時の『今日の控除』のチェック群が出るのを撮影（375）。」（0196 フラグ便の撮影でデモ 6 店に pick ルール 0＝チェック群が出なかったことへの処置）
@@ -8540,7 +8547,7 @@ anon-guard 段28 が無差別 `limit(1)` でそれを拾い 'bad amount'/BV=unde
 
 ## 次の番号（2026-11-06 夕・0196 フラグ true 便の後＝裁定458／459・M-111〜M-115 を収載・0197 の事前確認を済ませた時点）
 
-- **次の裁定＝460**（458＝前借りは「貸付」・459＝LINE 通知の既定＝お知らせだけ ON）。**次の M＝M-116**（M-111＝kiosk_unlock の旧キー救済＝ローンチ後・M-112〜M-115＝便 F（B の後）＝日報プレビュー 375／ランキング 375／裁定459 の client／gen-demo の pick ルール 1 本）。**次の教訓＝136**。**次の mig＝0197**（起草済み sha16 f28f737489916c38＝0196 の 11 本との重なり 0 で再生成なし・2026-11-06 に 0196 適用後の本番で試走 19/19・418／119→tx 内 419／120・事前確認 md5 2 本一致・手貼りは相談役の合図）。便 F の残り（台帳の番号なし）＝目視①の突合（staff の通常ログインのナビと本人セッションのナビ 4 つ）・読取 docs/tmp/advance_loan_scan.md（裁定458）・日報プレビューの「伝票 0・未会計 5」の店の読取・f0 段数 178→174 の 1 行・撮影は 375 と 390。
+- **次の裁定＝460**（458＝前借りは「貸付」・459＝LINE 通知の既定＝お知らせだけ ON）。**次の M＝M-117**（M-116＝2026-11-06 承認＝LINE の期限切れ ID トークン＝LIFF の 1 回だけ自動再ログイン＋verify の理由＝便 F の先頭・M-111＝kiosk_unlock の旧キー救済＝ローンチ後・M-112〜M-115＝便 F（M-116 の後）＝日報プレビュー 375／ランキング 375／裁定459 の client／gen-demo の pick ルール 1 本）。**次の教訓＝136**。**次の mig＝0197**（起草済み sha16 f28f737489916c38＝0196 の 11 本との重なり 0 で再生成なし・2026-11-06 に 0196 適用後の本番で試走 19/19・418／119→tx 内 419／120・事前確認 md5 2 本一致・手貼りは相談役の合図）。便 F の残り（台帳の番号なし）＝目視①の突合（staff の通常ログインのナビと本人セッションのナビ 4 つ）・読取 docs/tmp/advance_loan_scan.md（裁定458）・日報プレビューの「伝票 0・未会計 5」の店の読取・f0 段数 178→174 の 1 行・撮影は 375 と 390。
 
 ## 次の番号（2026-11-06 朝・v59 確定版＝裁定456／457・M-110 を収載・0196 を裁定456 の 1 で再生成した時点）
 
