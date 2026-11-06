@@ -780,6 +780,8 @@ body {
 .nox-seat .empty { font-size: 11px; color: var(--v2-muted); margin-top: 12px; opacity: .65; }
 /* 会計金額＝読む情報ゆえ白・太（金にしない） */
 .nox-seat .amt { position: absolute; right: 10px; bottom: 8px; font-size: 15px; font-weight: 700; color: var(--v2-text); }
+/* ★M-109（2026-11-06・Agoora 実機）: 375 幅の卓カードで「あと 59 分で延長」と金額が重なる＝480px 以下は金額を自分の行（右寄せ）に折る（M-62 と同じ型＝2 行） */
+@media (max-width: 480px) { .nox-seat .amt { position: static; display: block; text-align: right; margin-top: 4px; } }
 /* 着卓キャストの顔（重ねて並べる＝席の狭い面積に複数人を出す） */
 .nox-seat .heads { display: flex; margin-top: 6px; }
 .nox-seat .heads > * { margin-right: -6px; border: 1.5px solid #1A1820; }
