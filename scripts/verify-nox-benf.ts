@@ -8,6 +8,7 @@
  */
 import fs from "node:fs";
 import { reservationLineOf, reservationTodayLineOf, reservationBookedChipOf, sortPendingReservations, pendingTotalOf, type PendingReservation } from "../lib/nox/home/pending";
+import { baseTimeDiffersOf, sortRowsByAvail, staffAvailConfirmTextOf, staffAvailJudgeOf, staffAvailNgTextOf, staffBaseTimeLabelOf, type StaffAvailMap } from "../lib/nox/shift/staff-place";
 import { LINE_NOTIFY_DEFAULT, LINE_NOTIFY_KINDS, lineNotifyKindOfNotif, lineNotifyOf, lineNotifyOnOf, noticeLineConfirmOf } from "../lib/nox/line/notify-kinds";
 let pass = 0; const fails: string[] = [];
 const check = (label: string, ok: boolean, detail?: unknown) => { if (ok) pass++; else fails.push(`${label}${detail !== undefined ? `: ${JSON.stringify(detail)}` : ""}`); };
@@ -62,6 +63,23 @@ check("benf(6-2) 取得は 1 本（pendingReservationsOf＝route とシフトの
 check("benf(6-3) ホーム＝予約の申請が先頭（approvals の前）・時刻超過の印・ReservationDecide／今日タブ＝担当キャストの名前の下に申請（承認／却下＝compact）と承認済みの緑チップ・nox:reservation-decided で取り直す",
   pc.indexOf("data-pending-reservation={r.id}") < pc.indexOf("data-pending-approval={a.id}") && pc.includes('data-pending-overdue-mark="1"') && pc.includes("<ReservationDecide r={r} onDone=")
   && sb2.includes("data-today-rsv-pending={r.id}") && sb2.includes("<ReservationDecide r={r} compact onDone=") && sb2.includes("data-today-rsv-booked={r.id}") && sb2.includes('window.addEventListener("nox:reservation-decided", on)'));
+
+// (7) M-118＝スタッフ配置モーダルが「基本の働き方」を参照
+{
+  const map: StaffAvailMap = { s1: { rows: { 3: { avail: "ng", from_min: null, to_min: null }, 4: { avail: "ask", from_min: 1080, to_min: 1380 }, 5: { avail: "ok", from_min: 1200, to_min: 1500 } }, effectiveFrom: "2026-11-06" } };
+  const j3 = staffAvailJudgeOf(map, "s1", "2026-11-25"), j4 = staffAvailJudgeOf(map, "s1", "2026-11-26"), j5 = staffAvailJudgeOf(map, "s1", "2026-11-27"), jb = staffAvailJudgeOf(map, "s1", "2026-11-04"), jx = staffAvailJudgeOf(map, "s2", "2026-11-25");
+  check("benf(7-1) 純関数＝11/25（水）不可・11/26（木）相談＋基本時間 18:00〜23:00・11/27（金）可＋基本時間 20:00〜25:00（翌 01:00）・適用開始日（11/6）より前の 11/4 は判定しない・設定なしは null",
+    j3.avail === "ng" && j3.dowJa === "水" && j3.baseStart === null && j4.avail === "ask" && j4.baseStart === "18:00" && j4.baseEnd === "23:00" && j5.avail === "ok" && j5.baseEnd === "25:00" && jb.avail === null && jx.avail === null, J([j3, j4, j5, jb, jx]));
+  check("benf(7-2) 文言＝「基本の働き方では水曜は不可です（配置はできますが本人に確認してください）」・確認文・「本人の基本時間で（18:00〜23:00）」・基本時間が枠と違うときだけ・不可の人は末尾",
+    staffAvailNgTextOf("水") === "基本の働き方では水曜は不可です（配置はできますが本人に確認してください）" && staffAvailConfirmTextOf("小林", "水").startsWith("小林 の基本の働き方では水曜は不可です") && staffBaseTimeLabelOf("18:00", "23:00") === "本人の基本時間で（18:00〜23:00）"
+    && baseTimeDiffersOf(j4, "18:00", "23:00") === false && baseTimeDiffersOf(j4, "19:00", "23:00") === true && baseTimeDiffersOf(j3, "19:00", "23:00") === false
+    && sortRowsByAvail([{ id: "a", av: "ng" as const }, { id: "b", av: "ok" as const }, { id: "c", av: null }], (r) => r.av).map((r) => r.id).join() === "b,c,a");
+  const spd = src("app/(manage)/shift/staff-place-day.tsx"), spf = src("app/(manage)/shift/staff-place-form.tsx"), ssm = src("app/(manage)/shift/staff-shift-manage.tsx");
+  check("benf(7-3) client＝manage が availability（from_min／to_min）と availability_terms（effective_from）を読む・左の一覧は sortRowsByAvail（不可＝末尾・グレー・印）・右の配置欄に赤文／相談の 1 行／本人の基本時間ボタン／不可は 1 回だけ window.confirm・キャスト側（day-add-panel）は触らない",
+    ssm.includes('supabase.from("availability").select("membership_id, dow, avail, from_min, to_min")') && ssm.includes('supabase.from("availability_terms").select("membership_id, effective_from")') && spd.includes("sortRowsByAvail(staffRowsForDay(staff, wishes, shifts, day), (r) => judgeOf(r.staff.id).avail)")
+    && spd.includes('data-staff-row-avail={jg.avail ?? ""}') && spd.includes("avail={judgeOf(sel.staff.id)}") && spf.includes('data-staff-avail-note="ng"') && spf.includes('data-staff-avail-note="ask"') && spf.includes('data-staff-base-time="1"')
+    && spf.includes('if (avail?.avail === "ng" && !ngConfirmed) { if (!window.confirm(staffAvailConfirmTextOf(staffName, avail.dowJa))) return; setNgConfirmed(true); }') && !src("app/(manage)/shift/day-add-panel.tsx").includes("staffAvailJudgeOf"));
+}
 
 // (5) M-115
 const gd = src("scripts/demo/gen-demo.mjs");

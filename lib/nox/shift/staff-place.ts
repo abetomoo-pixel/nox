@@ -150,3 +150,35 @@ export function partitionResults(results: readonly PlaceResult[]): { ok: string[
 }
 /** 配置ボタンの文言＝「N 日に配置」（0 日は disabled・文言は「配置」） */
 export const placeLabelOf = (n: number, busy: boolean): string => (busy ? "配置中…" : n > 0 ? `${n} 日に配置` : "配置");
+
+// ★M-118（2026-11-06・便 F・相談役）: スタッフ配置モーダルが「基本の働き方」（availability＝店スコープ・membership 単位）を参照する純関数。
+//   ①不可＝赤い印・配置欄の上に赤文・配置は押せるが 1 回だけ確認 ②相談＝黄の印＋本人に確認の 1 行 ③可＝印なし・本人の基本時間が枠と違えば 1 クリック差し替え
+//   ④定休日は現状どおり ⑤左の一覧で不可の人は末尾・グレー＋印 ⑥適用開始日（availability_terms.effective_from）より前の日付では判定しない。キャストは対象外。
+export type StaffAvailInfo = { avail: "ok" | "ng" | "ask"; from_min: number | null; to_min: number | null };
+export type StaffAvailMap = Record<string, { rows: Partial<Record<number, StaffAvailInfo>>; effectiveFrom: string | null }>;
+export type StaffAvailJudge = { avail: "ok" | "ng" | "ask" | null; baseStart: string | null; baseEnd: string | null; dowJa: string };
+const DOW_JA_SP = ["日", "月", "火", "水", "木", "金", "土"] as const;
+const hmOfMin = (m: number): string => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+/** その人・その日の判定（null＝設定なし・適用開始日より前＝判定しない） */
+export function staffAvailJudgeOf(map: StaffAvailMap | null | undefined, staffId: string, day: string): StaffAvailJudge {
+  const dow = new Date(`${day}T00:00:00Z`).getUTCDay(); // 暦日の曜日（JST 0 時を UTC で見ると前日になる＝M-88 の式の直し）
+  const dowJa = DOW_JA_SP[dow];
+  const e = map?.[staffId];
+  if (!e) return { avail: null, baseStart: null, baseEnd: null, dowJa };
+  if (e.effectiveFrom && day < e.effectiveFrom) return { avail: null, baseStart: null, baseEnd: null, dowJa }; // ⑥
+  const r = e.rows[dow];
+  if (!r) return { avail: null, baseStart: null, baseEnd: null, dowJa };
+  const hasTime = r.from_min != null && r.to_min != null && r.to_min > r.from_min;
+  return { avail: r.avail, baseStart: hasTime ? hmOfMin(r.from_min!) : null, baseEnd: hasTime ? hmOfMin(r.to_min!) : null, dowJa };
+}
+export const staffAvailNgTextOf = (dowJa: string): string => `基本の働き方では${dowJa}曜は不可です（配置はできますが本人に確認してください）`;
+export const STAFF_AVAIL_ASK_TEXT = "基本の働き方では「相談」の曜日です。本人に確認してから配置してください";
+export const staffAvailConfirmTextOf = (name: string, dowJa: string): string => `${name} の基本の働き方では${dowJa}曜は不可です。このまま配置しますか？（本人に確認してください）`;
+export const staffBaseTimeLabelOf = (start: string, end: string): string => `本人の基本時間で（${start}〜${end}）`;
+/** 本人の基本時間が枠（今の開始・終了）と違うか（基本時間が無ければ false） */
+export const baseTimeDiffersOf = (j: Pick<StaffAvailJudge, "baseStart" | "baseEnd">, startHm: string, endHm: string): boolean => !!j.baseStart && !!j.baseEnd && (j.baseStart !== startHm || j.baseEnd !== endHm);
+/** 左の一覧＝不可の人は末尾（それ以外の並びは保つ） */
+export function sortRowsByAvail<T>(rows: readonly T[], availOf: (row: T) => "ok" | "ng" | "ask" | null): T[] {
+  const ok = rows.filter((r) => availOf(r) !== "ng"), ng = rows.filter((r) => availOf(r) === "ng");
+  return [...ok, ...ng];
+}

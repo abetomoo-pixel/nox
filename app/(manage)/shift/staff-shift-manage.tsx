@@ -19,7 +19,7 @@ import { deadlineMsOf } from "./staff-shift-board";
 import StaffPlaceDayModal from "./staff-place-day";
 import StaffPlaceByStaffModal from "./staff-place-by-staff";
 import type { PlaceArgs } from "./staff-place-form";
-import { mdDowOf, wishIdFor, canCancel, cancelNeedsReason, nextOf30h } from "@/lib/nox/shift/staff-place";
+import { mdDowOf, wishIdFor, canCancel, cancelNeedsReason, nextOf30h, type StaffAvailMap } from "@/lib/nox/shift/staff-place"; // ★M-118: StaffAvailMap
 import { isRpcMissingError } from "@/lib/nox/ui/rpc-err";
 import { resolveOrgId } from "@/lib/nox/cast-photo"; // ★0162（裁定329・便 M5-1）: スタッフ枠にスタッフ写真（署名 URL・未登録は頭文字）
 import { signUserPhotos } from "@/lib/nox/staff-photo";
@@ -39,13 +39,17 @@ export default function StaffShiftManage({ storeId, month, bizToday, patterns, d
   const [members, setMembers] = useState<Member[]>([]);
   const [names, setNames] = useState<Map<string, string>>(new Map());
   const [photoByMember, setPhotoByMember] = useState<Map<string, string>>(new Map()); // ★0162: membership id → 署名 URL
-  const [availByStaff, setAvailByStaff] = useState<Record<string, Partial<Record<number, "ok" | "ng" | "ask">>>>({}); // ★M-88: membership id → 曜日 → 可否
+  const [availByStaff, setAvailByStaff] = useState<StaffAvailMap>({}); // ★M-88: membership id → 曜日 → 可否 ★M-118: 基本時間（from_min／to_min）と適用開始日（availability_terms.effective_from）も
   useEffect(() => {
     let alive = true;
-    void supabase.from("availability").select("membership_id, dow, avail").eq("store_id", storeId).not("membership_id", "is", null).then(({ data }) => {
+    void Promise.all([
+      supabase.from("availability").select("membership_id, dow, avail, from_min, to_min").eq("store_id", storeId).not("membership_id", "is", null),
+      supabase.from("availability_terms").select("membership_id, effective_from").eq("store_id", storeId).not("membership_id", "is", null),
+    ]).then(([{ data }, { data: terms }]) => {
       if (!alive) return;
-      const m: Record<string, Partial<Record<number, "ok" | "ng" | "ask">>> = {};
-      for (const r of (data ?? []) as { membership_id: string; dow: number; avail: "ok" | "ng" | "ask" }[]) (m[r.membership_id] ??= {})[r.dow] = r.avail;
+      const m: StaffAvailMap = {};
+      for (const r of (data ?? []) as { membership_id: string; dow: number; avail: "ok" | "ng" | "ask"; from_min: number | null; to_min: number | null }[]) (m[r.membership_id] ??= { rows: {}, effectiveFrom: null }).rows[r.dow] = { avail: r.avail, from_min: r.from_min, to_min: r.to_min };
+      for (const tr of (terms ?? []) as { membership_id: string; effective_from: string | null }[]) (m[tr.membership_id] ??= { rows: {}, effectiveFrom: null }).effectiveFrom = tr.effective_from ? String(tr.effective_from).slice(0, 10) : null;
       setAvailByStaff(m);
     });
     return () => { alive = false; };

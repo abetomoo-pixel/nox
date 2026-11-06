@@ -10,13 +10,13 @@ import * as t from "@/lib/nox/ui/theme";
 import { hm2min, min2hm } from "@/lib/nox/shift-time";
 import { fmtEnd30 } from "../master/staff-shift-panel";
 import type { Pattern } from "./staff-shift-board";
-import { defaultPatternFor, nextOf30h } from "@/lib/nox/shift/staff-place";
+import { STAFF_AVAIL_ASK_TEXT, baseTimeDiffersOf, defaultPatternFor, nextOf30h, staffAvailConfirmTextOf, staffAvailNgTextOf, staffBaseTimeLabelOf, type StaffAvailJudge } from "@/lib/nox/shift/staff-place"; // ★M-118
 
 export type PlaceArgs = { patternId: string; startHm: string; endHm: string };
 const btnDark: React.CSSProperties = { ...t.btnGold, ...t.btnSm };
 const input: React.CSSProperties = { ...t.input, width: "auto", padding: "6px 8px", fontSize: 12.5 };
 
-export default function StaffPlaceForm({ staffName, patterns, wishPatternIds, placedPatternIds, disabled = false, busy = false, onPlace }: {
+export default function StaffPlaceForm({ staffName, patterns, wishPatternIds, placedPatternIds, disabled = false, busy = false, onPlace, avail = null }: {
   /** 選択中のスタッフ名（見出し用） */
   staffName: string;
   /** その日に有効な枠（effectivePatterns 済み） */
@@ -28,7 +28,10 @@ export default function StaffPlaceForm({ staffName, patterns, wishPatternIds, pl
   disabled?: boolean;
   busy?: boolean;
   onPlace: (args: PlaceArgs) => void | Promise<void>;
+  /** ★M-118: 基本の働き方の判定（不可＝赤文＋1 回だけ確認・相談＝1 行・基本時間が枠と違えば差し替えボタン・null＝判定なし） */
+  avail?: StaffAvailJudge | null;
 }) {
+  const [ngConfirmed, setNgConfirmed] = useState(false); // ★M-118 ①: 不可の確認は 1 回だけ
   const [patternId, setPatternId] = useState<string | null>(() => defaultPatternFor(patterns.map((p) => p.id), wishPatternIds));
   const pat = patterns.find((p) => p.id === patternId) ?? null;
   const [start, setStart] = useState(pat?.start_hm ?? "18:00");
@@ -48,6 +51,8 @@ export default function StaffPlaceForm({ staffName, patterns, wishPatternIds, pl
     <div>
       <b style={{ fontSize: 13 }}><span style={{ color: "var(--champ)" }}>{staffName}</span> を配置</b>
       {patterns.length === 0 && <p style={{ fontSize: 12, color: "var(--sub)", margin: "6px 0 0" }}>この日に有効な枠がありません（マスタ ▸ スタッフの勤務パターンで枠を作ってください）。</p>}
+      {avail?.avail === "ng" && <p style={{ fontSize: 12, color: "var(--bad)", fontWeight: 700, margin: "6px 0 0" }} data-staff-avail-note="ng">{staffAvailNgTextOf(avail.dowJa)}</p>}{/* ★M-118 ① */}
+      {avail?.avail === "ask" && <p style={{ fontSize: 12, color: "var(--gold2)", fontWeight: 700, margin: "6px 0 0" }} data-staff-avail-note="ask">{STAFF_AVAIL_ASK_TEXT}</p>}{/* ★M-118 ② */}
       {patterns.length > 0 && (
         <>
           <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "6px 0 4px" }}>枠を選ぶ（時刻は枠から写します）</p>
@@ -77,6 +82,12 @@ export default function StaffPlaceForm({ staffName, patterns, wishPatternIds, pl
             <label style={{ fontSize: 12.5, display: "flex", gap: 4, alignItems: "center", cursor: "pointer" }}>
               <input type="checkbox" checked={next} disabled={disabled || busy} onChange={(e) => setNext(e.target.checked)} />翌日
             </label>
+            {avail && baseTimeDiffersOf(avail, start, endHm) && (/* ★M-118 ③: 本人の基本時間（availability の from／to）が枠と違えば 1 クリックで差し替え */
+              <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} disabled={disabled || busy} data-staff-base-time="1"
+                onClick={() => { const s = avail.baseStart!, e = avail.baseEnd!; setStart(s); const m = hm2min(e); setNext(m >= 1440 || nextOf30h(s, min2hm(m >= 1440 ? m - 1440 : m))); setEndBase(min2hm(m >= 1440 ? m - 1440 : m)); }}>
+                {staffBaseTimeLabelOf(avail.baseStart!, avail.baseEnd!)}
+              </button>
+            )}
           </div>
           <p style={{ fontSize: 11, color: adjusted ? "var(--gold2)" : "var(--v2-muted)", margin: "6px 0 0" }}>
             {invalid ? "終了は開始より後にしてください（日跨ぎは「翌日」をオン）"
@@ -86,7 +97,11 @@ export default function StaffPlaceForm({ staffName, patterns, wishPatternIds, pl
           {already && <p style={{ fontSize: 11, color: "var(--bad)", margin: "6px 0 0" }}>この枠にはすでに配置済みです（別の枠を選ぶか、配置済みの行を取り消してください）。</p>}
           <div className="nox-actions" style={{ marginTop: 10 }}>
             <button type="button" style={btnDark} disabled={disabled || busy || !patternId || invalid || already}
-              onClick={() => { if (patternId) void onPlace({ patternId, startHm: start, endHm }); }}>
+              onClick={() => {
+                if (!patternId) return;
+                if (avail?.avail === "ng" && !ngConfirmed) { if (!window.confirm(staffAvailConfirmTextOf(staffName, avail.dowJa))) return; setNgConfirmed(true); } // ★M-118 ①: 不可は 1 回だけ確認（2 回目からは出さない）
+                void onPlace({ patternId, startHm: start, endHm });
+              }} data-staff-place-go="1">
               {busy ? "配置中…" : "配置"}
             </button>
           </div>

@@ -14,7 +14,7 @@ import { Message, type MessageKind } from "@/components/ui/toast";
 import { effectivePatterns, fmtEnd30 } from "../master/staff-shift-panel";
 import type { Pattern, StaffShift, Wish } from "./staff-shift-board";
 import StaffPlaceForm, { type PlaceArgs } from "./staff-place-form";
-import { canCancel, cancelNeedsReason, mdDowOf, staffRowsForDay, wishesOnDay, type StaffLike } from "@/lib/nox/shift/staff-place";
+import { canCancel, cancelNeedsReason, mdDowOf, sortRowsByAvail, staffAvailJudgeOf, staffRowsForDay, wishesOnDay, type StaffAvailMap, type StaffLike } from "@/lib/nox/shift/staff-place"; // ★M-118
 
 const btnLight: React.CSSProperties = { ...t.btnGhost, ...t.btnSm };
 const btnDanger: React.CSSProperties = { ...t.btnGhost, ...t.btnSm, border: "1px solid var(--bad)", color: "var(--bad)" };
@@ -22,8 +22,9 @@ const ST: Record<string, string> = { proposed: "確認待ち", confirmed: "確�
 
 export default function StaffPlaceDayModal({ day, bizToday, patterns, staff, wishes, shifts, busy, cancelRpc, onPlace, onCancel, onClose, availByStaff = {} }: {
   day: string; bizToday: string; patterns: Pattern[]; staff: StaffLike[]; wishes: Wish[]; shifts: StaffShift[]; busy: boolean;
-  /** ★M-88: membership id → 曜日 → 可／不可／相談（availability＝店スコープ）。不可＝赤「不可」・相談＝黄「相談」（M-65 と同じ） */
-  availByStaff?: Record<string, Partial<Record<number, "ok" | "ng" | "ask">>>;
+  /** ★M-88: membership id → 曜日 → 可／不可／相談（availability＝店スコープ）。不可＝赤「不可」・相談＝黄「相談」（M-65 と同じ）
+   *  ★M-118: 基本時間（from_min／to_min）と適用開始日も＝不可の人は末尾・グレー／右の配置欄に赤文・相談の 1 行・本人の基本時間ボタン・不可は 1 回だけ確認（適用開始日より前は判定しない） */
+  availByStaff?: StaffAvailMap;
   /** staff_shift_cancel の有無（0151 手貼り前＝'missing'＝取消ボタンを出さない） */
   cancelRpc: "unknown" | "ok" | "missing";
   /** 配置（propose→必要なら override）。失敗文言を返す（null＝成功） */
@@ -40,7 +41,8 @@ export default function StaffPlaceDayModal({ day, bizToday, patterns, staff, wis
   useEffect(() => { setSelStaff(null); setMsg(null); setCancelTarget(null); setCancelReason(""); }, [day]);
 
   const eff = effectivePatterns(patterns, day);
-  const rows = staffRowsForDay(staff, wishes, shifts, day);
+  const judgeOf = (staffId: string) => staffAvailJudgeOf(availByStaff, staffId, day); // ★M-118
+  const rows = sortRowsByAvail(staffRowsForDay(staff, wishes, shifts, day), (r) => judgeOf(r.staff.id).avail); // ★M-118 ⑤: 不可の人は末尾
   const dayList = shifts.filter((s) => s.biz_date === day);
   const past = day < bizToday;
   const patName = (id: string) => patterns.find((p) => p.id === id)?.name ?? "—";
@@ -83,18 +85,19 @@ export default function StaffPlaceDayModal({ day, bizToday, patterns, staff, wis
           <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 360, overflowY: "auto" }}>
             {rows.map((r) => {
               const on = r.staff.id === selStaff;
+              const jg = judgeOf(r.staff.id); // ★M-118
               return (
-                <button key={r.staff.id} type="button" className="nox-crow" disabled={busy || past} aria-pressed={on}
+                <button key={r.staff.id} type="button" className="nox-crow" disabled={busy || past} aria-pressed={on} data-staff-row={r.staff.id} data-staff-row-avail={jg.avail ?? ""}
                   onClick={() => { setSelStaff(r.staff.id); setMsg(null); }}
                   style={{
                     cursor: past ? "default" : "pointer", textAlign: "left", width: "100%", borderRadius: 8, fontFamily: "inherit", padding: "5px 8px",
-                    background: on ? "var(--goldface2)" : "transparent", border: on ? "1px solid var(--gold)" : "1px solid transparent", color: on ? "var(--champ)" : "var(--ink)",
+                    background: on ? "var(--goldface2)" : "transparent", border: on ? "1px solid var(--gold)" : "1px solid transparent", color: on ? "var(--champ)" : jg.avail === "ng" ? "var(--sub)" : "var(--ink)", opacity: jg.avail === "ng" && !on ? 0.7 : 1, /* ★M-118 ⑤: 不可＝グレー */
                   }}>
                   <CastAvatar name={r.staff.name} url={r.staff.photoUrl ?? undefined} variant="flat" />{/* ★0162（裁定329・便 M5-1）: スタッフ写真（未登録は頭文字） */}
                   <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {r.staff.name}{r.staff.role && r.staff.role !== "staff" && <span style={{ fontSize: 10.5, color: "var(--sub)", marginLeft: 4 }}>（{r.staff.role}）</span>}
                   </span>
-                  {(() => { const a = availByStaff[r.staff.id]?.[new Date(`${day}T00:00:00+09:00`).getUTCDay()] ?? null; return a === "ng" ? <span className="nox-stpill" style={{ color: "var(--bad)", borderColor: "var(--bad)" }} data-staff-avail="ng">不可</span> : a === "ask" ? <span className="nox-stpill" style={{ color: "var(--gold2)", borderColor: "var(--gold-bd)" }} data-staff-avail="ask">相談</span> : null; })()}{/* ★M-88: その曜日の基本の働き方 */}
+                  {(() => { const a = jg.avail; /* ★M-118 ⑥: 適用開始日より前は null＝印なし */ return a === "ng" ? <span className="nox-stpill" style={{ color: "var(--bad)", borderColor: "var(--bad)" }} data-staff-avail="ng">不可</span> : a === "ask" ? <span className="nox-stpill" style={{ color: "var(--gold2)", borderColor: "var(--gold-bd)" }} data-staff-avail="ask">相談</span> : null; })()}{/* ★M-88: その曜日の基本の働き方 */}
                   {r.wishes.map((w) => <span key={w.id} className="nox-stpill" style={{ color: "var(--blue)" }}>希 {patName(w.pattern_id)}</span>)}
                   {r.placed && <span className="nox-stpill ok">配置済み・{patName(r.placed.pattern_id)}</span>}
                 </button>
@@ -110,7 +113,7 @@ export default function StaffPlaceDayModal({ day, bizToday, patterns, staff, wis
             <StaffPlaceForm key={`${day}:${sel.staff.id}:${placedTick}`} staffName={sel.staff.name} patterns={eff}
               wishPatternIds={sel.wishes.map((w) => w.pattern_id)}
               placedPatternIds={dayList.filter((s) => s.staff_id === sel.staff.id).map((s) => s.pattern_id)}
-              disabled={past} busy={busy} onPlace={place} />
+              disabled={past} busy={busy} onPlace={place} avail={judgeOf(sel.staff.id)} /* ★M-118 */ />
           )}
         </div>
       </div>

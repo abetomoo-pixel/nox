@@ -5268,6 +5268,11 @@ grep で洗い出した左右振り分けのボタンは一覧報告だけでな
 読取②（Webhook の再送）＝webhookEventId／isRedelivery の重複捨ては無いが効果として冪等＝書くのは unfollow の line_link_block だけ（blocked_at null の行だけ update・変わらなければ audit も書かない）・follow／テキストは reply（1 回限りの replyToken・台帳に入れない）＝LINE の「再送」ON でよい。端＝unfollow の再送が再紐付けの後に届くと再び blocked。
 提案（M-100）＝①署名が通った最初のイベントで destination が空なら admin で line_config.bot_destination に保存し以後の違いを 401 に（欄は「自動で取得済み」表示）②`deliveryContext.isRedelivery === true` の unfollow は捨てる。DDL なし。
 
+## M-118（2026-11-06 受領・相談役・client・便 F）スタッフ配置モーダルが「基本の働き方」を参照する
+
+「①その曜日が不可＝名前の横に赤い印・配置欄の上に赤文（基本の働き方では○曜は不可です…）・配置は押せるが 1 回だけ確認ダイアログ ②相談＝黄色の印＋本人に確認の 1 行・ダイアログなし ③可＝印なし・本人の基本時間が枠と違えば『本人の基本時間で（HH:MM〜HH:MM）』ボタンで 1 クリック差し替え ④定休日は現状どおり ⑤左の一覧で不可の人は末尾・グレー＋印 ⑥適用開始日より前の日付では判定しない。キャストは対象外。撮影 375／390（デモ店 ACE の小林＝水 不可で 11/25）。」
+CC の処置（便 F）＝純関数 lib/nox/shift/staff-place.ts（staffAvailJudgeOf＝曜日の可否と本人の基本時間・適用開始日（availability_terms.effective_from）より前は null・sortRowsByAvail＝不可は末尾・文言 3 つ）・staff-shift-manage が availability（from_min／to_min）と availability_terms を読む（StaffAvailMap）・配置モーダル（staff-place-day）＝左の一覧の並び／グレー／印（M-88 の印はそのまま）・配置欄（staff-place-form）＝赤文／相談の 1 行／「本人の基本時間で」ボタン／不可は 1 回だけ window.confirm。定休日・キャストの配置（day-add-panel）は触らない。m83 の pin（availability の select）を張替え。★併せて直した不具合＝M-88 の曜日の式（`new Date(day+"T00:00:00+09:00").getUTCDay()`＝JST 0 時を UTC で見るため前日の曜日になっていた＝水曜の不可が火曜に付く）→ 暦日の曜日（`T00:00:00Z`）に（verify:nox-benf 7-1 で 11/25＝水を固定）。
+
 ## M-117（2026-11-06 受領・相談役・client・便 F）予約の承認待ちをホームとシフト今日タブに出す
 
 「ホーム＝①『要承認』の先頭に 1 件 1 行（種別・日時・客名・人数・担当・申請元）・シフト希望／ノルマ未達より上・件数は見出しに合算 ②行内にレジ › 予約と同じ『承認』『却下』の部品＋『レジの予約で開く ›』③ヘッダーのベルの数に含める ④来店時刻の近い順・時刻超過は印をつけて先頭 ⑤375 は 2 行に折る（M-109 の型）。
