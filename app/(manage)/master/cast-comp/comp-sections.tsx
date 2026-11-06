@@ -46,6 +46,7 @@ export type Plan = {
   norm_days_target?: number | null; norm_dohan_target?: number | null; norm_sales_target?: number | null; norm_shimei_target?: number | null; // ★裁定347（0171）: プラン既定の目標（null＝継承なし）
   id: string; name: string; base: number; hon_back: number; jonai_back: number; dohan_back: number;
   sales_slide: Slide[]; point_slide: Slide[]; is_active: boolean;
+  advance_loan_agreed?: boolean | null; advance_loan_agreed_at?: string | null; // ★0198 ★1（裁定458 ②・夜便レーン 3）: 前借り（貸付）の取扱いに同意（列は 0198 の手貼り後に乗る＝select("*")）
   // mig0086: 率バック方式（hon/jonai 独立・rate 中も円/本値は保持＝裁定v）
   hon_back_mode: BackModeRow; hon_back_rate: number | null;
   jonai_back_mode: BackModeRow; jonai_back_rate: number | null;

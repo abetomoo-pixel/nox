@@ -2,7 +2,7 @@
 //   作るもの: orgs 1・org_billing 1（status 'active'＝seed と同じ・課金は Stripe 接続後に切替）・stores 1（settings_json {biz_type, setup_done:false}＝オーナーの初回ログインで /setup へ）・
 //             auth ユーザー（inviteUserByEmail＝Supabase の招待メール・リンクの有効期限は Auth 設定「Email OTP expiration」・送り元は Supabase の既定 or カスタム SMTP）・
 //             users 1（オーナー）・memberships 1（role owner）・audit_logs 1（create_org・Postgres 直結＝audit_log_write は内部専用）。
-//   使い方: node scripts/admin/create-org.mjs --store "CLUB NOX" --type cabaret --email owner@example.com [--org "会社名"] [--site https://nox-kappa-eight.vercel.app] [--link] [--yes] [--dry-run]
+//   使い方: node scripts/admin/create-org.mjs --store "CLUB NOX" --type cabaret --email owner@example.com [--org "会社名"] [--site https://noxapp.jp（既定・vercel.app は fallback）] [--link] [--yes] [--dry-run]
 //     --type: cabaret／girlsbar／snack／lounge／bar（初期設定 STEP 1 の既定）。--org 省略＝店名。--site 省略＝本番の URL（招待リンクの戻り先 /auth/set-password）。
 //     --link: メールを送らず招待リンクを標準出力に出す（generateLink・dev の live 用）。--yes: 確認プロンプトを省略（CI 用）。--dry-run: 何も書かない。
 //   柵: ①本番 ref（hiqbfagmkrdpmlqhkmsu）は NOX_PROD_CONFIRM=1 が無いと走らない ②運営の確認 1 回（y）③同じ email の users／auth が既にあれば止まる ④失敗したら作った行と auth を巻き戻す。
@@ -17,7 +17,7 @@ const TYPES = ["cabaret", "girlsbar", "snack", "lounge", "bar"];
 const args = process.argv.slice(2);
 const opt = (k, d = null) => { const i = args.indexOf(`--${k}`); return i >= 0 && !String(args[i + 1] ?? "").startsWith("--") ? args[i + 1] : d; };
 const flag = (k) => args.includes(`--${k}`);
-const store = opt("store"), type = opt("type", "cabaret"), email = (opt("email") ?? "").trim().toLowerCase(), orgName = opt("org", store), site = (opt("site", "https://nox-kappa-eight.vercel.app") ?? "").replace(/\/+$/, "");
+const store = opt("store"), type = opt("type", "cabaret"), email = (opt("email") ?? "").trim().toLowerCase(), orgName = opt("org", store), site = (opt("site", "https://noxapp.jp") ?? "").replace(/\/+$/, "");
 const die = (m, e) => { console.error("✗", m, e?.message ?? e ?? ""); process.exit(1); };
 if (!store || !email) { console.error("usage: node scripts/admin/create-org.mjs --store <店名> --type <cabaret|girlsbar|snack|lounge|bar> --email <オーナーのメール> [--org <会社名>] [--site <URL>] [--link] [--yes] [--dry-run]"); process.exit(2); }
 if (!TYPES.includes(type)) die(`--type は ${TYPES.join("／")}`);

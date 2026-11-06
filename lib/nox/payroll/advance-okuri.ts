@@ -68,6 +68,16 @@ export function okuriEnabledOf(okuriMode?: string | null): boolean {
 }
 
 /** route（status＋error）の和文化（握り潰さない・生の語を裸で出さない） */
+/** ★0198 ★3（裁定458 ③・夜便レーン 3）: 貸付（cast_loan_grant）の PIN＝4〜6 桁の数字（空＝店長の立会い＝ack 'manager'） */
+export const LOAN_PIN_RE = /^[0-9]{4,6}$/;
+export const loanPinErrOf = (pin: string): string | null => (pin === "" || LOAN_PIN_RE.test(pin) ? null : "PIN は 4〜6 桁の数字です");
+/** cast_loan_grant の失敗文（bad pin は先に・残りは issueErrJa） */
+export function loanErrJa(msg: string | null | undefined): string {
+  const m = msg ?? "";
+  if (m.includes("bad pin")) return "PIN が違います（本人確認）";
+  return issueErrJa(400, m);
+}
+
 export function issueErrJa(status: number, msg: string | null | undefined): string {
   const m = msg ?? "";
   if (m.includes("paid period")) return "支払済みの期間には発行できません";

@@ -105,6 +105,13 @@ export function __set0196ForTest(v: boolean | null): void { override0196 = v; }
 
 /** ★0197（未起草・便 E で置き場＝2026-11-05）: 裁定455＝打刻の 3 択目 punch_mode（'store'＝打刻しない）・on_duty_of の確定シフトの窓・register_day_grants（今日だけ許可）。
  *  false の間は punchModeOf が常に 'punch'＝初期設定／店舗設定の 3 択目・レジの柵の文言・実働の分岐はどれも従来どおり。 */
+/** ★0198（起草済み・2026-11-06 夜便レーン 3＝裁定458 前借りは「貸付」）: comp_plans の同意の列・advances の本人確認（ack）・cast_loan_grant（p_pin）／cast_loan_repay・view cast_loans／cast_loan_balances・demo_org_reset の wipe 6 表。
+ *  false の間は client の器（待遇プランの同意・貸付の入口の PIN・貸付台帳）を出さない＝手貼りは相談役の合図。 */
+export const MIG_0198_APPLIED = false;
+let override0198: boolean | null = null;
+export function mig0198On(): boolean { return override0198 ?? MIG_0198_APPLIED; }
+export function __set0198ForTest(v: boolean | null): void { override0198 = v; }
+
 export const MIG_0197_APPLIED = true; // ★2026-11-06: 0197（sha16 f28f737489916c38）を Agoora が手貼り（06:53 UTC・本文 Success）＝verify 17 行が期待値と一致（unique は数え方の差・正本の式では 1）・関数 419・表 120・本文 3 本の md5 一致 → true
 let override0197: boolean | null = null;
 export function mig0197On(): boolean { return override0197 ?? MIG_0197_APPLIED; }

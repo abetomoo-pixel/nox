@@ -101,6 +101,19 @@ check("benf(6-3) ホーム＝予約の申請が先頭（approvals の前）・�
     ao.includes('export const advanceHiddenForStoreOf = (settings: Record<string, unknown> | null | undefined): boolean => settlementCycleOf(settings) === "daily";') && af.includes("setDailyStore(advanceHiddenForStoreOf(") && af.includes('data-advance-daily-hidden="1"') && af.includes('{only !== "transport" && !dailyStore && <IssueRow kind="advance"'));
 }
 
+// (10) 夜便レーン 3＝0198 の器（MIG_0198_APPLIED=false の間は出さない・送らない）
+{
+  const fl = src("lib/nox/rules-0175/flag.ts"), pe = src("app/(manage)/master/cast-comp/plan/plan-editor.tsx"), af3 = src("components/nox/advance-okuri-form.tsx"), ao3 = src("lib/nox/payroll/advance-okuri.ts");
+  check("benf(10-1) フラグ＝MIG_0198_APPLIED=false（起草のみ・手貼りは相談役の合図）・mig0198On／__set0198ForTest の器",
+    fl.includes("export const MIG_0198_APPLIED = false;") && fl.includes("export function mig0198On(): boolean { return override0198 ?? MIG_0198_APPLIED; }") && fl.includes("export function __set0198ForTest(v: boolean | null): void { override0198 = v; }"));
+  check("benf(10-2) 待遇プラン＝「前借り（貸付）の取扱いに同意」（data-advance-loan-agreed）は mig0198On() のときだけ出す・set_comp_plan の 33 引数目も同じ条件（手貼り前は旧 32 引数のまま）",
+    pe.includes("{mig0198On() && (<label data-advance-loan-agreed") && pe.includes("...(mig0198On() ? { p_advance_loan_agreed: draft.advanceLoanAgreed } : {}),") && pe.includes("advanceLoanAgreed: p.advance_loan_agreed ?? false,") && src("app/(manage)/master/cast-comp/comp-sections.tsx").includes("advance_loan_agreed?: boolean | null; advance_loan_agreed_at?: string | null;"));
+  check("benf(10-3) 貸付の入口＝PIN 欄（data-loan-pin・4〜6 桁・空＝立会い）は advance かつ mig0198On() のときだけ・そのときは cast_loan_grant（p_pin）・それ以外は従来の route",
+    af3.includes('const loanPin = kind === "advance" && mig0198On();') && af3.includes("{loanPin && (<label data-loan-pin") && af3.includes('createClient().rpc("cast_loan_grant", { p_store_id: storeId, p_cast_id: b.body.castId, p_amount: b.body.amount, p_biz_date: date, p_note: b.body.note, p_pin: pin === "" ? null : pin })')
+    && ao3.includes("export const LOAN_PIN_RE = /^[0-9]{4,6}$/;") && ao3.includes('if (m.includes("bad pin")) return "PIN が違います（本人確認）";'));
+  check("benf(10-4) create-org の既定 --site＝noxapp.jp（vercel.app は fallback・レーン 4）", src("scripts/admin/create-org.mjs").includes('opt("site", "https://noxapp.jp")'));
+}
+
 // (5) M-115
 const gd = src("scripts/demo/gen-demo.mjs");
 check("benf(5-1) gen-demo＝deductions に pick ルール 1 本（ヘアメ代 500・per day・agreed_cost・day_rule pick・is_active）", gd.includes('push("deductions", { id: uid(`ded:${code}:hairmake`), store_id: storeId, name: "ヘアメ代", amount: 500, per: "day", is_active: true, kind: "agreed_cost", day_rule: "pick" });'));

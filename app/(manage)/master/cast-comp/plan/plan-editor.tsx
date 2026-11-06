@@ -8,6 +8,7 @@ import GroupedNumberInput from "@/components/ui/grouped-number-input"; // ★便
 //   各節に 保存済み/未保存 表示・失敗はその節だけ赤（裁定101 §3）。器なし項目は準備中バッジ（C5・起票#42）。
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { mig0198On } from "@/lib/nox/rules-0175/flag"; // ★0198（夜便レーン 3）: 貸付の同意の項目＝手貼り前は出さない・送らない（set_comp_plan は 32 引数のまま）
 import * as t from "@/lib/nox/ui/theme";
 import MoneyInput from "@/components/ui/money-input"; // ★便 X-12-1（起票90）: 金額欄の共通部品（数字のみ・3 桁区切り・右に「円」）
 import { UnitBox } from "@/components/ui/unit-input"; // ★便 M5b M-50
@@ -28,6 +29,7 @@ import {
 
 type Draft = {
   id: string | null; name: string; base: number; active: boolean;
+  advanceLoanAgreed: boolean; // ★0198 ★1（裁定458 ②）: 前借り（貸付）の取扱いに同意（comp_plans.advance_loan_agreed・agreed_at は RPC が刻む）
   honBack: number; jonaiBack: number; dohanBack: number;
   honMode: BackModeRow; honRate: number; jonaiMode: BackModeRow; jonaiRate: number;
   salesSlide: Slide[]; pointSlide: Slide[];
@@ -41,7 +43,7 @@ type Draft = {
   normDays: string; normDohan: string; normSales: string; normShimei: string;
 };
 const BLANK: Draft = {
-  id: null, name: "", base: 0, active: true,
+  id: null, name: "", base: 0, active: true, advanceLoanAgreed: false,
   honBack: 0, jonaiBack: 0, dohanBack: 0,
   honMode: "per_count", honRate: 0, jonaiMode: "per_count", jonaiRate: 0,
   salesSlide: [], pointSlide: [],
@@ -55,6 +57,7 @@ const normStr = (v: number | null | undefined): string => (typeof v === "number"
 const normArg = (s: string): number | null => (s.trim() === "" ? null : Number(s.replace(/[^0-9]/g, "")));
 const draftOf = (p: Plan): Draft => ({
   id: p.id, name: p.name, base: p.base, active: p.is_active,
+  advanceLoanAgreed: p.advance_loan_agreed ?? false,
   honBack: p.hon_back, jonaiBack: p.jonai_back, dohanBack: p.dohan_back,
   honMode: (p.hon_back_mode ?? "per_count") as BackModeRow, honRate: p.hon_back_rate ?? 0,
   jonaiMode: (p.jonai_back_mode ?? "per_count") as BackModeRow, jonaiRate: p.jonai_back_rate ?? 0,
@@ -269,6 +272,7 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
       p_hon_back: draft.honBack, p_jonai_back: draft.jonaiBack, p_dohan_back: draft.dohanBack,
       p_sales_slide: clean(draft.salesSlide), p_point_slide: clean(draft.pointSlide),
       p_is_active: draft.active,
+      ...(mig0198On() ? { p_advance_loan_agreed: draft.advanceLoanAgreed } : {}), // ★0198 ★1: 33 引数目（原則7＝明示値・手貼り前は送らない＝旧 32 引数の署名に合わせる）
       p_slide_period: draft.slidePeriod, // ★裁定338（0168）: 23 引数目（判定期間）
       p_slide_basis: draft.slideBasis, p_slide_rank_ids: draft.slideRankIds,
       p_slide_apply: draft.slideApply, // ★便 P174 T-4（裁定395・0174 ★4）: 30 引数目を常に明示（省略すると更新で null＝店設定に戻る） // ★裁定343（0170）: 24・25 引数目（判定基準・対象ランク＝空は全員）
@@ -411,6 +415,8 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
             <MoneyInput value={draft.base} onChange={(v) => d({ base: Number(v || 0) })} style={t.input} width={120} disabled={!isOwner} ariaLabel="基本時給" /></label>
           <label style={{ ...lbl, flexDirection: "row", alignItems: "center", paddingBottom: 9 }}>
             <input type="checkbox" checked={draft.active} onChange={(e) => d({ active: e.target.checked })} disabled={!isOwner} /> 有効</label>
+          {mig0198On() && (<label data-advance-loan-agreed style={{ ...lbl, flexDirection: "row", alignItems: "center", paddingBottom: 9 }}>{/* ★0198 ★1（裁定458 ②・夜便レーン 3）: 同意の有無は貸付の audit に残るだけ（拒否しない＝仮置き 5） */}
+            <input type="checkbox" checked={draft.advanceLoanAgreed} onChange={(e) => d({ advanceLoanAgreed: e.target.checked })} disabled={!isOwner} /> 前借り（貸付）の取扱いに同意</label>)}
         </div>
         <label style={{ fontSize: 12, display: "inline-flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
           <input type="checkbox" checked={useGuarantee} onChange={(e) => setUseGuarantee(e.target.checked)} disabled={!isOwner} />

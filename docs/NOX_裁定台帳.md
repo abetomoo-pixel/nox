@@ -5577,7 +5577,16 @@ Agoora が 7 本を手貼り（0185→0180→0181→0182→0183→0184→0186）
 - ④月末精算の表示順＝明細の控除は 固定控除 → 懲戒 → 精算調整 → 調整（源泉前）→ **源泉 → 貸付返済（前借り）** → 送り → 日払い済み の順＝既に裁定458 ② の順（計算も pay.ts＝返済額は源泉の母数から引かない）。「5,000 円×暦日数」の行は凍結明細に periodDays が無い＝出していない（出すなら breakdown の入力に periodDays を足す＝次便・裁定待ちではない）。
 - M-119 の追い＝375 で帯が 2〜3 行になる分＝帯の実高さを CSS 変数（--nox-kpbar）に写して本体の余白を合わせる（guard＋globals.css・benf の pin）。
 - verify＝verify:nox-benf（9-1／9-2）。撮影＝shots_lane2（ACE の給与明細・/mine）＝f0 の後。
+- **f0**＝2 連緑 Q／S（176 段 7,401・R は 0158(6-9) の 'paid period' の一過性＝単独走は緑）。**push＝fddf95b**（20:35 JST・Vercel success 11:36Z・92 s）。**6 店 reset 20:37＝5/6 ok・ACE は 500（availability_terms の FK＝0198 ★5 まで）**。**撮影**＝docs/tmp/shots_lane2（375／390・noxapp.jp）＝ACE の給与 2026-11 の明細ページ（「貸付残高一覧」の節・「前借り（貸付）／送り実費」）・/mine（キャスト＝「貸付返済」「前借り」の語 2 か所）。※ACE は reset が止まっているので 11/6 19:38 の下書きのまま＝貸付の行（貸付返済（前借り））は該当キャストなしで 0。
 - **裁定458 と矛盾する既存仕様＝見つからず**（貸付時に源泉なし・5,000 円は暦日数・返済は源泉の後＝いずれも現行どおり）。残＝⑥（退店時の未返済・日払い店）は回答待ち。
+
+### 夜便レーン 3 の記録（2026-11-06 夜・0198 の起草＝貼らない＋client の器＝MIG_0198_APPLIED=false の下）
+
+- **起草**＝docs/tmp/0198_cast_loans.sql（sha16 0aba613cc2dd5576・419 行）＝★1 comp_plans.advance_loan_agreed／_at＋set_comp_plan 33 引数（旧 32 引数の署名は drop）・★2 advances.ack_method（none／manager／pin）／ack_at／ack_by・★3 cast_loan_grant（p_pin＝cast_pin と crypt 照合・adv_issue をそのまま呼ぶ・audit に plan_agreed）／cast_loan_repay（現金の返済）・★4 view cast_loans／cast_loan_balances（security_invoker）・★5 demo_org_reset の wipe に 6 表（cast_day_deductions／deduction_rule_casts／availability_terms／availability／register_day_grants／staff_allowances＝ACE の reset 500 の直し）。試走 try_0198.mjs 19/19（DB 変更 0）。手貼り案内＝docs/demo/handpaste_0198.md（仮置き 7 点）＝**手貼りは相談役の合図**。
+- **client の器**（flag.ts＝MIG_0198_APPLIED=false・mig0198On／__set0198ForTest）＝①待遇プラン › 基本・保証に「前借り（貸付）の取扱いに同意」（data-advance-loan-agreed・owner のみ）＝mig0198On() のときだけ出す・set_comp_plan の 33 引数目（p_advance_loan_agreed）も同じ条件で送る（手貼り前は旧 32 引数のまま＝署名違いで落ちない）。②前借り（貸付）の発行の行に「本人確認 PIN（空＝立会い）」（data-loan-pin・4〜6 桁）＝advance かつ mig0198On() のときだけ・そのときは cast_loan_grant（p_pin＝空なら null＝ack 'manager'）・それ以外は従来の route（/api/advance/issue）。bad pin＝「PIN が違います（本人確認）」（loanErrJa）。
+- **出さないもの**（0198 のフラグ true 便へ）＝貸付台帳（cast_loans／cast_loan_balances の画面）・現金の返済（cast_loan_repay）の入口・/mine の貸付の節・一括発行（issue-bulk）の PIN（一括は立会い＝ack 'manager' のまま＝仮置き）。
+- **レーン 4 の残り**＝scripts/admin/create-org.mjs の既定 --site を https://noxapp.jp に（vercel.app は --site で fallback）＝verify の pin なし（bend は siteOriginOf の純関数だけ）。
+- verify＝verify:nox-benf（10-1〜10-4）＝26 本。tsc 0・lint Error 0。f0／push／撮影＝下に埋める。
 
 ### 便 F の記録（2026-11-06 夕〜夜・client＝M-116 → M-112〜M-115 → 読取 2 件・目視①・f0 段数の 1 行）
 

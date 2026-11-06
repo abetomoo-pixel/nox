@@ -9,8 +9,9 @@ import MoneyInput from "@/components/ui/money-input"; // ★便 X-11-6: 金額�
 import Picker from "@/components/nox/picker";
 import { Message } from "@/components/ui/toast";
 import * as t from "@/lib/nox/ui/theme";
-import { ADVANCE_DAILY_STORE_NOTE, ISSUE_DATE_LABEL, ISSUE_LABEL, advanceHiddenForStoreOf, issueBodyOf, issueErrJa, okuriEnabledOf, carriedBulkNoteOf, type IssueKind } from "@/lib/nox/payroll/advance-okuri"; // ★裁定458 ⑤
+import { ADVANCE_DAILY_STORE_NOTE, ISSUE_DATE_LABEL, ISSUE_LABEL, advanceHiddenForStoreOf, issueBodyOf, issueErrJa, loanErrJa, loanPinErrOf, okuriEnabledOf, carriedBulkNoteOf, type IssueKind } from "@/lib/nox/payroll/advance-okuri"; // ★裁定458 ⑤
 import { createClient } from "@/lib/supabase/client";
+import { mig0198On } from "@/lib/nox/rules-0175/flag"; // ★0198（夜便レーン 3）: 貸付の本人確認（PIN）＝手貼り前は出さない（route 経由のまま）
 
 export type IssueCast = { id: string; name: string };
 
@@ -67,6 +68,8 @@ function IssueRow({ kind, storeId, casts, castId, castName, dateDefault, disable
   const [amount, setAmount] = useState(prefill);
   const [date, setDate] = useState(dateDefault);
   const [note, setNote] = useState("");
+  const [pin, setPin] = useState(""); // ★0198 ★3（裁定458 ③）: 貸付の本人確認（キャストの PIN・空＝店長の立会い）
+  const loanPin = kind === "advance" && mig0198On();
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ kind: "success" | "error"; text: string } | null>(null);
   const label = ISSUE_LABEL[kind];
@@ -76,11 +79,21 @@ function IssueRow({ kind, storeId, casts, castId, castName, dateDefault, disable
     setMsg(null);
     const b = issueBodyOf({ kind, storeId, castId: fixed ? castId : pick, amount, date, note });
     if (!b.ok) { setMsg({ kind: "error", text: b.err }); return; }
+    const pinErr = loanPin ? loanPinErrOf(pin) : null;
+    if (pinErr) { setMsg({ kind: "error", text: pinErr }); return; }
     setBusy(true);
     try {
-      const res = await fetch(b.endpoint, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(b.body) });
-      const j = (await res.json().catch(() => ({}))) as { id?: string; error?: string };
-      if (!res.ok) { setMsg({ kind: "error", text: issueErrJa(res.status, j.error) }); return; }
+      let j: { id?: string; error?: string } = {};
+      if (loanPin) {
+        // ★0198 ★3: 貸付＝cast_loan_grant（adv_issue を呼んで ack＝pin／manager を刻む・PIN は RPC 側で cast_pin と照合）
+        const { data, error } = await createClient().rpc("cast_loan_grant", { p_store_id: storeId, p_cast_id: b.body.castId, p_amount: b.body.amount, p_biz_date: date, p_note: b.body.note, p_pin: pin === "" ? null : pin });
+        if (error) { setMsg({ kind: "error", text: loanErrJa(error.message) }); return; }
+        j = { id: (data as string | null) ?? undefined };
+      } else {
+        const res = await fetch(b.endpoint, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(b.body) });
+        j = (await res.json().catch(() => ({}))) as { id?: string; error?: string };
+        if (!res.ok) { setMsg({ kind: "error", text: issueErrJa(res.status, j.error) }); return; }
+      }
       const who = fixed ? (castName ?? "") : (casts.find((c) => c.id === pick)?.name ?? "");
       // ★裁定312（便 AB-8）: 前借りは発行後に advances を再読＝控除先が翌月へ繰り下がっていれば添える（送り実費は繰越なし）
       let carried = "";
@@ -89,7 +102,7 @@ function IssueRow({ kind, storeId, casts, castId, castName, dateDefault, disable
         carried = carriedBulkNoteOf(date, [(adv?.deduct_period as string | null | undefined) ?? null]);
       }
       setMsg({ kind: "success", text: `${who ? who + " の" : ""}${label} ${b.body.amount.toLocaleString("en-US")} 円を発行しました（${date}）${carried ? `・${carried}` : ""}` });
-      setAmount(prefill); setNote("");
+      setAmount(prefill); setNote(""); setPin("");
       if (j.id && onIssued) await onIssued(kind, j.id);
     } catch (e) {
       setMsg({ kind: "error", text: `通信エラー: ${(e as Error).message}` });
@@ -114,6 +127,9 @@ function IssueRow({ kind, storeId, casts, castId, castName, dateDefault, disable
           <input type="date" value={date} onChange={(e) => setDate(e.target.value)} disabled={disabled} style={{ ...t.input, width: "100%", padding: "8px 10px", fontSize: 13 }} />
         </label>
         <button type="button" className="nox-btn nox-issue-go" data-issue-go={kind} onClick={() => void submit()} disabled={busy || disabled}>{busy ? "発行中…" : `${label}を発行`}</button>{/* 実行＝青塗り（裁定242）・★便 X13-H H-19: 1 行目の右端（日払いと同じ組み） */}
+        {loanPin && (<label data-loan-pin style={{ fontSize: 12, color: "var(--sub)" }}><span style={{ display: "block", marginBottom: 6 }}>本人確認 PIN（空＝立会い）</span>{/* ★0198 ★3: キャストが自分の PIN を入れる＝ack 'pin'・空なら店長の立会い＝ack 'manager' */}
+          <input type="password" inputMode="numeric" autoComplete="off" value={pin} onChange={(e) => setPin(e.target.value.replace(/[^0-9]/g, "").slice(0, 6))} disabled={disabled} maxLength={6} style={{ ...t.input, width: "100%", padding: "8px 10px", fontSize: 13 }} />
+        </label>)}
         <label className="nox-issue-memo" style={{ fontSize: 12, color: "var(--sub)" }}><span style={{ display: "block", marginBottom: 6 }}>メモ</span>
           <input type="text" value={note} onChange={(e) => setNote(e.target.value)} disabled={disabled} maxLength={200} style={{ ...t.input, width: "100%", padding: "8px 10px", fontSize: 13 }} />
         </label>
