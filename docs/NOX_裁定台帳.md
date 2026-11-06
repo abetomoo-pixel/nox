@@ -5581,7 +5581,11 @@ Agoora が 7 本を手貼り（0185→0180→0181→0182→0183→0184→0186）
 - **読取＝日報プレビュー「伝票 0・未会計 5」**＝伝票＝その営業日の**会計済み（closed）の伝票数**・未会計＝status='open' の伝票数（席ではなく伝票の件数・前営業日の持ち越しも含む）。本番 7 店（2026-11-06）＝ACE／LUNA／NOIR＝open 5（今日の伝票 5 がすべて未会計）・LILY 7・NEST 6・MUSE 3・CLUB NOX＝今日 0・open 6（最古 2026-09-10＝持ち越し）。デモは reset 直後の伝票が open のまま＝「伝票 0・未会計 N」は仕様どおり（会計すると伝票に数わる）。
 - **f0 の段数 178→174 の 1 行**＝数え方の差。11/05 の「178 段」は f0_count.cjs の出力（11/05 f.log＝171 段 7,240）ではなく chain の数に件数なし 5 本を足した手計算で、chain は a9e4588 で 173（f0_count.cjs の基準では 171）。同じ基準（f0_count.cjs）で 171（11/05）→174（0196・7,344）→175（0197・7,379）→176（便 F）と増えている＝減っていない。
 - **M 候補（判断は相談役）**＝初期設定 ⑦ の 3 択（SegSelect）が 375 幅で右に切れる（「本人のスマホからも」「打刻しない」が画面外）＝縦積みか折り返し。
-- f0・push・reset・撮影＝下に追記。
+- **M-117**（予約の承認待ち＝ホームの先頭・ベル・今日タブ）・**M-118**（配置モーダルの基本の働き方＋M-88 の曜日の式の直し）・**M-119（裁定460・レーン 1.5）**＝本人セッションは通常のナビ・帯は上（名前・無操作の残り・ロック・キオスクへ戻る）＝verify:nox-benf 20。
+- **f0**＝途中で止めた回（H／I／J／K／L＝M-117〜M-119 を同じ便に入れるため・教訓124 の手順・残留＝rls の途中停止で A1 の golden 伝票が二重→次の rls が自分で掃除・anon-guard の顧客 2／キャスト 2 は finally が消していた）→ N＝actions-center の dev サーバ接続待ちで赤（既知のフレーク＝本体ではない）→ **176 段 7,399（O）／176 段 7,399（P）の 2 連緑**（docs/tmp/f0_1106_o／p.log・golden 不変・7,379→+20＝benf）。tsc 0・lint Error 0。
+- **push**＝7d34876（19:20 JST）・Vercel success（10:23Z）＝/login のチャンクは不変（flag.ts を触っていない＝共有チャンクが変わらない deploy もある・GitHub status で判定）。**6 店 reset 19:23＝5/6 ok・ACE は 500**＝audit の理由「wipe: memberships の delete が availability_terms_updated_by_fkey で止まる」＝デモ org で基本の働き方（availability_terms.updated_by＝店長の membership）を触ると demo_org_reset の wipe 一覧に無い表が FK で止める不具合（0175 v2 以降の 6 表）。CC の直接 delete は分類器に止められた（本番 DB の行）＝**0198 ★5 で demo_org_reset の wipe 一覧に 6 表を足す**（cast_day_deductions／deduction_rule_casts／availability_terms／availability／register_day_grants／staff_allowances）。それまで ACE は 17:36 の reset のまま（撮影には使える）。朝＝Agoora に ACE の 2 表の delete（1 行の SQL）か 0198 の手貼り。
+- **撮影**（docs/tmp/shots_benf／shots_m119・375／390・noxapp.jp）＝M-117 ホームの要承認（予約の申請が先頭＝「同伴 11/6 20:00 R様」承認／却下／レジの予約で開く・9 件）→ 今日タブ（ひなの の下「同伴の申請 20:00 R様」＋承認／却下）→ 承認後（緑チップ「同伴 20:00 R様」・要承認 8 件）／M-118 11/25（水）のスタッフ配置＝小林が末尾・「不可」・赤文「基本の働き方では水曜は不可です…」／M-112 日報プレビュー 375＝見出し 3 行・指標 4 列／M-113 ランキング 375／M-114 LINE 連携の種類 4（お知らせだけ ON）／M-115 /mine「今日の控除（使ったものにチェック）なし｜ヘアメ代（¥500）」／M-119＝MUSE の店長・田中（staff）で /register・/shift・/report＝帯が上・ナビは通常（ホーム／レジ／日報／シフト／メニュー）・卓カードの写真 2。
+- **撮影の気づき**＝①375 では本人セッションの帯が 3 行（高さ約 130px）で本体の余白 38px を超える＝余白を帯の高さに合わせる（次の便で CSS 変数）②デモの端末は撮影のたびに束縛される（同じ browser context でないと「別の端末に固定」）＝reset で解ける・MUSE／NOIR を使った ③ACE の reset（上）。
 
 ### 0197 フラグ true 便の記録（2026-11-06・0197＝裁定455 punch_mode＋0197b 追補＝on_duty_of の ACL）
 
