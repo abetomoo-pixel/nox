@@ -5553,6 +5553,17 @@ Agoora が 7 本を手貼り（0185→0180→0181→0182→0183→0184→0186）
 - **0183 の (a)**: payroll_withholding_overrides／payroll_employee_deductions の period は YYYY-MM＝payroll_runs.period も CHECK で YYYY-MM・period_bounds も月だけ＝run は精算方式（settlement_cycle）に関係なく月単位で、half／weekly／daily は源泉の暦日数の注記と日払いの種別だけ（本番 10 店とも settlement_cycle 未設定＝月次）＝今は足りる。半月・週の run を作るときは run・上書き・控除の 3 つの period を一緒に設計し直す。
 - **0183 の (b)**: キャストの源泉区分は「税務情報を保存」で set_cast_tax_profile（upsert＝行を作る）の後に set_withholding_kind を呼ぶ＝not found にならない。スタッフは契約の行がある人だけ区分の選択が出る（行を作る動線＝B の 6-④）。
 
+### 0197 フラグ true 便の記録（2026-11-06・0197＝裁定455 punch_mode＋0197b 追補＝on_duty_of の ACL）
+
+- **手貼りの突合**（読取だけ）＝Agoora の返り＝検証 17 行が期待値と一致（unique 2 は相談役のクエリが主キーも数えたため＝正本の式で 1）・本番の 3 本（set_store_profile 607313c1／on_duty_of 925f0245／register_day_grant_set fa610433）の md5 が 0197_punch_mode.sql（f28f737489916c38）の本体と 3/3 一致・関数 419・表 120・register_day_grants 0 行・punch_mode='store' の店 0。収蔵＝本便の feat commit（supabase/migrations/0197_punch_mode.sql）・MIG_0197_APPLIED=true。
+- **0197b（追補）**＝読取で発見＝0197 の起草（ACL ヘルパー）が on_duty_of に authenticated の EXECUTE を付けていた（0190 では内部専用＝4 ロール revoke・client は呼ばない・assert_on_duty から呼ぶ）。影響＝ログイン済みなら他店の出勤状態を推定できる（書込は不可）。検知＝verify:nox-0190「内部 3 本」と verify:nox-0197(4-2)。追補＝revoke 1 文（docs/demo/handpaste_0197b.md・本番で BEGIN…ROLLBACK 試走 false,true,false→false,false,false）→ Agoora 手貼り（検証 6 行一致）→ 収蔵 cdabd19（supabase/migrations/0197b_on_duty_of_acl.sql）。★教訓候補＝「作り直す関数の ACL は live の proacl を写す（公開用ヘルパーを機械的に当てない）＝生成器に ACL の読取を」。
+- **client**＝裁定456 の 17＝/mine の勤怠一覧は punch_mode='store' の店で確定シフトの日（monthAttendanceRowsStoreOf＝出＝開始・退＝終了・実働＝storeModeHoursOf＝給与と同じ式・当欠／休みは — と状態・打刻のある日はその出退）／18＝出勤インセンティブの受給者判定は確定シフトのある日（storeModeAttendedDatesOf＝当欠／休みは除く・final ok／late と重複させない）。初期設定 ⑦ と店舗設定の 3 択目は便 E の client がフラグで有効化。
+- **verify**＝verify:nox-0197 新設（32＝フラグ／純関数＝窓 4 通り（開始 −30 の中・−31・終了 +60 の中・+61）・storeModeAttendedDatesOf・monthAttendanceRowsStoreOf／client の pin／live 読取 419・120・RLS・unique・ACL（on_duty_of は内部）／BEGIN…ROLLBACK 23 段）を f0 の末尾へ。pin 張替え＝関数 419・表 120（0158 ×3／0188／0190／0194c／0195／0196／p172）・set_store_profile の md5（0158／p172）・billing 名簿 A18（対象 202・gated 202・述語 203・形 202）・grants（TABLES に register_day_grants・G4d に register_day_grant_set）・bene（0197 true・3-1 は override）・store-systems の白名単 76→79。
+- **f0**＝通し走（赤で止めない・docs/tmp/f0_1106_e_all.log）＝174 suite 中 赤 1（0197(4-2)＝期待値の並び違い→直し）→ **175 段 7,379（F 17:0x）／175 段 7,379（G 17:34）の 2 連緑**（f0_1106_f／g.log・golden 5931／125802 不変・7,344→+35＝0197 の 32＋grants の 3）。tsc 0・lint Error 0。
+- **push**＝0bfbdd7（17:34）・Vercel success（08:36:15Z）・共有チャンク 2578 のハッシュ差（78b7ce65→727361d1）＝deploy 済み。**6 店 reset 17:36 6/6 ok**（reset route の host＝noxapp.jp＝Vault の URL は切替済み）。
+- **撮影**（docs/tmp/shots_0197・375／390）＝初期設定 7/9「打刻できる場所」に 3 択目あり（「打刻しない」は文言で検出）／mine の今月の勤怠一覧（デモは punch_mode='punch'＝従来の 4 行・store の店はデモに無い）。**店舗設定の 3 択は撮れず**＝「会計と運用」の区画は role='owner' だけで、デモの「オーナー」は管理者（admin）＝区画が出ない。
+- **目視の気づき（判断は相談役）**＝①初期設定 ⑦ の 3 択（SegSelect）が 375 幅で右に切れる（「本人のスマホからも…」「打刻しない…」が画面外）＝M 候補（縦積みか折り返し）②店舗設定 › 店舗情報の「会計と運用」は owner 限定＝admin（デモのオーナー）には 3 択目が出ない＝仕様どおりか要確認 ③punch_mode='store' の実機確認（勤怠一覧・受給者判定・今日だけ許可）はデモに store の店が無い＝Agoora の実機か gen-demo に 1 店。
+
 ### 0196 フラグ true 便の記録（2026-11-06・0196＝キオスクの便＝裁定448 B 方式＋§6-4＋§9 M-103＋M-93＋punch_proxy の staff＋裁定456 の 1／457）
 
 - **手貼りの突合**（読取だけ）＝Agoora の返り＝検証 22 行が期待値と全行一致（fn 418・table 119・person sessions 0）。本番の 11 本（新設 2＋作り直し 9）の prosrc md5＝0196_kiosk_person.sql（sha16 baab7cbbc665ec4b）の本体の md5 と 11/11 一致。収蔵 76b54a4（supabase/migrations/0196_kiosk_person.sql・MIG_0196_APPLIED=true・handpaste_0196.md に手貼りの記録）。
@@ -8547,7 +8558,7 @@ anon-guard 段28 が無差別 `limit(1)` でそれを拾い 'bad amount'/BV=unde
 
 ## 次の番号（2026-11-06 夕・0196 フラグ true 便の後＝裁定458／459・M-111〜M-115 を収載・0197 の事前確認を済ませた時点）
 
-- **次の裁定＝460**（458＝前借りは「貸付」・459＝LINE 通知の既定＝お知らせだけ ON）。**次の M＝M-117**（M-116＝2026-11-06 承認＝LINE の期限切れ ID トークン＝LIFF の 1 回だけ自動再ログイン＋verify の理由＝便 F の先頭・M-111＝kiosk_unlock の旧キー救済＝ローンチ後・M-112〜M-115＝便 F（M-116 の後）＝日報プレビュー 375／ランキング 375／裁定459 の client／gen-demo の pick ルール 1 本）。**次の教訓＝136**。**次の mig＝0197**（起草済み sha16 f28f737489916c38＝0196 の 11 本との重なり 0 で再生成なし・2026-11-06 に 0196 適用後の本番で試走 19/19・418／119→tx 内 419／120・事前確認 md5 2 本一致・手貼りは相談役の合図）。便 F の残り（台帳の番号なし）＝目視①の突合（staff の通常ログインのナビと本人セッションのナビ 4 つ）・読取 docs/tmp/advance_loan_scan.md（裁定458）・日報プレビューの「伝票 0・未会計 5」の店の読取・f0 段数 178→174 の 1 行・撮影は 375 と 390。
+- **次の裁定＝460**（458＝前借りは「貸付」・459＝LINE 通知の既定＝お知らせだけ ON）。**次の M＝M-117**（M-116＝2026-11-06 承認＝LINE の期限切れ ID トークン＝LIFF の 1 回だけ自動再ログイン＋verify の理由＝便 F の先頭・M-111＝kiosk_unlock の旧キー救済＝ローンチ後・M-112〜M-115＝便 F（M-116 の後）＝日報プレビュー 375／ランキング 375／裁定459 の client／gen-demo の pick ルール 1 本）。**次の教訓＝136**。**0197＝本番適用済み（2026-11-06 06:53Z Agoora 手貼り・0197b 追補も適用済み・フラグ true 便 push 0bfbdd7・f0 2 連緑 175 段 7,379）→ 次の mig＝0198**（候補＝M-114 の settings_json 既定キーが要る場合）。便 F の残り（台帳の番号なし）＝目視①の突合（staff の通常ログインのナビと本人セッションのナビ 4 つ）・読取 docs/tmp/advance_loan_scan.md（裁定458）・日報プレビューの「伝票 0・未会計 5」の店の読取・f0 段数 178→174 の 1 行・撮影は 375 と 390。
 
 ## 次の番号（2026-11-06 朝・v59 確定版＝裁定456／457・M-110 を収載・0196 を裁定456 の 1 で再生成した時点）
 
