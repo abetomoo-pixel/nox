@@ -134,7 +134,7 @@ async function main() {
     // ★mig0160（裁定326＋追補1・2・起票95／96・2026-09-30）: A3 +2（reservation_request／decide）・A8 +4（set_cast_quota／set_store_mine_settings／staff_pattern_disable／enable）・A7 −1（set_cast_norm_self drop）・B(f) +1（notice_mark_read）＝
     //   対象 149→154・除外 141→142・全数 290→296（live 実測 2026-09-30＝総数 296・'billing locked' 154・形 154・述語参照 155）。改稿 5 本は名前不変で本数不動。
     // ★mig0161（裁定327＋追補1・2026-09-30）: B(a) +1（punch_seq_check＝内部専用・4 ロール revoke）＝対象 154 不変・除外 142→143・全数 296→297（'billing locked' 154・形 154・述語参照 155 不変）。改稿 4 本は名前不変で本数不動。
-    check("段47-1 正本の対象201名を読めた", docTargets.size === 201, // ★0195（2026-11-05・A17）: 198→201 // ★0193（2026-11-04・A16）: 195→198 // ★0192（2026-11-02・A15）: 188→195 // ★0190（2026-10-30・A14）: kiosk_reactivate／kiosk_delete＝186→188 // ★0187（2026-10-29 手貼り・便 2）: A13 +1（remove_store_special_day＝B(p) から移動）＝185→186 // ★0180／0183／0186（2026-10-27 手貼り）: A12 +4＝181→185 // ★0175 v2／0176（2026-10-26 本番適用・便 ON-1）: A11 +21＝160→181 // ★0173（2026-10-16 本番適用・便 P173）: A1 +1（check_set_ext_rule）＝159→160 // ★0172（2026-10-16 本番適用・便 P172）: A10 +1（set_cast_dependents_form）＝158→159 // ★0171（2026-10-14 本番適用・便 DM-1 で収載）: A8 +1（set_store_norm_axes）＝157→158 // ★0169（裁定341・便 P169）: A1 +1（check_nomination_rate_apply＝ゲート内蔵）★0167（裁定337・便 P167）: A10 +1（set_cast_shift_request_mode＝ゲート内蔵）★0166（X-13-8・便 P166）: A6 +1（set_product_track_stock＝ゲート内蔵）
+    check("段47-1 正本の対象201名を読めた", docTargets.size === 202, /* ★0197（2026-11-06・A18）: register_day_grant_set＝201→202 */ // ★0195（2026-11-05・A17）: 198→201 // ★0193（2026-11-04・A16）: 195→198 // ★0192（2026-11-02・A15）: 188→195 // ★0190（2026-10-30・A14）: kiosk_reactivate／kiosk_delete＝186→188 // ★0187（2026-10-29 手貼り・便 2）: A13 +1（remove_store_special_day＝B(p) から移動）＝185→186 // ★0180／0183／0186（2026-10-27 手貼り）: A12 +4＝181→185 // ★0175 v2／0176（2026-10-26 本番適用・便 ON-1）: A11 +21＝160→181 // ★0173（2026-10-16 本番適用・便 P173）: A1 +1（check_set_ext_rule）＝159→160 // ★0172（2026-10-16 本番適用・便 P172）: A10 +1（set_cast_dependents_form）＝158→159 // ★0171（2026-10-14 本番適用・便 DM-1 で収載）: A8 +1（set_store_norm_axes）＝157→158 // ★0169（裁定341・便 P169）: A1 +1（check_nomination_rate_apply＝ゲート内蔵）★0167（裁定337・便 P167）: A10 +1（set_cast_shift_request_mode＝ゲート内蔵）★0166（X-13-8・便 P166）: A6 +1（set_product_track_stock＝ゲート内蔵）
        `got ${docTargets.size}`); // ★0157: A4 +2＝139→141・★0153（裁定305／307）: A1 +4＝141→145・★0155: A4 −1＝145→144
     // ★E8-6c: B 名簿追補（教訓20 の是正）＝83→93（B(f) 39本化＋B(k) 5本）
     // ★mig0113: check_tax_round（内部ヘルパー・非ゲート）を B へ収載＝除外 95→96・全数 201→202。
@@ -173,7 +173,7 @@ async function main() {
       select p.proname from pg_proc p join pg_namespace n on n.oid=p.pronamespace
        where n.nspname='public' and p.prosrc like '%billing locked%' order by p.proname`);
     const liveGated = new Set(gated.map((r) => r.proname as string));
-    check("段47-1 live のゲート済み関数 = 201本", liveGated.size === 201, // ★0195: 198→201 // ★0193: 195→198 // ★0192（2026-11-02）: 188→195（A15） // ★0190（2026-10-30）: 186→188（kiosk_reactivate／kiosk_delete） // ★0187（2026-10-29）: 185→186（remove_store_special_day） // ★2026-10-27 手貼り: 181→185 // ★0175 v2／0176（便 ON-1）: 160→181 // ★0173: 159→160（check_set_ext_rule） // ★0172: 158→159（set_cast_dependents_form） // ★0171: 157→158（set_store_norm_axes） // ★0169: 156→157・★0167: 155→156・★0166: 154→155
+    check("段47-1 live のゲート済み関数 = 201本", liveGated.size === 202, /* ★0197（2026-11-06・A18 register_day_grant_set） */ // ★0195: 198→201 // ★0193: 195→198 // ★0192（2026-11-02）: 188→195（A15） // ★0190（2026-10-30）: 186→188（kiosk_reactivate／kiosk_delete） // ★0187（2026-10-29）: 185→186（remove_store_special_day） // ★2026-10-27 手貼り: 181→185 // ★0175 v2／0176（便 ON-1）: 160→181 // ★0173: 159→160（check_set_ext_rule） // ★0172: 158→159（set_cast_dependents_form） // ★0171: 157→158（set_store_norm_axes） // ★0169: 156→157・★0167: 155→156・★0166: 154→155
        `got ${liveGated.size}`);
 
     const missing = [...docTargets].filter((n) => !liveGated.has(n));
@@ -193,7 +193,7 @@ async function main() {
     const { rows: refs } = await db.query(`
       select count(*)::int as n from pg_proc p join pg_namespace n on n.oid=p.pronamespace
        where n.nspname='public' and p.prosrc like '%billing_writable_of%'`);
-    check("段47-1 述語を参照する関数 = 202（201 ＋ ラッパ自身）", refs[0].n === 202, // ★0195: 199→202 // ★0193: 196→199 // ★0192: 189→196 // ★0190（2026-10-30）: 187→189 // ★0187（2026-10-29）: 186→187 // ★2026-10-27 手貼り: 182→186 // ★便 ON-1: 161→182 // ★0173: 160→161 // ★0172: 159→160 // ★0171: 158→159 // ★0169: 157→158・★0167: 156→157・★0166: 155→156
+    check("段47-1 述語を参照する関数 = 202（201 ＋ ラッパ自身）", refs[0].n === 203, /* ★0197（2026-11-06・A18 register_day_grant_set） */ // ★0195: 199→202 // ★0193: 196→199 // ★0192: 189→196 // ★0190（2026-10-30）: 187→189 // ★0187（2026-10-29）: 186→187 // ★2026-10-27 手貼り: 182→186 // ★便 ON-1: 161→182 // ★0173: 160→161 // ★0172: 159→160 // ★0171: 158→159 // ★0169: 157→158・★0167: 156→157・★0166: 155→156
        `got ${refs[0].n}`);
     // 挿入行の形が全92本で同一（引数2種のみ）
     const { rows: shapes } = await db.query(`
@@ -202,7 +202,7 @@ async function main() {
          and (p.prosrc like '%if not public.billing_writable_of(v_org) then raise exception ''billing locked''; end if;%'
            or p.prosrc like '%if not public.billing_writable_of(public.auth_org_id()) then raise exception ''billing locked''; end if;%')`);
     // ★起票91 解消（0159）: kiosk_transport_issue のゲート行を v_org 形へ＝規約外 0 本・形 149＝ゲート済み 149 と一致
-    check("段47-1 挿入行の形が全201本で規約どおり（引数は v_org / auth_org_id() の2種のみ）", shapes[0].n === 201, // ★0195: 198→201 // ★0193: 195→198 // ★0192: 188→195 // ★0190（2026-10-30）: 186→188 // ★0187（2026-10-29）: 185→186 // ★2026-10-27 手貼り: 181→185 // ★便 ON-1: 160→181 // ★0173: 159→160 // ★0172: 158→159 // ★0171: 157→158 // ★0169: 156→157（check_nomination_rate_apply は v_org 形）★0167: 155→156（set_cast_shift_request_mode は v_org 形）★0166: 154→155（set_product_track_stock は v_org 形）
+    check("段47-1 挿入行の形が全201本で規約どおり（引数は v_org / auth_org_id() の2種のみ）", shapes[0].n === 202, /* ★0197（2026-11-06・A18 register_day_grant_set） */ // ★0195: 198→201 // ★0193: 195→198 // ★0192: 188→195 // ★0190（2026-10-30）: 186→188 // ★0187（2026-10-29）: 185→186 // ★2026-10-27 手貼り: 181→185 // ★便 ON-1: 160→181 // ★0173: 159→160 // ★0172: 158→159 // ★0171: 157→158 // ★0169: 156→157（check_nomination_rate_apply は v_org 形）★0167: 155→156（set_cast_shift_request_mode は v_org 形）★0166: 154→155（set_product_track_stock は v_org 形）
        `got ${shapes[0].n}`);
   }
 

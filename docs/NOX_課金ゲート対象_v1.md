@@ -355,6 +355,10 @@ kiosk_provision（新規 kiosk の追加＝拡大操作）
 - 0195 ★5 固定手当の複数行（M-80 追記②）: staff_allowances_set（全行置換・管理者＝org 内／自店の店長＝staff）
 （対象 198→**201**・live 実測＝'billing locked' **201**・述語参照 202・挿入行の形 201。0195 の作り直し 2 本（set_deduction＝10 引数・staff_attendance_confirm＝±0）は名前不変で本数不変）
 
+### A18. 0197（1本・2026-11-06 本番適用（Agoora 手貼り・本文 Success・verify 17 行一致）・0197 のフラグ true 便で収載・規則A形でゲート内蔵・kiosk 腕なし）
+- 0197 ★2 今日だけ許可（裁定455 の 5）: register_day_grant_set（店長以上・自店・cast／staff（membership）・その営業日か翌営業日・取消は行の delete・audit 'register_day_grant'）
+（対象 201→**202**・live 実測＝'billing locked' **202**。0197 の作り直し 2 本（set_store_profile＝白名単 +3 キー・on_duty_of＝punch_mode='store' の分岐）は名前不変で本数不変・表 +1 register_day_grants＝全数 418→**419**）
+
 ## B. 除外（99本）
 
 ### B(a) 構造除外＝authenticated 実行不可（service/内部・28本）→ ゲート不要（B7 回避型(1)）

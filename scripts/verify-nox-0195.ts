@@ -120,7 +120,7 @@ async function main(): Promise<void> {
         (select count(*)::int from pg_proc p where p.pronamespace='public'::regnamespace and p.proname in ('set_deduction','cast_day_deductions_set','deduction_rule_cast_set','deduction_rule_casts_get','line_link_block','line_link_remove','staff_allowances_set','staff_attendance_confirm') and has_function_privilege('anon', p.oid, 'execute')) anonx,
         (select has_function_privilege('authenticated', p.oid, 'execute') from pg_proc p where p.pronamespace='public'::regnamespace and p.proname='line_link_block') blk_auth,
         (select count(*)::int from public.deductions where day_rule <> 'always') pick_now`)).rows[0];
-      check("0195(3-1) live＝関数 416・表 119・set_deduction 10 引数だけ・新設 6・列 3・RLS 3・表の grant は SELECT だけ・anon exec 0・line_link_block は authenticated 不可", before.f === 418 && before.t === 119 /* ★0196（2026-11-06・+2＝kiosk_person_claim／kiosk_person_end・作り直し 9 本は ±0）: 416→418 */  && r.a10 === 1 && r.a9 === 0 && r.n6 === 6 && r.c3 === 3 && r.rls3 === 3 && r.badg === 0 && r.anonx === 0 && r.blk_auth === false, J({ before, r }));
+      check("0195(3-1) live＝関数 416・表 119・set_deduction 10 引数だけ・新設 6・列 3・RLS 3・表の grant は SELECT だけ・anon exec 0・line_link_block は authenticated 不可", before.f === 419 && before.t === 120 /* ★0197（2026-11-06・+1＝register_day_grant_set・作り直し 2 本は ±0）: 418→419 */ /* ★0196（2026-11-06・+2＝kiosk_person_claim／kiosk_person_end・作り直し 9 本は ±0）: 416→418 */  && r.a10 === 1 && r.a9 === 0 && r.n6 === 6 && r.c3 === 3 && r.rls3 === 3 && r.badg === 0 && r.anonx === 0 && r.blk_auth === false, J({ before, r }));
       // (4) BEGIN…ROLLBACK（try_0195.mjs と同じ型＝NOX-VERIFY-A1・authenticated を名乗る）
       await pc.query("begin");
       try {

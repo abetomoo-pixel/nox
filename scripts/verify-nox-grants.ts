@@ -27,6 +27,7 @@ function check(label: string, ok: boolean, detail?: string) {
 }
 
 const TABLES = [
+  "register_day_grants", // ★0197（裁定455 の 5・2026-11-06 本番適用）: 今日だけ許可（RLS 有効・policy 1＝select・authenticated=SELECT のみ・anon 0＝書込は register_day_grant_set）
   "terms_acceptances", "staff_contracts", "staff_punches", "staff_payroll_runs", // ★0172（裁定351／355／356・本番適用 2026-10-16）: 同意記録・スタッフ契約／打刻／給与 run（器のみ・authenticated=SELECT のみ・RLS select 1 本。p172(6-1) で列／policy／ACL を能動 assert）
   "demo_entries", // ★0163（裁定328 追補1・293-7・本番適用 2026-10-08）: デモ入場ログ（RLS 有効・policy 0・anon／authenticated grant 0・service_role の INSERT／SELECT のみ＝入場 route が admin で書く。G1/G2/G5 が .length で自動被覆・G4e 0163 で purge 関数の ACL を能動 assert）
   "cast_contract_acks", // ★0162（裁定329／326 追補7-6）: cast の契約確認記録（cast×contract_rev・authenticated=SELECT のみ・RLS select 1 本。G9 0162 で列集合／policy を能動 assert）
@@ -221,7 +222,8 @@ async function main() {
       "set_user_photo_updated_at", "clear_cast_photo", "clear_user_photo", "cast_contract_ack_needed", "cast_contract_ack_self", // ★0162（裁定329／326 追補7-6）: 公開 5 本（非ゲート・authenticated＋service_role）
       "set_product_track_stock", // ★0166（X-13-8・便 P166）: 公開 1 本（ゲート内蔵＝A6・authenticated＋service_role）
       "set_cast_shift_request_mode", // ★0167（裁定337・便 P167）: 公開 1 本（ゲート内蔵＝A10・authenticated）
-      "check_nomination_rate_apply"]; // ★0169（裁定341・便 P169）: 公開 1 本（ゲート内蔵＝A1・authenticated・店長以上・open のみ）
+      "check_nomination_rate_apply", // ★0169（裁定341・便 P169）: 公開 1 本（ゲート内蔵＝A1・authenticated・店長以上・open のみ）
+      "register_day_grant_set"]; // ★0197（裁定455 の 5・2026-11-06 本番適用）: 公開 1 本（ゲート内蔵＝A18・authenticated・店長以上・今日だけ許可）
     const r = await db.query(
       `select p.proname, p.prosecdef, coalesce(array_to_string(p.proconfig, ','), '') as config,
               has_function_privilege('authenticated', p.oid, 'execute') as auth_ok,

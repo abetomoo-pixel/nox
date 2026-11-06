@@ -5,7 +5,7 @@
 // 対象 cast（裁定C）= get_cast_sales の cast ∪ 窓内 punches の cast（is_active 不問・稼働ゼロは除外）。
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { punchModeOf } from "../shift/punch-mode"; // ★便 E（0197 用）
+import { punchModeOf, storeModeAttendedDatesOf } from "../shift/punch-mode"; // ★便 E（0197 用）★0197 フラグ便（裁定456 の 18）
 import { wageCutRuleOf } from "@/lib/nox/store-systems"; // ★便 SH-UI-a A-1
 import { okuriDeductOf } from "@/lib/nox/shift/okuri-mode"; // ★裁定414（S-4 ③）: 店負担は控除しない
 import { periodCalendarDays, type PayrollWindow } from "./window";
@@ -439,8 +439,11 @@ export async function loadPunch(admin: SupabaseClient, storeId: string, win: Pay
       const attBy = new Map(raw.att.map((a) => [a.date, a.status]));
       const upTo = raw.shifts.filter((s) => s.date <= todayBiz);
       const offDay = (d: string) => { const st = attBy.get(d); return st === "absent" || st === "off"; };
-      days = upTo.filter((s) => !offDay(s.date)).length; lateN = upTo.filter((s) => attBy.get(s.date) === "late").length; absentN = upTo.filter((s) => attBy.get(s.date) === "absent").length;
+      const attended = storeModeAttendedDatesOf(upTo, attBy, todayBiz); // ★0197 フラグ便（裁定456 の 18）: 出勤した日＝確定シフトの日で 当欠／休み でない日
+      days = attended.length; lateN = upTo.filter((s) => attBy.get(s.date) === "late").length; absentN = upTo.filter((s) => attBy.get(s.date) === "absent").length;
       for (const s of upTo) if ((hoursByDate.get(s.date) ?? 0) === 0 && !offDay(s.date)) hoursByDate.set(s.date, Math.max(0, (hm2minOf(s.end_hm) - hm2minOf(s.start_hm)) / 60));
+      // ★0197 フラグ便（裁定456 の 18）: 出勤インセンティブの受給者判定＝確定シフトのある日を出勤扱い（当欠／休みは除く・打刻の final ok／late で既に入っている日は重複させない）
+      for (const d of attended) { const list = recipientsByDate.get(d) ?? recipientsByDate.set(d, []).get(d)!; if (!list.includes(cid)) list.push(cid); }
     }
     result.set(cid, { noShiftHours, noShiftDates, days, lateN, absentN, anomalyCount, missingOutDates, hoursByDate, shiftHoursByDate, attendanceDays, shortfallDays });
   }

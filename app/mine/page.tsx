@@ -14,7 +14,7 @@ import { mig0185On, mig0196On, rules0175On } from "@/lib/nox/rules-0175/flag"; /
 import AvailabilityEditor from "@/components/nox/availability-editor"; // ★便 P175-prep P-4（裁定397＋413）
 import { wageNowOf } from "@/lib/nox/cast/wage-now"; // ★便 P174 T-5（GV-55／56）
 import { mineCurrentWageOf } from "@/lib/nox/mine/wage-server"; // ★便 X13-H H-8: 今期の時給（一覧・詳細と同じ値・文言・根拠）
-import { ATTENDANCE_MONTH_NOTE, closeHmOf, hoursLabelOf, monthAttendanceRowsOf, todayInOutLabelOf } from "@/lib/nox/mine/attendance-month"; // ★裁定326-5（便 M2-1）: 勤怠時刻＋当月一覧（実働は dayWorkedHours）
+import { ATTENDANCE_MONTH_NOTE, ATTENDANCE_MONTH_NOTE_STORE, closeHmOf, hoursLabelOf, monthAttendanceRowsOf, monthAttendanceRowsStoreOf, todayInOutLabelOf } from "@/lib/nox/mine/attendance-month"; // ★0197 フラグ便（裁定456 の 17） // ★裁定326-5（便 M2-1）: 勤怠時刻＋当月一覧（実働は dayWorkedHours）
 import { nextPeriodOf } from "@/lib/nox/payroll/attention";
 import { mdLabelOf } from "@/lib/nox/payroll/finalize-guard";
 import ReservationRequestCard from "./reservation-request-card"; // ★裁定326-4（便 M3-2）: 予約申請（店設定 reservation_request ON のときだけ）
@@ -177,11 +177,16 @@ export default async function MinePage({ searchParams }: { searchParams?: Promis
   const kintaiPay = kintaiBuilt?.casts[0]?.pay ?? null; // ★C2-3: 月のまとめ（本人）
   const kintaiSum = attendanceSummaryOf(kintaiRows, bizToday);
   // ★326-5: 当月の勤怠一覧（日付・出勤・退勤・実働＝dayWorkedHours・確定シフトのある日だけ時間が出る）と当日の出勤・退勤時刻
-  const attRows = monthAttendanceRowsOf({
+  const attRowsPunch = monthAttendanceRowsOf({
     punches: ((monthPunches ?? []) as { type: string; punched_at: string }[]).map((p) => ({ punched_at: p.punched_at, type: p.type as "in" | "out" })),
     shifts: monthConfirmedShifts.map((s) => ({ date: s.date, start_hm: s.start_hm, end_hm: s.end_hm })),
     cutoffHm: cutoff, closeHm: closeHmOf(myStore?.settings_json),
   });
+  // ★0197 フラグ便（裁定456 の 17）: 打刻しない店（punch_mode='store'）＝確定シフトの日を出す（出＝開始・退＝終了・実働＝給与と同じ式・当欠／休みは — と状態）＝「給与は付くのに勤怠は 0 行」を見せない
+  const mineStoreMode = storeDecidesPunchOf((myStore?.settings_json ?? {}) as Record<string, unknown>);
+  const attRows = mineStoreMode
+    ? monthAttendanceRowsStoreOf({ shifts: monthConfirmedShifts.map((s) => ({ date: s.date, start_hm: s.start_hm, end_hm: s.end_hm })), attendance: ((att ?? []) as { date: string; status: string }[]), punchRows: attRowsPunch, todayBiz: bizToday })
+    : attRowsPunch;
   const todayRow = attRows.find((r) => r.bizDate === bizToday) ?? null;
   // ★便 PR-1 R-4（裁定417）: 今日の同伴＝伝票（check_nominations.is_dohan・void 除く・自分の行）→「同伴（A2）」の印＋遅刻扱いなし（今日タブと同じ読み方）
   type DohanRow = { cast_id: string; ended_at: string | null; checks: { status: string; seats: { name: string } | { name: string }[] | null } | { status: string; seats: { name: string } | { name: string }[] | null }[] | null };
@@ -300,7 +305,7 @@ export default async function MinePage({ searchParams }: { searchParams?: Promis
         <p className="nox-pstate num">{todayInOutLabelOf(todayRow)}</p>
         <details style={{ marginTop: 8 }}>
           <summary style={{ fontSize: 12.5, color: "var(--sub)", cursor: "pointer" }}>今月の勤怠一覧（{attRows.length} 日）</summary>
-          {attRows.length === 0 ? <p style={{ ...noneP, marginTop: 6 }}>打刻なし</p> : (
+          {attRows.length === 0 ? <p style={{ ...noneP, marginTop: 6 }}>{mineStoreMode ? "確定シフトなし" : "打刻なし"}</p> : (
             <table style={{ width: "100%", fontSize: 12.5, marginTop: 6, borderCollapse: "collapse" }}>
               <thead><tr><th style={thL}>日付</th><th style={thR}>出勤</th><th style={thR}>退勤</th><th style={thR}>実働</th></tr></thead>
               <tbody>
@@ -309,13 +314,13 @@ export default async function MinePage({ searchParams }: { searchParams?: Promis
                     <td className="num" style={tdL}>{mdLabelOf(r.bizDate)}</td>
                     <td className="num" style={tdR}>{r.inHm ?? "—"}</td>
                     <td className="num" style={tdR}>{r.outHm ?? "—"}</td>
-                    <td className="num" style={tdR}>{hoursLabelOf(r.hours)}</td>
+                    <td className="num" style={tdR}>{hoursLabelOf(r.hours)}{r.statusJa ? <span style={{ fontSize: 11, color: "var(--sub)", marginLeft: 4 }} data-mine-att-status={r.statusJa}>{r.statusJa}</span> : null}</td>{/* ★0197 フラグ便（裁定456 の 17）: 打刻しない店の状態 */}
                   </tr>
                 ))}
               </tbody>
             </table>
           )}
-          <p style={{ ...noteP, marginTop: 4 }}>{ATTENDANCE_MONTH_NOTE}</p>
+          <p style={{ ...noteP, marginTop: 4 }}>{mineStoreMode ? ATTENDANCE_MONTH_NOTE_STORE : ATTENDANCE_MONTH_NOTE}</p>
         </details>
       </section>
       )}

@@ -69,6 +69,11 @@ export function storeModeHoursOf(input: { rawHours: number; shiftHours: number |
   if (input.attStatus === "absent" || input.attStatus === "off") return 0;
   return input.shiftHours;
 }
+/** ★0197 フラグ便（裁定456 の 18）: 打刻しない店の「出勤した日」＝確定シフトのある営業日（今日まで）で勤怠が 当欠／休み でない日＝出勤インセンティブの受給者判定と日数に使う（純関数） */
+export function storeModeAttendedDatesOf(shifts: readonly { date: string }[], attStatusByDate: ReadonlyMap<string, string>, todayBiz: string): string[] {
+  const off = (d: string) => { const st = attStatusByDate.get(d); return st === "absent" || st === "off"; };
+  return [...new Set(shifts.map((s) => s.date))].filter((d) => d <= todayBiz && !off(d)).sort();
+}
 /** 打刻しない店の区分＝勤怠（attendance）の記録だけで決める（打刻の有無は見ない） */
 export function storeModeFinalOf(attStatus: string | null | undefined, hasShift: boolean): "ok" | "late" | "absent" | "no_shift" {
   if (!hasShift) return "no_shift";

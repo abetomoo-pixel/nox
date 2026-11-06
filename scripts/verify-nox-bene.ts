@@ -14,7 +14,7 @@ const check = (label: string, ok: boolean, detail?: unknown) => { if (ok) pass++
 const src = (p: string) => fs.readFileSync(p, "utf8");
 
 // (1) 0196＝PIN の本人セッション
-check("bene(1-1) フラグ＝MIG_0196_APPLIED は true（2026-11-06 手貼り＝verify 22 行一致）・MIG_0197_APPLIED は false（手貼りは相談役の合図）・override", (MIG_0196_APPLIED as boolean) === true && (MIG_0197_APPLIED as boolean) === false && mig0196On() && !mig0197On());
+check("bene(1-1) フラグ＝MIG_0196_APPLIED／MIG_0197_APPLIED とも true（2026-11-06 手貼り）", (MIG_0196_APPLIED as boolean) === true && (MIG_0197_APPLIED as boolean) === true /* ★0197 フラグ便（2026-11-06） */ && mig0196On() && mig0197On());
 const u1 = "11111111-1111-4111-8111-111111111111", u2 = "22222222-2222-4222-8222-222222222222";
 check("bene(1-2) cookie nox_kiosk_person＝<session>:<device>:<role>・形が違えば null・role は manager／staff だけ", KIOSK_PERSON_COOKIE === "nox_kiosk_person" && JSON.stringify(parseKioskPersonCookie(kioskPersonCookieValueOf({ sessionId: u1, deviceId: u2, role: "staff" }))) === JSON.stringify({ sessionId: u1, deviceId: u2, role: "staff" }) && parseKioskPersonCookie(`${u1}:${u2}:owner`) === null && parseKioskPersonCookie("x") === null && parseKioskPersonCookie(null) === null);
 check("bene(1-3) 本人セッションを作れる役割＝manager／staff（owner／admin／cast は /kiosk へ）", kioskPersonSessionAllowedOf("manager") && kioskPersonSessionAllowedOf("staff") && !kioskPersonSessionAllowedOf("owner") && kioskPersonMustLeaveOf("owner") && kioskPersonMustLeaveOf("cast") && !kioskPersonMustLeaveOf("staff"));
@@ -36,6 +36,7 @@ check("bene(1-9) layout＝mig0196On() のときだけ cookie を読む・owner�
 check("bene(2-1) 卓カードの指名＝kiosk-workspace が mig0196On() のとき kiosk_register_state の checks[].nominations を読み RegisterBoard の kioskNoms へ（本店の RLS の行があればそちら）", src("components/nox/kiosk-workspace.tsx").includes("const noms = await loadKioskNoms(supabase);") && src("lib/nox/kiosk/register-noms.ts").includes('supabase.rpc("kiosk_register_state")') && src("lib/nox/kiosk/register-noms.ts").includes("if (!mig0196On()) return undefined;") && src("components/nox/kiosk-workspace.tsx").includes("kioskNoms={board.noms}") && src("app/(manage)/register/register-board.tsx").includes("setOpenNoms({ ...(kioskNoms ?? {}), ...nm })"));
 check("bene(2-2) 今日タブの代行＝staff も（mig0196On()・punch_proxy は 0196 で自店の staff に開く）", src("app/(manage)/shift/shift-board.tsx").includes('const canRecord = (isManagerUp || (mig0196On() && role === "staff")) && todayDate === bizToday;'));
 // (3) 0197＝punch_mode の純関数
+__set0197ForTest(false); // ★0197 フラグ便: 本番フラグは true＝false の挙動は override で
 check("bene(3-1) punchModeOf＝フラグ false は常に 'punch'（settings に store があっても）", punchModeOf({ punch_mode: "store" }) === "punch" && !storeDecidesPunchOf({ punch_mode: "store" }));
 __set0197ForTest(true);
 check("bene(3-2) フラグ true＝'store'／それ以外は 'punch'・3 択の値＝store／self false→device／any・patch＝store は punch_mode だけ・device／any は punch_mode 'punch'＋self（proxy／kiosk は今のまま）",
