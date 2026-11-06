@@ -1,6 +1,11 @@
 # 0196 手貼り案内（キオスクの便＝裁定448 B 方式・453・456・§9 出勤時の控除・M-93 差し替え・2026-11-05 夜の自走便 2 で起草 → 2026-11-06 裁定456 の 1 で再生成）
 
 **手貼りは相談役の合図＝ここでは貼らない。** 順序＝0195 の後（本番は 0195 適用済み＝関数 416・表 119＝2026-11-06 再確認）。0197 はこの後に別紙（handpaste_0197.md）。
+
+## 手貼りの記録（2026-11-06・Agoora＝本番 ref hiqbfagmkrdpmlqhkmsu）
+- Agoora の返り＝検証 22 行（貼り先証明 10・fn 418・table 119・new fns 2・列 2 yes・kiosk_punch 5/0・kiosk_punch_state 1/0・kiosk_lock jsonb・claim/end true,true／false,false・anon 11 本 0・authenticated 9 本 9・yes ×4・yes,yes・yes,yes,yes,yes・person sessions 0）＝**期待値と全行一致**。
+- CC の突合（読取だけ）＝本番の 11 本（新設 2＋作り直し 9）の prosrc md5 が 0196_kiosk_person.sql（sha16 baab7cbbc665ec4b）の $function$ 本体の md5 と **11/11 一致**（SQL Editor の CRLF で逐語は違う＝従来どおり）・関数 418・表 119・本人セッション 0・claim/end の audit 0。
+- 収蔵＝supabase/migrations/0196_kiosk_person.sql（sha16 baab7cbbc665ec4b・605 行）・MIG_0196_APPLIED=true・verify:nox-0196 新設（40）・M-110（KioskUnlockPad が kiosk_unlock に browserDeviceFp() を送る）同乗＝0196 のフラグ true 便。
 **sha16 旧 91e387cabf51b8db（11/05・571 行）→ 新 baab7cbbc665ec4b（11/06・605 行）＝貼るのは新。**
 
 ## 10 点（裁定456＝2026-11-06 朝に相談役が確定・変更は 1 だけ→ gen_0196.cjs を直して live から再生成済み）

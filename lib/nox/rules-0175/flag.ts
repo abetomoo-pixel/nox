@@ -98,7 +98,7 @@ export function __set0195ForTest(v: boolean | null): void { override0195 = v; }
 
 /** ★0196（未起草・便 D で置き場だけ＝2026-11-05）: キオスクの便（裁定448 B 方式・453・§9＝M-103 の保存の腕＝cast_day_deductions_set の cast セルフ腕・kiosk_punch の p_day_deductions・
  *  kiosk_punch_state の day_rules・kiosk_operator_list の判定）。false の間は /mine とキオスクの出勤の「今日の控除」のチェックを出さない（UI は便 D で入れ済み）。 */
-export const MIG_0196_APPLIED = false;
+export const MIG_0196_APPLIED = true; // ★2026-11-06: 0196（sha16 baab7cbbc665ec4b・裁定456 の 1／457 で再生成）を Agoora が手貼り＝verify 22 行が期待値と全行一致・関数 418・表 119・本文 11 本の md5 一致 → true
 let override0196: boolean | null = null;
 export function mig0196On(): boolean { return override0196 ?? MIG_0196_APPLIED; }
 export function __set0196ForTest(v: boolean | null): void { override0196 = v; }
