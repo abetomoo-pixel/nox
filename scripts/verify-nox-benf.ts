@@ -81,6 +81,16 @@ check("benf(6-3) ホーム＝予約の申請が先頭（approvals の前）・�
     && spf.includes('if (avail?.avail === "ng" && !ngConfirmed) { if (!window.confirm(staffAvailConfirmTextOf(staffName, avail.dowJa))) return; setNgConfirmed(true); }') && !src("app/(manage)/shift/day-add-panel.tsx").includes("staffAvailJudgeOf"));
 }
 
+// (8) M-119＝裁定460＝本人セッションは本店のページ・ナビ・部品（違いは帯だけ）
+{
+  const lay = src("app/(manage)/layout.tsx"), g = src("components/nox/kiosk-person-guard.tsx"), ps = src("lib/nox/kiosk/person-session.ts"), css2 = src("app/globals.css"), rb2 = src("app/(manage)/register/register-board.tsx");
+  check("benf(8-1) layout＝本人セッションでも通常の groups（kioskNavOf は使わない）・data-kiosk-person の印・owner／cast は /kiosk へ（従来）", lay.includes("const navGroups: NavGroup[] = groups;") && !lay.includes("? kioskNavOf(role,") && lay.includes('data-kiosk-person={kioskPersonOn ? "1" : "0"}') && lay.includes('redirect("/kiosk?person=deny")'));
+  check("benf(8-2) 帯＝上に固定（top 0・38px）・名前・無操作の残り（15 秒ごと）・「ロック（端末へ戻る）」＝kiosk_person_end（lock）・「キオスクへ戻る」（manual）・無操作＝idle・本体の余白は globals.css",
+    g.includes('position: "fixed", left: 0, right: 0, top: 0, zIndex: 60') && g.includes('document.documentElement.setAttribute("data-kiosk-person-bar", "1");') && g.includes("kioskPersonRemainTextOf(remainMin)") && g.includes('void endKioskPersonSession(createClient(), "lock")') && g.includes('endKioskPersonSession(createClient(), "manual")') && g.includes("isPin ? endKioskPersonSession(supabase, reason) : leaveKioskPersonLogin(supabase)")
+    && ps.includes('export const KIOSK_PERSON_LOCK = "ロック（端末へ戻る）";') && css2.includes('html[data-kiosk-person-bar="1"] .nox-layout { padding-top: 38px; }') && css2.includes('html[data-kiosk-person-bar="1"] .nox-tb { top: 38px; }'));
+  check("benf(8-3) 本店の部品そのまま＝卓カードの写真（register-board＝signCastPhotos）・予約の承認（ReservationDecide）・配置（staff-place-day）・日報（report-board）は本人セッションの分岐を持たない", rb2.includes("signCastPhotos") && !rb2.includes("kioskPerson") && !src("app/(manage)/report/report-board.tsx").includes("kioskPerson") && !src("app/(manage)/shift/staff-place-day.tsx").includes("kioskPerson") && !src("components/nox/pending-card.tsx").includes("kioskPerson"));
+}
+
 // (5) M-115
 const gd = src("scripts/demo/gen-demo.mjs");
 check("benf(5-1) gen-demo＝deductions に pick ルール 1 本（ヘアメ代 500・per day・agreed_cost・day_rule pick・is_active）", gd.includes('push("deductions", { id: uid(`ded:${code}:hairmake`), store_id: storeId, name: "ヘアメ代", amount: 500, per: "day", is_active: true, kind: "agreed_cost", day_rule: "pick" });'));

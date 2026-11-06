@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { idleExpiredOf, kioskPersonAllowedOf, kioskPersonNoteOf } from "@/lib/nox/kiosk/person-login";
 import { kioskPersonActive, kioskPersonMarkOf, leaveKioskPersonLogin } from "@/lib/nox/kiosk/person-login-client";
-import { KIOSK_PERSON_LEAVE, kioskPersonBandTextOf, kioskPersonSessionAllowedOf } from "@/lib/nox/kiosk/person-session"; // ★便 E（0196 用）
+import { KIOSK_PERSON_LEAVE, KIOSK_PERSON_LOCK, kioskPersonBandTextOf, kioskPersonRemainTextOf, kioskPersonSessionAllowedOf } from "@/lib/nox/kiosk/person-session"; // ★便 E（0196 用）★M-119: 帯＝上に固定・残り・ロック
 import { endKioskPersonSession } from "@/lib/nox/kiosk/person-session-client"; // ★便 E
 
 export default function KioskPersonGuard({ idleMinutes, role, name = null }: { idleMinutes: number; role: string; /** ★便 E: 帯に出す本人の名前（PIN の印のとき） */ name?: string | null }) {
@@ -28,10 +28,22 @@ export default function KioskPersonGuard({ idleMinutes, role, name = null }: { i
     const timer = window.setInterval(() => { if (idleExpiredOf(last.current, Date.now(), idleMinutes)) leave(); }, 15_000);
     return () => { for (const e of evs) window.removeEventListener(e, touch); window.clearInterval(timer); };
   }, [idleMinutes, role]);
+  // ★M-119（2026-11-06・裁定460）: 帯は本店のレイアウトの上に固定＝名前・無操作の残り（15 秒ごと）・「ロック（端末へ戻る）」＝kiosk_person_end（lock）・「キオスクへ戻る」（manual）
+  const [remainMin, setRemainMin] = useState<number>(idleMinutes);
+  useEffect(() => {
+    if (!active) return;
+    document.documentElement.setAttribute("data-kiosk-person-bar", "1");
+    const tick = () => setRemainMin(Math.max(0, Math.ceil((idleMinutes * 60_000 - (Date.now() - last.current)) / 60_000)));
+    tick(); const tm = window.setInterval(tick, 15_000);
+    return () => { window.clearInterval(tm); document.documentElement.removeAttribute("data-kiosk-person-bar"); };
+  }, [active, idleMinutes]);
   if (!active) return null;
   return (
-    <div data-kiosk-person-bar="1" style={{ position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 60, display: "flex", gap: 10, alignItems: "center", justifyContent: "center", padding: "6px 12px", background: "var(--goldface2, #1b1710)", borderTop: "1px solid var(--gold, #c9a24a)", color: "var(--champ, #e9d8a6)", fontSize: 12.5 }}>
-      <span>{pin ? kioskPersonBandTextOf(name, idleMinutes) : kioskPersonNoteOf(idleMinutes)}</span>{/* ★便 E: PIN の印＝「端末で ◯◯ さんとして操作中」 */}
+    <div data-kiosk-person-bar="1" data-kiosk-person-remain={remainMin} style={{ position: "fixed", left: 0, right: 0, top: 0, zIndex: 60, display: "flex", gap: 10, alignItems: "center", justifyContent: "center", flexWrap: "wrap", minHeight: 38, padding: "6px 12px", background: "var(--goldface2, #1b1710)", borderBottom: "1px solid var(--gold-bd, #6b5a2a)", fontSize: 12.5, color: "var(--ink, #eee)" }}>
+      {pin && <span data-kiosk-person-remain-text="1" style={{ fontSize: 11.5, color: "var(--sub)" }}>{kioskPersonRemainTextOf(remainMin)}</span>}
+      {pin && <button type="button" data-kiosk-person-lock="1" onClick={() => { leaving.current = true; void endKioskPersonSession(createClient(), "lock"); }}
+        style={{ fontFamily: "inherit", fontSize: 12.5, fontWeight: 700, padding: "4px 12px", borderRadius: 8, border: "1px solid var(--line2, #555)", background: "transparent", color: "inherit", cursor: "pointer" }}>{KIOSK_PERSON_LOCK}</button>}
+      <span style={{ fontWeight: 700, color: "var(--champ, #e9d8a6)" }}>{pin ? kioskPersonBandTextOf(name, idleMinutes) : kioskPersonNoteOf(idleMinutes)}</span>{/* ★便 E: PIN の印＝「端末で ◯◯ さんとして操作中」 */}
       <button type="button" data-kiosk-person-leave="1" onClick={() => { leaving.current = true; void (pin ? endKioskPersonSession(createClient(), "manual") : leaveKioskPersonLogin(createClient())); }}
         style={{ fontFamily: "inherit", fontSize: 12.5, fontWeight: 700, padding: "4px 12px", borderRadius: 8, border: "1px solid var(--gold, #c9a24a)", background: "transparent", color: "inherit", cursor: "pointer" }}>{pin ? KIOSK_PERSON_LEAVE : "今すぐキオスクへ戻る"}</button>
     </div>

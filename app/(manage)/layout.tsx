@@ -149,7 +149,10 @@ export default async function ManageLayout({ children }: { children: React.React
   //   owner／cast の cookie は通さない（/kiosk へ＝防御の二重・真の防御は RLS と RPC）。フラグ false の間は cookie を見ない（従来どおり）。
   const kioskPerson = mig0196On() ? parseKioskPersonCookie((await cookies()).get(KIOSK_PERSON_COOKIE)?.value) : null;
   if (kioskPerson && kioskPersonMustLeaveOf(role)) redirect("/kiosk?person=deny");
-  const navGroups: NavGroup[] = kioskPerson && (role === "manager" || role === "staff") ? kioskNavOf(role, { crm: staffCrm, shift: staffShift, register: staffRegister }) : groups;
+  // ★M-119（2026-11-06・裁定460）: 本人セッションも通常ログインと同じナビ・権限・部品（違いは帯だけ）＝kioskNavOf は使わない（端末セッション専用の名残）
+  void kioskNavOf;
+  const navGroups: NavGroup[] = groups;
+  const kioskPersonOn = !!kioskPerson && (role === "manager" || role === "staff");
   return (
     /* ── E2（2026-08-17）: 共通シェルを mock/pages-2026-08 の骨格へ寄せた（presentation-only）──
        モック構造＝`.app{grid:238px minmax(0,1fr)}` の**左列にサイドバー（全高）**、
@@ -161,7 +164,7 @@ export default async function ManageLayout({ children }: { children: React.React
        ★≤900 は従来どおりサイドバーを CSS で隠し TabBar のボトムタブが出る。
          モックは SP でサイドバーを「アイコン列の上部固定バー」に変えるが、**NOX は既存の
          ボトムタブを維持する**＝ナビの構造そのものを変えないため（E2 の意図的な非追随・ガイド §8 に記録）。 */
-    <div className="nox-dark" style={t.appBg}>
+    <div className="nox-dark" style={t.appBg} data-kiosk-person={kioskPersonOn ? "1" : "0"}>{/* ★M-119: 本人セッション＝帯を上に固定（globals.css で本体に余白） */}
       <div className="nox-layout">
         {/* 900+ のサイドバー＝段N の5群をそのまま描く（モックに無い項目は作らない）。
             ★レーン④a-4: 現在地ハイライトとアイコンのため client 部品 SideNav へ切り出した。

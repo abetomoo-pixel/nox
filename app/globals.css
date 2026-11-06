@@ -3184,3 +3184,9 @@ input[type="date"]::-webkit-date-and-time-value, input[type="time"]::-webkit-dat
   .nox-rk2 .cnt { grid-area: cnt; margin-left: 0; }
   .nox-rk2 .cnt2 { grid-area: cnt2; }
 }
+
+/* ★M-119（2026-11-06・裁定460）: キオスクの本人セッション＝帯を本店のレイアウトの上に固定（KioskPersonGuard＝fixed top 38px）。本体・サイドバー・上部バーをその分だけ下げる */
+html[data-kiosk-person-bar="1"] .nox-layout { padding-top: 38px; }
+html[data-kiosk-person-bar="1"] .nox-side { top: 38px; height: calc(100vh - 38px); }
+html[data-kiosk-person-bar="1"] .nox-tb { top: 38px; }
+html[data-kiosk-person-bar="1"] .nox-regsticky { top: 38px; }
