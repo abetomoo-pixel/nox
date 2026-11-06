@@ -5,7 +5,14 @@ import { siteHrefOf, siteOriginOf } from "@/lib/nox/line/liff-endpoint"; // ★�
 //   id_token はこの POST にだけ乗せる（URL・ログに出さない）。失敗は画面に 1 行（route の語→日本語）。
 import { useEffect, useState } from "react";
 
-type Liff = { init: (o: { liffId: string }) => Promise<void>; isLoggedIn: () => boolean; login: (o?: { redirectUri?: string }) => void; getIDToken: () => string | null };
+type Liff = { init: (o: { liffId: string }) => Promise<void>; isLoggedIn: () => boolean; login: (o?: { redirectUri?: string }) => void; logout: () => void; getIDToken: () => string | null };
+// ★M-116（2026-11-06・便 F・相談役 承認）: 期限切れ ID トークン＝LIFF はログイン状態を保ったまま古い id_token を返す（LINE の verify が 400）→ route の 401「bad id_token」を受けたら
+//   1 回だけ liff.logout() → liff.login() で取り直す（sessionStorage の鍵でループ防止）。2 回目も 401 なら案内を出して止まる。成功したら鍵を消す。
+export const LIFF_RETRY_KEY_PREFIX = "nox_liff_retry:";
+export const LIFF_EXPIRED_TEXT = "LINE のログインが期限切れです。LINE アプリを閉じて開き直してください（それでも通らなければお店にご確認ください）";
+const retryKeyOf = (storeId: string): string => `${LIFF_RETRY_KEY_PREFIX}${storeId}`;
+const readRetry = (k: string): boolean => { try { return window.sessionStorage.getItem(k) === "1"; } catch { return false; } };
+const writeRetry = (k: string, on: boolean): void => { try { if (on) window.sessionStorage.setItem(k, "1"); else window.sessionStorage.removeItem(k); } catch { /* noop */ } };
 declare global { interface Window { liff?: Liff } }
 
 const SDK = "https://static.line-scdn.net/liff/edge/2/sdk.js";
@@ -37,9 +44,15 @@ export default function LiffBridge({ storeId, liffId }: { storeId: string; liffI
         const bind = !!token && mode === "bind";
         setMsg(bind ? "紐付けています…" : "ログインしています…");
         const res = await fetch(bind ? "/api/line/bind" : "/api/line/session", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(bind ? { storeId, idToken, token } : { storeId, idToken }) });
-        const j = (await res.json().catch(() => ({}))) as { ok?: boolean; dest?: string; error?: string };
+        const j = (await res.json().catch(() => ({}))) as { ok?: boolean; dest?: string; error?: string; reason?: string; detail?: string };
         if (cancelled) return;
+        if (res.status === 401 && j.error === "bad id_token") { // ★M-116: 期限切れ（など）＝1 回だけ取り直す
+          const key = retryKeyOf(storeId);
+          if (!readRetry(key)) { writeRetry(key, true); setMsg("LINE のログインを更新しています…"); liff.logout(); liff.login({ redirectUri: siteHrefOf(window.location.href, siteOriginOf(window.location.origin)) }); return; }
+          setErr(j.reason === "expired" ? LIFF_EXPIRED_TEXT : `${jaOf("bad id_token")}${j.detail ? `（${j.detail}）` : ""}`); setMsg(""); return;
+        }
         if (!res.ok || !j.ok || !j.dest) { setErr(jaOf(j.error ?? String(res.status))); setMsg(""); return; }
+        writeRetry(retryKeyOf(storeId), false); // ★M-116: 成功＝再試行の鍵を消す
         setMsg("移動します…");
         window.location.replace(j.dest);
       } catch (e) { if (!cancelled) { setErr(jaOf(e instanceof Error ? e.message : "error")); setMsg(""); } }

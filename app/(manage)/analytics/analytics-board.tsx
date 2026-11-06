@@ -1106,11 +1106,11 @@ export default function AnalyticsBoard({
         </div>
       </div>
       <section className="nox-panel">
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div className="nox-rank-head" style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }} data-rank-head="1">{/* ★M-113（2026-11-06・便 F）: 375 幅は CSV 出力を見出しの下に右寄せ 1 行（globals.css） */}
           <h3 style={{ marginRight: "auto" }}>売上貢献ランキング（{period}・按分ベース）</h3>
           {/* E8-6 #15: ランキング CSV */}
           {salesRanking.length > 0 && (
-            <button style={{ ...t.btnGhost, ...t.btnSm }} onClick={exportRankingCsv}>CSV 出力</button>
+            <button className="csv" style={{ ...t.btnGhost, ...t.btnSm }} onClick={exportRankingCsv}>CSV 出力</button>
           )}
         </div>
         {salesRanking.length === 0 && <p style={noneP}>該当なし（対象月に帰属売上のある伝票がありません）</p>}
@@ -1120,14 +1120,12 @@ export default function AnalyticsBoard({
           const share = salesRankTotal > 0 ? Math.round((r.sales / salesRankTotal) * 1000) / 10 : null;
           const rate = castLaborRatePct(labor.state, castGross, r.castId, r.sales); // ★B6-4: 純関数（旧 g!==undefined∧sales>0 と同条件）
           return (
-            <div key={r.castId} className="nox-rk2">
+            <div key={r.castId} className="nox-rk2" data-rank-row="1">{/* ★M-113（M-109 の型）: 375 幅は 1 行目 順位・写真・名前（nowrap）・右端に金額／2 行目 本・場内・同伴／3 行目 構成・報酬率（globals.css） */}
               <span className={`nox-medal ${i === 0 ? "g1" : i === 1 ? "g2" : i === 2 ? "g3" : "gx"}`}>{i + 1}</span>
               <CastAvatar name={r.name} url={photoUrls.get(r.castId)} variant="flat" />
-              <span>{r.name}</span>
-              <span className="cnt num">
-                本{r.hon}・場内{r.jonai}・同伴{r.dohan}
-                {share !== null ? `・構成${share}%` : ""}{rate !== null ? `・報酬率${rate}%` : ""}
-              </span>
+              <span className="nm">{r.name}</span>
+              <span className="cnt num">本{r.hon}・場内{r.jonai}・同伴{r.dohan}</span>
+              <span className="cnt2 num">{share !== null ? `構成${share}%` : ""}{share !== null && rate !== null ? "・" : ""}{rate !== null ? `報酬率${rate}%` : ""}</span>
               <span className="amt num">{yen(r.sales)}</span>
             </div>
           );

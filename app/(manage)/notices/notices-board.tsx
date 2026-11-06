@@ -13,6 +13,8 @@ import Toast from "@/components/ui/toast";
 import Modal from "@/components/ui/modal";
 import Link from "next/link";
 import { noticeLineResultOf } from "@/lib/nox/line/notice-line"; // ★便 W-10 #21
+import { jstMonthOf, type LineMonthRow } from "@/lib/nox/line/push-forecast"; // ★M-114（裁定459）: 送る前の確認（今月の残り）
+import { lineNotifyOnOf, noticeLineConfirmOf } from "@/lib/nox/line/notify-kinds"; // ★M-114（裁定459）
 import LineQuotaCard from "@/components/nox/line-quota-card"; // ★便 D M-101
 
 type Notice = {
@@ -154,7 +156,18 @@ export default function NoticesBoard({ isManagerUp, audienceCounts, storeName, c
     });
     if (error) { setBusy(false); setMsg(`投稿に失敗: ${rpcErrJa(error.message)}`); return; }
     let lineMsg = "";
-    if (fLine && typeof newId === "string") { // ★便 W-10 #21: 掲載の後に LINE（失敗しても掲載は残る）
+    let sendLine = fLine;
+    if (fLine && typeof newId === "string" && storeId) { // ★M-114（裁定459）: 送る前に確認＝○人に送ります・今月の残り ○通・不足なら送らない（お知らせは掲載済み）
+      const [{ data: st }, { data: m }] = await Promise.all([
+        supabase.from("stores").select("line_monthly_limit, settings_json").eq("id", storeId).maybeSingle(),
+        supabase.rpc("line_push_month_summary", { p_month: jstMonthOf(Date.now()).month }),
+      ]);
+      const row = (((m ?? []) as LineMonthRow[]).find((r) => r.store_id === storeId)) ?? null;
+      const cf = noticeLineConfirmOf({ recipients: lineLinked ?? 0, sent: row?.sent ?? 0, limit: row?.monthly_limit ?? Number(st?.line_monthly_limit ?? 200) });
+      if (cf.blocked || !lineNotifyOnOf((st?.settings_json ?? null) as Record<string, unknown> | null, "notice")) { sendLine = false; lineMsg = `・${cf.blocked ? cf.text : "この店は LINE のお知らせ通知が OFF です（掲載だけ）"}`; }
+      else if (!window.confirm(cf.text)) { sendLine = false; lineMsg = "・LINE では送りませんでした（掲載だけ）"; }
+    }
+    if (sendLine && typeof newId === "string") { // ★便 W-10 #21: 掲載の後に LINE（失敗しても掲載は残る）
       const res = await fetch("/api/line/notice", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ noticeId: newId }) });
       const j = (await res.json().catch(() => ({}))) as { recipients?: number; sent?: number; failed?: number; skipped?: number; demo?: boolean; error?: string };
       lineMsg = res.ok ? `・${noticeLineResultOf({ recipients: j.recipients ?? 0, sent: j.sent ?? 0, failed: j.failed ?? 0, skipped: j.skipped ?? 0, demo: j.demo })}` : `・LINE は送れませんでした（${j.error ?? res.status}）`;

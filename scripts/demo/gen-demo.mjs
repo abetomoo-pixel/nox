@@ -147,6 +147,8 @@ for (const st of STORES) {
         push("staff_pin", { membership_id: r.m, store_id: storeId, pin_hash: "$2a$06$es6a5JEXahHwq41iFe.f9OWukggPKCQgYnB32ozpl.8mpEOK1EJh2", fail_count: 0, locked_until: null, updated_at: { $rel: -1, t: "12:00:00" } });
       }
     } }
+  // ★M-115（2026-11-06・便 F・相談役）: 「その日に選ぶ」の pick ルール 1 本（ヘアメ代 ¥500・全員・有効）＝出勤時の「今日の控除」のチェック群が /mine とキオスクに出る（0196 後・deductions は demo_org_reset が消す）
+  push("deductions", { id: uid(`ded:${code}:hairmake`), store_id: storeId, name: "ヘアメ代", amount: 500, per: "day", is_active: true, kind: "agreed_cost", day_rule: "pick" });
   for (const r of ranks) push("cast_ranks", { id: uid(`rank:${r.rank_id}`), store_id: storeId, name: r.rank_name === "default" ? "標準" : r.rank_name, sort_order: ranks.indexOf(r) + 1, is_active: true });
   const cats = D("categories").filter((c) => c.store_id === S);
   for (const c of cats) push("product_categories", { id: uid(`cat:${c.category_id}`), store_id: storeId, name: c.display_name, sort_order: c.sort_order, is_active: true });

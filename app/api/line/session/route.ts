@@ -3,7 +3,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createSessionForAuthUser, verifyLineIdToken } from "@/lib/nox/line/server";
+import { createSessionForAuthUser, verifyLineIdTokenEx } from "@/lib/nox/line/server"; // ★M-116
 import { LINE_STORE_COOKIE, UUID_RE, authUserOfSubject, lineStoreOf, lineStoreCookieOptions } from "@/lib/nox/line/subject";
 
 export const runtime = "nodejs";
@@ -17,8 +17,8 @@ export async function POST(req: Request) {
   const admin = createAdminClient();
   const store = await lineStoreOf(admin, storeId);
   if (!store || !store.config.login_channel_id) return NextResponse.json({ error: "line not configured" }, { status: 503 });
-  const v = await verifyLineIdToken(idToken, store.config.login_channel_id);
-  if (!v) return NextResponse.json({ error: "bad id_token" }, { status: 401 });
+  const v = await verifyLineIdTokenEx(idToken, store.config.login_channel_id);
+  if (!v.ok) return NextResponse.json({ error: "bad id_token", reason: v.reason, detail: v.detail }, { status: 401 }); // ★M-116: 理由（expired 等）と LINE の本文を返す（LIFF が 1 回だけ再ログイン）
   const { data: link } = await admin.from("line_links").select("subject_kind, subject_id").eq("org_id", store.orgId).eq("line_user_id", v.sub).maybeSingle();
   if (!link) return NextResponse.json({ error: "not linked" }, { status: 404 });
   const au = await authUserOfSubject(admin, link.subject_kind as "cast" | "membership", link.subject_id as string);

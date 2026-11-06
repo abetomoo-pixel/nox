@@ -55,7 +55,7 @@ import MonthNav, { useYmQuery } from "@/components/nox/month-nav"; // ★裁定3
 import { recruitNoteOf } from "@/lib/nox/ui/month-nav"; // ★306-2 募集期間の注記・306-10 は staff-shift-manage
 import { nextPeriodDefaults, overlappingPeriods, mdOf } from "@/lib/nox/shift/period"; // ★便 T（2026-09-18）: 期間の既定日付・重なり判定（純関数）
 import Modal from "@/components/ui/modal";
-import { notifyCast, notifyCasts } from "@/lib/nox/people/notify"; // ★便 ON-3（0176 ★5 (d)・裁定413）: 確定シフトの追加／外し・送り返し・催促の通知（cast_notifications＋LINE）
+import { lineNotifyAllowedOf, notifyCast, notifyCasts } from "@/lib/nox/people/notify"; // ★M-114（裁定459）: 催促の LINE は種類ごとの ON／OFF // ★便 ON-3（0176 ★5 (d)・裁定413）: 確定シフトの追加／外し・送り返し・催促の通知（cast_notifications＋LINE）
 import { SHIFT_PUBLISHED_LINE_KIND, notifRefOf, remindNoticeDefaultOf, remindWishBody, shiftAddedBody, shiftChangedBody, shiftProposedBody, shiftPublishedBody, shiftPublishedTargetsOf, shiftRemovedBody } from "@/lib/nox/people/notify-text"; // ★便 C① M-77 ①
 import { PERIOD_NEEDS_NOTE, emptyPeriodNeedsForm, periodNeedRequiredOf, periodNeedRowsOf, periodNeedsChipOf, periodNeedsErrorOf, periodNeedsFormOf, type PeriodNeedRow, type PeriodNeedsForm } from "@/lib/nox/shift/period-needs"; // ★便 ON-3（0176 ★5 (a)）: 期間ごとの必要人数
 import { declineTextOf } from "@/lib/nox/shift/decline"; // ★便 ON-3（0176 ★5 (c)・裁定406）: 辞退の印
@@ -657,7 +657,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
     const { error } = await supabase.rpc("notice_create_targets", { p_title: remindTarget.title, p_body: remindTarget.body, p_cast_ids: remindTarget.castIds, p_until: remindTarget.period.wish_deadline });
     if (error) { setBusyRemind(null); setMsg(`お知らせの送信に失敗: ${rpcErrJaCommon(error.message)}`); return; }
     let line = 0;
-    for (const id of remindTarget.castIds) { try { const res = await fetch("/api/line/push", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ castId: id, text: `${remindTarget.title}\n${remindTarget.body}`, kind: "other" }) }); if (res.ok && res.status !== 204) line++; } catch { /* LINE は任意 */ } }
+    for (const id of remindTarget.castIds) { if (!(await lineNotifyAllowedOf(supabase, id, "other", { remind: true }))) continue; /* ★M-114（裁定459）: 催促は既定 OFF */ try { const res = await fetch("/api/line/push", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ castId: id, text: `${remindTarget.title}\n${remindTarget.body}`, kind: "other" }) }); if (res.ok && res.status !== 204) line++; } catch { /* LINE は任意 */ } }
     setBusyRemind(null); setRemindTarget(null);
     setMsg(`未提出の ${remindTarget.castIds.length} 人にお知らせを送りました${line > 0 ? `（LINE ${line} 人）` : ""}`);
   }

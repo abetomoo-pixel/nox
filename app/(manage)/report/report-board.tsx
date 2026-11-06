@@ -1153,17 +1153,17 @@ export default function ReportBoard({
         <h3>
           プレビュー（クライアント集計・確定値は締め時のサーバ再集計が正）
         </h3>
-        <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10 }}>
-          <span style={{ fontSize: 13, color: "var(--v2-text)" }}>営業日</span>
+        <div className="nox-rep-prevhead" style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10 }} data-report-prevhead="1">{/* ★M-112（2026-11-06・便 F）: 375 幅はラベル（nowrap）＋ピッカー／営業日切替／営業時間を縦積み 3 行に（globals.css） */}
+          <span className="lbl" style={{ fontSize: 13, color: "var(--v2-text)", whiteSpace: "nowrap" }}>営業日</span>
           <DatePicker value={bizDate} onChange={setBizDate} ariaLabel="営業日" />{/* ★M-82 */}
           {/* ★裁定150（v2.1 D7）: 「区切り」→モック語「営業日切替 翌HH:MM」（値は settings_json.biz_cutoff_hm のまま） */}
-          <span style={{ ...t.sub, fontSize: 12 }}>営業日切替 翌{cutoff}（範囲: 当日{cutoff}〜翌日{cutoff}）</span>
+          <span className="sw" style={{ ...t.sub, fontSize: 12 }}>営業日切替 翌{cutoff}（範囲: 当日{cutoff}〜翌日{cutoff}）</span>
           {/* ★B2-a（裁定205・D6）: 表示中営業日の曜日の営業時間（store_business_hours・行が無い店は非表示） */}
           {(() => {
             const bh = bizHours.find((h) => h.dow === dowOf(bizDate));
             if (!bh) return null;
             return (
-              <span style={{ ...t.sub, fontSize: 12 }}>
+              <span className="bh" style={{ ...t.sub, fontSize: 12 }}>
                 {bh.is_closed || !bh.open_hm || !bh.close_hm
                   ? "定休日"
                   : `営業時間 ${hmLabelOf(bh.open_hm)}〜${fmtCloseHm(bh.open_hm, bh.close_hm)}`}
@@ -1172,7 +1172,7 @@ export default function ReportBoard({
           })()}
         </div>
         {preview && (
-          <div className="nox-tablewrap plain nw">{/* ★裁定251（M1）: 横スクロール容器（plain＝panel 内なので枠なし）・★裁定252（M9）: nw＝th／td nowrap */}
+          <div className="nox-tablewrap plain nw nox-rep-kpiband" data-report-kpiband="1">{/* ★裁定251（M1）: 横スクロール容器（plain＝panel 内なので枠なし）・★裁定252（M9）: nw＝th／td nowrap・★M-112: 480px 以下は横スクロールでなく 4 列×段に折る（globals.css） */}
           <table style={{ borderCollapse: "collapse", fontSize: 13 }}>
             <tbody>
               <tr>

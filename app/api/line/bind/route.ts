@@ -3,7 +3,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createSessionForAuthUser, verifyLineIdToken } from "@/lib/nox/line/server";
+import { createSessionForAuthUser, verifyLineIdTokenEx } from "@/lib/nox/line/server"; // ★M-116
 import { LINE_STORE_COOKIE, UUID_RE, authUserOfSubject, lineStoreOf, lineStoreCookieOptions } from "@/lib/nox/line/subject";
 import { INVITE_TOKEN_RE } from "@/lib/nox/people/invite";
 import { tokenHashOf } from "@/lib/nox/people/invite-server";
@@ -20,8 +20,8 @@ export async function POST(req: Request) {
   const admin = createAdminClient();
   const store = await lineStoreOf(admin, storeId);
   if (!store || !store.config.login_channel_id) return NextResponse.json({ error: "line not configured" }, { status: 503 });
-  const v = await verifyLineIdToken(idToken, store.config.login_channel_id);
-  if (!v) return NextResponse.json({ error: "bad id_token" }, { status: 401 });
+  const v = await verifyLineIdTokenEx(idToken, store.config.login_channel_id);
+  if (!v.ok) return NextResponse.json({ error: "bad id_token", reason: v.reason, detail: v.detail }, { status: 401 }); // ★M-116: 理由（expired 等）と LINE の本文を返す（LIFF が 1 回だけ再ログイン）
   const { data, error } = await admin.rpc("bind_line", { p_token_hash: tokenHashOf(token), p_line_user_id: v.sub });
   if (error) {
     const m = error.message;

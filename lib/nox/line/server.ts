@@ -20,19 +20,32 @@ export function lineSignatureOk(channelSecret: string, rawBody: string, signatur
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
-/** LIFF の id_token を LINE で確かめる（aud＝店のログインチャネル ID）。戻り＝LINE の userId（sub）か null */
-export async function verifyLineIdToken(idToken: string, loginChannelId: string): Promise<{ sub: string; name?: string } | null> {
+/** ★M-116（2026-11-06・便 F）: verify の失敗理由＝expired（LINE の error_description に expired）／invalid（400 のその他）／aud（sub 無し・aud 違い）／http（5xx）／network。detail は LINE の error／error_description（id_token は含めない） */
+export type LineVerifyReason = "expired" | "invalid" | "aud" | "http" | "network";
+export type LineVerifyResult = { ok: true; sub: string; name?: string } | { ok: false; reason: LineVerifyReason; detail: string };
+export async function verifyLineIdTokenEx(idToken: string, loginChannelId: string): Promise<LineVerifyResult> {
   try {
     const res = await fetch("https://api.line.me/oauth2/v2.1/verify", {
       method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({ id_token: idToken, client_id: loginChannelId }).toString(),
     });
-    if (!res.ok) return null;
-    const j = (await res.json()) as { sub?: string; aud?: string; name?: string; exp?: number };
-    if (!j.sub || j.aud !== loginChannelId) return null;
-    if (typeof j.exp === "number" && j.exp * 1000 < Date.now()) return null;
-    return { sub: j.sub, name: j.name };
-  } catch { return null; }
+    const j = (await res.json().catch(() => ({}))) as { sub?: string; aud?: string; name?: string; exp?: number; error?: string; error_description?: string };
+    if (!res.ok) {
+      const detail = `${j.error ?? ""} ${j.error_description ?? ""}`.trim().slice(0, 200) || `http ${res.status}`;
+      const reason: LineVerifyReason = /expired/i.test(detail) ? "expired" : res.status >= 500 ? "http" : "invalid";
+      console.error(`line verify: ${res.status} ${reason} ${detail}`); // ★M-116: LINE の 400 本文を Runtime Logs に（id_token は出さない）
+      return { ok: false, reason, detail };
+    }
+    if (!j.sub || j.aud !== loginChannelId) { console.error("line verify: aud mismatch"); return { ok: false, reason: "aud", detail: "aud mismatch" }; }
+    if (typeof j.exp === "number" && j.exp * 1000 < Date.now()) { console.error("line verify: exp passed"); return { ok: false, reason: "expired", detail: "exp passed" }; }
+    return { ok: true, sub: j.sub, name: j.name };
+  } catch (e) { console.error("line verify: network"); return { ok: false, reason: "network", detail: String(e instanceof Error ? e.message : e).slice(0, 100) }; }
+}
+
+/** LIFF の id_token を LINE で確かめる（aud＝店のログインチャネル ID）。戻り＝LINE の userId（sub）か null（★M-116: 理由が要るときは verifyLineIdTokenEx） */
+export async function verifyLineIdToken(idToken: string, loginChannelId: string): Promise<{ sub: string; name?: string } | null> {
+  const r = await verifyLineIdTokenEx(idToken, loginChannelId);
+  return r.ok ? { sub: r.sub, name: r.name } : null;
 }
 
 /** Auth ユーザーのセッションを同じサーバで作る（magiclink を生成→verifyOtp＝cookie は @supabase/ssr が載せる）。メールは送らない */

@@ -3162,3 +3162,25 @@ input[type="date"]::-webkit-date-and-time-value, input[type="time"]::-webkit-dat
   .nox-hlrow .val .pc { font-size: 12px; color: var(--sub); }
   .nox-hlrow .val .pc::before, .nox-hlrow .val .pc::after { content: ""; }
 }
+
+/* ★M-112（2026-11-06・便 F・相談役）: 日報 › プレビューの 375 幅＝「営業日」ラベル（nowrap）＋ピッカー／営業日切替／営業時間を縦積み 3 行に。指標の帯（伝票〜カード手数料 2 種…）は横スクロールでなく 4 列×段に折る */
+@media (max-width: 480px) {
+  .nox-rep-prevhead { flex-wrap: wrap; align-items: flex-start; }
+  .nox-rep-prevhead .sw, .nox-rep-prevhead .bh { flex-basis: 100%; }
+  .nox-rep-kpiband { overflow: visible; }
+  .nox-rep-kpiband table, .nox-rep-kpiband tbody, .nox-rep-kpiband tr { display: block; width: 100%; }
+  .nox-rep-kpiband td { display: inline-block; box-sizing: border-box; width: 25%; vertical-align: top; border-right: 0 !important; padding: 4px 4px !important; }
+  .nox-rep-kpiband td > div:first-child { white-space: normal; line-height: 1.25; min-height: 2.5em; }
+  .nox-rep-kpiband td > div:last-child { white-space: nowrap; font-size: 12.5px; }
+}
+/* ★M-113（2026-11-06・便 F・相談役）: 分析 › 売上貢献ランキングの 375 幅＝1 行目 順位・写真・名前（nowrap）・右端に金額／2 行目 本・場内・同伴／3 行目 構成・報酬率（M-109 の型）。CSV 出力は見出しの下に右寄せ 1 行 */
+.nox-rk2 .cnt2 { font-size: 12px; color: var(--v2-muted); white-space: nowrap; }
+@media (max-width: 480px) {
+  .nox-rank-head .csv { flex-basis: 100%; margin-left: auto; text-align: right; display: flex; justify-content: flex-end; }
+  .nox-rk2 { display: grid; grid-template-columns: auto auto 1fr auto; grid-template-areas: "medal avatar name amt" "cnt cnt cnt cnt" "cnt2 cnt2 cnt2 cnt2"; row-gap: 2px; column-gap: 8px; }
+  .nox-rk2 .nox-medal { grid-area: medal; }
+  .nox-rk2 .nm { grid-area: name; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .nox-rk2 .amt { grid-area: amt; }
+  .nox-rk2 .cnt { grid-area: cnt; margin-left: 0; }
+  .nox-rk2 .cnt2 { grid-area: cnt2; }
+}

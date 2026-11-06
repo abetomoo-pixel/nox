@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { lineConfiguredOf, lineLimitLabelOf, type LineConfig } from "@/lib/nox/line/liff-endpoint";
 import { LINE_QUOTA_KINDS_NOTE, jstMonthOf, lineQuotaViewOf, lineStatusTextOf, type LineMonthRow } from "@/lib/nox/line/push-forecast";
+import { LINE_PLAN_UPGRADE_NOTE } from "@/lib/nox/line/notify-kinds"; // ★M-114（裁定459）
 import * as t from "@/lib/nox/ui/theme";
 
 export default function LineQuotaCard({ storeId, compact = false }: { storeId: string | null; /** お知らせ画面＝余白を詰める */ compact?: boolean }) {
@@ -59,6 +60,7 @@ export default function LineQuotaCard({ storeId, compact = false }: { storeId: s
       </p>
       {statusText && <p style={{ margin: "6px 0 0", fontSize: 12, color: "var(--bad)", fontWeight: 700 }}>{statusText}</p>}
       <p style={{ margin: "6px 0 0", fontSize: 10.5, color: "var(--v2-muted)" }}>{LINE_QUOTA_KINDS_NOTE}</p>
+      <p style={{ margin: "4px 0 0", fontSize: 10.5, color: "var(--v2-muted)" }} data-line-quota-plan="1">{LINE_PLAN_UPGRADE_NOTE}</p>{/* ★M-114（裁定459）: 無料枠を超える店の案内 1 行 */}
     </section>
   );
 }
