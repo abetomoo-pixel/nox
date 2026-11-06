@@ -5586,7 +5586,7 @@ Agoora が 7 本を手貼り（0185→0180→0181→0182→0183→0184→0186）
 - **client の器**（flag.ts＝MIG_0198_APPLIED=false・mig0198On／__set0198ForTest）＝①待遇プラン › 基本・保証に「前借り（貸付）の取扱いに同意」（data-advance-loan-agreed・owner のみ）＝mig0198On() のときだけ出す・set_comp_plan の 33 引数目（p_advance_loan_agreed）も同じ条件で送る（手貼り前は旧 32 引数のまま＝署名違いで落ちない）。②前借り（貸付）の発行の行に「本人確認 PIN（空＝立会い）」（data-loan-pin・4〜6 桁）＝advance かつ mig0198On() のときだけ・そのときは cast_loan_grant（p_pin＝空なら null＝ack 'manager'）・それ以外は従来の route（/api/advance/issue）。bad pin＝「PIN が違います（本人確認）」（loanErrJa）。
 - **出さないもの**（0198 のフラグ true 便へ）＝貸付台帳（cast_loans／cast_loan_balances の画面）・現金の返済（cast_loan_repay）の入口・/mine の貸付の節・一括発行（issue-bulk）の PIN（一括は立会い＝ack 'manager' のまま＝仮置き）。
 - **レーン 4 の残り**＝scripts/admin/create-org.mjs の既定 --site を https://noxapp.jp に（vercel.app は --site で fallback）＝verify の pin なし（bend は siteOriginOf の純関数だけ）。
-- verify＝verify:nox-benf（10-1〜10-4）＝26 本。tsc 0・lint Error 0。**f0＝2 連緑 T／U（176 段 7,405＝レーン 2 の 7,401＋benf 4）**・**push＝689bd48（client）＋docs の締め（origin/main の先頭＝21:2x JST）**・撮影なし（フラグ false＝画面に出ない）・reset なし（DB・デモの変化なし）。
+- verify＝verify:nox-benf（10-1〜10-4）＝26 本。tsc 0・lint Error 0。**f0＝2 連緑 T／U（176 段 7,405＝レーン 2 の 7,401＋benf 4）**・**push＝689bd48（client）＋7916add（docs の締め・21:2x JST・Vercel success）**・撮影なし（フラグ false＝画面に出ない）・reset なし（DB・デモの変化なし）。
 
 ### 便 F の記録（2026-11-06 夕〜夜・client＝M-116 → M-112〜M-115 → 読取 2 件・目視①・f0 段数の 1 行）
 
