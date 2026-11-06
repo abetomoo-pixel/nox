@@ -1077,8 +1077,13 @@ async function main() {
         p_cast_id: castIdA, p_date: "2026-07-16", p_status: "shukkin", p_eta: null, p_reason: null,
       });
       check("F1f staffA1 attendance_set 成功（台帳 #24 開放）", !eA && typeof aid === "string", eA?.message);
-      const { error: eP } = await s.rpc("punch_proxy", { p_cast_id: castIdA, p_type: "in", p_note: null });
-      check("F1f staffA1 punch_proxy 拒否（manager 維持）", !!eP?.message?.includes("forbidden"), eP?.message ?? "通ってしまった");
+      // ★0196（2026-11-06 手貼り・裁定448 追加5／456 の 9）: punch_proxy は自店の staff にも開いた＝forbidden ではない（成功＝uuid・または順序検査 'already in' 等＝役割の柵は通っている）。作った行はその場で消す（教訓123）。
+      const { data: pidP, error: eP } = await s.rpc("punch_proxy", { p_cast_id: castIdA, p_type: "in", p_note: null });
+      check("F1f staffA1 punch_proxy＝自店の staff は forbidden ではない（★0196＝代わりに打刻）", (!eP && typeof pidP === "string") || (!!eP && !eP.message.includes("forbidden")), eP?.message ?? "ok");
+      if (typeof pidP === "string") {
+        const adminQ = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY, { auth: { autoRefreshToken: false, persistSession: false } });
+        await adminQ.from("punches").delete().eq("id", pidP);
+      }
       const { data: rows, error: eR } = await s.rpc("get_cast_ranking", { p_store_id: storeA1Id, p_period: period });
       check("F1f staffA1 ranking 自店成功", !eR && (rows ?? []).length === 2, eR?.message ?? `got ${(rows ?? []).length}`);
       await s.auth.signOut();
