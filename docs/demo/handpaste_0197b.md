@@ -47,5 +47,9 @@ select 'table count (expect 120)', count(*)::text from pg_tables where schemanam
 ```
 期待＝貼り先証明・f,f,f・f,f,f・925f0245・419・120（6 行）。返りを CC へ＝supabase/migrations/0197b_on_duty_of_acl.sql に収蔵し、verify:nox-0190／0197 が緑に戻る → f0 2 連 → push。
 
-## 試走（本番・BEGIN…ROLLBACK・DB 変更 0）
-- 2026-11-06: 下の記録に追記。
+## 手貼りの記録（2026-11-06・Agoora＝本番 ref hiqbfagmkrdpmlqhkmsu）
+- 事前確認＝貼り先証明 10／on_duty_of authenticated **true**／service_role false／fn 419 → 本文 1 回 Run＝Success → 検証 6 行＝**期待値と全行一致**（on_duty_of f,f,f・assert_on_duty f,f,f・md5 925f0245・419・120）。
+- CC の突合（読取だけ・16:35）＝本番の on_duty_of EXECUTE（anon,authenticated,service_role）＝false,false,false・md5 925f0245・419／120。収蔵＝supabase/migrations/0197b_on_duty_of_acl.sql（5 行）。verify:nox-0190「内部 3 本」・verify:nox-0197(4-2) が緑に戻る。
+
+## 試走（本番 ref hiqb…・BEGIN…ROLLBACK・DB 変更 0）
+- 2026-11-06 17:0x: 本番の on_duty_of の EXECUTE（anon,authenticated,service_role）＝**false,true,false** → tx 内で revoke → **false,false,false** → ROLLBACK → false,true,false（DB 変更 0）。service_role は 0197 でも grant されていない（ACL ヘルパーは authenticated だけ）＝追補の revoke 1 文で 0190 の状態に戻る。
