@@ -1,9 +1,10 @@
-# 0196 手貼り案内（キオスクの便＝裁定448 B 方式・453・§9 出勤時の控除・M-93 差し替え・2026-11-05 夜の自走便 2 で起草）
+# 0196 手貼り案内（キオスクの便＝裁定448 B 方式・453・456・§9 出勤時の控除・M-93 差し替え・2026-11-05 夜の自走便 2 で起草 → 2026-11-06 裁定456 の 1 で再生成）
 
-**手貼りは相談役の合図＝ここでは貼らない。** 順序＝0195 の後（本番は 0195 適用済み＝関数 416・表 119）。0197 はこの後に別紙（handpaste_0197.md）。
+**手貼りは相談役の合図＝ここでは貼らない。** 順序＝0195 の後（本番は 0195 適用済み＝関数 416・表 119＝2026-11-06 再確認）。0197 はこの後に別紙（handpaste_0197.md）。
+**sha16 旧 91e387cabf51b8db（11/05・571 行）→ 新 baab7cbbc665ec4b（11/06・605 行）＝貼るのは新。**
 
-## ★仮置き 10 点（相談役が朝に裁定・変更があれば gen_0196.cjs を直して live から再生成）
-1. **§6-1 staff の PIN 入場**＝操作担当の候補のまま（staff は can_register の人だけ＝kiosk_login の候補と同じ・候補は広げない）。
+## 10 点（裁定456＝2026-11-06 朝に相談役が確定・変更は 1 だけ→ gen_0196.cjs を直して live から再生成済み）
+1. **§6-1 staff の PIN 入場（裁定456 の 1 で変更）**＝裁定453 の 1 のとおり **can_register に関係なく**＝役割が manager／staff で PIN があれば候補に出て本人セッションに入れる（owner／admin／cast は forbidden のまま）。**kiosk_operator_list（レジの操作担当の候補）は can_register のまま変えない**（本人セッション＝打刻・シフト・予約・代行打刻の入口であって、レジ操作の許可とは別）。CC の読取＝PIN の入口の実経路は KioskPersonEntry → KioskUnlockPad → **kiosk_unlock → kiosk_login** なので、**kiosk_login と kiosk_unlock の 2 本**を同じ判定に（kiosk_login だけでは client から効かない）。あわせて kiosk_unlock が inner の kiosk_login に **p_device_fp を渡す**（今は 2 引数＝束縛済みの端末では inner が 'device bound' になる＝読取で判明）。★client 側＝KioskUnlockPad は kiosk_unlock に p_device_fp を送っていない（0190 の束縛済み端末では unlock 自体が 'device bound'）＝**0196 のフラグ true 便で browserDeviceFp() を送る**。
 2. **§6-2 無操作**＝店設定 kiosk_person_idle_minutes（M-49・既定 10・1〜120）を流用（kiosk_person_claim の戻り idle_minutes）。
 3. **§6-3 予約・顧客のタブ**＝本人セッションなら本店と同じ RLS＝出す（DDL には関係しない・client の kioskNavOf＝レジ／打刻／予約／シフト／在庫／顧客／日報）。
 4. **§6-4 卓カードの指名**＝kiosk_register_state の checks に nominations（本指名・場内・同伴の印・終了していない行）を足す（端末セッションのレジでも出る・写真は既存 /api/kiosk/photos）。
@@ -15,17 +16,17 @@
 10. **M-100 destination の自動埋め**＝route（admin の update）で済む＝0196 には入れない。
 
 **結論 3 行**
-1. 0196＝kiosk_sessions に列 2（person_auth_session／person_role）・RPC 新設 2（kiosk_person_claim／kiosk_person_end＝service_role だけ）・作り直し 8（kiosk_lock＝jsonb を返す・kiosk_register_state＝nominations・cast_day_deductions_set＝cast セルフ腕・kiosk_punch＝5 引数・kiosk_punch_state＝1 引数・kiosk_operator_list／kiosk_login＝候補の判定・punch_proxy＝staff）＝関数 416→**418**・表 119 不変。
-2. live（0195 適用後・2026-11-05）から生成（手打ちなし＝関数本体は live の写し＋アンカー置換・docs/tmp/gen_0196.cjs）・**begin の直後に set local lock_timeout = '10s'（教訓132）**・試走 BEGIN…ROLLBACK＝2026-11-05 **27/27・DB 変更 0**（416／119 → tx 内 418／119 → 416／119・verify 22 行が期待値と全行一致）。
+1. 0196＝kiosk_sessions に列 2（person_auth_session／person_role）・RPC 新設 2（kiosk_person_claim／kiosk_person_end＝service_role だけ）・作り直し 9（kiosk_lock＝jsonb を返す・kiosk_register_state＝nominations・cast_day_deductions_set＝cast セルフ腕・kiosk_punch＝5 引数・kiosk_punch_state＝1 引数・kiosk_operator_list／kiosk_login＝候補の判定（M-93）・**kiosk_login／kiosk_unlock＝staff は can_register を見ない（裁定456 の 1）・kiosk_unlock は fp を inner へ**・punch_proxy＝staff）＝関数 416→**418**・表 119 不変。
+2. live（0195 適用後・本番 ref hiqb…＝2026-11-06 再取得＝11/05 の写しと 16 本同一）から生成（手打ちなし＝関数本体は live の写し＋アンカー置換・docs/tmp/gen_0196.cjs）・**begin の直後に set local lock_timeout = '10s'（教訓132）**・試走 BEGIN…ROLLBACK＝2026-11-06 **31/31・DB 変更 0**（416／119 → tx 内 418／119 → 416／119・verify 22 行が期待値と全行一致）。
 3. 手順は 0195 と同じ＝本番 ref **hiqbfagmkrdpmlqhkmsu** の SQL Editor で事前確認 SQL（返り＝貼り先証明 1 行だけなら貼ってよい）→ 全文を 1 回 Run（begin〜commit）→ 検証クエリ（期待値と全行一致）→ CC に返り 22 行を貼る → CC が MIG_0196_APPLIED=true のフラグ便。
 
 | 項目 | 値 |
 |---|---|
 | ファイル | docs/tmp/0196_kiosk_person.sql（LF）→ 手貼り後に supabase/migrations/0196_kiosk_person.sql へ収蔵 |
-| sha256 | 先頭 16 桁 **91e387cabf51b8db**（571 行・36,726 B・LF） |
-| 翻訳元 | live pg_get_functiondef（2026-11-05・0195 適用後・docs/tmp/dump_live_0192.mjs→scratchpad/live0196）＋生成器 docs/tmp/gen_0196.cjs・検証＝docs/tmp/0196_verify.sql |
-| 試走 | docs/tmp/try_0196.mjs（教訓128＝行頭マーカー・commit; の不在 assert・lock_timeout の 1 行 assert・関数数を tx の外で前後に）＝ 2026-11-05 **27/27・DB 変更 0** |
-| 根拠 | 台帳 裁定448／453／455（M-93 差し替え）／M-103／docs/tmp/0196_plan.md §1〜§10 |
+| sha256 | 先頭 16 桁 **baab7cbbc665ec4b**（605 行・40,662 B・LF）＝2026-11-06 裁定456 の 1 で再生成（旧 91e387cabf51b8db・571 行・36,726 B は破棄） |
+| 翻訳元 | live pg_get_functiondef（2026-11-06 再取得・0195 適用後・docs/tmp/dump_live_0192.mjs→scratchpad/live0196＝11/05 の写しと 16 本同一）＋生成器 docs/tmp/gen_0196.cjs・検証＝docs/tmp/0196_verify.sql |
+| 試走 | docs/tmp/try_0196.mjs（教訓128＝行頭マーカー・commit; の不在 assert・lock_timeout の 1 行 assert・関数数を tx の外で前後に）＝ 2026-11-06 **31/31・DB 変更 0**（11/05 の 27 段＋★5 の 4 段） |
+| 根拠 | 台帳 裁定448／453／455（M-93 差し替え）／456（10 点の確定）／M-103／docs/tmp/0196_plan.md §1〜§10 |
 | 関数数・表数 | 416／119 → **418／119**（新設 2＝kiosk_person_claim・kiosk_person_end） |
 
 **中身**
@@ -33,13 +34,14 @@
 - ★2 kiosk_register_state の checks[] に nominations [{cast_id, kind, is_dohan}]（ended_at null・position 順）。
 - ★3 §9＝cast_day_deductions_set の cast 腕（本人・当日だけ）／kiosk_punch(p_cast_id, p_pin, p_type, p_okuri, p_day_deductions jsonb default null)（in のときだけ・同じ tx で cast_day_deductions を upsert／delete・audit の after_json に day_deductions）／kiosk_punch_state(p_cast_id default null) の day_rules。
 - ★4 M-93＝kiosk_operator_list／kiosk_login の cast 候補（新キー or 旧キー）・punch_proxy＝自店の staff も可。
+- ★5 裁定456 の 1＝kiosk_login／kiosk_unlock の候補＝`m.role = 'staff'`（can_register を見ない・owner／admin／manager はそのまま・cast は M-93 の判定）。kiosk_operator_list は `(m.role = 'staff' and m.can_register)` のまま。kiosk_unlock の末尾＝`kiosk_login(v_mid, p_pin, p_device_fp)`（fp を渡す）。kiosk_unlock の ACL は従来どおり（authenticated）。
 
-## 事前確認 SQL（貼る前・SELECT のみ）＝返りが貼り先証明 1 行だけなら OK（md5 は 2026-11-05 の dev＝0195 適用後の値・本番で再照合してから貼る）
+## 事前確認 SQL（貼る前・SELECT のみ）＝返りが貼り先証明 1 行だけなら OK（md5 9 本＝2026-11-06 に本番 ref hiqb… で再照合＝全部一致・0195 適用後の値）
 ```sql
 select 'nox-project-proof' k, count(*)::text v from public.orgs
 union all
 select 'md5 drift ' || x.n, coalesce(left(md5(replace(p.prosrc, chr(13), '')), 8), 'missing')
-  from (values ('kiosk_lock','51c43564'),('kiosk_register_state','a4426533'),('kiosk_punch','ffa49ad5'),('kiosk_punch_state','0ed80625'),('kiosk_operator_list','bfd6b46c'),('cast_day_deductions_set','994b62cd'),('kiosk_login','81ced32e'),('punch_proxy','bb59dc9a')) x(n, m)
+  from (values ('kiosk_lock','51c43564'),('kiosk_register_state','a4426533'),('kiosk_punch','ffa49ad5'),('kiosk_punch_state','0ed80625'),('kiosk_operator_list','bfd6b46c'),('cast_day_deductions_set','994b62cd'),('kiosk_login','81ced32e'),('kiosk_unlock','8cf87df4'),('punch_proxy','bb59dc9a')) x(n, m)
   left join pg_proc p on p.pronamespace='public'::regnamespace and p.proname = x.n
  where p.oid is null or left(md5(replace(p.prosrc, chr(13), '')), 8) <> x.m
 union all
@@ -61,12 +63,16 @@ docs/tmp/0196_kiosk_person.sql の全文（begin〜commit を 1 回 Run）。URL
 | kiosk_punch_state 1 arg／0 args | 1／0 |
 | kiosk_lock returns | jsonb |
 | claim/end service_role／authenticated | t,t／f,f |
-| anon exec on 10 fns | 0 |
-| authenticated exec on 8 fns | 8 |
-| register_state has nominations／operator_list・kiosk_login uses sys_cast_register／punch_proxy allows staff／cast self arm not today／kiosk_punch_state day_rules | yes ×6 |
+| anon exec on 11 fns | 0 |
+| authenticated exec on 9 fns | 9 |
+| register_state has nominations／punch_proxy allows staff／cast self arm not today／kiosk_punch_state day_rules | yes ×4 |
+| operator_list/kiosk_login use sys_cast_register | yes,yes |
+| login/unlock staff w/o can_register + unlock fp + operator_list keeps | yes,yes,yes,yes |
 | person sessions so far | 0 |
 
-## 試走の記録（dev・BEGIN…ROLLBACK・DB 変更 0）
+## 試走の記録（本番 ref hiqb…（SUPABASE_DB_URL）・BEGIN…ROLLBACK・DB 変更 0）
+- **2026-11-06（裁定456 の 1 で再生成・sha16 baab7cbbc665ec4b）**: body 593 行・commit-free ok・lock_timeout ok → 関数 416／表 119 → tx 内 418／119 → ROLLBACK → 416／119（DB 変更 0）。verify 22 行＝期待値と全行一致。動作 **31/31**＝11/05 の 27 段＋★5 の 4 段（kiosk_login＝can_register=false の staff が PIN で ok／kiosk_unlock（fp つき・束縛済み端末）＝同じ staff が ok＋idle_sec／kiosk_operator_list＝その staff は候補に出ない（3 人のまま）／その解除で kiosk_person_claim＝role staff・membership 一致）。
+- 旧（11/05・sha16 91e387cabf51b8db）＝下の記録＝再生成で破棄。
 - 2026-11-05（dev＝0195 適用後）: body 560 行・commit-free ok・lock_timeout ok → 関数 416／表 119 → tx 内 418／119 → ROLLBACK → 416／119（DB 変更 0）。verify 22 行＝期待値と全行一致。
 - 動作 27/27＝★1 claim（not bound／no session／owner forbidden／device bound／staff ok＝session_id・auth_user_id・membership_id・role・store・idle 10／印と audit／authenticated は permission denied）・kiosk_lock jsonb（person_end true／false）・person_end（true・二度目 false・bad reason）／★2 register_state の checks に nominations（配列）／★3 cast セルフ腕（本人・当日 ok／not today／他人 forbidden／既定に戻すと 0 行）・kiosk_punch_state(p_cast_id) の day_rules（2 本・0 引数は空・キャスト別の除外と上書き 450）・kiosk_punch（退勤に付けると bad day deductions・悪い行は statement ごと戻る・出勤と同時に 1 行＋audit・3 引数の退勤 ok）／★4 punch_proxy＝自店の staff ok・他店 forbidden・候補の判定は 2 関数とも新キー。
 - ★試走の NG 2 件（初回）＝テストの順序（同じキャストで退勤の後に出勤＝'already out'）＝テストを直した（本体は不変）。

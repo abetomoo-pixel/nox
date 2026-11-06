@@ -5518,6 +5518,37 @@ Agoora が 7 本を手貼り（0185→0180→0181→0182→0183→0184→0186）
 - **0183 の (a)**: payroll_withholding_overrides／payroll_employee_deductions の period は YYYY-MM＝payroll_runs.period も CHECK で YYYY-MM・period_bounds も月だけ＝run は精算方式（settlement_cycle）に関係なく月単位で、half／weekly／daily は源泉の暦日数の注記と日払いの種別だけ（本番 10 店とも settlement_cycle 未設定＝月次）＝今は足りる。半月・週の run を作るときは run・上書き・控除の 3 つの period を一緒に設計し直す。
 - **0183 の (b)**: キャストの源泉区分は「税務情報を保存」で set_cast_tax_profile（upsert＝行を作る）の後に set_withholding_kind を呼ぶ＝not found にならない。スタッフは契約の行がある人だけ区分の選択が出る（行を作る動線＝B の 6-④）。
 
+## 裁定456（2026-11-06 確定・相談役＝v59 確定版 §0-2）0196／0197／便 E／M-82 の仮置き 20 点＝変更 3 点（1・17・18）・ほか 17 点は推奨案のまま承認＋同梱（教訓135・M-109・M-105 の実機再確認）
+
+出典＝相談役 11/06 朝（v59_draft §0-2 の 20 点への裁定＝docs/handoff/NOX_相談役引き継ぎ_2026-11-05_v59.md §0-2）。適用＝0196 の再生成（1）・0197 便の client（17・18）・ほかは起草済みの推奨案のまま。
+「変更は 3 点（1・17・18）。ほかの 17 点は推奨案のまま承認。
+A. 0196（キオスクの便）
+1. 変更＝§6-1 staff の PIN 入場は裁定453 の 1 のとおり can_register に関係なく＝役割が manager／staff で PIN があれば kiosk_login の候補に出て本人セッションに入れる（owner／admin／cast は forbidden のまま）。レジの操作担当の候補（kiosk_operator_list）は can_register のまま変えない（本人セッション＝打刻・シフト・予約・代行打刻の入口であって、レジ操作の許可とは別）。→ CC が gen_0196.cjs を直して live から再生成・試走・sha16 を報告。
+2. そのまま＝kiosk_person_idle_minutes（M-49・既定 10）を流用。
+3. そのまま＝本人セッションは本店と同じ RLS（kioskNavOf＝レジ／打刻／予約／シフト／在庫／顧客／日報）。
+4. そのまま＝kiosk_register_state の checks に nominations。
+5. そのまま＝cast セルフ腕（本人・当日だけ）。
+6. そのまま＝kiosk_punch 5 引数（in のときだけ・旧 4 引数 drop）。
+7. そのまま＝kiosk_punch_state(p_cast_id default null) に day_rules（旧 0 引数 drop）。
+8. そのまま＝M-93 の候補判定（sys_cast_register>=1 または旧キー）。
+9. そのまま＝punch_proxy を自店の staff にも開く（B 方式）。
+10. そのまま＝M-100 は route（0196 に入れない）。
+B. 0197（裁定455）
+11. そのまま＝set_store_profile の白名単に punch_mode／register_window_before_min／register_window_after_min。
+12. そのまま＝確定シフトの終了は NOT NULL（確認 2 は消える）。
+13. そのまま＝今日だけ許可は その営業日だけ・p_biz_date は今日か翌営業日。
+14. そのまま＝staff の確定シフトは staff_shifts（confirmed）を on_duty_of が読む。
+15. そのまま＝punch_mode='store' は打刻を見ない（窓か今日だけ許可）・店長以上の免除と duty_gate=false は今のまま。
+C. 便 E（client）
+16. そのまま＝middleware は cookie を見ない（layout＋RPC の二重）。
+17. 変更＝/mine の勤怠一覧（attendance-month）は、punch_mode='store' の店では確定シフトの日を出す（出＝シフト開始・退＝シフト終了・実働＝給与と同じ式・当欠／休みは「—」と状態）。キャストに「給与は付くのに勤怠は 0 行」を見せない。＝0197 のフラグ便（client）。
+18. 変更＝出勤インセンティブの受給者判定（recipientsByDate）は、punch_mode='store' の店では確定シフトのある日を出勤扱い（attendance.status が 当欠／休み の日は除く）。＝0197 のフラグ便（client）。「受給は当日の確定シフト出勤が条件」の文言はそのまま。
+19. そのまま＝店舗設定の 3 択は「キャストの打刻 使う／使わない」の上・'store' のとき punch_methods は触らない。
+D. M-82
+20. そのまま＝件数可変の select 22 は教訓27 で残す（scan に理由明記済み）。Picker 化はローンチ後。
+追加（同梱）＝教訓135 を採番（f0 の走行中は shared file を触らない）・M-109（/register 375 幅の卓カードの金額を 2 行に＝便 F の先頭）・M-105 の実機再確認（/mine の連絡先の 保存／やめる を実画面で撮る・入口が無ければどの操作で出るか 1 行）。」
+CC の処置（2026-11-06）＝①1 で gen_0196.cjs を直し live（本番 ref hiqb…・0195 後＝11/05 の写しと 16 本同一）から再生成＝sha16 91e387cabf51b8db（571 行）→ **baab7cbbc665ec4b**（605 行・40,662 B）。読取＝PIN の入口の実経路は KioskPersonEntry → KioskUnlockPad → **kiosk_unlock → kiosk_login** なので kiosk_login と kiosk_unlock の 2 本を同じ判定（`m.role = 'staff'`）に・kiosk_operator_list は不変。あわせて kiosk_unlock が inner の kiosk_login に p_device_fp を渡す（今は 2 引数＝束縛済み端末で inner が 'device bound'＝読取で判明）。関数 416→418（kiosk_unlock は同じ署名の作り直し＝数は不変）・表 119。試走 BEGIN…ROLLBACK＝**31/31**（11/05 の 27 段＋★5 の 4 段）・DB 変更 0・verify 22 行一致（行の折り畳みで 22 のまま・anon 11 本／authenticated 9 本）。事前確認 SQL の md5 9 本（kiosk_unlock 8cf87df4 を追加）を本番で再照合＝全部一致。②17・18 は 0197 便の client（起草済みの 0197_punch_mode.sql は不変）。③教訓135／M-109 は前 CC が収載済み＝重複採番しない。**M-108＝欠番**（台帳に本文なし＝v59 §1 の「M-101〜M-108」は便 D の記録「M-101〜M-107」と食い違い・詰めない）。★client の残り＝KioskUnlockPad が kiosk_unlock に p_device_fp を送っていない＝0196 のフラグ true 便で browserDeviceFp() を送る。手貼りは相談役の合図＝貼っていない。次の裁定＝**457**。
+
 ## 裁定455（2026-11-05 確定・相談役＝Agoora 方針）打刻の 3 択目「打刻しない（店が勤怠を付ける）」＝punch_mode・実働は確定シフト・遅刻／当欠控除は精算調整の preset・スマホのレジの柵＝確定シフトの時間内＋今日だけ許可・mig の割り当て 0196／0197
 
 出典＝相談役 11/05（CC の読取 1〜6 への裁定）。適用＝便 D（3）・便 E＝0197 のフラグ便（2・4・5 の client）・0196／0197（DDL）。
@@ -8449,6 +8480,10 @@ anon-guard 段28 が無差別 `limit(1)` でそれを拾い 'bad amount'/BV=unde
   なお同じ文にあった「**メモ列が無い**」の側は**正しい**（実測: `shifts` 14列 / `shift_wishes` 12列に
   該当列なし）ため、消さずに理由を分けて残した。
   根拠の全文＝`docs/dp/survey_6-4.md`。
+
+## 次の番号（2026-11-06 朝・v59 確定版＝裁定456 を収載・0196 を裁定456 の 1 で再生成した時点）
+
+- **次の裁定＝457**（456＝2026-11-06 確定＝v59_draft §0-2 の 20 点＝変更 3 点（1＝staff の PIN 入場は can_register を見ない・kiosk_operator_list は不変／17＝/mine 勤怠一覧は punch_mode='store' で確定シフトの日／18＝出勤インセンティブの受給者判定も確定シフト）・ほか 17 点は推奨案のまま・同梱＝教訓135・M-109・M-105 再確認）。**次の M＝M-110**（M-109＝収載済み・**M-108＝欠番**＝台帳に本文なし＝詰めない）。**次の教訓＝136**（135＝収載済み＝f0 の走行中は shared file を触らない）。**次の mig＝0196**（2026-11-06 再生成＝docs/tmp/0196_kiosk_person.sql **sha16 baab7cbbc665ec4b**・605 行・試走 31/31・DB 変更 0・handpaste_0196.md 更新＝手貼りは相談役の合図・旧 91e387cabf51b8db は破棄）→ **0197**（起草済み sha16 f28f737489916c38・不変・順序＝0196 の後）。
 
 ## 次の番号（2026-11-05・0195 のフラグ true 便＝裁定453／454 を収載した時点）
 
