@@ -5268,6 +5268,12 @@ grep で洗い出した左右振り分けのボタンは一覧報告だけでな
 読取②（Webhook の再送）＝webhookEventId／isRedelivery の重複捨ては無いが効果として冪等＝書くのは unfollow の line_link_block だけ（blocked_at null の行だけ update・変わらなければ audit も書かない）・follow／テキストは reply（1 回限りの replyToken・台帳に入れない）＝LINE の「再送」ON でよい。端＝unfollow の再送が再紐付けの後に届くと再び blocked。
 提案（M-100）＝①署名が通った最初のイベントで destination が空なら admin で line_config.bot_destination に保存し以後の違いを 401 に（欄は「自動で取得済み」表示）②`deliveryContext.isRedelivery === true` の unfollow は捨てる。DDL なし。
 
+## M-120（2026-11-07 受領・相談役・差し替え版・client＝MIG_0198_APPLIED の配下＋0198 ★6 同乗）今日の控除のチェック群を代行の出勤の直後に・本人は表示だけ（裁定461）
+
+「①シフト › 今日タブの「出勤」（代行）と、staff の本人セッションでの代行打刻の直後に、今日の控除のチェック群（pick ルール・既定どおりの行は外せる・金額の上書き）を出し、cast_day_deductions_set（staff／manager 経路）で保存 ②キオスク PIN 出勤と /mine の出勤では選択肢を出さず「今日の控除＝○○ ¥○○（店が付けました）」の表示だけ ③0198 に同乗（起草して止まる）＝cast_day_deductions_set の cast 本人経路を forbidden に・kiosk_punch の p_day_deductions は呼び手が staff 以上の本人セッションのときだけ受理（cast PIN からは 'forbidden'）・0196 の verify の該当段を反転 ④client は MIG_0198_APPLIED の配下。まず読取＝cast_day_deductions_set の staff 経路の有無・今日タブの代行が呼ぶ RPC・kiosk_punch の呼び手の判定材料を 1 行ずつ報告してから着手」（前版＝/mine と今日タブの両方にチェック群＋自己打刻 RPC の p_day_deductions＝裁定461 で差し替え）。
+CC の処置（2026-11-07）＝①components/nox/day-ded-after-punch.tsx（小さな固定カード・data-day-ded-after・行＝deductions per=day 有効×deduction_rule_casts（使わないは除く・額の上書き）×cast_day_deductions（その日の行）・既定＝always on／pick off・2 択ボタン（教訓133）・「省略」＝送らない・「記録する」＝dayDedRowsOf（0195 の式）→ cast_day_deductions_set）＝shift-board の punch_proxy 'in' 成功の直後に mig0198On() のときだけ（当日のみ）。staff の本人セッションは同じページ（裁定460）＝同じ入口。②/mine＝punch-actions の pick の 2 択と cast_day_deductions_set の送信を 0198 後は止め、cast_day_applied_of（本人の行）を「今日の控除＝…（店が付けました）」の 1 行に（data-mine-day-ded-applied）。キオスク＝dayded の段を飛ばして打刻・結果の note に kiosk_punch の返り day_applied の 1 行。③0198 ★6（裁定461 の節）。verify＝verify:nox-benf（11-1〜11-4）・0196（4-15／16／18／23／24／24b）と 0195（4-5）は MIG_0198_APPLIED で反転（今は false＝従来どおり）。
+撮影＝フラグ false＝画面に出ない（0198 のフラグ true 便で）。
+
 ## M-119（2026-11-06 受領・相談役・client・夜便レーン 1.5＝便 F の後・前借りの前）PIN の本人セッションは本店のページ・ナビ・部品で（裁定460）
 
 「①PIN の本人セッション中は /register・/shift・/daily・/reserve・/stock・/customers を本店のページにルーティング（キオスク用の簡易ページは端末セッションだけ）②本店のレイアウトの上にキオスクの帯を固定（名前・無操作の残り・ロック／交代・『キオスクへ戻る』）③ナビは通常ログインと同じ並び・perms 判定も同じ（kioskNavOf は端末セッション専用に縮める）④写真・承認・日報・シフト配置が通常どおり動く ⑤無操作 10 分と『ロック』で端末セッションに戻る（0196 の kiosk_person_end）⑥verify＝本人セッションで /daily の保存・/shift の配置・卓カードの写真が出る段を pin。撮影 375／390＝店長と小林（staff）の両方で /register・/shift・/daily。」
@@ -5627,6 +5633,13 @@ Agoora が 7 本を手貼り（0185→0180→0181→0182→0183→0184→0186）
 - **撮影**（docs/tmp/shots_0196・本番デモ CLUB ACE）＝/kiosk のタイルに「スタッフでログイン（PIN）」（1024・375）→ PIN パッド → PIN 1234＝2 人（小林 スタッフ／デモ 店長）で名前を選ぶ → **本人の /register**（帯「端末で 小林 さんとして操作中・無操作 10 分でキオスクへ戻ります」＋「キオスクへ戻る」・卓カードの指名チップ 3＝A3／B1／VIP-1・1024・375）→ 今日タブ（staff で開ける）→「キオスクへ戻る」で /kiosk に戻った。
 - **目視の気づき（判断は相談役）**＝①本人セッションのナビは左に 4 アイコン（レジ／シフト／顧客／日報）＝kioskNavOf の perms（在庫・打刻・予約はタブの中か店の機能次第）＝7 つの想定との突合は次便で ②今日タブの「代わりに打刻」ボタンは撮影のセレクタ（名前）で 0 件＝表の行の中にある可能性＝実機で確認 ③出勤時の「今日の控除」＝デモ 6 店に pick ルールが 0（読取）＝チェック群は出ない＝gen-demo に pick ルールを足すのはデモデータ便の候補。
 - **M-111 候補**（起票・採番は相談役）＝kiosk_unlock の cast 判定に旧キーの救済が無い＝本番 7 店で旧キーだけの店は 0（上の M-111 の節）。
+
+## 裁定461（2026-11-07 確定・相談役）控除の「その日に選ぶ」「その日だけ外す」は店側だけの操作＝本人（キオスク PIN 出勤・/mine）は選べず、付いた控除を見るだけ＝裁定456 の 5（cast セルフ腕）は撤回
+
+出典＝相談役 11/07 朝。適用＝0198 に同乗（★6＝起草して止まる・貼らない）＋M-120（client＝MIG_0198_APPLIED の配下）。
+「控除の『その日に選ぶ』『その日だけ外す』は店側（店長以上・staff の本人セッション・今日タブの代行）だけの操作。本人（キオスク PIN 出勤・/mine）は選べず、付いた控除を見るだけ。裁定456 の 5（cast セルフ腕）は撤回」。
+CC の読取（2026-11-07）＝①cast_day_deductions_set(p_cast_id, p_biz_date, p_rows) の経路は 3 本（端末＝auth_kiosk_register_store_id＋auth_kiosk_operator／cast セルフ＝本人・当日＝0196 §9-1／店＝owner か manager の自店）＝**staff 経路は無い**（0195 verify (4-5) が「スタッフ forbidden」を pin）。呼び手＝勤怠の修正モーダル（kintai-edit）と /mine の出勤。②今日タブの代行が呼ぶ RPC＝punch_proxy(p_cast_id, p_type, p_note, p_okuri)（出勤区分の記録の後に in＝shift-board 884・退勤 1260／1297）＝staff は 0196 で自店なら通る・今日タブからは cast_day_deductions_set を呼んでいない。③kiosk_punch の呼び手の判定材料＝auth.uid() が kiosk_devices.auth_user_id（端末セッション）だけ＝本人セッション（通常の auth）からは常に 'forbidden'。端末で「staff 以上」を判る材料＝auth_kiosk_operator()（解錠した操作担当・無操作で失効）だけ。
+CC の処置（0198 ★6＝再生成 sha16 **7fec9253d9cda229**・652 行・試走 28/28・DB 変更 0）＝(a) cast_day_deductions_set＝cast 経路を forbidden に・else（店側）を owner または manager／staff の自店に（署名・ACL・audit は不変）(b) 新設 cast_day_applied_of(p_cast_id, p_biz_date default null)＝店が付けた今日の控除の見え方 [{id, name, amount}]（always は cast_day_deductions で外した行を除く・pick は on の行だけ・キャスト別の適用で使わないは除く・額の上書き）＝本人は自分だけ／店の人は自店／端末は端末の店のキャスト・ACL＝authenticated（関数 421→**422**）(c) kiosk_punch＝p_day_deductions は auth_kiosk_operator() が null（cast の PIN だけ）なら 'forbidden'（操作担当が解錠中のときだけ受理）・出勤 ok の返りに day_applied（表示用）。**仮置き（相談役）**＝(c) の「操作担当が解錠中なら受理」は裁定の「staff 以上の本人セッション」を端末の文脈で読み替えたもの（端末から本人セッションは作れない）。常に拒否にするなら 1 行。
 
 ## 裁定460（2026-11-06 確定・相談役）キオスクの本人セッション（PIN で入った状態）は通常ログインと同じページ・権限・部品で出す＝裁定456 の 3 の明文化
 
@@ -8614,6 +8627,10 @@ anon-guard 段28 が無差別 `limit(1)` でそれを拾い 'bad amount'/BV=unde
   なお同じ文にあった「**メモ列が無い**」の側は**正しい**（実測: `shifts` 14列 / `shift_wishes` 12列に
   該当列なし）ため、消さずに理由を分けて残した。
   根拠の全文＝`docs/dp/survey_6-4.md`。
+
+## 次の番号（2026-11-07 朝・裁定461／M-120 を収載・0198 ★6 を同乗させた時点）
+
+- **次の裁定＝462**（460＝本人セッションは本店の画面・461＝今日の控除の選択は店側だけ＝cast セルフ腕の撤回）。**次の M＝M-121**（M-120＝今日の控除のチェック群＝代行の直後・本人は表示だけ）。**次の教訓＝136**（候補 2 つ＝v60_draft §0）。**次の mig＝0198**（起草済み sha16 7fec9253d9cda229・★1〜★6・関数 422・貼らない）。
 
 ## 次の番号（2026-11-06 夕・0196 フラグ true 便の後＝裁定458／459・M-111〜M-115 を収載・0197 の事前確認を済ませた時点）
 

@@ -10,7 +10,7 @@
 import fs from "node:fs";
 import { randomUUID } from "node:crypto";
 import pg from "pg";
-import { MIG_0196_APPLIED, mig0196On, __set0196ForTest } from "../lib/nox/rules-0175/flag";
+import { MIG_0196_APPLIED, MIG_0198_APPLIED, mig0196On, __set0196ForTest } from "../lib/nox/rules-0175/flag"; // ★0198（裁定461）: cast セルフ腕の撤回・kiosk_punch の操作担当ゲート＝フラグで反転
 import { KIOSK_PERSON_PIN_LINK, kioskPersonMustLeaveOf, kioskPersonSessionAllowedOf } from "../lib/nox/kiosk/person-session";
 let pass = 0; const fails: string[] = [];
 const check = (label: string, ok: boolean, detail?: unknown) => { if (ok) pass++; else fails.push(`${label}${detail !== undefined ? `: ${JSON.stringify(detail)}` : ""}`); };
@@ -121,10 +121,10 @@ async function main(): Promise<void> {
         const rowsOf = async (cid: string, d: string) => (await pc.query(`select deduction_id, enabled from public.cast_day_deductions where cast_id=$1 and biz_date=$2 order by deduction_id`, [cid, d])).rows;
         if (castRow) {
           x = await as(castRow, `select public.cast_day_deductions_set($1, $2::date, $3::jsonb)`, [castRow.id, biz, J([{ deduction_id: pickId, enabled: true }])]);
-          check("0196(4-15) cast セルフ腕＝本人・当日の営業日＝ok（pick を on＝1 行）", x.ok && (await rowsOf(castRow.id, biz)).length === 1, x.err);
-          x = await as(castRow, `select public.cast_day_deductions_set($1, '2099-05-10', $2::jsonb)`, [castRow.id, J([{ deduction_id: pickId, enabled: true }])]); check("0196(4-16) cast セルフ腕＝当日以外は 'not today'", !x.ok && /not today/.test(x.err), x.err);
+          check(MIG_0198_APPLIED ? "0196(4-15) cast セルフ腕＝0198（裁定461）で撤回＝forbidden" : "0196(4-15) cast セルフ腕＝本人・当日の営業日＝ok（pick を on＝1 行）", MIG_0198_APPLIED ? fb(x) : x.ok && (await rowsOf(castRow.id, biz)).length === 1, x.err);
+          x = await as(castRow, `select public.cast_day_deductions_set($1, '2099-05-10', $2::jsonb)`, [castRow.id, J([{ deduction_id: pickId, enabled: true }])]); check("0196(4-16) cast セルフ腕＝当日以外は 'not today'（0198 後は forbidden）", MIG_0198_APPLIED ? fb(x) : !x.ok && /not today/.test(x.err), x.err);
           if (other) { x = await as(castRow, `select public.cast_day_deductions_set($1, $2::date, $3::jsonb)`, [other.id, biz, J([{ deduction_id: pickId, enabled: true }])]); check("0196(4-17) cast セルフ腕＝他人の行は forbidden", fb(x), x.err); }
-          x = await as(castRow, `select public.cast_day_deductions_set($1, $2::date, $3::jsonb)`, [castRow.id, biz, J([{ deduction_id: pickId, enabled: false }])]); check("0196(4-18) cast セルフ腕＝既定どおりに戻すと行が消える", x.ok && (await rowsOf(castRow.id, biz)).length === 0, x.err);
+          x = await as(castRow, `select public.cast_day_deductions_set($1, $2::date, $3::jsonb)`, [castRow.id, biz, J([{ deduction_id: pickId, enabled: false }])]); check("0196(4-18) cast セルフ腕＝既定どおりに戻すと行が消える（0198 後は forbidden）", MIG_0198_APPLIED ? fb(x) : x.ok && (await rowsOf(castRow.id, biz)).length === 0, x.err);
         } else check("0196(4-15) cast セルフ腕（auth のあるキャストが A1 に無い）", false);
         const nc = (await pc.query(`insert into public.casts (org_id, store_id, name, is_active) values ($1, $2, 'NOX-VERIFY-0196s-cast', true) returning id`, [st.org_id, st.id])).rows[0];
         await pc.query(`insert into public.cast_pin (cast_id, org_id, store_id, pin_hash, fail_count) values ($1, $2, $3, extensions.crypt('1234', extensions.gen_salt('bf')), 0)`, [nc.id, st.org_id, st.id]);
@@ -137,9 +137,10 @@ async function main(): Promise<void> {
         check("0196(4-21) day_rules＝キャスト別の適用で使わないは除く・額の上書き 450", x.ok && dr.length === 1 && dr[0].id === pickId && dr[0].amount === 450, x.ok ? dr : x.err);
         x = await as(kdev, `select public.kiosk_punch($1, '1234', 'out', null, $2::jsonb) j`, [nc.id, J([{ deduction_id: pickId, enabled: true }])]); check("0196(4-22) kiosk_punch＝退勤に p_day_deductions は 'bad day deductions'", !x.ok && /bad day deductions/.test(x.err), x.err);
         x = await as(kdev, `select public.kiosk_punch($1, '1234', 'in', null, $2::jsonb) j`, [nc.id, J([{ deduction_id: pick2, enabled: "x" }])]);
-        check("0196(4-23) 行の形が悪ければ statement ごと戻る（打刻も入らない）", !x.ok && /bad row|invalid input/.test(x.err) && (await pc.query(`select count(*)::int n from public.punches where cast_id=$1`, [nc.id])).rows[0].n === 0, x.err);
+        check("0196(4-23) 行の形が悪ければ statement ごと戻る（打刻も入らない）（0198 後＝操作担当なしは forbidden が先）", !x.ok && (MIG_0198_APPLIED ? /forbidden/ : /bad row|invalid input/).test(x.err) && (await pc.query(`select count(*)::int n from public.punches where cast_id=$1`, [nc.id])).rows[0].n === 0, x.err);
         x = await as(kdev, `select public.kiosk_punch($1, '1234', 'in', null, $2::jsonb) j`, [nc.id, J([{ deduction_id: pickId, enabled: true }])]);
-        check("0196(4-24) kiosk_punch＝出勤と同時に「今日の控除」＝ok・cast_day_deductions に 1 行・audit に day_deductions", x.ok && jj(x)!.ok === true && (await rowsOf(nc.id, biz)).length === 1 && (await pc.query(`select count(*)::int n from public.audit_logs where action='kiosk_punch' and target='punches:' || $1 and after_json ? 'day_deductions'`, [x.ok ? jj(x)!.punch_id : "x"])).rows[0].n === 1, x.ok ? jj(x) : x.err);
+        check(MIG_0198_APPLIED ? "0196(4-24) kiosk_punch＋p_day_deductions＝0198（裁定461）後は操作担当なしで forbidden" : "0196(4-24) kiosk_punch＝出勤と同時に「今日の控除」＝ok・cast_day_deductions に 1 行・audit に day_deductions", MIG_0198_APPLIED ? fb(x) : x.ok && jj(x)!.ok === true && (await rowsOf(nc.id, biz)).length === 1 && (await pc.query(`select count(*)::int n from public.audit_logs where action='kiosk_punch' and target='punches:' || $1 and after_json ? 'day_deductions'`, [x.ok ? jj(x)!.punch_id : "x"])).rows[0].n === 1, x.ok ? jj(x) : x.err);
+        if (MIG_0198_APPLIED) { x = await as(kdev, `select public.kiosk_punch($1, '1234', 'in') j`, [nc.id]); check("0196(4-24b) 0198 後＝3 引数の出勤 ok・返りに day_applied（配列）", x.ok && jj(x)!.ok === true && Array.isArray(jj(x)!.day_applied), x.err); }
         x = await as(kdev, `select public.kiosk_punch($1, '1234', 'out') j`, [nc.id]); check("0196(4-25) kiosk_punch 3 引数（従来の呼び出し）＝退勤 ok", x.ok && jj(x)!.ok === true, x.err);
         // punch_proxy の staff
         const nc3 = (await pc.query(`insert into public.casts (org_id, store_id, name, is_active) values ($1, $2, 'NOX-VERIFY-0196s-cast3', true) returning id`, [st.org_id, st.id])).rows[0];

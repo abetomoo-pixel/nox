@@ -8,7 +8,8 @@
 import { hmLabelOf } from "@/lib/nox/time/hhmm"; // ★便 M5b M-51 追補: 日をまたぐ時刻は「翌02:00」
 import DatePicker from "@/components/ui/date-picker"; // ★M-82（裁定452・教訓133）: 日付は共通のピッカー
 import { REGISTER_DAY_GRANT_LABEL, REGISTER_DAY_GRANT_NOTE, storeDecidesPunchOf } from "@/lib/nox/shift/punch-mode"; // ★便 E（0197 用）
-import { mig0196On, mig0197On } from "@/lib/nox/rules-0175/flag"; // ★便 E（0196 用）: staff の代行 ★0197: 今日だけ許可
+import { mig0196On, mig0197On, mig0198On } from "@/lib/nox/rules-0175/flag";
+import DayDedAfterPunch from "@/components/nox/day-ded-after-punch"; // ★0198（裁定461 ①・M-120）: 代行の出勤の直後の「今日の控除」 // ★便 E（0196 用）: staff の代行 ★0197: 今日だけ許可
 import TimeInput from "@/components/ui/time-input"; // ★便 M5b M-51: 時刻欄の共通部品（時計アイコン・時と分を選ぶ・翌の表示）
 import { UnitBox } from "@/components/ui/unit-input"; // ★便 M5b M-50
 import { dayStateLabelOf } from "@/lib/nox/mine/day-state"; // ★便 GV-C C-14（GV-60）: 日の状態の語と色（/mine と同じ）
@@ -883,6 +884,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
     if (!error && proxyPunchOn && punchInAfterAtt({ status, hasIn: !!punchIO.get(castId)?.inHm })) { // ★0164（便 W5-2b）: 代行 OFF の店は in 打刻を残さない（区分の記録だけ）
       const { error: pe } = await supabase.rpc("punch_proxy", { p_cast_id: castId, p_type: "in", p_note: null });
       if (pe) setMsg(`出勤区分は記録しました。出勤の打刻に失敗: ${rpcErrJa(pe.message)}`);
+      if (!pe && mig0198On() && attDate === todayDate) setDayDedAfter({ castId }); // ★0198（裁定461 ①・M-120）: 代行の出勤の直後＝今日の控除のチェック群（店の人が本人に聞いて付ける・省略可）
       setPunchTick((v) => v + 1);
     }
   }
@@ -1230,6 +1232,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   const [okuriBusy, setOkuriBusy] = useState(false);
   const [reportsOnly, setReportsOnly] = useState(false); // ★便 X13-H H-17 ②: 連絡のある行だけ
   const [penaltyDlg, setPenaltyDlg] = useState<{ castId: string; target: PenaltyTarget; shiftId: string | null } | null>(null); // ★便 X13-H H-16
+  const [dayDedAfter, setDayDedAfter] = useState<{ castId: string } | null>(null); // ★0198（裁定461 ①・M-120）: 代行の出勤の直後に「今日の控除」（省略可）
   const [okuriErr, setOkuriErr] = useState<string | null>(null);
   useEffect(() => {
     if (!storeId) return;
@@ -1415,6 +1418,9 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
       {settle && (
         <SettlementModal storeId={storeId} castId={settle.castId} castName={castName(settle.castId)} biz={todayDate} shiftId={settle.shiftId} target={settle.target}
           onClose={() => setSettle(null)} onDone={(text) => setMsg(text)} />
+      )}
+      {dayDedAfter && (/* ★0198（裁定461 ①・M-120）: 代行の出勤の直後＝今日の控除（小さく・省略可・staff の本人セッションも同じページ） */
+        <DayDedAfterPunch storeId={storeId} castId={dayDedAfter.castId} castName={castName(dayDedAfter.castId)} biz={todayDate} onClose={() => setDayDedAfter(null)} onDone={(text) => setMsg(text)} />
       )}
       {/* ★便 X13-H H-16（裁定410）: 遅刻・当欠の罰金（委託のみ・送りと同じ形） */}
       {penaltyDlg && (

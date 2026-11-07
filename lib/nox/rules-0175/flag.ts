@@ -105,8 +105,9 @@ export function __set0196ForTest(v: boolean | null): void { override0196 = v; }
 
 /** ★0197（未起草・便 E で置き場＝2026-11-05）: 裁定455＝打刻の 3 択目 punch_mode（'store'＝打刻しない）・on_duty_of の確定シフトの窓・register_day_grants（今日だけ許可）。
  *  false の間は punchModeOf が常に 'punch'＝初期設定／店舗設定の 3 択目・レジの柵の文言・実働の分岐はどれも従来どおり。 */
-/** ★0198（起草済み・2026-11-06 夜便レーン 3＝裁定458 前借りは「貸付」）: comp_plans の同意の列・advances の本人確認（ack）・cast_loan_grant（p_pin）／cast_loan_repay・view cast_loans／cast_loan_balances・demo_org_reset の wipe 6 表。
- *  false の間は client の器（待遇プランの同意・貸付の入口の PIN・貸付台帳）を出さない＝手貼りは相談役の合図。 */
+/** ★0198（起草済み・2026-11-06 夜便レーン 3＝裁定458 前借りは「貸付」＋2026-11-07 裁定461／M-120 同乗）: comp_plans の同意の列・advances の本人確認（ack）・cast_loan_grant（p_pin）／cast_loan_repay・view cast_loans／cast_loan_balances・demo_org_reset の wipe 6 表
+ *  ＋★6 裁定461＝cast_day_deductions_set の cast 本人経路を forbidden（staff の自店を店側に）・cast_day_applied_of（店が付けた今日の控除の見え方）・kiosk_punch の p_day_deductions は操作担当が解錠中だけ＋出勤の返りに day_applied。
+ *  false の間は client の器（待遇プランの同意・貸付の入口の PIN・貸付台帳・代行の出勤直後の「今日の控除」・本人の表示だけ）を出さない＝手貼りは相談役の合図。 */
 export const MIG_0198_APPLIED = false;
 let override0198: boolean | null = null;
 export function mig0198On(): boolean { return override0198 ?? MIG_0198_APPLIED; }

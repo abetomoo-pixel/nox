@@ -8,3 +8,17 @@ export function dayDedPickRowsOf(rules: readonly DayDedPickRule[], on: Readonly<
 }
 export const dayDedPickLabelOf = (r: DayDedPickRule): string => `${r.name}（¥${r.amount.toLocaleString()}）`;
 export const DAY_DED_PICK_HEAD = "今日の控除（使ったものにチェック）";
+
+// ★0198（裁定461・M-120・2026-11-07）: 「その日に選ぶ」「その日だけ外す」は店側だけ（店長以上・staff の本人セッション・今日タブの代行）。
+//   本人（キオスク PIN 出勤・/mine）は選べず、店が付けた控除を見るだけ＝cast_day_applied_of（0198）の [{id, name, amount}] を 1 行の文に。
+export type DayDedApplied = { id: string; name: string; amount: number };
+export const DAY_DED_APPLIED_NONE = "今日の控除＝なし";
+export const DAY_DED_APPLIED_BY_STORE = "（店が付けました）";
+/** 「今日の控除＝ヘアメ代 ¥500・送迎 ¥1,000（店が付けました）」／無ければ「今日の控除＝なし」 */
+export function dayDedAppliedTextOf(list: readonly DayDedApplied[]): string {
+  if (list.length === 0) return DAY_DED_APPLIED_NONE;
+  return `今日の控除＝${list.map((r) => `${r.name} ¥${r.amount.toLocaleString("en-US")}`).join("・")}${DAY_DED_APPLIED_BY_STORE}`;
+}
+/** 代行の出勤の直後に出すチェック群の見出しと注記（店の人が本人に聞いて付ける・省略可） */
+export const DAY_DED_AFTER_HEAD = "今日の控除（本人に聞いて付ける・省略可）";
+export const DAY_DED_AFTER_NOTE = "既定どおりの行は外せます。額はキャスト別の上書きを反映しています。";

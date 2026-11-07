@@ -10,7 +10,7 @@
  */
 import fs from "node:fs";
 import pg from "pg";
-import { MIG_0195_APPLIED, mig0195On, __set0195ForTest } from "../lib/nox/rules-0175/flag";
+import { MIG_0195_APPLIED, MIG_0198_APPLIED, mig0195On, __set0195ForTest } from "../lib/nox/rules-0175/flag"; // ★0198（裁定461）: staff の自店は ok に反転
 import { fixedDedOf, type Deduction } from "../lib/nox/pay";
 import { dailyDeductionsOf, dayDeductionCountsOf, effectiveDeductionsOf } from "../lib/nox/payroll/assemble";
 import { DAILY_PAY_COLUMNS, castPayTotalsOf, dailyPayCellsOf, dailyPayRowsOf, monthSummaryOf } from "../lib/nox/payroll/daily-pay";
@@ -150,7 +150,8 @@ async function main(): Promise<void> {
         x = await as(manager, `select public.cast_day_deductions_set($1, $2, $3::jsonb)`, [cast.id, Dd, J([{ deduction_id: pr.rows[0].id, enabled: true }])]);
         check("0195(4-4) per=day でないルールは 'not day rule'", !x.ok && /not day rule/.test(x.err), x.err);
         x = await as(staff, `select public.cast_day_deductions_set($1, $2, $3::jsonb)`, [cast.id, Dd, J([{ deduction_id: alwId, enabled: false }])]);
-        check("0195(4-5) スタッフは forbidden（店の人は店長以上）", !x.ok && /forbidden/.test(x.err), x.err);
+        check(MIG_0198_APPLIED ? "0195(4-5) スタッフ（自店）は 0198（裁定461）で ok" : "0195(4-5) スタッフは forbidden（店の人は店長以上）", MIG_0198_APPLIED ? x.ok : !x.ok && /forbidden/.test(x.err), x.err);
+        if (MIG_0198_APPLIED && x.ok) await as(staff, `select public.cast_day_deductions_set($1, $2, $3::jsonb)`, [cast.id, Dd, J([{ deduction_id: alwId, enabled: true }])]); // 既定どおりに戻す（後段の件数を変えない）
         const rcOf = async () => (await pc.query(`select enabled, amount_override from public.deduction_rule_casts where rule_id=$1 and cast_id=$2`, [alwId, cast.id])).rows;
         x = await as(manager, `select public.deduction_rule_cast_set($1, $2, false, null)`, [alwId, cast.id]);
         check("0195(4-6) deduction_rule_cast_set＝使わない（enabled=false）で行が立つ・get に出る", x.ok && (await rcOf()).length === 1 && (await as(manager, `select * from public.deduction_rule_casts_get($1)`, [st.id])).rows.some((q) => q.rule_id === alwId && q.cast_id === cast.id), x.err);

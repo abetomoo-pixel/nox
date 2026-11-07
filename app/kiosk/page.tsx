@@ -18,8 +18,8 @@ import { Message } from "@/components/ui/toast"; // ★裁定281（便 U）: メ
 import { okuriSelfPlanOf, OKURI_PENDING_NOTE, type OkuriSelfPlan } from "@/lib/nox/shift/okuri-self";
 import { okuriOutTextOf, okuriRecordedTextOf } from "@/lib/nox/shift/okuri-mode"; // ★裁定414（S-4）: 方式の 1 文・「記録」
 import { rpcErrJa } from "@/lib/nox/ui/rpc-err"; // ★裁定327（0161・便 M1-4）: 順序検査の拒否 3 語は端末にも同じ和文
-import { mig0190On, mig0191On, mig0196On, rules0175On } from "@/lib/nox/rules-0175/flag";
-import { DAY_DED_PICK_HEAD, dayDedPickLabelOf, dayDedPickRowsOf, type DayDedPickRule } from "@/lib/nox/payroll/day-ded-pick"; // ★便 D M-103 // ★追補 2 同乗 R-7 ★0190: mig0190On
+import { mig0190On, mig0191On, mig0196On, mig0198On, rules0175On } from "@/lib/nox/rules-0175/flag";
+import { DAY_DED_PICK_HEAD, dayDedPickLabelOf, dayDedPickRowsOf, dayDedAppliedTextOf, type DayDedPickRule, type DayDedApplied } from "@/lib/nox/payroll/day-ded-pick"; // ★便 D M-103 ★0198（裁定461 ②） // ★追補 2 同乗 R-7 ★0190: mig0190On
 import { bindErrJa, browserDeviceFp } from "@/lib/nox/kiosk/device-fp"; // ★0190（裁定436 ①b）: 端末の束縛＝ログイン直後に kiosk_device_bind
 import { KIOSK_FEATURE_READY } from "@/lib/nox/rules-0175/kiosk"; // ★0190（裁定435）: 5 タイル（シフト・在庫・日報は案内画面）
 import CastAvatar from "@/components/ui/cast-avatar"; // ★便 M5 M-42: 写真＝本体画面と同じ部品（url は /api/kiosk/photos の署名 URL）
@@ -136,7 +136,7 @@ export default function KioskPage() {
   /** ★便 D M-103（保存は 0196 の kiosk_punch p_day_deductions）: 出勤＝pick ルールがある店は先に「今日の控除」を聞く（読取に失敗したら聞かずに従来どおり打刻）。0196 まで＝従来どおり */
   async function startIn() {
     if (!target || !pinOk(pin) || busy) return;
-    if (target.staff || !mig0196On()) { void punch("in"); return; }
+    if (target.staff || !mig0196On() || mig0198On()) { void punch("in"); return; } // ★0198（裁定461 ②）: 本人は選べない＝聞かずに打刻（店が付けた控除は結果に表示だけ）
     setBusy(true);
     const { data, error } = await supabase.rpc("kiosk_punch_state", { p_cast_id: target.cast_id });
     setBusy(false);
@@ -169,7 +169,8 @@ export default function KioskPage() {
         : { p_cast_id: target.cast_id, p_pin: pin, p_type: type, p_okuri: okuri });
     // 送り あり: 基本額がある店だけ発行（失敗しても打刻は残る＝店が締めで確定）
     let note: string | undefined;
-    const pj = data as { ok?: boolean; punch_id?: string } | null;
+    const pj = data as { ok?: boolean; punch_id?: string; day_applied?: unknown } | null;
+    if (!error && pj?.ok && type === "in" && mig0198On() && Array.isArray(pj.day_applied)) note = dayDedAppliedTextOf(pj.day_applied as DayDedApplied[]); // ★0198（裁定461 ②・M-120）: 店が付けた今日の控除＝表示だけ（kiosk_punch の返り day_applied）
     if (!error && pj?.ok && type === "out" && okuri) {
       if (okuriPlan?.issue && pj.punch_id) {
         const { error: eT } = await supabase.rpc("kiosk_transport_issue", { p_punch_id: pj.punch_id });

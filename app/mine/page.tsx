@@ -10,7 +10,7 @@ import { createClient } from "@/lib/supabase/server";
 import { bizDateOf, bizDateRange } from "@/lib/nox/biz-date";
 import PayslipSlip from "@/components/payslip-slip";
 import { okuriModeOf } from "@/lib/nox/shift/okuri-mode"; // ★裁定414（S-4）
-import { mig0185On, mig0196On, rules0175On } from "@/lib/nox/rules-0175/flag"; // ★便 P175-prep P-4 ★QR 便: mig0185On
+import { mig0185On, mig0196On, mig0198On, rules0175On } from "@/lib/nox/rules-0175/flag"; // ★便 P175-prep P-4 ★QR 便: mig0185On
 import AvailabilityEditor from "@/components/nox/availability-editor"; // ★便 P175-prep P-4（裁定397＋413）
 import { wageNowOf } from "@/lib/nox/cast/wage-now"; // ★便 P174 T-5（GV-55／56）
 import { mineCurrentWageOf } from "@/lib/nox/mine/wage-server"; // ★便 X13-H H-8: 今期の時給（一覧・詳細と同じ値・文言・根拠）
@@ -160,9 +160,13 @@ export default async function MinePage({ searchParams }: { searchParams?: Promis
   // ★便 SH-UI-c2 C2-3: 日別の算定給与＝店長の勤怠表と同じ builder（computePayrollDraft＝給与と同じ）。本人の cast で絞る・読めなければ従来の表（日計なし）
   // ★M-92（2026-11-05）: 店の定休日の曜日＝store_business_hours は RLS でキャストが読めない＝admin で読んで AvailabilityEditor に渡す（表示だけ・設定値を読むだけ）
   // ★便 D M-103（2026-11-05）: 「その日に選ぶ」控除（per=day・day_rule=pick・有効）＝出勤ボタンの下のチェック。保存の腕は 0196＝mig0196On() が false の間は空（UI を出さない）。本人は deductions を読める（RLS＝org ∧ 自店）
-  const mineDayDedRules: { id: string; name: string; amount: number }[] = mig0196On() && myStore
+  const mineDayDedRules: { id: string; name: string; amount: number }[] = mig0196On() && !mig0198On() && myStore
     ? ((((await supabase.from("deductions").select("id, name, amount").eq("store_id", myStore.id as string).eq("is_active", true).eq("per", "day").eq("day_rule", "pick").order("name")).data) ?? []) as { id: string; name: string; amount: number }[])
     : [];
+  // ★0198（裁定461 ②・M-120）: 本人は選べない＝店が付けた今日の控除（cast_day_applied_of＝本人の行だけ）を表示だけ（フラグ false の間は null＝出さない）
+  const mineDayDedApplied: { id: string; name: string; amount: number }[] | null = mig0198On() && meCast && myStore
+    ? ((((await supabase.rpc("cast_day_applied_of", { p_cast_id: meCast.id, p_biz_date: bizToday })).data) ?? []) as { id: string; name: string; amount: number }[])
+    : null;
   const mineClosedDows: number[] = myStore ? (((await createAdminClient().from("store_business_hours").select("dow, is_closed").eq("store_id", myStore.id as string)).data ?? []) as { dow: number; is_closed: boolean }[]).filter((x) => x.is_closed).map((x) => x.dow) : [];
   const kintaiBuilt = meCast && myStore ? await buildKintaiSheet(createAdminClient(), supabase, myStore.id as string, month, { castId: meCast.id as string }).catch(() => null) : null;
   const kintaiBuiltRows: AttendanceDayRow[] | null = kintaiBuilt?.casts[0]?.rows ?? null;
@@ -290,7 +294,7 @@ export default async function MinePage({ searchParams }: { searchParams?: Promis
         {/* ★0164（便 W5-2b）: 店設定 punch_methods.self が OFF の店は本人打刻のボタンを出さない（RPC punch_self は拒否しない＝UI の出し分けだけ・裁定要） */}
         {opsProfileOf(myStore as Record<string, unknown> | undefined).punch_methods.self ? (
         <PunchActions state={ps.state} okuriMode={okuriModeOf((myStore?.settings_json ?? {}) as Record<string, unknown>)} /* ★裁定414（S-4）: 4 方式＝'none' 以外で導線 */
-          dayDedRules={mineDayDedRules} bizToday={bizToday} /* ★便 D M-103: 出勤時の「今日の控除」（0196 まで空） */
+          dayDedRules={mineDayDedRules} bizToday={bizToday} /* ★便 D M-103: 出勤時の「今日の控除」（0196 まで空） */ dayDedApplied={mineDayDedApplied} /* ★0198（裁定461 ②）: 表示だけ */
           okuriBase={typeof ((myStore?.settings_json ?? {}) as Record<string, unknown>).okuri_base_amount === "number" ? (((myStore?.settings_json ?? {}) as Record<string, unknown>).okuri_base_amount as number) : null} />
         ) : (
           <p className="nox-pstate" style={{ color: "var(--sub)" }}>この店はスマホからの打刻を使っていません（出退勤は店の代行か打刻端末で記録します）</p>

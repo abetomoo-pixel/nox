@@ -7,6 +7,7 @@
  *  使い方: npm run verify:nox-benf
  */
 import fs from "node:fs";
+import { dayDedAppliedTextOf } from "../lib/nox/payroll/day-ded-pick"; // ★裁定461／M-120
 import { reservationLineOf, reservationTodayLineOf, reservationBookedChipOf, sortPendingReservations, pendingTotalOf, type PendingReservation } from "../lib/nox/home/pending";
 import { baseTimeDiffersOf, sortRowsByAvail, staffAvailConfirmTextOf, staffAvailJudgeOf, staffAvailNgTextOf, staffBaseTimeLabelOf, type StaffAvailMap } from "../lib/nox/shift/staff-place";
 import { LINE_NOTIFY_DEFAULT, LINE_NOTIFY_KINDS, lineNotifyKindOfNotif, lineNotifyOf, lineNotifyOnOf, noticeLineConfirmOf } from "../lib/nox/line/notify-kinds";
@@ -114,6 +115,22 @@ check("benf(6-3) ホーム＝予約の申請が先頭（approvals の前）・�
   check("benf(10-4) create-org の既定 --site＝noxapp.jp（vercel.app は fallback・レーン 4）", src("scripts/admin/create-org.mjs").includes('opt("site", "https://noxapp.jp")'));
 }
 
+// (11) 裁定461／M-120＝今日の控除の選択は店側だけ（0198 同乗＝client は MIG_0198_APPLIED の配下）
+{
+  const sb = src("app/(manage)/shift/shift-board.tsx"), dd = src("components/nox/day-ded-after-punch.tsx"), pa = src("app/mine/punch-actions.tsx"), mp = src("app/mine/page.tsx"), kp = src("app/kiosk/page.tsx"), dp = src("lib/nox/payroll/day-ded-pick.ts");
+  check("benf(11-1) 今日タブの代行＝punch_proxy 'in' の直後に mig0198On() のときだけ DayDedAfterPunch（data-day-ded-after・既定どおりは外せる・額の上書き・省略＝送らない・保存＝cast_day_deductions_set）",
+    sb.includes("if (!pe && mig0198On() && attDate === todayDate) setDayDedAfter({ castId });") && sb.includes("<DayDedAfterPunch storeId={storeId} castId={dayDedAfter.castId}")
+    && dd.includes('const rows = dayDedRowsOf(rules, initial, state);') && dd.includes('if (!rows) { onClose(); return; }') && dd.includes('rpc("cast_day_deductions_set", { p_cast_id: castId, p_biz_date: biz, p_rows: rows })')
+    && dd.includes('.filter((d) => rc.get(d.id)?.enabled !== false)') && dd.includes("amount: rc.get(d.id)?.amount_override ?? d.amount") && dd.includes("data-day-ded-after-skip"));
+  check("benf(11-2) /mine＝0198 後は選択肢を出さず・送らず（cast 経路は forbidden）・「今日の控除＝○○ ¥○○（店が付けました）」の表示だけ（cast_day_applied_of）",
+    pa.includes('if (!error && type === "in" && mig0196On() && !mig0198On() && bizToday) {') && pa.includes("{mig0196On() && !mig0198On() && dayDedRules.length > 0 && btn.inEnabled && (") && pa.includes("<p data-mine-day-ded-applied={String(dayDedApplied.length)}")
+    && mp.includes('await supabase.rpc("cast_day_applied_of", { p_cast_id: meCast.id, p_biz_date: bizToday })') && mp.includes("mig0196On() && !mig0198On() && myStore")
+    && dp.includes('export const DAY_DED_APPLIED_BY_STORE = "（店が付けました）";') && dayDedAppliedTextOf([{ id: "a", name: "ヘアメ代", amount: 500 }, { id: "b", name: "送迎", amount: 1000 }]) === "今日の控除＝ヘアメ代 ¥500・送迎 ¥1,000（店が付けました）" && dayDedAppliedTextOf([]) === "今日の控除＝なし");
+  check("benf(11-3) キオスク PIN 出勤＝0198 後は聞かずに打刻（dayded の段を飛ばす）・結果に kiosk_punch の返り day_applied を表示だけ",
+    kp.includes('if (target.staff || !mig0196On() || mig0198On()) { void punch("in"); return; }') && kp.includes('if (!error && pj?.ok && type === "in" && mig0198On() && Array.isArray(pj.day_applied)) note = dayDedAppliedTextOf(pj.day_applied as DayDedApplied[]);'));
+  check("benf(11-4) verify 0196／0195 の該当段は MIG_0198_APPLIED で反転（cast セルフ腕＝forbidden・kiosk_punch の p_day_deductions＝操作担当なしは forbidden・staff の自店＝ok）",
+    src("scripts/verify-nox-0196.ts").includes('MIG_0198_APPLIED ? "0196(4-15) cast セルフ腕＝0198（裁定461）で撤回＝forbidden"') && src("scripts/verify-nox-0196.ts").includes('"0196(4-24b) 0198 後＝3 引数の出勤 ok・返りに day_applied（配列）"') && src("scripts/verify-nox-0195.ts").includes('MIG_0198_APPLIED ? "0195(4-5) スタッフ（自店）は 0198（裁定461）で ok"'));
+}
 // (5) M-115
 const gd = src("scripts/demo/gen-demo.mjs");
 check("benf(5-1) gen-demo＝deductions に pick ルール 1 本（ヘアメ代 500・per day・agreed_cost・day_rule pick・is_active）", gd.includes('push("deductions", { id: uid(`ded:${code}:hairmake`), store_id: storeId, name: "ヘアメ代", amount: 500, per: "day", is_active: true, kind: "agreed_cost", day_rule: "pick" });'));

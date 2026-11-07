@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { mig0196On } from "@/lib/nox/rules-0175/flag"; // ★便 D M-103（0196 まで非表示）
-import { DAY_DED_PICK_HEAD, dayDedPickLabelOf, dayDedPickRowsOf, type DayDedPickRule } from "@/lib/nox/payroll/day-ded-pick"; // ★便 D M-103
+import { mig0196On, mig0198On } from "@/lib/nox/rules-0175/flag"; // ★便 D M-103（0196 まで非表示）★0198（裁定461）: 本人は選べない
+import { DAY_DED_PICK_HEAD, dayDedPickLabelOf, dayDedPickRowsOf, dayDedAppliedTextOf, type DayDedPickRule, type DayDedApplied } from "@/lib/nox/payroll/day-ded-pick"; // ★便 D M-103 ★0198（裁定461 ②）
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
@@ -21,7 +21,7 @@ import { PUNCH_STATE_NOTE, punchButtonsOf, type PunchState } from "@/lib/nox/shi
 // ★裁定317（便 X-9-3）: cast 本人は送りの発行（transport_issue_bulk＝owner／manager のみ）を呼べない＝金額ダイアログは出さず、「あり」の打刻だけ残す（締め前モーダルに未発行として出る）。器は 0158。
 // ★0156（裁定309-9＝302-5・便 V-5）: okuri_mode='actual' の店だけ、退勤に「送り あり／なし」（既定なし）→ punch_self の p_okuri。
 //   'flat'／未設定の店は出さない（p_okuri を送らない＝RPC の既定＝null）。in 打刻は従来どおり 3 引数。
-export default function PunchActions({ okuriMode = "flat", okuriBase = null, state = "none", dayDedRules = [], bizToday = null }: { /** ★便 D M-103: 出勤時に聞く「その日に選ぶ」控除（0196 まで空） */ dayDedRules?: DayDedPickRule[]; bizToday?: string | null; /** ★裁定414: 店の送り方式（'none' 以外で「送り あり／なし」を出す） */ okuriMode?: OkuriMode; okuriBase?: number | null; state?: PunchState }) {
+export default function PunchActions({ okuriMode = "flat", okuriBase = null, state = "none", dayDedRules = [], bizToday = null, dayDedApplied = null }: { /** ★0198（裁定461 ②・M-120）: 店が付けた今日の控除（表示だけ・null＝出さない） */ dayDedApplied?: DayDedApplied[] | null; /** ★便 D M-103: 出勤時に聞く「その日に選ぶ」控除（0196 まで空） */ dayDedRules?: DayDedPickRule[]; bizToday?: string | null; /** ★裁定414: 店の送り方式（'none' 以外で「送り あり／なし」を出す） */ okuriMode?: OkuriMode; okuriBase?: number | null; state?: PunchState }) {
   const router = useRouter();
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -41,7 +41,7 @@ export default function PunchActions({ okuriMode = "flat", okuriBase = null, sta
       : { p_type: type, p_lat: null, p_lng: null });
     // ★便 D M-103（保存は 0196 の cast セルフ腕）: 出勤と同時に「今日の控除」を送る（on の行だけ・失敗しても打刻は残る）
     let dedNote = "";
-    if (!error && type === "in" && mig0196On() && bizToday) {
+    if (!error && type === "in" && mig0196On() && !mig0198On() && bizToday) { // ★0198（裁定461 ②）: 本人は選べない＝送らない（cast 経路は forbidden）
       const rows = dayDedPickRowsOf(dayDedRules, dayDedOn);
       if (rows) { const { data: cid } = await supabase.rpc("auth_cast_id"); const { error: eD } = await supabase.rpc("cast_day_deductions_set", { p_cast_id: cid, p_biz_date: bizToday, p_rows: rows }); dedNote = eD ? "（今日の控除は記録できませんでした＝店に伝えてください）" : "（今日の控除を記録しました）"; }
     }
@@ -75,7 +75,10 @@ export default function PunchActions({ okuriMode = "flat", okuriBase = null, sta
           {plan.amount !== null ? <span data-okuri-text={plan.mode}>{okuriOutTextOf(plan.mode, plan.amount)}（金額は店の設定です）</span> : OKURI_PENDING_NOTE}{/* ★裁定414: 方式の 1 文 */}
         </p>
       )}
-      {mig0196On() && dayDedRules.length > 0 && btn.inEnabled && (/* ★便 D M-103: 出勤ボタンの上＝その店の pick ルールごとのチェック（既定 off） */
+      {mig0198On() && dayDedApplied !== null && (/* ★0198（裁定461 ②・M-120）: 本人は選べない＝店が付けた今日の控除の表示だけ */
+        <p data-mine-day-ded-applied={String(dayDedApplied.length)} style={{ fontSize: 12.5, color: "var(--sub)", margin: "0 0 8px" }}>{dayDedAppliedTextOf(dayDedApplied)}</p>
+      )}
+      {mig0196On() && !mig0198On() && dayDedRules.length > 0 && btn.inEnabled && (/* ★便 D M-103: 出勤ボタンの上＝その店の pick ルールごとのチェック（既定 off）★0198 後は出さない */
         <div data-mine-day-ded="1" style={{ marginBottom: 8, display: "grid", gap: 4 }}>
           <span style={{ fontSize: 12, fontWeight: 800, color: "var(--champ)" }}>{DAY_DED_PICK_HEAD}</span>
           {dayDedRules.map((r) => (

@@ -10,6 +10,7 @@
 5. 貸付時に同意が無くても**拒否しない**（audit の after_json に plan_agreed を残すだけ）＝拒否するかは相談役。
 6. **demo_org_reset の wipe 一覧に 6 表**（cast_day_deductions／deduction_rule_casts／availability_terms／availability／register_day_grants／staff_allowances）＝デモ org で基本の働き方などを触ると reset が FK で止まる不具合（2026-11-06 ACE の 500）の直し＝load 一覧と ACL（service_role だけ）は不変（★5）。
 7. 月末精算の計算順序（報酬総額 →（5,000 円×暦日数）→ 源泉 → 貸付返済 → 支払額）は pay.ts（client）で既に裁定どおり＝**DB の変更なし**（レーン 2 で表示順だけ直す）。
+8. **★6 裁定461（M-120・2026-11-07 同乗）**＝cast_day_deductions_set の cast 本人経路を forbidden・店側に staff の自店を追加／新設 cast_day_applied_of（店が付けた今日の控除の見え方＝本人・店の人・端末）／kiosk_punch の p_day_deductions は**操作担当（auth_kiosk_operator）が解錠中のときだけ受理**（cast の PIN だけなら forbidden）・出勤 ok の返りに day_applied。仮置き＝「操作担当が解錠中なら受理」は裁定の「staff 以上の本人セッション」を端末の文脈で読み替えたもの（端末から本人セッションは作れない）。常に拒否にするなら 1 行。
 
 **結論 3 行**
 1. 0198＝列 2（comp_plans）＋列 3（advances）＋RPC 新設 2（cast_loan_grant／cast_loan_repay）＋作り直し 2（set_comp_plan＝33 引数・demo_org_reset＝wipe 6 表）＋view 2（cast_loans／cast_loan_balances）＝関数 419→**421**・表 120 不変（view は表に数えない）。
@@ -19,18 +20,18 @@
 | 項目 | 値 |
 |---|---|
 | ファイル | docs/tmp/0198_cast_loans.sql（LF）→ 手貼り後に supabase/migrations/0198_cast_loans.sql へ収蔵 |
-| sha256 | 先頭 16 桁 **0aba613cc2dd5576**（419 行・36673 B・LF） |
+| sha256 | 先頭 16 桁 **7fec9253d9cda229**（652 行・51973 B・LF）＝2026-11-07 ★6 を足した再生成（旧 0aba613cc2dd5576 は破棄） |
 | 翻訳元 | live pg_get_functiondef（2026-11-06・0197b 適用後・docs/tmp/dump_live_0192.mjs→scratchpad/live0198）＋生成器 docs/tmp/gen_0198.cjs・検証＝docs/tmp/0198_verify.sql |
 | 試走 | docs/tmp/try_0198.mjs（教訓128＝行頭マーカー・commit; の不在 assert・lock_timeout の 1 行 assert・関数数を tx の外で前後に）＝2026-11-06 **19/19・DB 変更 0** |
 | 根拠 | 台帳 裁定458／docs/tmp/advance_loan_scan.md の変更案 3・4 |
-| 関数数・表数 | 419／120 → **421／120**（view 2） |
+| 関数数・表数 | 419／120 → **422／120**（view 2・cast_day_applied_of） |
 
 ## 事前確認 SQL（貼る前・SELECT のみ）＝返りが貼り先証明 1 行だけなら OK（md5 は 2026-11-06 の本番＝0197b 適用後の値）
 ```sql
 select 'nox-project-proof' k, count(*)::text v from public.orgs
 union all
 select 'md5 drift ' || x.n, coalesce(left(md5(replace(p.prosrc, chr(13), '')), 8), 'missing')
-  from (values ('set_comp_plan','e9143f01'),('demo_org_reset','0d689b6e'),('adv_issue','f25d845d'),('adv_cancel','8ff4572b'),('advances_open_balance','724d7551')) x(n, m)
+  from (values ('set_comp_plan','e9143f01'),('demo_org_reset','0d689b6e'),('adv_issue','f25d845d'),('adv_cancel','8ff4572b'),('advances_open_balance','724d7551'),('cast_day_deductions_set','49e2826e'),('kiosk_punch','ad7bd94d')) x(n, m)
   left join pg_proc p on p.pronamespace='public'::regnamespace and p.proname = x.n
  where p.oid is null or left(md5(replace(p.prosrc, chr(13), '')), 8) <> x.m
 union all
@@ -40,11 +41,11 @@ select 'already applied', 'yes' from information_schema.columns where table_sche
 ## 本文
 docs/tmp/0198_cast_loans.sql の全文（begin〜commit を 1 回 Run）。URL の ref＝hiqbfagmkrdpmlqhkmsu を目視してから。
 
-## 検証クエリ（貼った後）＝docs/tmp/0198_verify.sql（17 行＝貼り先証明＋16 行・期待値は各行の見出しに）
+## 検証クエリ（貼った後）＝docs/tmp/0198_verify.sql（21 行＝貼り先証明＋20 行・期待値は各行の見出しに）
 | k | 期待 |
 |---|---|
 | nox-project-proof | orgs の件数 |
-| fn count／table count | 421／120 |
+| fn count／table count | 422／120 |
 | view count／new fns grant/repay | 2／2 |
 | set_comp_plan 33 args／32 args | 1／0 |
 | cols comp_plans agreed／cols advances ack | 2／3 |
@@ -53,8 +54,11 @@ docs/tmp/0198_cast_loans.sql の全文（begin〜commit を 1 回 Run）。URL �
 | views grants authenticated／anon | SELECT,SELECT／0 |
 | views security_invoker | 2 |
 | cast_loan_grant uses crypt+adv_issue／set_comp_plan writes agreed | yes／yes |
+| cast_day_deductions_set cast self gone／kiosk_punch operator gate + day_applied | yes／yes |
+| cast_day_applied_of exists／acl anon/authenticated | 1／0/1 |
 
 ## 試走の記録（本番 ref hiqb…・BEGIN…ROLLBACK・DB 変更 0）
+- 2026-11-07 朝（★6 裁定461 を足した再生成＝sha16 7fec9253d9cda229）: body 640 行・commit-free ok・lock_timeout ok → 419／120／0 → tx 内 **422／120／2** → ROLLBACK → 419／120／0（DB 変更 0）・verify **21 行一致**・動作 **28/28**（★6＝cast 本人の set は forbidden／staff の自店 ok 1 行／cast_day_applied_of＝店長・staff・本人・端末が読める・他人は forbidden・額の上書き 450／端末の kiosk_punch＋p_day_deductions（操作担当なし）＝forbidden・打刻も入らない／3 引数の出勤 ok・day_applied に店が付けた行）。
 - 2026-11-06 19:4x（★5 を足した再生成＝sha16 0aba613cc2dd5576）: body 408 行・commit-free ok・lock_timeout ok → 419／120／0 → tx 内 421／120／2 → ROLLBACK → 419／120／0（DB 変更 0）・verify 17 行一致・動作 19/19。
 - 2026-11-06 19:2x（本番 ref hiqb…・0197b 適用後・★5 なし＝c18da0a15dea897c）: body 273 行・commit-free ok・lock_timeout ok → 関数 419／表 120／view 0 → tx 内 **421／120／2** → ROLLBACK → 419／120／0（DB 変更 0）。verify 17 行＝期待値と全行一致（advances の ack_method none＝6/6＝既存行）。
 - 動作 **19/19**＝★1 set_comp_plan 33 引数（agreed true で新規・省略＝現値・false で null・旧 32 引数は無い）／★3 cast_loan_grant（PIN なし＝ack manager・audit 2 行／PIN 不一致 bad pin／PIN 一致＝ack pin／staff forbidden／0 円 bad amount／貸付時に源泉も控除も引かない）・cast_loan_repay（4,000＝open のまま／超過 bad amount／残額ちょうど＝deducted／settled の行は advance settled／staff forbidden）／★4 view cast_loans（店長＝2 行・列）・cast_loan_balances（open 3,000）・他のキャスト 0 行・anon 不可。
