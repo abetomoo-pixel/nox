@@ -5272,7 +5272,7 @@ grep で洗い出した左右振り分けのボタンは一覧報告だけでな
 
 「①シフト › 今日タブの「出勤」（代行）と、staff の本人セッションでの代行打刻の直後に、今日の控除のチェック群（pick ルール・既定どおりの行は外せる・金額の上書き）を出し、cast_day_deductions_set（staff／manager 経路）で保存 ②キオスク PIN 出勤と /mine の出勤では選択肢を出さず「今日の控除＝○○ ¥○○（店が付けました）」の表示だけ ③0198 に同乗（起草して止まる）＝cast_day_deductions_set の cast 本人経路を forbidden に・kiosk_punch の p_day_deductions は呼び手が staff 以上の本人セッションのときだけ受理（cast PIN からは 'forbidden'）・0196 の verify の該当段を反転 ④client は MIG_0198_APPLIED の配下。まず読取＝cast_day_deductions_set の staff 経路の有無・今日タブの代行が呼ぶ RPC・kiosk_punch の呼び手の判定材料を 1 行ずつ報告してから着手」（前版＝/mine と今日タブの両方にチェック群＋自己打刻 RPC の p_day_deductions＝裁定461 で差し替え）。
 CC の処置（2026-11-07）＝①components/nox/day-ded-after-punch.tsx（小さな固定カード・data-day-ded-after・行＝deductions per=day 有効×deduction_rule_casts（使わないは除く・額の上書き）×cast_day_deductions（その日の行）・既定＝always on／pick off・2 択ボタン（教訓133）・「省略」＝送らない・「記録する」＝dayDedRowsOf（0195 の式）→ cast_day_deductions_set）＝shift-board の punch_proxy 'in' 成功の直後に mig0198On() のときだけ（当日のみ）。staff の本人セッションは同じページ（裁定460）＝同じ入口。②/mine＝punch-actions の pick の 2 択と cast_day_deductions_set の送信を 0198 後は止め、cast_day_applied_of（本人の行）を「今日の控除＝…（店が付けました）」の 1 行に（data-mine-day-ded-applied）。キオスク＝dayded の段を飛ばして打刻・結果の note に kiosk_punch の返り day_applied の 1 行。③0198 ★6（裁定461 の節）。verify＝verify:nox-benf（11-1〜11-4）・0196（4-15／16／18／23／24／24b）と 0195（4-5）は MIG_0198_APPLIED で反転（今は false＝従来どおり）。
-撮影＝フラグ false＝画面に出ない（0198 のフラグ true 便で）。
+撮影＝フラグ false＝画面に出ない（0198 のフラグ true 便で）。**f0＝2 連緑 V3／W（176 段 7,409＝レーン 3 の 7,405＋benf 4）**・途中の赤 2 本＝V（messages ms(2-1)＝失敗文の素の p → Message 部品 bbbe21f）・V2（bend(9-3)＝/mine・キオスクの出し分けの文字列 → 張替え b3b6c09）。**push＝f5d4fa1／bbbe21f／b3b6c09（11/07 朝）**。
 
 ## M-119（2026-11-06 受領・相談役・client・夜便レーン 1.5＝便 F の後・前借りの前）PIN の本人セッションは本店のページ・ナビ・部品で（裁定460）
 
