@@ -8,6 +8,7 @@
 import { useEffect, useState } from "react";
 import { dayDedRowsOf, kintaiErrJa, type DayDedRule } from "@/components/nox/kintai-edit";
 import { DAY_DED_AFTER_HEAD, DAY_DED_AFTER_NOTE } from "@/lib/nox/payroll/day-ded-pick";
+import { Message } from "@/components/ui/toast";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 
@@ -68,7 +69,7 @@ export default function DayDedAfterPunch({ storeId, castId, castName, biz, onClo
           </div>
         ); })}
       </div>
-      {err && <p style={{ fontSize: 12, color: "var(--danger, #e66)", margin: "0 0 8px" }}>{err}</p>}
+      {err && <Message kind="error" style={{ margin: "0 0 8px" }}>{err}</Message>}
       <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
         <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} disabled={busy} onClick={onClose} data-day-ded-after-skip>省略</button>
         <button type="button" style={{ ...t.btnGold, ...t.btnSm }} disabled={busy} onClick={() => void save()} data-day-ded-after-save>{busy ? "記録中…" : "記録する"}</button>
