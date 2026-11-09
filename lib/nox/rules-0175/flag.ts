@@ -113,6 +113,13 @@ let override0198: boolean | null = null;
 export function mig0198On(): boolean { return override0198 ?? MIG_0198_APPLIED; }
 export function __set0198ForTest(v: boolean | null): void { override0198 = v; }
 
+/** ★0199（起草済み・2026-11-09＝★1 裁定459／M-114 line_notify の白名単・★2 裁定466 kiosk_person_claim に cast）: 手貼りは 0198 → フラグ便 → 0199 の順＝相談役の合図。
+ *  false の間は client の器（LINE 通知の種類ごとの保存ボタン・本人セッションの cast＝M-125）を出さない。 */
+export const MIG_0199_APPLIED = false;
+let override0199: boolean | null = null;
+export function mig0199On(): boolean { return override0199 ?? MIG_0199_APPLIED; }
+export function __set0199ForTest(v: boolean | null): void { override0199 = v; }
+
 export const MIG_0197_APPLIED = true; // ★2026-11-06: 0197（sha16 f28f737489916c38）を Agoora が手貼り（06:53 UTC・本文 Success）＝verify 17 行が期待値と一致（unique は数え方の差・正本の式では 1）・関数 419・表 120・本文 3 本の md5 一致 → true
 let override0197: boolean | null = null;
 export function mig0197On(): boolean { return override0197 ?? MIG_0197_APPLIED; }

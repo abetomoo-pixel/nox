@@ -5654,6 +5654,16 @@ Agoora が 7 本を手貼り（0185→0180→0181→0182→0183→0184→0186）
 - **教訓136（採番・2026-11-09）＝新しい表・関数を足したら「ACL／wipe の順序／LIFF の再ログイン」を verify に足す**＝①ACL＝作り直す関数の proacl は live を写す（0197b の on_duty_of）②wipe＝org_id を持つ表は c_wipe か route の先掃除に入れ、no-action の FK は子から親へ（M-122＝availability_terms.updated_by）③LIFF＝期限切れ ID トークンの再ログイン（M-116）＝新しい入口を足すたびに 1 回通す。verify＝grants（ACL）・wipe-cover（wipe）・bene／benf（LIFF の文言）。次の教訓＝137。
 - **f0／push／reset／撮影**＝下に埋める。
 
+## 裁定466（2026-11-09 確定・相談役）キオスクの本人セッション（kiosk_person_claim）に「cast ∧ can_register ∧ 店 ≥2」を追加＝帯のナビは cast＝/register だけ
+
+出典＝相談役 11/09（キャストのレジ使用の読取を受けて）。適用＝0199 に同乗（★2＝作り直し 1・関数数不変・他は同乗させない）＋client 小＝M-125（MIG_0199 配下）。※465 は相談役の採番＝本文未受領（教訓70＝本文が無い番号は作らない＝見出しを立てない）。
+「キオスクの本人セッション（kiosk_person_claim）に『cast ∧ can_register ∧ 店 ≥2』を追加。帯のナビは cast＝/register だけ（取消・合算・締め解除・売掛・値引きは不可のまま）。DDL＝0199 に同乗（set_store_profile の白名単＋kiosk_person_claim の作り直し＝2 関数・関数数不変・他は同乗させない）→ 試走 → handpaste_0199.md → 報告。client 小（person-session route の role 許可・帯）＝MIG_0199 配下・M-125 起票」。
+CC の処置＝0199 ★2＝kiosk_person_claim の role 条件を「manager／staff または（cast ∧ can_register ∧ stores.settings_json.sys_cast_register ≥2）」に（v_mem に can_register を足す・service_role だけ＝ACL 不変）。再生成 sha16 **a68669f112662a19**（954 行・93584 B）・試走 15/15（cast＝can_register false→forbidden・店 1→forbidden・店 2→ok role cast／staff ok／owner forbidden）・DB 変更 0・verify 9 行。取消（check_void）・合算・締め解除・売掛・値引きは RPC の cast 枝が無いまま＝本人セッションでも不可。
+
+## M-125（2026-11-09 起票・相談役・client 小＝MIG_0199 配下）キオスクの本人セッションの cast＝person-session route の role 許可・帯のナビは /register だけ
+
+「client 小（person-session route の role 許可・帯）＝MIG_0199 配下」（裁定466）。CC の処置（起草と同じ便・フラグ false）＝flag.ts に MIG_0199_APPLIED=false／mig0199On・kioskPersonSessionAllowedOf に cast（mig0199On のとき）・(manage) layout＝本人セッションの cast は /register だけ（店端末なので cast_register_device の判定を通さない・他のパスは /register へ）・ナビ＝レジ 1 つ。実装はフラグ便（0199 手貼り後）で有効化＝それまで cast の claim は DB が forbidden。※M-124 は相談役の採番＝本文未受領（見出しを立てない）。
+
 ## 裁定464（2026-11-09 確定・相談役）0198 の仮置き 1〜9 を全部承認（再生成なし＝sha16 ed90503b54b54acd のまま）＋付帯 2 点
 
 出典＝相談役 11/09（handpaste_0198.md を読んで）。適用＝0198（手貼りは相談役が 0198_cast_loans.sql を照合した後に合図＝それまで貼らない）。
@@ -8674,7 +8684,7 @@ anon-guard 段28 が無差別 `limit(1)` でそれを拾い 'bad amount'/BV=unde
 
 ## 次の番号（2026-11-09 午後・裁定463（M-121 の仮置き確定）を収載した時点）
 
-- **次の裁定＝465**（463＝✕ の追補・464＝0198 の仮置き 1〜9 承認＋付帯 2 点）。**次の M＝M-124**（M-123＝貸付の「同意未」の印／返済済＝0198 のフラグ便の後）。**次の起票＝122**（120＝bad pin の audit 1 行・121＝退会は無効化＝ローンチ後）。**次の M（旧）＝M-123**（M-121＝✕ の読取と裁定462 の実装・M-122＝デモ reset の wipe＝route の先掃除＋0198 ★7）。**次の教訓＝137**（136＝2026-11-09 採番＝新しい表・関数を足したら ACL／wipe 順序／LIFF 再ログインを verify に足す）。**次の mig＝0199**（0198＝2026-11-09 本番適用・収蔵済み・0199＝line_notify の白名単＝起草のみ）。
+- **次の裁定＝465**（463＝✕ の追補・464＝0198 の仮置き 1〜9 承認＋付帯 2 点）。**次の M＝M-124**（M-123＝貸付の「同意未」の印／返済済＝0198 のフラグ便の後）。**次の起票＝122**（120＝bad pin の audit 1 行・121＝退会は無効化＝ローンチ後）。**次の M（旧）＝M-123**（M-121＝✕ の読取と裁定462 の実装・M-122＝デモ reset の wipe＝route の先掃除＋0198 ★7）。**次の教訓＝137**（136＝2026-11-09 採番＝新しい表・関数を足したら ACL／wipe 順序／LIFF 再ログインを verify に足す）。**次の mig＝0200**（0199＝起草済み sha16 a68669f112662a19＝★1 line_notify の白名単＋★2 裁定466 の kiosk_person_claim・貼らない）。**次の裁定＝467**（466＝2026-11-09 確定）。**次の M＝M-126**（M-125＝起票）。
 
 ## 次の番号（2026-11-07 朝・裁定461／M-120 を収載・0198 ★6 を同乗させた時点）
 

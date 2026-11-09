@@ -8,6 +8,8 @@
  */
 import fs from "node:fs";
 import { dayDedAppliedTextOf } from "../lib/nox/payroll/day-ded-pick"; // ★裁定461／M-120
+import { MIG_0199_APPLIED, mig0199On, __set0199ForTest } from "../lib/nox/rules-0175/flag"; // ★0199（裁定466・M-125）
+import { kioskPersonSessionAllowedOf } from "../lib/nox/kiosk/person-session"; // ★M-125
 import { equalSplitOf, weightsAfterRemovalOf, removeShareConfirmTextOf, NOM_X_CLOSED_REASON } from "../lib/nox/nom-shares"; // ★裁定462／M-121
 import { reservationLineOf, reservationTodayLineOf, reservationBookedChipOf, sortPendingReservations, pendingTotalOf, type PendingReservation } from "../lib/nox/home/pending";
 import { baseTimeDiffersOf, sortRowsByAvail, staffAvailConfirmTextOf, staffAvailJudgeOf, staffAvailNgTextOf, staffBaseTimeLabelOf, type StaffAvailMap } from "../lib/nox/shift/staff-place";
@@ -147,6 +149,14 @@ check("benf(6-3) ホーム＝予約の申請が先頭（approvals の前）・�
   check("benf(12-3) 押す＝確認 1 回（removeShareConfirmTextOf）→ check_set_nominations の全置換＝当該 cast は ended＋weight 0＋free（離卓＋除外＋課金行の取消）・残りは weightsAfterRemovalOf・loadOpenMap まで",
     rb.includes("if (inDb && !window.confirm(removeShareConfirmTextOf(castName(castId), castFeeLines(castId).length > 0, servingSeat.get(castId)))) return;")
     && rb.includes('? { cast_id: n.cast_id, weight: 0, nom_kind: "free" as const, is_dohan: false, ended: true }') && rb.includes("const nextW = weightsAfterRemovalOf(nomWeights, castId, remainIds);") && rb.includes("を離卓し、分配から外しました"));
+}
+// (14) 裁定466／M-125＝キオスクの本人セッションの cast（MIG_0199 配下＝起草のみ・フラグ false）
+{
+  const fl9 = src("lib/nox/rules-0175/flag.ts"), ps9 = src("lib/nox/kiosk/person-session.ts"), ly9 = src("app/(manage)/layout.tsx");
+  check("benf(14-1) フラグ＝MIG_0199_APPLIED=false（0199 は起草のみ＝手貼りは 0198 → フラグ便 → 0199 の順）・mig0199On／__set0199ForTest の器", (MIG_0199_APPLIED as boolean) === false && mig0199On() === false && fl9.includes("export const MIG_0199_APPLIED = false;"));
+  __set0199ForTest(true); const castOn = kioskPersonSessionAllowedOf("cast"); __set0199ForTest(null);
+  check("benf(14-2) kioskPersonSessionAllowedOf＝cast はフラグ true のときだけ（false の間は manager／staff だけ＝従来どおり）", kioskPersonSessionAllowedOf("cast") === false && castOn === true && kioskPersonSessionAllowedOf("staff") === true && kioskPersonSessionAllowedOf("owner") === false && ps9.includes('(mig0199On() && role === "cast")'));
+  check("benf(14-3) layout＝本人セッションの cast は /register だけ（cast_register_device を見ない・他は /register へ・ナビ＝レジ 1 つ・帯は出す）", ly9.includes('const kioskPersonCast = mig0196On() && mig0199On() && role === "cast"') && ly9.includes('if (!(pn === "/register" || pn.startsWith("/register/"))) redirect("/register");') && ly9.includes('let castReg = !!kioskPersonCast;') && ly9.includes('items: kioskPersonCast ? [{ href: "/register", label: "レジ" }]') && ly9.includes('|| (mig0199On() && role === "cast")); // ★0199'));
 }
 // (5) M-115
 const gd = src("scripts/demo/gen-demo.mjs");

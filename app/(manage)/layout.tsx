@@ -21,7 +21,7 @@ import { isSetupPath, setupGateRedirectOf } from "@/lib/nox/setup/gate"; // ★�
 import KioskPersonGuard from "@/components/nox/kiosk-person-guard"; // ★便 M5 M-49: キオスクからの本人ログイン＝無操作 N 分で戻す
 import { kioskPersonIdleMinutesOf } from "@/lib/nox/kiosk/person-login"; // ★便 M5 M-49
 import { KIOSK_PERSON_COOKIE, kioskNavOf, kioskPersonMustLeaveOf, parseKioskPersonCookie } from "@/lib/nox/kiosk/person-session"; // ★便 E（0196 用＝裁定448 B 方式）
-import { mig0196On } from "@/lib/nox/rules-0175/flag"; // ★便 E
+import { mig0196On, mig0199On } from "@/lib/nox/rules-0175/flag"; // ★便 E ★0199（裁定466・M-125）
 import * as t from "@/lib/nox/ui/theme";
 
 // 店側エリア（register/shift/report/master）の layout。auth_role() rpc は「ここで1回/リクエスト」のみ。
@@ -40,8 +40,11 @@ export default async function ManageLayout({ children }: { children: React.React
   const roleJa = rules0175On() ? roleLabelOf(roleRaw ?? role) : t.roleLabelJa(role as string);
 
   // F3g: cast のエリア制御。有効 cast は /register のみ通し、他パスは /mine へ。
-  let castReg = false;
-  if (role === "cast") {
+  // ★0199（裁定466・M-125・MIG_0199 配下）: キオスクの本人セッションの cast＝/register だけ（店端末なので cast_register_device は見ない＝F3g の device 判定を通さない・他のパスは /register へ・取消・合算・締め解除・売掛・値引きは RPC が cast 不可のまま）
+  const kioskPersonCast = mig0196On() && mig0199On() && role === "cast" ? parseKioskPersonCookie((await cookies()).get(KIOSK_PERSON_COOKIE)?.value) : null;
+  if (kioskPersonCast) { const pn = (await headers()).get("x-pathname") ?? ""; if (!(pn === "/register" || pn.startsWith("/register/"))) redirect("/register"); }
+  let castReg = !!kioskPersonCast;
+  if (role === "cast" && !kioskPersonCast) {
     // ★便 P173（裁定389・0173）: ON のキャストは /register（開卓・注文・会計）と /report（日次の締め）だけ。店設定「操作端末」が店端末のみ（登録済みのレジ端末あり）なら本人セッションは通さない（店端末＝kiosk-register）
     const pathname = (await headers()).get("x-pathname") ?? "";
     const onRegister = pathname === "/register" || pathname.startsWith("/register/") || pathname === "/report" || pathname.startsWith("/report/");
@@ -112,7 +115,7 @@ export default async function ManageLayout({ children }: { children: React.React
   //   群見出しは表示のみ（クリック不可・折り畳みなし）。ホームは群外の先頭。
   //   有効 cast はレジのみ（他タブは踏んでも layout が /mine へ戻す＝混乱を避け1本に絞る）＝従来どおり。
   const groups: NavGroup[] = role === "cast"
-    ? [{ label: null, items: [{ href: "/register", label: "レジ" }, { href: "/report", label: "日報" }] }] // ★便 P173（裁定389）: 日次の締め
+    ? [{ label: null, items: kioskPersonCast ? [{ href: "/register", label: "レジ" }] /* ★0199（裁定466・M-125）: 本人セッションの cast＝レジだけ */ : [{ href: "/register", label: "レジ" }, { href: "/report", label: "日報" }] }] // ★便 P173（裁定389）: 日次の締め
     : [
         { label: null, items: [{ href: "/dashboard", label: "ホーム" }] },
         { label: "営業", items: [
@@ -152,7 +155,7 @@ export default async function ManageLayout({ children }: { children: React.React
   // ★M-119（2026-11-06・裁定460）: 本人セッションも通常ログインと同じナビ・権限・部品（違いは帯だけ）＝kioskNavOf は使わない（端末セッション専用の名残）
   void kioskNavOf;
   const navGroups: NavGroup[] = groups;
-  const kioskPersonOn = !!kioskPerson && (role === "manager" || role === "staff");
+  const kioskPersonOn = !!kioskPerson && (role === "manager" || role === "staff" || (mig0199On() && role === "cast")); // ★0199（裁定466・M-125）
   return (
     /* ── E2（2026-08-17）: 共通シェルを mock/pages-2026-08 の骨格へ寄せた（presentation-only）──
        モック構造＝`.app{grid:238px minmax(0,1fr)}` の**左列にサイドバー（全高）**、
