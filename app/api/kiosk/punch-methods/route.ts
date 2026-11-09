@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { castPunchOffOf, opsProfileOf } from "@/lib/nox/store/ops-profile";
 import { rules0175On } from "@/lib/nox/rules-0175/flag"; // ★追補 2 同乗 R-7
-import { kioskIdleSecOf, kioskTilesOf } from "@/lib/nox/rules-0175/kiosk"; // ★追補 2 同乗 R-7（裁定423 候補）
+import { kioskHomeTilesOf, kioskIdleSecOf, kioskTilesOf } from "@/lib/nox/rules-0175/kiosk"; // ★追補 2 同乗 R-7（裁定423 候補）★裁定468（M-127）: kioskHomeTilesOf
 
 export async function GET() {
   const supabase = await createClient();
@@ -18,5 +18,5 @@ export async function GET() {
   // ★追補 2 同乗 R-7（裁定423 候補）: キオスクで使える機能（kiosk_features）と無操作秒数（kiosk_idle_sec）＝フラグ true のときだけ返す
   const sj = rules0175On() ? (((data ?? null) as unknown as { settings_json?: Record<string, unknown> | null } | null)?.settings_json ?? null) : null;
   const punchMode = punchModeOf(sj); // ★便 E（0197 用＝裁定455）: 'store'＝打刻しない店（キャストもスタッフも）＝端末は打刻の名前を出さない
-  return NextResponse.json({ kiosk: pm.kiosk, castPunchOff: castPunchOffOf(pm) || punchMode === "store", punchMode, ...(sj ? { tiles: kioskTilesOf(sj), idleSec: kioskIdleSecOf(sj) } : {}) });
+  return NextResponse.json({ kiosk: pm.kiosk, castPunchOff: castPunchOffOf(pm) || punchMode === "store", punchMode, ...(sj ? { tiles: kioskHomeTilesOf(sj, pm, punchMode === "store") /* ★裁定468（M-127）: 出退勤は punch_methods.kiosk ∧ 打刻する店だけ */, tilesAll: kioskTilesOf(sj), idleSec: kioskIdleSecOf(sj) } : {}) });
 }

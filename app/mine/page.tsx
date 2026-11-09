@@ -10,7 +10,8 @@ import { createClient } from "@/lib/supabase/server";
 import { bizDateOf, bizDateRange } from "@/lib/nox/biz-date";
 import PayslipSlip from "@/components/payslip-slip";
 import { okuriModeOf } from "@/lib/nox/shift/okuri-mode"; // ★裁定414（S-4）
-import { mig0185On, mig0196On, mig0198On, rules0175On } from "@/lib/nox/rules-0175/flag"; // ★便 P175-prep P-4 ★QR 便: mig0185On
+import { mig0185On, mig0196On, mig0198On, rules0175On } from "@/lib/nox/rules-0175/flag";
+import { dayDedAppliedTextOf } from "@/lib/nox/payroll/day-ded-pick"; // ★裁定468 追補（M-127）: ボタンを出さない店でも「店が付けました」は残す // ★便 P175-prep P-4 ★QR 便: mig0185On
 import AvailabilityEditor from "@/components/nox/availability-editor"; // ★便 P175-prep P-4（裁定397＋413）
 import { wageNowOf } from "@/lib/nox/cast/wage-now"; // ★便 P174 T-5（GV-55／56）
 import { mineCurrentWageOf } from "@/lib/nox/mine/wage-server"; // ★便 X13-H H-8: 今期の時給（一覧・詳細と同じ値・文言・根拠）
@@ -285,19 +286,18 @@ export default async function MinePage({ searchParams }: { searchParams?: Promis
 
       {/* 段M2: 打刻はスマホで一番使うのでヘッダ直後へ（section の中身・PunchActions・最終打刻の
           文言はそのまま＝移設のみ）。 */}
-      {castPunchOffOf(opsProfileOf(myStore as Record<string, unknown> | undefined).punch_methods) || storeDecidesPunchOf((myStore?.settings_json ?? {}) as Record<string, unknown>) ? (/* ★便 E（0197 用＝裁定455）: punch_mode='store' も打刻カードなし */
-        <p className="nox-pstate" data-cast-punch-off="1" style={{ margin: "0 0 12px" }}>出勤・退勤は店が記録します</p>
-      ) : (/* ★便 X13-G W-23 ①: キャストの打刻を使わない店は打刻カードを出さない */
-      <section className="nox-panel">
+      {/* ★裁定468 追補（M-127・2026-11-09）: 打刻しない店・キャストの打刻を使わない店・スマホ打刻 OFF でも、今日のシフト・店が付けた控除・最終打刻・勤怠一覧は残す＝出勤／退勤のボタンだけ出さない（従来は打刻カードごと消していた） */}
+      {((minePunchOff: boolean) => (
+      <section className="nox-panel" data-mine-punch-off={minePunchOff ? "1" : "0"}>
         <p className="nox-pstate num" data-mine-today-shift={(((shiftsAll ?? []) as ShiftLite[]).find((x) => x.date === bizToday && x.status === "confirmed")) ? "1" : "0"} style={{ margin: "0 0 6px", fontWeight: 700 }}>{todayShiftLineOf({ shift: (((shiftsAll ?? []) as ShiftLite[]).find((x) => x.date === bizToday && x.status === "confirmed")) ?? null, state: ps.state, inAt: ps.inAt, nowMs: Date.now(), bizToday })}</p>{/* ★M-85（2026-11-05）: 今日の確定シフトの 1 行（残りは 15 分単位） */}
         <h3>打刻{punchHeadOf(ps.state, ps.inAt) && <span className="num" style={{ marginLeft: "auto", fontSize: 12.5, fontWeight: 700, color: "var(--ok)" }}>{punchHeadOf(ps.state, ps.inAt)}</span>}</h3>{/* ★326 追補3: 出勤中は見出し横に「出勤中 HH:MM〜」 */}
         {/* ★0164（便 W5-2b）: 店設定 punch_methods.self が OFF の店は本人打刻のボタンを出さない（RPC punch_self は拒否しない＝UI の出し分けだけ・裁定要） */}
-        {opsProfileOf(myStore as Record<string, unknown> | undefined).punch_methods.self ? (
+        {minePunchOff ? (<><p className="nox-pstate" data-cast-punch-off="1" style={{ margin: "0 0 6px" }}>出勤・退勤は店が記録します</p>{mig0198On() && mineDayDedApplied !== null && <p data-mine-day-ded-applied={String(mineDayDedApplied.length)} style={{ fontSize: 12.5, color: "var(--sub)", margin: "0 0 8px" }}>{dayDedAppliedTextOf(mineDayDedApplied)}</p>}</>) : opsProfileOf(myStore as Record<string, unknown> | undefined).punch_methods.self ? (
         <PunchActions state={ps.state} okuriMode={okuriModeOf((myStore?.settings_json ?? {}) as Record<string, unknown>)} /* ★裁定414（S-4）: 4 方式＝'none' 以外で導線 */
           dayDedRules={mineDayDedRules} bizToday={bizToday} /* ★便 D M-103: 出勤時の「今日の控除」（0196 まで空） */ dayDedApplied={mineDayDedApplied} /* ★0198（裁定461 ②）: 表示だけ */
           okuriBase={typeof ((myStore?.settings_json ?? {}) as Record<string, unknown>).okuri_base_amount === "number" ? (((myStore?.settings_json ?? {}) as Record<string, unknown>).okuri_base_amount as number) : null} />
         ) : (
-          <p className="nox-pstate" style={{ color: "var(--sub)" }}>この店はスマホからの打刻を使っていません（出退勤は店の代行か打刻端末で記録します）</p>
+          <><p className="nox-pstate" style={{ color: "var(--sub)" }}>この店はスマホからの打刻を使っていません（出退勤は店の代行か打刻端末で記録します）</p>{mig0198On() && mineDayDedApplied !== null && <p data-mine-day-ded-applied={String(mineDayDedApplied.length)} style={{ fontSize: 12.5, color: "var(--sub)", margin: "0 0 8px" }}>{dayDedAppliedTextOf(mineDayDedApplied)}</p>}</>
         )}{/* ★0156（裁定309-9）: actual 店のみ「送り あり／なし」 */}
         <p className="nox-pstate">
           最終打刻:{" "}
@@ -327,7 +327,7 @@ export default async function MinePage({ searchParams }: { searchParams?: Promis
           <p style={{ ...noteP, marginTop: 4 }}>{mineStoreMode ? ATTENDANCE_MONTH_NOTE_STORE : ATTENDANCE_MONTH_NOTE}</p>
         </details>
       </section>
-      )}
+      ))(castPunchOffOf(opsProfileOf(myStore as Record<string, unknown> | undefined).punch_methods) || storeDecidesPunchOf((myStore?.settings_json ?? {}) as Record<string, unknown>))}
 
       <section className="nox-panel">
         <h3>遅刻・当欠の連絡</h3>

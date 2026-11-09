@@ -14,6 +14,18 @@ export function kioskTilesOf(settings: Record<string, unknown> | null | undefine
   const all = with0190 ? KIOSK_FEATURES_ALL : (["punch", "register", "shift"] as KioskFeature[]);
   return all.filter((k) => f[k] !== false);
 }
+/** ★裁定468（M-127・2026-11-09）: ホームのタイルは店の設定に従う＝出退勤＝打刻方法「店の端末で押す」（punch_methods.kiosk）ON かつ打刻しない店（punch_mode='store'）でない・
+ *  レジ＝店の端末でのレジ使用（kiosk_features.register≠false）・シフト／在庫／日報＝公開（kiosk_features の鍵≠false・無い鍵は ON）。0 個＝PIN の案内とボタンだけ（page 側）。
+ *  判定の鍵は本店と同じ（opsProfileOf の punch_methods・punchModeOf・kiosk_features）。 */
+export function kioskHomeTilesOf(settings: Record<string, unknown> | null | undefined, punchMethods: { kiosk: boolean } | null | undefined, storeDecides: boolean, with0190: boolean = mig0190On()): KioskFeature[] {
+  const base = kioskTilesOf(settings, with0190);
+  const punchOn = !!punchMethods?.kiosk && !storeDecides;
+  return base.filter((k) => k !== "punch" || punchOn);
+}
+/** タイルを描くか＝1 つ以上（出退勤だけのときは描かない＝その画面自体が出退勤） */
+export const kioskTilesShownOf = (tiles: readonly KioskFeature[]): boolean => tiles.length >= 1 && !(tiles.length === 1 && tiles[0] === "punch");
+export const KIOSK_NO_TILES_NOTE = "この端末で使える機能は店の設定で OFF です（スタッフは PIN で本人の画面を開けます）";
+export const KIOSK_PUNCH_OFF_NOTE = "この端末では出退勤の打刻を使いません（店の設定＝打刻方法）";
 /** タイルの行き先がこの便で開くか（シフト・在庫・日報の本体は K client 第 2 便＝今は案内画面） */
 export const KIOSK_FEATURE_READY: Record<KioskFeature, boolean> = { punch: true, register: true, shift: true, inventory: true /* ★裁定469: 本店の /master/stock を開く＝0194 に依らず */, report: true }; // ★0194（裁定445 ③）: 在庫＝読取の本体（kiosk_stock_levels） // ★K client 第 2 便（2026-11-02）: シフト・日報は本体（読取）＝ready・在庫は DDL 待ち
 /** 無操作で自動ロックする秒数＝店設定 kiosk_idle_sec（60〜900・既定 180） */

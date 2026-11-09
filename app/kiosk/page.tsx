@@ -21,7 +21,7 @@ import { rpcErrJa } from "@/lib/nox/ui/rpc-err"; // ★裁定327（0161・便 M1
 import { mig0190On, mig0191On, mig0196On, mig0198On, rules0175On } from "@/lib/nox/rules-0175/flag";
 import { DAY_DED_PICK_HEAD, dayDedPickLabelOf, dayDedPickRowsOf, dayDedAppliedTextOf, type DayDedPickRule, type DayDedApplied } from "@/lib/nox/payroll/day-ded-pick"; // ★便 D M-103 ★0198（裁定461 ②） // ★追補 2 同乗 R-7 ★0190: mig0190On
 import { bindErrJa, browserDeviceFp } from "@/lib/nox/kiosk/device-fp"; // ★0190（裁定436 ①b）: 端末の束縛＝ログイン直後に kiosk_device_bind
-import { KIOSK_FEATURE_READY } from "@/lib/nox/rules-0175/kiosk"; // ★0190（裁定435）: 5 タイル（シフト・在庫・日報は案内画面）
+import { KIOSK_FEATURE_READY, KIOSK_NO_TILES_NOTE, KIOSK_PUNCH_OFF_NOTE, kioskTilesShownOf } from "@/lib/nox/rules-0175/kiosk"; // ★裁定468（M-127） // ★0190（裁定435）: 5 タイル（シフト・在庫・日報は案内画面）
 import CastAvatar from "@/components/ui/cast-avatar"; // ★便 M5 M-42: 写真＝本体画面と同じ部品（url は /api/kiosk/photos の署名 URL）
 import { KIOSK_FEATURE_HREF, KIOSK_FEATURE_LABEL, type KioskFeature } from "@/lib/nox/rules-0175/kiosk"; // ★追補 2 同乗 R-7（裁定423 候補）
 import { KIOSK_PERSON_LINK } from "@/lib/nox/kiosk/person-login"; // ★便 M5 M-49: 本人でログイン（店長以上）
@@ -67,6 +67,7 @@ export default function KioskPage() {
   const [dayDedOn, setDayDedOn] = useState<Record<string, boolean>>({});
   const [castPunchOff, setCastPunchOff] = useState(false);
   const [tileDest, setTileDest] = useState<string | null>(null); // ★裁定469（M-128）: タイルで選んだ行き先＝PIN の後に本店のページへ
+  const [kioskPunchOff, setKioskPunchOff] = useState(false); // ★裁定468（M-127）: 打刻方法「店の端末で押す」OFF＝この端末では出退勤を出さない（名前タイルも出さない）
   const [storePunchOff, setStorePunchOff] = useState(false); // ★便 E（0197 用＝裁定455）: punch_mode='store'＝キャストもスタッフも打刻しない（店が勤怠を付ける） // ★便 X13-G W-23 ①: キャストの打刻を使わない店＝キャスト群を出さない（スタッフ群は今のまま）
   const [bindMsg, setBindMsg] = useState<string | null>(null); // ★0190: 端末の束縛（'device bound'＝別の端末に固定済み→denied）
   const [photoUrls, setPhotoUrls] = useState<{ casts: Record<string, string>; operators: Record<string, string> }>({ casts: {}, operators: {} }); // ★便 M5 M-42: 端末は署名できない（auth_org_id null）＝route が admin で署名
@@ -93,7 +94,7 @@ export default function KioskPage() {
     const { data: sd, error: se } = await supabase.rpc("kiosk_staff_list");
     setStaffs(se ? [] : ((sd ?? []) as SRow[]));
     void fetch("/api/kiosk/photos").then((r) => (r.ok ? r.json() : null)).then((j) => { if (j && j.casts) setPhotoUrls({ casts: j.casts ?? {}, operators: j.operators ?? {} }); }).catch(() => undefined); // ★便 M5 M-42: 失敗は頭文字のまま
-    void fetch("/api/kiosk/punch-methods").then((r) => (r.ok ? r.json() : null)).then((j) => { if (j && j.castPunchOff === true) { setCastPunchOff(true); setGroup("staff"); } if (j && j.punchMode === "store") setStorePunchOff(true); /* ★便 E（0197） */ if (rules0175On() && j && Array.isArray(j.tiles)) setKioskTiles(j.tiles as KioskFeature[]); }).catch(() => {}); // ★追補 2 同乗 R-7: タイル（フラグ true）
+    void fetch("/api/kiosk/punch-methods").then((r) => (r.ok ? r.json() : null)).then((j) => { if (j && j.castPunchOff === true) { setCastPunchOff(true); setGroup("staff"); } if (j && j.punchMode === "store") setStorePunchOff(true); if (j && j.kiosk === false) { setKioskPunchOff(true); setStorePunchOff(true); } /* ★裁定468（M-127）: 店の端末で押す OFF＝名前タイルを出さない（storePunchOff と同じ出し分け） */ /* ★便 E（0197） */ if (rules0175On() && j && Array.isArray(j.tiles)) setKioskTiles(j.tiles as KioskFeature[]); }).catch(() => {}); // ★追補 2 同乗 R-7: タイル（フラグ true）
     return true;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -260,16 +261,18 @@ export default function KioskPage() {
 
         {phase === "select" && (
           <>
-            {rules0175On() && kioskTiles.length > 1 && (/* ★追補 2 同乗 R-7（裁定423 候補）: ホームの大きなタイル＝出退勤（この画面）・レジ・シフト（店設定で ON のものだけ）。フラグ false＝従来の名前選択だけ */
+            {rules0175On() && kioskTilesShownOf(kioskTiles) && (/* ★裁定468（M-127）: 1 つ以上で描く（出退勤だけは描かない） *//* ★追補 2 同乗 R-7（裁定423 候補）: ホームの大きなタイル＝出退勤（この画面）・レジ・シフト（店設定で ON のものだけ）。フラグ false＝従来の名前選択だけ */
               <div data-kiosk-tiles="1" style={{ display: "grid", gridTemplateColumns: `repeat(${kioskTiles.length}, 1fr)`, gap: 12, margin: "0 0 18px" }}>
                 {kioskTiles.map((k) => (k === "punch"
                   ? <span key={k} style={{ ...bigBtn, textAlign: "center", padding: "18px 0", fontSize: 18, borderColor: "var(--gold)", color: "var(--gold)" }}>{KIOSK_FEATURE_LABEL[k]}</span>
                   : <button type="button" key={k} data-kiosk-tile={k} data-kiosk-tile-ready={KIOSK_FEATURE_READY[k] ? "1" : "0"} onClick={() => setTileDest(KIOSK_FEATURE_HREF[k])} style={{ ...bigBtn, textAlign: "center", padding: "18px 0", fontSize: 18, fontFamily: "inherit", cursor: "pointer" }}>{KIOSK_FEATURE_LABEL[k]}</button>))}{/* ★裁定469（M-128）: PIN → 本人セッション → 本店の同じページ（簡易画面は廃止） */}{/* ★0190（裁定435）: 5 タイル＝シフト・在庫・日報は案内画面（K client 第 2 便で本体） */}
               </div>
             )}
-            <p style={{ textAlign: "center", fontSize: 15, color: "var(--champ)", fontWeight: 700, margin: "0 0 16px" }}>
+            {!storePunchOff && (<p style={{ textAlign: "center", fontSize: 15, color: "var(--champ)", fontWeight: 700, margin: "0 0 16px" }}>
               名前を選んでください
-            </p>
+            </p>)}
+            {rules0175On() && kioskPunchOff && !castPunchOff && (<p data-kiosk-punch-off="1" style={{ textAlign: "center", fontSize: 13, color: "var(--sub)", margin: "0 0 12px" }}>{KIOSK_PUNCH_OFF_NOTE}</p>)}{/* ★裁定468（M-127） */}
+            {rules0175On() && kioskTiles.length === 0 && (<p data-kiosk-no-tiles="1" style={{ textAlign: "center", fontSize: 13, color: "var(--sub)", margin: "0 0 12px" }}>{KIOSK_NO_TILES_NOTE}</p>)}{/* ★裁定468（M-127）: 0 個＝PIN の案内とボタンだけ（下の KioskPersonEntry） */}
             {/* ★便 M5 M-49（2026-10-30）: 本人でログイン＝店長以上がパスワードで本体画面を開く入口（タイルの構成＝裁定435 の 5 タイルは変えない・小さな文字リンク）。
                 開いた本体画面は無操作 N 分（店設定 kiosk_person_idle_minutes・既定 10）で自動ログアウト→端末のセッションを復元してこの画面へ戻る（KioskPersonGuard） */}
             {mig0196On() && tileDest !== null && <KioskPersonEntry dest={tileDest} open onClose={() => setTileDest(null)} />}{/* ★裁定469（M-128）: タイル → PIN */}

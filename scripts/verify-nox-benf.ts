@@ -11,6 +11,7 @@ import { dayDedAppliedTextOf } from "../lib/nox/payroll/day-ded-pick"; // ★裁
 import { loanAgreedMapOf, loanStatusLabelOf, loanAckLabelOf } from "../lib/nox/payroll/loan-ledger"; // ★M-123
 import { MIG_0199_APPLIED, mig0199On, __set0199ForTest } from "../lib/nox/rules-0175/flag"; // ★0199（裁定466・M-125）
 import { kioskPersonSessionAllowedOf } from "../lib/nox/kiosk/person-session"; // ★M-125
+import { kioskHomeTilesOf, kioskTilesShownOf } from "../lib/nox/rules-0175/kiosk"; // ★裁定468／M-127
 import { equalSplitOf, weightsAfterRemovalOf, removeShareConfirmTextOf, NOM_X_CLOSED_REASON } from "../lib/nox/nom-shares"; // ★裁定462／M-121
 import { reservationLineOf, reservationTodayLineOf, reservationBookedChipOf, sortPendingReservations, pendingTotalOf, type PendingReservation } from "../lib/nox/home/pending";
 import { baseTimeDiffersOf, sortRowsByAvail, staffAvailConfirmTextOf, staffAvailJudgeOf, staffAvailNgTextOf, staffBaseTimeLabelOf, type StaffAvailMap } from "../lib/nox/shift/staff-place";
@@ -168,6 +169,17 @@ check("benf(6-3) ホーム＝予約の申請が先頭（approvals の前）・�
   check("benf(13-2) 給与＝貸付残高一覧に「同意未」（data-loan-agreed）・貸付台帳（直近 30 件＝view cast_loans・data-loan-ledger／data-loan-status・返済済は nox-stpill ok）＝mig0198On() のときだけ読む",
     pb3.includes('supabase.from("cast_loans").select("id, cast_id, cast_name, biz_date, amount, repaid, remaining, status, ack_method, note").eq("store_id", storeId).order("biz_date", { ascending: false }).limit(30)') && pb3.includes("if (mig0198On()) {") && pb3.includes("data-loan-ledger={String(loanLedger.length)}") && pb3.includes('className={l.status === "deducted" ? "nox-stpill ok" : "nox-stpill"}') && pb3.includes('data-loan-agreed="0" title='));
   check("benf(13-3) 貸付伝票（AdvanceOkuriForm）＝対象キャストの現在のプランが同意未なら印（data-loan-agreed=0・発行は止めない）", af4.includes("{loanPin && loanAgreed === false && (") && af4.includes("setLoanAgreed(loanAgreedOf(map, loanCast));"));
+}
+// (15) 裁定468／M-127＝キオスクのタブは店の設定に従う・/mine の出勤／退勤ボタンは「本人がスマホで押す」ON のときだけ
+{
+  const kp7 = src("app/kiosk/page.tsx"), mp7 = src("app/mine/page.tsx"), rt7 = src("app/api/kiosk/punch-methods/route.ts");
+  check("benf(15-1) 純関数＝kioskHomeTilesOf（出退勤＝punch_methods.kiosk ∧ 打刻する店・他は kiosk_features）・kioskTilesShownOf（0 個は描かない・出退勤だけも描かない）",
+    JSON.stringify(kioskHomeTilesOf(null, { kiosk: true }, false, true)) === JSON.stringify(["punch", "register", "shift", "inventory", "report"]) && JSON.stringify(kioskHomeTilesOf(null, { kiosk: false }, false, true)) === JSON.stringify(["register", "shift", "inventory", "report"])
+    && JSON.stringify(kioskHomeTilesOf({ kiosk_features: { register: false, shift: false, inventory: false, report: false } }, { kiosk: true }, true, true)) === "[]" && kioskTilesShownOf([]) === false && kioskTilesShownOf(["punch"]) === false && kioskTilesShownOf(["punch", "register"]) === true && kioskTilesShownOf(["register"]) === true);
+  check("benf(15-2) API＝tiles は kioskHomeTilesOf（punch_methods・punch_mode）・キオスク＝kiosk=false で名前タイルを出さない（data-kiosk-punch-off）・0 個＝案内（data-kiosk-no-tiles）＋PIN の入口",
+    rt7.includes('tiles: kioskHomeTilesOf(sj, pm, punchMode === "store")') && kp7.includes("if (j && j.kiosk === false) { setKioskPunchOff(true); setStorePunchOff(true); }") && kp7.includes('data-kiosk-punch-off="1"') && kp7.includes('data-kiosk-no-tiles="1"') && kp7.includes("{!storePunchOff && (<p style={{ textAlign: \"center\", fontSize: 15"));
+  check("benf(15-3) /mine＝打刻カードは残しボタンだけ出さない（data-mine-punch-off・今日のシフト・最終打刻・勤怠一覧・店が付けた控除は残る）",
+    mp7.includes('<section className="nox-panel" data-mine-punch-off={minePunchOff ? "1" : "0"}>') && mp7.includes('{minePunchOff ? (<><p className="nox-pstate" data-cast-punch-off="1"') && (mp7.match(/data-mine-day-ded-applied=\{String\(mineDayDedApplied\.length\)\}/g) ?? []).length === 2);
 }
 // (5) M-115
 const gd = src("scripts/demo/gen-demo.mjs");
