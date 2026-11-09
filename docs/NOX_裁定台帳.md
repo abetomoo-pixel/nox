@@ -5645,6 +5645,15 @@ Agoora が 7 本を手貼り（0185→0180→0181→0182→0183→0184→0186）
 - **目視の気づき（判断は相談役）**＝①本人セッションのナビは左に 4 アイコン（レジ／シフト／顧客／日報）＝kioskNavOf の perms（在庫・打刻・予約はタブの中か店の機能次第）＝7 つの想定との突合は次便で ②今日タブの「代わりに打刻」ボタンは撮影のセレクタ（名前）で 0 件＝表の行の中にある可能性＝実機で確認 ③出勤時の「今日の控除」＝デモ 6 店に pick ルールが 0（読取）＝チェック群は出ない＝gen-demo に pick ルールを足すのはデモデータ便の候補。
 - **M-111 候補**（起票・採番は相談役）＝kiosk_unlock の cast 判定に旧キーの救済が無い＝本番 7 店で旧キーだけの店は 0（上の M-111 の節）。
 
+### 0198 フラグ true 便の記録（2026-11-09・0198＝裁定458 貸付＋★5 wipe＋★6 裁定461＋★7 M-122・Agoora 手貼り＝事前確認 1 行 → Success → 検証 22 行＝CC の読取と全行一致）
+
+- **収蔵**＝supabase/migrations/0198_cast_loans.sql（sha16 ed90503b54b54acd・679 行）・MIG_0198_APPLIED=true（M-119 は裁定460 の実装で 0198 とは別＝有効化リストに入れない）。
+- **verify:nox-0198**（新設・28）＝フラグ／収蔵（sha16・commit 1 回・lock_timeout）／live 22 行（期待値＝Agoora の返りと同値）／7 関数の md5（cast_day_applied_of adc29e6e・cast_day_deductions_set 5a60959e・cast_loan_grant 78b7b5a3・cast_loan_repay d34198b6・demo_org_reset a3f58a25・kiosk_punch 1b5eb974・set_comp_plan 35bd14f3）／★5 の c_wipe 6 表／BEGIN…ROLLBACK の動作（★1 同意・★3 貸付 PIN あり／なし・返済・★4 view・★6 cast 撤回・staff ok・applied・端末ゲート・★7 set null・DB 変更 0）。
+- **pin 張替え**＝関数 419→422（0158 s-3／t-1・0188 F-4・0190 FN_PIN・0194c 5-1・0195 3-1・0196 3-1・0197 4-1・p172 6-4）・0158（kiosk_punch md5 1b5eb974・set_comp_plan md5 35bd14f3＝33 引数・comp_plans 49 列・advances 19 列）・grants（G9 advances 19 列・G31 operator 29 本＝kiosk_punch）・課金名簿（A19＝cast_loan_repay＝対象 203・B(x)＝cast_day_applied_of／cast_loan_grant＝除外 219・述語参照 204）・0196（selfarm＝'not today' は消える・4-23／4-24 は操作担当が解錠中なので受理のまま・4-24b＝day_applied）・0195（4-5 staff ok）・wipe-cover（PREWIPE から c_wipe へ移った 6 表を外す・2-1＝availability_terms は c_wipe で memberships より前）・benf（10-1 true・11-4・13）。
+- **client の有効化**（MIG_0198 配下＝フラグで自動）＝M-120（代行の出勤直後の「今日の控除」チェック群・本人は「店が付けました」の表示だけ）・待遇プランの「前借り（貸付）の取扱いに同意」・貸付の発行の「本人確認 PIN（空＝立会い）」。**M-123**（裁定464 付帯①）＝lib/nox/payroll/loan-ledger.ts（loanAgreedMapOf＝現在のプランの advance_loan_agreed・返済済／未回収／取消・PIN／立会い）・給与の貸付残高一覧に「同意未」（data-loan-agreed）・貸付台帳（直近 30 件＝view cast_loans・data-loan-ledger／data-loan-status・返済済は緑の印）・貸付伝票（AdvanceOkuriForm）に「同意未」（発行は止めない＝仮置き 5）。
+- **教訓136（採番・2026-11-09）＝新しい表・関数を足したら「ACL／wipe の順序／LIFF の再ログイン」を verify に足す**＝①ACL＝作り直す関数の proacl は live を写す（0197b の on_duty_of）②wipe＝org_id を持つ表は c_wipe か route の先掃除に入れ、no-action の FK は子から親へ（M-122＝availability_terms.updated_by）③LIFF＝期限切れ ID トークンの再ログイン（M-116）＝新しい入口を足すたびに 1 回通す。verify＝grants（ACL）・wipe-cover（wipe）・bene／benf（LIFF の文言）。次の教訓＝137。
+- **f0／push／reset／撮影**＝下に埋める。
+
 ## 裁定464（2026-11-09 確定・相談役）0198 の仮置き 1〜9 を全部承認（再生成なし＝sha16 ed90503b54b54acd のまま）＋付帯 2 点
 
 出典＝相談役 11/09（handpaste_0198.md を読んで）。適用＝0198（手貼りは相談役が 0198_cast_loans.sql を照合した後に合図＝それまで貼らない）。
@@ -8665,7 +8674,7 @@ anon-guard 段28 が無差別 `limit(1)` でそれを拾い 'bad amount'/BV=unde
 
 ## 次の番号（2026-11-09 午後・裁定463（M-121 の仮置き確定）を収載した時点）
 
-- **次の裁定＝465**（463＝✕ の追補・464＝0198 の仮置き 1〜9 承認＋付帯 2 点）。**次の M＝M-124**（M-123＝貸付の「同意未」の印／返済済＝0198 のフラグ便の後）。**次の起票＝122**（120＝bad pin の audit 1 行・121＝退会は無効化＝ローンチ後）。**次の M（旧）＝M-123**（M-121＝✕ の読取と裁定462 の実装・M-122＝デモ reset の wipe＝route の先掃除＋0198 ★7）。**次の教訓＝136**。**次の mig＝0198**（起草済み sha16 7fec9253d9cda229・仮置き 8 は「操作担当が解錠中なら受理」で確定・1〜7 は保留・手貼りは合図待ち）。
+- **次の裁定＝465**（463＝✕ の追補・464＝0198 の仮置き 1〜9 承認＋付帯 2 点）。**次の M＝M-124**（M-123＝貸付の「同意未」の印／返済済＝0198 のフラグ便の後）。**次の起票＝122**（120＝bad pin の audit 1 行・121＝退会は無効化＝ローンチ後）。**次の M（旧）＝M-123**（M-121＝✕ の読取と裁定462 の実装・M-122＝デモ reset の wipe＝route の先掃除＋0198 ★7）。**次の教訓＝137**（136＝2026-11-09 採番＝新しい表・関数を足したら ACL／wipe 順序／LIFF 再ログインを verify に足す）。**次の mig＝0199**（0198＝2026-11-09 本番適用・収蔵済み・0199＝line_notify の白名単＝起草のみ）。
 
 ## 次の番号（2026-11-07 朝・裁定461／M-120 を収載・0198 ★6 を同乗させた時点）
 
