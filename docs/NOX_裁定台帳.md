@@ -5682,7 +5682,7 @@ CC の処置（M-127）＝①kioskHomeTilesOf（出退勤＝punch_methods.kiosk 
 
 ## M-127（2026-11-09 起票・相談役・client・DDL なし）キオスクのタブと /mine の打刻ボタンを店の設定に従わせる（裁定468）
 
-本文＝裁定468 の節。
+本文＝裁定468 の節。**CC の処置（2026-11-09 夜）**＝22600f7（kioskHomeTilesOf・/mine の打刻カード）＋c804726（打刻端末 OFF でキャストの名前一覧も出さない）・f0 2 連緑 AM／AN（178 段 7,457）・AP／AQ（178 段 7,460）・撮影 docs/tmp/shots_m127（API 応答の差し替え）・/mine の撮影はデモで OFF の店を作れず未（v61 §0-2 止まった点 2）。
 
 ## 裁定466（2026-11-09 確定・相談役）キオスクの本人セッション（kiosk_person_claim）に「cast ∧ can_register ∧ 店 ≥2」を追加＝帯のナビは cast＝/register だけ
 
