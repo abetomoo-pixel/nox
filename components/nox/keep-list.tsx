@@ -9,6 +9,7 @@ import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import { Message } from "@/components/ui/toast"; // ★裁定281: メッセージ表示の共通部品
 import { keepSearchOf, keepSortOf, keepStatusLabelOf, keepTagOf, type KeepListRow } from "@/lib/nox/rules-0175/keeps";
+import { errJa } from "@/lib/nox/errors"; // ★裁定467（M-126）: 利用者向けの文言は辞書 1 本
 
 type Raw = { id: string; customer_id: string | null; product_id: string; bottle_name: string | null; tag_label: string | null; remaining_pct: number | null; shelf_no: string | null; last_used_at: string | null; status: string; store_id: string };
 
@@ -23,7 +24,7 @@ export default function KeepList({ storeId, casts }: { storeId: string | null; c
     let kq = supabase.from("bottle_keeps").select("id, customer_id, product_id, bottle_name, tag_label, remaining_pct, shelf_no, last_used_at, status, store_id").in("status", ["active", "pending", "empty"]);
     if (storeId) kq = kq.eq("store_id", storeId);
     const { data: ks, error } = await kq;
-    if (error) { setErr(`キープの読み込みに失敗: ${error.message}`); setRows([]); return; }
+    if (error) { setErr(`キープの読み込みに失敗: ${errJa(error.message)}`); setRows([]); return; }
     const raw = (ks ?? []) as Raw[];
     const cids = [...new Set(raw.map((k) => k.customer_id).filter((x): x is string => !!x))];
     const pids = [...new Set(raw.map((k) => k.product_id))];

@@ -13,6 +13,7 @@ import { Message } from "@/components/ui/toast";
 import ReasonModal from "@/components/nox/reason-modal"; // ★裁定443 18-⑦: 却下の理由は Modal（申請の内容を見せる・window.prompt は使わない）
 import { APPROVAL_STATUS_LABEL, RESERVATION_OVERDUE_MARK, approvalLineOf, bellLabelOf, rejectReasonOkOf, reservationLineOf, type PendingSummary } from "@/lib/nox/home/pending";
 import ReservationDecide from "@/components/nox/reservation-decide"; // ★M-117: 予約の承認待ち（レジ › 予約と同じ部品）
+import { errJa } from "@/lib/nox/errors"; // ★裁定467（M-126）: 利用者向けの文言は辞書 1 本
 
 export const PENDING_CARD_ID = "pending-card";
 
@@ -43,7 +44,7 @@ export default function PendingCard({ storeId, role }: { storeId: string; role: 
     setBusy(id); setMsg(null);
     const { error } = await supabase.rpc("approval_decide", { p_approval_id: id, p_approve: approve });
     setBusy(null);
-    if (error) { setMsg(`処理できませんでした: ${error.message}`); return; }
+    if (error) { setMsg(`処理できませんでした: ${errJa(error.message)}`); return; }
     setRejectTarget(null);
     setMsg(approve ? "承認しました（レジの明細に反映されます）" : `却下しました（理由: ${reason}）`);
     await load();

@@ -34,6 +34,7 @@ import { INVITE_STATE_LABEL, LOGIN_METHOD_NOTE, LOGIN_METHOD_OPTIONS, inviteErrJ
 import { LINE_BIND_NOTE, liffBindUrlOf, siteOriginOf } from "@/lib/nox/line/liff-endpoint";
 import ContractChip from "@/components/nox/contract-chip"; // ★便 D M-99 // ★便 ON-3（0176 ★1 401）: LINE 連携のリンク
 import ContactChangesPanel from "@/components/nox/contact-changes-panel"; // ★便 ON-3（0176 ★4 400）: 連絡先の変更（未確認） // ★追補 3 R-8（裁定425 候補）: 役割「管理者」
+import { errJa } from "@/lib/nox/errors"; // ★裁定467（M-126）: 利用者向けの文言は辞書 1 本
 type Mem = {
   id: string; user_id: string; store_id: string; role: string; is_active: boolean;
   can_register: boolean; can_crm: boolean; can_shift: boolean; can_view_backs: boolean;
@@ -205,7 +206,7 @@ export default function StaffBoard({
   async function rpc(label: string, fn: string, args: Record<string, unknown>) {
     setBusy(true); setMsg(null);
     const { error } = await supabase.rpc(fn, args);
-    setMsg(error ? `${label}に失敗: ${error.message}` : `${label}しました`);
+    setMsg(error ? `${label}に失敗: ${errJa(error.message)}` : `${label}しました`);
     setBusy(false);
     await load();
     return !error;

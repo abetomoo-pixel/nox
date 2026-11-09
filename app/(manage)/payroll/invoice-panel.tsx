@@ -10,6 +10,7 @@ import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 
 import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
+import { errJa } from "@/lib/nox/errors"; // ★裁定467（M-126）: 利用者向けの文言は辞書 1 本
 type Row = {
   castId: string; castName: string;
   mode: string | null; invoice: string | null; regNo: string | null;
@@ -65,7 +66,7 @@ export default function InvoicePanel({ storeId, period, isOwner }: { storeId: st
       p_cast_id: r.castId, p_mode: mode, p_invoice: invoice, p_reg_no: regNo || null,
       p_reg_valid_from: regValidFrom || null, p_reg_valid_to: regValidTo || null, p_reg_notified_on: regNotifiedOn || null,
     });
-    if (error) setMsg(`${r.castName} の更新に失敗: ${error.message}`);
+    if (error) setMsg(`${r.castName} の更新に失敗: ${errJa(error.message)}`);
     else await load();
     setBusy(false);
   }

@@ -38,6 +38,7 @@ import { bonusParamsOf, bonusTiersLabel, bonusTiersOf } from "@/lib/nox/bonus-ti
 import { SLIDE_ROWS_MAX, slideAddRow, slideErrOf, slideRemoveRow, slideRowsOf, slideToSave, slideWarnOf } from "@/lib/nox/comp/slide-rows"; // ★便 P174 T-1（裁定390）: 段数可変（1〜10）
 import { Message } from "@/components/ui/toast"; // ★便 P174 T-1: 段の検査・警告
 import { daysInMonthOf } from "@/lib/nox/month"; // ★便 X13-H H-9: 暦月の日付は 1 か所で（「-31」固定・翌月 0 日を撤去）
+import { errJa, requiredNoteOf } from "@/lib/nox/errors"; // ★裁定467（M-126）: 利用者向けの文言は辞書 1 本
 export { PRODUCT_BACK_OPTIONS, type ProductBackMode };
 export type Plan = {
   slide_period?: string | null; // ★裁定338（0168）: 判定期間（monthly／half／daily・旧行は daily）
@@ -184,7 +185,7 @@ const note: React.CSSProperties = { fontSize: 12, color: "var(--sub)" };
 //   ★mig0104（裁定77）の 'duplicate name'（set_comp_plan）を含む。既定は素の message を返す
 //     ＝未知トークンを握り潰さない（rpcErrJa 各実装と同じ振る舞い）。
 export function compErrJa(msg: string | undefined): string {
-  if (!msg) return "不明なエラー";
+  if (!msg) return "処理できませんでした";
   if (msg.includes("duplicate name")) return "同じ名前のプランがあります";
   if (msg.includes("not found")) return "対象が見つかりません（再読込してください）";
   if (msg.includes("forbidden")) return "権限がありません";
@@ -199,7 +200,7 @@ export function compErrJa(msg: string | undefined): string {
   if (msg.includes("bad product_back_mode")) return "商品販売バックの方式が不正です";
   if (msg.includes("bad product_back_rate")) return "売上の割合は「売上の割合」方式のときだけ 0〜100 で入力してください";
   if (msg.includes("bad product_back_fixed")) return "固定額は「販売数 × 固定額」方式のときだけ 0 以上で入力してください";
-  return msg;
+  return errJa(msg); // ★裁定467（M-126）: 残りは辞書（不明は「処理できませんでした（bad xxx）」）
 }
 
 export const DEFAULT_PENALTY: Penalty = {
@@ -1001,7 +1002,7 @@ export function DeductionTab({ deductions, isManagerUp, storeId, setMsg, reload,
         <>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
             <span style={note}>{id ? "編集中" : "新規"}</span>
-            <input placeholder="名称（送り代等）" value={name} onChange={(e) => setName(e.target.value)} style={{ ...input, width: 150 }} />
+            <span style={{ display: "inline-grid", gap: 4 }}><input placeholder="名称（送り代等）" value={name} onChange={(e) => setName(e.target.value)} style={{ ...input, width: 150 }} aria-label="控除の名称" />{requiredNoteOf(name, "名称") && <span data-ded-name-required="1" style={{ fontSize: 11.5, color: "var(--bad)" }}>{requiredNoteOf(name, "名称")}</span>}</span>{/* ★裁定467（M-126）: 入力不足は RPC の前に止める */}
             {mig0195On() ? (/* ★0195 M-73 ②④: 種別＝実費／その他の 2 択（ボタン群）・既存行の従来の種別は「（従来）」の 1 つを足して値を保つ */
               <label style={{ fontSize: 12 }}>種別<br />
                 <SegSelect value={kind} onChange={(v) => setKind(v)} ariaLabel="種別" wrap
@@ -1028,7 +1029,7 @@ export function DeductionTab({ deductions, isManagerUp, storeId, setMsg, reload,
             )}
             <label style={{ fontSize: 12 }}><input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} /> 有効</label>
             <div className="nox-actions" style={{ flexBasis: "100%", width: "100%" }}>{/* ★便 BTN（裁定242）: 主ボタン（＋補助）は行の中央 */}
-              <button style={btnDark} onClick={save}>{id ? "更新" : "登録"}</button>
+              <button style={{ ...btnDark, ...(requiredNoteOf(name, "名称") ? { opacity: 0.5, cursor: "not-allowed" } : {}) }} onClick={save} disabled={!!requiredNoteOf(name, "名称")} data-ded-save="1">{id ? "更新" : "登録"}</button>{/* ★裁定467（M-126）: 名称が空なら押せない */}
               {id && <button style={btnLight} onClick={resetForm}>新規に戻す</button>}
             </div>
           </div>

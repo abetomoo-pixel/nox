@@ -29,6 +29,7 @@ import { shiftMonthHrefOf } from "@/lib/nox/payroll/view";
 import { monthLastDayOf } from "@/lib/nox/month"; // ★便 M-10: この月のシフトを開く＝公開済みなら確定シフト・無ければ ③配置（同月）
 import { createClient } from "@/lib/supabase/client";
 import { mig0192On } from "@/lib/nox/rules-0175/flag"; // ★0192 M-38: 退勤の取消（punch_cancel_out）
+import { errJa } from "@/lib/nox/errors"; // ★裁定467（M-126）: 利用者向けの文言は辞書 1 本
 
 type Sheet = KintaiSheet;
 type CastSheet = KintaiCast;
@@ -115,7 +116,7 @@ export default function AttendanceBoard({ stores, initialStoreId, initialPeriod,
     setBusy(true); setMsg(null);
     const { error } = await createClient().rpc("punch_cancel_out", { p_cast_id: sel.castId });
     setBusy(false);
-    if (error) { setMsg(error.message.includes("not out") ? "今日の最後の打刻が退勤ではないため取り消せません" : error.message.includes("forbidden") ? "権限がありません（自店のキャストのみ）" : `取り消しに失敗: ${error.message}`); return; }
+    if (error) { setMsg(error.message.includes("not out") ? "今日の最後の打刻が退勤ではないため取り消せません" : error.message.includes("forbidden") ? "権限がありません（自店のキャストのみ）" : `取り消しに失敗: ${errJa(error.message)}`); return; }
     setMsg(`${sel.castName} の今日の退勤を取り消しました（出勤中に戻りました）`); await load();
   }
 

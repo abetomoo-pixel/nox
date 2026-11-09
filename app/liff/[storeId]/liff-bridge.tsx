@@ -4,6 +4,7 @@ import { siteHrefOf, siteOriginOf } from "@/lib/nox/line/liff-endpoint"; // ★�
 // ★便 ON-3（2026-10-26・0176 ★1＝401）: LIFF の橋＝SDK を読み込み liff.init → 未ログインなら liff.login → getIDToken → クエリで分岐（t と m=bind＝POST /api/line/bind／無し＝POST /api/line/session）→ 行き先へ。
 //   id_token はこの POST にだけ乗せる（URL・ログに出さない）。失敗は画面に 1 行（route の語→日本語）。
 import { useEffect, useState } from "react";
+import { errJa } from "@/lib/nox/errors"; // ★裁定467（M-126）: 利用者向けの文言は辞書 1 本
 
 type Liff = { init: (o: { liffId: string }) => Promise<void>; isLoggedIn: () => boolean; login: (o?: { redirectUri?: string }) => void; logout: () => void; getIDToken: () => string | null };
 // ★M-116（2026-11-06・便 F・相談役 承認）: 期限切れ ID トークン＝LIFF はログイン状態を保ったまま古い id_token を返す（LINE の verify が 400）→ route の 401「bad id_token」を受けたら
@@ -55,7 +56,7 @@ export default function LiffBridge({ storeId, liffId }: { storeId: string; liffI
         writeRetry(retryKeyOf(storeId), false); // ★M-116: 成功＝再試行の鍵を消す
         setMsg("移動します…");
         window.location.replace(j.dest);
-      } catch (e) { if (!cancelled) { setErr(jaOf(e instanceof Error ? e.message : "error")); setMsg(""); } }
+      } catch (e) { if (!cancelled) { setErr(jaOf(e instanceof Error ? errJa(e.message) : "error")); setMsg(""); } }
     })();
     return () => { cancelled = true; };
   }, [storeId, liffId]);

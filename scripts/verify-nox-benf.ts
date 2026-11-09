@@ -12,6 +12,7 @@ import { loanAgreedMapOf, loanStatusLabelOf, loanAckLabelOf } from "../lib/nox/p
 import { MIG_0199_APPLIED, mig0199On, __set0199ForTest } from "../lib/nox/rules-0175/flag"; // ★0199（裁定466・M-125）
 import { kioskPersonSessionAllowedOf } from "../lib/nox/kiosk/person-session"; // ★M-125
 import { kioskHomeTilesOf, kioskTilesShownOf } from "../lib/nox/rules-0175/kiosk"; // ★裁定468／M-127
+import { errJa, errUnknownOf, requiredNoteOf } from "../lib/nox/errors"; // ★裁定467／M-126
 import { equalSplitOf, weightsAfterRemovalOf, removeShareConfirmTextOf, NOM_X_CLOSED_REASON } from "../lib/nox/nom-shares"; // ★裁定462／M-121
 import { reservationLineOf, reservationTodayLineOf, reservationBookedChipOf, sortPendingReservations, pendingTotalOf, type PendingReservation } from "../lib/nox/home/pending";
 import { baseTimeDiffersOf, sortRowsByAvail, staffAvailConfirmTextOf, staffAvailJudgeOf, staffAvailNgTextOf, staffBaseTimeLabelOf, type StaffAvailMap } from "../lib/nox/shift/staff-place";
@@ -177,9 +178,17 @@ check("benf(6-3) ホーム＝予約の申請が先頭（approvals の前）・�
     JSON.stringify(kioskHomeTilesOf(null, { kiosk: true }, false, true)) === JSON.stringify(["punch", "register", "shift", "inventory", "report"]) && JSON.stringify(kioskHomeTilesOf(null, { kiosk: false }, false, true)) === JSON.stringify(["register", "shift", "inventory", "report"])
     && JSON.stringify(kioskHomeTilesOf({ kiosk_features: { register: false, shift: false, inventory: false, report: false } }, { kiosk: true }, true, true)) === "[]" && kioskTilesShownOf([]) === false && kioskTilesShownOf(["punch"]) === false && kioskTilesShownOf(["punch", "register"]) === true && kioskTilesShownOf(["register"]) === true);
   check("benf(15-2) API＝tiles は kioskHomeTilesOf（punch_methods・punch_mode）・キオスク＝kiosk=false で名前タイルを出さない（data-kiosk-punch-off）・0 個＝案内（data-kiosk-no-tiles）＋PIN の入口",
-    rt7.includes('tiles: kioskHomeTilesOf(sj, pm, punchMode === "store")') && kp7.includes("if (j && j.kiosk === false) { setKioskPunchOff(true); setStorePunchOff(true); }") && kp7.includes('data-kiosk-punch-off="1"') && kp7.includes('data-kiosk-no-tiles="1"') && kp7.includes("{!storePunchOff && (<p style={{ textAlign: \"center\", fontSize: 15"));
+    rt7.includes('tiles: kioskHomeTilesOf(sj, pm, punchMode === "store")') && kp7.includes("if (j && j.kiosk === false) { setKioskPunchOff(true); setStorePunchOff(true); }") && kp7.includes('data-kiosk-punch-off="1"') && kp7.includes("(castPunchOff || kioskPunchOff ? [] : casts).map(") && kp7.includes('data-kiosk-no-tiles="1"') && kp7.includes("{!storePunchOff && (<p style={{ textAlign: \"center\", fontSize: 15"));
   check("benf(15-3) /mine＝打刻カードは残しボタンだけ出さない（data-mine-punch-off・今日のシフト・最終打刻・勤怠一覧・店が付けた控除は残る）",
     mp7.includes('<section className="nox-panel" data-mine-punch-off={minePunchOff ? "1" : "0"}>') && mp7.includes('{minePunchOff ? (<><p className="nox-pstate" data-cast-punch-off="1"') && (mp7.match(/data-mine-day-ded-applied=\{String\(mineDayDedApplied\.length\)\}/g) ?? []).length === 2);
+}
+// (16) 裁定467／M-126＝利用者向けの文言は日本語・辞書 1 本（lib/nox/errors）・入力不足は RPC の前に止める
+{
+  const cs = src("app/(manage)/master/cast-comp/comp-sections.tsx"), re = src("lib/nox/ui/rpc-err.ts");
+  check("benf(16-1) 辞書＝forbidden／permission denied → 権限がありません・bad pin → PIN が違います・bad name → 名称を入力・不明は「処理できませんでした（bad xxx）」・日本語はそのまま",
+    errJa("forbidden") === "権限がありません" && errJa("permission denied for function x") === "権限がありません" && errJa("bad pin") === "PIN が違います" && errJa("bad name").startsWith("名称を入力") && errJa("bad zzz") === "処理できませんでした（bad zzz）" && errUnknownOf("x") === "処理できませんでした（x）" && errJa("保存しました") === "保存しました" && errJa(null) === "処理できませんでした");
+  check("benf(16-2) rpcErrJa は辞書へ委ねる（専用語の MAP の後）・compErrJa の残りも辞書（生の英字を返さない）", re.includes("return errJa(m); // ★裁定467") && cs.includes("return errJa(msg); // ★裁定467") && !/処理できませんでした（コード:/.test(re));
+  check("benf(16-3) 控除の名称が空なら登録を押せない＋欄の下に「名称を入力してください」（data-ded-name-required・data-ded-save）", requiredNoteOf("", "名称") === "名称を入力してください" && requiredNoteOf(" 送り ", "名称") === null && cs.includes('disabled={!!requiredNoteOf(name, "名称")} data-ded-save="1"') && cs.includes('data-ded-name-required="1"'));
 }
 // (5) M-115
 const gd = src("scripts/demo/gen-demo.mjs");

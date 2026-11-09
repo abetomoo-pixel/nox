@@ -18,6 +18,7 @@ import ReceiptPrintSheet, { type ReceiptPrintItem } from "@/components/nox/recei
 import { receiptReissueErrJa } from "@/lib/nox/register/receipt-ledger";
 import { rules0175On } from "@/lib/nox/rules-0175/flag"; // ★追補 2 同乗 R-6
 import { PAYMENT_METHOD_LABEL, stampNoticeOf } from "@/lib/nox/rules-0175/invoice-receipt"; // ★追補 2 同乗 R-6（裁定422 候補）
+import { errJa } from "@/lib/nox/errors"; // ★裁定467（M-126）: 利用者向けの文言は辞書 1 本
 
 type Store = { id: string; name: string; settings_json?: Record<string, unknown> | null };
 type Issue = {
@@ -83,7 +84,7 @@ export default function ReceiptsBoard({ stores }: { stores: Store[] }) {
     });
     setBusy(false);
     if (error) {
-      setMsg(isBillingLocked(error.message) ? BILLING_LOCKED_MSG
+      setMsg(isBillingLocked(errJa(error.message)) ? BILLING_LOCKED_MSG
         : error.message.includes("forbidden") ? "権限がありません" : error.message);
       return;
     }

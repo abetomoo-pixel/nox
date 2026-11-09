@@ -16,6 +16,7 @@ import CustomerPickModal from "@/components/nox/customer-pick-modal"; // ★裁�
 import * as t from "@/lib/nox/ui/theme";
 import { rules0175On } from "@/lib/nox/rules-0175/flag"; // ★連続便 3 追補 P-9
 import { keepCallTextOf } from "@/lib/nox/rules-0175/keeps"; // ★連続便 3 追補 P-9（裁定419 候補）: 「H様 山崎 10/23」
+import { errJa } from "@/lib/nox/errors"; // ★裁定467（M-126）: 利用者向けの文言は辞書 1 本
 
 type Named = { customer_id: string; pos: number; name: string; bottle_names: string[] };
 type Cust = { id: string; name: string; furigana: string | null; tel?: string | null };
@@ -33,7 +34,7 @@ export function checkCustomerErrJa(msg: string | null | undefined): string {
   if (m.includes("not open")) return "会計済みの伝票には操作できません";
   if (m.includes("billing locked")) return "ご契約の状態により操作できません";
   if (m.includes("forbidden")) return "権限がありません";
-  return `処理できませんでした（コード: ${m || "unknown"}）`;
+  return errJa(m || "unknown"); // ★裁定467（M-126）
 }
 
 export default function CheckCustomersCard({ checkId, storeId, isOpen, lines: _lines, products, onChanged, castIds = [] }: {

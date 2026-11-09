@@ -40,7 +40,7 @@ async function main() {
   check("ao(1-2) issueBodyOf の拒否: キャストなし／0／小数／日付形／店なし", !n1.ok && !n2.ok && !n3.ok && !n4.ok && !n5.ok);
   check("ao(1-3) issueDateDefaultOf: 期の中は今日・前は期初・後は期末・期なしは今日", issueDateDefaultOf("2026-09-25", "2026-09-01", "2026-09-30") === "2026-09-25" && issueDateDefaultOf("2026-10-02", "2026-09-01", "2026-09-30") === "2026-09-30" && issueDateDefaultOf("2026-08-30", "2026-09-01", "2026-09-30") === "2026-09-01" && issueDateDefaultOf("2026-09-25") === "2026-09-25");
   check("ao(1-4) okuriEnabledOf: actual／flat／store／未指定＝true・none＝false（★裁定414: 4 方式・none 以外で記録できる）", okuriEnabledOf("actual") && okuriEnabledOf("flat") && okuriEnabledOf("store") && okuriEnabledOf(undefined) && okuriEnabledOf(null) && !okuriEnabledOf("none"));
-  check("ao(1-5) issueErrJa: paid period／okuri not actual／forbidden／bad cast／不明は「処理できませんでした（コード: …）」", issueErrJa(409, "paid period").includes("支払済み") && issueErrJa(409, "okuri not actual").includes("実費") && issueErrJa(403, "forbidden").includes("権限") && issueErrJa(400, "bad cast").includes("キャスト") && issueErrJa(500, "xyz").includes("コード: xyz"));
+  check("ao(1-5) issueErrJa: paid period／okuri not actual／forbidden／bad cast／不明は「処理できませんでした（コード: …）」", issueErrJa(409, "paid period").includes("支払済み") && issueErrJa(409, "okuri not actual").includes("実費") && issueErrJa(403, "forbidden").includes("権限") && issueErrJa(400, "bad cast").includes("キャスト") && issueErrJa(500, "xyz") === "処理できませんでした（xyz）" /* ★裁定467（M-126）: 不明は辞書の errUnknownOf */);
 
   // (2) 配線
   const comp = fs.readFileSync("components/nox/advance-okuri-form.tsx", "utf8");

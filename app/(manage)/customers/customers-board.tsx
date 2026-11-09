@@ -24,6 +24,7 @@ import KeepList from "@/components/nox/keep-list"; // ★連続便 3 追補 P-9�
 
 import { rpcErrJa as rpcErrJaCommon } from "@/lib/nox/ui/rpc-err"; // ★N2-2（2026-09-18）: 生の RPC 語の日本語化（写像に無い語は「処理できませんでした（コード: …）」）
 import Toast, { Message } from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
+import { errJa } from "@/lib/nox/errors"; // ★裁定467（M-126）: 利用者向けの文言は辞書 1 本
 type Store = { id: string; name: string };
 type Cast = { id: string; name: string; store_id: string; is_active: boolean };
 type Row = {
@@ -147,7 +148,7 @@ export default function CustomersBoard({
       if (chunk.length < 1000) break;
     }
     const data = all;
-    if (error) { setErr(`読み込みに失敗: ${error.message}`); setRows([]); return; }
+    if (error) { setErr(`読み込みに失敗: ${errJa(error.message)}`); setRows([]); return; }
     setRows((data ?? []) as Row[]);
     // E8-3 #2: 一覧バッジ用 grade（customers 直 select・RLS スコープ内・表示専用）
     const { data: gs } = await supabase.from("customers").select("id, grade").not("grade", "is", null);
@@ -347,7 +348,7 @@ export default function CustomersBoard({
       p_cast_id: isManagerUp ? (aCast || null) : null, // staff は RPC 側でも null 化（二重）
     });
     setBusy(false);
-    if (error) { setMsg(`登録に失敗: ${error.message}`); return; }
+    if (error) { setMsg(`登録に失敗: ${errJa(error.message)}`); return; }
     setMsg("登録しました");
     setAddOpen(false);
     await load();

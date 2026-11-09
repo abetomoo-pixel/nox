@@ -13,6 +13,7 @@ import { mig0186On } from "@/lib/nox/rules-0175/flag"; // ★便 W-10 #22（0186
 
 import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 import ReasonModal from "@/components/nox/reason-modal"; // ★裁定443 18-⑦: 取消の理由は Modal（対象月・区分・税額を見せる・window.prompt は使わない）
+import { errJa } from "@/lib/nox/errors"; // ★裁定467（M-126）: 利用者向けの文言は辞書 1 本
 type Row = {
   target_month: string;
   tax_category: string;
@@ -46,7 +47,7 @@ export default function PaymentTaxPanel({ hasUnpaidFinalized }: { hasUnpaidFinal
   const load = useCallback(async () => {
     setBusy(true); setMsg("");
     const { data, error } = await supabase.rpc("withholding_monthly_summary");
-    if (error) setMsg(`読込に失敗: ${error.message}`);
+    if (error) setMsg(`読込に失敗: ${errJa(error.message)}`);
     else setRows((data ?? []) as Row[]);
     setBusy(false);
   }, [supabase]);
@@ -65,7 +66,7 @@ export default function PaymentTaxPanel({ hasUnpaidFinalized }: { hasUnpaidFinal
       p_target_month: r.target_month, p_tax_category: r.tax_category, p_paid_on: on,
     });
     const hit = Object.keys(MSG).find((k) => (error?.message ?? "").includes(k));
-    setMsg(error ? (hit ? MSG[hit] : `記録に失敗: ${error.message}`) : "納付を記録しました");
+    setMsg(error ? (hit ? MSG[hit] : `記録に失敗: ${errJa(error.message)}`) : "納付を記録しました");
     setBusy(false);
     if (!error) await load();
   }
@@ -78,7 +79,7 @@ export default function PaymentTaxPanel({ hasUnpaidFinalized }: { hasUnpaidFinal
     if (!reason.trim()) { setMsg("取消の理由を入れてください"); return; }
     setBusy(true); setMsg("");
     const { error } = await supabase.rpc("withholding_payment_cancel", { p_target_month: r.target_month, p_tax_category: r.tax_category, p_reason: reason.trim() });
-    setMsg(error ? (/forbidden/.test(error.message) ? "取消は管理者のみです" : `取消に失敗: ${error.message}`) : "納付記録を取り消しました");
+    setMsg(error ? (/forbidden/.test(errJa(error.message)) ? "取消は管理者のみです" : `取消に失敗: ${errJa(error.message)}`) : "納付記録を取り消しました");
     setBusy(false);
     if (!error) { setCancelTarget(null); await load(); }
   }

@@ -5671,7 +5671,7 @@ CC の処置＝M-128（読取→実装＝下の節）。
 
 ## M-126（2026-11-09 起票・相談役・client・DDL なし）裁定467＝エラー文の辞書 1 本（lib/nox/errors）と入力不足の前置き
 
-本文＝裁定467 の節。読取（着手前）＝今の変換（rpcErrJa／chargeErrJa／kintaiErrJa／issueErrJa／loanErrJa／compErrJa…＝画面ごとの関数）を lib/nox/errors の辞書 1 本に寄せる範囲と、英字が裸で出る箇所（verify:nox-messages の「生の語を裸で出さない」との整合）。順＝M-128 → M-127 → M-126。
+本文＝裁定467 の節。**読取（2026-11-09 夜・docs/tmp/m126_scan.md）**＝DB（live の関数 422 本）の raise のコード＝**564 種**・client のどこかで写像がある＝**279 種**・無い＝**285 種**（多くは bad xxx の入力検査）・画面ごとの和文化関数（*ErrJa）＝**46 本**・和文化を通さず error.message を出す行＝**42 行**。**CC の処置**＝lib/nox/errors（ERR_DICT＝共通語 50 余・errJa＝日本語はそのまま／辞書／不明は「処理できませんでした（bad xxx）」・errUnknownOf・requiredNoteOf）・rpcErrJa（lib/nox/ui/rpc-err＝43 画面が使う）の残りを辞書へ・compErrJa／issueErrJa／plan-switch／check-customers の「不明」も辞書へ・生の error.message 41 行を errJa で包む（console の 1 行は除く）・控除の名称が空なら登録を押せない＋欄の下に「名称を入力してください」。DB のコード・verify のコードの pin は不変（文言の pin＝messages ms(1b-2)・advance-okuri ao(1-5) の 2 本だけ張替え）。M-127 の追い＝打刻端末 OFF のキオスクでキャストの名前一覧も出さない（castPunchOff だけを見ていた）。読取（着手前）＝今の変換（rpcErrJa／chargeErrJa／kintaiErrJa／issueErrJa／loanErrJa／compErrJa…＝画面ごとの関数）を lib/nox/errors の辞書 1 本に寄せる範囲と、英字が裸で出る箇所（verify:nox-messages の「生の語を裸で出さない」との整合）。順＝M-128 → M-127 → M-126。
 
 ## 裁定468（2026-11-09 確定・相談役＋追補）キオスクのタブ（出退勤／レジ／シフト／在庫／日報）は店の設定に従う＝0 個なら「スタッフでログイン（PIN）」の案内とボタンだけ／追補＝/mine の出勤／退勤ボタンは「本人がスマホで押す」ON のときだけ（勤怠一覧・今日のシフト・店が付けた控除は残す）
 

@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import Toast from "@/components/ui/toast";
 import { DEFAULT_RECEIPT_DESC, regNoValidOf } from "@/lib/nox/rules-0175/invoice-receipt";
+import { errJa } from "@/lib/nox/errors"; // ★裁定467（M-126）: 利用者向けの文言は辞書 1 本
 
 export default function InvoiceProfileFields({ storeId, isOwner }: { storeId: string; isOwner: boolean }) {
   const supabase = createClient();
@@ -23,7 +24,7 @@ export default function InvoiceProfileFields({ storeId, isOwner }: { storeId: st
     if (busy) return; setBusy(true); setMsg("");
     const { error } = await supabase.rpc("set_store_invoice_profile", { p_store_id: storeId, p_legal_name: f.legal.trim() || null, p_trade_name: f.trade.trim() || null, p_receipt_default_desc: f.desc.trim() || null });
     setBusy(false);
-    setMsg(error ? `エラー: ${error.message}` : "領収書の発行者を保存しました");
+    setMsg(error ? `エラー: ${errJa(error.message)}` : "領収書の発行者を保存しました");
   }
   return (
     <section className="nox-cardtop" style={{ ...t.card, marginBottom: 14 }} data-invoice-profile="1">

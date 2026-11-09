@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import { Message } from "@/components/ui/toast";
 import { specialDayLineOf, specialDayErrorOf, type SpecialDay } from "@/lib/nox/business-hours-special";
+import { errJa } from "@/lib/nox/errors"; // ★裁定467（M-126）: 利用者向けの文言は辞書 1 本
 
 export default function SpecialDaysPanel({ storeId, editable }: { storeId: string; editable: boolean }) {
   const [rows, setRows] = useState<SpecialDay[]>([]);
@@ -37,7 +38,7 @@ export default function SpecialDaysPanel({ storeId, editable }: { storeId: strin
     setBusy(true); setMsg(null);
     const { error } = await createClient().rpc("set_store_special_day", { p_store_id: storeId, p_day: day, p_kind: kind, p_open_hm: kind === "open" ? openHm : null, p_close_hm: kind === "open" ? closeHm : null, p_note: note.trim() || null });
     setBusy(false);
-    if (error) { setMsg({ kind: "error", text: /forbidden/.test(error.message) ? "権限がありません（店長・管理者のみ）" : error.message }); return; }
+    if (error) { setMsg({ kind: "error", text: /forbidden/.test(errJa(error.message)) ? "権限がありません（店長・管理者のみ）" : errJa(error.message) }); return; }
     setMsg({ kind: "success", text: `${day} を${kind === "closed" ? "臨時休業" : "特別営業"}にしました` }); setDay(""); setNote("");
     await load();
   }
@@ -46,7 +47,7 @@ export default function SpecialDaysPanel({ storeId, editable }: { storeId: strin
     setBusy(true);
     const { error } = await createClient().rpc("remove_store_special_day", { p_store_id: storeId, p_day: d });
     setBusy(false);
-    setMsg(error ? { kind: "error", text: error.message } : { kind: "success", text: `${d} を曜日の設定に戻しました` });
+    setMsg(error ? { kind: "error", text: errJa(error.message) } : { kind: "success", text: `${d} を曜日の設定に戻しました` });
     await load();
   }
 

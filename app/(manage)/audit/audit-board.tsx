@@ -14,6 +14,7 @@ import * as t from "@/lib/nox/ui/theme";
 import { AUDIT_HIGH_VOID_YEN, auditAlertsOf, auditCsvOf, auditExportErrorOf, voidApproverReasonOf, type AuditAlert } from "@/lib/nox/audit/alerts"; // ★便 W-10 #2／#5／#7
 import type { BusinessHourRow } from "@/lib/nox/business-hours"; // ★裁定443 9-①: 営業時間外＝店設定の営業時間から
 import { mig0186On } from "@/lib/nox/rules-0175/flag"; // ★便 W-10 #7（0186＝出力の記録）
+import { errJa } from "@/lib/nox/errors"; // ★裁定467（M-126）: 利用者向けの文言は辞書 1 本
 type Log = {
   id: string; store_id: string | null; actor_user_id: string | null; action: string; target: string;
   before_json: Record<string, unknown> | null; after_json: Record<string, unknown> | null; at: string; ip: string | null; reason?: string | null;
@@ -145,7 +146,7 @@ export default function AuditBoard({ users, stores }: {
     setExMsg(null);
     const { data, error } = await supabase.from("audit_logs").select("id, store_id, actor_user_id, action, target, before_json, after_json, at, ip, reason")
       .gte("at", `${exFrom}T00:00:00+09:00`).lte("at", `${exTo}T23:59:59+09:00`).order("at", { ascending: true }).limit(20000);
-    if (error) { setExMsg({ kind: "error", text: `読み込みに失敗: ${error.message}` }); return; }
+    if (error) { setExMsg({ kind: "error", text: `読み込みに失敗: ${errJa(error.message)}` }); return; }
     const rows = (data ?? []) as Log[];
     const { error: eR } = await supabase.rpc("audit_export_record", { p_from: exFrom, p_to: exTo, p_purpose: exPurpose.trim(), p_rows: rows.length, p_format: "csv" });
     if (eR) { setExMsg({ kind: "error", text: `出力の記録に失敗しました（出力していません）: ${eR.message}` }); return; }

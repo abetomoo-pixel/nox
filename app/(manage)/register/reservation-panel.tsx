@@ -29,6 +29,7 @@ import { businessHoursStatus, fmtHoursLabel, type BusinessHourRow } from "@/lib/
 import Picker from "@/components/nox/picker";
 
 import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
+import { errJa } from "@/lib/nox/errors"; // ★裁定467（M-126）: 利用者向けの文言は辞書 1 本
 type Seat = { id: string; name: string; kind: string | null; store_id: string };
 type Cast = { id: string; name: string };
 // E8-1 ⑥: tel＝予約行の電話表示（customers.tel の select 追加のみ・フリー客は列なし＝非表示）
@@ -374,7 +375,7 @@ export default function ReservationPanel({
     setMsg(null); setBusy(true);
     const { error } = await supabase.rpc("reservation_set_status", { p_reservation_id: r.id, p_status: status });
     setBusy(false);
-    setMsg(error ? `更新に失敗: ${error.message}` : `${label}にしました`);
+    setMsg(error ? `更新に失敗: ${errJa(error.message)}` : `${label}にしました`);
     await load();
   }
 

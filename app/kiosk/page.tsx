@@ -307,7 +307,7 @@ export default function KioskPage() {
               </div>
             ) : (
             <div className="nox-kioskgrid" data-kiosk-grid="1">{/* ★GV-4（便 N1014 A-3）: 名前タイル＝≥900px 4 列・600〜899 3 列・それ未満 2 列（globals.css） */}
-              {(castPunchOff ? [] : casts).map((c) => ( /* ★便 X13-G W-23: キャストの打刻を使わない店はキャストの名前を出さない */
+              {(castPunchOff || kioskPunchOff ? [] : casts).map((c) => ( /* ★裁定468（M-127）: 打刻端末 OFF も名前を出さない ★便 X13-G W-23: キャストの打刻を使わない店はキャストの名前を出さない */
                 <button key={c.cast_id} onClick={() => pick(c)} disabled={!c.has_pin}
                   style={{ ...bigBtn, opacity: c.has_pin ? 1 : 0.35, cursor: c.has_pin ? "pointer" : "not-allowed" }}>
                   <span style={{ display: "flex", justifyContent: "center", marginBottom: 6 }}><CastAvatar name={c.cast_name} url={photoUrls.casts[c.cast_id]} size={44} variant="flat" /></span>{/* ★便 M5 M-42: 写真（本体と同じ部品・同じ署名 URL） */}

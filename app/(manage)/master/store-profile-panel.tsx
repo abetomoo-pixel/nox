@@ -34,6 +34,7 @@ type Store = { id: string; name: string };
 import { OPS_DEFAULT, PAYMENT_METHOD_LABEL, PUNCH_METHOD_LABEL, opsPatchErrorOf, opsPatchOf, opsProfileOf, type OpsProfile, castPunchOffOf, castPunchMethodsOf, CAST_PUNCH_OFF_NOTE } from "@/lib/nox/store/ops-profile"; // 純関数＝lib（setup page（server）と共用）
 import { MID_PAY_OPTIONS, SETTLEMENT_CYCLE_OPTIONS, midPayOf, settlementCycleOf } from "@/lib/nox/payroll/settlement-cycle"; // ★0172（裁定349・便 P172）: 店設定 2 キー
 import { SHIFT_AUTO_CONFIRM_OPTIONS, autoConfirmHoursOf } from "@/lib/nox/shift/auto-confirm"; // ★0172（裁定380・便 P172）: 自動確定時間
+import { errJa } from "@/lib/nox/errors"; // ★裁定467（M-126）: 利用者向けの文言は辞書 1 本
 type Profile = { kind_back: { hon: string; jonai: string; free: string }; wht_cast: string; wht_staff: string; cash_float: string; close_day: string; /* ★0191 ★1（2026-10-30）: 店設定 5 キー（指名区分ごとの割合・源泉区分の既定 2・釣銭準備金・締め日）＝文字列で持ち patch で数値に */ duty_gate: boolean; kiosk_person_idle: string; punch_mode: "punch" | "store"; reg_win_before: string; reg_win_after: string; /* ★便 E（0197 用） */ /* ★0192 M-49: キオスクの本人でログイン＝無操作で戻す分（1〜120・欠損＝10） */ /* ★0190（裁定436 ①a）: 打刻ゲート＝settings_json.duty_gate（欠損＝true＝DB の duty_gate_of と同じ既定） */ pay_disc_cash: string; pay_disc_base: PayDiscountBase; pay_disc_rates_raw: Record<PayDiscountKey, number>; /* ★0187（便 CASH） */ name: string; short: string; store_code: string; display_name: string; shift_cast_confirm: boolean; customer_purpose: string; customer_retention_years: string; ar_enabled: boolean; okuri_base_amount: string; okuri_actual: boolean; ops: OpsProfile; settlement_cycle: string; mid_pay: string; shift_auto_confirm_hours: string; join_mode: JoinMode; pay_fee: Record<PayFeeKey, string> }; // ★便 P173: join_mode（386）・pay_fee（393・％の文字列・空＝0） // ★0153（裁定305-11／293-4）: 利用目的・保持年数（1〜10・既定 5）・★0172（裁定349／380）: 精算方式・途中払い・自動確定時間
 const EMPTY: Profile = { kind_back: { hon: "100", jonai: "50", free: "30" }, wht_cast: "hostess", wht_staff: "none", cash_float: "", close_day: "31", duty_gate: true, kiosk_person_idle: "10", punch_mode: "punch", reg_win_before: "30", reg_win_after: "60", pay_disc_cash: "", pay_disc_base: "total", pay_disc_rates_raw: { cash: 0, card: 0, other: 0 }, name: "", short: "", store_code: "", display_name: "", shift_cast_confirm: false, customer_purpose: "", customer_retention_years: "5", ar_enabled: false, okuri_base_amount: "", okuri_actual: false, settlement_cycle: "monthly", mid_pay: "none", shift_auto_confirm_hours: "0", ops: OPS_DEFAULT, join_mode: "join_set", pay_fee: { card: "", emoney: "", other: "" } };
 
@@ -66,7 +67,7 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
     if (!storeSel) return;
     const supabase = createClient();
     const { data, error } = await supabase.from("stores").select("name, short, settings_json, invoice_registered_on, pay_day, tax_inclusive_display, use_vip, use_counter, payment_methods, punch_methods").eq("id", storeSel).single(); // ★0164（便 W5-2a）: 列 7 つ
-    if (error) { setMsg(`読み込みに失敗: ${error.message}`); return; }
+    if (error) { setMsg(`読み込みに失敗: ${errJa(error.message)}`); return; }
     const sj = (data?.settings_json ?? {}) as Record<string, unknown>;
     const p: Profile = {
       ops: opsProfileOf(data as Record<string, unknown> | null), // ★0164（便 W5-2a）

@@ -56,6 +56,7 @@ import { receiptDescDefaultOf } from "@/lib/nox/rules-0175/invoice-receipt"; // 
 
 import { rpcErrJa as rpcErrJaCommon } from "@/lib/nox/ui/rpc-err"; // ★N2-2（2026-09-18）: 生の RPC 語の日本語化（写像に無い語は「処理できませんでした（コード: …）」）
 import Toast, { Message } from "@/components/ui/toast"; // ★裁定281（便 U／AB）: メッセージ表示の共通部品
+import { errJa } from "@/lib/nox/errors"; // ★裁定467（M-126）: 利用者向けの文言は辞書 1 本
 type Seat = { id: string; name: string; kind: string | null; store_id: string };
 // 純増⑦（mig0063）: category_id でタイルをカテゴリ別に束ねる（未登録店は type 別へフォールバック）
 // 段R2: reorder_point＝低在庫「残N」のしきい（null=しきい無し＝表示しない）
@@ -649,7 +650,7 @@ export default function RegisterBoard({
       p_check_id: check.id, p_product_id: null, p_qty: 1, p_kind: "charge",
       p_name: `${SURCHARGE_PREFIX}${surchargeRate}%)`, p_pay_group: g, p_unit_price: amount,
     });
-    setMsg(error ? { to: MSG_PAY, kind: "bad", text: `カード手数料の追加に失敗: ${error.message}` }
+    setMsg(error ? { to: MSG_PAY, kind: "bad", text: `カード手数料の追加に失敗: ${errJa(error.message)}` }
       : { to: MSG_PAY, kind: "ok", text: `カード手数料 ${yen(amount)}（${surchargeRate}%）を追加しました` });
     await loadCheck(check.id);
   }
@@ -1011,7 +1012,7 @@ export default function RegisterBoard({
         text: error.message.includes("off duty") ? "出勤してからレジを開けます" // ★0190（裁定436 ①a）: check_merge の打刻ゲート
           : error.message.includes("forbidden") ? "合算できません（同じ伝票・別の店の伝票・権限のいずれか）"
           : C3_ERR_JA.some(([k]) => error.message.includes(k)) ? error.message
-          : `合算できませんでした: ${error.message}` });
+          : `合算できませんでした: ${errJa(error.message)}` }); // ★裁定467（M-126）
       return;
     }
     setMergeModal(false); setMergeInto(""); setMergeReason("");
@@ -1061,7 +1062,7 @@ export default function RegisterBoard({
       setMsg({ to: MSG_FLOOR, kind: "bad", text: error.message.includes("bad rule")
         ? "選択した料金ルールが使えません（無効化された可能性があります・自動で開卓し直してください）"
         : error.message.includes("off duty") ? "出勤してからレジを開けます（店の端末で出勤の打刻をしてください）" // ★0190（裁定436 ①a）: check_open の打刻ゲート（店長以上は免除・店設定 duty_gate=false は不問）
-        : error.message });
+        : errJa(error.message) }); // ★裁定467（M-126）
       return;
     }
     // ★便 GV-C C-2（352 追補1）: 選んだお客様を伝票の来店名義に（失敗しても開卓は残す＝伝票の顧客欄から付け直せる）

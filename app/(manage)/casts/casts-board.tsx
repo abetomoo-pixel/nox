@@ -53,6 +53,7 @@ import { TRIAL_KIND, TRIAL_PLAN_NAME, isTrialCastOf, trialDaysLeftChipOf, trialG
 import { SHIFT_REQUEST_MODE_LABEL, mineSettingsOf } from "@/lib/nox/store/mine-settings"; // ★裁定337（0167）: シフト希望の方式のラベルと店の既定
 import { NOTE_PLAN_SWITCH, planSwitchErrJa, planSwitchValidate } from "@/lib/nox/cast/plan-switch"; // ★裁定306-13（適用開始日の既定＝pay-rule の nextPeriodStartOf）
 import { QUOTA_FORM_EMPTY, QUOTA_KEYS, QUOTA_LABEL, QUOTA_UNIT, quotaArgsOf, quotaFormEquals, quotaFormOf, quotaMonthOptionsOf, type Quota, type QuotaForm, cardAxesOf, cardFmt, type CardAxis } from "@/lib/nox/mine/quota"; // ★0160（裁定326-3・便 M2-2）: 今月のノルマ（set_cast_quota）
+import { errJa } from "@/lib/nox/errors"; // ★裁定467（M-126）: 利用者向けの文言は辞書 1 本
 
 type Store = { id: string; name: string; settings_json?: Record<string, unknown> | null }; // ★裁定300-2: 送り方式（okuri_mode）・ベース額（okuri_base_amount）
 
@@ -501,7 +502,7 @@ export default function CastsBoard({
   async function rpc(label: string, fn: string, args: Record<string, unknown>) {
     setBusy(true); setMsg(null);
     const { error } = await supabase.rpc(fn, args);
-    setMsg(error ? `${label}に失敗: ${error.message}` : `${label}しました`);
+    setMsg(error ? `${label}に失敗: ${errJa(error.message)}` : `${label}しました`);
     setBusy(false);
     await load();
     return !error;
@@ -580,7 +581,7 @@ export default function CastsBoard({
         if (!res.ok) retireNote = "（ログインの失効は後で再実行できます）";
       } catch { retireNote = "（ログインの失効は後で再実行できます）"; }
     }
-    setMsg(error ? (key ? LEAVE_MSG[key] : `${label}に失敗: ${error.message}`) : `${label}しました${retireNote}`);
+    setMsg(error ? (key ? LEAVE_MSG[key] : `${label}に失敗: ${errJa(error.message)}`) : `${label}しました${retireNote}`);
     setBusy(false);
     await reloadLoginCasts();
   }
@@ -672,7 +673,7 @@ export default function CastsBoard({
     setMsg(null); setBusy(true);
     const { error } = await supabase.rpc("set_cast_okuri_tier", { p_cast_id: c.id, p_tier: tier });
     setBusy(false);
-    if (error) { setMsg(error.message.includes("forbidden") ? "権限がありません" : error.message.includes("billing locked") ? "ご契約の状態により変更できません" : error.message.includes("bad tier") ? "区分の値が正しくありません（店設定の区分から選びます）" : error.message); return; }
+    if (error) { setMsg(error.message.includes("forbidden") ? "権限がありません" : error.message.includes("billing locked") ? "ご契約の状態により変更できません" : error.message.includes("bad tier") ? "区分の値が正しくありません（店設定の区分から選びます）" : errJa(error.message)); return; }
     setLoginCasts((rows) => rows.map((r) => (r.id === c.id ? { ...r, okuri_tier: tier } : r)));
     setMsg(tier === null ? "送り区分を「区分なし（ベース額）」にしました" : `送り区分を「${okuriTiersOf(c.store_id).find((t) => t.code === tier)?.name ?? tier}」にしました`);
   }
@@ -682,7 +683,7 @@ export default function CastsBoard({
     const { error } = await supabase.rpc("set_cast_shift_request_mode", { p_cast_id: c.id, p_mode: mode });
     setBusy(false);
     if (error) {
-      setMsg(error.message.includes("forbidden") ? "権限がありません" : error.message.includes("billing locked") ? "ご契約の状態により変更できません" : error.message.includes("bad mode") ? "方式の値が正しくありません" : error.message);
+      setMsg(error.message.includes("forbidden") ? "権限がありません" : error.message.includes("billing locked") ? "ご契約の状態により変更できません" : error.message.includes("bad mode") ? "方式の値が正しくありません" : errJa(error.message));
       return;
     }
     setLoginCasts((rows) => rows.map((r) => (r.id === c.id ? { ...r, shift_request_mode: mode } : r)));

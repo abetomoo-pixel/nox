@@ -1,6 +1,7 @@
+import { errJa } from "@/lib/nox/errors"; // ★裁定467（M-126）: 利用者向けの文言は辞書 1 本
 // ★夜間便 N2-2（2026-09-18・裁定281 の周辺）: 生の RPC 語（'bad name'／'exceeds balance'…）を利用者向けの日本語に写す共通写像（純関数・DB を知らない）。
 //   各画面の rpcErrJa（時間帯・シフト・レジ等の専用写像）はそのまま。ここは「写像を持たない画面が error.message をそのまま出していた 28 箇所」の受け皿。
-//   写像に無い語＝「処理できませんでした（コード: xxx）」の形（生の語を裸で出さない）。日本語が既に来ている文言（写像済み）はそのまま返す。
+//   写像に無い語＝辞書 1 本（lib/nox/errors・裁定467）へ＝不明は「処理できませんでした（xxx）」の形（生の語を裸で出さない）。日本語が既に来ている文言（写像済み）はそのまま返す。
 const MAP: Array<[RegExp, string]> = [
   [/^off duty$/, "出勤してからレジを開けます（店の端末で出勤の打刻をしてください）"], // ★0190（裁定436 ①a）: 打刻ゲート＝check_*／approval_* の assert_on_duty（店長以上は免除・店設定 duty_gate=false は不問）
   [/^bad name$/, "名前が長すぎるか、使えない文字が含まれています"],
@@ -140,11 +141,11 @@ export function isRpcMissingError(msg: string | null | undefined): boolean {
   return /could not find the function|pgrst202|schema cache/.test(m);
 }
 
-/** 生の RPC 語→日本語。写像に無い英字コードは「処理できませんでした（コード: xxx）」。日本語が含まれる文言はそのまま */
+/** 生の RPC 語→日本語。写像に無い英字コードは辞書（lib/nox/errors）→ 不明は「処理できませんでした（xxx）」。日本語が含まれる文言はそのまま */
 export function rpcErrJa(msg: string | null | undefined): string {
   if (!msg) return "処理できませんでした";
   const m = msg.trim();
   if (JA.test(m)) return m;
   for (const [re, ja] of MAP) if (re.test(m)) return ja;
-  return `処理できませんでした（コード: ${m.slice(0, 60)}）`;
+  return errJa(m); // ★裁定467（M-126）: 残りは辞書 1 本（lib/nox/errors）＝不明は「処理できませんでした（bad xxx）」
 }

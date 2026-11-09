@@ -1,4 +1,5 @@
 import { settlementCycleOf } from "./settlement-cycle"; // ★裁定458 ⑤
+import { errJa } from "@/lib/nox/errors"; // ★裁定467（M-126）: 利用者向けの文言は辞書 1 本
 // ★裁定300（2026-09-25）: 前借り／送り実費の発行の純関数（DB を知らない）。
 //   3 入口（マスタ「控除・送り」／casts 詳細／給与 run 明細の右パネル）が同じ部品（components/nox/advance-okuri-form.tsx）から
 //   同じ route（/api/advance/issue → adv_issue／/api/transport/issue → transport_issue）を呼ぶ＝新 RPC 0（300-2）。
@@ -87,5 +88,5 @@ export function issueErrJa(status: number, msg: string | null | undefined): stri
   if (m.includes("bad cast") || m.includes("inactive cast")) return "そのキャストには発行できません（在籍・自店を確認してください）";
   if (m.includes("bad amount") || m.includes("positive integer")) return "金額は正の整数で入力してください";
   if (status === 401 || m.includes("unauthenticated")) return "ログインし直してください";
-  return `処理できませんでした（コード: ${m || status}）`;
+  return errJa(m || String(status)); // ★裁定467（M-126）
 }

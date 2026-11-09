@@ -20,6 +20,7 @@ import Modal from "@/components/ui/modal";
 import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 import { rules0175On } from "@/lib/nox/rules-0175/flag"; // ★追補 2 同乗 R-6
 import InvoiceProfileFields from "@/components/nox/invoice-profile-fields"; // ★追補 2 同乗 R-6（裁定422 候補）
+import { errJa } from "@/lib/nox/errors"; // ★裁定467（M-126）: 利用者向けの文言は辞書 1 本
 type Profile = { address: string; tel: string; regNo: string; footer: string };
 type Job = {
   id: string; check_id: string; pay_group: string; status: string;
@@ -73,7 +74,7 @@ export default function PrinterPanel({ storeId, storeName, initialProfile, isOwn
     const { error } = await supabase.rpc("set_printer_config", {
       p_store_id: storeId, p_enabled: enabled, p_serial: serial.trim() || null,
     });
-    setMsg(error ? `エラー: ${error.message}` : "プリンタ設定を保存しました");
+    setMsg(error ? `エラー: ${errJa(error.message)}` : "プリンタ設定を保存しました");
     setBusy(false);
     if (!error) await loadCfg();
   }
@@ -84,7 +85,7 @@ export default function PrinterPanel({ storeId, storeName, initialProfile, isOwn
     setBusy(true); setMsg("");
     const { data, error } = await supabase.rpc("rotate_store_token", { p_store_id: storeId });
     setBusy(false);
-    if (error) { setMsg(`エラー: ${error.message}`); return; }
+    if (error) { setMsg(`エラー: ${errJa(error.message)}`); return; }
     setIssuedToken(data as string); setCopied(false);
     await loadCfg();
   }

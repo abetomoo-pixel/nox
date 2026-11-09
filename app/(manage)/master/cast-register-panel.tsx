@@ -11,6 +11,7 @@ import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセ
 import { rules0175On } from "@/lib/nox/rules-0175/flag"; // ★追補 2
 import { CAST_REGISTER_LEVEL_DESC, CAST_REGISTER_LEVEL_LABEL, castRegisterLevelOf, type CastRegisterLevel } from "@/lib/nox/rules-0175/cast-register"; // ★追補 2（裁定420）
 import { STAFF_DISCOUNT_LABEL, staffDiscountCapOf, staffDiscountLevelOf, type StaffDiscountLevel } from "@/lib/nox/rules-0175/staff-discount"; // ★追補 2（裁定421 候補）
+import { errJa } from "@/lib/nox/errors"; // ★裁定467（M-126）: 利用者向けの文言は辞書 1 本
 type CastRow = { id: string; name: string; membershipId: string | null; canRegister: boolean };
 
 const card: React.CSSProperties = t.card;
@@ -38,7 +39,7 @@ export default function CastRegisterPanel({
     setLvBusy(true); setMsg("");
     const { error } = await supabase.rpc("set_store_profile", { p_store_id: storeId, p_patch: patch });
     setLvBusy(false);
-    if (error) { setMsg(`エラー: ${error.message}`); return; }
+    if (error) { setMsg(`エラー: ${errJa(error.message)}`); return; }
     setSj((s) => ({ ...s, ...patch })); setMsg(`${label}にしました`);
     if (typeof patch.sys_cast_register === "number") setEnabled((patch.sys_cast_register as number) > 0);
   }
@@ -50,7 +51,7 @@ export default function CastRegisterPanel({
     if (next === enabled || busy) return;
     setBusy(true); setMsg("");
     const { error } = await supabase.rpc("set_store_cast_register", { p_store_id: storeId, p_enabled: next });
-    if (error) setMsg(`エラー: ${error.message}`);
+    if (error) setMsg(`エラー: ${errJa(error.message)}`);
     else { setEnabled(next); setMsg(`店のキャスト会計を「${next ? "有効" : "無効"}」にしました`); }
     setBusy(false);
   }
@@ -60,7 +61,7 @@ export default function CastRegisterPanel({
     const next = !row.canRegister;
     setBusy(true); setMsg("");
     const { error } = await supabase.rpc("set_cast_register", { p_membership_id: row.membershipId, p_can_register: next });
-    if (error) setMsg(`エラー: ${error.message}`);
+    if (error) setMsg(`エラー: ${errJa(error.message)}`);
     else {
       setRows((rs) => rs.map((r) => (r.id === row.id ? { ...r, canRegister: next } : r)));
       setMsg(`${row.name} のレジ会計を「${next ? "許可" : "不許可"}」にしました`);

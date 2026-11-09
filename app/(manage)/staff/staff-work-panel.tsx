@@ -26,6 +26,7 @@ import { effectivePayKindOf } from "@/lib/nox/staff/work"; // ★M-90
 import { staffLaborRowOf } from "@/lib/nox/staff/labor"; // ★0194（裁定445 ①②）: 月の確定と同時に送る確定額の行（内訳つき）
 import Withholding432Panel from "@/components/nox/withholding-432-panel";
 import { WITHHOLDING_ADVICE_NOTE, WITHHOLDING_KIND_LABEL, WITHHOLDING_KIND_SELECT_NOTE, WITHHOLDING_KIND_SHORT, PAYMENT_REPORT_NOTE, defaultWithholdingKindOf, withholdingKindChoices, withholdingKindOf, type EmployeeDeductionKind, type EmployeeDeductionRow } from "@/lib/nox/payroll/withholding-kind";
+import { errJa } from "@/lib/nox/errors"; // ★裁定467（M-126）: 利用者向けの文言は辞書 1 本
 
 type Mem = { id: string; user_id: string; store_id: string; role: string; is_active: boolean };
 type UserRow = { id: string; name: string | null };
@@ -71,7 +72,7 @@ export default function StaffWorkPanel({ scope, stores, daily = false, initialMe
       supabase.from("staff_punches").select("membership_id, biz_date, kind, punched_at").gte("biz_date", from).lte("biz_date", to).order("punched_at"),
     ]);
     const e = mm.error ?? cc.error ?? pp.error;
-    if (e) { setErr(`読み込みに失敗: ${e.message}`); setLoaded(true); return; }
+    if (e) { setErr(`読み込みに失敗: ${errJa(e.message)}`); setLoaded(true); return; }
     let rows = (mm.data ?? []) as Mem[];
     if (scope === "me" && rows.length === 0) { // ★M-87（2026-11-05）: 本人（staff）は memberships を読めない（RLS は owner／manager だけ）＝RPC で自分の行を組む
       const [{ data: mid }, { data: role }, { data: sid }, { data: au }] = await Promise.all([supabase.rpc("auth_membership_id"), supabase.rpc("auth_role"), supabase.rpc("auth_store_id"), supabase.auth.getUser()]);

@@ -23,6 +23,7 @@ import { keepTagOf } from "@/lib/nox/rules-0175/keeps"; // ★連続便 3 追補
 
 import Toast, { Message } from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 import { rpcErrJa } from "@/lib/nox/ui/rpc-err"; // ★0155（便 S-4）: 'already anonymized'／'bad reason'／'forbidden' の日本語化
+import { errJa } from "@/lib/nox/errors"; // ★裁定467（M-126）: 利用者向けの文言は辞書 1 本
 type Cast = { id: string; name: string; store_id: string; is_active: boolean };
 type CustRow = {
   id: string; store_id: string; name: string; furigana: string | null; birthday: string | null;
@@ -215,7 +216,7 @@ export default function CustomerDetail({
       p_is_active: eActive,
     });
     setBusy(false);
-    if (error) { setMsg(`保存に失敗: ${error.message}`); return; }
+    if (error) { setMsg(`保存に失敗: ${errJa(error.message)}`); return; }
     setMsg("保存しました");
     setEditOpen(false);
     await load();

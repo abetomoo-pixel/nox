@@ -18,6 +18,7 @@ import { DOW_LABELS, type BusinessHourRow } from "@/lib/nox/business-hours";
 import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 import SpecialDaysPanel from "@/components/nox/special-days-panel"; // ★便 W-10 #10（0186）
 import { mig0186On } from "@/lib/nox/rules-0175/flag";
+import { errJa } from "@/lib/nox/errors"; // ★裁定467（M-126）: 利用者向けの文言は辞書 1 本
 type Store = { id: string; name: string };
 // ★DP-R 第3弾: dirty＝「この曜日をこの画面で触った」印。未設定(exists=false)の曜日を
 //   一括保存で**意図せず作らない**という mig0032 の設計ロックを保ったまま、
@@ -81,7 +82,7 @@ export default function BusinessHoursPanel({
     setMsg(null);
     const { data, error } = await supabase.from("store_business_hours")
       .select("dow, is_closed, open_hm, close_hm").eq("store_id", storeSel);
-    if (error) { setMsg(`読み込みに失敗: ${error.message}`); return; }
+    if (error) { setMsg(`読み込みに失敗: ${errJa(error.message)}`); return; }
     const next = Array.from({ length: 7 }, emptyForm);
     for (const r of (data ?? []) as BusinessHourRow[]) {
       if (r.is_closed) {

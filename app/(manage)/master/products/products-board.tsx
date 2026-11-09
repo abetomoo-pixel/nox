@@ -30,6 +30,7 @@ import {
   newCategories, countByType, TYPE_LABEL_JA as BULK_TYPE_LABEL_JA,
   type ProductBulkItem,
 } from "@/lib/nox/product-bulk";
+import { errJa } from "@/lib/nox/errors"; // ★裁定467（M-126）: 利用者向けの文言は辞書 1 本
 
 const yen = (n: number) => "¥" + n.toLocaleString();
 const card: React.CSSProperties = t.card;
@@ -275,7 +276,7 @@ export default function ProductsBoard({ storeId, isManagerUp, initial, settings 
       // 失敗時は画面を触っていないので「元に戻す」処理は不要（楽観更新をしていない）
       setMsg(error.message.includes("forbidden") ? "権限がありません"
         : error.message.includes("not found") ? "対象が見つかりません。再読込してください"
-          : error.message);
+          : errJa(error.message)); // ★裁定467（M-126）
       return;
     }
     setMsg(next ? `「${p.name}」を有効にしました` : `「${p.name}」を無効にしました`);
@@ -303,7 +304,7 @@ export default function ProductsBoard({ storeId, isManagerUp, initial, settings 
       p_product_id: stockTarget.id, p_delta: stDelta, p_reason: stReason.trim() || STOCK_REASON_RESTOCK,
     });
     setBusyId(null);
-    if (error) { setMsg(error.message.includes("forbidden") ? "権限がありません" : error.message); return; }
+    if (error) { setMsg(error.message.includes("forbidden") ? "権限がありません" : errJa(error.message)); return; }
     setMsg(`「${stockTarget.name}」の在庫を ${stDelta > 0 ? "+" : ""}${stDelta} 記録しました`);
     setStockTarget(null); setStDelta(0); setStReason("");
     await reload();

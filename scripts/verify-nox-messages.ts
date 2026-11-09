@@ -49,7 +49,7 @@ check("ms(1-8) messageKindOf: 生の RPC エラー語（bad name／not open／fo
 
 // (1b) ★N2-2: 生 RPC 語の共通写像 rpcErrJa（純関数）。逆テスト＝MAP の 'exceeds balance' 行を消す→ms(1b-1) 赤
 check("ms(1b-1) rpcErrJa: 'bad name'／'exceeds balance'／'has payments' が利用者向けの日本語に", rpcErrJa("bad name") === "名前が長すぎるか、使えない文字が含まれています" && rpcErrJa("exceeds balance") === "入金額が残額を超えています" && /入金後は変更できません/.test(rpcErrJa("has payments")));
-check("ms(1b-2) rpcErrJa: 写像に無い英字コードは「処理できませんでした（コード: xxx）」・日本語はそのまま・空は「処理できませんでした」", rpcErrJa("weird_code_x") === "処理できませんでした（コード: weird_code_x）" && rpcErrJa("保存に失敗しました") === "保存に失敗しました" && rpcErrJa(null) === "処理できませんでした");
+check("ms(1b-2) rpcErrJa: 写像に無い英字コードは「処理できませんでした（xxx）」（★裁定467）・日本語はそのまま・空は「処理できませんでした」", rpcErrJa("weird_code_x") === "処理できませんでした（weird_code_x）" /* ★裁定467（M-126）: 不明は辞書の errUnknownOf */ && rpcErrJa("保存に失敗しました") === "保存に失敗しました" && rpcErrJa(null) === "処理できませんでした");
 check("ms(1b-3) rpcErrJa: 0151 の新語（reason required／biz_date_past／guarantee exists／bad valid_from／bad valid_to／period_not_open）", /理由/.test(rpcErrJa("reason required")) && /過去の営業日/.test(rpcErrJa("biz_date_past")) && /保証時給/.test(rpcErrJa("guarantee exists")) && /開始日/.test(rpcErrJa("bad valid_from")) && /終了日/.test(rpcErrJa("bad valid_to")) && rpcErrJa("period_not_open") === "この日は募集期間外です");
 check("ms(1b-4) rpcErrJa: 写像後の文言は messageKindOf で error に倒れる（赤で出る）", ["bad name", "exceeds balance", "forbidden", "weird_code_x"].every((c) => messageKindOf(rpcErrJa(c)) === "error"));
 // ★0155（裁定309・便 S-2）: 'ar disabled'（店設定 ar_enabled=false の売掛）は「この店では売掛を使えません」＝二重防御の文言。廃棄・匿名化の 2 語も同便で写像

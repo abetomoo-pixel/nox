@@ -4,6 +4,7 @@
 //   失敗は勤怠の保存を止めない（戻り値の注記を保存メッセージに添える）。
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { autoPenaltyArgsOf, autoPenaltyReasonOf, presetsOf } from "./settlement";
+import { errJa } from "@/lib/nox/errors"; // ★裁定467（M-126）: 利用者向けの文言は辞書 1 本
 
 export type AutoPenaltyResult = { kind: "added"; amount: number; text: string } | { kind: "skipped"; why: "no_amount" | "employee" | "exists" | "run_not_draft" } | { kind: "error"; text: string };
 
@@ -26,6 +27,6 @@ export async function applyAutoPenalty(supabase: SupabaseClient, input: { storeI
   const a = autoPenaltyArgsOf({ runId: run.id, castId: input.castId, preset, target: input.target, biz: input.biz, shiftId: input.shiftId });
   if (!a.ok) return { kind: "error", text: a.err };
   const { error } = await supabase.rpc("payroll_adjustment_add", a.args);
-  if (error) return { kind: "error", text: error.message };
+  if (error) return { kind: "error", text: errJa(error.message) };
   return { kind: "added", amount: preset.amount, text: `${reason} ¥${preset.amount.toLocaleString()} を精算調整に登録` };
 }

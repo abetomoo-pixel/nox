@@ -12,6 +12,7 @@ import { resolveOrgId, signCastPhoto, uploadCastPhoto } from "@/lib/nox/cast-pho
 
 import { Message } from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 import { useIsDemo } from "@/lib/nox/demo/context"; // ★N7-2 ③: デモは写真アップロードの導線を隠す（storage policy 0149 ★10 でも拒否）
+import { errJa } from "@/lib/nox/errors"; // ★裁定467（M-126）: 利用者向けの文言は辞書 1 本
 type Me = { id: string; name: string; photo_updated_at: string | null };
 
 export default function PhotoCard({ storeName }: { storeName?: string }) {
@@ -58,7 +59,7 @@ export default function PhotoCard({ storeName }: { storeName?: string }) {
       setUrl(u);
       setDone(true);
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "保存に失敗しました");
+      setErr(e instanceof Error ? errJa(e.message) : "保存に失敗しました");
     } finally {
       setBusy(false);
     }

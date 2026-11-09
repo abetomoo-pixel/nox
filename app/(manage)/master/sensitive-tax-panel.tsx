@@ -25,6 +25,7 @@ import Modal from "@/components/ui/modal"; // ★0155（裁定309-3・便 S-3）
 import { rpcErrJa } from "@/lib/nox/ui/rpc-err"; // ★0155: 'no mynumber'／'bad reason'／'forbidden' の日本語化
 import { mig0183On, mig0188On, mig0193On } from "@/lib/nox/rules-0175/flag"; // ★裁定432 ★F193-4
 import { WITHHOLDING_ADVICE_NOTE, WITHHOLDING_KIND_LABEL, WITHHOLDING_KIND_SELECT_NOTE, WITHHOLDING_KIND_SHORT, PAYMENT_REPORT_NOTE, withholdingKindChoices, withholdingKindOf, defaultWithholdingKindOf } from "@/lib/nox/payroll/withholding-kind"; // ★裁定432 ★0188（裁定434）: 4 区分＋注記
+import { errJa } from "@/lib/nox/errors"; // ★裁定467（M-126）: 利用者向けの文言は辞書 1 本
 type Cast = { id: string; name: string };
 type Store = { id: string; name: string };
 
@@ -161,7 +162,7 @@ export default function SensitiveTaxPanel({ casts, stores, isOwner, isManager = 
     // 税務（cast_tax_profiles はパターン2＝manager+ 可視・直 SELECT で現状を読む）。成功時のみ ready。
     const { data: t, error: eT } = await supabase.from("cast_tax_profiles")
       .select("mode, invoice, reg_no, reg_valid_from, reg_valid_to, reg_notified_on, dependents_form, dependents_form_on").eq("cast_id", castId).maybeSingle(); // ★0172: +扶養申告書
-    if (eT) { setMsg((prev) => prev ?? `税務読込エラー: ${eT.message}（もう一度キャストを選択してください）`); }
+    if (eT) { setMsg((prev) => prev ?? `税務読込エラー: ${errJa(eT.message)}（もう一度キャストを選択してください）`); }
     else {
       setMode((t?.mode as string) ?? "委託");
       setInvoice((t?.invoice as string) ?? "");
@@ -187,7 +188,7 @@ export default function SensitiveTaxPanel({ casts, stores, isOwner, isManager = 
       p_birthday: birthday === "" ? null : birthday,
       p_mynumber, // 空=変更なし（既存 enc 温存）
     });
-    if (error) { setMsg(`機密保存エラー: ${error.message}`); return; }
+    if (error) { setMsg(`機密保存エラー: ${errJa(error.message)}`); return; }
     // ★F193-4: 住所・電話・振込先＝変わった項目だけ patch（空＝null で消す・口座番号は数字 8 桁まで＝RPC の鏡）
     if (mig0193On()) {
       const patch: Partial<Record<ExtKey, string | null>> = {};
@@ -225,11 +226,11 @@ export default function SensitiveTaxPanel({ casts, stores, isOwner, isManager = 
       p_reg_valid_to: regValidTo,
       p_reg_notified_on: regNotifiedOn,
     });
-    if (error) { setMsg(`税務保存エラー: ${error.message}`); return; }
+    if (error) { setMsg(`税務保存エラー: ${errJa(error.message)}`); return; }
     // ★0172（裁定349）: 扶養控除等申告書＝雇用のときだけ・変わったときだけ（set_cast_dependents_form＝owner∨manager 自店・税区分の行が先）
     if (mode === "雇用" && (depForm !== depCur.form || (depForm && (depOn || "") !== depCur.on))) {
       const { error: eD } = await supabase.rpc("set_cast_dependents_form", { p_cast_id: castId, p_submitted: depForm, p_on: depForm && depOn ? depOn : null });
-      if (eD) { setMsg(`扶養申告書の保存エラー: ${eD.message}`); void load(); return; }
+      if (eD) { setMsg(`扶養申告書の保存エラー: ${errJa(eD.message)}`); void load(); return; }
     }
     // ★裁定432 ①: 源泉区分＝変わったときだけ（set_withholding_kind＝店長以上・"" は既定に戻す）
     if (mig0183On() && whKind !== whKindCur) {
