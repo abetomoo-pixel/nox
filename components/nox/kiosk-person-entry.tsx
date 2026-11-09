@@ -10,8 +10,10 @@ import { KIOSK_PERSON_PIN_LINK, KIOSK_PERSON_PIN_NOTE } from "@/lib/nox/kiosk/pe
 import { startKioskPersonSession } from "@/lib/nox/kiosk/person-session-client";
 import * as t from "@/lib/nox/ui/theme";
 
-export default function KioskPersonEntry() {
-  const [open, setOpen] = useState(false);
+export default function KioskPersonEntry({ dest, open: openProp, onClose }: { /** ★裁定469（M-128）: タイルから開くときの行き先（本店のページ）＝無ければ route の dest（/register） */ dest?: string; open?: boolean; onClose?: () => void } = {}) {
+  const [openState, setOpen] = useState(false);
+  const open = openProp ?? openState;
+  const close = () => { if (openProp !== undefined) onClose?.(); else setOpen(false); };
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   return (
@@ -21,7 +23,7 @@ export default function KioskPersonEntry() {
           style={{ background: "none", border: "none", padding: 0, fontFamily: "inherit", fontSize: 12.5, color: "var(--sub)", textDecoration: "underline", cursor: "pointer" }}>{KIOSK_PERSON_PIN_LINK}</button>
       </p>
       {open && (
-        <Modal onClose={() => { if (!busy) setOpen(false); }} maxWidth={460}>
+        <Modal onClose={() => { if (!busy) close(); }} maxWidth={460}>
           <div data-kiosk-person-entry="1" style={{ padding: "4px 2px" }}>
             <h3 style={{ ...t.cardTitle, margin: "0 0 4px" }}>{KIOSK_PERSON_PIN_LINK}</h3>
             <p style={{ ...t.sub, margin: "0 0 10px", lineHeight: 1.7 }}>{KIOSK_PERSON_PIN_NOTE}</p>
@@ -30,7 +32,7 @@ export default function KioskPersonEntry() {
                 setBusy(true); setErr(null);
                 const r = await startKioskPersonSession(createClient());
                 if (!r.ok) { setBusy(false); setErr(r.error); return; }
-                window.location.assign(r.dest);
+                window.location.assign(dest ?? r.dest); // ★裁定469（M-128）: タイルの行き先（本店のページ）
               }} />
             )}
             {err && <Message kind="error">{err}</Message>}

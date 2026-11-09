@@ -20,6 +20,7 @@ import { castRegisterEntryOf } from "@/lib/nox/register/cast-entry-server"; // �
 import { isSetupPath, setupGateRedirectOf } from "@/lib/nox/setup/gate"; // ★便 SU（M-37）: /setup は専用の殻・未完の店は /setup へ
 import KioskPersonGuard from "@/components/nox/kiosk-person-guard"; // ★便 M5 M-49: キオスクからの本人ログイン＝無操作 N 分で戻す
 import { kioskPersonIdleMinutesOf } from "@/lib/nox/kiosk/person-login"; // ★便 M5 M-49
+import { KIOSK_PERSON_IDLE_MINUTES, kioskPersonNavOf } from "@/lib/nox/rules-0175/kiosk"; // ★裁定469（M-128）
 import { KIOSK_PERSON_COOKIE, kioskNavOf, kioskPersonMustLeaveOf, parseKioskPersonCookie } from "@/lib/nox/kiosk/person-session"; // ★便 E（0196 用＝裁定448 B 方式）
 import { mig0196On, mig0199On } from "@/lib/nox/rules-0175/flag"; // ★便 E ★0199（裁定466・M-125）
 import * as t from "@/lib/nox/ui/theme";
@@ -152,9 +153,9 @@ export default async function ManageLayout({ children }: { children: React.React
   //   owner／cast の cookie は通さない（/kiosk へ＝防御の二重・真の防御は RLS と RPC）。フラグ false の間は cookie を見ない（従来どおり）。
   const kioskPerson = mig0196On() ? parseKioskPersonCookie((await cookies()).get(KIOSK_PERSON_COOKIE)?.value) : null;
   if (kioskPerson && kioskPersonMustLeaveOf(role)) redirect("/kiosk?person=deny");
-  // ★M-119（2026-11-06・裁定460）: 本人セッションも通常ログインと同じナビ・権限・部品（違いは帯だけ）＝kioskNavOf は使わない（端末セッション専用の名残）
+  // ★M-119（2026-11-06・裁定460）: 本人セッションも通常ログインと同じページ・権限・部品。★裁定469（M-128・2026-11-09＝460 改）: 帯のナビだけ ホーム／レジ／シフト／在庫／日報 に絞る（kioskPersonNavOf・cast はレジだけ＝裁定466）＝kioskNavOf（端末セッション専用の名残）は使わない
   void kioskNavOf;
-  const navGroups: NavGroup[] = groups;
+  const navGroups: NavGroup[] = kioskPerson ? kioskPersonNavOf(role as string, { crm: staffCrm, shift: staffShift, register: staffRegister }) : groups;
   const kioskPersonOn = !!kioskPerson && (role === "manager" || role === "staff" || (mig0199On() && role === "cast")); // ★0199（裁定466・M-125）
   return (
     /* ── E2（2026-08-17）: 共通シェルを mock/pages-2026-08 の骨格へ寄せた（presentation-only）──
@@ -202,7 +203,7 @@ export default async function ManageLayout({ children }: { children: React.React
           cast は項目が レジ 1本のみ＝その他は出ない（従来と同一）。 */}
       {/* ★裁定275 追補2-1（N4）: 下タブ 5 本＝ホーム／レジ／日報／シフト／メニュー（残り＋お知らせ）。歯車はヘッダー右へ */}
       <TabBar groups={navGroups} spPriority={["/dashboard", "/register", "/report", "/shift"]} hideSide />
-      <KioskPersonGuard idleMinutes={kioskPersonIdleMinutesOf(storeRows?.[0]?.settings_json)} role={role as string} name={meName} />{/* ★便 M5 M-49: 印が無ければ描画 0 */}
+      <KioskPersonGuard idleMinutes={Math.min(KIOSK_PERSON_IDLE_MINUTES, kioskPersonIdleMinutesOf(storeRows?.[0]?.settings_json))} role={role as string} name={meName} />{/* ★裁定469（M-128）: 無操作 3 分で端末へ戻る（店設定が短ければ店設定） */}{/* ★便 M5 M-49: 印が無ければ描画 0 */}
     </div>
   );
 }

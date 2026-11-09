@@ -8,6 +8,7 @@
  */
 import fs from "node:fs";
 import { dayDedAppliedTextOf } from "../lib/nox/payroll/day-ded-pick"; // ★裁定461／M-120
+import { loanAgreedMapOf, loanStatusLabelOf, loanAckLabelOf } from "../lib/nox/payroll/loan-ledger"; // ★M-123
 import { MIG_0199_APPLIED, mig0199On, __set0199ForTest } from "../lib/nox/rules-0175/flag"; // ★0199（裁定466・M-125）
 import { kioskPersonSessionAllowedOf } from "../lib/nox/kiosk/person-session"; // ★M-125
 import { equalSplitOf, weightsAfterRemovalOf, removeShareConfirmTextOf, NOM_X_CLOSED_REASON } from "../lib/nox/nom-shares"; // ★裁定462／M-121
@@ -88,7 +89,7 @@ check("benf(6-3) ホーム＝予約の申請が先頭（approvals の前）・�
 // (8) M-119＝裁定460＝本人セッションは本店のページ・ナビ・部品（違いは帯だけ）
 {
   const lay = src("app/(manage)/layout.tsx"), g = src("components/nox/kiosk-person-guard.tsx"), ps = src("lib/nox/kiosk/person-session.ts"), css2 = src("app/globals.css"), rb2 = src("app/(manage)/register/register-board.tsx");
-  check("benf(8-1) layout＝本人セッションでも通常の groups（kioskNavOf は使わない）・data-kiosk-person の印・owner／cast は /kiosk へ（従来）", lay.includes("const navGroups: NavGroup[] = groups;") && !lay.includes("? kioskNavOf(role,") && lay.includes('data-kiosk-person={kioskPersonOn ? "1" : "0"}') && lay.includes('redirect("/kiosk?person=deny")'));
+  check("benf(8-1) layout＝本人セッションは帯のナビだけ 5 つ（★裁定469（M-128・2026-11-09）: kioskPersonNavOf・cast はレジだけ）・それ以外は通常の groups・data-kiosk-person の印・owner は /kiosk へ（従来）", lay.includes("const navGroups: NavGroup[] = kioskPerson ? kioskPersonNavOf(role as string, { crm: staffCrm, shift: staffShift, register: staffRegister }) : groups;") && !lay.includes("? kioskNavOf(role,") && lay.includes('data-kiosk-person={kioskPersonOn ? "1" : "0"}') && lay.includes('redirect("/kiosk?person=deny")'));
   check("benf(8-2) 帯＝上に固定（top 0・38px）・名前・無操作の残り（15 秒ごと）・「ロック（端末へ戻る）」＝kiosk_person_end（lock）・「キオスクへ戻る」（manual）・無操作＝idle・本体の余白は globals.css",
     g.includes('position: "fixed", left: 0, right: 0, top: 0, zIndex: 60') && g.includes('document.documentElement.setAttribute("data-kiosk-person-bar", "1");') && g.includes("kioskPersonRemainTextOf(remainMin)") && g.includes('void endKioskPersonSession(createClient(), "lock")') && g.includes('endKioskPersonSession(createClient(), "manual")') && g.includes("isPin ? endKioskPersonSession(supabase, reason) : leaveKioskPersonLogin(supabase)")
     && ps.includes('export const KIOSK_PERSON_LOCK = "ロック（端末へ戻る）";') && css2.includes('html[data-kiosk-person-bar="1"] .nox-layout { padding-top: var(--nox-kpbar, 38px); }') && css2.includes('html[data-kiosk-person-bar="1"] .nox-tb { top: var(--nox-kpbar, 38px); }') && g.includes('document.documentElement.style.setProperty("--nox-kpbar"'));
@@ -157,6 +158,16 @@ check("benf(6-3) ホーム＝予約の申請が先頭（approvals の前）・�
   __set0199ForTest(true); const castOn = kioskPersonSessionAllowedOf("cast"); __set0199ForTest(null);
   check("benf(14-2) kioskPersonSessionAllowedOf＝cast はフラグ true のときだけ（false の間は manager／staff だけ＝従来どおり）", kioskPersonSessionAllowedOf("cast") === false && castOn === true && kioskPersonSessionAllowedOf("staff") === true && kioskPersonSessionAllowedOf("owner") === false && ps9.includes('(mig0199On() && role === "cast")'));
   check("benf(14-3) layout＝本人セッションの cast は /register だけ（cast_register_device を見ない・他は /register へ・ナビ＝レジ 1 つ・帯は出す）", ly9.includes('const kioskPersonCast = mig0196On() && mig0199On() && role === "cast"') && ly9.includes('if (!(pn === "/register" || pn.startsWith("/register/"))) redirect("/register");') && ly9.includes('let castReg = !!kioskPersonCast;') && ly9.includes('items: kioskPersonCast ? [{ href: "/register", label: "レジ" }]') && ly9.includes('|| (mig0199On() && role === "cast")); // ★0199'));
+}
+// (13) M-123（裁定464 付帯①・0198 のフラグ便）＝貸付台帳の「同意未」と返済済
+{
+  const ll = src("lib/nox/payroll/loan-ledger.ts"), pb3 = src("app/(manage)/payroll/payroll-board.tsx"), af4 = src("components/nox/advance-okuri-form.tsx");
+  check("benf(13-1) 純関数＝loanAgreedMapOf（現在のプランの advance_loan_agreed・プラン無し＝false）・返済済／未回収／取消・本人確認 PIN／立会い",
+    JSON.stringify(loanAgreedMapOf([{ cast_id: "a", plan_id: "p1", valid_from: "2026-01-01", valid_to: null }, { cast_id: "b", plan_id: "p2", valid_from: null, valid_to: "2026-01-31" }, { cast_id: "c", plan_id: "p1", valid_from: null, valid_to: null }], { p1: true, p2: true }, "2026-11-09")) === JSON.stringify({ a: true, c: true })
+    && loanStatusLabelOf("deducted") === "返済済" && loanStatusLabelOf("open") === "未回収" && loanAckLabelOf("pin") === "PIN" && loanAckLabelOf("manager") === "立会い" && ll.includes('export const LOAN_NOT_AGREED = "同意未";'));
+  check("benf(13-2) 給与＝貸付残高一覧に「同意未」（data-loan-agreed）・貸付台帳（直近 30 件＝view cast_loans・data-loan-ledger／data-loan-status・返済済は nox-stpill ok）＝mig0198On() のときだけ読む",
+    pb3.includes('supabase.from("cast_loans").select("id, cast_id, cast_name, biz_date, amount, repaid, remaining, status, ack_method, note").eq("store_id", storeId).order("biz_date", { ascending: false }).limit(30)') && pb3.includes("if (mig0198On()) {") && pb3.includes("data-loan-ledger={String(loanLedger.length)}") && pb3.includes('className={l.status === "deducted" ? "nox-stpill ok" : "nox-stpill"}') && pb3.includes('data-loan-agreed="0" title='));
+  check("benf(13-3) 貸付伝票（AdvanceOkuriForm）＝対象キャストの現在のプランが同意未なら印（data-loan-agreed=0・発行は止めない）", af4.includes("{loanPin && loanAgreed === false && (") && af4.includes("setLoanAgreed(loanAgreedOf(map, loanCast));"));
 }
 // (5) M-115
 const gd = src("scripts/demo/gen-demo.mjs");

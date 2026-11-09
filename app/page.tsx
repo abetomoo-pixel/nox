@@ -17,7 +17,7 @@ export default async function Home() {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         const { data: ops } = await supabase.rpc("kiosk_operator_list");
-        if (Array.isArray(ops) && ops.length > 0) redirect("/kiosk-register");
+        if (Array.isArray(ops) && ops.length > 0) redirect("/kiosk"); // ★裁定469（M-128）: レジ端末も /kiosk（タイル → PIN → 本店のレジ）
         const { data: casts } = await supabase.rpc("kiosk_cast_list");
         if (Array.isArray(casts) && casts.length > 0) redirect("/kiosk");
       }

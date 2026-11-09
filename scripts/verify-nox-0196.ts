@@ -23,9 +23,7 @@ check("0196(1-2) 本人セッションの役割＝manager／staff だけ（owner
 
 // (2) client の pin
 const pad = src("components/nox/kiosk-unlock-pad.tsx");
-check("0196(2-1) M-110＝KioskUnlockPad が kiosk_unlock に p_device_fp（browserDeviceFp・mig0190On のとき）を送る＝kiosk-workspace の kiosk_login と同じ型",
-  pad.includes('supabase.rpc("kiosk_unlock", { p_pin: pin, p_membership_id: membershipId ?? null, ...(mig0190On() ? { p_device_fp: browserDeviceFp() } : {}) })') && pad.includes('import { browserDeviceFp } from "@/lib/nox/kiosk/device-fp";')
-  && src("components/nox/kiosk-workspace.tsx").includes('...(mig0190On() ? { p_device_fp: browserDeviceFp() } : {}) }); // ★0190'));
+check("0196(2-1) M-110＝KioskUnlockPad が kiosk_unlock に p_device_fp（browserDeviceFp・mig0190On のとき）を送る（★裁定469（M-128・2026-11-09）: 包みは廃止＝PIN の入口はこの 1 つ）", pad.includes('supabase.rpc("kiosk_unlock", { p_pin: pin, p_membership_id: membershipId ?? null, ...(mig0190On() ? { p_device_fp: browserDeviceFp() } : {}) })') && !fs.existsSync("components/nox/kiosk-workspace.tsx"));
 check("0196(2-2) 入口＝/kiosk は mig0196On() で KioskPersonEntry（KioskUnlockPad → startKioskPersonSession → dest）",
   src("app/kiosk/page.tsx").includes("{mig0196On() ? <KioskPersonEntry /> : (") && src("components/nox/kiosk-person-entry.tsx").includes("<KioskUnlockPad onUnlocked={async () => {") && src("components/nox/kiosk-person-entry.tsx").includes("const r = await startKioskPersonSession(createClient());"));
 check("0196(2-3) route＝person-session は admin で kiosk_person_claim（端末の uid・fp）・person-end は kiosk_person_end",

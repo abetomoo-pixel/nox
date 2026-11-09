@@ -1,11 +1,7 @@
-"use client";
-
-// ★0190 フラグ true 便（裁定435）: キオスクのタイル「inventory」の行き先＝案内画面（本体は K client 第 2 便）。共通部品 components/nox/kiosk-feature-page.tsx。
-// ★0194（裁定445 ③・2026-11-04）: 本体＝共通の包み KioskWorkspace（端末ログイン→操作担当→在庫の読取 kiosk_stock_levels）。フラグ false は案内のまま。
-import KioskFeaturePage from "@/components/nox/kiosk-feature-page";
-import KioskWorkspace from "@/components/nox/kiosk-workspace";
-import { mig0194On } from "@/lib/nox/rules-0175/flag";
+// ★裁定469（M-128・2026-11-09）: キオスクの簡易画面（在庫の読取）は廃止＝端末のホーム（/kiosk）へ。
+//   レジ／シフト／在庫／日報は、ホームのタイル → PIN → 本人セッション（kiosk_person_claim）で本店の同じページ（/register・/shift・/master/stock・/report）を開く。
+import { redirect } from "next/navigation";
 
 export default function Page() {
-  return mig0194On() ? <KioskWorkspace feature="inventory" /> : <KioskFeaturePage feature="inventory" />;
+  redirect("/kiosk");
 }

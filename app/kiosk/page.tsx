@@ -66,6 +66,7 @@ export default function KioskPage() {
   const [dayDed, setDayDed] = useState<DayDedPickRule[]>([]); // ★便 D M-103: その店の pick ルール（kiosk_punch_state の day_rules＝0196）
   const [dayDedOn, setDayDedOn] = useState<Record<string, boolean>>({});
   const [castPunchOff, setCastPunchOff] = useState(false);
+  const [tileDest, setTileDest] = useState<string | null>(null); // ★裁定469（M-128）: タイルで選んだ行き先＝PIN の後に本店のページへ
   const [storePunchOff, setStorePunchOff] = useState(false); // ★便 E（0197 用＝裁定455）: punch_mode='store'＝キャストもスタッフも打刻しない（店が勤怠を付ける） // ★便 X13-G W-23 ①: キャストの打刻を使わない店＝キャスト群を出さない（スタッフ群は今のまま）
   const [bindMsg, setBindMsg] = useState<string | null>(null); // ★0190: 端末の束縛（'device bound'＝別の端末に固定済み→denied）
   const [photoUrls, setPhotoUrls] = useState<{ casts: Record<string, string>; operators: Record<string, string> }>({ casts: {}, operators: {} }); // ★便 M5 M-42: 端末は署名できない（auth_org_id null）＝route が admin で署名
@@ -263,7 +264,7 @@ export default function KioskPage() {
               <div data-kiosk-tiles="1" style={{ display: "grid", gridTemplateColumns: `repeat(${kioskTiles.length}, 1fr)`, gap: 12, margin: "0 0 18px" }}>
                 {kioskTiles.map((k) => (k === "punch"
                   ? <span key={k} style={{ ...bigBtn, textAlign: "center", padding: "18px 0", fontSize: 18, borderColor: "var(--gold)", color: "var(--gold)" }}>{KIOSK_FEATURE_LABEL[k]}</span>
-                  : <a key={k} href={KIOSK_FEATURE_HREF[k]} data-kiosk-tile={k} data-kiosk-tile-ready={KIOSK_FEATURE_READY[k] ? "1" : "0"} style={{ ...bigBtn, textAlign: "center", padding: "18px 0", fontSize: 18, textDecoration: "none", opacity: KIOSK_FEATURE_READY[k] ? 1 : 0.75 }}>{KIOSK_FEATURE_LABEL[k]}</a>))}{/* ★0190（裁定435）: 5 タイル＝シフト・在庫・日報は案内画面（K client 第 2 便で本体） */}
+                  : <button type="button" key={k} data-kiosk-tile={k} data-kiosk-tile-ready={KIOSK_FEATURE_READY[k] ? "1" : "0"} onClick={() => setTileDest(KIOSK_FEATURE_HREF[k])} style={{ ...bigBtn, textAlign: "center", padding: "18px 0", fontSize: 18, fontFamily: "inherit", cursor: "pointer" }}>{KIOSK_FEATURE_LABEL[k]}</button>))}{/* ★裁定469（M-128）: PIN → 本人セッション → 本店の同じページ（簡易画面は廃止） */}{/* ★0190（裁定435）: 5 タイル＝シフト・在庫・日報は案内画面（K client 第 2 便で本体） */}
               </div>
             )}
             <p style={{ textAlign: "center", fontSize: 15, color: "var(--champ)", fontWeight: 700, margin: "0 0 16px" }}>
@@ -271,6 +272,7 @@ export default function KioskPage() {
             </p>
             {/* ★便 M5 M-49（2026-10-30）: 本人でログイン＝店長以上がパスワードで本体画面を開く入口（タイルの構成＝裁定435 の 5 タイルは変えない・小さな文字リンク）。
                 開いた本体画面は無操作 N 分（店設定 kiosk_person_idle_minutes・既定 10）で自動ログアウト→端末のセッションを復元してこの画面へ戻る（KioskPersonGuard） */}
+            {mig0196On() && tileDest !== null && <KioskPersonEntry dest={tileDest} open onClose={() => setTileDest(null)} />}{/* ★裁定469（M-128）: タイル → PIN */}
             {mig0196On() ? <KioskPersonEntry /> : (/* ★便 E（0196 用＝裁定448 B 方式）: PIN の入口（フラグ false の間は M-49 のパスワードの入口のまま） */
             <p style={{ textAlign: "center", margin: "0 0 14px" }}>
               <button type="button" data-kiosk-person-login="1" onClick={() => void startKioskPersonLogin(supabase)}

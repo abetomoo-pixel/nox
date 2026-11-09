@@ -5654,9 +5654,39 @@ Agoora が 7 本を手貼り（0185→0180→0181→0182→0183→0184→0186）
 - **教訓136（採番・2026-11-09）＝新しい表・関数を足したら「ACL／wipe の順序／LIFF の再ログイン」を verify に足す**＝①ACL＝作り直す関数の proacl は live を写す（0197b の on_duty_of）②wipe＝org_id を持つ表は c_wipe か route の先掃除に入れ、no-action の FK は子から親へ（M-122＝availability_terms.updated_by）③LIFF＝期限切れ ID トークンの再ログイン（M-116）＝新しい入口を足すたびに 1 回通す。verify＝grants（ACL）・wipe-cover（wipe）・bene／benf（LIFF の文言）。次の教訓＝137。
 - **f0／push／reset／撮影**＝下に埋める。
 
+## 裁定469（2026-11-09 確定・相談役＝裁定460 改）キオスクのレジ／シフト／在庫／日報タブ＝PIN → 本人セッション（kiosk_person_claim）で本店の同じページ・帯のナビはホーム／レジ／シフト／在庫／日報だけ・無操作 3 分で端末へ戻る・簡易画面は廃止
+
+出典＝相談役 11/09。適用＝M-128（client・DDL なし）。裁定465 は本裁定に吸収＝M-124 は取り下げ。
+「キオスクのレジ／シフト／在庫／日報タブ＝PIN → 本人セッション（kiosk_person_claim）で本店の同じページ・帯のナビはホーム／レジ／シフト／在庫／日報だけ・無操作 3 分で端末へ戻る。簡易画面（卓カードだけのレジ・表示だけの今日のシフト・在庫）は廃止。出退勤タブは名前選択＋PIN のまま。PIN なしで見えるのは出退勤の名前一覧だけ」。
+CC の処置＝M-128（読取→実装＝下の節）。
+
+## M-128（2026-11-09 起票・相談役・client・DDL なし）裁定469＝キオスクのタブは PIN → 本人セッションで本店のページ・簡易画面の廃止・帯のナビ 5 つ・無操作 3 分
+
+本文＝裁定469 の節。読取（着手前）＝キオスク配下の簡易画面（/kiosk-register・/kiosk-shift・/kiosk-inventory・/kiosk-report＝KioskWorkspace／KioskFeaturePage）と、それを pin する verify（k・demo-guard の route 分類・billing の kiosk 腕は DB＝不変）・KioskPersonGuard の無操作（店設定 kiosk_person_idle_minutes＝既定 10 → 3 分の固定は client）・帯のナビ（M-119＝通常の groups → 5 つに絞る）。順＝M-128 → M-127 → M-126。
+
+## 裁定467（2026-11-09 確定・相談役）利用者向けの警告・エラー文は日本語＝RPC の英字はコードとして不変・client の辞書 1 本で変換・入力不足は RPC 前に止める
+
+出典＝相談役 11/09。適用＝M-126（client・DDL なし・DB・verify・f0 pin は触らない）。
+「利用者向けの警告・エラー文は日本語。RPC の英字はコードとして不変（DB・verify・f0 pin は触らない）・client の辞書 1 本（lib/nox/errors）で変換・辞書に無いコードは『処理できませんでした（bad xxx）』・入力不足は RPC 前に止める（名称が空なら登録を押せない＋欄の下に 1 行）」。
+
+## M-126（2026-11-09 起票・相談役・client・DDL なし）裁定467＝エラー文の辞書 1 本（lib/nox/errors）と入力不足の前置き
+
+本文＝裁定467 の節。読取（着手前）＝今の変換（rpcErrJa／chargeErrJa／kintaiErrJa／issueErrJa／loanErrJa／compErrJa…＝画面ごとの関数）を lib/nox/errors の辞書 1 本に寄せる範囲と、英字が裸で出る箇所（verify:nox-messages の「生の語を裸で出さない」との整合）。順＝M-128 → M-127 → M-126。
+
+## 裁定468（2026-11-09 確定・相談役＋追補）キオスクのタブ（出退勤／レジ／シフト／在庫／日報）は店の設定に従う＝0 個なら「スタッフでログイン（PIN）」の案内とボタンだけ／追補＝/mine の出勤／退勤ボタンは「本人がスマホで押す」ON のときだけ（勤怠一覧・今日のシフト・店が付けた控除は残す）
+
+出典＝相談役 11/09。適用＝M-127（client・DDL なし）。※467＝利用者向けの文言は日本語（下の節）。
+「キオスクのタブ（出退勤／レジ／シフト／在庫／日報）は店の設定に従う＝出退勤は打刻方法『店の端末で押す』ON のときだけ・レジは店の端末でのレジ使用 ON のときだけ・シフト／在庫／日報は機能の公開 OFF なら出さない・判定は本店ナビと同じ関数・0 個なら『スタッフでログイン（PIN）』の案内とボタンだけ。追補＝/mine の出勤／退勤ボタンは打刻方法『本人がスマホで押す』ON のときだけ。勤怠一覧・今日のシフト・店が付けた控除の表示は打刻方法に関わらず残す」。
+CC の読取（1 行）＝キオスクのホームのタイルは **settings_json.kiosk_features（punch／register／shift／inventory／report＝無い鍵は ON）だけ**を読んでいた（/api/kiosk/punch-methods → kioskTilesOf）＝出退勤のタイルは打刻方法（stores.punch_methods.kiosk）を見ず（名前タイルの出し分けは castPunchOff／punch_mode='store' だけ）・レジは kiosk_features.register（初期設定 ⑧「店の端末でレジを使う」）・シフト／在庫／日報の「機能の公開」（feature_flags＝mig0135）には staff_shift／reopen_flow の 2 鍵しか無く、タイル用の鍵は kiosk_features が実体。/mine の出勤／退勤ボタンは既に punch_methods.self で出し分け済みだが、「キャストの打刻を使わない」（castPunchOff）か打刻しない店（punch_mode='store'）では打刻カードごと消していた（今日のシフト・最終打刻・勤怠一覧・店が付けた控除も消えていた）。
+CC の処置（M-127）＝①kioskHomeTilesOf（出退勤＝punch_methods.kiosk ∧ 打刻する店・レジ／シフト／在庫／日報＝kiosk_features＝本店と同じ鍵＝opsProfileOf／punchModeOf／kiosk_features）を API が返す・キオスクは kiosk=false で名前タイルを出さず案内 1 行（data-kiosk-punch-off）・タイルは 1 つ以上で描く（出退勤だけは描かない）・0 個は案内（data-kiosk-no-tiles）＋PIN の入口だけ ②/mine＝打刻カードは残し（data-mine-punch-off・今日のシフト・最終打刻・勤怠一覧・「店が付けました」）、出勤／退勤のボタンだけ「本人がスマホで押す」ON かつ打刻する店のときに出す。verify＝verify:nox-benf（15-1〜15-3）・p175(10-3)／bene(4-3) の pin 張替え。撮影＝打刻 OFF の店のキオスクホーム・/mine（本人打刻 OFF の店）＝デモの店舗設定を一時 OFF にして撮り、戻す。f0／push／撮影＝下に埋める。
+
+## M-127（2026-11-09 起票・相談役・client・DDL なし）キオスクのタブと /mine の打刻ボタンを店の設定に従わせる（裁定468）
+
+本文＝裁定468 の節。
+
 ## 裁定466（2026-11-09 確定・相談役）キオスクの本人セッション（kiosk_person_claim）に「cast ∧ can_register ∧ 店 ≥2」を追加＝帯のナビは cast＝/register だけ
 
-出典＝相談役 11/09（キャストのレジ使用の読取を受けて）。適用＝0199 に同乗（★2＝作り直し 1・関数数不変・他は同乗させない）＋client 小＝M-125（MIG_0199 配下）。※465 は相談役の採番＝本文未受領（教訓70＝本文が無い番号は作らない＝見出しを立てない）。
+出典＝相談役 11/09（キャストのレジ使用の読取を受けて）。適用＝0199 に同乗（★2＝作り直し 1・関数数不変・他は同乗させない）＋client 小＝M-125（MIG_0199 配下）。※465 は裁定469 に吸収（相談役 11/09）＝見出しを立てない。
 「キオスクの本人セッション（kiosk_person_claim）に『cast ∧ can_register ∧ 店 ≥2』を追加。帯のナビは cast＝/register だけ（取消・合算・締め解除・売掛・値引きは不可のまま）。DDL＝0199 に同乗（set_store_profile の白名単＋kiosk_person_claim の作り直し＝2 関数・関数数不変・他は同乗させない）→ 試走 → handpaste_0199.md → 報告。client 小（person-session route の role 許可・帯）＝MIG_0199 配下・M-125 起票」。
 CC の処置＝0199 ★2＝kiosk_person_claim の role 条件を「manager／staff または（cast ∧ can_register ∧ stores.settings_json.sys_cast_register ≥2）」に（v_mem に can_register を足す・service_role だけ＝ACL 不変）。再生成 sha16 **a68669f112662a19**（954 行・93584 B）・試走 15/15（cast＝can_register false→forbidden・店 1→forbidden・店 2→ok role cast／staff ok／owner forbidden）・DB 変更 0・verify 9 行。取消（check_void）・合算・締め解除・売掛・値引きは RPC の cast 枝が無いまま＝本人セッションでも不可。
 
@@ -8658,6 +8688,7 @@ anon-guard 段28 が無差別 `limit(1)` でそれを拾い 'bad amount'/BV=unde
 | 112 | **キャスト側ランキングの売上軸（自分の順位）**（第 2 期・**起票 2026-10-13 便 N1013b B-2b**） | 本文: 裁定346 の売上軸は管理側のみ。cast は get_cast_sales で本人行しか読めず（金額の RLS）、順位には他人の額が要る＝RPC（順位と名前だけ返す・金額は本人分のみ or null）が要る＝0172 候補。 **→ 2026-10-14 便 V1014 V-2: 0171 に get_cast_sales_rank を同乗（cast＝自分の 1 行だけ）＝クローズ（裁定346 追補1）** |
 | 120 | **貸付の bad pin を audit に 1 行**（ローンチ後・**起票 2026-11-09 裁定464 付帯②**＝相談役） | 本文: cast_loan_grant（0198 ★3）は PIN 不一致＝'bad pin' で raise するだけ（失敗回数は数えない・audit なし＝店長の立会い前提）。ローンチ後に audit_log_write（'cast_loan_pin_fail'・cast_id・店）を 1 行＝総当たりの痕跡を残す。DDL＝関数の作り直し 1。 |
 | 121 | **退会は membership の削除でなく無効化**（ローンチ後・**起票 2026-11-09 裁定464 付帯②**＝相談役） | 本文: 監査系の FK（0198 ★7 で set null）があっても、退会＝memberships.is_active=false（＋ended_at）で行を残す＝履歴（updated_by／granted_by 等）が null にならない。削除の経路（あれば）を無効化に寄せる＝読取から。 |
+| 122 | **課金名簿（docs/NOX_課金ゲート対象_v1.md）の parser が説明文の関数名を対象に数える**（ローンチ後・**起票 2026-11-09 相談役**） | 本文: verify:nox-billing の docNames は行中の `[a-z_]{4,}` が live の関数名に一致すれば対象／除外に数える（「（」「※」「＋」「#」で始まる行は除く）＝A19／B(x) の説明に billing_writable_of／adv_issue／demo_org_reset を書いたら赤（2026-11-09）。直し案＝名簿の行型を「- 名前: 説明」に固定し、行頭の名前だけ数える（説明文は数えない）。 |
 | — | **0160 のスコープ＝裁定326-9＋起票95・96**（**便 C-0・2026-09-30**） | 0160＝cast_quotas＋set_cast_quota／予約表の status・requested_by_cast・rejected_reason＋reservation_request／reservation_decide／cast_notice_reads＋既読 RPC／settings_json +7 キー（mine_settings 6＋shift_request_mode）＋起票95（staff_shift_patterns の無効化）＋起票96（T6 契約確認の記録）。起草の前に R160 事前読取（docs/tmp/0160_pre.md）→ ★指定。 |
 
 ### 未裁定・消し込み待ち
@@ -8684,7 +8715,7 @@ anon-guard 段28 が無差別 `limit(1)` でそれを拾い 'bad amount'/BV=unde
 
 ## 次の番号（2026-11-09 午後・裁定463（M-121 の仮置き確定）を収載した時点）
 
-- **次の裁定＝465**（463＝✕ の追補・464＝0198 の仮置き 1〜9 承認＋付帯 2 点）。**次の M＝M-124**（M-123＝貸付の「同意未」の印／返済済＝0198 のフラグ便の後）。**次の起票＝122**（120＝bad pin の audit 1 行・121＝退会は無効化＝ローンチ後）。**次の M（旧）＝M-123**（M-121＝✕ の読取と裁定462 の実装・M-122＝デモ reset の wipe＝route の先掃除＋0198 ★7）。**次の教訓＝137**（136＝2026-11-09 採番＝新しい表・関数を足したら ACL／wipe 順序／LIFF 再ログインを verify に足す）。**次の mig＝0200**（0199＝起草済み sha16 a68669f112662a19＝★1 line_notify の白名単＋★2 裁定466 の kiosk_person_claim・貼らない）。**次の裁定＝467**（466＝2026-11-09 確定）。**次の M＝M-126**（M-125＝起票）。
+- **次の裁定＝465**（463＝✕ の追補・464＝0198 の仮置き 1〜9 承認＋付帯 2 点）。**次の M＝M-124**（M-123＝貸付の「同意未」の印／返済済＝0198 のフラグ便の後）。**次の起票＝122**（120＝bad pin の audit 1 行・121＝退会は無効化＝ローンチ後）。**次の M（旧）＝M-123**（M-121＝✕ の読取と裁定462 の実装・M-122＝デモ reset の wipe＝route の先掃除＋0198 ★7）。**次の教訓＝137**（136＝2026-11-09 採番＝新しい表・関数を足したら ACL／wipe 順序／LIFF 再ログインを verify に足す）。**次の mig＝0200**（0199＝起草済み sha16 a68669f112662a19＝★1 line_notify の白名単＋★2 裁定466 の kiosk_person_claim・貼らない）。**次の裁定＝470**（466〜469＝2026-11-09 確定・465 は 469 に吸収）。**次の M＝M-129**（M-124＝取り下げ・M-125＝起票・M-126＝起票・M-127＝実装・M-128＝起票）。**次の起票＝123**（122＝課金名簿の parser）。
 
 ## 次の番号（2026-11-07 朝・裁定461／M-120 を収載・0198 ★6 を同乗させた時点）
 

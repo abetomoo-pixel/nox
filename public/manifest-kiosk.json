@@ -16,6 +16,6 @@
   ],
   "shortcuts": [
     { "name": "出退勤", "short_name": "出退勤", "url": "/kiosk", "icons": [{ "src": "/brand/favicon_192.png", "sizes": "192x192" }] },
-    { "name": "レジ", "short_name": "レジ", "url": "/kiosk-register", "icons": [{ "src": "/brand/favicon_192.png", "sizes": "192x192" }] }
+    { "name": "レジ", "short_name": "レジ", "url": "/kiosk", "icons": [{ "src": "/brand/favicon_192.png", "sizes": "192x192" }] }
   ]
 }

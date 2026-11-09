@@ -53,9 +53,7 @@ check("0194c(3-3) ② staff-work-panel＝確定のときだけ店の全員分の
   && swp.includes('supabase.from("staff_labor_confirmed").select("membership_id, amount, time_pay").eq("period", month)') && swp.includes("data-staff-frozen={r.m.id}"));
 check("0194c(3-4) ④ 月報＝確定済みの月は staff_labor_confirmed の合計（再計算しない）・凍結の行が無ければ見込みの式", src("app/(manage)/report/month-report.tsx").includes('supabase.from("staff_labor_confirmed").select("amount").eq("store_id", storeId).eq("period", period)') && src("app/(manage)/report/month-report.tsx").includes("if (mig0194On() && sl.confirmed) {"));
 // (4) 在庫タイル
-check("0194c(4-1) ③ 在庫タイル＝READY.inventory は mig0194On()・/kiosk-inventory は包み（KioskWorkspace feature=\"inventory\"）・包みに KioskInventoryView（kiosk_stock_levels・読取だけ・発注点以下は赤）",
-  KIOSK_FEATURE_READY.inventory === true && src("app/kiosk-inventory/page.tsx").includes('mig0194On() ? <KioskWorkspace feature="inventory" /> : <KioskFeaturePage feature="inventory" />')
-  && src("components/nox/kiosk-workspace.tsx").includes('{board && feature === "inventory" && <KioskInventoryView />}') && src("components/nox/kiosk-views.tsx").includes('createClient().rpc("kiosk_stock_levels")') && src("components/nox/kiosk-views.tsx").includes('data-kiosk-stock-low={low(r) ? "1" : "0"}') && !src("components/nox/kiosk-views.tsx").includes("product_stock_add"));
+check("0194c(4-1) ③ 在庫タイル＝READY.inventory（★裁定469（M-128・2026-11-09）: 本店の /master/stock を PIN → 本人セッションで・/kiosk-inventory は /kiosk へ redirect・在庫の読取 view は削除）", KIOSK_FEATURE_READY.inventory === true && fs.readFileSync("app/kiosk-inventory/page.tsx", "utf8").includes('redirect("/kiosk");') && !fs.existsSync("components/nox/kiosk-views.tsx"));
 // (5) live（読取）＝async の本体（tsx の cjs 出力は top-level await 不可）
 async function main(): Promise<void> {
   let dbUrl = process.env.SUPABASE_DB_URL; if (!dbUrl) { try { process.loadEnvFile(".env.local"); } catch { /* no env */ } dbUrl = process.env.SUPABASE_DB_URL; }

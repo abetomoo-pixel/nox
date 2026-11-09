@@ -396,7 +396,7 @@ export default function KioskDevicePanel({ stores }: { stores: Store[] }) {
               <div style={t.bdRow}><span style={t.bdKey}>初期パスワード</span><span style={{ ...t.bdVal, color: "var(--champ)", letterSpacing: 1 }}>{issued.initial_password}</span></div>
             </div>
             <p style={{ ...t.alert, marginBottom: 10 }}>
-              このパスワードは再表示できません。端末のブラウザで {issued.purpose === "register" ? "/kiosk-register" : "/kiosk"} を開いてログインしてください。
+              このパスワードは再表示できません。端末のブラウザで {"/kiosk"} を開いてログインしてください。
             </p>
             <div className="nox-actions" style={{ display: "flex", gap: 8 }}>
               <button style={btn} onClick={() => void copyIssued()}>{copied ? "コピーしました ✓" : "ID とパスワードをコピー"}</button>

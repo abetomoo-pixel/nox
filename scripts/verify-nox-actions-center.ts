@@ -30,7 +30,7 @@ const OWNER_PAGES = [
 ];
 const CAST_PAGES = ["/mine", "/mine/wishes"];
 const ONLY = process.env.NOX_UI_ONLY ?? null; // 例 NOX_UI_ONLY=/master/cast-comp/norma（1 画面だけ・オーナー）
-const KIOSK_PAGES = ["/kiosk", "/kiosk-register"];
+const KIOSK_PAGES = ["/kiosk"]; // ★裁定469（M-128・2026-11-09）: /kiosk-register は /kiosk へ redirect（簡易画面は廃止）
 
 const bounded = <T,>(p: Promise<T>, ms: number): Promise<T | undefined> => Promise.race([p, new Promise<undefined>((r) => setTimeout(() => r(undefined), ms))]); // Edge の close が戻らないことがある＝上限つき
 async function up(): Promise<boolean> { try { const r = await fetch(`${BASE}/login`, { redirect: "manual" }); return r.status > 0; } catch { return false; } }
