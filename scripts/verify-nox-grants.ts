@@ -472,7 +472,7 @@ async function main() {
       const ix = await db.query(`select indexname, indexdef from pg_indexes where schemaname='public' and indexname in ('advances_store_idem_uidx','transport_store_idem_uidx') order by 1`);
       check("G9 0157 unique index 2 本＝advances_store_idem_uidx／transport_store_idem_uidx（(store_id, idem_key) WHERE idem_key IS NOT NULL）", ix.rowCount === 2 && ix.rows.every((r) => /USING btree \(store_id, idem_key\) WHERE \(idem_key IS NOT NULL\)$/.test(r.indexdef as string)), ix.rows.map((r) => r.indexname).join(","));
       const cc = await db.query(`select table_name, count(*)::int n, bool_or(column_name='idem_key') has_idem from information_schema.columns where table_schema='public' and table_name in ('advances','transport') group by 1 order by 1`);
-      check("G9 0157 列集合: advances 16 列／transport 16 列（idem_key を含む・★0177 +mode＝便 ON-1 張替え）", cc.rowCount === 2 && cc.rows[0].n === 16 && cc.rows[0].has_idem === true && cc.rows[1].n === 16 && cc.rows[1].has_idem === true, JSON.stringify(cc.rows));
+      check("G9 0157 列集合: advances 16 列／transport 16 列（idem_key を含む・★0177 +mode＝便 ON-1 張替え）", cc.rowCount === 2 && cc.rows[0].n === 19 /* ★0198（2026-11-09）: +3（ack_method／ack_at／ack_by）: 16→19 */ && cc.rows[0].has_idem === true && cc.rows[1].n === 16 && cc.rows[1].has_idem === true, JSON.stringify(cc.rows));
       // ★0153（裁定305）: 列集合＝customers 18（+4）／bottle_keeps 15（+2）／check_lines 21（+customer_id）／check_customers 8・kind CHECK 11 値
       const c153 = await db.query(`select table_name, count(*)::int n from information_schema.columns where table_schema='public' and table_name in ('customers','bottle_keeps','check_lines','check_customers') group by 1 order by 1`);
       const n153 = Object.fromEntries(c153.rows.map((r) => [r.table_name, r.n]));
@@ -1176,7 +1176,7 @@ async function main() {
            and p.proname not in ('auth_kiosk_operator','kiosk_register_state','kiosk_check_detail')`,
       );
       check("G31 operator を使う関数 = 22本（write-arm 系 20＝0131 for_register・0152 check_referral_set／remove 込み＋audit_log_write＋drink_claims_on_line_delete）",
-        op.rows[0].n === 28 /* ★0195: cast_day_deductions_set（操作担当＝auth_kiosk_operator）で 27→28 */, `got ${op.rows[0].n}`); // ★0194（裁定445 ③）: kiosk_stock_levels（操作担当の解除あり＝auth_kiosk_operator）で 26→27 // ★0190（裁定436）: assert_on_duty（auth_kiosk_operator＝操作担当の本人解決）で 25→26 // ★mig0173: check_set_ext_rule で 24→25 // ★mig0153: bottle_keep_out で 22→23 // ★mig0155: kiosk_check_keeps で 23→24
+        op.rows[0].n === 29 /* ★0198（2026-11-09 ★6）: kiosk_punch が auth_kiosk_operator() を見る（p_day_deductions のゲート）で 28→29 */ /* ★0195: cast_day_deductions_set（操作担当＝auth_kiosk_operator）で 27→28 */, `got ${op.rows[0].n}`); // ★0194（裁定445 ③）: kiosk_stock_levels（操作担当の解除あり＝auth_kiosk_operator）で 26→27 // ★0190（裁定436）: assert_on_duty（auth_kiosk_operator＝操作担当の本人解決）で 25→26 // ★mig0173: check_set_ext_rule で 24→25 // ★mig0153: bottle_keep_out で 22→23 // ★mig0155: kiosk_check_keeps で 23→24
       const cv = await db.query(
         `select count(*)::int as n from pg_proc p join pg_namespace ns on ns.oid = p.pronamespace
          where ns.nspname = 'public' and p.prokind = 'f' and p.proname = 'check_void'

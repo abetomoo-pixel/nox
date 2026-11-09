@@ -359,6 +359,10 @@ kiosk_provision（新規 kiosk の追加＝拡大操作）
 - 0197 ★2 今日だけ許可（裁定455 の 5）: register_day_grant_set（店長以上・自店・cast／staff（membership）・その営業日か翌営業日・取消は行の delete・audit 'register_day_grant'）
 （対象 201→**202**・live 実測＝'billing locked' **202**。0197 の作り直し 2 本（set_store_profile＝白名単 +3 キー・on_duty_of＝punch_mode='store' の分岐）は名前不変で本数不変・表 +1 register_day_grants＝全数 418→**419**）
 
+### A19. 0198（1 本・2026-11-09 本番適用（Agoora 手貼り・本文 Success・verify 22 行一致）・0198 のフラグ true 便で収載・規則A形でゲート内蔵・kiosk 腕なし）
+- 0198 ★3 返済（裁定458 ④）: cast_loan_repay（店長以上・open の行・残額まで・現金の返済＝deducted_amount・冒頭に billing_writable_of）
+（対象 202→**203**・live 実測＝'billing locked' **203**。貸付の発行の RPC（B(x) に収載）は adv_issue（A・ゲート内蔵）を呼ぶ＝自身にはゲートを書かない（二重にしない）。0198 の作り直し 4 本（set_comp_plan＝33 引数・demo_org_reset＝wipe 6 表・cast_day_deductions_set＝cast 経路 forbidden＋staff・kiosk_punch＝操作担当ゲート）は名前不変で本数不変・新設の読取 cast_day_applied_of は B(x) へ・view 2＝全数 419→**422**）
+
 ## B. 除外（99本）
 
 ### B(a) 構造除外＝authenticated 実行不可（service/内部・28本）→ ゲート不要（B7 回避型(1)）
@@ -547,6 +551,8 @@ staff_deactivate / kiosk_deactivate
 （除外 212→**215**・全数 410→**416**（0195 ＋6＝A 3・B 3））
 
 ### B(x). 0196 新設の除外（2本・2026-11-06・0196 のフラグ true 便で収載）
+- ★0198（2026-11-09・読取＝B(f) と同列＝STABLE・ゲート不要）: cast_day_applied_of（店が付けた今日の控除の見え方＝本人は自分だけ・店の人は自店・端末は端末の店のキャスト）
+- ★0198（2026-11-09・B(i) と同列＝ゲート内蔵の adv_issue を呼ぶ＝二重ゲートなし）: cast_loan_grant（貸付＝adv_issue（A）＋本人確認の印・'billing locked' は adv_issue が出す）
 - 構造除外（B(a) と同列＝service_role だけ・authenticated 実行不可）: kiosk_person_claim（PIN の本人セッション＝route /api/kiosk/person-session が端末の uid と fp を渡す・束縛と役割を判定して印を付ける・裁定448 B 方式）
 - 構造除外（B(a) と同列＝service_role だけ・authenticated 実行不可）: kiosk_person_end（本人セッションの終了＝route /api/kiosk/person-end・kiosk_sessions を ended・audit）
 （除外 215→**217**・全数 416→**418**（0196 ＋2＝B 2・対象 201 不変＝作り直し 9 本（kiosk_lock／kiosk_register_state／cast_day_deductions_set／kiosk_punch／kiosk_punch_state／kiosk_operator_list／kiosk_login／kiosk_unlock／punch_proxy）は名前不変で本数不動））

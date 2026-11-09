@@ -34,7 +34,7 @@ try {
   const blockers = fks.filter((f) => !dbCovered.has(f.child) && wipe.includes(f.parent) && f.d !== "c" && f.d !== "n");
   const notHandled = blockers.filter((f) => !pre.has(f.child));
   check("wipe(2) c_wipe の親を no-action／restrict で参照する未カバーの子は、すべて route の PREWIPE（端末経由を含む）で先に消える", notHandled.length === 0, notHandled.map((f) => `${f.child}.${f.col}→${f.parent}`));
-  check("wipe(2-1) 11/09 の原因＝availability_terms.updated_by → memberships（no action）と kiosk_qr_claims／kiosk_qr_keys は PREWIPE に在る", pre.has("availability_terms") && pre.has("kiosk_qr_claims") && pre.has("kiosk_qr_keys") && DEMO_PREWIPE_TABLES.indexOf("kiosk_qr_claims") < DEMO_PREWIPE_TABLES.indexOf("availability_terms"));
+  check("wipe(2-1) 11/09 の原因＝availability_terms.updated_by → memberships（no action）は 0198 ★5 で c_wipe（memberships より前）・kiosk_qr_claims／kiosk_qr_keys は PREWIPE に在る", wipe.indexOf("availability_terms") >= 0 && wipe.indexOf("availability_terms") < wipe.indexOf("memberships") && pre.has("kiosk_qr_claims") && pre.has("kiosk_qr_keys"));
   const overlap = DEMO_PREWIPE_TABLES.filter((t) => wipe.includes(t) || keep.includes(t));
   const missing = [...DEMO_PREWIPE_TABLES, ...DEMO_PREWIPE_BY_DEVICE, ...DEMO_KEEP_EXTRA].filter((t) => !tabs.includes(t));
   check("wipe(3) PREWIPE と c_wipe／c_keep の重なりなし・PREWIPE／KEEP_EXTRA の表は実在する（0198 ★5 の手貼り後は重なった 6 表を PREWIPE から外す）", overlap.length === 0 && missing.length === 0, { overlap, missing });

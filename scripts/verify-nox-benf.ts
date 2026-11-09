@@ -106,8 +106,8 @@ check("benf(6-3) ホーム＝予約の申請が先頭（approvals の前）・�
 // (10) 夜便レーン 3＝0198 の器（MIG_0198_APPLIED=false の間は出さない・送らない）
 {
   const fl = src("lib/nox/rules-0175/flag.ts"), pe = src("app/(manage)/master/cast-comp/plan/plan-editor.tsx"), af3 = src("components/nox/advance-okuri-form.tsx"), ao3 = src("lib/nox/payroll/advance-okuri.ts");
-  check("benf(10-1) フラグ＝MIG_0198_APPLIED=false（起草のみ・手貼りは相談役の合図）・mig0198On／__set0198ForTest の器",
-    fl.includes("export const MIG_0198_APPLIED = false;") && fl.includes("export function mig0198On(): boolean { return override0198 ?? MIG_0198_APPLIED; }") && fl.includes("export function __set0198ForTest(v: boolean | null): void { override0198 = v; }"));
+  check("benf(10-1) フラグ＝MIG_0198_APPLIED=true（2026-11-09 手貼り）・mig0198On／__set0198ForTest の器",
+    fl.includes("export const MIG_0198_APPLIED = true;") && fl.includes("export function mig0198On(): boolean { return override0198 ?? MIG_0198_APPLIED; }") && fl.includes("export function __set0198ForTest(v: boolean | null): void { override0198 = v; }"));
   check("benf(10-2) 待遇プラン＝「前借り（貸付）の取扱いに同意」（data-advance-loan-agreed）は mig0198On() のときだけ出す・set_comp_plan の 33 引数目も同じ条件（手貼り前は旧 32 引数のまま）",
     pe.includes("{mig0198On() && (<label data-advance-loan-agreed") && pe.includes("...(mig0198On() ? { p_advance_loan_agreed: draft.advanceLoanAgreed } : {}),") && pe.includes("advanceLoanAgreed: p.advance_loan_agreed ?? false,") && src("app/(manage)/master/cast-comp/comp-sections.tsx").includes("advance_loan_agreed?: boolean | null; advance_loan_agreed_at?: string | null;"));
   check("benf(10-3) 貸付の入口＝PIN 欄（data-loan-pin・4〜6 桁・空＝立会い）は advance かつ mig0198On() のときだけ・そのときは cast_loan_grant（p_pin）・それ以外は従来の route",
@@ -130,7 +130,7 @@ check("benf(6-3) ホーム＝予約の申請が先頭（approvals の前）・�
   check("benf(11-3) キオスク PIN 出勤＝0198 後は聞かずに打刻（dayded の段を飛ばす）・結果に kiosk_punch の返り day_applied を表示だけ",
     kp.includes('if (target.staff || !mig0196On() || mig0198On()) { void punch("in"); return; }') && kp.includes('if (!error && pj?.ok && type === "in" && mig0198On() && Array.isArray(pj.day_applied)) note = dayDedAppliedTextOf(pj.day_applied as DayDedApplied[]);'));
   check("benf(11-4) verify 0196／0195 の該当段は MIG_0198_APPLIED で反転（cast セルフ腕＝forbidden・kiosk_punch の p_day_deductions＝操作担当なしは forbidden・staff の自店＝ok）",
-    src("scripts/verify-nox-0196.ts").includes('MIG_0198_APPLIED ? "0196(4-15) cast セルフ腕＝0198（裁定461）で撤回＝forbidden"') && src("scripts/verify-nox-0196.ts").includes('"0196(4-24b) 0198 後＝3 引数の出勤 ok・返りに day_applied（配列）"') && src("scripts/verify-nox-0195.ts").includes('MIG_0198_APPLIED ? "0195(4-5) スタッフ（自店）は 0198（裁定461）で ok"'));
+    src("scripts/verify-nox-0196.ts").includes('MIG_0198_APPLIED ? "0196(4-15) cast セルフ腕＝0198（裁定461）で撤回＝forbidden"') && src("scripts/verify-nox-0196.ts").includes('"0196(4-24b) 0198 後＝出勤 ok の返りに day_applied（配列＝店が付けた行）"') && src("scripts/verify-nox-0195.ts").includes('MIG_0198_APPLIED ? "0195(4-5) スタッフ（自店）は 0198（裁定461）で ok"'));
 }
 // (12) 裁定462／M-121＝「指名の分配率」の ✕ は着卓中でも押せる（確認 1 回で離卓＋除外）・不可は締め済みだけ・残りは均等・44px
 {

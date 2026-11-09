@@ -9,10 +9,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 /** org_id で消す表＝子から親へ（cast_rate_history → slide_decisions は set null・kiosk_qr_claims → kiosk_sessions／kiosk_devices／memberships は no action＝wipe の前に必ず消す） */
 export const DEMO_PREWIPE_TABLES: readonly string[] = [
   "cast_rate_history", "kiosk_qr_claims",
-  "attendance_contacts", "availability_terms", "availability", "cast_day_deductions", "cast_notifications", "contact_changes", "deduction_rule_casts",
+  "attendance_contacts", "cast_notifications", "contact_changes",   // ★0198 ★5（2026-11-09 手貼り）: availability_terms／availability／cast_day_deductions／deduction_rule_casts／register_day_grants／staff_allowances は c_wipe へ移った＝ここから外す
   "line_bind_tokens", "line_links", "line_push_log", "norm_shortfall_intents", "payroll_employee_deductions", "payroll_withholding_overrides",
-  "plan_event_bonuses", "plan_norm_tiers", "plan_rate_bands", "punch_corrections", "punch_round_consents", "register_day_grants", "setup_drafts",
-  "shift_period_needs", "slide_decisions", "staff_allowances", "staff_attendance_days", "staff_attendance_locks", "staff_invites", "staff_labor_confirmed",
+  "plan_event_bonuses", "plan_norm_tiers", "plan_rate_bands", "punch_corrections", "punch_round_consents", "setup_drafts",
+  "shift_period_needs", "slide_decisions", "staff_attendance_days", "staff_attendance_locks", "staff_invites", "staff_labor_confirmed",
   "staff_sensitive", "store_special_days",
 ];
 /** org_id が無く、端末（kiosk_devices）経由で消す表 */
