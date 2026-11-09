@@ -8,6 +8,7 @@
  */
 import fs from "node:fs";
 import { dayDedAppliedTextOf } from "../lib/nox/payroll/day-ded-pick"; // ★裁定461／M-120
+import { equalSplitOf, weightsAfterRemovalOf, removeShareConfirmTextOf, NOM_X_CLOSED_REASON } from "../lib/nox/nom-shares"; // ★裁定462／M-121
 import { reservationLineOf, reservationTodayLineOf, reservationBookedChipOf, sortPendingReservations, pendingTotalOf, type PendingReservation } from "../lib/nox/home/pending";
 import { baseTimeDiffersOf, sortRowsByAvail, staffAvailConfirmTextOf, staffAvailJudgeOf, staffAvailNgTextOf, staffBaseTimeLabelOf, type StaffAvailMap } from "../lib/nox/shift/staff-place";
 import { LINE_NOTIFY_DEFAULT, LINE_NOTIFY_KINDS, lineNotifyKindOfNotif, lineNotifyOf, lineNotifyOnOf, noticeLineConfirmOf } from "../lib/nox/line/notify-kinds";
@@ -130,6 +131,22 @@ check("benf(6-3) ホーム＝予約の申請が先頭（approvals の前）・�
     kp.includes('if (target.staff || !mig0196On() || mig0198On()) { void punch("in"); return; }') && kp.includes('if (!error && pj?.ok && type === "in" && mig0198On() && Array.isArray(pj.day_applied)) note = dayDedAppliedTextOf(pj.day_applied as DayDedApplied[]);'));
   check("benf(11-4) verify 0196／0195 の該当段は MIG_0198_APPLIED で反転（cast セルフ腕＝forbidden・kiosk_punch の p_day_deductions＝操作担当なしは forbidden・staff の自店＝ok）",
     src("scripts/verify-nox-0196.ts").includes('MIG_0198_APPLIED ? "0196(4-15) cast セルフ腕＝0198（裁定461）で撤回＝forbidden"') && src("scripts/verify-nox-0196.ts").includes('"0196(4-24b) 0198 後＝3 引数の出勤 ok・返りに day_applied（配列）"') && src("scripts/verify-nox-0195.ts").includes('MIG_0198_APPLIED ? "0195(4-5) スタッフ（自店）は 0198（裁定461）で ok"'));
+}
+// (12) 裁定462／M-121＝「指名の分配率」の ✕ は着卓中でも押せる（確認 1 回で離卓＋除外）・不可は締め済みだけ・残りは均等・44px
+{
+  const rb = src("app/(manage)/register/register-board.tsx");
+  check("benf(12-1) 純関数＝equalSplitOf（floor＋端数を先頭から）・weightsAfterRemovalOf（残りの合計が 100 なら現在値・でなければ均等・除外 id は落とす）・確認文",
+    JSON.stringify(equalSplitOf(["a", "b", "c"])) === JSON.stringify({ a: 34, b: 33, c: 33 }) && JSON.stringify(equalSplitOf([])) === "{}"
+    && JSON.stringify(weightsAfterRemovalOf({ a: 50, b: 50 }, "b", ["a", "b"])) === JSON.stringify({ a: 100 })
+    && JSON.stringify(weightsAfterRemovalOf({ a: 70, b: 30, c: 0 }, "c", ["a", "b", "c"])) === JSON.stringify({ a: 70, b: 30 })
+    && JSON.stringify(weightsAfterRemovalOf({ a: 50, b: 30, c: 20 }, "c", ["a", "b", "c"])) === JSON.stringify({ a: 50, b: 50 })
+    && removeShareConfirmTextOf("のあ", true, "A3") === "のあ を離卓し、分配から外します（誤着卓の訂正）。付いている指名料／同伴料の明細行も取り消します。A3 の着卓はそのままです。よろしいですか？"
+    && removeShareConfirmTextOf("せな", false, null) === "せな を離卓し、分配から外します（誤着卓の訂正）。よろしいですか？");
+  check("benf(12-2) ✕＝disabled は締め済み（status≠open・day closed）だけ＝灰＋理由 1 行（data-nom-x-reason）・タップ領域 44px・「先に指名料を取り消してください」の柵は撤去",
+    rb.includes('disabled={feeBusy || check.status !== "open" || dayClosed}') && rb.includes("minWidth: 44, minHeight: 44") && rb.includes("data-nom-x-reason={ca.id}") && !rb.slice(rb.indexOf("async function removeShareCast"), rb.indexOf("async function", rb.indexOf("async function removeShareCast") + 10)).includes("先に指名料を取り消してください") && rb.includes("NOM_X_CLOSED_REASON") && NOM_X_CLOSED_REASON === "締め済みの伝票は変更できません");
+  check("benf(12-3) 押す＝確認 1 回（removeShareConfirmTextOf）→ check_set_nominations の全置換＝当該 cast は ended＋weight 0＋free（離卓＋除外＋課金行の取消）・残りは weightsAfterRemovalOf・loadOpenMap まで",
+    rb.includes("if (inDb && !window.confirm(removeShareConfirmTextOf(castName(castId), castFeeLines(castId).length > 0, servingSeat.get(castId)))) return;")
+    && rb.includes('? { cast_id: n.cast_id, weight: 0, nom_kind: "free" as const, is_dohan: false, ended: true }') && rb.includes("const nextW = weightsAfterRemovalOf(nomWeights, castId, remainIds);") && rb.includes("を離卓し、分配から外しました"));
 }
 // (5) M-115
 const gd = src("scripts/demo/gen-demo.mjs");

@@ -50,3 +50,27 @@ export function renormalizeKeepZeros(prev: Record<string, number>): Record<strin
   for (const [id, f] of floors) { out[id] = f + (rem > 0 ? 1 : 0); if (rem > 0) rem--; }
   return out;
 }
+
+/* ★裁定462（M-121・2026-11-09）: 「指名の分配率」の ✕＝着卓中でも押せる（確認 1 回で離卓＋分配からの除外）。不可は締め済みの伝票だけ。
+ *   外したあと合計が 100% でなければ残りで均等に分配（floor＋端数を先頭から +1＝丸め作法は不変）。 */
+export const NOM_X_CLOSED_REASON = "締め済みの伝票は変更できません";
+export const NOM_X_DAY_CLOSED_REASON = "締め済みの営業日は変更できません";
+/** 均等分配（n 人で 100）＝floor＋端数を先頭から +1。空なら {} */
+export function equalSplitOf(ids: readonly string[]): Record<string, number> {
+  const out: Record<string, number> = {};
+  const n = ids.length; if (n === 0) return out;
+  const base = Math.floor(100 / n), rem = 100 - base * n;
+  ids.forEach((id, i) => { out[id] = base + (i < rem ? 1 : 0); });
+  return out;
+}
+/** 除外後の重み＝removedId を落とし、残り（remainingIds＝分配の対象）の合計が 100 でなければ均等に。100 なら現在値のまま。 */
+export function weightsAfterRemovalOf(weights: Readonly<Record<string, number>>, removedId: string, remainingIds: readonly string[]): Record<string, number> {
+  const rest = remainingIds.filter((id) => id !== removedId);
+  const sum = rest.reduce((a, id) => a + (weights[id] ?? 0), 0);
+  if (rest.length > 0 && sum === 100) { const out: Record<string, number> = {}; rest.forEach((id) => { out[id] = weights[id] ?? 0; }); return out; }
+  return equalSplitOf(rest);
+}
+/** 確認文（1 回）＝離卓＋分配からの除外（誤着卓の訂正）。指名料／同伴料の行があれば取消も添える。他卓に着卓中ならその卓名も */
+export function removeShareConfirmTextOf(name: string, hasFee: boolean, otherSeat: string | null | undefined): string {
+  return `${name} を離卓し、分配から外します（誤着卓の訂正）。${hasFee ? "付いている指名料／同伴料の明細行も取り消します。" : ""}${otherSeat ? `${otherSeat} の着卓はそのままです。` : ""}よろしいですか？`;
+}

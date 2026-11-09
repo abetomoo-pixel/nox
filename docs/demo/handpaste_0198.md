@@ -1,6 +1,6 @@
 # 0198 手貼り案内（裁定458＝前借りは「貸付」＝貸付台帳 view・本人確認（PIN）・返済の RPC・待遇プランの同意・2026-11-06 夜便レーン 3 で起草）
 
-**手貼りは相談役の合図＝ここでは貼らない。** 順序＝0197b の後（本番は 0197b 適用済み＝関数 419・表 120）。
+**手貼りは相談役の合図＝ここでは貼らない。** 2026-11-09＝仮置き **8 は「操作担当が解錠中なら受理」で確定**・**1〜7 は保留**（相談役が本書を読んでから裁定）。 順序＝0197b の後（本番は 0197b 適用済み＝関数 419・表 120）。
 
 ## ★仮置き 6 点（相談役が朝に裁定・変更があれば gen_0198.cjs を直して live から再生成）
 1. **貸付台帳＝advances を正本のまま、cast_loans は view**（security_invoker＝advances の RLS＝店の人／本人）。列＝org・store・cast（cast_name）・biz_date（advanced_on）・amount・repaid（deducted_amount）・remaining・status・repaid_at（status='deducted' の updated_at）・settlement（deduct_period）・granted_by（created_by＋名前）・ack_method／ack_at／ack_by・note。**別表（cast_loans 表）にすると advances（給与の天引き・繰越・finalize）と二重台帳になる**ため view＝相談役の指示「cast_loans（貸付台帳…）」の見え方を view で満たす案。残高＝cast_loan_balances（本人別 open）。

@@ -27,7 +27,7 @@ import Picker from "@/components/nox/picker"; // ★裁定272-2 追補（紹介�
 import { useTapBatch } from "@/lib/nox/ui/use-tap-batch";
 import { groupProducts } from "@/lib/nox/ui/product-groups";
 import * as t from "@/lib/nox/ui/theme";
-import { defaultWeights, redistribute, renormalizeKeepZeros } from "@/lib/nox/nom-shares";
+import { defaultWeights, redistribute, renormalizeKeepZeros, weightsAfterRemovalOf, removeShareConfirmTextOf, NOM_X_CLOSED_REASON, NOM_X_DAY_CLOSED_REASON } from "@/lib/nox/nom-shares"; // ★裁定462（M-121）
 import { activeIdsOf, endedPayloadOf, moveConfirmTextOf, seatRowsOf, seatRowTextOf, servingMarkOf, servingSeatMapOf, shareCardIdsOf } from "@/lib/nox/register/seat-roster";
 import NomConflictDialog from "@/components/nox/nom-conflict-dialog"; // ★裁定415（S-7）: 指名かぶり＝指名は必ず入れ、席だけ聞く // ★便 S（S-6）: 一覧常時表示・フリーの席の節・他卓からの付け回し
 import CastAvatar from "@/components/ui/cast-avatar";
@@ -1311,34 +1311,39 @@ export default function RegisterBoard({
   async function nomConflictOnly(castId: string) { setNomConflict(null); await addToRoster(castId, "hon"); await loadOpenMap(); }
   async function nomConflictMove(castId: string) { setNomConflict(null); await moveFromOtherSeat(castId, "hon"); }
 
-  // R-2a-2（分配率カードの × ボタン）: 名簿からキャストを1人外す＝上と同じ全置換経路。
+  // R-2a-2（分配率カードの × ボタン）: 名簿からキャストを1人外す。
+  //   ★裁定462（M-121・2026-11-09）: 着卓中でも押せる＝確認 1 回のうえ **離卓（ended）＋分配からの除外（weight 0・フリーへ＝指名料／同伴料の行も取り消す）** を同時に
+  //   （誤着卓の訂正・既存の check_set_nominations の全置換＝DDL なし・着席ログは離席済みとして残る＝席の節に出る）。不可は締め済みの伝票だけ（ボタン側で disabled＋理由）。
+  //   外したあと残りの合計が 100% でなければ残りで均等に分配（weightsAfterRemovalOf）。旧「先に指名料を取り消してください」の柵は撤去（0121 裁定107 段1-(3) は 462 で上書き）。
   //   DB に居ない（＝選択しただけの未保存）キャストはローカル state を畳むだけで RPC は呼ばない。
   async function removeShareCast(castId: string) {
-    if (!check) return;
-    // ★0121（裁定107 段1-(3)）: 課金行（指名料・同伴料）が残るキャストは名簿から外せない＝
-    //   会計行と名簿の不一致を作らない（外すには先に明細の当該行を削除＝dropNomAfterShimeiRemoval が追随する）。
-    if (castFeeLines(castId).length > 0) {
-      setMsg({ to: MSG_DETAIL, kind: "bad", text: "先に指名料を取り消してください" });
-      return;
-    }
+    if (!check || feeBusy) return;
+    if (check.status !== "open") { setMsg({ to: MSG_DETAIL, kind: "bad", text: NOM_X_CLOSED_REASON }); return; }
     if (dayBlocked()) return; // ★C層③: 締め済み日の先回り
+    const inDb = noms.some((n) => n.cast_id === castId);
+    if (inDb && !window.confirm(removeShareConfirmTextOf(castName(castId), castFeeLines(castId).length > 0, servingSeat.get(castId)))) return;
     if (!(await tb.flush())) return; // autoSaveNoms と同じ前置き（保留タップを先に確定）
-    // ★裁定110: 除外＝キー削除＋残り >0 群を Σ=100 へ（全 0 なら既定分配で復旧）
-    setNomWeights((prev) => {
-      const next = { ...prev };
-      delete next[castId];
-      const anyPos = Object.values(next).some((w) => w > 0);
-      return anyPos ? renormalizeKeepZeros(next) : defaultWeights(Object.keys(next), nomKinds);
-    });
+    // 残り＝この伝票で着卓中かつフリー以外（分配の対象）。合計 100 でなければ均等に
+    const remainIds = nomSelected.map((ca) => ca.id).filter((id) => id !== castId);
+    const nextW = weightsAfterRemovalOf(nomWeights, castId, remainIds);
+    setNomWeights((prev) => { const next = { ...prev }; delete next[castId]; for (const id of Object.keys(nextW)) next[id] = nextW[id]; return next; });
     if (feeMsg?.to === FEE_SHIMEI) setFeeMsg(null); // 対象名入りの文言は対象が消えたら捨てる（R-1a 追補と同じ理由）
-    if (!noms.some((n) => n.cast_id === castId)) return;
-    const em = await replaceNomsFromDb(castId, check);
-    if (em) {
-      console.warn("[R-2a-2] 按分の名簿からの除外に失敗", castId, em);
-      setMsg({ to: MSG_DETAIL, kind: "bad", text: `按分から外せませんでした: ${em}` });
+    if (!inDb) return;
+    setFeeBusy(true);
+    const payload = noms.map((n) => n.cast_id === castId
+      ? { cast_id: n.cast_id, weight: 0, nom_kind: "free" as const, is_dohan: false, ended: true }
+      : { cast_id: n.cast_id, weight: nextW[n.cast_id] ?? n.ratio_weight, nom_kind: n.nom_kind, is_dohan: n.is_dohan });
+    const { error } = await supabase.rpc("check_set_nominations", { p_check_id: check.id, p_nominations: payload });
+    setFeeBusy(false);
+    if (error) {
+      console.warn("[裁定462] 離卓＋分配からの除外に失敗", castId, error.message);
+      setMsg({ to: MSG_DETAIL, kind: "bad", text: `分配から外せませんでした: ${chargeErrJa(error.message)}` });
+      await loadCheck(check.id);
       return;
     }
+    setMsg({ to: MSG_DETAIL, kind: "ok", text: `${castName(castId)} を離卓し、分配から外しました` });
     await loadCheck(check.id);
+    await loadOpenMap();
   }
 
   // ★0152（裁定298-3／299-1）: 紹介を付ける＝check_referral_set（1 伝票 1 紹介・'exists' は外してから）。率は % 入力→bp・固定は円。
@@ -3181,13 +3186,19 @@ export default function RegisterBoard({
                     <span style={{ fontSize: 12, color: "var(--sub)" }}>%</span>
                   </label>
                   )}
-                  <button type="button" aria-label={`${ca.name}を分配から外す`}
+                  {/* ★裁定462（M-121）: ✕ は着卓中でも押せる（確認 1 回で離卓＋除外）。不可＝締め済みの伝票（day closed 含む）だけ＝灰＋理由 1 行。タップ領域 44px 以上 */}
+                  <button type="button" aria-label={`${ca.name}を分配から外す`} data-nom-x={ca.id} data-nom-x-disabled={check.status !== "open" || dayClosed ? "1" : undefined}
+                    disabled={feeBusy || check.status !== "open" || dayClosed}
+                    title={check.status !== "open" ? NOM_X_CLOSED_REASON : dayClosed ? NOM_X_DAY_CLOSED_REASON : `${ca.name} を離卓し、分配から外す`}
                     onClick={() => void removeShareCast(ca.id)}
-                    style={{ ...btnLight, padding: "2px 9px", fontWeight: 800,
-                      color: "var(--bad)", border: "1px solid var(--bad)" }}>
+                    style={{ ...btnLight, minWidth: 44, minHeight: 44, padding: "0 12px", fontWeight: 800, fontSize: 18, lineHeight: 1,
+                      ...(check.status !== "open" || dayClosed ? { color: "var(--sub)", border: "1px solid var(--line2)", opacity: 0.6 } : { color: "var(--bad)", border: "1px solid var(--bad)" }) }}>
                     ×
                   </button>
                 </div>
+                {(check.status !== "open" || dayClosed) && (
+                  <p className="rateapply" data-nom-x-reason={ca.id} style={{ fontSize: 10.5, color: "var(--sub)", margin: 0 }}>{check.status !== "open" ? NOM_X_CLOSED_REASON : NOM_X_DAY_CLOSED_REASON}</p>
+                )}
                 {/* ★裁定341（0169・便 P169＝X-13-29）: 場内→本指名の切替は非遡及が既定（切替前に出たドリンクは場内の率のまま）。切替記録がある本指名キャスト（店長以上）には既出ドリンクの率を本指名にするチェック。
                     ★裁定359: 切替確認は行内のまま・見出しは「<名前> → 本指名」・ボタンは副 48px 横並び（裁定369） */}
                 {kind === "hon" && nomRow?.kind_changed_at && isManagerUp && check.status === "open" ? (
