@@ -2,7 +2,7 @@
 
 **手貼りは相談役の合図＝ここでは貼らない。** 2026-11-09＝仮置き **8 は「操作担当が解錠中なら受理」で確定**・**1〜7 は保留**（相談役が本書を読んでから裁定）。 順序＝0197b の後（本番は 0197b 適用済み＝関数 419・表 120）。
 
-## ★仮置き 6 点（相談役が朝に裁定・変更があれば gen_0198.cjs を直して live から再生成）
+## ★仮置き 9 点（2026-11-09 裁定464＝1〜9 を全部承認・再生成なし＝本文 SQL は不変）
 1. **貸付台帳＝advances を正本のまま、cast_loans は view**（security_invoker＝advances の RLS＝店の人／本人）。列＝org・store・cast（cast_name）・biz_date（advanced_on）・amount・repaid（deducted_amount）・remaining・status・repaid_at（status='deducted' の updated_at）・settlement（deduct_period）・granted_by（created_by＋名前）・ack_method／ack_at／ack_by・note。**別表（cast_loans 表）にすると advances（給与の天引き・繰越・finalize）と二重台帳になる**ため view＝相談役の指示「cast_loans（貸付台帳…）」の見え方を view で満たす案。残高＝cast_loan_balances（本人別 open）。
 2. **本人確認**＝advances に ack_method（'none'／'manager'／'pin'）・ack_at・ack_by。`cast_loan_grant(p_store_id, p_cast_id, p_amount, p_biz_date, p_note, p_pin default null)`＝adv_issue と同じ柵（店長以上・自店・billing・paid 期の繰り下げ）を**adv_issue を呼んで**満たし、p_pin があれば cast_pin と照合（不一致＝'bad pin'・失敗回数は数えない）→ ack='pin'・無ければ 'manager'。
 3. **返済（現金）**＝`cast_loan_repay(p_advance_id, p_amount, p_note)`＝店長以上・open の行・残額まで（超過＝'bad amount'）・全額で status='deducted'（給与の天引き＝payroll_finalize とは別の経路・同じ列を進める）・audit 'cast_loan_repay'。
@@ -10,8 +10,8 @@
 5. 貸付時に同意が無くても**拒否しない**（audit の after_json に plan_agreed を残すだけ）＝拒否するかは相談役。
 6. **demo_org_reset の wipe 一覧に 6 表**（cast_day_deductions／deduction_rule_casts／availability_terms／availability／register_day_grants／staff_allowances）＝デモ org で基本の働き方などを触ると reset が FK で止まる不具合（2026-11-06 ACE の 500）の直し＝load 一覧と ACL（service_role だけ）は不変（★5）。
 7. 月末精算の計算順序（報酬総額 →（5,000 円×暦日数）→ 源泉 → 貸付返済 → 支払額）は pay.ts（client）で既に裁定どおり＝**DB の変更なし**（レーン 2 で表示順だけ直す）。
-9. **★7 M-122（2026-11-09 同乗）**＝c_wipe／c_keep に無い表の監査系 FK（updated_by／created_by／set_by／granted_by／decided_by／confirmed_by／changed_by／locked_by／accepted_user_id＝nullable 24 本）を on delete set null（デモ reset と退会で親の削除を止めない・本体の FK＝cast_id／store_id／membership_id は不変・NOT NULL の punch_corrections.requested_by は対象外）。一覧＝docs/tmp/fk_audit_0198.json。
 8. **★6 裁定461（M-120・2026-11-07 同乗）**＝cast_day_deductions_set の cast 本人経路を forbidden・店側に staff の自店を追加／新設 cast_day_applied_of（店が付けた今日の控除の見え方＝本人・店の人・端末）／kiosk_punch の p_day_deductions は**操作担当（auth_kiosk_operator）が解錠中のときだけ受理**（cast の PIN だけなら forbidden）・出勤 ok の返りに day_applied。仮置き＝「操作担当が解錠中なら受理」は裁定の「staff 以上の本人セッション」を端末の文脈で読み替えたもの（端末から本人セッションは作れない）。常に拒否にするなら 1 行。
+9. **★7 M-122（2026-11-09 同乗）**＝c_wipe／c_keep に無い表の監査系 FK（updated_by／created_by／set_by／granted_by／decided_by／confirmed_by／changed_by／locked_by／accepted_user_id＝nullable 24 本）を on delete set null（デモ reset と退会で親の削除を止めない・本体の FK＝cast_id／store_id／membership_id は不変・NOT NULL の punch_corrections.requested_by は対象外）。一覧＝docs/tmp/fk_audit_0198.json。
 
 **結論 3 行**
 1. 0198＝列 2（comp_plans）＋列 3（advances）＋RPC 新設 2（cast_loan_grant／cast_loan_repay）＋作り直し 2（set_comp_plan＝33 引数・demo_org_reset＝wipe 6 表）＋view 2（cast_loans／cast_loan_balances）＝関数 419→**421**・表 120 不変（view は表に数えない）。
