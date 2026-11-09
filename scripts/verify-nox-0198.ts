@@ -41,7 +41,7 @@ check("0198(2-1) 収蔵＝sha16 ed90503b54b54acd・begin〜commit 1 回・lock_t
     };
     const bad = rows.filter((r) => exp[r.k] !== undefined && exp[r.k] !== r.v).map((r) => `${r.k}=${r.v}`);
     const ack = rows.find((r) => r.k.startsWith("advances ack_method none"))?.v ?? "";
-    check("0198(3-1) 検証 22 行＝期待値どおり（Agoora の返り 2026-11-09 と同値）", rows.length === 22 && bad.length === 0 && /^(\d+)\/\1$/.test(ack), { n: rows.length, bad, ack });
+    check("0198(3-1) 検証 22 行＝期待値どおり（Agoora の返り 2026-11-09 と同値・ack none は手貼り後の貸付で全数以下）", rows.length === 22 && bad.length === 0 && ack.split("/").length === 2 && ack.split("/").every((x) => x !== "" && Number.isInteger(Number(x))) && Number(ack.split("/")[0]) <= Number(ack.split("/")[1]), { n: rows.length, bad, ack }); // ★手貼り直後は none＝全数（6/6）・その後の貸付（ack manager／pin）で none ≤ 全数
     const md = (await pc.query(`select proname, left(md5(replace(prosrc, chr(13), '')), 8) m from pg_proc where pronamespace='public'::regnamespace and proname in ('cast_loan_grant','cast_loan_repay','cast_day_applied_of','set_comp_plan','demo_org_reset','cast_day_deductions_set','kiosk_punch') order by 1`)).rows as { proname: string; m: string }[];
     const pin: Record<string, string> = { cast_day_applied_of: "adc29e6e", cast_day_deductions_set: "5a60959e", cast_loan_grant: "78b7b5a3", cast_loan_repay: "d34198b6", demo_org_reset: "a3f58a25", kiosk_punch: "1b5eb974", set_comp_plan: "35bd14f3" };
     check("0198(3-2) 7 関数の prosrc md5＝手貼り直後の live（2026-11-09）", md.length === 7 && md.every((x) => pin[x.proname] === x.m), md);
