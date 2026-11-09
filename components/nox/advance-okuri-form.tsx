@@ -131,7 +131,7 @@ function IssueRow({ kind, storeId, casts, castId, castName, dateDefault, disable
       {/* ★301-4: 見出し→12→「キャスト」ラベル→6→picker→16→フォーム行→8→注記→カード下端 16（値は 4/8/12/16/24 のみ・ラベルと入力の間は全ラベル 6） */}
       <h3 style={{ fontSize: 13.5, fontWeight: 800, color: "var(--champ)", margin: "0 0 12px" }}>{label}の発行{fixed && castName ? `（${castName}）` : ""}</h3>
       {loanPin && loanAgreed === false && (/* ★M-123（裁定464 付帯①）: 貸付伝票の「同意未」＝発行は止めない（仮置き 5＝承認） */
-        <p data-loan-agreed="0" style={{ fontSize: 12, color: "var(--warn, #e0a030)", margin: "-6px 0 10px" }}><span className="nox-stpill" style={{ marginRight: 6 }}>{LOAN_NOT_AGREED}</span>{LOAN_NOT_AGREED_NOTE}</p>
+        <p data-loan-agreed="0" style={{ fontSize: 12, color: "var(--warn, #e0a030)", margin: "0 0 8px" }}><span className="nox-stpill" style={{ marginRight: 6 }}>{LOAN_NOT_AGREED}</span>{LOAN_NOT_AGREED_NOTE}</p>
       )}
       {!fixed && (
         <div style={{ marginBottom: 16 }}>
