@@ -11,7 +11,8 @@ import { Message } from "@/components/ui/toast";
 import * as t from "@/lib/nox/ui/theme";
 import { ADVANCE_DAILY_STORE_NOTE, ISSUE_DATE_LABEL, ISSUE_LABEL, advanceHiddenForStoreOf, issueBodyOf, issueErrJa, loanErrJa, loanPinErrOf, okuriEnabledOf, carriedBulkNoteOf, type IssueKind } from "@/lib/nox/payroll/advance-okuri"; // ★裁定458 ⑤
 import { createClient } from "@/lib/supabase/client";
-import { mig0198On } from "@/lib/nox/rules-0175/flag"; // ★0198（夜便レーン 3）: 貸付の本人確認（PIN）＝手貼り前は出さない（route 経由のまま）
+import { mig0198On } from "@/lib/nox/rules-0175/flag"; // ★0198（2026-11-09 手貼り）: 貸付の本人確認（PIN）＝cast_loan_grant
+import { LOAN_NOT_AGREED, LOAN_NOT_AGREED_NOTE, loanAgreedMapOf, loanAgreedOf, type CastPlanRow } from "@/lib/nox/payroll/loan-ledger"; // ★M-123（裁定464 付帯①）: 貸付伝票の「同意未」
 
 export type IssueCast = { id: string; name: string };
 
@@ -70,6 +71,22 @@ function IssueRow({ kind, storeId, casts, castId, castName, dateDefault, disable
   const [note, setNote] = useState("");
   const [pin, setPin] = useState(""); // ★0198 ★3（裁定458 ③）: 貸付の本人確認（キャストの PIN・空＝店長の立会い）
   const loanPin = kind === "advance" && mig0198On();
+  const [loanAgreed, setLoanAgreed] = useState<boolean | null>(null); // ★M-123: 対象キャストの現在のプランが同意済みか（null＝未読）
+  const loanCast = fixed ? castId : pick;
+  useEffect(() => {
+    if (!loanPin || !loanCast) { setLoanAgreed(null); return; }
+    let alive = true;
+    (async () => {
+      const sb = createClient();
+      const { data: cp } = await sb.from("cast_plan").select("cast_id, plan_id, valid_from, valid_to").eq("cast_id", loanCast);
+      const plans = (cp ?? []) as CastPlanRow[]; const ids = [...new Set(plans.map((p) => p.plan_id))];
+      const { data: cps } = ids.length ? await sb.from("comp_plans").select("id, advance_loan_agreed").in("id", ids) : { data: [] };
+      if (!alive) return;
+      const map = loanAgreedMapOf(plans, Object.fromEntries(((cps ?? []) as { id: string; advance_loan_agreed: boolean | null }[]).map((p) => [p.id, p.advance_loan_agreed])), new Date().toISOString().slice(0, 10));
+      setLoanAgreed(loanAgreedOf(map, loanCast));
+    })();
+    return () => { alive = false; };
+  }, [loanPin, loanCast]);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ kind: "success" | "error"; text: string } | null>(null);
   const label = ISSUE_LABEL[kind];
@@ -113,6 +130,9 @@ function IssueRow({ kind, storeId, casts, castId, castName, dateDefault, disable
     <section className="nox-cardtop" style={{ ...t.card, opacity: disabled ? 0.6 : 1, marginBottom: 0, paddingBottom: 16 }}>
       {/* ★301-4: 見出し→12→「キャスト」ラベル→6→picker→16→フォーム行→8→注記→カード下端 16（値は 4/8/12/16/24 のみ・ラベルと入力の間は全ラベル 6） */}
       <h3 style={{ fontSize: 13.5, fontWeight: 800, color: "var(--champ)", margin: "0 0 12px" }}>{label}の発行{fixed && castName ? `（${castName}）` : ""}</h3>
+      {loanPin && loanAgreed === false && (/* ★M-123（裁定464 付帯①）: 貸付伝票の「同意未」＝発行は止めない（仮置き 5＝承認） */
+        <p data-loan-agreed="0" style={{ fontSize: 12, color: "var(--warn, #e0a030)", margin: "-6px 0 10px" }}><span className="nox-stpill" style={{ marginRight: 6 }}>{LOAN_NOT_AGREED}</span>{LOAN_NOT_AGREED_NOTE}</p>
+      )}
       {!fixed && (
         <div style={{ marginBottom: 16 }}>
           <div style={{ fontSize: 12, color: "var(--sub)", marginBottom: 6 }}>キャスト</div>

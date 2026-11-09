@@ -32,7 +32,8 @@ import SanctionModal from "@/components/nox/sanction-modal";
 import NormProposals from "@/components/nox/norm-proposals"; // ★便 X13-I I-5: ノルマ未達の減額の提案
 import type { NormProposal } from "@/lib/nox/payroll/norm-proposal"; // ★0154 D5: 懲戒減給（雇用・労基法 91 条）
 import AdvanceOkuriForm from "@/components/nox/advance-okuri-form"; // ★裁定300-2: 前借り／送り実費の入口（cast・期固定・確定後は読取のみ）
-import { mig0183On, okuri4wayOn, rules0175On } from "@/lib/nox/rules-0175/flag";
+import { mig0183On, mig0198On, okuri4wayOn, rules0175On } from "@/lib/nox/rules-0175/flag"; // ★0198（M-123）
+import { LOAN_LEDGER_HEAD, LOAN_NOT_AGREED, loanAckLabelOf, loanAgreedMapOf, loanAgreedOf, loanStatusLabelOf, type CastPlanRow, type LoanRow } from "@/lib/nox/payroll/loan-ledger"; // ★M-123（裁定464 付帯①）
 import Withholding432Panel from "@/components/nox/withholding-432-panel"; // ★裁定432（0183 ★4）
 import { missingEmployeeDeductionsOf, type EmployeeDeductionKind, type WithholdingKind } from "@/lib/nox/payroll/withholding-kind"; // ★裁定432
 import { normFinalizeNoteOf, type NormIntent } from "@/lib/nox/payroll/norm-intent"; // ★便 M-7（0183） // ★便 P175-prep P-2／P-7
@@ -181,6 +182,8 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storeId]);
   const [openBal, setOpenBal] = useState<{ cast_id: string; cast_name: string; open_total: number; n: number; oldest_on: string }[] | null>(null);
+  const [loanLedger, setLoanLedger] = useState<LoanRow[] | null>(null); // ★M-123（0198 ★4 view cast_loans）: 貸付台帳（直近）＝返済済（status='deducted'）の表示
+  const [loanAgreed, setLoanAgreed] = useState<Record<string, boolean>>({}); // ★M-123: 現在のプランの advance_loan_agreed（false＝「同意未」）
   const [adjMsg, setAdjMsg] = useState("");
   const [adjBusy, setAdjBusy] = useState(false); // 264-8: 送信中の二重発火を止める（add に冪等キーは無い）
   const [adjForm, setAdjForm] = useState<{ kind: "fixed" | "rate"; amount: string; pct: string; before: boolean; showDetail: boolean; reason: string }>(
@@ -221,6 +224,19 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
     ]);
     setDedRows((ded ?? []) as DedRow[]);
     setOpenBal((ob ?? []) as { cast_id: string; cast_name: string; open_total: number; n: number; oldest_on: string }[]);
+    // ★M-123（裁定464 付帯①・0198 のフラグ便）: 貸付台帳（view cast_loans・直近 30 件）と「同意未」（cast_plan → comp_plans.advance_loan_agreed）
+    if (mig0198On()) {
+      const [{ data: ll }, { data: cp }] = await Promise.all([
+        supabase.from("cast_loans").select("id, cast_id, cast_name, biz_date, amount, repaid, remaining, status, ack_method, note").eq("store_id", storeId).order("biz_date", { ascending: false }).limit(30),
+        supabase.from("cast_plan").select("cast_id, plan_id, valid_from, valid_to").eq("store_id", storeId),
+      ]);
+      const plans = (cp ?? []) as CastPlanRow[];
+      const planIds = [...new Set(plans.map((p) => p.plan_id))];
+      const { data: cps } = planIds.length ? await supabase.from("comp_plans").select("id, advance_loan_agreed").in("id", planIds) : { data: [] };
+      const agreedByPlan: Record<string, boolean | null> = Object.fromEntries(((cps ?? []) as { id: string; advance_loan_agreed: boolean | null }[]).map((p) => [p.id, p.advance_loan_agreed]));
+      setLoanLedger((ll ?? []) as LoanRow[]);
+      setLoanAgreed(loanAgreedMapOf(plans, agreedByPlan, new Date().toISOString().slice(0, 10)));
+    } else { setLoanLedger(null); setLoanAgreed({}); }
     setSum4(null);
     setUnpaid(null); setPrevNet(null);
     setCastPaid(null);
@@ -1267,11 +1283,32 @@ ${md.message}（入れずに確定すると控除 0 のまま確定します）`
               {openBal.map((b) => (
                 <div key={b.cast_id} style={{ display: "flex", gap: 10, alignItems: "baseline", flexWrap: "wrap", fontSize: 13, borderBottom: "1px solid var(--line)", padding: "4px 0" }}>
                   <span style={{ fontWeight: 700 }}>{b.cast_name}</span>
+                  {mig0198On() && !loanAgreedOf(loanAgreed, b.cast_id) && <span className="nox-stpill" data-loan-agreed="0" title="待遇プランに「前借り（貸付）の取扱いに同意」がありません">{LOAN_NOT_AGREED}</span>}{/* ★M-123 */}
                   <span className="num" style={{ color: "var(--bad)" }}>¥{b.open_total.toLocaleString()}</span>
                   <span style={{ fontSize: 11.5, color: "var(--sub)" }}><span className="num">{b.n}</span> 件・最古 <span className="num">{b.oldest_on}</span></span>
                 </div>
               ))}
               <p style={{ fontSize: 11, color: "var(--sub)", margin: "4px 0 0" }}>合計 <span className="num">¥{openBal.reduce((s, b) => s + b.open_total, 0).toLocaleString()}</span></p>
+            </div>
+          )}
+          {mig0198On() && loanLedger !== null && (/* ★M-123（裁定464 付帯①）: 貸付台帳（直近 30 件）＝日付・キャスト（同意未）・額・返済・残・状態（返済済／未回収／取消）・本人確認（PIN／立会い） */
+            <div style={{ marginTop: 10 }} data-loan-ledger={String(loanLedger.length)}>
+              <h4 style={{ fontSize: 12.5, fontWeight: 800, color: "var(--champ)", margin: "0 0 4px" }}>{LOAN_LEDGER_HEAD}</h4>
+              {loanLedger.length === 0 ? <p style={{ fontSize: 12, color: "var(--sub)", margin: 0 }}>貸付の記録はありません。</p> : (
+                <div style={{ display: "grid", gap: 2 }}>
+                  {loanLedger.map((l) => (
+                    <div key={l.id} data-loan-row={l.id} data-loan-status={l.status} style={{ display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap", fontSize: 12, borderBottom: "1px solid var(--line)", padding: "3px 0" }}>
+                      <span className="num" style={{ color: "var(--sub)" }}>{l.biz_date}</span>
+                      <span style={{ fontWeight: 700 }}>{l.cast_name}</span>
+                      {!loanAgreedOf(loanAgreed, l.cast_id) && <span className="nox-stpill" data-loan-agreed="0">{LOAN_NOT_AGREED}</span>}
+                      <span className="num">¥{l.amount.toLocaleString()}</span>
+                      <span style={{ color: "var(--sub)" }}>返済 <span className="num">¥{l.repaid.toLocaleString()}</span>・残 <span className="num">¥{l.remaining.toLocaleString()}</span></span>
+                      <span className={l.status === "deducted" ? "nox-stpill ok" : "nox-stpill"}>{loanStatusLabelOf(l.status)}</span>
+                      <span style={{ fontSize: 11, color: "var(--sub)" }}>本人確認 {loanAckLabelOf(l.ack_method)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
           <a href="/master/cast-comp/deduction" className="nox-link nox-wraplink" style={{ display: "inline-block", marginTop: 8, fontSize: 12 }}>控除・送り（前借りの発行・取消）へ ›</a>{/* ★便 PR-1 R-5 ③: 折り返して切れない */}
