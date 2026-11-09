@@ -22,7 +22,7 @@ check("0193c(4-1) 役割変更の候補＝フラグ false は従来（admin あ�
 const inv = fs.readFileSync("app/api/staff/invite/route.ts", "utf8"), cre = fs.readFileSync("app/api/staff/create/route.ts", "utf8");
 check("0193c(4-2) 招待・登録の役割は staff／manager だけ（admin を送らない）・肩書は自由記述（役割の選択肢なし）", inv.includes('body.role === "manager" ? "manager" : "staff"') && /options=\{\[\["staff", [^\]]+\], \["manager", [^\]]+\]\] as const\}/.test(sb) && !/p_new_role: "admin"/.test(c) && !cre.includes('"admin"'));
 // ★フラグ true 便の同乗（2026-11-04）
-const SCREEN = ["app/(manage)/master/business-hours-panel.tsx", "app/(manage)/master/kiosk-pin-panel.tsx", "app/(manage)/master/sensitive-tax-panel.tsx", "app/(manage)/master/master-board.tsx", "app/(manage)/staff/staff-work-panel.tsx", "components/nox/kiosk-workspace.tsx", "components/nox/kiosk-unlock-pad.tsx", "components/nox/terms-accept-form.tsx", "lib/nox/ui/nav-tabs.ts", "app/api/billing/_owner.ts"];
+const SCREEN = ["app/(manage)/master/business-hours-panel.tsx", "app/(manage)/master/kiosk-pin-panel.tsx", "app/(manage)/master/sensitive-tax-panel.tsx", "app/(manage)/master/master-board.tsx", "app/(manage)/staff/staff-work-panel.tsx", "components/nox/kiosk-unlock-pad.tsx", "components/nox/terms-accept-form.tsx", "lib/nox/ui/nav-tabs.ts", "app/api/billing/_owner.ts"];
 const codeOf = (src: string) => src.split("\n").filter((l) => !/^\s*(\/\/|\*|\/\*|\{\/\*)/.test(l)).map((l) => l.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(?<![:"'`])\/\/.*$/, "")).join("\n");
 const left = SCREEN.filter((f) => codeOf(fs.readFileSync(f, "utf8")).includes("オーナー"));
 check("0193c(5-1) ① 画面の文言＝「オーナー」→「管理者」（コメントの外に残り 0・代表 10 ファイル）", left.length === 0, left);

@@ -49,7 +49,7 @@ async function main() {
   const pb = fs.readFileSync("app/(manage)/payroll/payroll-board.tsx", "utf8");
   const css = fs.readFileSync("app/globals.css", "utf8");
   const mine = fs.readFileSync("app/mine/page.tsx", "utf8");
-  const kiosk = fs.readFileSync("components/nox/kiosk-workspace.tsx" /* ★K client 第 2 便: 包みを移した */, "utf8");
+  const kiosk = "" /* ★裁定469（M-128・2026-11-09）: 包み（kiosk-workspace）は廃止 */;
   const advR = fs.readFileSync("app/api/advance/issue/route.ts", "utf8"), trR = fs.readFileSync("app/api/transport/issue/route.ts", "utf8");
   check("ao(2-1) 共通部品: issueBodyOf 経由で fetch（endpoint は純関数が決める）・Picker・.nox-issue-row・readOnly は入口なし・Message", comp.includes("issueBodyOf({ kind, storeId") && comp.includes("fetch(b.endpoint") && comp.includes("<Picker fullList") /* ★便 X13-H H-19: 日払い側と同じ全行表示 */ && comp.includes('className="nox-issue-row"') && comp.includes("if (readOnly)") && comp.includes("<Message kind={msg.kind}") && !comp.includes('"/api/advance/issue"'));
   check("ao(2-2) 入口の部品: deduction-panel は一括型 issue-bulk-form（1 人型・旧 IssueForm なし＝302-1）・casts-board（castId 固定）・payroll-board（castId 固定・readOnly={!adjEditable}）", dp.includes('from "@/components/nox/issue-bulk-form"') && !dp.includes('from "@/components/nox/advance-okuri-form"') && !dp.includes("function IssueForm") && cb.includes('from "@/components/nox/advance-okuri-form"') && cb.includes("castId={selCast.id}") && (cb.match(/<AdvanceOkuriForm/g) || []).length === 1 && pb.includes('from "@/components/nox/advance-okuri-form"') && (pb.match(/<AdvanceOkuriForm/g) || []).length === 1 && pb.includes("castId={r.castId}") && pb.includes("readOnly={!adjEditable}"));
