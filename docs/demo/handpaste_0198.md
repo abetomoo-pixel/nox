@@ -10,6 +10,7 @@
 5. 貸付時に同意が無くても**拒否しない**（audit の after_json に plan_agreed を残すだけ）＝拒否するかは相談役。
 6. **demo_org_reset の wipe 一覧に 6 表**（cast_day_deductions／deduction_rule_casts／availability_terms／availability／register_day_grants／staff_allowances）＝デモ org で基本の働き方などを触ると reset が FK で止まる不具合（2026-11-06 ACE の 500）の直し＝load 一覧と ACL（service_role だけ）は不変（★5）。
 7. 月末精算の計算順序（報酬総額 →（5,000 円×暦日数）→ 源泉 → 貸付返済 → 支払額）は pay.ts（client）で既に裁定どおり＝**DB の変更なし**（レーン 2 で表示順だけ直す）。
+9. **★7 M-122（2026-11-09 同乗）**＝c_wipe／c_keep に無い表の監査系 FK（updated_by／created_by／set_by／granted_by／decided_by／confirmed_by／changed_by／locked_by／accepted_user_id＝nullable 24 本）を on delete set null（デモ reset と退会で親の削除を止めない・本体の FK＝cast_id／store_id／membership_id は不変・NOT NULL の punch_corrections.requested_by は対象外）。一覧＝docs/tmp/fk_audit_0198.json。
 8. **★6 裁定461（M-120・2026-11-07 同乗）**＝cast_day_deductions_set の cast 本人経路を forbidden・店側に staff の自店を追加／新設 cast_day_applied_of（店が付けた今日の控除の見え方＝本人・店の人・端末）／kiosk_punch の p_day_deductions は**操作担当（auth_kiosk_operator）が解錠中のときだけ受理**（cast の PIN だけなら forbidden）・出勤 ok の返りに day_applied。仮置き＝「操作担当が解錠中なら受理」は裁定の「staff 以上の本人セッション」を端末の文脈で読み替えたもの（端末から本人セッションは作れない）。常に拒否にするなら 1 行。
 
 **結論 3 行**
@@ -20,7 +21,7 @@
 | 項目 | 値 |
 |---|---|
 | ファイル | docs/tmp/0198_cast_loans.sql（LF）→ 手貼り後に supabase/migrations/0198_cast_loans.sql へ収蔵 |
-| sha256 | 先頭 16 桁 **7fec9253d9cda229**（652 行・51973 B・LF）＝2026-11-07 ★6 を足した再生成（旧 0aba613cc2dd5576 は破棄） |
+| sha256 | 先頭 16 桁 **ed90503b54b54acd**（679 行・57636 B・LF）＝2026-11-09 ★7 を足した再生成（旧 7fec9253d9cda229／0aba613cc2dd5576 は破棄） |
 | 翻訳元 | live pg_get_functiondef（2026-11-06・0197b 適用後・docs/tmp/dump_live_0192.mjs→scratchpad/live0198）＋生成器 docs/tmp/gen_0198.cjs・検証＝docs/tmp/0198_verify.sql |
 | 試走 | docs/tmp/try_0198.mjs（教訓128＝行頭マーカー・commit; の不在 assert・lock_timeout の 1 行 assert・関数数を tx の外で前後に）＝2026-11-06 **19/19・DB 変更 0** |
 | 根拠 | 台帳 裁定458／docs/tmp/advance_loan_scan.md の変更案 3・4 |
@@ -41,7 +42,7 @@ select 'already applied', 'yes' from information_schema.columns where table_sche
 ## 本文
 docs/tmp/0198_cast_loans.sql の全文（begin〜commit を 1 回 Run）。URL の ref＝hiqbfagmkrdpmlqhkmsu を目視してから。
 
-## 検証クエリ（貼った後）＝docs/tmp/0198_verify.sql（21 行＝貼り先証明＋20 行・期待値は各行の見出しに）
+## 検証クエリ（貼った後）＝docs/tmp/0198_verify.sql（22 行＝貼り先証明＋21 行・期待値は各行の見出しに）
 | k | 期待 |
 |---|---|
 | nox-project-proof | orgs の件数 |
@@ -56,8 +57,10 @@ docs/tmp/0198_cast_loans.sql の全文（begin〜commit を 1 回 Run）。URL �
 | cast_loan_grant uses crypt+adv_issue／set_comp_plan writes agreed | yes／yes |
 | cast_day_deductions_set cast self gone／kiosk_punch operator gate + day_applied | yes／yes |
 | cast_day_applied_of exists／acl anon/authenticated | 1／0/1 |
+| audit fks set null | 24 |
 
 ## 試走の記録（本番 ref hiqb…・BEGIN…ROLLBACK・DB 変更 0）
+- 2026-11-09（★7 M-122 を足した再生成＝sha16 ed90503b54b54acd）: body 666 行・commit-free ok・lock_timeout ok → 419／120／0 → tx 内 422／120／2 → ROLLBACK → 419／120／0（DB 変更 0）・verify **22 行一致**・動作 **30/30**（★7＝監査系 FK 24 本が set null・availability_terms_updated_by_fkey＝set null）。
 - 2026-11-07 朝（★6 裁定461 を足した再生成＝sha16 7fec9253d9cda229）: body 640 行・commit-free ok・lock_timeout ok → 419／120／0 → tx 内 **422／120／2** → ROLLBACK → 419／120／0（DB 変更 0）・verify **21 行一致**・動作 **28/28**（★6＝cast 本人の set は forbidden／staff の自店 ok 1 行／cast_day_applied_of＝店長・staff・本人・端末が読める・他人は forbidden・額の上書き 450／端末の kiosk_punch＋p_day_deductions（操作担当なし）＝forbidden・打刻も入らない／3 引数の出勤 ok・day_applied に店が付けた行）。
 - 2026-11-06 19:4x（★5 を足した再生成＝sha16 0aba613cc2dd5576）: body 408 行・commit-free ok・lock_timeout ok → 419／120／0 → tx 内 421／120／2 → ROLLBACK → 419／120／0（DB 変更 0）・verify 17 行一致・動作 19/19。
 - 2026-11-06 19:2x（本番 ref hiqb…・0197b 適用後・★5 なし＝c18da0a15dea897c）: body 273 行・commit-free ok・lock_timeout ok → 関数 419／表 120／view 0 → tx 内 **421／120／2** → ROLLBACK → 419／120／0（DB 変更 0）。verify 17 行＝期待値と全行一致（advances の ack_method none＝6/6＝既存行）。

@@ -11,6 +11,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { prewipeDemoOrg } from "@/lib/nox/demo/prewipe"; // ★M-122
 import { shiftPayload } from "./dateshift";
 import { parseDemoUsers } from "./session";
 import { CAST_PHOTO_BUCKET } from "../cast-photo";
@@ -196,6 +197,9 @@ export type ResetResult = { ok: true; mode: "all" | "wipe+load"; chunks: number;
 
 /** demo_org_reset: payload が 1 MB 以下なら 'all' 1 回（RESET_TIMEOUT_MS 超は 'wipe'→'load'）。超えるなら 'wipe' → 分割した 'load' を順に */
 export async function runDemoReset(admin: SupabaseClient, orgId: string, payload: Record<string, Record<string, unknown>[]>): Promise<ResetResult> {
+  // ★M-122（2026-11-09）: wipe の前に c_wipe に無い表を子から親へ消す（availability_terms.updated_by → memberships の no-action FK で 11/09 ACE が 500）。DDL なし＝route 側
+  const pre = await prewipeDemoOrg(admin, orgId);
+  if (!pre.ok) return { ok: false, error: `prewipe ${pre.table}: ${pre.error}` };
   const call = (mode: "all" | "wipe" | "load", p: Record<string, unknown[]> | null) => admin.rpc("demo_org_reset", { p_org_id: orgId, p_payload: p, p_mode: mode });
   const chunks = splitPayload(payload);
   if (chunks.length === 1) {
