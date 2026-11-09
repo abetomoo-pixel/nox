@@ -5652,7 +5652,7 @@ Agoora が 7 本を手貼り（0185→0180→0181→0182→0183→0184→0186）
 - **pin 張替え**＝関数 419→422（0158 s-3／t-1・0188 F-4・0190 FN_PIN・0194c 5-1・0195 3-1・0196 3-1・0197 4-1・p172 6-4）・0158（kiosk_punch md5 1b5eb974・set_comp_plan md5 35bd14f3＝33 引数・comp_plans 49 列・advances 19 列）・grants（G9 advances 19 列・G31 operator 29 本＝kiosk_punch）・課金名簿（A19＝cast_loan_repay＝対象 203・B(x)＝cast_day_applied_of／cast_loan_grant＝除外 219・述語参照 204）・0196（selfarm＝'not today' は消える・4-23／4-24 は操作担当が解錠中なので受理のまま・4-24b＝day_applied）・0195（4-5 staff ok）・wipe-cover（PREWIPE から c_wipe へ移った 6 表を外す・2-1＝availability_terms は c_wipe で memberships より前）・benf（10-1 true・11-4・13）。
 - **client の有効化**（MIG_0198 配下＝フラグで自動）＝M-120（代行の出勤直後の「今日の控除」チェック群・本人は「店が付けました」の表示だけ）・待遇プランの「前借り（貸付）の取扱いに同意」・貸付の発行の「本人確認 PIN（空＝立会い）」。**M-123**（裁定464 付帯①）＝lib/nox/payroll/loan-ledger.ts（loanAgreedMapOf＝現在のプランの advance_loan_agreed・返済済／未回収／取消・PIN／立会い）・給与の貸付残高一覧に「同意未」（data-loan-agreed）・貸付台帳（直近 30 件＝view cast_loans・data-loan-ledger／data-loan-status・返済済は緑の印）・貸付伝票（AdvanceOkuriForm）に「同意未」（発行は止めない＝仮置き 5）。
 - **教訓136（採番・2026-11-09）＝新しい表・関数を足したら「ACL／wipe の順序／LIFF の再ログイン」を verify に足す**＝①ACL＝作り直す関数の proacl は live を写す（0197b の on_duty_of）②wipe＝org_id を持つ表は c_wipe か route の先掃除に入れ、no-action の FK は子から親へ（M-122＝availability_terms.updated_by）③LIFF＝期限切れ ID トークンの再ログイン（M-116）＝新しい入口を足すたびに 1 回通す。verify＝grants（ACL）・wipe-cover（wipe）・bene／benf（LIFF の文言）。次の教訓＝137。
-- **f0／push／reset／撮影**＝下に埋める。
+- **f0／push／reset／撮影**＝f0 2 連緑 AF／AG（178 段 7,453）・push 1ad818f（11/09 18:00）・deploy 09:02Z・reset 6/6（18:03）。**M-123 の client が 1ad818f に入っていなかった**（patch 未実行）＝d98cdfe／f3a6424 で当て直し・M-128 と同じ f0 2 連緑 AJ／AK（178 段 7,454）・push f3a6424＋75339a3・deploy 10:41Z・reset 6/6（19:42）・撮影 docs/tmp/shots_0198（代行出勤直後の控除・/mine の店が付けました・貸付伝票 PIN なし／不一致／一致・同意未・貸付台帳の返済済・精算書の貸付返済行）。
 
 ## 裁定469（2026-11-09 確定・相談役＝裁定460 改）キオスクのレジ／シフト／在庫／日報タブ＝PIN → 本人セッション（kiosk_person_claim）で本店の同じページ・帯のナビはホーム／レジ／シフト／在庫／日報だけ・無操作 3 分で端末へ戻る・簡易画面は廃止
 
@@ -5662,7 +5662,7 @@ CC の処置＝M-128（読取→実装＝下の節）。
 
 ## M-128（2026-11-09 起票・相談役・client・DDL なし）裁定469＝キオスクのタブは PIN → 本人セッションで本店のページ・簡易画面の廃止・帯のナビ 5 つ・無操作 3 分
 
-本文＝裁定469 の節。読取（着手前）＝キオスク配下の簡易画面（/kiosk-register・/kiosk-shift・/kiosk-inventory・/kiosk-report＝KioskWorkspace／KioskFeaturePage）と、それを pin する verify（k・demo-guard の route 分類・billing の kiosk 腕は DB＝不変）・KioskPersonGuard の無操作（店設定 kiosk_person_idle_minutes＝既定 10 → 3 分の固定は client）・帯のナビ（M-119＝通常の groups → 5 つに絞る）。順＝M-128 → M-127 → M-126。
+本文＝裁定469 の節。**CC の処置（2026-11-09 夜・e880709／cbd99f0）**＝タイル＝button → KioskPersonEntry（dest＝本店のページ）→ kiosk_person_claim → /register・/shift・/master/stock・/report／簡易画面 4 本は /kiosk へ redirect・包み 3 部品は削除・端末アカウントの / は /kiosk・manifest／端末発行の案内も /kiosk／帯のナビ＝kioskPersonNavOf（ホーム／レジ／シフト／在庫／日報・staff は権限・cast はレジ）・無操作＝min(3, 店設定)。f0 2 連緑 AJ／AK（178 段 7,454）・push f3a6424・撮影 docs/tmp/shots_m128。気づき＝/api/kiosk/lock-notice の呼び手が 0（要否は相談役）。読取（着手前）＝キオスク配下の簡易画面（/kiosk-register・/kiosk-shift・/kiosk-inventory・/kiosk-report＝KioskWorkspace／KioskFeaturePage）と、それを pin する verify（k・demo-guard の route 分類・billing の kiosk 腕は DB＝不変）・KioskPersonGuard の無操作（店設定 kiosk_person_idle_minutes＝既定 10 → 3 分の固定は client）・帯のナビ（M-119＝通常の groups → 5 つに絞る）。順＝M-128 → M-127 → M-126。
 
 ## 裁定467（2026-11-09 確定・相談役）利用者向けの警告・エラー文は日本語＝RPC の英字はコードとして不変・client の辞書 1 本で変換・入力不足は RPC 前に止める
 
