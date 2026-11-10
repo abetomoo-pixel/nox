@@ -25,6 +25,7 @@
 | sha256 | 先頭 16 桁 **7c2ca5ce2ae751bd**（**524 行**）＝0199 適用後の live から生成（punch_self md5 74a22063・kiosk_login 1f5bc5c9・staff_punch 1c1ed455・staff_pin_status aa641edc） |
 | 翻訳元 | BANZEN（../makanai-shift）0205 punch_self_impl・lib/geofence.ts・lib/punch-rules.ts／NOX の live（scratchpad/live0201）＋生成器 docs/tmp/gen_0201.cjs（既存 4 本はアンカー置換・新設 4 本と列） |
 | 試走 | docs/tmp/try_0201.mjs（BEGIN…ROLLBACK・教訓128／132）＝結果は下の「試走の結果」 |
+| 教訓138 | 生成器の置換に行の途中のコメント 0 件（docs/tmp/check_midline_comment.cjs・0200 の型を模擬して 1 件検出できることを確認済み）・試走は作り直す 4 本（punch_self・kiosk_login・staff_punch・staff_pin_status）をすべて実際に呼んでいる |
 | 関数数・表数 | 0200 の後＝427／121 → **431／121**（**新設 4**＝punch_self_impl／set_store_manager_punch／staff_pin_self_set／cast_pin_self_set・**作り直し 4**＝punch_self／kiosk_login／staff_punch／staff_pin_status）・列 punches +10・stores +1 |
 
 ## 試走の結果（2026-11-10 15:0x・本番 ref で BEGIN…ROLLBACK＝0200 適用後の live・DB 変更 0）＝**50/50**
