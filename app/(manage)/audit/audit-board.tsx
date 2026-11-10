@@ -6,6 +6,7 @@
 // （全文 JSON を並べると金額1つの修正が読めないため。新規＝before null は「新規作成」表示）。
 // ページングは at 降順の単純 range（監査は直近確認が主用途・全量エクスポートは対象外）。
 import { useCallback, useEffect, useState } from "react";
+import { auditActionJa, auditSearchTextOf } from "@/lib/nox/audit/action-label"; // ★M-150（2026-11-10）: 操作名を業務の言葉に（辞書 1 本）・検索
 import { Message } from "@/components/ui/toast"; // ★裁定281（便 W-10 #7）
 import PageHead from "@/components/ui/page-head";
 import { createClient } from "@/lib/supabase/client";
@@ -222,7 +223,7 @@ export default function AuditBoard({ users, stores }: {
   const shown = logs.filter((l) =>
     (kindFilter === "" || kindOf(l.action) === kindFilter) &&
     (dateFilter === "" || l.at.slice(0, 10) === dateFilter) &&
-    (targetQ.trim() === "" || (l.target ?? "").toLowerCase().includes(targetQ.trim().toLowerCase())),
+    (targetQ.trim() === "" || auditSearchTextOf(l, [userName(l.actor_user_id), storeName(l.store_id)]).includes(targetQ.trim().toLowerCase())), // ★M-150: 卓名・領収書番号・キャスト名でも探せる
   );
 
   return (
@@ -326,7 +327,7 @@ export default function AuditBoard({ users, stores }: {
           </select>
           <input type="date" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)}
             aria-label="日付で絞り込み" style={{ ...t.input, width: "auto", padding: "6px 9px", fontSize: 12 }} />
-          <input value={targetQ} onChange={(e) => setTargetQ(e.target.value)} placeholder="対象で絞り込み"
+          <input value={targetQ} onChange={(e) => setTargetQ(e.target.value)} placeholder="操作・卓名・領収書番号・キャスト名で探す"
             style={{ ...t.input, width: 180, padding: "6px 9px", fontSize: 12 }} />
           {(kindFilter || dateFilter || targetQ) && (
             <button style={{ ...t.btnGhost, ...t.btnSm }}
@@ -350,8 +351,8 @@ export default function AuditBoard({ users, stores }: {
               <div className="nox-arow" style={{ cursor: "pointer", border: 0, padding: 0 }}
                 onClick={() => setOpen(isOpen ? null : l.id)}>
                 <span className="tm num">{fmtAt(l.at)}</span>
-                <span className="act">{l.action}</span>
-                <span className="tgt" style={{ flex: 1 }}>{l.target}</span>
+                <span className="act" title={l.action}>{auditActionJa(l.action)}</span>
+                <span className="tgt" style={{ flex: 1 }} />
                 <span style={{ flex: "0 0 96px", color: "var(--v2-text)" }}>{userName(l.actor_user_id)}</span>
                 <span style={{ color: l.before_json === null ? "var(--ok)" : "var(--gold2)", fontSize: 11.5, fontWeight: 700, whiteSpace: "nowrap" }}>
                   {l.before_json === null ? "新規" : `変更 ${diffs.length}項目`}
@@ -383,8 +384,12 @@ export default function AuditBoard({ users, stores }: {
             <>
               <div className="nox-listrow"><span style={{ flex: 1 }}>実行日時</span><b className="num">{fmtAt(l.at)}</b></div>
               <div className="nox-listrow"><span style={{ flex: 1 }}>実行者</span><b>{userName(l.actor_user_id)}</b></div>
-              <div className="nox-listrow"><span style={{ flex: 1 }}>操作</span><b>{l.action}</b></div>
-              <div className="nox-listrow"><span style={{ flex: 1 }}>対象</span><b>{l.target ?? "—"}</b></div>
+              <div className="nox-listrow"><span style={{ flex: 1 }}>操作</span><b>{auditActionJa(l.action)}</b></div>
+              <details style={{ margin: "6px 0" }} data-audit-tech="1"><summary style={{ fontSize: 12, color: "var(--sub)", cursor: "pointer" }}>技術詳細（内部の操作名・対象の ID・記録 ID）</summary>
+                <div className="nox-listrow"><span style={{ flex: 1 }}>内部の操作名</span><b className="num">{l.action}</b></div>
+                <div className="nox-listrow"><span style={{ flex: 1 }}>対象</span><b className="num" style={{ wordBreak: "break-all" }}>{l.target ?? "—"}</b></div>
+                <div className="nox-listrow"><span style={{ flex: 1 }}>記録 ID</span><b className="num" style={{ wordBreak: "break-all" }}>{l.id}</b></div>
+              </details>
               <div className="nox-listrow"><span style={{ flex: 1 }}>店舗 / IP</span><b>{storeName(l.store_id)}{l.ip ? ` ・ ${l.ip}` : ""}</b></div>
               <div style={{ margin: "10px 0 0" }}>
                 <span style={{ fontSize: 11.5, color: "var(--sub)", fontWeight: 700 }}>変更内容</span>
@@ -497,7 +502,7 @@ export default function AuditBoard({ users, stores }: {
                     {rows.map((l) => (
                       <tr key={l.id}>
                         <td className="num">{fmtAt(l.at)}</td>
-                        <td>{l.action}</td>
+                        <td title={l.action}>{auditActionJa(l.action)}</td>
                         <td>{l.target ?? "—"}</td>
                         <td>{userName(l.actor_user_id)}</td>
                         {(() => { const v = voidApproverReasonOf(l); return (<>
@@ -532,7 +537,7 @@ export default function AuditBoard({ users, stores }: {
             return rows.map((l) => (
               <div key={l.id} className="nox-listrow" style={{ fontSize: 12.5 }}>
                 <span style={{ flex: 1, minWidth: 0 }}>
-                  <b>{l.action}</b>
+                  <b title={l.action}>{auditActionJa(l.action)}</b>
                   <span style={{ display: "block", fontSize: 10.5, color: "var(--v2-muted)" }}>{l.target ?? "—"}</span>
                 </span>
                 <span>{userName(l.actor_user_id)}</span>
@@ -554,7 +559,7 @@ export default function AuditBoard({ users, stores }: {
             return rows.map((l) => (
               <div key={l.id} className="nox-listrow" style={{ fontSize: 12.5 }}>
                 <span style={{ flex: 1, minWidth: 0 }}>
-                  <b>{l.action}</b>
+                  <b title={l.action}>{auditActionJa(l.action)}</b>
                   <span style={{ display: "block", fontSize: 10.5, color: "var(--v2-muted)" }}>{l.target ?? "—"}</span>
                 </span>
                 <span style={{ fontSize: 11, color: "var(--v2-muted)" }}>{userName(l.actor_user_id)} が変更</span>

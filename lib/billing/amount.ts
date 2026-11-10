@@ -51,3 +51,10 @@ export function contractAmountLabel(hasSub: boolean, amount: ContractAmount | nu
   if (!hasSub) return CONTRACT_AMOUNT_NONE;
   return amount ? formatContractAmount(amount) : CONTRACT_AMOUNT_UNKNOWN;
 }
+
+// ★裁定475 承認（2026-11-10）: 割引（Stripe のクーポン）があれば割引後の額を出す＝「¥X/月（割引後・通常 ¥Y／単価 × N店舗）」。割引が無ければ従来の文言。
+export function withDiscountLabel(a: ContractAmount, discountedTotal: number): string {
+  if (!(discountedTotal < a.total)) return formatContractAmount(a);
+  const per = a.interval === "month" ? "月" : "年";
+  return `${yen(discountedTotal)}/${per}（割引後・通常 ${yen(a.total)}＝${yen(a.unitAmount)} × ${a.quantity}店舗）`;
+}

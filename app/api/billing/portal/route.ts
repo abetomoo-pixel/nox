@@ -22,6 +22,7 @@ export async function POST(req: Request) {
   const session = await stripe.billingPortal.sessions.create({
     customer: customerId,
     return_url: `${origin}/billing`,
+    ...(process.env.STRIPE_PORTAL_CONFIG_NOX ? { configuration: process.env.STRIPE_PORTAL_CONFIG_NOX } : {}), // ★裁定479 の 4: NOX 用のポータル設定（支払方法と請求書の履歴だけ）＝作成は相談役の承認後
   });
   return NextResponse.json({ ok: true, url: session.url });
 }

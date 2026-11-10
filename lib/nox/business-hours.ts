@@ -77,6 +77,7 @@ export function shiftHoursStatus(
   const start = hm2min(startHm);
   const end = start + spanMinutes(startHm, endHm); // 跨ぎ表記（end<start）も 24h超表記も同一正規化
   const open = hm2min(row.open_hm ?? "00:00");
-  const close = hm2min(row.close_hm ?? "00:00");
+  const closeRaw = hm2min(row.close_hm ?? "00:00");
+  const close = closeRaw <= open ? closeRaw + 1440 : closeRaw; // ★M-147: 終了が開始以下は翌日（businessHoursStatus と同じ規則）
   return { status: open <= start && end <= close ? "inside" : "outside", row, dow };
 }

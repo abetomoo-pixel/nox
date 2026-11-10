@@ -20,13 +20,26 @@ export function demoInitialSelectionOf(biz: readonly DemoBiz[], roles: readonly 
   const r = role && roles.some((x) => x.key === role) ? role : null;
   return { store: s, role: s ? r : null };
 }
+/** ★M-152（2026-11-10 夜便・外部レビュー 2 回目）: デモの規約同意は同じ端末のデモのセッション中（24 時間）は保持＝役割を切り替えても再同意を求めない。
+ *  規約の版（本文の要約値）が変わったら再同意。端末の保存（localStorage）は読めない／書けない環境では使わない（同意は毎回）。純関数＝verify:nox-night1110 の単体対象。 */
+export const DEMO_TERMS_ACK_KEY = "nox_demo_terms_ack";
+export const DEMO_TERMS_ACK_TTL_MS = 24 * 3600_000;
+export function demoTermsVersionOf(terms: readonly string[]): string { let h = 0; for (const ch of terms.join("\n")) h = (h * 31 + ch.charCodeAt(0)) | 0; return String(h >>> 0); }
+export function demoTermsAckValidOf(raw: string | null, version: string, now: number): boolean {
+  if (!raw) return false;
+  try { const v = JSON.parse(raw) as { v?: string; at?: number }; return v.v === version && typeof v.at === "number" && now - v.at < DEMO_TERMS_ACK_TTL_MS && now >= v.at; } catch { return false; }
+}
 export function demoBizOrderOf(biz: readonly DemoBiz[], initialStore: string | null): DemoBiz[] {
   if (!initialStore) return [...biz];
   return [...biz.filter((b) => b.key === initialStore), ...biz.filter((b) => b.key !== initialStore)];
 }
 
 export default function DemoEntry({ biz, roles, kiosk }: { biz: readonly DemoBiz[]; roles: readonly DemoRole[]; kiosk?: DemoRole | null }) {
-  const [agreed, setAgreed] = useState(false);
+  const [agreed, setAgreedState] = useState(false);
+  const termsVer = demoTermsVersionOf(DEMO_TERMS);
+  // ★M-152: 同じ端末で同じ版の同意が 24 時間以内なら最初から同意済み
+  useEffect(() => { try { if (demoTermsAckValidOf(window.localStorage.getItem(DEMO_TERMS_ACK_KEY), termsVer, Date.now())) setAgreedState(true); } catch { /* 端末の保存が使えない＝毎回同意 */ } }, [termsVer]);
+  const setAgreed = (v: boolean) => { setAgreedState(v); try { if (v) window.localStorage.setItem(DEMO_TERMS_ACK_KEY, JSON.stringify({ v: termsVer, at: Date.now() })); else window.localStorage.removeItem(DEMO_TERMS_ACK_KEY); } catch { /* 保存できなくても同意は画面の中で有効 */ } };
   // ★裁定344: ?store=&role=（LP「この店で試す」）。page は force-static＝useSearchParams は空を返すため、mount 後に window.location.search を読む（SSR は初期選択なし＝従来の並び）
   const [q, setQ] = useState<{ store: string | null; role: string | null }>({ store: null, role: null });
   useEffect(() => { const u = new URLSearchParams(window.location.search); setQ({ store: u.get("store"), role: u.get("role") }); }, []);
@@ -46,6 +59,12 @@ export default function DemoEntry({ biz, roles, kiosk }: { biz: readonly DemoBiz
   };
   return (
     <>
+      {/* ★M-140（2026-11-10 夜便・外部レビュー）: 3 段の案内＋主ボタン（同意したら 1 回で入れる）。店と役割を選ぶ下のボタンは今のまま */}
+      <ol className="nox-demo-steps" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 8, listStyle: "none", padding: 0, margin: "0 0 12px" }} data-demo-steps="3">
+        {[["1", "規約に同意", "下の 5 項を読んで「上記に同意する」"], ["2", "店を選ぶ", "業態の違う 6 店から"], ["3", "役割で入る", "オーナー・店長・スタッフ・キャスト・端末"]].map(([n, h, d]) => (
+          <li key={n} style={{ ...t.card, padding: "10px 12px", margin: 0 }}><b style={{ color: "var(--champ)", marginRight: 6 }}>{n}</b><b>{h}</b><span style={{ display: "block", fontSize: 11.5, color: "var(--sub)", marginTop: 2 }}>{d}</span></li>
+        ))}
+      </ol>
       <section className="nox-cardtop" style={{ ...t.card, marginBottom: 12 }} aria-labelledby="demo-terms-h">
         <h2 id="demo-terms-h" style={{ ...t.cardTitle, margin: "0 0 6px" }}>デモ利用の規約</h2>
         <ol style={{ margin: "0 0 10px", paddingLeft: 20, fontSize: 12.5, lineHeight: 1.7, color: "var(--ink)" }}>
@@ -56,6 +75,12 @@ export default function DemoEntry({ biz, roles, kiosk }: { biz: readonly DemoBiz
           上記に同意する
         </label>
         {!agreed && <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "6px 0 0" }}>同意すると下の「…で入る」を押せるようになります。</p>}
+        {(() => { const ps = init.store ?? (biz.some((b) => b.key === "ace") ? "ace" : biz[0]?.key); const pr = init.role ?? (roles.some((r) => r.key === "owner") ? "owner" : roles[0]?.key); const pb = biz.find((b) => b.key === ps); const prl = roles.find((r) => r.key === pr); if (!ps || !pr || !pb || !prl) return null; return (
+          <form method="post" action="/api/demo/enter" style={{ margin: "12px 0 0" }} onSubmit={(e) => { if (!agreed) e.preventDefault(); }} data-demo-primary="1">
+            <input type="hidden" name="store" value={ps} /><input type="hidden" name="role" value={pr} />
+            <button type="submit" disabled={!agreed} aria-disabled={!agreed} style={{ ...t.btnGold, width: "100%", minHeight: 48, fontSize: 16, fontWeight: 800, opacity: agreed ? 1 : 0.5, cursor: agreed ? "pointer" : "not-allowed" }}>{pb.label} を{prl.label}で試す（おすすめ）</button>
+          </form>
+        ); })()}
       </section>
       {ordered.map((b) => (
         <section key={b.key} className="nox-cardtop" style={{ ...t.card, marginBottom: 12, ...(init.store === b.key ? { border: "1px solid var(--gold)" } : {}) }} data-initial={init.store === b.key ? "1" : undefined}>

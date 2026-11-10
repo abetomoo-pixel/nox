@@ -20,7 +20,7 @@ import SegSelect from "@/components/ui/seg-select"; // ★0154 D6: 契約区分
 import { dedAmountLabelOf, dedUnitLabelOf } from "@/lib/nox/payroll/deduction-labels"; // ★0195（裁定447 ④）: キャスト別の控除
 import { WITHHOLDING_KIND_LABEL, WITHHOLDING_KIND_SELECT_NOTE, WITHHOLDING_KIND_SHORT, defaultWithholdingKindOf, withholdingKindChoices, withholdingKindOf } from "@/lib/nox/payroll/withholding-kind"; // ★便 M3 M-21
 import { mig0183On, mig0188On, mig0190On, mig0191On, mig0195On } from "@/lib/nox/rules-0175/flag"; // ★便 M3 M-21 // ★0190（裁定436 ①c）: 退店の失効（route）
-import { NOTE_EMPLOYMENT, NOTE_LABOR, amountKeyOf, laborNoteNeeded, nextPeriodStartOf, overridesWithRule, payRuleLabelOf, payRuleOptionsOf, ruleOfOverrides, type Employment } from "@/lib/nox/cast/pay-rule"; // ★0154 D2／D6
+import { NOTE_EMPLOYMENT, NOTE_LABOR, amountKeyOf, laborNoteNeeded, nextPeriodStartOf, overridesWithRule, payRuleLabelOf, payRuleOptionsOf, ruleOfOverrides, type Employment, planSwitchOverridesOf, planSwitchFromOf } from "@/lib/nox/cast/pay-rule"; // ★0154 D2／D6
 import type { PayRule } from "@/lib/nox/pay";
 // ★夜間便 N4（裁定282-2／282-3／287-3・0151 ★3）: 保証時給の表示用純関数（DB を知らない）
 import { guaranteeStateOf, guaranteeBadgeOf, guaranteeEndNoteOf, addDays, mdOf, type PlanRowLike } from "@/lib/nox/cast/guarantee"; // ★便 L-3-1: 終了の注記
@@ -632,7 +632,7 @@ export default function CastsBoard({
     const err = planSwitchValidate({ planId: planForm.planId, from: planForm.from, today, runStatus: (run?.status as string | undefined) ?? null });
     if (err) { setPlanMsg({ kind: "error", text: err }); return; }
     setBusy(true);
-    const { error } = await supabase.rpc("set_cast_plan", { p_cast_id: c.id, p_plan_id: planForm.planId, p_overrides: castPlanOf[c.id]?.ov ?? {}, p_valid_from: planForm.from });
+    const { error } = await supabase.rpc("set_cast_plan", { p_cast_id: c.id, p_plan_id: planForm.planId, p_overrides: planSwitchOverridesOf(planRowsOf[c.id]), p_valid_from: planForm.from }); // ★M-153: 開いた行の上書きを白名単で絞る（保証行の guarantee・保証の base を持ち込まない）
     setBusy(false);
     if (error) { setPlanMsg({ kind: "error", text: planSwitchErrJa(error.message) }); return; }
     setPlanMsg({ kind: "success", text: `待遇プランを「${activePlans.find((p) => p.id === planForm.planId)?.name ?? ""}」にしました（${planForm.from} から）。${NOTE_PLAN_SWITCH}` });
@@ -1329,7 +1329,7 @@ export default function CastsBoard({
                 return (
                   <>
                     <div className="nox-frow"><span className="k">待遇プラン</span><span className="v" style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>{p.name}{ovCount > 0 && <span style={{ fontSize: 11, color: "var(--gold2)" }}>個別上書きあり</span>}
-                      {!planForm && <button style={btnGhost} disabled={busy} onClick={() => { setPlanMsg(null); setPlanForm({ planId: a!.planId, from: nextPeriodStartOf(today) }); }}>変更</button>}{/* ★306-13 */}
+                      {!planForm && <button style={btnGhost} disabled={busy} onClick={() => { setPlanMsg(null); setPlanForm({ planId: a!.planId, from: planSwitchFromOf(nextPeriodStartOf(today), planRowsOf[selCast.id]) }); /* ★M-153: 開いた行（保証の後の戻し行）の開始以前だと bad valid_from＝その翌日以降を既定に */ }}>変更</button>}{/* ★306-13 */}
                     </span></div>
                     {/* ★裁定143（v3.1 K35）: 「保証時給」→「通常時給（プラン基本）」＝comp_plans.base（＋overrides.base）を指す語へ。
                         モックの「入店時給保証」（K33・第2期）と語を衝突させない。値・経路は不変。 */}

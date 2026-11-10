@@ -88,7 +88,8 @@ export default function BusinessHoursPanel({
       if (r.is_closed) {
         next[r.dow] = { exists: true, closed: true, open: "20:00", close: "06:00", nextDay: true };
       } else {
-        const closeMin = hm2min(r.close_hm ?? "00:00");
+        const closeRaw = hm2min(r.close_hm ?? "00:00");
+        const closeMin = closeRaw <= hm2min(r.open_hm ?? "00:00") && closeRaw < 1440 ? closeRaw + 1440 : closeRaw; // ★M-147（2026-11-10）: 終了が開始以下（01:00 で保存された古い行）は翌日と読む＝1 日・週の合計が 0 時間にならない
         next[r.dow] = {
           exists: true, closed: false, open: r.open_hm ?? "20:00",
           close: closeMin >= 1440 ? min2hm(closeMin - 1440) : (r.close_hm ?? "00:00"),

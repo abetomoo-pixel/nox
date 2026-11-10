@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import BrandLogo from "@/components/ui/brand-logo"; // ★便 SH-UI-a A-2: ロゴ（Concept 2 改）
 import Link from "next/link";
+import { COMPANY_NAME, SUPPORT_EMAIL, TOKUSHOHO_HREF, TOKUSHOHO_TITLE } from "@/lib/nox/legal/tokushoho"; // ★2026-11-10: 事業者＝株式会社レクソル・特定商取引法の表示
 import { DEMO_TERMS } from "@/lib/nox/demo/terms"; // ★正本（"use client" の demo-terms.tsx から値は読めない）
 import { DEMO_RESET_TIME_JA, DEMO_STORES, DEMO_STORE_LABEL, type DemoStore } from "@/lib/nox/demo/seed";
 import { InquiryForm, ScreenZoom } from "@/components/nox/lp-v4-client";
@@ -133,7 +134,7 @@ export default function LpPage() {
             <div className="price"><span>1店舗あたりの月額料金</span><p><strong>{LP_PRICE_MONTHLY.toLocaleString("en-US")}</strong><b>円／月（税込）</b></p><small className="annual-note">年払いの割引もあります</small></div>
             <p>導入・運用のご相談は、下のフォームから。</p>
           </div>
-          <div className="contact-action"><a className="btn" href="#inquiry">フォームで問い合わせる <span>↓</span></a><small>info@agoora.co.jp</small></div>
+          <div className="contact-action"><a className="btn" href="#inquiry">フォームで問い合わせる <span>↓</span></a><small>{SUPPORT_EMAIL}</small></div>
         </div></section>
 
         <section className="section wrap inquiry" id="inquiry">
@@ -168,8 +169,8 @@ export default function LpPage() {
         </div></section>
       </main>
       <footer><div className="wrap">
-        <div><BrandLogo height={26} /><small>運営 株式会社Agoora</small></div>
-        <small><Link href="/demo">デモ店舗一覧 ↗</Link>　　© 2026 Agoora</small>
+        <div><BrandLogo height={26} /><small>運営 {COMPANY_NAME}</small></div>
+        <small><Link href={TOKUSHOHO_HREF}>{TOKUSHOHO_TITLE}</Link>　　<Link href="/demo">デモ店舗一覧 ↗</Link>　　© 2026 {COMPANY_NAME}</small>
       </div></footer>
     </div>
   );

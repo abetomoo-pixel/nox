@@ -14,6 +14,7 @@ import {
 // ★純関数（HANDLED / resolveSubscriptionId）は lib/billing/webhook.ts に置く。
 //   route.ts はハンドラ以外を export できない（next build の型検査で落ちる）＝分離の理由は同ファイル冒頭に記載。
 import { HANDLED, resolveSubscriptionId } from "@/lib/billing/webhook";
+import { isNoxStripeObject } from "@/lib/billing/nox-stripe"; // ★裁定479: NOX 以外のイベント（同じアカウントの BANZEN）は 200 で無視
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -40,8 +41,16 @@ export async function POST(req: Request) {
     const customerId = typeof obj.customer === "string" ? obj.customer : null;
     if (!customerId) return NextResponse.json({ received: true });
 
-    // org 解決（§3・2経路）: ローカル（checkout 作成時に即書込）→ 無ければ customer.metadata.org_id
+    // ★裁定479（2026-11-10・案 A＝株式会社レクソルの 1 アカウントで NOX と BANZEN）: NOX のものかを先に見る（metadata.service=nox・price の lookup_key／metadata）。
+    //   目印が無くてもローカルで引ける customer（目印を付ける前に作った NOX の customer）は通す。どちらでもなければ 200 で無視（ログ 1 行・何も書かない・Stripe も呼ばない）。
+    const nox = isNoxStripeObject(obj);
     let orgId = await localOrgByCustomer(customerId);
+    if (!nox && !orgId) {
+      console.log(`stripe webhook: NOX 以外のイベントを無視 ${event.type} ${event.id}`);
+      return NextResponse.json({ received: true, ignored: "not_nox" });
+    }
+    // org 解決（§3・2経路）: ローカル（checkout 作成時に即書込）→ 無ければ object の metadata.org_id → customer.metadata.org_id
+    if (!orgId) { const md = (obj.metadata ?? {}) as Record<string, unknown>; orgId = typeof md.org_id === "string" ? md.org_id : null; }
     if (!orgId) {
       const cust = await stripe.customers.retrieve(customerId);
       if (!(cust as Stripe.DeletedCustomer).deleted) {

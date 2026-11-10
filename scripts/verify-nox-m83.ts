@@ -66,7 +66,7 @@ check("m91(5-1) 時刻の制限のラベル＝badge「23:00〜翌01:00」・cell
   check("m83(6-3) 開栓済み＝卓は 60／13,000（平日通常）・VIP 席は 60／18,000・凍結メニューは席種の行だけ（卓＝平日通常｜週末通常・VIP＝＋VIP 延長）・ext_rule_id は payload に載せない（hook が置く）",
     open.length >= 2 && open.filter((o) => o.kind !== "VIP").every((o) => o.min === 60 && o.fee === 13000 && o.snap === "平日通常 延長 60 分|週末通常 延長" && o.rule === null) && open.filter((o) => o.kind === "VIP").every((o) => o.min === 60 && o.fee === 18000 && o.snap === "平日通常 延長 60 分|VIP 延長|週末通常 延長" && o.rule === null) && open.some((o) => o.kind === "VIP"), open);
   const gd = src("scripts/demo/gen-demo.mjs"), pf = src("scripts/demo/profiles.mjs");
-  check("m83(6-4) 生成器＝extra（週末通常）の行・seat_kind・凍結メニューの席種フィルタ・開栓済みは vip だけ渡す", pf.includes("{ key: \"extvip\", name: \"VIP 延長\", minutes: 60, amount: 18000, isDefault: false, seatKind: \"VIP\" }") && pf.includes("extra: { \"週末通常\": [{ key: \"extwe\", name: \"週末通常 延長\", minutes: 60, amount: 15000, isDefault: false }] }") && gd.includes("EXT_SNAP.filter((m) => !m.seat_kind || (vip && m.seat_kind === \"VIP\"))") && gd.includes("backsByCast: {}, vip: tbl.seat_type === \"vip\" });"));
+  check("m83(6-4) 生成器＝extra（週末通常）の行・seat_kind・凍結メニューの席種フィルタ・開栓済みは vip だけ渡す", pf.includes("{ key: \"extvip\", name: \"VIP 延長\", minutes: 60, amount: 18000, isDefault: false, seatKind: \"VIP\" }") && pf.includes("extra: { \"週末通常\": [{ key: \"extwe\", name: \"週末通常 延長\", minutes: 60, amount: 15000, isDefault: false }] }") && gd.includes("EXT_SNAP.filter((m) => !m.seat_kind || (vip && m.seat_kind === \"VIP\"))") && gd.includes("backsByCast: {}, setFee: setLine?.unit ?? rule.set_price_yen, setRuleName: rule.display_group, setRuleId: uid(`rule:${rule.pricing_rule_id}:set`), vip: tbl.seat_type === \"vip\" });"));
 }
 // (7) seed の reset 後 hook
 {

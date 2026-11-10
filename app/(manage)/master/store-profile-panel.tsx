@@ -264,7 +264,7 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
                 <label style={{ display: "block", minWidth: 0, fontSize: 12 }}>割引対象
                   <span data-pay-disc-base="1" style={{ display: "block" }}><SegSelect value={form.pay_disc_base} disabled={busy || !loaded} onChange={(v) => setForm((f) => ({ ...f, pay_disc_base: v === "subtotal" ? "subtotal" : "total" }))} options={(["total", "subtotal"] as PayDiscountBase[]).map((v) => [v, PAY_DISCOUNT_BASE_LABEL[v]] as const)} ariaLabel="割引対象" style={{ marginTop: 2 }} /></span>{/* ★M-82 */}
                 </label>
-                <span style={{ gridColumn: "1 / -1", fontSize: 11.5, color: "var(--sub)", lineHeight: 1.6 }}>合計から＝税・サービス料込みの残額×率を最後に引き、店の端数処理で丸めます（既定・税理士の確認待ちの仮置き）。小計から＝税・サービス料の前の小計から引いてから税・サービス料。入金のたびに「率を指定／額を指定／なし」で上書きできます（店長以上）。</span>
+                <span style={{ gridColumn: "1 / -1", fontSize: 11.5, color: "var(--sub)", lineHeight: 1.6 }}>合計から＝税・サービス料込みの残額×率を最後に引き、店の端数処理で丸めます（既定・税理士に確認中）。小計から＝税・サービス料の前の小計から引いてから税・サービス料。入金のたびに「率を指定／額を指定／なし」で上書きできます（店長以上）。</span>
               </div>}
             </div>}
             {on("profile") && (!mig0187On() || payAdjustHasFee(adj)) && <div style={{ minWidth: 0 }} data-pay-fee-rates="1">

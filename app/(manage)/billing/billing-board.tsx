@@ -8,6 +8,7 @@
 //     画面自体は必ず開く（フェイルソフト）。
 //   ★戻り値の反映は webhook（org_billing への唯一の書込経路）＝操作後は router.refresh() で読み直す。
 import { useState } from "react";
+import { TOKUSHOHO_HREF, TOKUSHOHO_TITLE } from "@/lib/nox/legal/tokushoho"; // ★2026-11-10: お申し込みの下に特定商取引法の表示
 import PageHead from "@/components/ui/page-head";
 import { useRouter, useSearchParams } from "next/navigation";
 import * as t from "@/lib/nox/ui/theme";
@@ -138,6 +139,7 @@ export default function BillingBoard({ view }: { view: BillingView }) {
                 </button>
               </>
             )}
+            {!view.hasSubscription && <p style={{ ...t.sub, fontSize: 11.5, width: "100%", textAlign: "center", margin: "6px 0 0" }} data-billing-legal="1">お申し込みの前に <a href={TOKUSHOHO_HREF} target="_blank" rel="noreferrer" className="nox-link">{TOKUSHOHO_TITLE}</a>・<a href="/terms" target="_blank" rel="noreferrer" className="nox-link">利用規約</a> をご確認ください。</p>}
             {view.hasSubscription && (
               <>
                 {alive && !isBt && (

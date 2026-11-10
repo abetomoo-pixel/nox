@@ -22,8 +22,8 @@ type FlagRow = { id: string; store_id: string | null; key: string; enabled: bool
 
 // 裁定C①-1: key の表示名。裁定C①-2: ローンチ時に出すのは前 2 つ。
 const VISIBLE_KEYS: Array<{ key: string; label: string; desc: string }> = [
-  { key: "staff_shift", label: "スタッフシフト", desc: "スタッフのシフトと勤務パターン（C層②）。" },
-  { key: "reopen_flow", label: "締め解除フロー", desc: "締め解除・給与確定解除・現金差異承認・伝票統合の解除型（C層③）。" },
+  { key: "staff_shift", label: "スタッフシフト", desc: "スタッフのシフトと勤務パターン。" },
+  { key: "reopen_flow", label: "締め解除フロー", desc: "締め解除・給与確定解除・現金差異承認・伝票統合の解除。" },
 ];
 
 const card: React.CSSProperties = t.card;

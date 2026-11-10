@@ -324,7 +324,7 @@ export function buildV5Plan(S: V5State, ctx: V5Ctx): { steps: V5Step[]; deferred
     r.ext.forEach((e, j) => { const key = `${seatKind(r.seat) ?? "all"}:${e[0]}`; if (extLeft <= 0 || extSeen.has(key)) { extDropped++; return; } extSeen.add(key); extLeft--; const isDef = !defSet && !!e[2]; if (isDef) defSet = true;
       ruleBase(`rule_${i}_ext_${j}`, `${r.name} 延長 ${e[0]}分`, { ...commonOf(r, i), p_fee_kind: "extension", p_amount: e[1], p_duration_min: e[0], p_is_default_ext: isDef }); });
   });
-  if (extDropped > 0) deferred.push({ item: `延長パターン ${extDropped} 本`, note: "店で 3 本まで（裁定385）＝残りはマスタ › 料金で" });
+  if (extDropped > 0) deferred.push({ item: `延長パターン ${extDropped} 本`, note: "店で 3 本まで（残りはマスタ › 料金で）" });
   if (S.vip.on) { ruleBase("rule_vip", `VIP 料金（${S.vip.mode === "table" ? "卓ごと" : "人ごと"}）`, { p_fee_kind: "vip_charge", p_seat_kind: "VIP", p_amount: S.vip.amt, p_billing_unit: S.vip.mode === "person" ? "person" : "table" });
     push({ key: "rule_vip_timing", group: "pricing", label: `VIP 料金のタイミング（${S.vip.per === "set" ? "セットごと" : "入店時に 1 回"}）`, rpc: "set_pricing_rule_vip", useResult: { from: "rule_vip", as: "p_id" }, args: { p_vip_timing: S.vip.per === "set" ? "per_set" : "on_entry", p_vip_ext_amount: S.vip.per === "set" ? S.vip.ext : null } }); }
   // 5) 商品（既存 0 のときだけ）＋バックの上書き

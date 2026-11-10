@@ -1339,7 +1339,7 @@ export default function RegisterBoard({
     const { error } = await supabase.rpc("check_set_nominations", { p_check_id: check.id, p_nominations: payload });
     setFeeBusy(false);
     if (error) {
-      console.warn("[裁定462] 離卓＋分配からの除外に失敗", castId, error.message);
+      console.warn("離卓と分配からの除外に失敗しました", castId, error.message);
       setMsg({ to: MSG_DETAIL, kind: "bad", text: `分配から外せませんでした: ${chargeErrJa(error.message)}` });
       await loadCheck(check.id);
       return;

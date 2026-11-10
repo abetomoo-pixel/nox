@@ -5,7 +5,8 @@
 //     （Stripe 制約＝48時間以上先のみ・それ未満/過去/null はトライアルなし＝即課金）。
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getStripe, stripePrices } from "@/lib/stripe/client";
+import { getStripe, resolveNoxPrice } from "@/lib/stripe/client";
+import { checkoutSubscriptionDataOf, noxMetadataOf } from "@/lib/billing/nox-stripe"; // ★裁定479／475 追補1: metadata.service=nox・請求日は毎月 1 日（初回は日割り）
 import { computeTrialEnd } from "@/lib/billing/trial";
 import { quantityOf, countStores } from "@/lib/billing/quantity";
 import { requireOwner, ensureCustomer } from "../_owner";
@@ -22,8 +23,7 @@ export async function POST(req: Request) {
   if (cycle !== "monthly" && cycle !== "yearly") {
     return NextResponse.json({ error: "お支払い周期の指定が不正です" }, { status: 400 });
   }
-  const prices = stripePrices();
-  const priceId = cycle === "monthly" ? prices.monthly : prices.yearly;
+  const priceId = await resolveNoxPrice(cycle); // ★裁定479: lookup_key（nox_monthly／nox_yearly）で引く・env があれば上書き
   if (!priceId) return NextResponse.json({ error: `Stripe 未接続: Price が未設定です（${cycle}）` }, { status: 500 });
 
   const admin = createAdminClient();
@@ -40,7 +40,8 @@ export async function POST(req: Request) {
     mode: "subscription",
     customer: customerId,
     line_items: [{ price: priceId, quantity }],
-    ...(trialEnd ? { subscription_data: { trial_end: trialEnd } } : {}),
+    subscription_data: checkoutSubscriptionDataOf(ctx.orgId, trialEnd, Math.floor(Date.now() / 1000)), // ★お試しの終了・毎月 1 日の起点・日割り・metadata
+    metadata: noxMetadataOf(ctx.orgId),
     payment_method_collection: "always", // トライアルでもカード必須
     success_url: `${origin}/billing?status=success`,
     cancel_url: `${origin}/billing?status=cancel`,

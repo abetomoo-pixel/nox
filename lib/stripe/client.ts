@@ -28,3 +28,23 @@ export function getStripe(): Stripe {
   if (!cached) cached = new Stripe(key);
   return cached;
 }
+
+// ★裁定479（2026-11-10）: price は lookup_key（nox_monthly／nox_yearly）で引く＝テストと本番で同じコード。env（STRIPE_PRICE_NOX_*）があれば上書き。
+//   引けなければ null（呼び手は「Stripe 未接続」の扱い）。プロセス内で 10 分だけ覚える。
+const priceCache = new Map<string, { id: string; at: number }>();
+export async function resolveNoxPrice(cycle: "monthly" | "yearly"): Promise<string | null> {
+  const { envPriceOf, NOX_LOOKUP_KEYS } = await import("@/lib/billing/nox-stripe");
+  const env = envPriceOf(cycle);
+  if (env) return env;
+  const key = NOX_LOOKUP_KEYS[cycle];
+  const hit = priceCache.get(key);
+  if (hit && Date.now() - hit.at < 600_000) return hit.id;
+  try {
+    const list = await getStripe().prices.list({ lookup_keys: [key], active: true, limit: 1 });
+    const id = list.data[0]?.id ?? null;
+    if (id) priceCache.set(key, { id, at: Date.now() });
+    return id;
+  } catch {
+    return null;
+  }
+}

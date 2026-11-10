@@ -1,5 +1,7 @@
 // ★便 OB-2 ⑧（2026-10-29）: 運営が本番で「org（会社）＋店 1 つ＋オーナーの招待」を作るスクリプト。
-//   作るもの: orgs 1・org_billing 1（status 'active'＝seed と同じ・課金は Stripe 接続後に切替）・stores 1（settings_json {biz_type, setup_done:false}＝オーナーの初回ログインで /setup へ）・
+//   ★裁定475 承認（2026-11-10）: 会社は「お試し中」で始める＝org_billing status 'trialing'・trial_ends_at＝作成から 1 か月（カード登録なし・終了後は閲覧だけ＝billing_writable_of）。
+//   ★既存の会社に店舗を足す＝--add-store --org-id <org の id> --store <店名> [--type]（店 1 つ＋audit＋数量の同期＝契約があれば Stripe の quantity を店舗数に・お試し中は数量だけ＝Stripe を呼ばない）。
+//   作るもの: orgs 1・org_billing 1（status 'trialing'＝お試し 1 か月）・stores 1（settings_json {biz_type, setup_done:false}＝オーナーの初回ログインで /setup へ）・
 //             auth ユーザー（inviteUserByEmail＝Supabase の招待メール・リンクの有効期限は Auth 設定「Email OTP expiration」・送り元は Supabase の既定 or カスタム SMTP）・
 //             users 1（オーナー）・memberships 1（role owner）・audit_logs 1（create_org・Postgres 直結＝audit_log_write は内部専用）。
 //   使い方: node scripts/admin/create-org.mjs --store "CLUB NOX" --type cabaret --email owner@example.com [--org "会社名"] [--site https://noxapp.jp（既定・vercel.app は fallback）] [--link] [--yes] [--dry-run]
@@ -19,6 +21,44 @@ const opt = (k, d = null) => { const i = args.indexOf(`--${k}`); return i >= 0 &
 const flag = (k) => args.includes(`--${k}`);
 const store = opt("store"), type = opt("type", "cabaret"), email = (opt("email") ?? "").trim().toLowerCase(), orgName = opt("org", store), site = (opt("site", "https://noxapp.jp") ?? "").replace(/\/+$/, "");
 const die = (m, e) => { console.error("✗", m, e?.message ?? e ?? ""); process.exit(1); };
+// ── 既存の会社に店舗を足す（--add-store）──
+if (flag("add-store")) {
+  const orgId = opt("org-id");
+  if (!store || !orgId) { console.error("usage: node scripts/admin/create-org.mjs --add-store --org-id <org の id> --store <店名> [--type <cabaret|girlsbar|snack|lounge|bar>] [--dry-run] [--yes]"); process.exit(1); }
+  if (!TYPES.includes(type)) die(`--type は ${TYPES.join("／")}`);
+  const url0 = process.env.NEXT_PUBLIC_SUPABASE_URL, secret0 = process.env.SUPABASE_SECRET_KEY, db0 = process.env.SUPABASE_DB_URL;
+  if (!url0 || !secret0 || !db0) die("env NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SECRET_KEY / SUPABASE_DB_URL が必要です");
+  const ref0 = (url0.match(/https?:\/\/([a-z0-9]+)\./) ?? [])[1] ?? "?";
+  if (ref0 === PROD_REF && !flag("dry-run") && process.env.NOX_PROD_CONFIRM !== "1") die("本番 ref です。NOX_PROD_CONFIRM=1 を付けて実行してください（運営の確認）");
+  const admin0 = createClient(url0, secret0, { auth: { autoRefreshToken: false, persistSession: false } });
+  const { data: org } = await admin0.from("orgs").select("id, name, is_demo").eq("id", orgId).maybeSingle();
+  if (!org) die(`orgs に ${orgId} が無い`);
+  if (org.is_demo) die("デモの会社には足さない");
+  const { count } = await admin0.from("stores").select("id", { count: "exact", head: true }).eq("org_id", orgId);
+  const { data: bill } = await admin0.from("org_billing").select("status, stripe_subscription_id").eq("org_id", orgId).maybeSingle();
+  console.log(`add-store: org=${org.name}（店 ${count ?? 0} → ${(count ?? 0) + 1}）・課金=${bill?.status ?? "行なし"}${bill?.stripe_subscription_id ? "・契約あり（数量を同期）" : "・契約なし（数量は契約時に店舗数で入る）"}`);
+  if (flag("dry-run")) { console.log("dry-run: stores 1・audit 1（何も書いていません）"); process.exit(0); }
+  if (!flag("yes")) { const rl = createInterface({ input: process.stdin, output: process.stdout }); const a = await rl.question(`${org.name} に店舗「${store}」を足します。よろしいですか？ (y/N) `); rl.close(); if (a.trim().toLowerCase() !== "y") { console.log("中止しました"); process.exit(0); } }
+  const { data: st, error: eS } = await admin0.from("stores").insert({ org_id: orgId, name: store, short: store.slice(0, 8), settings_json: { biz_type: type, setup_done: false } }).select("id").single();
+  if (eS || !st) die("stores の作成", eS);
+  const c0 = new pg.Client({ connectionString: db0, ssl: { rejectUnauthorized: false } });
+  try { await c0.connect(); await c0.query(`insert into public.audit_logs (org_id, store_id, actor_user_id, action, target, before_json, after_json) values ($1, $2, null, 'add_store', $3, null, $4::jsonb)`, [orgId, st.id, `stores:${st.id}`, JSON.stringify({ store, biz_type: type, by: "scripts/admin/create-org.mjs --add-store" })]); }
+  catch (e) { console.error("  audit の書込に失敗（店舗は作成済み）:", e.message); } finally { await c0.end().catch(() => {}); }
+  // 数量の同期＝契約があり書込可のときだけ（お試し中・契約なしは Stripe を呼ばない＝数量は契約時に店舗数で入る）
+  if (bill?.stripe_subscription_id && ["trialing", "active", "past_due"].includes(bill.status)) {
+    if (!process.env.STRIPE_SECRET_KEY) console.log("  ★Stripe の秘密鍵が .env.local に無い＝数量は毎日の cron（billing-quantity）が直す");
+    else {
+      const { default: Stripe } = await import("stripe");
+      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+      const sub = await stripe.subscriptions.retrieve(bill.stripe_subscription_id);
+      const item = sub.items.data[0]; const want = Math.max(1, (count ?? 0) + 1);
+      if (item && item.quantity !== want) { await stripe.subscriptions.update(sub.id, { items: [{ id: item.id, quantity: want }], proration_behavior: "create_prorations" }); console.log(`  数量 ${item.quantity} → ${want}（日割り）`); }
+      else console.log("  数量は既に店舗数と同じ");
+    }
+  }
+  console.log(`✓ 店舗を足しました: store ${st.id}（オーナーは会社全体を見られる＝メンバーシップは足さない）`);
+  process.exit(0);
+}
 if (!store || !email) { console.error("usage: node scripts/admin/create-org.mjs --store <店名> --type <cabaret|girlsbar|snack|lounge|bar> --email <オーナーのメール> [--org <会社名>] [--site <URL>] [--link] [--yes] [--dry-run]"); process.exit(2); }
 if (!TYPES.includes(type)) die(`--type は ${TYPES.join("／")}`);
 if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) die("--email の形式");
@@ -29,7 +69,7 @@ const ref = (url.match(/https?:\/\/([a-z0-9]+)\./) ?? [])[1] ?? "?";
 const isProd = ref === PROD_REF;
 console.log(`ref=${ref}${isProd ? "（本番）" : ""} store=${store} type=${type} org=${orgName} owner=${email} site=${site} mode=${flag("dry-run") ? "dry-run" : flag("link") ? "link" : "email"}`);
 if (isProd && !flag("dry-run") && process.env.NOX_PROD_CONFIRM !== "1") die("本番 ref です。NOX_PROD_CONFIRM=1 を付けて実行してください（運営の確認）");
-if (flag("dry-run")) { console.log("dry-run: orgs 1・org_billing 1・stores 1・auth 招待 1・users 1・memberships 1・audit 1 を作ります（何も書いていません）"); process.exit(0); }
+if (flag("dry-run")) { console.log("dry-run: orgs 1・org_billing 1（お試し中・1 か月）・stores 1・auth 招待 1・users 1・memberships 1・audit 1 を作ります（何も書いていません）"); process.exit(0); }
 if (!flag("yes")) {
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   const a = await rl.question(`この内容で本番に org を作り、${email} に招待を送ります。よろしいですか？ (y/N) `); rl.close();
@@ -58,7 +98,8 @@ async function rollback(why) {
 {
   const { data, error } = await admin.from("orgs").insert({ name: orgName }).select("id").single();
   if (error || !data) die("orgs の作成", error); made.org = data.id;
-  const { error: eB } = await admin.from("org_billing").upsert({ org_id: made.org, status: "active" }, { onConflict: "org_id", ignoreDuplicates: true });
+  const trialEnds = new Date(); trialEnds.setMonth(trialEnds.getMonth() + 1); // ★裁定475: お試し 1 か月（カード登録なし）
+  const { error: eB } = await admin.from("org_billing").upsert({ org_id: made.org, status: "trialing", trial_ends_at: trialEnds.toISOString() }, { onConflict: "org_id", ignoreDuplicates: true });
   if (eB) await rollback(`org_billing: ${eB.message}`);
 }
 // 2) store

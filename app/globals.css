@@ -2126,9 +2126,11 @@ body {
    上書きして var() 依存の inline を一括で白地反転し、literal-hex の slipHd/slipFoot はクラスで反転。
    使う所＝/mine（cast 自己）と payroll-board（owner/manager 全員分）。RPC/RLS/payOf は非改変。 */
 @media print {
-  @page { size: A4; margin: 14mm; }
+  @page { size: A4; margin: 0; } /* ★M-132 追補（2026-11-10）: 余白 0＝ブラウザの URL・日付・ページ番号のヘッダとフッタを出さない（明細の内側に 12mm の余白） */
 
   html, body { background: #fff !important; color: #000 !important; }
+  /* ★M-132 追補: 画面の帯（デモ・お試し・失効・お知らせ）は印刷に出さない */
+  .nox-alert, .nox-demo-banner, [data-trial-reminder], [data-demo-banner] { display: none !important; }
 
   /* var() 依存の inline（card / slip 各所）を白地へ一括反転 */
   .nox-dark {
@@ -2164,11 +2166,11 @@ body {
   /* スリップの見出し/フッタを白地黒字に（クラスで反転＝画面側の値に依存しない。
      ★E4-0/E5b で画面側は var 化済み（slipHd=--card / slipFoot=金グラデ＋--on-gold）だが、
      var 上書きだけに頼らずクラスで明示反転する従来方式を維持＝印刷出力は不変） */
-  .nox-payslip { break-inside: avoid; page-break-inside: avoid; margin: 0 0 8mm !important; }
+  .nox-payslip { break-inside: avoid; page-break-inside: avoid; margin: 0 !important; padding: 12mm !important; border: 0 !important; } /* ★M-132 追補: 1 人分は 1 ページ（余白は明細の内側）・枠は外す */
   .ps-hd { background: #fff !important; color: #000 !important; }
   /* ★裁定366（GV-14・便 GV-A）: 手取り帯は印刷・PDF も黒地・金 2px 枠・金文字（画面と同じ CSS） */
-  .ps-foot { background: #000 !important; color: #c9a24a !important; border: 2px solid #c9a24a !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  .ps-foot, .ps-foot * { color: #c9a24a !important; }
+  .ps-foot { background: #fff !important; color: #000 !important; border: 0 !important; border-top: 2px solid #000 !important; border-radius: 0 !important; } /* ★M-132 追補（2026-11-10 Agoora）: 手取り＝白地・上に線・太字（旧＝裁定366 の黒地金枠） */
+  .ps-foot, .ps-foot * { color: #000 !important; }
 
   /* manage 全員分＝1人1ページ */
   .nox-print-page { break-after: page; page-break-after: always; }
@@ -3126,6 +3128,12 @@ input[type="date"]::-webkit-date-and-time-value, input[type="time"]::-webkit-dat
 .nox-time-btn:disabled { opacity: 0.55; cursor: default; }
 .nox-time-pop { position: absolute; z-index: 60; top: calc(100% + 4px); left: 0; display: grid; gap: 8px; padding: 8px; background: var(--card, var(--bg)); border: 1px solid var(--line2); border-radius: 12px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45); color-scheme: dark; }
 .nox-time-cols { display: grid; grid-template-columns: 64px 64px; gap: 6px; }
+/* ★M-145（2026-11-10）: 下に入らなければ上に開く・375 で切れない・上部に「営業開始」「営業終了」・選んでいる時と分は列の真ん中 */
+.nox-time-pop { max-width: calc(100vw - 32px); }
+.nox-time-pop.up { top: auto; bottom: calc(100% + 4px); }
+.nox-time-quick { display: flex; gap: 6px; }
+.nox-time-quick button { flex: 1 1 0; padding: 6px 10px; border: 1px solid var(--gold); border-radius: 8px; background: transparent; color: var(--champ); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.nox-time-col { position: relative; scroll-behavior: smooth; }
 .nox-time-col { display: grid; gap: 2px; max-height: 220px; overflow-y: auto; }
 .nox-time-col button { min-height: 32px; border: 0; border-radius: 6px; background: transparent; color: var(--ink); font: inherit; font-size: 14px; cursor: pointer; }
 .nox-time-col button:hover { background: rgba(255, 255, 255, 0.06); }

@@ -213,12 +213,14 @@ export async function punchInForVerify(
       if (m.role === "cast") {
         const { data: c } = await admin.from("casts").select("id").eq("user_id", u.id).eq("store_id", m.store_id).maybeSingle();
         if (!c) continue;
+        await admin.from("punches").delete().eq("cast_id", c.id).eq("source", "manager").gte("punched_at", new Date(Date.now() - 18 * 3600_000).toISOString()); // 前回止めた残り
         const { data: p, error } = await admin.from("punches").insert({ org_id: st.org_id, store_id: m.store_id, cast_id: c.id, type: "in", source: "manager", punched_at: nowIso }).select("id").single();
         if (error || !p) throw new Error(`punchInForVerify: punches ${k}: ${error?.message}`);
         made.push({ table: "punches", id: p.id });
       } else if (m.role === "staff") {
         const { data: biz, error: eb } = await admin.rpc("biz_date_of", { p_store_id: m.store_id, p_at: nowIso });
         if (eb || !biz) throw new Error(`punchInForVerify: biz_date_of ${k}: ${eb?.message}`);
+        await admin.from("staff_punches").delete().eq("membership_id", m.id).eq("source", "manual").gte("punched_at", new Date(Date.now() - 18 * 3600_000).toISOString()); // 前回止めた残り
         const { data: p, error } = await admin.from("staff_punches").insert({ membership_id: m.id, org_id: st.org_id, store_id: m.store_id, biz_date: biz, kind: "in", source: "manual", punched_at: nowIso }).select("id").single();
         if (error || !p) throw new Error(`punchInForVerify: staff_punches ${k}: ${error?.message}`);
         made.push({ table: "staff_punches", id: p.id });

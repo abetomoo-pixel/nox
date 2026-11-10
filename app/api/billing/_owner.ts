@@ -38,7 +38,7 @@ export async function ensureCustomer(orgId: string, email: string | null): Promi
   const customer = await stripe.customers.create({
     name: (org?.name as string | undefined) ?? undefined,
     email: email ?? undefined,
-    metadata: { org_id: orgId }, // ★webhook の org 解決2経路目（設計書 §3）
+    metadata: { service: "nox", org_id: orgId }, // ★webhook の org 解決2経路目（設計書 §3）・★裁定479: NOX の目印 service=nox
   });
   // 即 org_billing へ書込（堅牢化＝webhook 前に customer→org を引けるようにする）
   await admin.from("org_billing").upsert({

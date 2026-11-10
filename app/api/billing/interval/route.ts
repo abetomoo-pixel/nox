@@ -8,7 +8,7 @@
 //   ★銀行振込（send_invoice）は self-serve 対象外＝403（donor A案を踏襲・運営者代行）。
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getStripe, stripePrices } from "@/lib/stripe/client";
+import { getStripe, resolveNoxPrice } from "@/lib/stripe/client";
 import { WRITABLE_STATUSES } from "@/lib/billing/status";
 import { requireOwner } from "../_owner";
 
@@ -24,8 +24,7 @@ export async function POST(req: Request) {
   if (cycle !== "monthly" && cycle !== "yearly") {
     return NextResponse.json({ error: "お支払い周期の指定が不正です" }, { status: 400 });
   }
-  const prices = stripePrices();
-  const newPriceId = cycle === "monthly" ? prices.monthly : prices.yearly;
+  const newPriceId = await resolveNoxPrice(cycle); // ★裁定479: lookup_key で引く
   if (!newPriceId) return NextResponse.json({ error: `Stripe 未接続: Price が未設定です（${cycle}）` }, { status: 500 });
 
   const admin = createAdminClient();

@@ -265,7 +265,7 @@ export async function computePayrollDraft(
     // ★0156（裁定309-6）: 日払い時の源泉既徴収が当期源泉を超えた＝源泉 0 で止め、超過は warn（起票＝返金／翌期調整は裁定待ち）
     if ((pay.dailyWithholdingShort ?? 0) > 0) {
       warnings.push({ castId: c.castId, castName: c.castName, kind: "daily_withholding_exceeds",
-        detail: `日払いで徴収済みの源泉 ${c.dailyPaid?.withheld ?? 0}円が当期の源泉を ${pay.dailyWithholdingShort}円 超えています（当期源泉は 0・超過分の扱いは要裁定）` });
+        detail: `日払いで徴収済みの源泉 ${c.dailyPaid?.withheld ?? 0}円が当期の源泉を ${pay.dailyWithholdingShort}円 超えています（当期の源泉は 0 にしています・超過分の扱いは税理士にご確認ください）` });
     }
     const ovApplied = applyDeductionOverrides(masters.deductions, c.deductionOverrides).applied; // ★0156（309-8）: 凍結用（実際の適用は buildPayInput 内）
     // ★裁定264-10: 凍結形＝show_detail=true の行だけ理由付きで・false は合算額のみ（率の分母は pay.gross＝payOf と同一）

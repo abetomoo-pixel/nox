@@ -130,7 +130,7 @@ export default function CastRegisterPanel({
             <input type="number" min={0} defaultValue={staffDiscountCapOf(sj)} disabled={!isOwner || lvBusy || staffDiscountLevelOf(sj) !== 1} aria-label="スタッフの即時適用の上限" style={{ ...t.input, width: 110 }}
               onBlur={(e) => { const v = Math.max(0, Math.trunc(Number(e.target.value) || 0)); if (v !== staffDiscountCapOf(sj)) void patchStore({ staff_discount_cap: v }, `上限を ¥${v.toLocaleString()}`); }} /> 円
           </label>
-          <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "6px 0 0" }}>即時適用も記録にスタッフ名と理由（必須）。上限超えと確定後の伝票は承認に回ります。キャストは常に不可（裁定420）。</p>
+          <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "6px 0 0" }}>即時適用も記録にスタッフ名と理由（必須）。上限超えと確定後の伝票は承認に回ります。キャストは常に不可です。</p>
         </section>
       )}
       {/* cast 別許可（owner/manager 操作可） */}

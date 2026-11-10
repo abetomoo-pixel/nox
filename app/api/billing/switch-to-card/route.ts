@@ -40,6 +40,7 @@ export async function POST(req: Request) {
       mode: "setup", // SetupIntent＝課金せずカードだけ保存
       customer: billing.stripe_customer_id as string,
       payment_method_types: ["card"],
+      metadata: { service: "nox", org_id: ctx.orgId }, // ★裁定479: NOX の目印
       success_url: `${origin}/api/billing/switch-to-card/return?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/billing?switch=cancel`,
     });

@@ -5,11 +5,12 @@
 //   ★見た目は既存の .nox-alert（gold 系1色）を流用＝新色・新クラスを作らない。
 import Link from "next/link";
 import { BILLING_BANNER_MSG } from "@/lib/billing/banner";
+import { TRIAL_ENDED_MSG } from "@/lib/billing/trial-reminder"; // ★裁定475 追補1 の 2: お試しが終わって契約が無い＝閲覧だけ
 
-export default function BillingBanner({ isOwner }: { isOwner: boolean }) {
+export default function BillingBanner({ isOwner, trialEnded = false }: { isOwner: boolean; trialEnded?: boolean }) {
   return (
     <div className="nox-alert" role="status">
-      {BILLING_BANNER_MSG}
+      {trialEnded ? TRIAL_ENDED_MSG : BILLING_BANNER_MSG}
       {isOwner && (
         <>
           {" "}

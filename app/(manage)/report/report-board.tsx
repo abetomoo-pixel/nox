@@ -146,6 +146,9 @@ export default function ReportBoard({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storeId]);
   useEffect(() => { if (arOff && tab === "ar") setTab("day"); }, [arOff, tab]);
+  // ★M-148（2026-11-10）: 締めのエラーは操作した場所（締めるボタン）の近くに出し、タブを移ったら消す。未会計の伝票は件数入り＋レジへのリンク
+  const [closeErr, setCloseErr] = useState<{ text: string; openN: number | null } | null>(null);
+  useEffect(() => { setCloseErr(null); }, [tab]);
   const [bizDate, setBizDate] = useState(bizDateOf(new Date().toISOString(), cutoff));
   const [preview, setPreview] = useState<Preview | null>(null);
   const [reports, setReports] = useState<Report[]>([]);
@@ -558,7 +561,12 @@ export default function ReportBoard({
       p_counted_cash: counted === "" ? null : Number(counted),
       p_note: noteWithOtherPayoutOf(note, otherPay, otherMemo), p_force: force, p_idem_key: crypto.randomUUID(), // ★便 X13-G W-24: その他の現金支払はメモの先頭 1 行に残す
     });
-    setMsg(error ? rpcErrJaCommon(error.message) : "締めを確定しました");
+    if (error && error.message.includes("open checks remain")) {
+      const { count } = await supabase.from("checks").select("id", { count: "exact", head: true }).eq("store_id", storeId).eq("status", "open");
+      setCloseErr({ text: `未会計の伝票が ${count ?? "いくつか"}件あるため締められません`, openN: count ?? null });
+    } else if (error) setCloseErr({ text: rpcErrJaCommon(error.message), openN: null });
+    else setCloseErr(null);
+    setMsg(error ? null : "締めを確定しました");
     await loadReports();
   }
 
@@ -990,6 +998,7 @@ export default function ReportBoard({
         {isManagerUp && !closedReport && (
           <div className="nox-actions" style={{ marginTop: 8, marginBottom: 12 }}>
             <button style={btnDark} onClick={closeDay}>日報を締める</button>
+            {closeErr && <div className="nox-alert" role="alert" style={{ marginTop: 8, width: "100%" }} data-close-err={closeErr.openN ?? "x"}>{closeErr.text}{closeErr.openN !== null && <>{"　"}<a href="/register" className="nox-link" style={{ fontWeight: 700 }}>未会計の伝票を見る</a></>}</div>}
           </div>
         )}
 

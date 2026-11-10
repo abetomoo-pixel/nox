@@ -110,7 +110,7 @@ type FormValues = {
 };
 const EMPTY_FORM: FormValues = {
   type: "drink", category: "", name: "", price: 0, cost: "",
-  backMode: "rate", backValue: 50, unit4: { ...EMPTY_UNIT4 }, honPt: 0,
+  backMode: "rate", backValue: 0 /* ★M-146（2026-11-10 Agoora 確定）: 新しい商品のバックの既定＝カテゴリの既定（今は列が無い）が無ければ 0%（旧 50%） */, unit4: { ...EMPTY_UNIT4 }, honPt: 0,
   exempt: false, active: true, reorder: "", catId: "",
   byKind: false, bj: "", bf: "",
 };
@@ -147,7 +147,7 @@ export default function ProductsBoard({ storeId, isManagerUp, initial, settings 
   const [pPrice, setPPrice] = useState(0);
   const [pCost, setPCost] = useState("");
   const [pBackMode, setPBackMode] = useState("rate");
-  const [pBackValue, setPBackValue] = useState(50);
+  const [pBackValue, setPBackValue] = useState(0); // ★M-146: 既定 0%
   const [pByKind, setPByKind] = useState(false); const [pBj, setPBj] = useState(""); const [pBf, setPBf] = useState(""); // ★0191 ★2
   const [pUnit4, setPUnit4] = useState<Record<string, number>>({ ...EMPTY_UNIT4 });
   const [pHonPt, setPHonPt] = useState(0);
@@ -208,12 +208,14 @@ export default function ProductsBoard({ storeId, isManagerUp, initial, settings 
 
   // ★④b-2: フォーム値をまとめて適用する。同じ値から署名（baseSig）も作るので、
   //   「開いた直後は必ず未変更」が構造的に保証される（setter を個別に呼ぶ書き方だと取りこぼす）。
+  // ★M-151（2026-11-10）: 署名はキーを並べてから文字列化＝キーの順番に依存しない（旧＝JSON.stringify の順の違いで、既存の商品は開いて閉じるだけで「未保存」になった）
+  const formSigOf = (v: FormValues): string => JSON.stringify(Object.keys(v).sort().map((k) => [k, (v as Record<string, unknown>)[k]]));
   function applyForm(v: FormValues) {
     setPType(v.type); setPCategory(v.category); setPName(v.name); setPPrice(v.price);
     setPCost(v.cost); setPBackMode(v.backMode); setPBackValue(v.backValue); setPByKind(v.byKind); setPBj(v.bj); setPBf(v.bf);
     setPUnit4(v.unit4); setPHonPt(v.honPt); setPExempt(v.exempt); setPActive(v.active);
     setPReorder(v.reorder); setPCatId(v.catId);
-    setBaseSig(JSON.stringify(v));
+    setBaseSig(formSigOf(v));
   }
   const currentValues = (): FormValues => ({
     type: pType, category: pCategory, name: pName, price: pPrice, cost: pCost,
@@ -222,7 +224,7 @@ export default function ProductsBoard({ storeId, isManagerUp, initial, settings 
     byKind: pByKind, bj: pBj, bf: pBf,
   });
   // 現在のフォーム値の署名。baseSig と違えば未保存の変更あり。
-  const currentSig = () => JSON.stringify(currentValues());
+  const currentSig = () => formSigOf(currentValues());
 
   // ★④b-2「＋ 商品を追加」: 新規状態でドロワーを開く（旧: 下部フォームへスクロール）。
   function newProduct() {
@@ -348,6 +350,8 @@ export default function ProductsBoard({ storeId, isManagerUp, initial, settings 
     if (!error) {
       // set_product は id（新規/更新とも）を返す＝保存した行へスクロールして光らせる材料。
       const savedId = typeof data === "string" ? data : pId;
+      // ★M-146（2026-11-10 Agoora 確定）: 新しい商品の在庫の既定＝カテゴリの既定が無ければ OFF（DB の列の既定は true＝登録の直後に OFF にする・失敗しても登録は残す＝在庫の切替は一覧から）
+      if (!pId && typeof data === "string") { const { error: eT } = await supabase.rpc("set_product_track_stock", { p_product_id: data, p_track: false }); if (eT && !isRpcMissingError(eT.message)) setMsg(`商品を登録しました（在庫管理を OFF にできませんでした：${rpcErrJa(eT.message)}）`); }
       if (keepOpen) {
         // ★④b-3「登録して続けて入力」: 区分・カテゴリ・バック等は残し、名称と価格だけ空へ。
         setPId(null);
@@ -746,7 +750,7 @@ export default function ProductsBoard({ storeId, isManagerUp, initial, settings 
                       <input type="checkbox" checked={on} disabled={busyId != null || trackBusy} aria-label="在庫を管理する" onChange={(e) => void toggleTrackStock(pId, e.target.checked)} />
                       {on ? "管理する（在庫数・発注点を表示）" : "管理しない（在庫「—」・発注点なし）"}
                     </label>
-                  ); })() : <span style={{ fontSize: 12, color: "var(--sub)" }}>登録後に切り替えられます（既定＝管理する）</span>}
+                  ); })() : <span style={{ fontSize: 12, color: "var(--sub)" }}>登録後に切り替えられます（新しい商品は「管理しない」で登録）</span>}
                 </div>
                 {/* 純増①（mig0062）: 発注点。空欄＝しきい無し（在庫バー非表示）＝null 送信 */}
                 <div className="nox-field">
@@ -839,6 +843,12 @@ export default function ProductsBoard({ storeId, isManagerUp, initial, settings 
               {pId && <button style={btnLight} onClick={() => { setPId(null); setPName(""); setPReorder(""); setPCatId(""); setDetailOpen(false); }}>新規に戻す</button>}
             </div>
             {costsError && <span style={{ fontSize: 12, color: "var(--bad)", width: "100%" }}>原価を読み込めませんでした。再読込してください</span>}
+            {/* ★M-146（2026-11-10）: 保存の直前に要約（値段／在庫管理／バック率）を必ず表示 */}
+            <div style={{ width: "100%", fontSize: 12.5, color: "var(--sub)", display: "flex", gap: 14, flexWrap: "wrap", justifyContent: "center" }} data-product-summary="1">
+              <span>値段 <b className="num" style={{ color: "var(--ink)" }}>¥{Number(pPrice || 0).toLocaleString("ja-JP")}</b></span>
+              <span>在庫管理 <b style={{ color: "var(--ink)" }}>{pId ? (products.find((x) => x.id === pId)?.track_stock !== false ? "ON" : "OFF") : "OFF"}</b></span>
+              <span>バック <b className="num" style={{ color: "var(--ink)" }}>{pBackMode === "rate" ? `${pBackValue}%` : pBackMode === "unit4" ? "区分ごとの額" : "—"}</b></span>
+            </div>
             {/* ★④b-3: 主ボタンは横幅いっぱい。新規のときだけ「登録して続けて入力」を併置する。 */}
             <button style={btnPrimaryLg} disabled={costsError} onClick={() => saveProduct(false)}>{pId ? "更新" : "登録"}</button>
             {!pId && (

@@ -6,7 +6,7 @@ export type CastPlanRow = { cast_id: string; plan_id: string; valid_from: string
 export const LOAN_STATUS_LABEL: Record<string, string> = { open: "未回収", deducted: "返済済", cancelled: "取消" };
 export const LOAN_ACK_LABEL: Record<string, string> = { none: "—", manager: "立会い", pin: "PIN" };
 export const LOAN_NOT_AGREED = "同意未";
-export const LOAN_NOT_AGREED_NOTE = "待遇プランに「前借り（貸付）の取扱いに同意」がありません（発行は止めません・裁定464 仮置き 5）";
+export const LOAN_NOT_AGREED_NOTE = "待遇プランに「前借り（貸付）の取扱いに同意」がありません（発行は止めません）";
 export const LOAN_LEDGER_HEAD = "貸付台帳（直近）";
 
 export const loanStatusLabelOf = (status: string | null | undefined): string => LOAN_STATUS_LABEL[status ?? ""] ?? (status ?? "");

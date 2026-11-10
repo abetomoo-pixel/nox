@@ -1,5 +1,6 @@
 import * as t from "@/lib/nox/ui/theme";
 import BrandLogo from "@/components/ui/brand-logo"; // ★便 SH-UI-a A-2: ロゴ（Concept 2 改）
+import { daysInMonthOf } from "@/lib/nox/month"; // ★M-132 追補: 対象期間の末日
 import { readFrozenAdjustments } from "@/lib/nox/payroll/adjust"; // 裁定264-2: 調整控除の並び（before＝源泉の直前・after＝直後・同群は入力順）
 import { breakdownLinesOf, type BreakdownPayLike } from "@/lib/nox/payroll/breakdown-lines"; // ★裁定303: 支給／控除の行は給与右パネルと同じ単一関数
 
@@ -38,7 +39,14 @@ const deductTotal = (bj: unknown, key: "ar" | "adv" | "okuri"): number => {
 // castName を渡すと見出しに併記（manage 全員分で誰の明細か明示）。/mine は period のみ（従来と一字一致）。
 // ★裁定326-1（便 M2-4・2026-10-01）: compact＝payslip_visibility 'net_only'（手取りと期のみ）。期ヘッダー（期・区分バッジ）＋手取り 1 行だけ・支給／控除／総支給の行は描かない。
 //   印刷（PDF）は同じ DOM を @media print が白地反転するだけ＝簡易版 PDF も同じ部品（新しい印刷 CSS は書かない）。
-export default function PayslipSlip({ slip, castName, compact = false, systems = null, okuriModes }: { slip: PayslipRow; castName?: string; compact?: boolean; /** ★裁定414（S-4 ④）: transport_id → mode（分かるときだけ＝「送り立替」「送り（定額）」に分ける） */ okuriModes?: Record<string, string>; /** ★便 GV-C C-10（GV-53）: 店の sys_*（OFF の制度の行を省く・0 以外は印） */ systems?: Record<string, unknown> | null }) {
+export type SlipStore = { name: string; legalName?: string | null; address?: string | null };
+/** ★M-132 追補（2026-11-10）: 対象期間（2026/10/1〜10/31）＝月次の期（YYYY-MM）の 1 日〜末日。半月などの期は渡された文字列をそのまま。 */
+export function slipPeriodRangeOf(period: string): string {
+  const m = /^(\d{4})-(\d{2})$/.exec(period); if (!m) return period;
+  const y = Number(m[1]), mo = Number(m[2]); const last = daysInMonthOf(period); // 月の末日は lib/nox/month に寄せる（x13h）
+  return `${y}/${mo}/1〜${mo}/${last}`;
+}
+export default function PayslipSlip({ slip, castName, compact = false, systems = null, okuriModes, store = null, issuedOn = null }: { slip: PayslipRow; castName?: string; compact?: boolean; /** ★M-132 追補: 店舗名（大）・会社名と住所（あれば）＝渡したときだけ新しい見出し（NOX のロゴを外す） */ store?: SlipStore | null; issuedOn?: string | null; /** ★裁定414（S-4 ④）: transport_id → mode（分かるときだけ＝「送り立替」「送り（定額）」に分ける） */ okuriModes?: Record<string, string>; /** ★便 GV-C C-10（GV-53）: 店の sys_*（OFF の制度の行を省く・0 以外は印） */ systems?: Record<string, unknown> | null }) {
   const pay = payOf(slip.breakdown_json);
   const extras = extrasOf(slip.breakdown_json);
   const ar = deductTotal(slip.breakdown_json, "ar");
@@ -74,6 +82,30 @@ export default function PayslipSlip({ slip, castName, compact = false, systems =
   ); // ★便 SH-UI-c2 C2-9: スライド行＝見出し＋結果（390px は 2 行）・段なしは「—」
   const ded = (label: string, v: number, key: string) =>
     <div key={key} style={t.slipRow}><span>{label}</span><span style={{ ...t.num, color: "var(--bad)" }}>−{yen(v)}</span></div>;
+  if (store) {
+    return (
+      <div className="nox-payslip" style={{ marginBottom: 24 }} data-slip-store="1">
+        <div className="ps-hd" style={{ ...t.slipHd, alignItems: "flex-start", flexWrap: "wrap" }}>
+          <span style={{ display: "grid", gap: 2, minWidth: 0 }}>
+            <span style={{ fontSize: 22, fontWeight: 900 }} data-slip-store-name="1">{store.name}</span>
+            {(store.legalName || store.address) && <span style={{ fontSize: 11, fontWeight: 400, color: "var(--sub)" }} data-slip-company="1">{[store.legalName, store.address].filter(Boolean).join("　")}</span>}
+            <span className="ps-name" style={{ fontSize: 16, fontWeight: 800 }}>{castName ? `${castName} 様` : slip.period}</span>
+          </span>
+          <span className="ps-meta" style={{ display: "grid", justifyItems: "end", gap: 4, fontSize: 12, color: "var(--sub)" }}>
+            <span className="num" data-slip-period-range="1">対象期間 {slipPeriodRangeOf(slip.period)}</span>
+            {issuedOn && <span className="num" data-slip-issued="1">発行日 {issuedOn.replace(/-/g, "/")}</span>}
+            {taxMode && (<span className="ps-tax" style={{ fontSize: 10.5, fontWeight: 800, borderRadius: 999, padding: "2px 9px", border: "1px solid var(--line2)", color: "var(--champ)" }}>{taxMode}</span>)}
+          </span>
+        </div>
+        <div style={t.slipSec}>支給</div>
+        {bd.earn.map((ln) => earn(ln.label, ln.amount, ln.key, !!(ln.sub || ln.info), { label2: ln.label2, amountText: ln.amountText }))}
+        {(pay.gross ?? 0) > 0 && (<div style={t.slipRowB}><span>総支給（賞与等含む）</span><span style={t.num}>{yen(pay.gross ?? 0)}</span></div>)}
+        {hasDed && <div style={t.slipSec}>控除</div>}
+        {bd.ded.map((ln) => ded(ln.label, ln.amount, ln.key))}
+        <div className="ps-foot" style={t.slipFoot}><span>手取り</span><b style={t.slipFootVal}>{yen(slip.net)}</b></div>
+      </div>
+    );
+  }
   return (
     <div className="nox-payslip" style={{ marginBottom: 24 }}>{/* ★裁定366: 1 人 1 カード（外周 1px 枠＝globals.css .nox-payslip・カード間 24px・印刷は 1 人 1 ページ＝.nox-print-page） */}
       <div className="ps-hd" style={t.slipHd}>{/* ★裁定366（GV-14・便 GV-A）: 名前 22px 左・月と契約区分チップ 右 */}

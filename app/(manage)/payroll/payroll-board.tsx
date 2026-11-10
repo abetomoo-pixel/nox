@@ -179,13 +179,15 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
   // ★0156（裁定309-7・便 V-6）: 貸付残高一覧（advances_open_balance）
   // ★裁定316（便 X-8-13）: 今日の営業日＝店の biz_cutoff_hm（既定 06:00）で切る。stores の RLS 読取 +1（店が変わったときだけ）
   const [cutoffHm, setCutoffHm] = useState("06:00");
+  const [slipStore, setSlipStore] = useState<{ name: string; legalName: string | null; address: string | null } | null>(null); // ★M-132 追補: 明細の見出し（店舗名・会社名・住所）
   const [storeSettings, setStoreSettings] = useState<Record<string, unknown>>({}); // ★裁定324（便 C-3）: pay_time_basis／_next／_next_from（期ヘッダーの「計算基準」＝pay.ts と同じ payTimeBasisOf）
   const [storeOps, setStoreOps] = useState<OpsProfile>(OPS_DEFAULT); // ★0164（便 W5-2b）: 支払日（翌月 N 日・締め日は月末固定）・内税表示＝期ヘッダーの表記（計算は不変）
   useEffect(() => {
     if (!storeId) return;
     let alive = true;
     void (async () => {
-      const { data } = await supabase.from("stores").select("settings_json, pay_day, tax_inclusive_display").eq("id", storeId).maybeSingle(); // ★0164（便 W5-2b）: 支払日・内税表示（期ヘッダーの表記）
+      const { data } = await supabase.from("stores").select("name, legal_name, settings_json, pay_day, tax_inclusive_display").eq("id", storeId).maybeSingle();
+      { const sj0 = ((data as { settings_json?: Record<string, unknown> } | null)?.settings_json ?? {}) as Record<string, unknown>; const d0 = data as { name?: string; legal_name?: string | null } | null; if (alive && d0?.name) setSlipStore({ name: d0.name, legalName: d0.legal_name ?? null, address: typeof sj0.receipt_address === "string" && sj0.receipt_address.trim() ? sj0.receipt_address : null }); } // ★0164（便 W5-2b）: 支払日・内税表示（期ヘッダーの表記）
       const sj = (data?.settings_json ?? {}) as Record<string, unknown>;
       const v = sj.biz_cutoff_hm;
       if (alive) { setCutoffHm(typeof v === "string" && v ? v : "06:00"); setStoreSettings(sj); setStoreOps(opsProfileOf(data as Record<string, unknown> | null)); }
@@ -604,7 +606,7 @@ ${md.message}（入れずに確定すると控除 0 のまま確定します）`
     <div className="nox-printpage">
       {slipPrint && (/* ★M-132: 1 人分の明細の印刷（画面では隠す＝nox-print-only・印刷時はこれだけが残る） */
         <section className="nox-print nox-print-only" data-slip-print={slipPrint.castName}>
-          <PayslipSlip slip={slipPrint.slip} castName={slipPrint.castName} systems={storeSettings} />
+          <PayslipSlip slip={slipPrint.slip} castName={slipPrint.castName} systems={storeSettings} store={slipStore} issuedOn={new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10)} />{/* ★M-132 追補: 店舗名（大）＋名前 様・対象期間・発行日・会社名と住所 */}
         </section>
       )}
       {/* 段0R 第2陣: ヘッダを新シェルの nox-hero へ（master/home/casts/customers/analytics と同基準・表示のみ）。
@@ -1223,6 +1225,7 @@ ${md.message}（入れずに確定すると控除 0 のまま確定します）`
                         <PayslipSlip systems={storeSettings} /* ★便 GV-C C-10 */
                           castName={r.castName}
                           slip={previewSlip}
+                          store={slipStore} issuedOn={new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10)} /* ★M-132 追補 6（2026-11-10 Agoora 確定）: 画面の明細も店舗名・名前 様・対象期間・発行日・会社名と住所 */
                         />
                       </div>
                       ); })()}
@@ -1396,7 +1399,7 @@ ${md.message}（入れずに確定すると控除 0 のまま確定します）`
             <div style={{ marginTop: 12 }}>
               {printRows.map((r, i) => (
                 <div key={i} className="nox-print-page">
-                  <PayslipSlip slip={r.slip} castName={r.castName} systems={storeSettings} />
+                  <PayslipSlip slip={r.slip} castName={r.castName} systems={storeSettings} store={slipStore} issuedOn={new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10)} />{/* ★M-132 追補: 全員分の印刷も同じ見出し */}
                 </div>
               ))}
             </div>

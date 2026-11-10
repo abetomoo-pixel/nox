@@ -3,7 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { getSessionRole } from "@/lib/nox/auth";
 import { rules0175On } from "@/lib/nox/rules-0175/flag"; // ★追補 3 R-8
 import { isStripeConfigured, getStripe } from "@/lib/stripe/client";
-import { contractAmountFromItem, contractAmountLabel } from "@/lib/billing/amount";
+import { contractAmountFromItem, contractAmountLabel, withDiscountLabel } from "@/lib/billing/amount";
+import { discountedTotalOf } from "@/lib/billing/nox-stripe";
 import BillingBoard, { type BillingView } from "./billing-board";
 
 export const dynamic = "force-dynamic";
@@ -31,8 +32,10 @@ export default async function BillingPage() {
   let amountLabel = contractAmountLabel(false, null);
   if (configured && subId) {
     try {
-      const sub = await getStripe().subscriptions.retrieve(subId);
-      amountLabel = contractAmountLabel(true, contractAmountFromItem(sub.items.data[0] ?? null));
+      const sub = await getStripe().subscriptions.retrieve(subId, { expand: ["discounts"] });
+      const amt = contractAmountFromItem(sub.items.data[0] ?? null);
+      // ★裁定475 承認: クーポン（率／額）があれば割引後の額
+      amountLabel = amt ? withDiscountLabel(amt, discountedTotalOf(amt.total, (sub.discounts ?? []).filter((d): d is Exclude<typeof d, string> => typeof d !== "string") as unknown as Parameters<typeof discountedTotalOf>[1])) : contractAmountLabel(true, null);
     } catch {
       amountLabel = contractAmountLabel(true, null); // "—"
     }

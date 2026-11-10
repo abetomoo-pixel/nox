@@ -12,6 +12,7 @@ import { HeaderGear, UserChip } from "@/components/ui/header-chips"; // ★N4（
 import { splitNav } from "@/lib/nox/ui/nav-tabs";
 import SideNav from "@/components/ui/side-nav";
 import BillingBanner from "@/components/ui/billing-banner";
+import { trialReminderOf, trialReminderTextOf } from "@/lib/billing/trial-reminder"; // ★裁定475 追補1 の 2: お試しの終了の案内（7 日前・前日）
 // ★夜間便 N7-2（裁定273-6）: デモ org＝帯＋「初期状態に戻す」・/setup へ飛ばさない・導線（ご契約ほか）を隠す
 import DemoBanner from "@/components/ui/demo-banner";
 import { DemoProvider } from "@/lib/nox/demo/context";
@@ -24,6 +25,8 @@ import { KIOSK_PERSON_IDLE_MINUTES, kioskPersonNavOf } from "@/lib/nox/rules-017
 import { KIOSK_PERSON_COOKIE, kioskNavOf, kioskPersonMustLeaveOf, parseKioskPersonCookie } from "@/lib/nox/kiosk/person-session"; // ★便 E（0196 用＝裁定448 B 方式）
 import { mig0196On, mig0199On, mig0200On } from "@/lib/nox/rules-0175/flag"; // ★便 E ★0199（裁定466・M-125）★0200（裁定472＝staff も出勤中だけ）
 import * as t from "@/lib/nox/ui/theme";
+import { StoreHoursProvider } from "@/components/ui/store-hours-context"; // ★M-145: 時刻の選択の既定（営業開始・終了・切替時刻）
+import { storeHoursOf } from "@/lib/nox/time/store-hours-server";
 
 // 店側エリア（register/shift/report/master）の layout。auth_role() rpc は「ここで1回/リクエスト」のみ。
 // cast は原則 /mine へ（利便のためのリダイレクト・真の防御はパターン2 RLS＝checks 系 0行）。
@@ -99,6 +102,16 @@ export default async function ManageLayout({ children }: { children: React.React
   const meEmail = (meRow?.email as string | null) ?? authUser?.email ?? null;
   const { data: billingWritable } = await supabase.rpc("auth_org_billing_writable");
   const billingLocked = billingWritable === false;
+  const { data: myStoreId } = await supabase.rpc("auth_store_id"); // ★M-145
+  const storeHours = await storeHoursOf(supabase, (myStoreId as string | null) ?? null);
+  // ★裁定475 追補1 の 2（2026-11-10）: お試しの案内（オーナーだけ＝org_billing の RLS SELECT は owner 限定）。7 日前から帯・前日は強め・終了後は失効の帯の文言をお試し用に。デモは出さない。
+  let trialNote: string | null = null; let trialEnded = false;
+  if (isOwnerRaw && !isDemo) {
+    const { data: bRow } = await supabase.from("org_billing").select("status, trial_ends_at, stripe_subscription_id").maybeSingle();
+    const r = trialReminderOf(bRow as { status?: string | null; trial_ends_at?: string | null; stripe_subscription_id?: string | null } | null);
+    if (r && !billingLocked) trialNote = trialReminderTextOf(r);
+    trialEnded = billingLocked && !!bRow && !bRow.stripe_subscription_id && !!bRow.trial_ends_at && (bRow.status === "trialing" || bRow.status === "inactive");
+  }
   let staffCrm = false;
   let staffShift = false; // ★裁定381（GV-B W-10）: staff のシフトは can_shift（auth_staff_can_shift）で出し分け＝/shift の redirect と同じ述語
   let staffRegister = true; // ★便 M5 M-43（2026-10-30）: staff の会計権限 can_register（auth_staff_can_register）＝OFF ならレジをナビに出さず /register は /dashboard へ（RLS で伝票が隠れた「使用中 0／6・全席空席」の誤表示を出さない＝シフト権限と同じ型）
@@ -198,8 +211,9 @@ export default async function ManageLayout({ children }: { children: React.React
           </header>
           <main className="nox-mainarea">
             {isDemo && <DemoBanner />}{/* ★N7-2 ①: デモ環境の帯＋初期状態に戻す */}
-            {billingLocked && <BillingBanner isOwner={isOwnerRaw} />}{/* ★追補 3 R-8: 復帰導線（ご契約）はオーナー本人だけ */}
-            <DemoProvider isDemo={isDemo}>{children}</DemoProvider>
+            {billingLocked && <BillingBanner isOwner={isOwnerRaw} trialEnded={trialEnded} />}
+            {trialNote && <div className="nox-alert" role="status" data-trial-reminder="1">{trialNote} <Link href="/billing" className="nox-link" style={{ fontWeight: 700 }}>ご契約の手続きへ</Link></div>}{/* ★追補 3 R-8: 復帰導線（ご契約）はオーナー本人だけ */}
+            <DemoProvider isDemo={isDemo}><StoreHoursProvider value={storeHours}>{children}</StoreHoursProvider></DemoProvider>
           </main>
         </div>
       </div>

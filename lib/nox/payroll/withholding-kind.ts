@@ -39,7 +39,7 @@ export const PAYMENT_REPORT_NOTE: Record<WithholdingKind, string | null> = {
 /** 画面注記（④） */
 export const WITHHOLDING_ADVICE_NOTE = "区分と額は顧問税理士・社労士にご確認ください";
 /** other_fee の仮置き（台帳） */
-export const OTHER_FEE_PROVISIONAL_NOTE = "報酬・料金の 10.21% 定率は税理士確認（T11）待ちの仮置きです";
+export const OTHER_FEE_PROVISIONAL_NOTE = "報酬・料金の 10.21% 定率は税理士に確認中です";
 
 /** 保存値として受ける全値（旧 other_fee を含む 5 つ＝0183／0188 の両 CHECK の和） */
 const WITHHOLDING_KINDS_ALL: readonly string[] = ["hostess", "other_fee", "other_204", "manual", "none"];

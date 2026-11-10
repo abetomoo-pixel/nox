@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { COMPANY_NAME, TOKUSHOHO_HREF, TOKUSHOHO_TITLE } from "@/lib/nox/legal/tokushoho"; // ★2026-11-10: フッターに特定商取引法の表示
 import BrandLogo from "@/components/ui/brand-logo"; // ★便 SH-UI-a A-2: ロゴ（Concept 2 改）
 import * as t from "@/lib/nox/ui/theme";
 import { Suspense } from "react";
@@ -39,6 +40,7 @@ export default function DemoPage() {
         <p style={{ fontSize: 11, color: "var(--v2-muted)", marginTop: 10, lineHeight: 1.7 }}>
           デモ環境では、ご契約（お支払い）・招待・スタッフ作成・メール／パスワードの変更・組織の削除・写真のアップロード・キオスク発行・印刷・外部への送信（LINE／メール）はできません。
         </p>
+        <footer style={{ marginTop: 22, paddingTop: 12, borderTop: "1px solid var(--line)", fontSize: 11.5, color: "var(--v2-muted)", display: "flex", gap: 14, flexWrap: "wrap" }} data-demo-footer="1"><Link href={TOKUSHOHO_HREF}>{TOKUSHOHO_TITLE}</Link><Link href="/lp">NOX のご紹介</Link><span>© 2026 {COMPANY_NAME}</span></footer>
       </div>
     </div>
   );

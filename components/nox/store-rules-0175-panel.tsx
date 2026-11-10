@@ -24,7 +24,7 @@ export default function StoreRules0175Panel({ settings, payDay = null, onPatch, 
       <div data-onoff-row="1" data-drink-count-back={drinkOn ? "1" : "0"} style={row}>
         <div style={{ minWidth: 0, flex: "1 1 260px" }}>
           <div className="nox-onoff-head" style={{ fontSize: 13, fontWeight: 800 }}>ドリンクバック（本数で払う）</div>
-          <p className="nox-onoff-body" style={{ fontSize: 11.5, color: "var(--sub)", margin: "2px 0 0", lineHeight: 1.6 }}>OFF の店はドリンクのバック設定と「誰のドリンクか」の記録を出しません（CANON 型＝OFF）。</p>
+          <p className="nox-onoff-body" style={{ fontSize: 11.5, color: "var(--sub)", margin: "2px 0 0", lineHeight: 1.6 }}>OFF の店はドリンクのバック設定と「誰のドリンクか」の記録を出しません。</p>
         </div>
         {!readOnly ? <OnOffSeg value={drinkOn} ariaLabel="ドリンクバック" disabled={busy} onChange={(v) => void onPatch({ [STORE_KEYS_0175.drinkCountBack]: v === true }, `ドリンクバックを「${v === true ? "ON" : "OFF"}」`)} />
           : <b style={{ color: drinkOn ? "var(--ok)" : "var(--sub)" }}>{drinkOn ? "ON" : "OFF"}</b>}

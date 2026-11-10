@@ -1,5 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import { StoreHoursProvider } from "@/components/ui/store-hours-context"; // ★M-145
+import { storeHoursOf } from "@/lib/nox/time/store-hours-server";
 import BrandLogo from "@/components/ui/brand-logo"; // ★便 SH-UI-a A-2: ロゴ（Concept 2 改）
 import { getSessionRole } from "@/lib/nox/auth";
 import { TabBar, type NavGroup } from "@/components/ui/nav";
@@ -22,6 +24,8 @@ export default async function MineLayout({ children }: { children: React.ReactNo
   if (!role) redirect("/login");
   if (role !== "cast") redirect("/register");
   const supabase = await createClient();
+  const { data: myStoreId } = await supabase.rpc("auth_store_id"); // ★M-145: 時刻の選択の既定（営業開始・終了・切替時刻）
+  const storeHours = await storeHoursOf(supabase, (myStoreId as string | null) ?? null);
   const { data: orgRow } = await supabase.from("orgs").select("is_demo").limit(1).maybeSingle(); // ★N7-2
   const isDemo = orgRow?.is_demo === true;
   // ★326-8: 自店の settings_json（cast の RLS で自店 1 行が読める＝mig0106）→ mine_settings。ranking OFF ならナビからランキングを外す（ページ側は /mine へ redirect）
@@ -66,7 +70,7 @@ export default async function MineLayout({ children }: { children: React.ReactNo
         </header>
         <main className="nox-main">
           {isDemo && <DemoBanner />}{/* ★N7-2 ① */}
-          <DemoProvider isDemo={isDemo}>{children}</DemoProvider>
+          <DemoProvider isDemo={isDemo}><StoreHoursProvider value={storeHours}>{children}</StoreHoursProvider></DemoProvider>
         </main>
         <TabBar groups={groups} />
       </div>

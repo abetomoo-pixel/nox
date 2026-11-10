@@ -284,5 +284,5 @@ export const slipRowB: CSSProperties = { ...slipRow, fontWeight: 800, color: "va
 //     --bad-bg/--bad-bd/--bad-ink を新設しトークン化済。avatar は avatarBg() の name 由来 HSL
 //     ＝パレット色でなく機能色（identicon）・印刷経路にも不在＝是正対象外（e5_gaps.md I2）。
 // ★裁定366（GV-14・便 GV-A）: 手取り帯＝金塗り＋黒文字を廃止→黒地・金 2px 枠・金文字 28px 太字・右寄せ（印刷・PDF も同じ＝globals.css @media print .ps-foot）
-export const slipFoot: CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginTop: 12, background: "#000", color: "var(--gold)", border: "2px solid var(--gold)", borderRadius: 10, padding: "10px 14px", fontWeight: 800 };
+export const slipFoot: CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginTop: 12, background: "transparent", color: "var(--ink)", borderTop: "2px solid var(--ink)", padding: "10px 2px 2px", fontWeight: 800 }; // ★M-132 追補（2026-11-10 Agoora）: 手取り＝黒背景をやめ白地・上に線・太字（印刷のインクを使わない・画面も同じ）
 export const slipFootVal: CSSProperties = { fontFamily: font.num, fontSize: 28, fontWeight: 800, fontVariantNumeric: "tabular-nums", textAlign: "right", marginLeft: "auto" }; // .slipfoot b（font.num・NOX num 規約で tabular 付与）
