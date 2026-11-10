@@ -12,7 +12,9 @@ import { rpcErrJa } from "@/lib/nox/ui/rpc-err";
 import { useIsDemo } from "@/lib/nox/demo/context";
 import { LINE_CONFIG_KEYS, LINE_CONFIG_LABEL, LINE_LIMIT_NOTE, LINE_PLAN_TIERS, LINE_SECRET_KINDS, LINE_SECRET_LABEL, LINE_SECRET_PLACEHOLDER, liffEntryUrlOf, siteOriginOf, lineConfigErrorOf, lineConfigPatchOf, lineConfiguredOf, lineLimitErrorOf, lineLimitLabelOf, lineLimitStepOf, lineLoginReadyOf, webhookUrlOf, type LineConfig, type LineConfigKey, type LineSecretKind } from "@/lib/nox/line/liff-endpoint";
 import { jstMonthOf, lineForecastOf, lineMonthLineOf, lineStatusOf, lineStatusTextOf, type LineMonthRow } from "@/lib/nox/line/push-forecast";
-import { LINE_NOTIFY_COUNT_NOTE, LINE_NOTIFY_DEFAULT, LINE_NOTIFY_KINDS, LINE_NOTIFY_LABEL, LINE_NOTIFY_SAVE_PENDING_NOTE, lineNotifyOf, type LineNotifyKind } from "@/lib/nox/line/notify-kinds"; // ★M-114（裁定459）
+import { LINE_NOTIFY_COUNT_NOTE, LINE_NOTIFY_DEFAULT, LINE_NOTIFY_KINDS, LINE_NOTIFY_LABEL, LINE_NOTIFY_OWNER_NOTE, LINE_NOTIFY_SAVE_PENDING_NOTE, LINE_NOTIFY_SAVED_MSG, lineNotifyOf, lineNotifyPatchOf, type LineNotifyKind } from "@/lib/nox/line/notify-kinds"; // ★M-114（裁定459）★0199（種類ごとの保存）
+import { mig0199On } from "@/lib/nox/rules-0175/flag"; // ★0199（M-114）: 保存は白名単 line_notify の後
+import { errJa } from "@/lib/nox/errors"; // ★裁定467（M-126）
 
 type Store = { id: string; name: string };
 
@@ -30,7 +32,8 @@ export default function LineConfigPanel({ stores, isOwner }: { stores: Store[]; 
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
-  const [notify, setNotify] = useState<Record<LineNotifyKind, boolean>>({ ...LINE_NOTIFY_DEFAULT }); // ★M-114（裁定459）: 通知の種類ごと ON／OFF（表示＝保存は 0198 の後）
+  const [notify, setNotify] = useState<Record<LineNotifyKind, boolean>>({ ...LINE_NOTIFY_DEFAULT }); // ★M-114（裁定459）: 通知の種類ごと ON／OFF（保存＝★0199 の白名単 line_notify・owner 限定）
+  const notifyEditable = isOwner && !isDemo && mig0199On(); // ★0199（M-114）: 保存できるのは管理者（set_store_profile は owner 限定）・デモは変更不可・フラグ false は表示だけ
   const origin = siteOriginOf(typeof window !== "undefined" ? window.location.origin : ""); // ★便 D M-102: 発行する URL は site 固定の 1 値
 
   const load = useCallback(async () => {
@@ -68,6 +71,14 @@ export default function LineConfigPanel({ stores, isOwner }: { stores: Store[]; 
     setBusy(false);
     if (error) { setErr(rpcErrJa(error.message)); return; }
     setMsg(`月の上限を ${lineLimitLabelOf(n)} にしました`); await load();
+  }
+  async function saveNotify() { // ★0199（M-114・裁定459）: set_store_profile に {line_notify: 4 鍵を常に明示}（原則7）＝RPC が object／boolean／鍵名を検査（'bad line_notify'）
+    if (!notifyEditable || !storeId) return;
+    setBusy(true); setErr(null); setMsg(null);
+    const { error } = await supabase.rpc("set_store_profile", { p_store_id: storeId, p_patch: lineNotifyPatchOf(notify) });
+    setBusy(false);
+    if (error) { setErr(errJa(error.message)); return; }
+    setMsg(LINE_NOTIFY_SAVED_MSG); await load();
   }
   const copy = (k: string, v: string) => { void navigator.clipboard?.writeText(v).then(() => setCopied(k)).catch(() => undefined); };
   const jm = jstMonthOf(Date.now());
@@ -108,18 +119,20 @@ export default function LineConfigPanel({ stores, isOwner }: { stores: Store[]; 
         {isDemo ? <p style={{ ...t.sub, margin: 0 }}>デモ環境では LINE の設定を変更できません。</p>
           : <div className="nox-actions">{/* ★便 BTN（裁定242）: 主ボタンは行の中央 */}<button type="button" style={{ ...t.btnPrimary56, width: "auto", padding: "0 28px" }} disabled={busy || !storeId} onClick={() => void saveConfig()} data-line-save="1">{busy ? "保存中…" : "LINE の設定を保存"}</button></div>}
       </div>
-      {/* ★M-114（裁定459・2026-11-06）: 通知の種類ごと ON／OFF＝既定はお知らせだけ ON・シフト系は OFF。保存は settings_json.line_notify（0198 の白名単の後）＝それまで表示だけ */}
-      <div style={{ marginTop: 16, display: "grid", gap: 6 }} data-line-notify-kinds="1">
+      {/* ★M-114（裁定459・2026-11-06）: 通知の種類ごと ON／OFF＝既定はお知らせだけ ON・シフト系は OFF。★0199（2026-11-10）: 保存＝settings_json.line_notify（白名単）＝管理者だけ・4 鍵を常に明示 */}
+      <div style={{ marginTop: 16, display: "grid", gap: 6 }} data-line-notify-kinds="1" data-line-notify-editable={notifyEditable ? "1" : "0"}>
         <span style={t.fieldLabel}>LINE で送る通知の種類</span>
         <div style={{ display: "grid", gap: 4 }}>
           {LINE_NOTIFY_KINDS.map((k) => (
-            <label key={k} style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 12.5 }} data-line-notify-kind={k} data-line-notify-on={notify[k] ? "1" : "0"}>
-              <input type="checkbox" checked={notify[k]} disabled readOnly aria-label={LINE_NOTIFY_LABEL[k]} />{LINE_NOTIFY_LABEL[k]}{LINE_NOTIFY_DEFAULT[k] ? "（既定 ON）" : "（既定 OFF）"}
+            <label key={k} style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 12.5, minHeight: 32 }} data-line-notify-kind={k} data-line-notify-on={notify[k] ? "1" : "0"}>
+              <input type="checkbox" checked={notify[k]} disabled={!notifyEditable || busy} onChange={(e) => setNotify((n) => ({ ...n, [k]: e.target.checked }))} aria-label={LINE_NOTIFY_LABEL[k]} />{LINE_NOTIFY_LABEL[k]}{LINE_NOTIFY_DEFAULT[k] ? "（既定 ON）" : "（既定 OFF）"}
             </label>
           ))}
         </div>
         <p style={{ ...t.sub, margin: 0 }}>{LINE_NOTIFY_COUNT_NOTE}</p>
-        <p style={{ ...t.sub, margin: 0, color: "var(--v2-muted)" }}>{LINE_NOTIFY_SAVE_PENDING_NOTE}</p>
+        {notifyEditable
+          ? <div className="nox-actions">{/* ★便 BTN（裁定242）: 主ボタンは行の中央 */}<button type="button" style={{ ...t.btnPrimary56, width: "auto", padding: "0 28px" }} disabled={busy || !storeId} onClick={() => void saveNotify()} data-line-notify-save="1">{busy ? "保存中…" : "通知の種類を保存"}</button></div>
+          : <p style={{ ...t.sub, margin: 0, color: "var(--v2-muted)" }}>{isDemo ? "デモ環境では LINE の設定を変更できません。" : !mig0199On() ? LINE_NOTIFY_SAVE_PENDING_NOTE : LINE_NOTIFY_OWNER_NOTE}</p>}
       </div>
       <div style={{ marginTop: 16, display: "grid", gap: 6 }} data-line-limit={limit}>
         <span style={t.fieldLabel}>月の送信上限（表示のための設定）</span>

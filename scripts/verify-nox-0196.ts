@@ -19,7 +19,7 @@ const J = JSON.stringify;
 
 // (1)
 check("0196(1-1) MIG_0196_APPLIED=true（2026-11-06 手貼り・verify 22 行一致）・override", (MIG_0196_APPLIED as boolean) === true && mig0196On() === true && (__set0196ForTest(false), !mig0196On()) && (__set0196ForTest(null), mig0196On()));
-check("0196(1-2) 本人セッションの役割＝manager／staff だけ（owner／admin／cast は leave）", kioskPersonSessionAllowedOf("manager") && kioskPersonSessionAllowedOf("staff") && !kioskPersonSessionAllowedOf("owner") && kioskPersonMustLeaveOf("cast") && kioskPersonMustLeaveOf("admin") && KIOSK_PERSON_PIN_LINK === "スタッフでログイン（PIN）");
+check("0196(1-2) 本人セッションの役割＝manager／staff（★0199＝cast も・owner／admin は leave）", kioskPersonSessionAllowedOf("manager") && kioskPersonSessionAllowedOf("staff") && !kioskPersonSessionAllowedOf("owner") && !kioskPersonMustLeaveOf("cast") /* ★0199（裁定466・M-125・2026-11-10）: cast は can_register ∧ 店 ≥2 を kiosk_person_claim が判定 */ && kioskPersonMustLeaveOf("admin") && KIOSK_PERSON_PIN_LINK === "スタッフでログイン（PIN）");
 
 // (2) client の pin
 const pad = src("components/nox/kiosk-unlock-pad.tsx");

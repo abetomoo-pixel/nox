@@ -15,12 +15,12 @@ export const kioskPersonCookieValueOf = (c: KioskPersonCookie): string => `${c.s
 export function parseKioskPersonCookie(v: string | null | undefined): KioskPersonCookie | null {
   if (!v) return null;
   const [sessionId, deviceId, role] = v.split(":");
-  if (!UUID_RE.test(sessionId ?? "") || !UUID_RE.test(deviceId ?? "") || (role !== "manager" && role !== "staff")) return null;
+  if (!UUID_RE.test(sessionId ?? "") || !UUID_RE.test(deviceId ?? "") || !kioskPersonSessionAllowedOf(role)) return null; // ★0199（裁定466・M-125）: cast の cookie も通す（フラグ false の間は manager／staff だけ＝従来どおり）
   return { sessionId, deviceId, role };
 }
 
-/** 本人セッションを作ってよい役割（kiosk_person_claim と同じ＝管理者は通常ログイン・cast は作らない） */
-export const KIOSK_PERSON_SESSION_ROLES: readonly KioskPersonRole[] = ["manager", "staff"];
+/** 本人セッションを作ってよい役割（kiosk_person_claim と同じ＝管理者は通常ログイン・cast は 0199 から＝can_register ∧ 店のレジ使用 ≥2 を RPC が判定） */
+export const KIOSK_PERSON_SESSION_ROLES: readonly KioskPersonRole[] = ["manager", "staff", "cast"];
 export const kioskPersonSessionAllowedOf = (role: string | null | undefined): role is KioskPersonRole => role === "manager" || role === "staff" || (mig0199On() && role === "cast"); // ★0199（裁定466・M-125）: cast は MIG_0199 配下（DB＝kiosk_person_claim が can_register ∧ 店 ≥2 で判定）
 
 /** キオスクの中の本体画面のナビ＝7 つ（レジ／打刻／予約／シフト／在庫／顧客／日報）。ホーム・歯車（マスタ・監査・ご契約・お知らせ）は出さない。
@@ -42,7 +42,7 @@ export function kioskNavOf(role: KioskPersonRole, perms: { crm: boolean; shift: 
 export const kioskPersonMustLeaveOf = (role: string | null | undefined): boolean => !kioskPersonSessionAllowedOf(role);
 
 export const KIOSK_PERSON_PIN_LINK = "スタッフでログイン（PIN）";
-export const KIOSK_PERSON_PIN_NOTE = "店長・スタッフが PIN でこの端末から本人の権限で操作します（管理者は通常のログイン）。無操作で自動的にキオスクへ戻ります。";
+export const KIOSK_PERSON_PIN_NOTE = "店長・スタッフ（会計を任されたキャストも）が PIN でこの端末から本人の権限で操作します（管理者は通常のログイン）。無操作で自動的にキオスクへ戻ります。"; // ★0199（裁定466・M-125）: cast＝会計まで（店のレジ使用 2）のキャスト
 export const KIOSK_PERSON_DENY_ADMIN = "管理者は通常のログインをお使いください（この端末の PIN の入口は店長・スタッフ用です）";
 export const kioskPersonBandTextOf = (name: string | null, minutes: number): string => `端末で${name ? ` ${name} さんとして` : ""}操作中・無操作 ${minutes} 分でキオスクへ戻ります`;
 export const KIOSK_PERSON_LEAVE = "キオスクへ戻る";

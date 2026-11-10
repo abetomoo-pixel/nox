@@ -2,7 +2,7 @@
 
 ## 2026-11-10 確定＝4 本の文面は相談役（v61 §5）のとおり
 - **確定 4 本**＝confirm_signup（【NOX】メールアドレスの確認）・invite（【NOX】店舗への招待）・magic_link（【NOX】ログイン用リンク）・recovery（【NOX】パスワード再設定のご案内）。.txt＝§5 の文面そのまま（1 行目「件名:」）・.html＝同じ文面を見出し・本文・ボタン・貼り付け用 URL・注記・署名に配置。**変数は `{{ .ConfirmationURL }}` だけ**（`{{ .Email }}`／`{{ .SiteURL }}` は 4 本から外した）。署名＝「NOX（株式会社Agoora）」。
-- **email_change**（Change Email Address）は §5 に無い＝下書きのまま（裁定267＝確認メールは出ない＝予備）。
+- **email_change**（Change Email Address・【NOX】メールアドレス変更の確認）＝§5 に無いので **CC が §5 と同じ型で起草（2026-11-10 0199 フラグ便）＝相談役の確認待ち**（変数は `{{ .ConfirmationURL }}` だけ・`{{ .Email }}`／`{{ .NewEmail }}` は外した）。裁定267＝スタッフのメール変更は確認メールを出さない＝予備。
 - 貼るのは Agoora（下の「Supabase 側の貼り方」＝Subject に件名・Message body に .html の全文）。
 
 ## 夜便レーン 5（2026-11-06）の仕上げ（記録＝差し込み位置の設計）

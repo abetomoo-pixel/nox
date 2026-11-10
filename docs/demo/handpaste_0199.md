@@ -1,5 +1,7 @@
 # 0199 手貼り案内（★1 裁定459・M-114＝LINE 通知の種類ごとの保存＝set_store_profile の白名単に line_notify／★2 裁定466＝kiosk_person_claim に cast（can_register ∧ 店 ≥2）・2026-11-09 起草）
 
+**★2026-11-10 本番適用済み**（Agoora 手貼り・相談役の照合後・再検証 9 行全一致＝proof 10／fn 422／set_store_profile 1／whitelist yes／guard yes／0/1／line_notify 0／cast branch yes／0/0/1。1 回目の検証の no 3 行は本文適用前のもの）→ supabase/migrations/0199_line_notify.sql に収蔵・MIG_0199_APPLIED=true・verify:nox-0199。以下は起草時の記録。
+
 **手貼りは相談役の合図＝ここでは貼らない。** 順序＝0198（2026-11-09 適用済み・関数 422／表 120）→ 0198 のフラグ便 → **0199**。他の変更は同乗させない（作り直し 2＝set_store_profile／kiosk_person_claim・新設 0・表 0＝関数数は不変）。
 
 ## 内容（2 点）

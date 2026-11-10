@@ -14,7 +14,16 @@ export const LINE_NOTIFY_DEFAULT: Record<LineNotifyKind, boolean> = { notice: tr
 export const LINE_NOTIFY_KEY = "line_notify";
 export const LINE_NOTIFY_COUNT_NOTE = "1 回の送信＝友だち（連携している人）の数ぶん数えられます。無料枠は月 200 通。";
 export const LINE_PLAN_UPGRADE_NOTE = "無料枠を超えて送る店は、LINE 側でライトプラン（5,000 通／月・5,000 円＋税）へ。";
-export const LINE_NOTIFY_SAVE_PENDING_NOTE = "種類ごとの保存は次の DB 更新（0198）の後に使えます。それまでは既定（お知らせだけ ON）で動きます。";
+export const LINE_NOTIFY_SAVE_PENDING_NOTE = "種類ごとの保存は DB 更新（0199）の後に使えます。それまでは既定（お知らせだけ ON）で動きます。"; // ★0199 のフラグが false の間だけ出す
+export const LINE_NOTIFY_OWNER_NOTE = "通知の種類の変更は管理者（オーナー）が行います。"; // ★0199（M-114）: set_store_profile は owner 限定＝manager は表示だけ
+export const LINE_NOTIFY_SAVED_MSG = "LINE で送る通知の種類を保存しました";
+
+/** ★0199（M-114・2026-11-10）: 保存の patch＝set_store_profile の白名単 line_notify に 4 鍵を常に明示（原則7＝欠けた鍵は置換で消える・RPC は知らない鍵／boolean 以外を 'bad line_notify'） */
+export function lineNotifyPatchOf(n: Partial<Record<LineNotifyKind, boolean>>): { line_notify: Record<LineNotifyKind, boolean> } {
+  const out = { ...LINE_NOTIFY_DEFAULT };
+  for (const k of LINE_NOTIFY_KINDS) out[k] = n[k] === true;
+  return { line_notify: out };
+}
 
 /** 店の設定から種類ごとの ON／OFF（キーが無い・型が違う＝既定） */
 export function lineNotifyOf(settings: Record<string, unknown> | null | undefined): Record<LineNotifyKind, boolean> {

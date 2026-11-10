@@ -115,7 +115,7 @@ export function __set0198ForTest(v: boolean | null): void { override0198 = v; }
 
 /** ★0199（起草済み・2026-11-09＝★1 裁定459／M-114 line_notify の白名単・★2 裁定466 kiosk_person_claim に cast）: 手貼りは 0198 → フラグ便 → 0199 の順＝相談役の合図。
  *  false の間は client の器（LINE 通知の種類ごとの保存ボタン・本人セッションの cast＝M-125）を出さない。 */
-export const MIG_0199_APPLIED = false;
+export const MIG_0199_APPLIED = true; // ★2026-11-10: 0199（sha16 a68669f112662a19）を Agoora が手貼り＝検証 9 行が期待値と全行一致（fn 422・set_store_profile 287f6800・kiosk_person_claim bb2f83f6）→ true
 let override0199: boolean | null = null;
 export function mig0199On(): boolean { return override0199 ?? MIG_0199_APPLIED; }
 export function __set0199ForTest(v: boolean | null): void { override0199 = v; }

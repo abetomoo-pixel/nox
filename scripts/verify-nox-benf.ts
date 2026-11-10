@@ -50,8 +50,8 @@ check("benf(4-3) お知らせの確認文＝12 人に送ります（残り 50・
 const nf = src("lib/nox/people/notify.ts"), sb = src("app/(manage)/shift/shift-board.tsx"), lp = src("app/(manage)/master/line-config-panel.tsx"), qc = src("components/nox/line-quota-card.tsx"), nb = src("app/(manage)/notices/notices-board.tsx");
 check("benf(4-4) notifyCast＝種類が OFF の店は LINE に送らない（line: \"off\"・通知の節には残る）・店の設定は castId→store で 1 回だけ読む・催促（shift-board）も同じ柵",
   nf.includes('if (p.line !== false && !(await lineNotifyAllowedOf(supabase, p.castId, p.lineKind ?? p.kind))) line = "off";') && nf.includes("const storeSettingsByCast = new Map<string, Promise<Record<string, unknown> | null>>();") && sb.includes('if (!(await lineNotifyAllowedOf(supabase, id, "other", { remind: true }))) continue;'));
-check("benf(4-5) 店舗設定 › LINE 連携＝種類ごとの表示（data-line-notify-kinds・既定 ON／OFF・保存は 0198 の後の注記）と「1 回の送信＝友だち数ぶん・無料枠 200 通」の注記／送信数カードにライトプランの 1 行／お知らせ＝送る前に確認（不足なら送らない・notice OFF の店は掲載だけ）",
-  lp.includes('data-line-notify-kinds="1"') && lp.includes("{LINE_NOTIFY_COUNT_NOTE}") && lp.includes("{LINE_NOTIFY_SAVE_PENDING_NOTE}") && qc.includes('data-line-quota-plan="1"') && qc.includes("{LINE_PLAN_UPGRADE_NOTE}")
+check("benf(4-5) 店舗設定 › LINE 連携＝種類ごとの表示（data-line-notify-kinds・既定 ON／OFF・★0199＝管理者は保存＝set_store_profile に 4 鍵明示・manager／デモは表示だけ）と「1 回の送信＝友だち数ぶん・無料枠 200 通」の注記／送信数カードにライトプランの 1 行／お知らせ＝送る前に確認（不足なら送らない・notice OFF の店は掲載だけ）",
+  lp.includes('data-line-notify-kinds="1"') && lp.includes("{LINE_NOTIFY_COUNT_NOTE}") && lp.includes("const notifyEditable = isOwner && !isDemo && mig0199On();") && lp.includes('p_patch: lineNotifyPatchOf(notify)') && lp.includes('data-line-notify-save="1"') && lp.includes("!mig0199On() ? LINE_NOTIFY_SAVE_PENDING_NOTE : LINE_NOTIFY_OWNER_NOTE") && qc.includes('data-line-quota-plan="1"') && qc.includes("{LINE_PLAN_UPGRADE_NOTE}")
   && nb.includes("const cf = noticeLineConfirmOf({ recipients: lineLinked ?? 0, sent: row?.sent ?? 0, limit: row?.monthly_limit ?? Number(st?.line_monthly_limit ?? 200) });") && nb.includes("else if (!window.confirm(cf.text)) { sendLine = false;"));
 
 // (6) M-117＝予約の承認待ち（ホームの要承認の先頭・ベル・今日タブ＝同じ取得・同じ部品）
@@ -156,9 +156,9 @@ check("benf(6-3) ホーム＝予約の申請が先頭（approvals の前）・�
 // (14) 裁定466／M-125＝キオスクの本人セッションの cast（MIG_0199 配下＝起草のみ・フラグ false）
 {
   const fl9 = src("lib/nox/rules-0175/flag.ts"), ps9 = src("lib/nox/kiosk/person-session.ts"), ly9 = src("app/(manage)/layout.tsx");
-  check("benf(14-1) フラグ＝MIG_0199_APPLIED=false（0199 は起草のみ＝手貼りは 0198 → フラグ便 → 0199 の順）・mig0199On／__set0199ForTest の器", (MIG_0199_APPLIED as boolean) === false && mig0199On() === false && fl9.includes("export const MIG_0199_APPLIED = false;"));
-  __set0199ForTest(true); const castOn = kioskPersonSessionAllowedOf("cast"); __set0199ForTest(null);
-  check("benf(14-2) kioskPersonSessionAllowedOf＝cast はフラグ true のときだけ（false の間は manager／staff だけ＝従来どおり）", kioskPersonSessionAllowedOf("cast") === false && castOn === true && kioskPersonSessionAllowedOf("staff") === true && kioskPersonSessionAllowedOf("owner") === false && ps9.includes('(mig0199On() && role === "cast")'));
+  check("benf(14-1) フラグ＝MIG_0199_APPLIED=true（2026-11-10 Agoora 手貼り・検証 9 行一致）・mig0199On／__set0199ForTest の器", (MIG_0199_APPLIED as boolean) === true && mig0199On() === true && fl9.includes("export const MIG_0199_APPLIED = true;"));
+  __set0199ForTest(false); const castOff = kioskPersonSessionAllowedOf("cast"); __set0199ForTest(null);
+  check("benf(14-2) kioskPersonSessionAllowedOf＝cast はフラグ true のときだけ（false にすると manager／staff だけ＝従来どおり）・cookie の解読も同じ述語", kioskPersonSessionAllowedOf("cast") === true && castOff === false && kioskPersonSessionAllowedOf("staff") === true && kioskPersonSessionAllowedOf("owner") === false && ps9.includes('(mig0199On() && role === "cast")') && ps9.includes("|| !kioskPersonSessionAllowedOf(role)) return null;"));
   check("benf(14-3) layout＝本人セッションの cast は /register だけ（cast_register_device を見ない・他は /register へ・ナビ＝レジ 1 つ・帯は出す）", ly9.includes('const kioskPersonCast = mig0196On() && mig0199On() && role === "cast"') && ly9.includes('if (!(pn === "/register" || pn.startsWith("/register/"))) redirect("/register");') && ly9.includes('let castReg = !!kioskPersonCast;') && ly9.includes('items: kioskPersonCast ? [{ href: "/register", label: "レジ" }]') && ly9.includes('|| (mig0199On() && role === "cast")); // ★0199'));
 }
 // (13) M-123（裁定464 付帯①・0198 のフラグ便）＝貸付台帳の「同意未」と返済済
