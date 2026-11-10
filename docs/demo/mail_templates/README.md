@@ -1,6 +1,11 @@
-# Supabase Auth のメールテンプレート（下書き・2026-11-05 夜の自走便 6 → 2026-11-06 夜便レーン 5 で仕上げ）
+# Supabase Auth のメールテンプレート（2026-11-05 夜の自走便 6 → 2026-11-06 夜便レーン 5 で仕上げ → **2026-11-10 相談役の文面 4 本で確定**）
 
-## 夜便レーン 5（2026-11-06）の仕上げ＝文面は相談役が明朝差し替え（差し込み位置は固定）
+## 2026-11-10 確定＝4 本の文面は相談役（v61 §5）のとおり
+- **確定 4 本**＝confirm_signup（【NOX】メールアドレスの確認）・invite（【NOX】店舗への招待）・magic_link（【NOX】ログイン用リンク）・recovery（【NOX】パスワード再設定のご案内）。.txt＝§5 の文面そのまま（1 行目「件名:」）・.html＝同じ文面を見出し・本文・ボタン・貼り付け用 URL・注記・署名に配置。**変数は `{{ .ConfirmationURL }}` だけ**（`{{ .Email }}`／`{{ .SiteURL }}` は 4 本から外した）。署名＝「NOX（株式会社Agoora）」。
+- **email_change**（Change Email Address）は §5 に無い＝下書きのまま（裁定267＝確認メールは出ない＝予備）。
+- 貼るのは Agoora（下の「Supabase 側の貼り方」＝Subject に件名・Message body に .html の全文）。
+
+## 夜便レーン 5（2026-11-06）の仕上げ（記録＝差し込み位置の設計）
 - **5 本**＝confirm_signup（Confirm signup＝メールアドレスの確認）・invite（Invite user）・magic_link（Magic Link）・recovery（Reset password）・email_change（Change Email Address）。各 **HTML（.html）とテキスト（.txt）** の両方。
 - **Supabase の変数**（Go テンプレート・そのまま貼る）＝`{{ .ConfirmationURL }}`（ボタンと「貼り付け用 URL」の 2 か所・**変えない**）／`{{ .Email }}`（宛先）／`{{ .NewEmail }}`（email_change だけ）／`{{ .SiteURL }}`（フッターのリンク＝Site URL＝https://noxapp.jp）。`{{ .Token }}`（6 桁コード）は使わない（リンク方式）。
 - **差し込み位置（固定）**＝HTML は `<!-- ▼ … -->` のコメントの直後＝①件名（Subject 欄）②見出し（18px の行）③本文（14px の行）④ボタンの文言（href は固定）⑤有効期限の注記⑥フッター。テキスト（.txt）は 1 行目「件名:」＋本文＝同じ順。相談役は**この 6 か所の文言だけ**を差し替える（変数と構造は触らない）。

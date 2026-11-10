@@ -5682,7 +5682,7 @@ CC の処置（M-127）＝①kioskHomeTilesOf（出退勤＝punch_methods.kiosk 
 
 ## M-127（2026-11-09 起票・相談役・client・DDL なし）キオスクのタブと /mine の打刻ボタンを店の設定に従わせる（裁定468）
 
-本文＝裁定468 の節。**CC の処置（2026-11-09 夜）**＝22600f7（kioskHomeTilesOf・/mine の打刻カード）＋c804726（打刻端末 OFF でキャストの名前一覧も出さない）・f0 2 連緑 AM／AN（178 段 7,457）・AP／AQ（178 段 7,460）・撮影 docs/tmp/shots_m127（API 応答の差し替え）・/mine の撮影はデモで OFF の店を作れず未（v61 §0-2 止まった点 2）。
+本文＝裁定468 の節。**CC の処置（2026-11-09 夜）**＝22600f7（kioskHomeTilesOf・/mine の打刻カード）＋c804726（打刻端末 OFF でキャストの名前一覧も出さない）・f0 2 連緑 AM／AN（178 段 7,457）・AP／AQ（178 段 7,460）・撮影 docs/tmp/shots_m127（API 応答の差し替え）・/mine の撮影はデモで OFF の店を作れず未（v61 §0-2 止まった点 2）。**相談役の回答（2026-11-10 朝・v61 §1-2）＝/mine（本人打刻 OFF）の撮影は免除**＝デモデータは変えない・Agoora が 11-⑦（自分の org でスタッフ登録→招待→受諾）のついでに自分の org で本人打刻 OFF にして /mine を 1 回見る＝M-127 クローズ。
 
 ## 裁定466（2026-11-09 確定・相談役）キオスクの本人セッション（kiosk_person_claim）に「cast ∧ can_register ∧ 店 ≥2」を追加＝帯のナビは cast＝/register だけ
 
@@ -8689,6 +8689,7 @@ anon-guard 段28 が無差別 `limit(1)` でそれを拾い 'bad amount'/BV=unde
 | 120 | **貸付の bad pin を audit に 1 行**（ローンチ後・**起票 2026-11-09 裁定464 付帯②**＝相談役） | 本文: cast_loan_grant（0198 ★3）は PIN 不一致＝'bad pin' で raise するだけ（失敗回数は数えない・audit なし＝店長の立会い前提）。ローンチ後に audit_log_write（'cast_loan_pin_fail'・cast_id・店）を 1 行＝総当たりの痕跡を残す。DDL＝関数の作り直し 1。 |
 | 121 | **退会は membership の削除でなく無効化**（ローンチ後・**起票 2026-11-09 裁定464 付帯②**＝相談役） | 本文: 監査系の FK（0198 ★7 で set null）があっても、退会＝memberships.is_active=false（＋ended_at）で行を残す＝履歴（updated_by／granted_by 等）が null にならない。削除の経路（あれば）を無効化に寄せる＝読取から。 |
 | 122 | **課金名簿（docs/NOX_課金ゲート対象_v1.md）の parser が説明文の関数名を対象に数える**（ローンチ後・**起票 2026-11-09 相談役**） | 本文: verify:nox-billing の docNames は行中の `[a-z_]{4,}` が live の関数名に一致すれば対象／除外に数える（「（」「※」「＋」「#」で始まる行は除く）＝A19／B(x) の説明に billing_writable_of／adv_issue／demo_org_reset を書いたら赤（2026-11-09）。直し案＝名簿の行型を「- 名前: 説明」に固定し、行頭の名前だけ数える（説明文は数えない）。 |
+| 123 | **PIN ロックのお知らせ（/api/kiosk/lock-notice）＝人を特定せず店長以上に**（ローンチ後・**起票 2026-11-10 相談役 v61 §1-3**） | 本文: M-128（裁定469）で「人を選んで PIN」の入口が無くなり、/api/kiosk/lock-notice（K-1＝5 回失敗で 10 分ロック → 店長以上のお知らせ欄に 1 行・純関数 lib/nox/kiosk/lock-notice.ts）の呼び手が 0 になった（2026-11-09 夜の気づき）。**route は残す**。ローンチ後＝PIN だけの解除で誰のロックか分からないため、人を特定せず「端末 ○○ で PIN の失敗が続きロックしました」を店長以上にお知らせする（端末名＝kiosk_devices・audience は KC-4 のとおり）。**ローンチ時は呼ぶ画面なしで可**。DDL＝なし（client＝ロック時に route を呼ぶ 1 か所＋文面）。 |
 | — | **0160 のスコープ＝裁定326-9＋起票95・96**（**便 C-0・2026-09-30**） | 0160＝cast_quotas＋set_cast_quota／予約表の status・requested_by_cast・rejected_reason＋reservation_request／reservation_decide／cast_notice_reads＋既読 RPC／settings_json +7 キー（mine_settings 6＋shift_request_mode）＋起票95（staff_shift_patterns の無効化）＋起票96（T6 契約確認の記録）。起草の前に R160 事前読取（docs/tmp/0160_pre.md）→ ★指定。 |
 
 ### 未裁定・消し込み待ち
@@ -8712,6 +8713,10 @@ anon-guard 段28 が無差別 `limit(1)` でそれを拾い 'bad amount'/BV=unde
   なお同じ文にあった「**メモ列が無い**」の側は**正しい**（実測: `shifts` 14列 / `shift_wishes` 12列に
   該当列なし）ため、消さずに理由を分けて残した。
   根拠の全文＝`docs/dp/survey_6-4.md`。
+
+## 次の番号（2026-11-10 朝・v61 確定版＝起票 123 を収載・M-127 の撮影免除・メールテンプレ 4 本を確定した時点）
+
+- **次の裁定＝470**（466〜469＝2026-11-09 確定・465 は 469 に吸収）。**次の M＝M-129**（M-124＝取り下げ・M-125＝MIG_0199 配下＝0199 のフラグ便で実装・M-126／M-127／M-128＝2026-11-09 夜に実装済み・M-127 の /mine 撮影は 11/10 免除＝クローズ）。**次の起票＝124**（123＝2026-11-10 収載＝PIN ロックのお知らせは人を特定せず店長以上に＝ローンチ後・route は残す）。**次の教訓＝137**。**次の mig＝0200**（0199＝起草済み sha16 a68669f112662a19＝相談役の照合済み 11/10 朝＝Agoora の手貼り待ち→検証 9 行全一致の報告→フラグ便）。メールテンプレ＝4 本（confirm_signup／invite／magic_link／recovery）の文面を v61 §5 で確定・docs/demo/mail_templates に反映済み（email_change は下書きのまま）。
 
 ## 次の番号（2026-11-09 午後・裁定463（M-121 の仮置き確定）を収載した時点）
 
