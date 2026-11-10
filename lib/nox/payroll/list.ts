@@ -78,3 +78,9 @@ export function sumListKpi(rows: ListRow[]): ListKpi {
     paidRuns: k.paidRuns + (r.status === "paid" ? 1 : 0),
   }), { runs: 0, castCount: 0, gross: 0, net: 0, paidCount: 0, paidTotal: 0, paidRuns: 0 });
 }
+
+/** ★M-132（2026-11-10）: 明細の「PDF で保存」のファイル名（＝印刷時の document.title）＝キャスト名_YYYY-MM_明細。ファイル名に使えない記号は「_」 */
+export function slipPdfTitleOf(castName: string, period: string): string {
+  const safe = (castName || "キャスト").replace(/[\/:*?"<>|\s]+/g, "_").slice(0, 40);
+  return `${safe}_${period}_明細`;
+}

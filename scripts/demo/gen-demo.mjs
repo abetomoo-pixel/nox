@@ -15,7 +15,7 @@ import path from "node:path";
 import { createHash } from "node:crypto";
 import { groupDueFull } from "../../lib/nox/check-calc.ts";
 import { ADVANCES, SLIDES, EXTRA_PLANS, PROFILES, TRIAL, STAFF_DEMO, BONUS_TIERS, EXT_PATTERNS, sysSettingsOf, backOf as profileBackOf, canonOf, okuriModeOf as profileOkuriModeOf } from "./profiles.mjs"; // ★X-13c: 6 店の差別化（表＝docs/demo/store_profiles_20261009.md）
-import { RULES_0175_APPLIED } from "./rules-0175-flag.mjs"; // ★追補 3 R-8: デモ ACE の管理者はフラグ true のときだけ
+import { RULES_0175_APPLIED, MIG_0200_APPLIED } from "./rules-0175-flag.mjs"; // ★追補 3 R-8: デモ ACE の管理者はフラグ true のときだけ
 
 const SRC = JSON.parse(fs.readFileSync("docs/demo/source/20261001/nox_demo_all.json", "utf8"));
 const D = (k) => SRC.datasets[k].records;
@@ -106,7 +106,7 @@ for (const st of STORES) {
       ...sysSettingsOf(code), pay_time_basis: PF.basis, shift_cast_confirm: PF.confirm, // ★X-13c: 報酬制度の ON/OFF・勤務時間の計算基準・キャスト確認＝プロファイル
       slide_apply: "current", receipt_address: "東京都新宿区歌舞伎町 1-1-1（デモ）", receipt_tel: "03-0000-0000", receipt_footer: "飲食代", okuri_base_amount: PF.okuri, ...(CANON ? { sys_drink_count_back: false, sales_subtotal_mode: CANON.sales_subtotal_mode, pay_discount_rates: CANON.pay_discount_rates } : {}), /* ★便 ON-2: service_rate_by_seat は settings_json ではなく stores の列（0175 ★11・set_store_profile が書く先）へ */ /* ★便 P175-prep P-6: CANON 型の店設定（フラグ true でだけ） */ /* ★X-13c: 送り（0＝なし） */ ...(OKURI_MODE ? { okuri_mode: OKURI_MODE } : {}), /* ★裁定348: 送りの方式（0158）・★裁定414 追補: 4 方式＝ACE 定額／MUSE 実費／LILY 店負担／NOIR なし */ ...(PF.okuriTiers ? { okuri_flat_tiers: PF.okuriTiers } : {}), /* ★裁定414 追補（0180）: ACE の距離区分 3 段 */
       payslip_visibility: "detail", reservation_request: "on", drink_claim: "on", ranking: "on", shift_request_mode: PF.wishMode ?? "shift" /* ★裁定348: NEST＝休み希望のみ */,
-      ...(code === "ace" ? { sys_staff_discount: 1, staff_discount_cap: 10000, sys_cast_register: 2 } : code === "lily" ? { sys_staff_discount: 0, sys_cast_register: 1 } : {}), /* ★追補 2（裁定420／421 候補）: 0175 v2 の 3 段階（P175 前は読まれない） */
+      ...(code === "ace" ? { sys_staff_discount: 1, staff_discount_cap: 10000, sys_cast_register: 2, cast_register_device: "own_phone" /* ★裁定473（2026-11-10）: 操作端末＝自分のスマホからも（出勤中だけ＝裁定472） */ } : code === "lily" ? { sys_staff_discount: 0, sys_cast_register: 1 } : {}), /* ★追補 2（裁定420／421 候補）: 0175 v2 の 3 段階（P175 前は読まれない） */
       ...(code === "ace" ? { pay_fee_rates: { card: 10, emoney: 0, other: 0 }, contract_ack: true, settlement_presets: [{ code: "late", name: "遅刻", amount: 2000, basis: "契約書の遅刻精算条項に基づく減額", target: "late" }, { code: "absent", name: "当欠", amount: 5000, basis: "契約書の当日欠勤精算条項に基づく減額", target: "absent" }] /* ★便 X13-H H-15 ④（裁定410） */ } : {}) /* ★便 X13-G W-18 ①: ACE はお客様へ加算＝カード 10%（Agoora 決定・加盟店契約の確認は記録済み扱い） */ },
     hon_fee: defRank?.main_charge_yen ?? 0, jonai_fee: defRank?.inhouse_charge_yen ?? 0, dohan_fee: defRank?.accompanied_charge_yen ?? 0, service_rate: CANON ? CANON.service_rate : tax.service_rate, service_rate_by_seat: CANON ? { VIP: CANON.service_rate_vip } : {}, card_tax_rate: 0, /* ★便 ON-2（CANON ②）: サ料 30・VIP 卓 35（列・キーは seats.kind＝0181 で check_open が凍結） */
     round_unit: 1, round_mode: "down", set_min: mainRule.set_minutes || 60, set_fee: CANON ? CANON.set.regular : mainRule.set_price_yen /* ★便 ON-2 live ①: 時間帯の外（06:00〜開店前）は〜22:00 の単価に落ちる（pricing_resolve_core は cutoff 06:00 を跨ぐ帯＝from<cut だけ +1440 のため 0〜1139 は決して一致しない→深夜帯は 0〜359） */, ...(EXT_PATTERNS[code] && EXT_PATTERNS[code].group === mainRule.display_group ? (() => { const d = EXT_PATTERNS[code].rows.find((x) => x.isDefault) ?? EXT_PATTERNS[code].rows[0]; return { ext_min: d.minutes, ext_fee: d.amount }; })() : { ext_min: mainRule.extension_minutes || 30, ext_fee: mainRule.extension_price_yen }), /* ★裁定454 の 1: 店の既定＝パターンの既定の行（ACE＝60／13,000） */
@@ -125,7 +125,9 @@ for (const st of STORES) {
   };
   const memb = (role, user, extra = {}) => push("memberships", { id: uid(`memb:${code}:${role}`), user_id: user, store_id: storeId, role, is_active: true, can_register: role !== "cast", can_crm: role !== "cast", can_shift: role !== "cast", can_view_backs: role !== "cast", can_close: role !== "cast", can_reopen: role === "owner" || role === "manager", ...extra });
   // memberships は org_id 列なし（demo_org_reset の例外）＝org_id を外す
-  memb("owner", users.owner); memb("manager", users.manager); memb("staff", users.staff); memb("cast", users.cast);
+  // ★M-125（2026-11-10）: ACE の代表キャスト（can_register・会計まで）に操作担当 PIN（staff_pin・デモ用 1234＝店長／スタッフと同じ＝PIN だけの解錠は候補から選ぶ）＝キオスクのレジのタイル → PIN → キャストの本人セッション
+  if (code === "ace") push("staff_pin", { membership_id: uid(`memb:${code}:cast`), store_id: storeId, pin_hash: "$2a$06$es6a5JEXahHwq41iFe.f9OWukggPKCQgYnB32ozpl.8mpEOK1EJh2", fail_count: 0, locked_until: null, updated_at: { $rel: -1, t: "12:00:00" } });
+  memb("owner", users.owner); memb("manager", users.manager); memb("staff", users.staff); memb("cast", users.cast, code === "ace" ? { can_register: true } : {}); // ★M-125／裁定466（2026-11-10）: ACE（キャストのレジ使用＝会計まで）の代表キャストにレジの許可＝キオスクの本人セッションの cast と、スマホのレジ（出勤中だけ＝裁定472）の撮影
   const DEMO_ACE_ADMIN_USER_READY = false; // ★便 ON-2（2026-10-26）: demo-ace-admin の users 行は未作成（create-demo-orgs --apply＝Agoora）。無いまま membership を載せると reset が 'org mismatch' で落ちる（13:45 ACE 実測）＝作成後に true
   if (RULES_0175_APPLIED && code === "ace" && DEMO_ACE_ADMIN_USER_READY) { users.admin = uid(`user:${code}:admin`); memb("admin", users.admin); } // ★追補 3 R-8（裁定425 候補・0175 v2 ★28）: デモ ACE に管理者 1 人（demo-ace-admin）＝フラグ true のときだけ（false は role CHECK に admin が無く load が落ちる＝payload 不変）。users 行と auth ユーザー・seed.ts DEMO_ROLES／env DEMO_USERS の ace:admin は Agoora の create-demo-orgs --apply（フラグ true の便）
   T.memberships = T.memberships.map(({ org_id: _o, ...r }) => r);
@@ -277,6 +279,15 @@ for (const st of STORES) {
   if (ADVANCES[code] > 0) push("advances", { id: uid(`adv:${code}:rep`), store_id: storeId, cast_id: CAST[repCast.person_id].id, amount: ADVANCES[code], deducted_amount: 0, status: "open", deduct_period: null,
     advanced_on: { $m: -1, d: 15 }, note: "デモ: 先月中旬の前借り", created_by: users.owner, created_at: { $m: -1, d: 15, t: "20:00:00" }, updated_at: { $m: -1, d: 15, t: "20:00:00" }, cancelled_by: null, cancelled_at: null, idem_key: null });
   push("notices", { id: uid(`notice:${code}`), store_id: storeId, title: "デモ環境へようこそ", body: `${st.store_name} のデモです。入力内容は毎日 06:05 に初期状態へ戻ります。`, audience: "all", pinned: true, until: null, created_by: users.owner, created_at: { $rel: -7, t: "12:00:00" } });
+  // ★M-129（裁定470・0200 の後）: 個別送信のお知らせ 1 件＝ACE の代表キャストとスタッフだけ（作成時点で固定＝他の人の /mine には出ない）
+  if (MIG_0200_APPLIED && code === "ace") push("notices", { id: uid(`notice:${code}:targets`), store_id: storeId, title: "個別のお知らせ（デモ）", body: "宛先を選んで送ったお知らせです。選ばれた人のマイページにだけ出ます。", audience: "targets", cast_ids: [CAST[repCast.person_id].id], staff_ids: [uid(`memb:${code}:staff`)], pinned: false, until: null, created_by: users.owner, created_at: { $rel: -2, t: "15:00:00" } });
+  // ★M-130（裁定471・0200 の後）: スタッフ給与の支払い済み 1 か月分＝ACE の先月（確定額 2 行＋支払い記録 1 行＝月報の経費一覧に「給与（スタッフ）」）
+  if (MIG_0200_APPLIED && code === "ace") {
+    const pr = { $m: -1, d: 1, fmt: "ym" };
+    const lab = [{ m: uid(`memb:${code}:manager`), amount: 300000 }, { m: uid(`memb:${code}:staff`), amount: 180000 }];
+    for (const l of lab) push("staff_labor_confirmed", { membership_id: l.m, store_id: storeId, period: pr, pay_kind: "monthly", hourly: 0, minutes: 0, time_pay: 0, fixed: 0, monthly: l.amount, daily: 0, days: 0, amount: l.amount, deductions: [], calc_version: "demo", confirmed_by: users.owner, confirmed_at: { $m: 0, d: 1, t: "12:00:00" }, allowances: [] });
+    push("staff_labor_payments", { store_id: storeId, period: pr, paid_on: { $m: 0, d: 1 }, method: "transfer", amount: lab.reduce((a, l) => a + l.amount, 0), headcount: lab.length, note: null, idem_key: uid(`slp:${code}`), paid_by: users.owner, paid_at: { $m: 0, d: 1, t: "13:00:00" } });
+  }
   // キープ・売掛（開始残高）
   for (const b of D("bottle_keep_snapshots").filter((b) => b.store_id === S)) push("bottle_keeps", { id: uid(`keep:${b.bottle_keep_id}`), store_id: storeId, customer_id: custId(b.customer_id), product_id: uid(`prod:${b.product_id}`), opened_at: { $rel: -Math.max(1, Math.round((Date.parse("2026-10-01") - Date.parse(b.opened_on)) / 86400000)), t: "22:00:00" }, status: "active", remaining_pct: b.remaining_percent_estimate, bottle_name: PRODUCT[b.product_id]?.product_name ?? null, last_used_at: b.last_used_on ? { $rel: -Math.max(1, Math.round((Date.parse("2026-10-01") - Date.parse(b.last_used_on)) / 86400000)), t: "22:30:00" } : null, note: null });
   const arOpen = D("receivable_opening_snapshots").filter((r) => r.store_id === S);

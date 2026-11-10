@@ -26,7 +26,7 @@
  *   stores.name / org_billing.status は snapshot→finally 復元＋自己 assert。
  */
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { FIXTURE_USERS, STORE_A1, STORE_A2, loadEnvOrExit } from "./fixtures-f0";
+import { FIXTURE_USERS, STORE_A1, STORE_A2, loadEnvOrExit , punchInForVerify} from "./fixtures-f0";
 
 const env = loadEnvOrExit([
   "NEXT_PUBLIC_SUPABASE_URL",
@@ -235,10 +235,13 @@ async function main() {
     // ═══ (12) ロール系: staff-register 可・cast/他店 manager forbidden ═══
     {
       const c4 = await mkClosed(1000, "2031-05-13T21:00:00+09:00");
+      // ★0200（2026-11-10・裁定472）: 領収書の発行も出勤中だけ（assert_on_duty）＝staff（can_register）と cast を出勤中にして役割の柵を見る
+      const off12 = await punchInForVerify(admin, ["staffRegOnA1", "castA1a"]);
       const { data: rs, error: eS } = await staffReg.rpc("receipt_issue", { p_check_id: c4, p_amount: 500 });
       check("段56(12) ★staff（can_register=true）発行可", !eS && !!(rs as IssueRet | null)?.serial, eS?.message);
       const { error: eC } = await cast.rpc("receipt_issue", { p_check_id: c4, p_amount: 100 });
       check("段56(12) cast = 'forbidden'", has(eC, "forbidden"), eC?.message ?? "通ってしまった");
+      await off12();
       const { error: eB } = await mgrB.rpc("receipt_issue", { p_check_id: c4, p_amount: 100 });
       check("段56(12) 他店（B1）manager = 'forbidden'", has(eB, "forbidden"), eB?.message ?? "通ってしまった");
     }

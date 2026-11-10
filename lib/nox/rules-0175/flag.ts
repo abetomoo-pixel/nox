@@ -120,6 +120,13 @@ let override0199: boolean | null = null;
 export function mig0199On(): boolean { return override0199 ?? MIG_0199_APPLIED; }
 export function __set0199ForTest(v: boolean | null): void { override0199 = v; }
 
+/** ★0200（起草済み・2026-11-10＝裁定470 お知らせの個別選択・471 スタッフ給与の支払い済み・472 スマホのレジは出勤中だけ・473 キャストのレジ設定を 1 か所に＝sha16 caa775c91eaa0e24）: 手貼りは相談役の合図。
+ *  false の間は client の器（個別選択・支払い済み・会計できる卓・auth_register_access を使う入場判定・heartbeat）を出さない＝cast の出勤中・店端末のみの柵は client 側の判定で先に効かせる。 */
+export const MIG_0200_APPLIED = true;
+let override0200: boolean | null = null;
+export function mig0200On(): boolean { return override0200 ?? MIG_0200_APPLIED; }
+export function __set0200ForTest(v: boolean | null): void { override0200 = v; }
+
 export const MIG_0197_APPLIED = true; // ★2026-11-06: 0197（sha16 f28f737489916c38）を Agoora が手貼り（06:53 UTC・本文 Success）＝verify 17 行が期待値と一致（unique は数え方の差・正本の式では 1）・関数 419・表 120・本文 3 本の md5 一致 → true
 let override0197: boolean | null = null;
 export function mig0197On(): boolean { return override0197 ?? MIG_0197_APPLIED; }

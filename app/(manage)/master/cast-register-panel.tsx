@@ -1,15 +1,17 @@
 "use client";
 
-// F3g キャスト会計（mig0039）UI。2段ゲート＝店フラグ（settings_json.cast_register_enabled・owner のみ）
-// ∧ cast 別 can_register（membership・owner/manager）。両方 true のときだけ当該 cast がレジ会計を使える。
-// 真の防御は会計 RLS/RPC の cast 2段ゲート（auth_cast_can_register）＝ここは操作 UI（RPC は二重に守る）。
+// F3g キャスト会計（mig0039）UI → ★裁定473（M-131・2026-11-10）: キャストのレジ設定の正本＝この 1 画面（マスタ › 権限・情報管理 › キャスト会計の許可）。
+//   並び＝段階（OFF／注文のみ／会計まで＝sys_cast_register）→ 操作端末（店端末のみ／自分のスマホからも＝cast_register_device）→ 会計できる卓（全卓＝既定／自分の卓だけ＝cast_register_scope＝0200 の白名単）→ キャスト別の許可（memberships.can_register）。
+//   「店のキャスト会計 有効／無効」（set_store_cast_register・旧 cast_register_enabled）は廃止＝段階 ≠ OFF が有効。キャスト画面の設定からは「キャストのレジ使用」「操作端末」を外した（リンク 1 行）。
+//   真の防御は会計 RLS/RPC の cast 2段ゲート（auth_cast_can_register＝0200 からは端末も見る）＝ここは操作 UI。店の設定（段階・端末・卓）は owner だけ（set_store_profile）・キャスト別は owner／manager。
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 
 import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
-import { rules0175On } from "@/lib/nox/rules-0175/flag"; // ★追補 2
-import { CAST_REGISTER_LEVEL_DESC, CAST_REGISTER_LEVEL_LABEL, castRegisterLevelOf, type CastRegisterLevel } from "@/lib/nox/rules-0175/cast-register"; // ★追補 2（裁定420）
+import { mig0200On, rules0175On } from "@/lib/nox/rules-0175/flag"; // ★追補 2 ★0200
+import { CAST_REGISTER_LEVEL_DESC, CAST_REGISTER_LEVEL_LABEL, CAST_REGISTER_SCOPE_DESC, CAST_REGISTER_SCOPE_LABEL, castRegisterLevelOf, castRegisterScopeNoteOf, castRegisterScopeOf, type CastRegisterLevel, type CastRegisterScope } from "@/lib/nox/rules-0175/cast-register"; // ★追補 2（裁定420）★裁定473
+import { CAST_REGISTER_DEVICE_LABEL, castRegisterDeviceOf, type CastRegisterDevice } from "@/lib/nox/register/p173"; // ★便 P173（裁定389）→ ★裁定473: ここが正本
 import { STAFF_DISCOUNT_LABEL, staffDiscountCapOf, staffDiscountLevelOf, type StaffDiscountLevel } from "@/lib/nox/rules-0175/staff-discount"; // ★追補 2（裁定421 候補）
 import { errJa } from "@/lib/nox/errors"; // ★裁定467（M-126）: 利用者向けの文言は辞書 1 本
 type CastRow = { id: string; name: string; membershipId: string | null; canRegister: boolean };
@@ -17,23 +19,25 @@ type CastRow = { id: string; name: string; membershipId: string | null; canRegis
 const card: React.CSSProperties = t.card;
 const h2: React.CSSProperties = { ...t.pheadH1, fontSize: 16 };
 const h3: React.CSSProperties = { fontSize: 13.5, fontWeight: 800, color: "var(--champ)", marginTop: 0, marginBottom: 8 };
-const btn: React.CSSProperties = { ...t.btnGhost, ...t.btnSm };
-const btnOn: React.CSSProperties = { ...t.btnGold, ...t.btnSm };
+export const CAST_REGISTER_SCOPE_PENDING_NOTE = "会計できる卓の選択は DB 更新（0200）の後に使えます。それまでは全卓です。"; // ★0200 のフラグが false の間だけ
 
 export default function CastRegisterPanel({
   storeId, isOwner, initialEnabled, casts, settings = null,
 }: {
   storeId: string;
   isOwner: boolean;
+  /** ★裁定473: 段階 ≠ OFF（互換のため受けるが正本は settings の sys_cast_register） */
   initialEnabled: boolean;
   casts: CastRow[];
-  settings?: Record<string, unknown> | null; // ★追補 2（裁定420／421 候補）: 3 段階の現在値（フラグ true のときだけ使う）
+  settings?: Record<string, unknown> | null; // 段階・端末・卓の現在値
 }) {
   const supabase = createClient();
-  const [enabled, setEnabled] = useState(initialEnabled);
-  // ★追補 2（裁定420・裁定421 候補・0175 v2 ★24／★25）: 「キャストのレジ使用」0／1／2 と「スタッフの割引・手数料カット」0／1／2＋上限＝set_store_profile の patch（白名単は v2）。RULES_0175_APPLIED=false では出ない
   const [sj, setSj] = useState<Record<string, unknown>>(settings ?? {});
   const [lvBusy, setLvBusy] = useState(false);
+  const level = castRegisterLevelOf(sj);
+  const enabled = level > 0 || (initialEnabled && !("sys_cast_register" in sj)); // ★裁定473: 有効＝段階 ≠ OFF
+  const device: CastRegisterDevice = castRegisterDeviceOf(sj);
+  const scope: CastRegisterScope = castRegisterScopeOf(sj);
   async function patchStore(patch: Record<string, unknown>, label: string) {
     if (lvBusy) return;
     setLvBusy(true); setMsg("");
@@ -41,20 +45,10 @@ export default function CastRegisterPanel({
     setLvBusy(false);
     if (error) { setMsg(`エラー: ${errJa(error.message)}`); return; }
     setSj((s) => ({ ...s, ...patch })); setMsg(`${label}にしました`);
-    if (typeof patch.sys_cast_register === "number") setEnabled((patch.sys_cast_register as number) > 0);
   }
   const [rows, setRows] = useState<CastRow[]>(casts);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
-
-  async function switchStore(next: boolean) {
-    if (next === enabled || busy) return;
-    setBusy(true); setMsg("");
-    const { error } = await supabase.rpc("set_store_cast_register", { p_store_id: storeId, p_enabled: next });
-    if (error) setMsg(`エラー: ${errJa(error.message)}`);
-    else { setEnabled(next); setMsg(`店のキャスト会計を「${next ? "有効" : "無効"}」にしました`); }
-    setBusy(false);
-  }
 
   async function toggleCast(row: CastRow) {
     if (busy || !row.membershipId) return;
@@ -68,42 +62,59 @@ export default function CastRegisterPanel({
     }
     setBusy(false);
   }
+  const ownerNote = isOwner ? null : <p style={{ fontSize: 12, color: "var(--sub)", margin: "6px 0 0" }}>※店の設定（段階・操作端末・会計できる卓）の変更は管理者（オーナー）だけです。</p>;
 
   return (
-    <div style={{ marginTop: 24 }}>
-      <h2 style={h2}>キャスト会計（レジ操作）</h2>
+    <div style={{ marginTop: 24 }} data-cast-register-panel="473">
+      <h2 style={h2}>キャスト会計の許可</h2>
+      <p style={{ fontSize: 12, color: "var(--sub)", margin: "-4px 0 10px" }}>キャストがレジを使う条件はここで決めます（段階 → 操作端末 → 会計できる卓 → キャスト別の許可）。段階が「OFF」以外で有効です。</p>
 
-      {/* 店フラグ（owner のみ操作可・manager は現在値のみ） */}
-      <section className="nox-cardtop" style={card}>
-        <h3 style={h3}>店のキャスト会計</h3>
-        <p style={{ fontSize: 13, margin: "4px 0" }}>
-          現在: <strong style={{ color: enabled ? "var(--ok)" : "var(--sub)" }}>{enabled ? "有効（キャストにレジを開放）" : "無効（キャストはレジ操作不可）"}</strong>
-        </p>
-        {isOwner ? (
-          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }} data-actions-exempt="有効／無効の選択（選択中が青＝状態の表示）">
-            <button onClick={() => void switchStore(false)} disabled={busy || !enabled} style={!enabled ? btnOn : btn}>無効</button>
-            <button onClick={() => void switchStore(true)} disabled={busy || enabled} style={enabled ? btnOn : btn}>有効</button>
-            <span style={{ fontSize: 12, color: "var(--sub)" }}>※有効にしても、下の一覧で許可したキャストだけがレジを使えます（2段確認）。</span>
-          </div>
-        ) : (
-          <p style={{ fontSize: 12, color: "var(--sub)", margin: 0 }}>※店のキャスト会計の切替は owner のみ可能です。</p>
-        )}
-      </section>
-
-      {rules0175On() && (/* ★追補 2（裁定420）: 3 段階＝OFF／注文のみ／会計まで（owner のみ・フラグ true のときだけ） */
-        <section className="nox-cardtop" style={card} data-cast-register-level={castRegisterLevelOf(sj)}>
-          <h3 style={h3}>キャストのレジ使用（段階）</h3>
+      {rules0175On() && (/* ★追補 2（裁定420）: 3 段階＝OFF／注文のみ／会計まで（owner のみ） */
+        <section className="nox-cardtop" style={card} data-cast-register-level={level}>
+          <h3 style={h3}>1. キャストのレジ使用（段階）</h3>
           <div role="radiogroup" aria-label="キャストのレジ使用" style={{ display: "grid", gap: 6 }}>
             {([0, 1, 2] as CastRegisterLevel[]).map((lv) => (
-              <label key={lv} style={{ display: "flex", gap: 8, alignItems: "flex-start", fontSize: 12.5 }}>
-                <input type="radio" name="cast-register-level" checked={castRegisterLevelOf(sj) === lv} disabled={!isOwner || lvBusy} onChange={() => void patchStore({ sys_cast_register: lv }, `キャストのレジ使用を「${CAST_REGISTER_LEVEL_LABEL[lv]}」`)} />
+              <label key={lv} style={{ display: "flex", gap: 8, alignItems: "flex-start", fontSize: 12.5, minHeight: 32 }}>
+                <input type="radio" name="cast-register-level" checked={level === lv} disabled={!isOwner || lvBusy} onChange={() => void patchStore({ sys_cast_register: lv }, `キャストのレジ使用を「${CAST_REGISTER_LEVEL_LABEL[lv]}」`)} />
                 <span><b>{CAST_REGISTER_LEVEL_LABEL[lv]}</b><span style={{ color: "var(--sub)", marginLeft: 8 }}>{CAST_REGISTER_LEVEL_DESC[lv]}</span></span>
               </label>
             ))}
           </div>
-          <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "6px 0 0" }}>どの段階でも、自分が着卓中／指名されている卓だけ・操作は記録にキャスト名・端末の縛りは「操作端末」の設定。</p>
+          {ownerNote}
         </section>
       )}
+
+      {/* ★裁定473: 操作端末（キャスト画面の設定から移した＝set_store_profile の cast_register_device） */}
+      <section className="nox-cardtop" style={card} data-cast-register-device={device}>
+        <h3 style={h3}>2. 操作端末</h3>
+        <div role="radiogroup" aria-label="操作端末" style={{ display: "grid", gap: 6 }}>
+          {(["store_device", "own_phone"] as const).map((v) => (
+            <label key={v} style={{ display: "flex", gap: 8, alignItems: "flex-start", fontSize: 12.5, minHeight: 32 }}>
+              <input type="radio" name="cast-register-device" checked={device === v} disabled={!isOwner || lvBusy || !enabled} onChange={() => void patchStore({ cast_register_device: v }, `操作端末を「${CAST_REGISTER_DEVICE_LABEL[v]}」`)} />
+              <span><b>{CAST_REGISTER_DEVICE_LABEL[v]}</b><span style={{ color: "var(--sub)", marginLeft: 8 }}>{v === "store_device" ? "店の端末（キオスクの PIN）からだけ。キャスト本人のスマホからは開けません" : "キャスト本人のログイン（スマホ）からもレジを開けます（出勤中だけ）"}</span></span>
+            </label>
+          ))}
+        </div>
+        {ownerNote}
+      </section>
+
+      {/* ★裁定473: 会計できる卓＝0200 の白名単 cast_register_scope（フラグ false の間は注記だけ） */}
+      <section className="nox-cardtop" style={card} data-cast-register-scope={scope}>
+        <h3 style={h3}>3. 会計できる卓</h3>
+        {mig0200On() ? (
+          <div role="radiogroup" aria-label="会計できる卓" style={{ display: "grid", gap: 6 }}>
+            {(["all", "own"] as const).map((v) => (
+              <label key={v} style={{ display: "flex", gap: 8, alignItems: "flex-start", fontSize: 12.5, minHeight: 32 }}>
+                <input type="radio" name="cast-register-scope" checked={scope === v} disabled={!isOwner || lvBusy || !enabled} onChange={() => void patchStore({ cast_register_scope: v }, `会計できる卓を「${CAST_REGISTER_SCOPE_LABEL[v]}」`)} />
+                <span><b>{CAST_REGISTER_SCOPE_LABEL[v]}</b><span style={{ color: "var(--sub)", marginLeft: 8 }}>{CAST_REGISTER_SCOPE_DESC[v]}</span></span>
+              </label>
+            ))}
+          </div>
+        ) : <p style={{ fontSize: 12, color: "var(--sub)", margin: 0 }}>{CAST_REGISTER_SCOPE_PENDING_NOTE}</p>}
+        <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "6px 0 0" }}>{castRegisterScopeNoteOf(mig0200On() ? scope : "all")}</p>
+        {ownerNote}
+      </section>
+
       {rules0175On() && (/* ★追補 2（裁定421 候補）: スタッフの割引・手数料カット＝承認制／上限内は即時／不可（owner のみ） */
         <section className="nox-cardtop" style={card} data-staff-discount-level={staffDiscountLevelOf(sj)}>
           <h3 style={h3}>スタッフの割引・手数料カット</h3>
@@ -124,10 +135,10 @@ export default function CastRegisterPanel({
       )}
       {/* cast 別許可（owner/manager 操作可） */}
       <section className="nox-cardtop" style={card}>
-        <h3 style={h3}>キャスト別のレジ会計許可</h3>
+        <h3 style={h3}>4. キャスト別の許可</h3>
         {!enabled && (
           <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 8px" }}>
-            ※店のキャスト会計が「無効」のため、ここで許可しても実際には使えません（店を有効にすると効きます）。
+            ※段階が「OFF」のため、ここで許可しても実際には使えません（段階を「注文のみ」か「会計まで」にすると効きます）。
           </p>
         )}
         <div style={{ overflowX: "auto" }}>

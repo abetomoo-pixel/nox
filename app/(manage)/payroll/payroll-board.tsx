@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import { buildPayrollCsv, type PayrollCsvRow, type PayrollCsvPay } from "@/lib/nox/payroll/csv";
 import PayslipSlip, { type PayslipRow } from "@/components/payslip-slip";
+import { slipPdfTitleOf } from "@/lib/nox/payroll/list"; // ★M-132: PDF のファイル名
 import CastAvatar from "@/components/ui/cast-avatar";
 import { resolveOrgId, signCastPhotos } from "@/lib/nox/cast-photo";
 import { kpiOfDraftRows, issuesOfDraft, payStatusCellOf } from "@/lib/nox/payroll/ui-calc"; // ★便 X-7: 状態列は run の status と整合（payStatusCellOf）
@@ -156,6 +157,17 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
   const [sanct, setSanct] = useState<{ castId: string; castName: string } | null>(null); // ★0154 D5
   // ★U-1 是正B: 右パネルの「明細プレビュー」（PayslipSlip 全体）の開閉
   const [slipPreview, setSlipPreview] = useState(false);
+  // ★M-132（2026-11-10）: 明細プレビューの「PDF で保存」＝その 1 人の明細だけを印刷（ブラウザ印刷 → PDF 保存）。印刷中はこの節だけを .nox-print に（他は隔離で落ちる）・ファイル名＝document.title
+  const [slipPrint, setSlipPrint] = useState<{ castName: string; slip: PayslipRow } | null>(null);
+  useEffect(() => {
+    if (!slipPrint) return;
+    const prevTitle = document.title;
+    document.title = slipPdfTitleOf(slipPrint.castName, slipPrint.slip.period);
+    const done = () => { document.title = prevTitle; setSlipPrint(null); };
+    window.addEventListener("afterprint", done, { once: true });
+    const tm = window.setTimeout(() => window.print(), 50);
+    return () => { window.clearTimeout(tm); window.removeEventListener("afterprint", done); document.title = prevTitle; };
+  }, [slipPrint]);
   // ★裁定264-1: 調整控除（run 別・cast 別）。一覧は直 SELECT（RLS）・追加／削除は route（add／delete）。draft 以外は読取のみ（264-9）。
   const [adjRows, setAdjRows] = useState<AdjRow[]>([]);
   // ★0156（裁定309-8・便 V-3）: 右パネル「固定控除」節＝店の deductions（active）と run 別上書き（draft のみ編集・finalized は読取表示）
@@ -590,6 +602,11 @@ ${md.message}（入れずに確定すると控除 0 のまま確定します）`
 
   return (
     <div className="nox-printpage">
+      {slipPrint && (/* ★M-132: 1 人分の明細の印刷（画面では隠す＝nox-print-only・印刷時はこれだけが残る） */
+        <section className="nox-print nox-print-only" data-slip-print={slipPrint.castName}>
+          <PayslipSlip slip={slipPrint.slip} castName={slipPrint.castName} systems={storeSettings} />
+        </section>
+      )}
       {/* 段0R 第2陣: ヘッダを新シェルの nox-hero へ（master/home/casts/customers/analytics と同基準・表示のみ）。
           印刷時は印刷ページ直下の隔離ルールで従来どおり自動的に落ちる（旧ヘッダと同じ扱い）。 */}
       {/* U-1（裁定99-①）: hero はモック逐語「給与管理」。副文は現行フローの説明を維持。 */}
@@ -953,7 +970,7 @@ ${md.message}（入れずに確定すると控除 0 のまま確定します）`
                     return <td className="c-ops" style={{ ...t.td, fontWeight: 700, color: col, whiteSpace: "nowrap" }} title={cp ? `支払済 ¥${cp.paid.toLocaleString()}／差引支給 ¥${cp.net.toLocaleString()}` : undefined}>{payable ? <button type="button" className="nox-rowbtn" data-row-pay={r.castId} style={{ fontWeight: 700, color: col, borderColor: col }} /* ★便 X13-G W-5: 枠ボタン 44px */ title="押して支払を記録" onClick={(e) => { e.stopPropagation(); setPayDlg({ castId: r.castId, castName: r.castName, net: cp!.net, paid: cp!.paid }); }}>{cell.label}</button> : cell.label}
                       {/* ★便 GV-C C-3（裁定388）: 行の操作＝「明細 PDF」（右パネルの明細を開く＝そこから印刷／PDF）・「支払済み」は左の状態（確定済みの未払／一部で支払ダイアログ＝裁定340） */}
                       <button type="button" className="nox-rowbtn" data-row-slip={r.castId} style={{ marginLeft: 8 }} /* ★便 X13-G W-5: 枠ボタン 44px */
-                        onClick={(e) => { e.stopPropagation(); setDetailCast(r.castId); setSlipPreview(true); }}>明細 PDF</button>
+                        onClick={(e) => { e.stopPropagation(); setDetailCast(r.castId); setSlipPreview(true); }}>明細</button>{/* ★M-132: ボタン名＝「明細」（PDF の保存はプレビュー上部の「PDF で保存」） */}
                     </td>;
                   })()}
                 </tr>
@@ -1184,11 +1201,7 @@ ${md.message}（入れずに確定すると控除 0 のまま確定します）`
                         {slipPreview ? "明細プレビューを閉じる" : "明細プレビュー"}
                       </button>
                     </div>
-                    {slipPreview && (
-                      <div style={{ marginTop: 10 }}>
-                        <PayslipSlip systems={storeSettings} /* ★便 GV-C C-10 */
-                          castName={r.castName}
-                          slip={{
+                    {slipPreview && (() => { const previewSlip = {
                             period,
                             net: r.net,
                             // preview 行から breakdown_json を合成（pay/extras は素通し・ar/adv/okuri は今期天引き額のみ・
@@ -1200,10 +1213,19 @@ ${md.message}（入れずに確定すると控除 0 のまま確定します）`
                               okuri: r.okuriDeductTotal ? [{ action: "deducted", amount: r.okuriDeductTotal }] : [],
                               ...frozenAdjustmentKeys(r.adjustmentsShown ?? [], r.adjustmentsHiddenTotal ?? 0),
                             },
-                          }}
+                          } as PayslipRow;
+                      return (
+                      <div style={{ marginTop: 10 }}>
+                        {/* ★M-132（2026-11-10）: プレビュー上部に「PDF で保存」＝ブラウザ印刷（この 1 人の明細だけ・ファイル名＝キャスト名_YYYY-MM_明細）・スマホのシートも同じ部品 */}
+                        <div className="nox-actions" style={{ marginBottom: 8 }} data-slip-pdf-row="1">
+                          <button type="button" style={{ ...t.btnGold, ...t.btnSm }} data-slip-pdf={r.castId} onClick={() => setSlipPrint({ castName: r.castName, slip: previewSlip })}>PDF で保存</button>
+                        </div>
+                        <PayslipSlip systems={storeSettings} /* ★便 GV-C C-10 */
+                          castName={r.castName}
+                          slip={previewSlip}
                         />
                       </div>
-                    )}
+                      ); })()}
                   </>
                 );
               })()}
@@ -1344,7 +1366,7 @@ ${md.message}（入れずに確定すると控除 0 のまま確定します）`
           読込後のみ nox-print（印刷対象）＝未読込時は nox-noprint で印刷経路から外す。数値は D3 CSV と同一 breakdown_json 源。 */}
       {storeId && (
         <section
-          className={printRows && printRows.length > 0 ? "nox-cardtop nox-print" : "nox-cardtop nox-noprint"}
+          className={printRows && printRows.length > 0 && !slipPrint ? "nox-cardtop nox-print" : "nox-cardtop nox-noprint"} /* ★M-132: 1 人分を印刷する間は全員分を印刷経路から外す */
           style={{ ...t.card }}
         >
           <div className="nox-noprint nox-taxcard" style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }} data-taxcard="print">{/* ★便 PR-1 R-5 */}

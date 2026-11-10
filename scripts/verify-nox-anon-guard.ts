@@ -168,7 +168,7 @@
  */
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { randomUUID } from "node:crypto";
-import { FIXTURE_USERS, FIXTURE_CUSTOMERS, STORE_A1, STORE_A2, STORE_B1, loadEnvOrExit, type FixtureUserKey } from "./fixtures-f0";
+import { FIXTURE_USERS, FIXTURE_CUSTOMERS, STORE_A1, STORE_A2, STORE_B1, loadEnvOrExit, punchInForVerify, type FixtureUserKey } from "./fixtures-f0";
 // 段29-0047d 専用: collect の void フィルタを実関数で実測する（クエリを写経すると乖離を検知できないため本物を通す）
 import { resolvePayrollWindow } from "../lib/nox/payroll/window";
 import { collectPeriod } from "../lib/nox/payroll/collect";
@@ -278,14 +278,21 @@ async function dutyGateRestore(admin: SupabaseClient, olds: DutyGateOld[]): Prom
   }
 }
 
+let offCastA1a: (() => Promise<void>) | null = null; // ★0200: 段35 の前に外す castA1a の出勤打刻
 async function main() {
   const admin0 = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
   const dutyOld = await dutyGateOff(admin0);
+  // ★0200（2026-11-10・裁定472）: duty_gate=false の例外は廃止＝レジの操作は出勤中だけ。検証の staff／cast を出勤にしてから走り、最外の finally で打刻を消す
+  //   （権限の柵＝can_register・役割を「出勤中の人」で見る。出勤の柵そのものは verify:nox-0200／0190 が見る）。castA1a は段35 のキオスク打刻の遷移の前に外す（already in を避ける）
+  const offRest = await punchInForVerify(admin0, ["staffA1", "staffRegOnA1", "staffRegOffA1", "staffCrmOnA1", "castA1b"]);
+  offCastA1a = await punchInForVerify(admin0, ["castA1a"]);
   try {
     await mainBody();
   } finally {
+    if (offCastA1a) await offCastA1a();
+    await offRest();
     await dutyGateRestore(admin0, dutyOld);
   }
   if (fails.length) {
@@ -626,7 +633,11 @@ async function mainBody() {
   // ── 段31a: キャスト会計（mig0039）ヘルパー＋書込 RPC 2本 anon BLOCKED ──
   const F0039_PROBES: Array<[string, Record<string, unknown>]> = [
     ["auth_cast_can_register", {}],
-    ["set_store_cast_register", { p_store_id: null, p_enabled: null }],
+    // ★0200（2026-11-10・裁定473）: set_store_cast_register は drop（店のレジ使用は set_store_profile の sys_cast_register）＝一覧から外し、0200 の新設（authenticated）4 本を足す
+    ["auth_register_access", {}],
+    ["auth_cast_check_allowed", { p_check_id: null }],
+    ["staff_labor_mark_paid", { p_store_id: null, p_period: null, p_paid_on: null, p_method: null, p_idem_key: null, p_note: null }],
+    ["staff_labor_unmark_paid", { p_store_id: null, p_period: null }],
     ["set_store_profile", { p_store_id: null, p_patch: null }], // ★mig0144（店舗設定の統合 setter・owner 限定）
     ["set_cast_shift_request_mode", { p_cast_id: null, p_mode: null }], // ★mig0167（裁定337・便 P167）: シフト希望の方式のキャスト個別上書き（owner∨manager 自店・課金ゲート内蔵）＝anon BLOCKED
     ["check_nomination_rate_apply", { p_check_id: null, p_cast_id: null }], // ★mig0169（裁定341・便 P169）: 既出ドリンクも本指名の率にする（owner∨manager 自店・open のみ・課金ゲート内蔵・監査）＝anon BLOCKED
@@ -1952,6 +1963,9 @@ async function mainBody() {
       const { data: oldU } = await admin.from("users").select("id").like("email", `${SC}%`);
       const oldIds = (oldU ?? []).map((r) => r.id as string);
       if (oldIds.length) {
+        // ★0200: 段18 ⑦ の出勤打刻（staff_punches.membership_id）を memberships より先に消す
+        const { data: oldM } = await admin.from("memberships").select("id").in("user_id", oldIds);
+        if ((oldM ?? []).length) await admin.from("staff_punches").delete().in("membership_id", (oldM ?? []).map((r) => r.id as string));
         await admin.from("memberships").delete().in("user_id", oldIds);
         await admin.from("users").delete().in("id", oldIds);
       }
@@ -2162,6 +2176,13 @@ async function mainBody() {
             if (!eSign) {
               const { data: roleLink } = await linkClient.rpc("auth_role");
               check("段18 ⑦ ★結合: auth_role='staff'（auth.uid→users→memberships 連鎖）", roleLink === "staff", `got ${JSON.stringify(roleLink)}`);
+              // ★0200（2026-11-10・裁定472）: レジの操作は出勤中だけ＝生成スタッフを出勤にしてから束1 の柵（can_register）を見る（打刻は wipeScRows が消す）
+              {
+                const nowIso = new Date().toISOString();
+                const { data: bizL } = await admin.rpc("biz_date_of", { p_store_id: storeA1!.id, p_at: nowIso });
+                const { error: ePL } = await admin.from("staff_punches").insert({ membership_id: mLink, org_id: storeA1!.org_id, store_id: storeA1!.id, biz_date: bizL, kind: "in", source: "manual", punched_at: nowIso });
+                check("段18 ⑦（準備）★0200 生成スタッフの出勤打刻", !ePL, ePL?.message);
+              }
               const { error: eOpen0 } = await linkClient.rpc("check_open", { p_seat_id: seatId, p_people: 1, p_nom_type: "free" });
               check("段18 ⑦ ★結合: フラグ全 false → check_open forbidden（束1 fail-closed）", forbidden(eOpen0), eOpen0?.message ?? "通ってしまった");
               const { data: cust0 } = await linkClient.from("customers").select("id");
@@ -4609,6 +4630,9 @@ async function mainBody() {
 
     if (s31Store && drinkP && seatId && castA1aRow && uTmp && mTmp && cTmp && owner && mgr && mgrB && staffOff && castA1a && !eSignTmp) {
       try {
+        // ★0200（裁定472・2026-11-10）: レジの操作は出勤中だけ（duty_gate=false の例外は廃止）＝一時 cast を先に出勤打刻し、以下はレジのゲートだけを見る（打刻は finally で消す）
+        const { error: ePunch31 } = await castTmp.rpc("punch_self", { p_type: "in" });
+        check("段31（準備）★0200 一時 cast の出勤打刻（punch_self in）", !ePunch31, ePunch31?.message);
         // ═══ a. 店OFF × castON ═══（store flag は seed 未設定＝OFF・castTmp を register ON に）
         const { error: eSetCastOn } = await owner.rpc("set_cast_register", { p_membership_id: mTmp.id, p_can_register: true });
         check("段31-a owner set_cast_register(cast, true) 成功（正常系＝audit 対象）", !eSetCastOn, eSetCastOn?.message);
@@ -4631,8 +4655,9 @@ async function mainBody() {
         check("段31-a 店OFF×castON check_open forbidden", forbidden(eOpenA), eOpenA?.message ?? "通ってしまった");
 
         // ═══ c. 店ON × castON ═══（store flag を owner RPC で ON）
-        const { error: eStoreOn } = await owner.rpc("set_store_cast_register", { p_store_id: s31Store.id, p_enabled: true });
-        check("段31-c owner set_store_cast_register(store, true) 成功（owner 限定・正常系）", !eStoreOn, eStoreOn?.message);
+        // ★0200（裁定473）: set_store_cast_register は drop＝店のレジ使用は set_store_profile の sys_cast_register（1＝注文のみ）
+        const { error: eStoreOn } = await owner.rpc("set_store_profile", { p_store_id: s31Store.id, p_patch: { sys_cast_register: 1, cast_register_device: "own_phone" } }); // ★0200（M-131）: 操作端末の既定は店端末のみ＝スマホのセッションの一時 cast は own_phone
+        check("段31-c owner set_store_profile(sys_cast_register 1・cast_register_device own_phone) 成功（owner 限定・正常系）", !eStoreOn, eStoreOn?.message);
         const { data: canC } = await castTmp.rpc("auth_cast_can_register");
         check("段31-c 店ON×castON → auth_cast_can_register()=true（2段 AND 成立）", canC === true, `got ${JSON.stringify(canC)}`);
         const { data: chkVis } = await castTmp.from("checks").select("id");
@@ -4693,10 +4718,10 @@ async function mainBody() {
         check("段31-b 既存 castA1a（据置 OFF）は店 ON でも checks 0行（反転ゼロ実証）", (a1aChecks ?? []).length === 0, `got ${(a1aChecks ?? []).length}`);
 
         // ═══ f. set_store_cast_register 認可: manager forbidden（owner 限定）・null 拒否 ═══
-        const { error: eStoreMgr } = await mgr.rpc("set_store_cast_register", { p_store_id: s31Store.id, p_enabled: true });
-        check("段31-f set_store_cast_register manager forbidden（owner 限定）", forbidden(eStoreMgr), eStoreMgr?.message ?? "通ってしまった");
-        const { error: eStoreNull } = await owner.rpc("set_store_cast_register", { p_store_id: s31Store.id, p_enabled: null });
-        check("段31-f set_store_cast_register null = bad enabled", has(eStoreNull, "bad enabled"), eStoreNull?.message ?? "通ってしまった");
+        const { error: eStoreMgr } = await mgr.rpc("set_store_profile", { p_store_id: s31Store.id, p_patch: { sys_cast_register: 2 } });
+        check("段31-f 店のレジ使用（set_store_profile sys_cast_register）manager forbidden（owner 限定）", forbidden(eStoreMgr), eStoreMgr?.message ?? "通ってしまった");
+        const { error: eStoreGone } = await owner.rpc("set_store_cast_register", { p_store_id: s31Store.id, p_enabled: true });
+        check("段31-f ★0200 set_store_cast_register は drop 済み（呼べない）", !!eStoreGone && /Could not find the function|does not exist/.test(eStoreGone.message), eStoreGone?.message ?? "通ってしまった");
 
         // ═══ g. set_cast_register 認可: 対象 staff='not a cast'・他 org=not found・null 拒否・manager 正常系 ═══
         const { data: mStaffOff } = await admin.from("memberships").select("id")
@@ -4714,6 +4739,7 @@ async function mainBody() {
         await admin.from("stores").update({ settings_json: baselineSettings }).eq("id", s31Store!.id);
         // 生成伝票→cast 一式→実 auth の順で全消し
         await wipeSeat();
+        if (cTmp?.id) await admin.from("punches").delete().eq("cast_id", cTmp.id);   // ★0200: 段31（準備）の出勤打刻
         if (cTmp?.id) await admin.from("casts").delete().eq("id", cTmp.id);
         if (mTmp?.id) await admin.from("memberships").delete().eq("id", mTmp.id);
         if (uTmp?.id) await admin.from("users").delete().eq("id", uTmp.id);
@@ -5335,6 +5361,7 @@ async function mainBody() {
         check("段35 cast kiosk_cast_list = 0行（fail-closed）", ((cList ?? []) as KRow[]).length === 0, JSON.stringify(cList));
 
         // ═══ d. kiosk_punch 状態遷移（castA1a・正 PIN='1234'）═══
+        if (offCastA1a) { await offCastA1a(); offCastA1a = null; } // ★0200: suite の頭で入れた castA1a の出勤打刻を外す（キオスクの in が already in にならないように）
         type KPunch = { ok: boolean; reason?: string; punch_id?: string; locked_until?: string };
         const kp = async (pin: string, type = "in"): Promise<KPunch> => {
           const { data, error } = await kiosk.rpc("kiosk_punch", { p_cast_id: castIdA, p_pin: pin, p_type: type });

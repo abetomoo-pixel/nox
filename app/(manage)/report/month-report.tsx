@@ -9,7 +9,8 @@
 import { bizDaysOfMonth, staffLaborOf, type StaffLaborContract } from "@/lib/nox/staff/labor"; // ★便 M6
 import { attachStaffAllowances, type StaffAllowanceRow } from "@/lib/nox/staff/pay"; // ★0195: 名称つきの固定手当
 import { staffHoursOf, type StaffPunch } from "@/lib/nox/staff/pay";
-import { mig0192On, mig0194On, mig0195On } from "@/lib/nox/rules-0175/flag";
+import { mig0192On, mig0194On, mig0195On, mig0200On } from "@/lib/nox/rules-0175/flag";
+import { NOT_IN_PROFIT_MARK, monthExpenseRowsOf, type ExpenseRow, type StaffLaborPayment } from "@/lib/nox/staff/labor-payment"; // ★M-130（裁定471）: 経費一覧（支払い記録は利益に含めない）
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
@@ -51,6 +52,7 @@ export default function MonthReport({ stores, defaultStoreId, isManagerUp }: {
   // E8-2 #11: KPI 追加材料（売掛残高・前年同月売上）
   const [arBalance, setArBalance] = useState(0);
   const [prevYearSales, setPrevYearSales] = useState<number | null>(null);
+  const [expenses, setExpenses] = useState<ExpenseRow[]>([]); // ★M-130（裁定471・MIG_0200 配下）: 月報の経費一覧
   const [payDay, setPayDay] = useState<number | null>(null); // ★0164（便 W5-2b・裁定334）: 見出しに「締め 月末・支払日 翌月 N 日」（表示のみ・集計は不変）
 
   const load = useCallback(async () => {
@@ -154,6 +156,13 @@ export default function MonthReport({ stores, defaultStoreId, isManagerUp }: {
       }
     }
     setStaffLabor(sl);
+    if (isManagerUp && mig0200On()) { // ★M-130（裁定471）: 経費一覧＝日報の諸経費の月合計＋給与（スタッフ）の支払い記録（取消で行が消える＝表 1 本で連動）。日報の経費欄には出さない
+      const [{ data: ex }, { data: pm }] = await Promise.all([
+        supabase.from("daily_reports").select("expense").eq("store_id", storeId).gte("biz_date", start).lte("biz_date", end),
+        supabase.from("staff_labor_payments").select("period, paid_on, method, amount, headcount, note").eq("store_id", storeId).eq("period", period).maybeSingle(),
+      ]);
+      setExpenses(monthExpenseRowsOf({ dailyExpense: ((ex ?? []) as { expense: number | null }[]).reduce((a, r) => a + (r.expense ?? 0), 0), payment: (pm as StaffLaborPayment | null) ?? null }));
+    } else setExpenses([]);
     setH1(s1); setH2(s2); setLabor(lab); setLoading(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storeId, period, isManagerUp]);
@@ -296,6 +305,20 @@ export default function MonthReport({ stores, defaultStoreId, isManagerUp }: {
           </div>
         );
       })()}
+
+      {isManagerUp && expenses.length > 0 && (/* ★M-130（裁定471）: 経費一覧＝支払い記録は「利益には含めない」（損益の人件費は上の確定額／見込みの 1 本） */
+        <div style={{ marginTop: 14 }} data-month-expenses={expenses.length}>
+          <div style={{ fontSize: 11, color: "var(--sub)", marginBottom: 5 }}>経費一覧</div>
+          {expenses.map((e) => (
+            <div key={e.kind} className="nox-listrow" style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", fontSize: 12.5 }} data-month-expense={e.kind}>
+              <span style={{ flex: "1 1 140px", minWidth: 0 }}>{e.label}{e.date && <span className="num" style={{ color: "var(--sub)", marginLeft: 6 }}>{e.date.slice(5).replace("-", "/")}</span>}{e.note && <span style={{ color: "var(--sub)", marginLeft: 6 }}>{e.note}</span>}</span>
+              {!e.inProfit && <span className="nox-stpill" data-not-in-profit="1">{NOT_IN_PROFIT_MARK}</span>}
+              <span className="num" style={{ fontWeight: 700 }}>{yen(e.amount)}</span>
+            </div>
+          ))}
+          <p style={{ fontSize: 10.5, color: "var(--sub)", margin: "4px 0 0", lineHeight: 1.6 }}>給与（スタッフ）は支払いの記録です。人件費は上の「スタッフ人件費」（確定／見込み）で数えるため、利益には含めません。</p>
+        </div>
+      )}
 
       <p style={{ fontSize: 11, color: "var(--sub)", marginTop: 12, lineHeight: 1.7 }}>
         売上・組数・来客数・同伴・drink は締め済み日報の合算。指名は本指名+場内の件数（同伴は別行）。

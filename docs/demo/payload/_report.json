@@ -503,9 +503,9 @@
    "sha256": "aacad92a4df9138b6034fce8bc04e92178f604953b94f6edeefec3570adf65a7"
   },
   "ace": {
-   "bytes": 3909466,
-   "rows": 6400,
-   "tables": 48,
+   "bytes": 3911689,
+   "rows": 6405,
+   "tables": 50,
    "checks": 965,
    "lines": 2767,
    "monthGross": 9316823,
@@ -657,7 +657,7 @@
      ]
     }
    ],
-   "sha256": "e95bf843878e45983805e0934ed1226798061db81b0a8b7dbccd300d02ce2174"
+   "sha256": "a2059c03400515dfc741ea7b5ffd510b72c9cc9de2d13b9aeec231d74cb4b6af"
   },
   "lily": {
    "bytes": 5795856,

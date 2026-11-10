@@ -18,6 +18,7 @@ import CastAvatar from "@/components/ui/cast-avatar";
 import PhotoEdit from "@/components/ui/photo-edit"; // ★X-13-4: 名前の横に写真（現在・変更・削除）＝キャスト詳細と同じ部品
 import Toast, { Message } from "@/components/ui/toast";
 import Modal from "@/components/ui/modal";
+import KioskPinField, { type StaffPinStatus } from "@/components/nox/kiosk-pin-field"; // ★M-133: キオスクの PIN 欄（キャストと同じ桁数ルール）
 import StaffWorkSection, { type StaffWorkContract } from "@/components/nox/staff-work-section";
 import { attachStaffAllowances, type StaffAllowanceRow } from "@/lib/nox/staff/pay"; // ★0195: 名称つきの固定手当 // ★便 A M-80: 編集モーダルの「働き方」（給与側と同じ保存先）
 import { staffContractLineOf } from "@/lib/nox/staff/pay"; // ★便 A M-80: 一覧の契約チップ
@@ -121,6 +122,7 @@ export default function StaffBoard({
   const [aPinMark, setAPinMark] = useState<number>(0); // 0＝未発行・n＝発行した桁数
   const [invites, setInvites] = useState<{ id: string; store_id: string; email: string; name: string; role: string; expires_at: string; accepted_at: string | null }[]>([]);
   const [lineLinked, setLineLinked] = useState<Set<string>>(new Set());
+  const [pinStatus, setPinStatus] = useState<Record<string, StaffPinStatus>>({}); // ★M-133: staff_pin_status（owner＝全店／manager＝自店）
   const [contracts, setContracts] = useState<Record<string, StaffWorkContract>>({}); // ★便 A M-80: 働き方（staff_contracts＝RLS owner 全店／manager 自店）
   const [eWorkOpen, setEWorkOpen] = useState(false); // ★便 A M-80 追記: 契約チップから開いたときは「働き方」の入力を開いた状態
   const [bindUrl, setBindUrl] = useState<string | null>(null);
@@ -191,6 +193,14 @@ export default function StaffBoard({
     ]);
     setInvites(((inv ?? []) as typeof invites).filter((i) => inviteStateOf(i, Date.now()) === "ok"));
     setLineLinked(new Set(((ll ?? []) as { subject_id: string }[]).map((x) => x.subject_id)));
+    { // ★M-133: PIN の状態（店ごと・読めない店は行なし＝「未設定」と言わない＝チップは出さない）
+      const ps: Record<string, StaffPinStatus> = {};
+      for (const st of (isOwner ? stores : stores.filter((x) => x.id === myStoreId))) {
+        const { data } = await supabase.rpc("staff_pin_status", { p_store_id: st.id });
+        for (const r of ((data ?? []) as ({ membership_id: string } & StaffPinStatus)[])) ps[r.membership_id] = { has_pin: r.has_pin, fail_count: r.fail_count, locked_until: r.locked_until };
+      }
+      setPinStatus(ps);
+    }
     { // ★便 A M-80: 働き方＝一覧の契約チップと編集モーダルの「働き方」（withholding_kind は 0183 の列）
       const { data: cc } = await supabase.from("staff_contracts").select(mig0183On() ? "membership_id, contract_kind, pay_kind, hourly, monthly, daily, fixed_allowance, tax_class, withholding_kind" : "membership_id, contract_kind, pay_kind, hourly, monthly, daily, fixed_allowance, tax_class");
       const { data: al } = mig0195On() ? await supabase.from("staff_allowances").select("membership_id, name, amount, sort").eq("is_active", true).order("sort") : { data: null }; // ★0195: 名称つきの固定手当（RLS＝owner 全店／manager 自店／本人）
@@ -420,6 +430,7 @@ export default function StaffBoard({
                   <span style={{ marginLeft: 6, fontSize: 11, fontWeight: 700, color: m.is_active ? "var(--ok)" : "var(--bad)" }}>
                     {m.is_active ? "在籍" : "解除"}
                   </span>
+                  {m.is_active && pinStatus[m.id] && !pinStatus[m.id].has_pin && <span className="nox-stpill" style={{ marginLeft: 6 }} data-staff-pin-chip="none">PIN 未設定</span>}{/* ★M-133 */}
                   <ContractChip dataKey="data-staff-contract-chip" dataSet={contracts[m.id] ? "set" : "none"} style={{ marginLeft: 6 }} title="働き方を編集"
                     onClick={(e) => { e.stopPropagation(); openEdit(m, true); }} text={contracts[m.id] ? staffContractLineOf(contracts[m.id]) : "働き方を登録"} />{/* ★便 D M-99: 共通の契約チップ（本文色・輪郭だけ） */}{/* ★便 A M-80 追記: 契約の要約チップ＝押すと「働き方」を開いた状態で編集 */}
                 </div>
@@ -493,6 +504,12 @@ export default function StaffBoard({
                 </div>
               )}
             </FieldStack>
+            {/* ★M-133（2026-11-10）: キオスクの PIN（LINE 連携の下）＝set_staff_pin／staff_pin_unlock（owner／自店の店長）・店長の行も対象・値は画面と記録に残さない */}
+            {sel.is_active && (isOwner || sel.store_id === myStoreId) && (
+              <FieldStack label="キオスクの PIN" htmlFor="staff-edit-pin">
+                <KioskPinField membershipId={sel.id} name={users[sel.user_id]?.name ?? ""} status={pinStatus[sel.id]} onChanged={() => load()} />
+              </FieldStack>
+            )}
             {isOwner && !isDemo && (
               <FieldStack label="メール（ログインID）" htmlFor="staff-edit-email" note="変更すると新しいメールでログインします">
                 <input id="staff-edit-email" type="email" placeholder="メール（ログインID）" value={eEmail} onChange={(e) => setEEmail(e.target.value)} style={{ ...t.input, width: "100%" }} />

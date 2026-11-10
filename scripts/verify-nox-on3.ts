@@ -103,7 +103,7 @@ const HEX64 = /^[0-9a-f]{64}$/;
     const ntc = await tx.as(mgr, "select public.notice_create_targets($1, $2, $3::uuid[], $4) r", ["提出のお願い", "シフト希望を出してください", [castA], null]);
     const ntcBad = await tx.as(mgr, "select public.notice_create_targets($1, $2, $3::uuid[], $4) r", ["x", "y", ["00000000-0000-0000-0000-000000000000"], null]);
     const ntcRow = ntc.ok ? await tx.one<{ cast_ids: string[]; audience: string }>("select cast_ids, audience from public.notices where id = $1", [ntc.rows[0].r as string]) : null;
-    check("on3(3-4) notice_create_targets＝audience cast・cast_ids＝[castA]・無いキャストは 'bad targets'・client の絞り（noticeVisibleToCastOf）で castB には出ない", ntc.ok && J(ntcRow?.cast_ids) === J([castA]) && ntcRow?.audience === "cast" && !ntcBad.ok && /bad targets/.test(tx.errOf(ntcBad)) && noticeVisibleToCastOf(ntcRow?.cast_ids ?? null, castA) && !noticeVisibleToCastOf(ntcRow?.cast_ids ?? null, castB), J([tx.errOf(ntc), ntcRow, tx.errOf(ntcBad)]));
+    check("on3(3-4) notice_create_targets＝audience targets（★0200 裁定470＝4 引数の呼び方も targets＝宛先のキャストだけ・旧 cast は宛先外にも見えた）・cast_ids＝[castA]・無いキャストは 'bad targets'・client の絞り（noticeVisibleToCastOf）で castB には出ない", ntc.ok && J(ntcRow?.cast_ids) === J([castA]) && ntcRow?.audience === "targets" && !ntcBad.ok && /bad targets/.test(tx.errOf(ntcBad)) && noticeVisibleToCastOf(ntcRow?.cast_ids ?? null, castA) && !noticeVisibleToCastOf(ntcRow?.cast_ids ?? null, castB), J([tx.errOf(ntc), ntcRow, tx.errOf(ntcBad)]));
     // 期間ごとの必要人数
     const per = await tx.as(mgr, "select public.shift_period_set($1, $2, $3, $4, $5, $6) r", [null, A1.id, "2034-01-01", "2034-01-14", "2033-12-20", "open"]);
     const pid = per.ok ? (per.rows[0].r as string) : "00000000-0000-0000-0000-000000000000";

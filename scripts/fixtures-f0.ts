@@ -1,3 +1,4 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 // F0 verify 用の固定フィクスチャ定義（seed:f0 と verify:* で共有）。
 // dev 専用・本番環境では使わない（CLAUDE.md 規約）。
 
@@ -191,4 +192,40 @@ export function loadEnvOrExit(keys: string[]): Record<string, string> {
     process.exit(1);
   }
   return out;
+}
+
+// ★0200（裁定472・2026-11-10）: レジの操作（check_*・approval_*・receipt_issue・bottle_keep_register 等＝assert_on_duty）は出勤中だけ＝検証の 3 店の duty_gate=false の例外は廃止。
+//   権限の柵（can_register・役割）を「出勤中の人」で検査するため、fixture の cast／staff を当日の出勤にし、戻り値の関数で打刻を消す（他の suite の打刻の件数を汚さない）。
+//   cast＝punches（source 'manager'）・staff＝staff_punches（source 'manual'・biz_date＝biz_date_of）。owner／manager は免除なので打刻しない。
+export async function punchInForVerify(
+  admin: SupabaseClient,
+  keys: FixtureUserKey[],
+): Promise<() => Promise<void>> {
+  const made: { table: "punches" | "staff_punches"; id: string }[] = [];
+  const nowIso = new Date().toISOString();
+  for (const k of keys) {
+    const { data: u } = await admin.from("users").select("id").eq("email", FIXTURE_USERS[k].email).single();
+    if (!u) throw new Error(`punchInForVerify: users に ${k} が無い`);
+    const { data: ms } = await admin.from("memberships").select("id, role, store_id").eq("user_id", u.id).eq("is_active", true);
+    for (const m of (ms ?? []) as { id: string; role: string; store_id: string }[]) {
+      const { data: st } = await admin.from("stores").select("org_id").eq("id", m.store_id).single();
+      if (!st) continue;
+      if (m.role === "cast") {
+        const { data: c } = await admin.from("casts").select("id").eq("user_id", u.id).eq("store_id", m.store_id).maybeSingle();
+        if (!c) continue;
+        const { data: p, error } = await admin.from("punches").insert({ org_id: st.org_id, store_id: m.store_id, cast_id: c.id, type: "in", source: "manager", punched_at: nowIso }).select("id").single();
+        if (error || !p) throw new Error(`punchInForVerify: punches ${k}: ${error?.message}`);
+        made.push({ table: "punches", id: p.id });
+      } else if (m.role === "staff") {
+        const { data: biz, error: eb } = await admin.rpc("biz_date_of", { p_store_id: m.store_id, p_at: nowIso });
+        if (eb || !biz) throw new Error(`punchInForVerify: biz_date_of ${k}: ${eb?.message}`);
+        const { data: p, error } = await admin.from("staff_punches").insert({ membership_id: m.id, org_id: st.org_id, store_id: m.store_id, biz_date: biz, kind: "in", source: "manual", punched_at: nowIso }).select("id").single();
+        if (error || !p) throw new Error(`punchInForVerify: staff_punches ${k}: ${error?.message}`);
+        made.push({ table: "staff_punches", id: p.id });
+      }
+    }
+  }
+  return async () => {
+    for (const x of made) await admin.from(x.table).delete().eq("id", x.id);
+  };
 }

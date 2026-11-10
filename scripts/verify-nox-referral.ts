@@ -121,6 +121,8 @@ async function main() {
       const seat2 = await seatOf("NOX-VERIFY-0152卓2");
       const op2 = await as(owner, `select public.check_open($1, 3, 'free', null, null, null) id`, [seat2]);
       const chk2 = op2.ok ? (op2.rows[0].id as string) : NIL;
+      // ★0200（2026-11-10・裁定472）: レジの操作は出勤中だけ＝cast の拒否（forbidden）を見るため castA1a を tx 内で出勤打刻（ROLLBACK で消える）＝未出勤だと先に off duty
+      await db.query("insert into public.punches (org_id, store_id, cast_id, type, source, punched_at) select $1, $2, c.id, 'in', 'manager', now() from public.casts c where c.user_id = $3 and c.store_id = $2", [orgA, A1.id, castU.id]);
       const badSet = [];
       for (const [who, sql, p] of [
         [owner, `select public.check_referral_set($1,$2,'xx',1,'store',null,null)`, [chk, refN]],

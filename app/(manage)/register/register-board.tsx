@@ -300,10 +300,12 @@ const DTAB_ICON: Record<"order" | "nom" | "pay", React.ReactNode> = {
 };
 
 export default function RegisterBoard({
-  seats, products, categories, casts, isManagerUp, showReserve, storeId, kioskNoms,
+  seats, products, categories, casts, isManagerUp, showReserve, storeId, kioskNoms, castLevel = null,
 }: {
   seats: Seat[]; products: Product[]; categories: Category[]; casts: Cast[]; isManagerUp: boolean;
   showReserve: boolean; storeId: string;
+  /** ★裁定473（M-131・2026-11-10）: キャスト本人のセッションの段階（1＝注文のみ／2＝会計まで・キャスト以外は null）＝注文のみなら会計タブを出さない（RPC も check_pay／check_close で拒否） */
+  castLevel?: 1 | 2 | null;
   /** ★便 E（0196 用＝裁定448 §6-4）: 端末セッションのレジ＝kiosk_register_state の checks[].nominations（checkId → cast_id[]）。RLS で check_nominations が読めない端末でも顔チップを出す */
   kioskNoms?: Record<string, string[]>;
 }) {
@@ -2947,7 +2949,7 @@ export default function RegisterBoard({
         {/* 段R2: 3タブ（planA .dtabs）。★キー・ラベル・切替ハンドラは不変＝収容先だけを変えた。
             ★裁定360（GV-8・便 GV-A）: 3 分割セグメント（等幅・高さ 1.5 倍・アイコン・選択中 金塗り・会計は右端で主ボタン色）＝伝票上部に sticky（裁定367 の器） */}
         <div className="nox-dtabs nox-dtabs--seg" data-dtabs-seg="1">
-          {([["order", "注文"], ["nom", "指名・席"], ["pay", "会計"]] as const).map(([k, label]) => (
+          {([["order", "注文"], ["nom", "指名・席"], ["pay", "会計"]] as const).filter(([k]) => !(k === "pay" && castLevel === 1)).map(([k, label]) => (/* ★裁定473: 注文のみのキャストに会計タブは出さない */
             <button key={k} type="button" className={`${dtab === k ? "on" : ""}${k === "pay" ? " pay" : ""}`} onClick={() => setDtab(k)}>{DTAB_ICON[k]}{label}</button>
           ))}
         </div>

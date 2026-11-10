@@ -22,7 +22,7 @@ let ok = 0; const fails: string[] = [];
 const expect = (label: string, cond: boolean, detail?: unknown) => { if (cond) ok++; else fails.push(`${label}${detail !== undefined ? `: ${JSON.stringify(detail)}` : ""}`); };
 const ENTRY = ["kiosk_login", "kiosk_unlock", "kiosk_qr_secret", "kiosk_qr_poll", "cast_leave", "staff_deactivate"];
 const NEW_FNS = ["duty_gate_of", "on_duty_of", "assert_on_duty", "kiosk_device_bind", "kiosk_device_unbind", "kiosk_reactivate", "kiosk_delete"];
-const FN_PIN = 422; // ★0198（2026-11-09）: 419→422（cast_loan_grant／cast_loan_repay／cast_day_applied_of） // ★0197（2026-11-06）: 418→419（register_day_grant_set） // ★0196（2026-11-06）: 416→418（新設 2＝kiosk_person_claim／kiosk_person_end） // ★0195（2026-11-05）: 410→416（新設 6） // ★0194（2026-11-04）: 409→410（kiosk_stock_levels） // ★0193（2026-11-04）: 403→409（新設 6） // ★0192（2026-11-02 適用）: 394→403（新設 9）← ★0191（2026-10-30 適用）: 393→394（setup_draft_set）← ★0190: 386→393
+const FN_PIN = 427; // ★0200（2026-11-10 手貼り）: 422→427（+6−1） // ★0198（2026-11-09）: 419→422（cast_loan_grant／cast_loan_repay／cast_day_applied_of） // ★0197（2026-11-06）: 418→419（register_day_grant_set） // ★0196（2026-11-06）: 416→418（新設 2＝kiosk_person_claim／kiosk_person_end） // ★0195（2026-11-05）: 410→416（新設 6） // ★0194（2026-11-04）: 409→410（kiosk_stock_levels） // ★0193（2026-11-04）: 403→409（新設 6） // ★0192（2026-11-02 適用）: 394→403（新設 9）← ★0191（2026-10-30 適用）: 393→394（setup_draft_set）← ★0190: 386→393
 const FN_COUNT_SQL = `select count(*)::int n from pg_proc where pronamespace='public'::regnamespace`;
 
 async function main() {
@@ -75,12 +75,12 @@ async function main() {
     const o1 = await tx.as(mgr, `select public.check_open($1, 1) r`, [seat]);
     const auN1 = (await tx.one<{ n: string }>(AU_SQL, [A1.id]))!.n;
     expect("manager（打刻なし）＝check_open は通る・audit に 'off_duty_exempt'（target＝check_open）が +1 行", o1.ok && Number(auN1) === Number(auN0) + 1, { o1: tx.errOf(o1), auN0, auN1 });
-    // duty_gate=false＝cast も通る
+    // ★0200（2026-11-10・裁定472）: duty_gate=false の例外は廃止＝cast は打刻なしなら 'off duty'（裁定455 の例外を廃止・旧＝「cast も通る」）
     await c.query(`update public.stores set settings_json = coalesce(settings_json, '{}'::jsonb) || '{"duty_gate":false}'::jsonb where id = $1`, [A1.id]);
     await c.query(`delete from public.punches where cast_id = $1 and punched_at > now() - interval '2 days'`, [castId]);
     await tx.asUid(castA.auth_user_id); await c.query("reset role");
     const a2 = await tx.call(`select public.assert_on_duty('check_pay')`);
-    expect("店設定 duty_gate=false＝打刻なしでも通る（assert は何もしない）", a2.ok, tx.errOf(a2));
+    expect("★0200 店設定 duty_gate=false でも打刻なしは 'off duty'（例外の廃止＝裁定472）", !a2.ok && /off duty/.test(tx.errOf(a2)), tx.errOf(a2));
     const s1 = await tx.as(owner, `select public.set_store_profile($1, '{"duty_gate": true}'::jsonb)`, [A1.id]);
     const s2 = await tx.as(owner, `select public.set_store_profile($1, '{"duty_gate": "x"}'::jsonb)`, [A1.id]);
     const dg = await tx.one<{ v: boolean }>(`select public.duty_gate_of($1) v`, [A1.id]);
@@ -93,10 +93,10 @@ async function main() {
     await tx.asUid(staffU.auth_user_id); await c.query("reset role");
     const b1 = await tx.call(`select public.assert_on_duty('check_add_line')`);
     expect("staff（打刻なし）＝'off duty'・staff_punches に in を入れると通る", !b0.ok && /off duty/.test(tx.errOf(b0)) && b1.ok, { b0: tx.errOf(b0), b1: tx.errOf(b1) });
-    // 置き場＝25 本に assert の行
+    // 置き場＝27 本に assert の行（★0200: +receipt_issue／bottle_keep_register）
     const gated = (await tx.one<{ n: string }>(`select count(*)::text n from pg_proc where pronamespace='public'::regnamespace and prosrc like '%assert_on_duty(''%' and proname <> 'assert_on_duty'`))!.n;
     const notGated = (await tx.one<{ n: string }>(`select count(*)::text n from pg_proc where pronamespace='public'::regnamespace and proname in ('product_stock_add','daily_report_close') and prosrc like '%assert_on_duty%'`))!.n;
-    expect("assert の置き場＝レジの check_*＋approval 25 本・在庫（product_stock_add）と日報（daily_report_close）には無い", gated === "25" && notGated === "0", { gated, notGated });
+    expect("assert の置き場＝レジの check_*＋approval 25 本＋★0200 の領収書・キープ 2 本＝27・在庫（product_stock_add）と日報（daily_report_close）には無い", gated === "27" /* ★0200（裁定472）: 領収書・キープも出勤中だけ＝25→27 */ && notGated === "0", { gated, notGated });
     // ── 端末の束縛（A1 の端末 fixture＝owner の auth ユーザーを端末として使う・ROLLBACK で消える） ──
     const dev = (await tx.one<{ id: string }>(`insert into public.kiosk_devices (org_id, store_id, auth_user_id, label, purpose) values ($1, $2, $3, 'NOX-VERIFY-0190 端末', 'register') returning id`, [A1.org_id, A1.id, owner.auth_user_id]))!.id;
     const bd1 = await tx.as(owner, `select public.kiosk_device_bind('fp-aaaaaaaaaaaa', 'Mozilla/5.0 iPad') r`);

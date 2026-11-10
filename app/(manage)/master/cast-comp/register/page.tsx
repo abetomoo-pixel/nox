@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getSessionRole } from "@/lib/nox/auth";
 import CastRegisterPanel from "../../cast-register-panel";
+import { castRegisterLevelOf } from "@/lib/nox/rules-0175/cast-register"; // ★裁定473
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +17,7 @@ export default async function CastCompRegisterPage() {
   const store = stores?.[0];
   const storeId = (store?.id as string | undefined) ?? "";
   if (!storeId) redirect("/master");
-  const castRegEnabled = (store?.settings_json as Record<string, unknown> | null)?.cast_register_enabled === true;
+  const castRegEnabled = castRegisterLevelOf((store?.settings_json as Record<string, unknown> | null) ?? null) > 0; // ★裁定473（M-131）: 正本＝段階（sys_cast_register ≠ 0＝有効・旧 cast_register_enabled は互換）
   const { data: casts } = await supabase.from("casts").select("id, name, user_id")
     .eq("store_id", storeId).eq("is_active", true).order("name");
   const castUserIds = (casts ?? []).map((c) => c.user_id).filter(Boolean) as string[];

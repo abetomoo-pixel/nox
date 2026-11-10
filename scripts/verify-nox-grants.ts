@@ -681,7 +681,8 @@ async function main() {
     // G17: キャスト会計（mig0039）— 店/cast フラグ書込 RPC 2本の EXECUTE ACL。
     //   auth_cast_can_register の属性/ACL は G4/G4b が HELPERS 配列追加で自動回帰＝ここは書込 RPC のみ。
     //   RLS cast 枝（8表）と会計8RPC の cast 枝は runtime（anon-guard 段31）で実測＝ここは positive ACL。
-    for (const fn of ["set_store_cast_register", "set_cast_register"]) {
+    //   ★0200（2026-11-10・裁定473）: 店側の setter（set_store_cast_register）は drop＝店のレジ使用は set_store_profile の sys_cast_register（白名単）へ一本化＝ここは cast 側の 1 本だけ。
+    for (const fn of ["set_cast_register"]) {
       const roles = await roleOf(fn);
       check(`G17 ${fn} EXECUTE = authenticated（anon/public 不在）`,
         roles.includes("authenticated") && !roles.includes("anon") && !roles.includes("public"),

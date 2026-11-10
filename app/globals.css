@@ -3190,3 +3190,5 @@ html[data-kiosk-person-bar="1"] .nox-layout { padding-top: var(--nox-kpbar, 38px
 html[data-kiosk-person-bar="1"] .nox-side { top: var(--nox-kpbar, 38px); height: calc(100vh - var(--nox-kpbar, 38px)); }
 html[data-kiosk-person-bar="1"] .nox-tb { top: var(--nox-kpbar, 38px); }
 html[data-kiosk-person-bar="1"] .nox-regsticky { top: var(--nox-kpbar, 38px); }
+/* ★M-142（2026-11-10）: 初期設定の確認画面＝キャスト待遇のカードは PC で横 2 枠 */
+@media (min-width: 720px) { .nox-setup-wide { grid-column: span 2; } }

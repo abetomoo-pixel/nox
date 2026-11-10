@@ -24,7 +24,7 @@ import MoneyInput from "@/components/ui/money-input";
 import SegSelect from "@/components/ui/seg-select";
 import { rpcErrJa } from "@/lib/nox/ui/rpc-err";
 import { JOIN_MODE_LABEL, PAY_FEE_KEYS, PAY_FEE_KEY_LABEL, joinModeOf, payFeeRatesOf, type JoinMode, type PayFeeKey } from "@/lib/nox/register/p173"; // ★便 P173（裁定386／393・0173）
-import { mig0187On, mig0190On, mig0191On, mig0192On, mig0197On } from "@/lib/nox/rules-0175/flag"; // ★0187（便 CASH） // ★0190（裁定436 ①a）: 打刻ゲート
+import { mig0187On, mig0190On, mig0191On, mig0192On, mig0197On, mig0200On } from "@/lib/nox/rules-0175/flag"; // ★0187（便 CASH） // ★0190（裁定436 ①a）: 打刻ゲート
 import { PAY_ADJUST_LABEL, PAY_ADJUST_MODES, PAY_DISCOUNT_BASE_LABEL, discountRateInputOf, payAdjustHasDisc, payAdjustHasFee, payAdjustModeOf, payDiscountBaseOf, payDiscountRatesOf, type PayAdjustMode, type PayDiscountBase, type PayDiscountKey } from "@/lib/nox/rules-0175/pay-discount"; // ★0187（便 CASH・Agoora 確定 10/27）: 支払方法の調整（なし／カード手数料／現金割引／両方）と割引対象
 import { PAY_TIME_BASIS_LABEL, payTimeBasisApplyNoteOf, payTimeBasisApplyOf, payTimeBasisViewOf, type PayTimeBasis, type PayTimeBasisView } from "@/lib/nox/payroll/time-basis"; // ★裁定324（0159・便 C-1）: 勤務時間の計算基準 // ★裁定317（0158・便 AB-6）: 送りの基本額（okuri_base_amount・0〜99,999 の整数・空欄＝未設定＝0 を送る）
 type Store = { id: string; name: string };
@@ -125,7 +125,7 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
       if (form.pay_disc_base !== cur.pay_disc_base) out.pay_discount_base = form.pay_disc_base;
     }
     // ★0190（裁定436 ①a・MIG_0190_APPLIED）: 打刻ゲート＝boolean を明示値で送る（規約 7・白名単 'duty_gate'）。フラグ false の間は送らない（白名単に無い＝'bad key'）
-    if (mig0190On() && form.duty_gate !== cur.duty_gate) out.duty_gate = form.duty_gate === true;
+    // ★M-143: duty_gate は送らない（スイッチを撤去）
     // ★0192 M-49（MIG_0192_APPLIED）: kiosk_person_idle_minutes＝整数 1〜120（白名単・検証は RPC＝'bad kiosk_person_idle_minutes'）。フラグ false の間は送らない
     if (mig0192On() && form.kiosk_person_idle !== cur.kiosk_person_idle) out.kiosk_person_idle_minutes = Number(form.kiosk_person_idle);
     // ★便 E（0197 用＝裁定455）: punch_mode と窓の 2 キー（白名単は 0197＝フラグ false の間は送らない）
@@ -374,13 +374,7 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
                   ))}
                 </div>
               </div>
-              {mig0190On() && (/* ★0190（裁定436 ①a・相談役案）: 打刻ゲート＝settings_json.duty_gate（既定 ON）。ON の店は check_*／approval_* の冒頭で assert_on_duty（当日の出勤打刻が無い cast／staff は 'off duty'・店長以上は免除＝audit 'off_duty_exempt'） */
-                <div style={{ minWidth: 0 }} data-duty-gate="0190">
-                  <span style={label}>打刻ゲート（出勤していない人はレジを使えない）</span>
-                  {onOff(form.duty_gate, "打刻ゲート", (b) => setForm((f) => ({ ...f, duty_gate: b })))}
-                  <span style={{ ...t.sub, display: "block", fontSize: 11.5, marginTop: 4, lineHeight: 1.7 }}>ON＝キャスト／スタッフは出勤の打刻をしてからレジを開けます（店長以上は免除・監査に印）。キオスク端末を置かない店は OFF にしてください</span>
-                </div>
-              )}
+              {/* ★M-143（2026-11-10）: 打刻ゲート（duty_gate）のスイッチは撤去＝裁定472 で例外が廃止（レジは常に出勤中だけ・DB の白名単の duty_gate は読まれない） */}
               {mig0192On() && (/* ★0192 M-49: キオスクの「本人でログイン」＝無操作 N 分で端末のセッションに戻す（店設定 kiosk_person_idle_minutes・1〜120・既定 10） */
                 <label style={{ minWidth: 0, display: "grid", gap: 3 }} data-kiosk-person-idle="0192">
                   <span style={label}>キオスクの本人でログイン：無操作で戻すまで</span>

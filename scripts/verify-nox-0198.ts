@@ -32,7 +32,7 @@ check("0198(2-1) 収蔵＝sha16 ed90503b54b54acd・begin〜commit 1 回・lock_t
     // (3) 22 行
     const rows = (await pc.query(fs.readFileSync("docs/tmp/0198_verify.sql", "utf8"))).rows as { k: string; v: string }[];
     const exp: Record<string, string> = {
-      "fn count (expect 422)": "422", "table count (expect 120)": "120", "view count cast_loans/cast_loan_balances (expect 2)": "2", "new fns grant/repay (expect 2)": "2",
+      "fn count (expect 422)": "427", "table count (expect 120)": "121", /* ★0200（2026-11-10 手貼り）: 422→427・表 120→121 */ "view count cast_loans/cast_loan_balances (expect 2)": "2", "new fns grant/repay (expect 2)": "2",
       "set_comp_plan 33 args (expect 1)": "1", "set_comp_plan 32 args (expect 0)": "0", "cols comp_plans agreed (expect 2)": "2", "cols advances ack (expect 3)": "3",
       "anon exec on 3 fns (expect 0)": "0", "authenticated exec on 3 fns (expect 3)": "3", "views grants authenticated=SELECT only (expect SELECT,SELECT)": "SELECT,SELECT",
       "views grants anon (expect 0)": "0", "views security_invoker (expect 2)": "2", "cast_loan_grant uses crypt+adv_issue (expect yes)": "yes", "set_comp_plan writes agreed (expect yes)": "yes",
@@ -43,7 +43,7 @@ check("0198(2-1) 収蔵＝sha16 ed90503b54b54acd・begin〜commit 1 回・lock_t
     const ack = rows.find((r) => r.k.startsWith("advances ack_method none"))?.v ?? "";
     check("0198(3-1) 検証 22 行＝期待値どおり（Agoora の返り 2026-11-09 と同値・ack none は手貼り後の貸付で全数以下）", rows.length === 22 && bad.length === 0 && ack.split("/").length === 2 && ack.split("/").every((x) => x !== "" && Number.isInteger(Number(x))) && Number(ack.split("/")[0]) <= Number(ack.split("/")[1]), { n: rows.length, bad, ack }); // ★手貼り直後は none＝全数（6/6）・その後の貸付（ack manager／pin）で none ≤ 全数
     const md = (await pc.query(`select proname, left(md5(replace(prosrc, chr(13), '')), 8) m from pg_proc where pronamespace='public'::regnamespace and proname in ('cast_loan_grant','cast_loan_repay','cast_day_applied_of','set_comp_plan','demo_org_reset','cast_day_deductions_set','kiosk_punch') order by 1`)).rows as { proname: string; m: string }[];
-    const pin: Record<string, string> = { cast_day_applied_of: "adc29e6e", cast_day_deductions_set: "5a60959e", cast_loan_grant: "78b7b5a3", cast_loan_repay: "d34198b6", demo_org_reset: "a3f58a25", kiosk_punch: "1b5eb974", set_comp_plan: "35bd14f3" };
+    const pin: Record<string, string> = { cast_day_applied_of: "adc29e6e", cast_day_deductions_set: "5a60959e", cast_loan_grant: "78b7b5a3", cast_loan_repay: "d34198b6", demo_org_reset: "f3a12f49" /* ★0200＋0200b（2026-11-10）: a3f58a25→a40dafba（0200 ★8）→f3a12f49（0200b＝c_load のコメントを行頭へ） */, kiosk_punch: "1b5eb974", set_comp_plan: "35bd14f3" };
     check("0198(3-2) 7 関数の prosrc md5＝手貼り直後の live（2026-11-09）", md.length === 7 && md.every((x) => pin[x.proname] === x.m), md);
     const wipe = (await pc.query(`select prosrc like '%''cast_day_deductions'',''deduction_rule_casts'',''availability_terms'',''availability'',''register_day_grants'',''staff_allowances''%' w from pg_proc where pronamespace='public'::regnamespace and proname='demo_org_reset'`)).rows[0].w;
     check("0198(3-3) ★5 demo_org_reset の c_wipe に 6 表（availability_terms が memberships より前）", wipe === true);
@@ -104,10 +104,10 @@ check("0198(2-1) 収蔵＝sha16 ed90503b54b54acd・begin〜commit 1 回・lock_t
       // ★7
       const n7 = (await pc.query(`select count(*)::int n from pg_constraint where connamespace='public'::regnamespace and contype='f' and confdeltype='n' and conname in ('availability_terms_updated_by_fkey','cast_day_deductions_set_by_fkey','register_day_grants_granted_by_fkey','deduction_rule_casts_set_by_fkey')`)).rows[0].n;
       check("0198(4-20) ★7 監査系 FK＝set null（availability_terms.updated_by ほか）", n7 === 4, n7);
-      const mid = await cnt(); check("0198(4-21) tx 内も関数 422・表 120", mid.f === 422 && mid.t === 120, mid);
+      const mid = await cnt(); check("0198(4-21) tx 内も関数 422・表 120", mid.f === 427 && mid.t === 121 /* ★0200（2026-11-10 手貼り）: 422→427・表 120→121 */, mid);
     } finally { await pc.query("rollback"); }
     const after = await cnt();
-    check("0198(4-22) ROLLBACK＝DB 変更 0（関数 422・表 120）", after.f === before.f && after.t === before.t && after.f === 422, after);
+    check("0198(4-22) ROLLBACK＝DB 変更 0（関数 422・表 120）", after.f === before.f && after.t === before.t && after.f === 427 /* ★0200（2026-11-10 手貼り）: 422→427・表 120→121 */, after);
   } finally { await pc.end(); }
   if (fails.length) { console.error(`FAIL ${fails.length} 件 / pass ${pass}`); for (const f of fails) console.error(" - " + f); process.exit(1); }
   console.log(`verify:nox-0198 ALL PASS (${pass} assertions)`);

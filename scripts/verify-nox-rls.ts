@@ -25,7 +25,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { randomUUID } from "node:crypto";
 import {
   ORG_A, ORG_B, STORE_A1, STORE_A2, STORE_B1, FIXTURE_USERS, FIXTURE_CUSTOMERS, loadEnvOrExit,
-  type FixtureUserKey, endedRuns } from "./fixtures-f0"; // ★起票88: 確定の直前に run を「終了済み」にする（0158 ★3 の確定ガード）
+  type FixtureUserKey, endedRuns, punchInForVerify } from "./fixtures-f0"; // ★起票88: 確定の直前に run を「終了済み」にする（0158 ★3 の確定ガード）
 import { allocateQty, productBackOf, type Product, type NomType } from "../lib/nox/pay";
 import { addDays, bizDateOf } from "../lib/nox/biz-date";
 import { groupDue } from "../lib/nox/check-calc";
@@ -2877,10 +2877,13 @@ async function main() {
       const chk1 = c1 as string; made.push(chk1);
       {
         const st = await signIn("staffA1"); // can_register=false
+        // ★0200（2026-11-10・裁定472）: レジの操作は出勤中だけ＝can_register の柵を見るため 2 人を出勤中にしてから呼ぶ（未出勤だと先に off duty）
+        const offB = await punchInForVerify(admin, ["staffA1", "castA1a"]);
         const { error } = await st.rpc("check_add_seat", { p_check_id: chk1, p_seat_id: Y });
         check("B1/B2 staffA1（can_register無）check_add_seat 拒否", !!error?.message?.includes("forbidden"), error?.message ?? "通ってしまった");
         const { error: eC } = await ca.rpc("check_add_seat", { p_check_id: chk1, p_seat_id: Y });
         check("B1/B2 castA1a（can_register無）check_add_seat 拒否", !!eC?.message?.includes("forbidden"), eC?.message ?? "通ってしまった");
+        await offB();
         const mb = await signIn("managerB1");
         const { error: eB } = await mb.rpc("check_move_seat", { p_check_id: chk1, p_to_seat_id: Z });
         check("B1/B2 managerB1（他org）check_move_seat 拒否", !!eB?.message?.includes("forbidden"), eB?.message ?? "通ってしまった");

@@ -43,14 +43,14 @@ check("0199(2-2) M-114 純関数＝lineNotifyPatchOf は 4 鍵を常に明示（
     // (3) 9 行
     const rows = (await pc.query(src("docs/tmp/0199_verify.sql"))).rows as { k: string; v: string }[];
     const exp: Record<string, string> = {
-      "fn count (expect = before = 422 after 0198 / 419 before)": "422", "set_store_profile count (expect 1)": "1", "whitelist has line_notify (expect yes)": "yes", "bad line_notify guard (expect yes)": "yes",
+      "fn count (expect = before = 422 after 0198 / 419 before)": "427" /* ★0200（2026-11-10 手貼り）: 422→427・表 120→121 */, "set_store_profile count (expect 1)": "1", "whitelist has line_notify (expect yes)": "yes", "bad line_notify guard (expect yes)": "yes",
       "set_store_profile anon/authenticated exec (expect 0/1)": "0/1", "kiosk_person_claim cast branch (expect yes)": "yes", "kiosk_person_claim anon/authenticated/service_role exec (expect 0/0/1 = route の service_role だけ)": "0/0/1",
     };
     const bad = rows.filter((r) => exp[r.k] !== undefined && exp[r.k] !== r.v).map((r) => `${r.k}=${r.v}`);
     const ln = rows.find((r) => r.k.startsWith("no store has line_notify yet"))?.v ?? "";
     check("0199(3-1) 検証 9 行＝期待値どおり（Agoora の返り 2026-11-10 と同値・line_notify を持つ店は手貼り直後 0・client の保存で増える＝整数）", rows.length === 9 && bad.length === 0 && /^\d+$/.test(ln), { n: rows.length, bad, ln });
     const md = (await pc.query(`select proname, left(md5(replace(prosrc, chr(13), '')), 8) m from pg_proc where pronamespace='public'::regnamespace and proname in ('set_store_profile','kiosk_person_claim') order by 1`)).rows as { proname: string; m: string }[];
-    check("0199(3-2) 2 関数の prosrc md5＝手貼り直後の live（2026-11-10）", md.length === 2 && md[0].m === "bb2f83f6" && md[1].m === "287f6800", md);
+    check("0199(3-2) 2 関数の prosrc md5＝手貼り直後の live（2026-11-10）", md.length === 2 && md[0].m === "bb2f83f6" && md[1].m === "f4347735" /* ★0200: 287f6800→f4347735 */, md);
     // (4) BEGIN…ROLLBACK
     const cnt = async () => (await pc.query(`select (select count(*)::int from pg_proc where pronamespace='public'::regnamespace) f, (select count(*)::int from pg_tables where schemaname='public') t`)).rows[0] as { f: number; t: number };
     const before = await cnt();
@@ -102,10 +102,10 @@ check("0199(2-2) M-114 純関数＝lineNotifyPatchOf は 4 鍵を常に明示（
         if (stf) { await mkSession(stf.id, stf.user_id); r2 = await claim(); check("0199(4-14) ★2 staff は従来どおり ok", r2.ok && r2.j.role === "staff", r2.ok ? "ok" : r2.err); await endAll(); } else check("0199(4-14) staff（auth あり）が A1 に無い", false);
         await mkSession(owner.id, owner.user_id); r2 = await claim(); check("0199(4-15) ★2 owner は従来どおり forbidden（管理者は通常ログイン）", !r2.ok && /forbidden/.test(r2.err), r2.ok ? "ok" : r2.err); await endAll();
       } else check("0199(4-11〜15) cast membership（auth あり）と端末", false);
-      const mid = await cnt(); check("0199(4-16) tx 内も関数 422・表 120（作り直し 2＝関数数不変）", mid.f === 422 && mid.t === 120, mid);
+      const mid = await cnt(); check("0199(4-16) tx 内も関数 422・表 120（作り直し 2＝関数数不変）", mid.f === 427 && mid.t === 121 /* ★0200（2026-11-10 手貼り）: 422→427・表 120→121 */, mid);
     } finally { await pc.query("rollback"); }
     const after = await cnt();
-    check("0199(4-17) ROLLBACK＝DB 変更 0（関数 422・表 120）", after.f === before.f && after.t === before.t && after.f === 422, after);
+    check("0199(4-17) ROLLBACK＝DB 変更 0（関数 422・表 120）", after.f === before.f && after.t === before.t && after.f === 427 /* ★0200（2026-11-10 手貼り）: 422→427・表 120→121 */, after);
   } finally { await pc.end(); }
   if (fails.length) { console.error(`FAIL ${fails.length} 件 / pass ${pass}`); for (const f of fails) console.error(" - " + f); process.exit(1); }
   console.log(`verify:nox-0199 ALL PASS (${pass} assertions)`);

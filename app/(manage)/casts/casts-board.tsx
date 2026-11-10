@@ -1545,7 +1545,7 @@ export default function CastsBoard({
                 <span className="k">レジの許可</span>{/* ★便 M5 M-44: 本人の許可の置き場＝マスタ › キャスト待遇 › レジ会計（店 ON＋本人・set_cast_register）＝ここは案内だけ（二重の編集口を作らない） */}
                 <span className="v" data-cast-register-pointer="1">
                   <Link href="/master/cast-comp/register" style={{ color: "var(--champ)", fontSize: 12.5 }}>マスタ › キャスト待遇 › レジ会計 で許可</Link>
-                  <span style={{ display: "block", fontSize: 11.5, color: "var(--v2-muted)", marginTop: 4 }}>店の「キャストのレジ使用」ON ＋ 本人の許可 ＋（打刻ゲート ON の店は）出勤中 で、本人のマイページのナビに「レジ」が出ます</span>
+                  <span style={{ display: "block", fontSize: 11.5, color: "var(--v2-muted)", marginTop: 4 }}>店の「キャストのレジ使用」ON ＋ 本人の許可 ＋ 出勤中 で、本人のマイページのナビに「レジ」が出ます</span>
                 </span>
               </div>
               {/* ★v3.1 K36（C1）: 説明文をモックの2カード語彙「本人レコード／NOXログインアカウント」へ寄せる（構造は現行の行形式のまま） */}

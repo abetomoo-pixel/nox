@@ -23,6 +23,8 @@ import { Message } from "@/components/ui/toast";
 import { attachStaffAllowances, staffContractLineOf, hmOf, staffHoursOf, staffMonthRangeOf, staffPayOf, type StaffAllowanceRow, type StaffContract, type StaffPunch } from "@/lib/nox/staff/pay"; // ★0195: attachStaffAllowances
 import { mig0183On, mig0188On, mig0192On, mig0194On, mig0195On } from "@/lib/nox/rules-0175/flag"; // ★裁定432（0183 ★4）・★0192 ★1／M-38: スタッフ勤怠の修正・確定・退勤の取消 ★0194: 確定額の凍結
 import { effectivePayKindOf } from "@/lib/nox/staff/work"; // ★M-90
+import { mig0200On } from "@/lib/nox/rules-0175/flag"; // ★M-130（裁定471・0200）: 支払い済み
+import { STAFF_PAID_UNLOCK_NOTE, STAFF_PAY_METHOD_LABEL, staffPayMarkableOf, staffUnlockableOf, type StaffLaborPayment, type StaffPayMethod } from "@/lib/nox/staff/labor-payment"; // ★M-130
 import { staffLaborRowOf } from "@/lib/nox/staff/labor"; // ★0194（裁定445 ①②）: 月の確定と同時に送る確定額の行（内訳つき）
 import Withholding432Panel from "@/components/nox/withholding-432-panel";
 import { WITHHOLDING_ADVICE_NOTE, WITHHOLDING_KIND_LABEL, WITHHOLDING_KIND_SELECT_NOTE, WITHHOLDING_KIND_SHORT, PAYMENT_REPORT_NOTE, defaultWithholdingKindOf, withholdingKindChoices, withholdingKindOf, type EmployeeDeductionKind, type EmployeeDeductionRow } from "@/lib/nox/payroll/withholding-kind";
@@ -62,6 +64,9 @@ export default function StaffWorkPanel({ scope, stores, daily = false, initialMe
   const [dayEdit, setDayEdit] = useState<{ mem: string; date: string; punches: boolean; inHm: string; outHm: string; status: "" | StaffDayStatus; note: string } | null>(null);
   const [attMsg, setAttMsg] = useState<{ kind: "success" | "error"; text: string } | null>(null);
   const [attBusy, setAttBusy] = useState(false);
+  // ★M-130（裁定471・MIG_0200 配下）: スタッフ給与の支払い記録（店×月 1 行）と「支払い済みにする」の入力（支払日・方法）
+  const [paidByStore, setPaidByStore] = useState<Record<string, StaffLaborPayment>>({});
+  const [payForm, setPayForm] = useState<{ storeId: string; paidOn: string; method: StaffPayMethod; idem: string } | null>(null);
 
   const load = useCallback(async () => {
     setErr(null);
@@ -95,6 +100,7 @@ export default function StaffWorkPanel({ scope, stores, daily = false, initialMe
       ]);
       setDayStatus(Object.fromEntries(((ds.data ?? []) as { membership_id: string; biz_date: string; status: string }[]).filter((r) => isStaffDayStatus(r.status)).map((r) => [`${r.membership_id}|${r.biz_date}`, r.status as StaffDayStatus])));
       setLockedStores(new Set(((ls.data ?? []) as { store_id: string }[]).map((r) => r.store_id)));
+      if (mig0200On()) { const { data: pd } = await supabase.from("staff_labor_payments").select("store_id, period, paid_on, method, amount, headcount, note").eq("period", month); setPaidByStore(Object.fromEntries(((pd ?? []) as (StaffLaborPayment & { store_id: string })[]).map((p) => [p.store_id, p]))); } // ★M-130
       if (mig0194On()) { const { data: fz } = await supabase.from("staff_labor_confirmed").select("membership_id, amount, time_pay").eq("period", month); setFrozen(Object.fromEntries(((fz ?? []) as { membership_id: string; amount: number; time_pay: number }[]).map((r) => [r.membership_id, { amount: r.amount, time_pay: r.time_pay }]))); } // ★0194
     }
     if (mig0183On()) { // ★裁定432
@@ -215,7 +221,10 @@ export default function StaffWorkPanel({ scope, stores, daily = false, initialMe
         const statusOfMem = Object.fromEntries(Object.entries(dayStatus).filter(([key]) => key.startsWith(`${r.m.id}|`)).map(([key, v]) => [key.slice(r.m.id.length + 1), v])); // ★0192 ★1
         const dayRows = staffDayRowsOf(punches.filter((p) => p.membership_id === r.m.id), todayBiz, statusOfMem);
         const att = mig0192On() && scope === "store"; // ★0192 ★1／M-38: 店の修正・確定・退勤の取消
-        const monthLocked = lockedStores.has(r.m.store_id);
+        const paid = paidByStore[r.m.store_id] ?? null; // ★M-130: この店・この月の支払い記録（0200）
+        // ★0200 フラグ便（2026-11-10）: 支払い済みの月は確定済みと同じに扱う（DB も 'paid period' で解除・再確定を拒む）。
+        //   デモは勤怠の確定（staff_attendance_locks）を reset で読み込まない＝支払い記録だけの月が「未確定＋確定ボタン」に見えて押すと弾かれる食い違いを画面で起こさない。
+        const monthLocked = lockedStores.has(r.m.store_id) || !!paid;
         const todayOutRow = dayRows.find((d) => d.bizDate === todayBiz && !!d.outHm) ?? null;
         const openDay = (d: { bizDate: string; inHm: string | null; outHm: string | null }) => setDayEdit({ mem: r.m.id, date: d.bizDate, punches: false, inHm: d.inHm ?? "", outHm: d.outHm ?? "", status: statusOfMem[d.bizDate] ?? "", note: "" });
         const saveDay = async () => {
@@ -237,6 +246,23 @@ export default function StaffWorkPanel({ scope, stores, daily = false, initialMe
           setAttBusy(false);
           if (error) { setAttMsg({ kind: "error", text: error.message.includes("forbidden") ? (lock ? "権限がありません（自店の店長以上）" : "権限がありません（自店の店長以上）") : error.message.includes("labor mismatch") ? `確定額の再計算が合いません（画面を読み直してからもう一度）: ${error.message}` : `失敗: ${rpcErrJa(error.message)}` }); return; }
           setAttMsg({ kind: "success", text: lock ? `${month.replace("-", "/")} のスタッフ勤怠を確定しました` : "確定を解除しました" }); await load();
+        };
+        // ★M-130（裁定471）: 支払い済みにする（店長以上・確定済みの月だけ）／取消（店長以上）＝staff_labor_mark_paid／unmark（冪等キーは開くたびに 1 つ）
+        const markPaid = async () => {
+          if (!payForm || attBusy) return;
+          setAttBusy(true); setAttMsg(null);
+          const { error } = await supabase.rpc("staff_labor_mark_paid", { p_store_id: payForm.storeId, p_period: month, p_paid_on: payForm.paidOn, p_method: payForm.method, p_idem_key: payForm.idem, p_note: null });
+          setAttBusy(false);
+          if (error) { setAttMsg({ kind: "error", text: error.message.includes("not confirmed") ? "先にこの月を確定してください" : error.message.includes("already paid") ? "この月は支払い済みです" : "支払い済みにできませんでした: " + errJa(error.message) }); return; }
+          setPayForm(null); setAttMsg({ kind: "success", text: month.replace("-", "/") + " のスタッフ給与を支払い済みにしました（月報の経費一覧に支払い記録）" }); await load();
+        };
+        const unmarkPaid = async () => {
+          if (attBusy || !window.confirm(month.replace("-", "/") + " の支払い済みを取り消しますか（月報の経費一覧の支払い記録も消えます）")) return;
+          setAttBusy(true); setAttMsg(null);
+          const { error } = await supabase.rpc("staff_labor_unmark_paid", { p_store_id: r.m.store_id, p_period: month });
+          setAttBusy(false);
+          if (error) { setAttMsg({ kind: "error", text: "取り消せませんでした: " + errJa(error.message) }); return; }
+          setAttMsg({ kind: "success", text: "支払い済みを取り消しました" }); await load();
         };
         const cancelOut = async () => {
           if (attBusy || !window.confirm(`${r.name} の今日の退勤（${todayOutRow?.outHm ?? ""}）を取り消して勤務中に戻しますか`)) return;
@@ -263,10 +289,30 @@ export default function StaffWorkPanel({ scope, stores, daily = false, initialMe
                 <div className="nox-actions" data-staff-att-actions="1">{/* ★M-63（2026-11-04 Agoora 実機）: 「＋ 日を追加・修正」「この月を確定」は左右端ではなく 2 つ並べて中央（.nox-actions の既定＝裁定242／教訓122・間隔 gap 8 は既存のボタン群と同じ・marginLeft:auto を外す） */}
                   {monthLocked ? <span className="nox-stpill" data-staff-att-locked="1">この月は確定済み</span> : <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} data-staff-att-add="1" disabled={attBusy} onClick={() => openDay({ bizDate: todayBiz, inHm: null, outHm: null })}>＋ 日を追加・修正</button>}
                   {!monthLocked && todayOutRow && <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} data-staff-cancel-out="1" disabled={attBusy} onClick={() => void cancelOut()}>今日の退勤を取り消す</button>}
+                  {monthLocked && paid && (/* ★M-130: 支払い済みの印＋取消（店長以上）＝キャスト報酬の支払済みと同じピル */
+                    <><span className="nox-runbadge paid" data-staff-paid={paid.paid_on}>支払済 {paid.paid_on.slice(5).replace("-", "/")}・{STAFF_PAY_METHOD_LABEL[paid.method]}</span>
+                    <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} data-staff-unpaid="1" disabled={attBusy} onClick={() => void unmarkPaid()}>支払い済みを取り消す</button></>)}
+                  {mig0200On() && staffPayMarkableOf({ managerUp: att, locked: monthLocked, paid: !!paid }) && <button type="button" style={{ ...t.btnGold, ...t.btnSm }} data-staff-mark-paid="1" disabled={attBusy} onClick={() => setPayForm({ storeId: r.m.store_id, paidOn: todayBiz, method: "transfer", idem: crypto.randomUUID() })}>支払い済みにする</button>}
                   {monthLocked
-                    ? <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} data-staff-att-unlock="1" disabled={attBusy} onClick={() => void confirmMonth(false)}>確定を解除</button>
+                    ? (staffUnlockableOf({ locked: monthLocked, paid: !!paid }) ? <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} data-staff-att-unlock="1" disabled={attBusy} onClick={() => void confirmMonth(false)}>確定を解除</button> : <span style={{ ...t.sub, fontSize: 11.5 }} data-staff-unlock-blocked="1">{STAFF_PAID_UNLOCK_NOTE}</span>)
                     : <button type="button" style={{ ...t.btnGold, ...t.btnSm }} data-staff-att-lock="1" disabled={attBusy} onClick={() => { if (window.confirm(`${month.replace("-", "/")} のスタッフ勤怠を確定しますか（以後この月の修正・取消はできません）`)) void confirmMonth(true); }}>この月を確定</button>}
                 </div>
+                {payForm && payForm.storeId === r.m.store_id && (/* ★M-130: 支払い済みにする（支払日・方法＝現金／振込）＝キャスト報酬の支払済みと同じ確認の型・額は確定額の合計（RPC が数える） */
+                  <Modal onClose={() => { if (!attBusy) setPayForm(null); }} maxWidth={420}>
+                  <div data-staff-pay-form="1" style={{ display: "grid", gap: 10, padding: "4px 2px" }}>
+                    <h3 style={{ ...t.cardTitle, margin: 0 }}>{month.replace("-", "/")} のスタッフ給与を支払い済みにします</h3>
+                    <p style={{ ...t.sub, margin: 0, lineHeight: 1.7 }}>額は確定額の合計（総支給・事業主負担の社保は含めません）。月報の経費一覧に「給与（スタッフ）」の支払い記録を 1 行出します（利益には含めません）。</p>
+                    <label style={{ display: "grid", gap: 3 }}><span style={t.fieldLabel}>支払日</span><DatePicker value={payForm.paidOn} onChange={(v) => setPayForm({ ...payForm, paidOn: v })} todayYmd={todayBiz} ariaLabel="支払日" width={220} testId="staff-paid-on" /></label>
+                    <div style={{ display: "grid", gap: 3 }}><span style={t.fieldLabel}>支払方法</span>
+                      <SegSelect value={payForm.method} onChange={(v) => setPayForm({ ...payForm, method: v === "cash" ? "cash" : "transfer" })} options={[["transfer", "振込"], ["cash", "現金"]]} ariaLabel="支払方法" /></div>
+                    {attMsg && <Message kind={attMsg.kind} style={{ margin: 0 }}>{attMsg.text}</Message>}
+                    <div className="nox-actions">
+                      <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} disabled={attBusy} onClick={() => setPayForm(null)}>やめる</button>
+                      <button type="button" style={{ ...t.btnGold, ...t.btnSm }} data-staff-pay-submit="1" disabled={attBusy || !payForm.paidOn} onClick={() => void markPaid()}>{attBusy ? "処理中…" : "支払い済みにする"}</button>
+                    </div>
+                  </div>
+                  </Modal>
+                )}
                 {dayEdit && dayEdit.mem === r.m.id && (/* ★便 A M-67: 日の修正はモーダル（キャストの勤怠の修正と同じ型＝営業日は DatePicker・出勤／退勤は TimePicker・区分はボタン群・キャンセル／保存は中央） */
                   <Modal onClose={() => { if (!attBusy) setDayEdit(null); }} maxWidth={460} scroll>
                   <div data-staff-day-edit={dayEdit.date || "new"} style={{ display: "grid", gap: 8, padding: "4px 2px" }}>

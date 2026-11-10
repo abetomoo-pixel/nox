@@ -8,6 +8,11 @@ import { idleExpiredOf, kioskPersonAllowedOf, kioskPersonNoteOf } from "@/lib/no
 import { kioskPersonActive, kioskPersonMarkOf, leaveKioskPersonLogin } from "@/lib/nox/kiosk/person-login-client";
 import { KIOSK_PERSON_LEAVE, KIOSK_PERSON_LOCK, kioskPersonBandTextOf, kioskPersonRemainTextOf, kioskPersonSessionAllowedOf } from "@/lib/nox/kiosk/person-session"; // ★便 E（0196 用）★M-119: 帯＝上に固定・残り・ロック
 import { endKioskPersonSession } from "@/lib/nox/kiosk/person-session-client"; // ★便 E
+import { mig0200On } from "@/lib/nox/rules-0175/flag"; // ★0200: 本人セッションの heartbeat
+import { browserDeviceFp } from "@/lib/nox/kiosk/device-fp"; // ★0200: heartbeat は端末の束縛（fp）を添える
+/** ★0200: heartbeat を送るか＝PIN の本人セッション ∧ 直近 1 分に操作がある（無操作の間は送らない＝idle を過ぎれば DB 側でも本人セッション中でなくなる） */
+export const kioskPersonTouchDueOf = (lastActiveMs: number, nowMs: number): boolean => nowMs - lastActiveMs < 60_000;
+export const KIOSK_PERSON_TOUCH_MS = 60_000;
 
 export default function KioskPersonGuard({ idleMinutes, role, name = null }: { idleMinutes: number; role: string; /** ★便 E: 帯に出す本人の名前（PIN の印のとき） */ name?: string | null }) {
   const [active, setActive] = useState(false);
@@ -26,7 +31,12 @@ export default function KioskPersonGuard({ idleMinutes, role, name = null }: { i
     const evs: (keyof WindowEventMap)[] = ["pointerdown", "keydown", "scroll", "touchstart", "mousemove"];
     for (const e of evs) window.addEventListener(e, touch, { passive: true });
     const timer = window.setInterval(() => { if (idleExpiredOf(last.current, Date.now(), idleMinutes)) leave(); }, 15_000);
-    return () => { for (const e of evs) window.removeEventListener(e, touch); window.clearInterval(timer); };
+    // ★0200（相談役 11/10）: heartbeat＝操作がある間だけ 1 分ごとに /api/kiosk/person-touch（本人の auth・cookie の session・端末の fp）。無操作・端末へ戻る・ロックで止まる（leave は person-end が ended_at を立てる）
+    const beat = isPin && mig0200On() ? window.setInterval(() => {
+      if (leaving.current || !kioskPersonTouchDueOf(last.current, Date.now())) return;
+      void fetch("/api/kiosk/person-touch", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ device_fp: browserDeviceFp() }) }).catch(() => undefined);
+    }, KIOSK_PERSON_TOUCH_MS) : null;
+    return () => { for (const e of evs) window.removeEventListener(e, touch); window.clearInterval(timer); if (beat !== null) window.clearInterval(beat); };
   }, [idleMinutes, role]);
   // ★M-119（2026-11-06・裁定460）: 帯は本店のレイアウトの上に固定＝名前・無操作の残り（15 秒ごと）・「ロック（端末へ戻る）」＝kiosk_person_end（lock）・「キオスクへ戻る」（manual）
   const [remainMin, setRemainMin] = useState<number>(idleMinutes);

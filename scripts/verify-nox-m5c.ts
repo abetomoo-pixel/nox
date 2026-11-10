@@ -37,7 +37,7 @@ check("m5c(1-5) 配線: gate は lines を受けて <ul data-contract-terms> で
 const D = (enabled: boolean, canRegister: boolean, device: "store_device" | "own_phone", registerDevices: number) => ({ enabled, canRegister, device, registerDevices });
 const cases = [D(false, true, "own_phone", 0), D(true, false, "own_phone", 0), D(true, true, "store_device", 2), D(true, true, "store_device", 0), D(true, true, "own_phone", 3), D(false, false, "store_device", 1)];
 check("m5c(2-1) castRegisterDenyReasonOf: 店 OFF＝store_off（本人不許可より先）・本人不許可＝not_allowed・店端末のみ∧端末あり＝store_device_only・通す＝null",
-  J(cases.map((c) => castRegisterDenyReasonOf(c))) === J(["store_off", "not_allowed", "store_device_only", null, null, "store_off"]), cases.map((c) => castRegisterDenyReasonOf(c)));
+  J(cases.map((c) => castRegisterDenyReasonOf(c))) === J(["store_off", "not_allowed", "store_device_only", "store_device_only" /* ★裁定473／M-131（2026-11-10）: 店端末のみ＝登録台数に関係なくスマホ不可 */, null, "store_off"]), cases.map((c) => castRegisterDenyReasonOf(c)));
 check("m5c(2-2) 理由 null ⇔ castOwnSessionRegisterOf true（同じ判定・castOwnSessionRegisterOf は不変）", cases.every((c) => (castRegisterDenyReasonOf(c) === null) === castOwnSessionRegisterOf(c)));
 check("m5c(2-3) 和文 3＝店 OFF／不許可／店端末のみ・castRegisterDenyTextOf は知らない語／空を null",
   CAST_REGISTER_DENY_TEXT.store_off === "この店ではキャストのレジ操作は使いません" && CAST_REGISTER_DENY_TEXT.not_allowed === "レジの操作が許可されていません（店に確認してください）" && CAST_REGISTER_DENY_TEXT.store_device_only === "レジは店の端末からだけ使えます"

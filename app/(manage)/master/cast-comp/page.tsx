@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getSessionRole } from "@/lib/nox/auth";
 import * as t from "@/lib/nox/ui/theme";
 import { SYSTEM_KEYS, isSystemOn } from "@/lib/nox/store-systems"; // ★裁定269: 報酬制度カードの状況
+import { castRegisterLevelOf } from "@/lib/nox/rules-0175/cast-register"; // ★裁定473（M-131）
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +30,7 @@ export default async function CastCompHubPage() {
   ]);
   const salesNorm = sj?.sales_norm_enabled === true;
   const shimeiNorm = sj?.shimei_norm_enabled === true;
-  const castReg = sj?.cast_register_enabled === true;
+  const castReg = castRegisterLevelOf(sj ?? null) > 0; // ★裁定473（M-131）: 正本＝段階（sys_cast_register）
 
   const cards = [
     { href: "/master/cast-comp/plan", icon: "▲", title: "待遇プラン・報酬シミュレーター",

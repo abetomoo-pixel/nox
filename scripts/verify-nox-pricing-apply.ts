@@ -28,7 +28,7 @@
  *   ★時刻依存ゼロ＝ルールは全て終日・全曜日（帯なし）で作る（now() がいつでも当たる）。
  */
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { FIXTURE_USERS, STORE_A1, STORE_A2, loadEnvOrExit } from "./fixtures-f0";
+import { FIXTURE_USERS, STORE_A1, STORE_A2, loadEnvOrExit , punchInForVerify} from "./fixtures-f0";
 // レジ時間UX R5（裁定29）: 表示用クライアント鏡像（blocks 式の写し）の境界 assert と RPC 突合を
 // 本スイートに同居させる（time charge の正が既にここにあるため）。
 import { timeBlocksOf, timeStatusOf } from "../lib/nox/check-calc";
@@ -444,7 +444,10 @@ async function main() {
       check("段44(6) void 済み伝票＝'not open'", has(eNo, "not open"), eNo?.message ?? "通ってしまった");
 
       // can_register=false の staff は forbidden
+      // ★0200（2026-11-10・裁定472）: レジの操作は出勤中だけ＝権限の柵（can_register）を見るため、出勤中にしてから呼ぶ（未出勤だと先に off duty）
+      const offRo = await punchInForVerify(admin, ["staffRegOffA1"]);
       const { error: eRo } = await regOff.rpc("check_shimei_add", { p_check_id: chkA1, p_cast_id: castA1aId, p_kind: "hon" });
+      await offRo();
       check("段44(6) ★can_register=false の staff＝forbidden", has(eRo, "forbidden"), eRo?.message ?? "通ってしまった");
 
       // anon BLOCKED

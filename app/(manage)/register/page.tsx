@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getSessionRole } from "@/lib/nox/auth";
 import RegisterBoard from "./register-board";
 import { seatsVisibleOf } from "@/lib/nox/floor-kinds"; // ★0164（便 W5-2a）
+import { castRegisterLevelOf } from "@/lib/nox/rules-0175/cast-register"; // ★裁定473
 
 export const dynamic = "force-dynamic";
 
@@ -48,6 +49,8 @@ export default async function RegisterPage() {
   // 予約タブの可視判定（staff は can_crm・cast は予約不可＝会計のみ）と予約作成先の店（自分の membership の店）
   const { data: canCrm } = role === "staff" ? await supabase.rpc("auth_staff_can_crm") : { data: false };
   const { data: myStoreId } = await supabase.rpc("auth_store_id");
+  // ★裁定473（M-131）: キャスト本人のセッション＝段階（注文のみ＝会計タブを出さない）。会計できる卓（own）は RLS が卓を絞る（0200）
+  const castLevel = role === "cast" ? (castRegisterLevelOf(((await supabase.from("stores").select("settings_json").limit(1).maybeSingle()).data?.settings_json ?? null) as Record<string, unknown> | null) === 2 ? 2 : 1) as 1 | 2 : null; // auth_cast_register_level は内部専用＝店の設定（RLS 自店）から読む
   return (
     <RegisterBoard
       seats={seats ?? []}
@@ -57,6 +60,7 @@ export default async function RegisterPage() {
       isManagerUp={isManagerUp}
       showReserve={role !== "cast" && (isManagerUp || canCrm === true)}
       storeId={(myStoreId as string | null) ?? ""}
+      castLevel={castLevel}
     />
   );
 }

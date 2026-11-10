@@ -16,13 +16,16 @@ import { noticeLineResultOf } from "@/lib/nox/line/notice-line"; // ★便 W-10 
 import { jstMonthOf, type LineMonthRow } from "@/lib/nox/line/push-forecast"; // ★M-114（裁定459）: 送る前の確認（今月の残り）
 import { lineNotifyOnOf, noticeLineConfirmOf } from "@/lib/nox/line/notify-kinds"; // ★M-114（裁定459）
 import LineQuotaCard from "@/components/nox/line-quota-card"; // ★便 D M-101
+import { mig0200On } from "@/lib/nox/rules-0175/flag"; // ★M-129（裁定470・0200）
+import { NOTICE_TARGETS_LABEL, NOTICE_TARGETS_MAX, emptyTargetSel, noticeAudLabelOf, noticeConfirmLineOf, noticeRecipientsOf, noticeTargetsArgsOf, setTargetsAll, targetCountOf, targetPeopleFilterOf, targetSelOfGroup, toggleTarget, type NoticeAudience, type TargetPerson, type TargetSel } from "@/lib/nox/notices/targets"; // ★M-129
 
 type Notice = {
   id: string; title: string; body: string; audience: string;
   pinned: boolean; until: string | null; created_at: string;
+  cast_ids?: string[] | null; staff_ids?: string[] | null; // ★M-129（0200）: 個別の宛先
 };
 
-const AUD_LABEL: Record<string, string> = { all: "全員", cast: "キャスト", staff: "スタッフ" };
+const AUD_LABEL: Record<string, string> = { all: "全員", cast: "キャスト", staff: "スタッフ", targets: NOTICE_TARGETS_LABEL };
 const AUD_OPTIONS: Array<[string, string]> = [["all", "全員"], ["cast", "キャスト"], ["staff", "スタッフ"]];
 // 掲載期限セグメント（モックの日数セグメント 0/1/3/7 に対応・0=期限なし）
 const UNTIL_SEG: Array<[number, string]> = [[0, "期限なし"], [1, "当日"], [3, "3日"], [7, "7日"]];
@@ -134,15 +137,38 @@ export default function NoticesBoard({ isManagerUp, audienceCounts, storeName, c
   const [eBody, setEBody] = useState("");
   const [eAud, setEAud] = useState("all");
   const [ePinned, setEPinned] = useState(false);
+  // ★M-129（裁定470・MIG_0200 配下）: 個別に選ぶ＝宛先の一覧（キャスト／スタッフ・LINE 連携済みの印）・選択・名前検索
+  const targetsOn = mig0200On() && isManagerUp;
+  const [people, setPeople] = useState<TargetPerson[]>([]);
+  const [sel, setSel] = useState<TargetSel>(emptyTargetSel());
+  const [tq, setTq] = useState("");
+  const [lineMonth, setLineMonth] = useState<{ sent: number; limit: number } | null>(null);
+  useEffect(() => { if (!targetsOn) return; void (async () => {
+    const sb = createClient();
+    const [cs, ms, ll] = await Promise.all([
+      sb.from("casts").select("id, name, store_id").eq("is_active", true).order("name"),
+      sb.from("memberships").select("id, user_id, role, store_id").eq("is_active", true).in("role", ["manager", "staff"]),
+      sb.from("line_links").select("subject_kind, subject_id, store_id, blocked_at"),
+    ]);
+    const inStore = (x: { store_id?: string | null }) => !storeId || x.store_id === storeId;
+    const memRows = ((ms.data ?? []) as { id: string; user_id: string; store_id: string }[]).filter(inStore);
+    const { data: us } = memRows.length ? await sb.from("users").select("id, name").in("id", memRows.map((m) => m.user_id)) : { data: [] as { id: string; name: string | null }[] };
+    const uname = new Map(((us ?? []) as { id: string; name: string | null }[]).map((u) => [u.id, u.name ?? "（名前なし）"]));
+    const linked = new Set(((ll.data ?? []) as { subject_kind: string; subject_id: string; store_id: string; blocked_at: string | null }[]).filter((l) => inStore(l) && !l.blocked_at).map((l) => l.subject_kind + ":" + l.subject_id));
+    setPeople([
+      ...((cs.data ?? []) as { id: string; name: string; store_id: string }[]).filter(inStore).map((c) => ({ kind: "cast" as const, id: c.id, name: c.name, linked: linked.has("cast:" + c.id) })),
+      ...memRows.map((m) => ({ kind: "staff" as const, id: m.id, name: uname.get(m.user_id) ?? "（名前なし）", linked: linked.has("membership:" + m.id) })),
+    ]);
+  })(); }, [targetsOn, storeId]);
   const [eUntil, setEUntil] = useState("");
 
   const load = useCallback(async () => {
     const { data } = await supabase
       .from("notices")
-      .select("id, title, body, audience, pinned, until, created_at")
+      .select(mig0200On() ? "id, title, body, audience, pinned, until, created_at, cast_ids, staff_ids" : "id, title, body, audience, pinned, until, created_at") // ★M-129: 個別の宛先（0200 の列）
       .order("pinned", { ascending: false })
       .order("created_at", { ascending: false });
-    setRows((data ?? []) as Notice[]);
+    setRows((data ?? []) as unknown as Notice[]); // ★M-129: select の列はフラグで切り替わる（型は Notice に寄せる）
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => { void load(); }, [load]);
@@ -151,9 +177,12 @@ export default function NoticesBoard({ isManagerUp, audienceCounts, storeName, c
 
   async function post() {
     setMsg(null); setBusy(true);
-    const { data: newId, error } = await supabase.rpc("notice_create", {
-      p_title: fTitle, p_body: fBody, p_audience: fAud, p_pinned: fPinned, p_until: untilFromSeg(fUntilSeg),
-    });
+    // ★M-129（裁定470）: 個別に選ぶ＝notice_create_targets（6 引数＝0200）＝作成時点の宛先で固定。区分は従来どおり notice_create
+    const targetArgs = fAud === "targets" ? noticeTargetsArgsOf(sel) : null;
+    if (fAud === "targets" && !targetArgs) { setBusy(false); setMsg("宛先を 1〜" + NOTICE_TARGETS_MAX + " 人選んでください"); return; }
+    const { data: newId, error } = targetArgs
+      ? await supabase.rpc("notice_create_targets", { p_title: fTitle, p_body: fBody, ...targetArgs, p_pinned: fPinned === true, p_until: untilFromSeg(fUntilSeg) })
+      : await supabase.rpc("notice_create", { p_title: fTitle, p_body: fBody, p_audience: fAud, p_pinned: fPinned, p_until: untilFromSeg(fUntilSeg) });
     if (error) { setBusy(false); setMsg(`投稿に失敗: ${rpcErrJa(error.message)}`); return; }
     let lineMsg = "";
     let sendLine = fLine;
@@ -163,7 +192,7 @@ export default function NoticesBoard({ isManagerUp, audienceCounts, storeName, c
         supabase.rpc("line_push_month_summary", { p_month: jstMonthOf(Date.now()).month }),
       ]);
       const row = (((m ?? []) as LineMonthRow[]).find((r) => r.store_id === storeId)) ?? null;
-      const cf = noticeLineConfirmOf({ recipients: lineLinked ?? 0, sent: row?.sent ?? 0, limit: row?.monthly_limit ?? Number(st?.line_monthly_limit ?? 200) });
+      const cf = noticeLineConfirmOf({ recipients: targetsOn && people.length ? noticeRecipientsOf(people, fAud as NoticeAudience, sel).line : (lineLinked ?? 0), /* ★M-129: 宛先の連携済みだけ（店と区分で絞る） */ sent: row?.sent ?? 0, limit: row?.monthly_limit ?? Number(st?.line_monthly_limit ?? 200) });
       if (cf.blocked || !lineNotifyOnOf((st?.settings_json ?? null) as Record<string, unknown> | null, "notice")) { sendLine = false; lineMsg = `・${cf.blocked ? cf.text : "この店は LINE のお知らせ通知が OFF です（掲載だけ）"}`; }
       else if (!window.confirm(cf.text)) { sendLine = false; lineMsg = "・LINE では送りませんでした（掲載だけ）"; }
     }
@@ -174,7 +203,7 @@ export default function NoticesBoard({ isManagerUp, audienceCounts, storeName, c
     }
     setBusy(false);
     setMsg(`お知らせを投稿しました${lineMsg}`);
-    setFTitle(""); setFBody(""); setFAud("all"); setFPinned(false); setFUntilSeg(0); setFLine(false);
+    setFTitle(""); setFBody(""); setFAud("all"); setFPinned(false); setFUntilSeg(0); setFLine(false); setSel(emptyTargetSel()); setTq("");
     await load();
   }
 
@@ -328,8 +357,8 @@ export default function NoticesBoard({ isManagerUp, audienceCounts, storeName, c
                 ★人数は server が数えた件数（page.tsx・is_active のみ）。数えられなければ「—」。 */}
             <div>
               <span style={t.fieldLabel}>公開範囲</span>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8, marginTop: 6 }}>
-                {AUD_OPTIONS.map(([v, l]) => {
+              <div style={{ display: "grid", gridTemplateColumns: targetsOn ? "repeat(auto-fit, minmax(130px, 1fr))" : "repeat(3, minmax(0, 1fr))", gap: 8, marginTop: 6 }}>
+                {[...AUD_OPTIONS, ...(targetsOn ? [["targets", NOTICE_TARGETS_LABEL] as [string, string]] : [])].map(([v, l]) => {
                   const on = fAud === v;
                   return (
                     <button
@@ -344,12 +373,13 @@ export default function NoticesBoard({ isManagerUp, audienceCounts, storeName, c
                       }}
                     >
                       <span className="num" style={{ fontSize: 17, fontWeight: 800 }}>
-                        {nOr(audCount[v] ?? null)}<small style={{ fontSize: 11, fontWeight: 400, marginLeft: 2 }}>名</small>
+                        {v === "targets" ? targetCountOf(sel) : nOr(audCount[v] ?? null)}<small style={{ fontSize: 11, fontWeight: 400, marginLeft: 2 }}>名</small>
                       </span>
                       <span style={{ fontSize: 12.5, fontWeight: 700 }}>{l}</span>
                       <span style={{ fontSize: 10.5, color: "var(--v2-muted)" }}>
                         {v === "all" ? `キャスト${nOr(cntCast)}・スタッフ${nOr(cntStaff)}`
                           : v === "cast" ? "在籍キャスト"
+                          : v === "targets" ? "選んだ人だけ（後から入った人には出ません）"
                           : "キャストには表示されません"}
                       </span>
                     </button>
@@ -360,6 +390,44 @@ export default function NoticesBoard({ isManagerUp, audienceCounts, storeName, c
                 人数は在籍している人の数です（退店済み・無効の担当は数えません）。
                 管理者・店長は公開範囲にかかわらずすべてのお知らせを閲覧できます。
               </p>
+              {targetsOn && fAud === "targets" && (() => { /* ★M-129（裁定470）: 区分を押すとその区分の全員にチェック → 個別に外す／足す・キャスト／スタッフの見出し・名前検索・全選択／全解除・LINE 連携済みの印（375 幅で折り返す） */
+                const shown = targetPeopleFilterOf(people, tq);
+                const group = (k: "cast" | "staff", title: string) => {
+                  const xs = shown.filter((p) => p.kind === k);
+                  return (
+                    <div data-notice-target-group={k} style={{ display: "grid", gap: 4 }}>
+                      <span style={{ fontSize: 11.5, fontWeight: 800, color: "var(--champ)" }}>{title}（{xs.filter((p) => sel[k].has(p.id)).length}／{xs.length}）</span>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 4 }}>
+                        {xs.map((p) => (
+                          <label key={p.id} style={{ ...chkLabel, minWidth: 0, minHeight: 32, overflow: "hidden" }} data-notice-target={p.kind + ":" + p.id} data-notice-target-on={sel[k].has(p.id) ? "1" : "0"}>
+                            <input type="checkbox" checked={sel[k].has(p.id)} onChange={() => setSel((s0) => toggleTarget(s0, p))} />
+                            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{p.name}</span>
+                            {p.linked && <span style={{ fontSize: 10, color: "var(--ok)", flex: "0 0 auto" }} title="LINE 連携済み" data-notice-target-linked="1">LINE</span>}
+                          </label>
+                        ))}
+                        {xs.length === 0 && <span style={{ fontSize: 11.5, color: "var(--v2-muted)" }}>（該当なし）</span>}
+                      </div>
+                    </div>
+                  );
+                };
+                return (
+                  <div className="nox-inset" style={{ marginTop: 8, padding: "10px 12px", display: "grid", gap: 8, maxWidth: "100%" }} data-notice-targets="1">
+                    <div className="nox-actions" style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      <button type="button" style={btnLight} onClick={() => setSel(targetSelOfGroup(people, "all"))}>全員を選ぶ</button>
+                      <button type="button" style={btnLight} onClick={() => setSel(targetSelOfGroup(people, "cast"))}>キャスト全員</button>
+                      <button type="button" style={btnLight} onClick={() => setSel(targetSelOfGroup(people, "staff"))}>スタッフ全員</button>
+                    </div>
+                    <div className="nox-actions" style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                      <input value={tq} onChange={(e) => setTq(e.target.value)} placeholder="名前で検索" aria-label="宛先を名前で検索" style={{ ...input, flex: "1 1 160px", minWidth: 0 }} />
+                      <button type="button" style={btnLight} onClick={() => setSel((s0) => setTargetsAll(s0, shown, true))}>全選択</button>
+                      <button type="button" style={btnLight} onClick={() => setSel((s0) => setTargetsAll(s0, shown, false))}>全解除</button>
+                    </div>
+                    {group("cast", "キャスト")}
+                    {group("staff", "スタッフ")}
+                    <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: 0, lineHeight: 1.7 }}>選んだ {targetCountOf(sel)} 人（最大 {NOTICE_TARGETS_MAX} 人）だけのマイページに出ます。後から入った人には出ません。「LINE」は連携済みの印です。</p>
+                  </div>
+                );
+              })()}
             </div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
               <label style={chkLabel}>
@@ -387,7 +455,9 @@ export default function NoticesBoard({ isManagerUp, audienceCounts, storeName, c
               <button style={btnLight} onClick={() => { setFTitle(""); setFBody(""); }}>入力をクリア</button>
               {/* ★投稿は**確認モーダルを挟む**（モック `publishConfirm`）＝送る RPC・引数は不変 */}
               <button style={{ ...btnDark, opacity: busy ? 0.6 : 1 }} disabled={busy}
-                onClick={() => { if (!fTitle.trim() || !fBody.trim()) { setMsg("件名と本文を入力してください"); return; } setConfirmOpen(true); }}>
+                onClick={() => { if (!fTitle.trim() || !fBody.trim()) { setMsg("件名と本文を入力してください"); return; } if (fAud === "targets" && !noticeTargetsArgsOf(sel)) { setMsg("宛先を 1〜" + NOTICE_TARGETS_MAX + " 人選んでください"); return; }
+                  if (targetsOn && storeId) void (async () => { const sb = createClient(); const [{ data: st }, { data: m }] = await Promise.all([sb.from("stores").select("line_monthly_limit").eq("id", storeId).maybeSingle(), sb.rpc("line_push_month_summary", { p_month: jstMonthOf(Date.now()).month })]); const row = (((m ?? []) as LineMonthRow[]).find((r) => r.store_id === storeId)) ?? null; setLineMonth({ sent: row?.sent ?? 0, limit: row?.monthly_limit ?? Number(st?.line_monthly_limit ?? 200) }); })();
+                  setConfirmOpen(true); }}>
                 内容を確認して掲載
               </button>
             </div>
@@ -450,7 +520,7 @@ export default function NoticesBoard({ isManagerUp, audienceCounts, storeName, c
               **同じ位置に実体のある軸（公開範囲）を置く**（教訓25＝無い状態を UI で作らない）。 */}
         <div className="nox-ctoolbar" style={{ marginBottom: 10 }}>
           <div className="nox-seg">
-            {([["", "すべて"], ...AUD_OPTIONS] as Array<[string, string]>).map(([v, l]) => (
+            {([["", "すべて"], ...AUD_OPTIONS, ...(targetsOn ? [["targets", NOTICE_TARGETS_LABEL] as [string, string]] : [])] as Array<[string, string]>).map(([v, l]) => (
               <button key={v || "all-f"} className={audFilter === v ? "on" : ""} onClick={() => setAudFilter(v)}>{l}</button>
             ))}
           </div>
@@ -488,9 +558,10 @@ export default function NoticesBoard({ isManagerUp, audienceCounts, storeName, c
             <textarea value={eBody} onChange={(e) => setEBody(e.target.value)} maxLength={BODY_MAX} rows={3}
               style={{ ...input, resize: "vertical", fontFamily: "inherit" }} />
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+              {eAud === "targets" ? <span className="nox-aud" title="個別の宛先は作成時点で固定（変更できません）">{NOTICE_TARGETS_LABEL}（宛先は変更できません）</span> : (/* ★M-129: 個別の行は宛先を変えない（notice_update も 'targets' のまま） */
               <select value={eAud} onChange={(e) => setEAud(e.target.value)} style={{ ...input, width: "auto" }}>
                 {AUD_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-              </select>
+              </select>)}
               <label style={chkLabel}>
                 <input type="checkbox" checked={ePinned} onChange={(e) => setEPinned(e.target.checked)} />ピン留め
               </label>
@@ -511,7 +582,7 @@ export default function NoticesBoard({ isManagerUp, audienceCounts, storeName, c
             <div className="nox-nhead">
               {n.pinned && <span className="nox-aud" style={{ borderColor: "var(--gold)", color: "var(--gold)", fontWeight: 700 }}>ピン</span>}
               <span className="t">{n.title}</span>
-              <span className="nox-aud">{AUD_LABEL[n.audience] ?? n.audience}</span>
+              <span className="nox-aud" data-notice-aud={n.audience}>{noticeAudLabelOf(n, AUD_LABEL)}</span>
               {isExpired(n) && <span style={{ fontSize: 11.5, fontWeight: 700, color: "var(--bad)" }}>期限切れ</span>}
               <span className="when num">{when(n.created_at)}</span>
             </div>
@@ -536,7 +607,11 @@ export default function NoticesBoard({ isManagerUp, audienceCounts, storeName, c
           </div>
           <div className="nox-modalbody">
             <div className="nox-listrow"><span style={{ flex: 1 }}>公開範囲</span>
-              <b>{AUD_LABEL[fAud] ?? fAud}<span className="num" style={{ marginLeft: 6 }}>{nOr(audCount[fAud] ?? null)}名</span></b></div>
+              <b>{AUD_LABEL[fAud] ?? fAud}<span className="num" style={{ marginLeft: 6 }}>{fAud === "targets" ? targetCountOf(sel) : nOr(audCount[fAud] ?? null)}名</span></b></div>
+            {targetsOn && people.length > 0 && (/* ★M-129（裁定470）: 宛先 ○人・LINE ○通・残り ○通（裁定459 の確認と同じ数え方） */
+              <div className="nox-listrow" data-notice-confirm-count="1"><span style={{ flex: 1 }}>宛先</span>
+                <b className="num">{noticeConfirmLineOf({ ...noticeRecipientsOf(people, fAud as NoticeAudience, sel), sendLine: fLine, sent: lineMonth?.sent ?? 0, limit: lineMonth?.limit ?? 200 })}</b></div>
+            )}
             <div className="nox-listrow"><span style={{ flex: 1 }}>掲載タイミング</span><b>今すぐ</b></div>
             <div className="nox-listrow"><span style={{ flex: 1 }}>掲載期限</span>
               <b className="num">{fUntilSeg === 0 ? "期限なし" : addDays(bizToday, fUntilSeg)}</b></div>

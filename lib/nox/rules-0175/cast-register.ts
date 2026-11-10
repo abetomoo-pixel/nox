@@ -1,5 +1,6 @@
 // ★追補 2（裁定420・0175 v2 ★25）: キャストのレジ使用＝店設定 sys_cast_register（0 OFF／1 注文のみ／2 会計まで）。旧 cast_register_enabled（boolean）は互換＝true→1。
-//   どの段階でも自分が着卓中／指名されている卓のみ・操作は audit に cast・端末の縛りは cast_register_device（own_phone／store_device）。
+//   会計できる卓＝店設定 cast_register_scope（'all'＝全卓＝既定／'own'＝自分が着卓中／指名されている卓だけ＝★裁定473・0200）・操作は audit に cast・端末の縛りは cast_register_device（own_phone／store_device＝★M-131: 店端末のみならスマホからは不可）。
+//   正本＝マスタ › 権限・情報管理 › キャスト会計の許可（段階 → 操作端末 → 会計できる卓 → キャスト別）＝裁定473（2026-11-10）。「店のキャスト会計 有効／無効」は廃止（段階 ≠ OFF＝有効）。
 //   RULES_0175_APPLIED=false の間は従来（boolean の ON／OFF＝ON なら注文も会計も RPC 側の cast ゲートどおり）。
 export type CastRegisterLevel = 0 | 1 | 2;
 export const CAST_REGISTER_LEVEL_LABEL: Record<CastRegisterLevel, string> = { 0: "OFF", 1: "注文のみ", 2: "会計まで" };
@@ -19,6 +20,14 @@ export const castRegisterNavOf = (i: { level: CastRegisterLevel; canRegister: bo
   i.level >= 1 && i.canRegister && (i.device === "own_phone" || i.registerDevices === 0);
 /** 会計系（会計・入金・領収書）を cast に出すか＝「会計まで」だけ */
 export const castCanPayOf = (level: CastRegisterLevel): boolean => level >= 2;
+/** ★裁定473（0200）: 会計できる卓＝'all'（既定）／'own' */
+export type CastRegisterScope = "all" | "own";
+export const CAST_REGISTER_SCOPE_LABEL: Record<CastRegisterScope, string> = { all: "全卓", own: "自分の卓だけ" };
+export const CAST_REGISTER_SCOPE_DESC: Record<CastRegisterScope, string> = { all: "店の全部の卓を開卓・注文・会計できます（既定）", own: "自分が着卓中か指名されている卓だけ（開卓はできません）" };
+export const castRegisterScopeOf = (settings: Record<string, unknown> | null | undefined): CastRegisterScope => (settings?.cast_register_scope === "own" ? "own" : "all");
+/** 段階の注記（会計できる卓の設定に合わせて書き換える＝裁定473） */
+export const castRegisterScopeNoteOf = (scope: CastRegisterScope): string =>
+  scope === "own" ? "会計できる卓＝自分が着卓中／指名されている卓だけ。操作は記録にキャスト名。端末の縛りは「操作端末」。" : "会計できる卓＝全卓（既定）。操作は記録にキャスト名。端末の縛りは「操作端末」。";
 /** 店長以上のまま＝伝票取消・割引・無料・手数料の「なし／指定」・確定の解除 */
 export const CAST_NEVER = ["void", "discount", "free", "fee_cut", "reopen"] as const;
 /** 日報の内訳「キャスト入金」＝payments.by_membership の role が cast の入金の合計 */

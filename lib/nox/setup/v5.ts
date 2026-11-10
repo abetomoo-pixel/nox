@@ -160,29 +160,47 @@ export const menuCount = (s: V5State): number => s.menu.reduce((a, c) => a + (c.
 // ── 要確認（モック checks 逐語＝同じ条件・同じ文言） ──
 const mins = (t: string): number => { const a = String(t).split(":"); return (+a[0]) * 60 + (+a[1] || 0); };
 const span = (f: string, t: string): [number, number] => { const a = mins(f); let b = mins(t); if (b <= a) b += 1440; return [a, b]; };
-export function v5Checks(S: V5State): [number, string][] {
-  const W: [number, string][] = []; const biz = span(S.shop.open, S.shop.close);
+// ★M-141（2026-11-10）: 要確認は [直す先の STEP（0 始まり）, 文言, 直す欄の鍵]。鍵は v5CheckSelectorOf で画面の欄（data-*）に写す＝「直す」はその欄へ直接移動（verify:nox-m141 が種類ごとに欄の存在を見る）
+export type V5Check = [number, string, string];
+/** 要確認の鍵 → 画面の欄の CSS セレクタ（ルール・時給スライド・延長の付け方・丸めは既存の data-*・ほかは data-setup-field） */
+export function v5CheckSelectorOf(key: string): string {
+  const [k, a] = key.split(":");
+  if (k === "rule") return `[data-rule="${a}"]`;
+  if (k === "slide") return `[data-slide-tier="${a}"]`;
+  if (k === "timeMode") return "[data-setup-time-mode]";
+  if (k === "roundUnit") return "[data-setup-round]";
+  return `[data-setup-field="${key}"]`;
+}
+/** 値段 0 円でレジに出す商品（確認画面のメニューの段に一覧と値段の欄を出す＝M-141） */
+export function v5ZeroPriceItems(S: V5State): { ci: number; ii: number; cat: string; n: string; p: number }[] {
+  const out: { ci: number; ii: number; cat: string; n: string; p: number }[] = [];
+  S.menu.forEach((c, ci) => { if (!c.on) return; c.items.forEach((it, ii) => { if (it.on && String(it.n).trim() && !(+it.p > 0)) out.push({ ci, ii, cat: c.cat, n: it.n, p: +it.p || 0 }); }); });
+  return out;
+}
+export function v5Checks(S: V5State): V5Check[] {
+  const W: V5Check[] = []; const biz = span(S.shop.open, S.shop.close);
   S.rules.forEach((r, i) => {
     const sp = span(r.from, r.to); let a = sp[0], b = sp[1]; if (a < biz[0] - 60 && a + 1440 <= biz[1]) { a += 1440; b += 1440; }
-    if (a < biz[0] || b > biz[1]) W.push([2, `料金ルール「${r.name}」の時間（${r.from}〜${r.to}）が営業時間（${S.shop.open}〜${S.shop.close}）からはみ出しています`]);
-    if (!r.days.length) W.push([2, `料金ルール「${r.name}」の曜日が選ばれていません`]);
-    if (r.seat === "vip" && S.seats.vip < 1) W.push([2, `料金ルール「${r.name}」は VIP 席向けですが、VIP 席がありません`]);
+    if (a < biz[0] || b > biz[1]) W.push([2, `料金ルール「${r.name}」の時間（${r.from}〜${r.to}）が営業時間（${S.shop.open}〜${S.shop.close}）からはみ出しています`, `rule:${i}`]);
+    if (!r.days.length) W.push([2, `料金ルール「${r.name}」の曜日が選ばれていません`, `rule:${i}`]);
+    if (r.seat === "vip" && S.seats.vip < 1) W.push([2, `料金ルール「${r.name}」は VIP 席向けですが、VIP 席がありません`, `rule:${i}`]);
     for (let j = i + 1; j < S.rules.length; j++) { const q = S.rules[j];
-      if (q.seat === r.seat && q.days.some((d) => r.days.indexOf(d) >= 0)) { const s2 = span(q.from, q.to); if (s2[0] < sp[1] && sp[0] < s2[1]) W.push([2, `「${r.name}」と「${q.name}」の時間が重なっています（上のルールが優先されます）`]); } }
+      if (q.seat === r.seat && q.days.some((d) => r.days.indexOf(d) >= 0)) { const s2 = span(q.from, q.to); if (s2[0] < sp[1] && sp[0] < s2[1]) W.push([2, `「${r.name}」と「${q.name}」の時間が重なっています（上のルールが優先されます）`, `rule:${j}`]); } }
   });
-  if (S.vip.on && S.seats.vip < 1) W.push([1, "VIP 料金を使う設定ですが、VIP 席が 0 卓です"]);
-  if (!S.timeMode) W.push([2, "延長の付け方（自動／手動）が選ばれていません"]); // ★便 A M-72: 必須
-  if (roundUnitErrorOf(S.roundUnit)) W.push([2, "端数の丸め単位は 1〜10,000 の整数で入力してください"]); // ★便 A M-71
-  S.menu.forEach((c) => { if (!c.on) return; c.items.forEach((it) => { if (!it.on) return;
-    if (!String(it.n).trim()) W.push([3, `${c.cat}に名前が空の商品があります`]);
-    else if (!(+it.p > 0)) W.push([3, `「${it.n}」の値段が 0 円です`]);
-    if (it.bt === "pct" && +it.b > 100) W.push([3, `「${it.n}」のバックが 100% を超えています`]); }); });
-  if (S.pay.slide !== "none") { for (let k = 1; k < S.slideTiers.length; k++) { const asc = S.pay.slide !== "rate"; if (asc ? (+S.slideTiers[k][0] <= +S.slideTiers[k - 1][0]) : (+S.slideTiers[k][0] >= +S.slideTiers[k - 1][0])) W.push([4, `時給スライドの ${k + 1} 段目の順番が前の段と逆です（${asc ? "昇順" : "報酬率は降順"}にしてください）`]); } }
-  if (+S.pay.trial < +S.pay.base) W.push([4, "体験入店の時給が基本時給より低くなっています"]);
-  if (+S.kindRate.jo > +S.kindRate.hon || +S.kindRate.free > +S.kindRate.jo) W.push([4, "商品バックの割合が 本指名 ≥ 場内 ≥ フリー の順になっていません"]);
-  if (S.punch.how === "device" && !S.devReg) W.push([7, "打刻を「店の端末だけ」にしていますが、店の端末が登録されていません"]);
-  if (S.punch.gate && !S.devReg) W.push([6, "「出勤していない人はレジを使えない」が ON ですが、打刻する店の端末が登録されていません（端末を置かないお店は OFF に）"]);
-  if (S.firstShift.from > S.firstShift.to) W.push([6, "最初のシフト期間の終了日が開始日より前です"]);
+  if (S.vip.on && S.seats.vip < 1) W.push([1, "VIP 料金を使う設定ですが、VIP 席が 0 卓です", "seats:vip"]);
+  if (!S.timeMode) W.push([2, "延長の付け方（自動／手動）が選ばれていません", "timeMode"]); // ★便 A M-72: 必須
+  if (roundUnitErrorOf(S.roundUnit)) W.push([2, "端数の丸め単位は 1〜10,000 の整数で入力してください", "roundUnit"]); // ★便 A M-71
+  S.menu.forEach((c, ci) => { if (!c.on) return; c.items.forEach((it, ii) => { if (!it.on) return;
+    if (!String(it.n).trim()) W.push([3, `${c.cat}に名前が空の商品があります`, `menu:${ci}:${ii}:n`]);
+    else if (!(+it.p > 0)) W.push([3, `「${it.n}」の値段が 0 円です`, `menu:${ci}:${ii}:p`]);
+    if (it.bt === "pct" && +it.b > 100) W.push([3, `「${it.n}」のバックが 100% を超えています`, `menu:${ci}:${ii}:b`]); }); });
+  if (S.pay.slide !== "none") { for (let k = 1; k < S.slideTiers.length; k++) { const asc = S.pay.slide !== "rate"; if (asc ? (+S.slideTiers[k][0] <= +S.slideTiers[k - 1][0]) : (+S.slideTiers[k][0] >= +S.slideTiers[k - 1][0])) W.push([4, `時給スライドの ${k + 1} 段目の順番が前の段と逆です（${asc ? "昇順" : "報酬率は降順"}にしてください）`, `slide:${k}`]); } }
+  if (+S.pay.trial < +S.pay.base) W.push([4, "体験入店の時給が基本時給より低くなっています", "pay:trial"]);
+  if (+S.kindRate.jo > +S.kindRate.hon || +S.kindRate.free > +S.kindRate.jo) W.push([4, "商品バックの割合が 本指名 ≥ 場内 ≥ フリー の順になっていません", "kindRate"]);
+  // 店の端末の欄は「キオスクを使う」のときだけ画面にある＝使わない店は打刻の場所（STEP 7）へ
+  if (S.punch.how === "device" && !S.devReg) W.push(S.reg.kiosk ? [7, "打刻を「店の端末だけ」にしていますが、店の端末が登録されていません", "devReg"] : [6, "打刻を「店の端末だけ」にしていますが、店の端末が登録されていません", "punch:how"]);
+  // ★M-143（2026-11-10）: 「出勤していない人はレジを使えない」（duty_gate）の要確認は撤去＝裁定472 で打刻ゲートの例外が廃止（レジは常に出勤中だけ）
+  if (S.firstShift.from > S.firstShift.to) W.push([6, "最初のシフト期間の終了日が開始日より前です", "firstShift"]);
   return W;
 }
 
@@ -260,7 +278,7 @@ export function buildV5Plan(S: V5State, ctx: V5Ctx): { steps: V5Step[]; deferred
     pay_fee_rates: { card: Math.max(0, Math.min(100, Math.round(S.cardfee || 0))), emoney: 0, other: 0 },
     pay_discount_rates: { cash: S.cashOff ? Math.round(Math.max(0, Math.min(100, S.cashRate)) * 10) / 10 : 0, card: 0, other: 0 }, pay_discount_base: S.cashBase,
   };
-  if (mig0190On()) patch.duty_gate = S.punch.gate === true;   // ★0190（裁定436）: 打刻ゲート＝boolean 明示（原則7）
+  // ★M-143（2026-11-10）: duty_gate は送らない＝裁定472 で例外が廃止（店設定の duty_gate は読まれない）
   if (mig0191On()) {   // ★0191 ★1: 店設定 +5 キー（白名単＝set_store_profile）
     patch.kind_back_rate = { hon: pct100(S.kindRate.hon), jonai: pct100(S.kindRate.jo), free: pct100(S.kindRate.free) };
     patch.withholding_default_cast = S.payroll.whtCast; patch.withholding_default_staff = S.payroll.whtStaff;
@@ -352,7 +370,6 @@ export function buildV5Plan(S: V5State, ctx: V5Ctx): { steps: V5Step[]; deferred
   if (!mig0191On() && (S.kindRate.hon !== 100 || S.kindRate.jo !== 50 || S.kindRate.free !== 30)) deferred.push({ item: "指名区分ごとの割合（店）", note: "店の割合＝0191（商品ごとの場内／フリーは円のとき保存済み）" });
   if (!mig0191On() && S.menu.some((c) => c.items.some((it) => it.bt === "pct" && it.byKind))) deferred.push({ item: "商品ごとの場内／フリーの率（%）", note: "0191（円の商品は保存済み）" });
   if (!mig0191On() && S.shift.mode === "store") deferred.push({ item: "シフトの集め方「店が決める」", note: "0191（いまは休み希望のみとして保存）" });
-  if (!mig0190On() && S.punch.gate) deferred.push({ item: "出勤していない人はレジを使えない（打刻ゲート）", note: "0190 の後（MIG_0190_APPLIED）" });
   if (!mig0191On()) deferred.push({ item: "釣銭準備金（締めの基準額）", note: "0191（いまは日報の締めで毎回入力）" });
   if (!mig0191On() && S.payroll.close !== "末日") deferred.push({ item: `締め日（${S.payroll.close}）`, note: "月次の締めは末日固定＝0191" });
   if (!mig0191On() && S.staff.some((st) => st.n.trim() && st.pin && !/^\d{4}$/.test(st.pin))) deferred.push({ item: "PIN 5〜6 桁", note: "0191（いまは 4 桁＝5〜6 桁は自動で 4 桁を振る）" });
@@ -406,7 +423,6 @@ export const V5_SAVE_MAP: readonly V5SaveMap[] = [
   { step: 7, item: "曜日別必要人数", dest: "set_staffing_need（0189＝翌 24:00 まで）", has: true },
   { step: 7, item: "打刻の場所・条件に合わないとき・丸め", dest: "settings punch_methods／punch_require_shift／punch_round_unit・mode", has: true },
   { step: 7, item: "打刻の 3 択目「打刻しない（店が勤怠を付ける）」", dest: "settings_json punch_mode（0197）", has: mig0197On() },   // ★便 E（0197 用）
-  { step: 7, item: "打刻ゲート（出勤していない人はレジを使えない）", dest: "なし（0190 duty_gate＝MIG_0190_APPLIED の配下）", has: mig0190On() },
   { step: 8, item: "キオスク ON・キャストのレジ 3 段階・スタッフの割引 3 段階・売掛", dest: "settings kiosk_features／sys_cast_register（裁定420）／sys_staff_discount（裁定421）／set_store_receivable_policy", has: true },
   { step: 8, item: "店の端末の登録（端末アカウント発行）", dest: "/api/kiosk/provision（purpose register・初期 PW は完了画面で 1 回）", has: true },
   { step: 8, item: "釣銭準備金", dest: "なし（daily_report_close の p_cash_float＝毎回入力）", has: mig0191On() },

@@ -22,7 +22,7 @@ import KioskPersonGuard from "@/components/nox/kiosk-person-guard"; // ★便 M5
 import { kioskPersonIdleMinutesOf } from "@/lib/nox/kiosk/person-login"; // ★便 M5 M-49
 import { KIOSK_PERSON_IDLE_MINUTES, kioskPersonNavOf } from "@/lib/nox/rules-0175/kiosk"; // ★裁定469（M-128）
 import { KIOSK_PERSON_COOKIE, kioskNavOf, kioskPersonMustLeaveOf, parseKioskPersonCookie } from "@/lib/nox/kiosk/person-session"; // ★便 E（0196 用＝裁定448 B 方式）
-import { mig0196On, mig0199On } from "@/lib/nox/rules-0175/flag"; // ★便 E ★0199（裁定466・M-125）
+import { mig0196On, mig0199On, mig0200On } from "@/lib/nox/rules-0175/flag"; // ★便 E ★0199（裁定466・M-125）★0200（裁定472＝staff も出勤中だけ）
 import * as t from "@/lib/nox/ui/theme";
 
 // 店側エリア（register/shift/report/master）の layout。auth_role() rpc は「ここで1回/リクエスト」のみ。
@@ -107,8 +107,12 @@ export default async function ManageLayout({ children }: { children: React.React
     staffCrm = data === true;
     staffShift = sh === true;
     staffRegister = rg === true;
+    if (staffRegister && mig0200On()) { // ★0200（裁定472）: スタッフも出勤中だけ（打刻する店＝staff_punches の最終が in・打刻しない店＝確定シフトの窓か今日だけ許可）＝auth_register_access の 1 本（店長以上は常に可）
+      const { data: acc } = await supabase.rpc("auth_register_access");
+      staffRegister = (acc as { allowed?: boolean } | null)?.allowed === true;
+    }
     const pathnameReg = (await headers()).get("x-pathname") ?? "";
-    if (!staffRegister && (pathnameReg === "/register" || pathnameReg.startsWith("/register/"))) redirect("/dashboard"); // ★M-43: 権限が無ければ画面に入れない
+    if (!staffRegister && (pathnameReg === "/register" || pathnameReg.startsWith("/register/"))) redirect("/dashboard"); // ★M-43: 権限が無ければ画面に入れない（★0200: 出勤中でなくても）
   }
   // ★UI刷新v2 段N（正本 nox-nav-redesign-mock-v2.html）: 5群構成へ再編。
   //   ★ルート/URL/ページ実体/role ゲートは完全不変＝並び・群見出し・ラベルだけを変えた

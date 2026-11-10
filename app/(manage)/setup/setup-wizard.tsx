@@ -18,7 +18,7 @@ import * as t from "@/lib/nox/ui/theme";
 import SegSelect from "@/components/ui/seg-select";
 import { Message } from "@/components/ui/toast";
 import {
-  CSV_HEADER, PIN_RE, V5_STEPS, V5_TYPES, WD, applyType, buildV5Plan, castPlanOf, clone, genPin, kindVal, menuCount, normRule, parseCsv, rebuildBack, seatNames, slideTiersFor, v5Checks, v5DefaultState, v5TypeName,
+  CSV_HEADER, PIN_RE, V5_STEPS, V5_TYPES, WD, applyType, buildV5Plan, castPlanOf, clone, genPin, kindVal, menuCount, normRule, parseCsv, rebuildBack, seatNames, slideTiersFor, v5CheckSelectorOf, v5Checks, v5DefaultState, v5TypeName, v5ZeroPriceItems,
   type V5Cast, type V5Ctx, type V5Rule, type V5State, type V5Step, type V5Type, ROUND_MODE_LABEL, TIME_MODE_LABEL } from "@/lib/nox/setup/v5";
 import { mig0190On, mig0191On, mig0197On } from "@/lib/nox/rules-0175/flag"; // ★0190／0191 のフラグ true 便: 器が入った項目は「後で（マスタから）」を出さない
 import type { ProductRow } from "@/lib/nox/setup/template-plan";
@@ -135,6 +135,13 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
 
   const up = (f: (s: V5State) => void) => setS((prev) => { const n = clone(prev); f(n); n.dirty = true; return n; });
   const go = (i: number) => { setS((s) => ({ ...s, step: i })); window.scrollTo({ top: 0, behavior: "smooth" }); };
+  // ★M-141（2026-11-10）: 要確認の「直す」＝鍵の欄へ直接移動して入力にフォーカス（値段 0 円は確認画面のメニューの段の値段欄があればそこ）。従来は go(i - 1)＝1 つ前の STEP に飛び、0 円はメニューでなく料金に出ていた
+  const focusField = (el: Element) => { const f = (el.querySelector("input, select, textarea, button") as HTMLElement | null) ?? (el as HTMLElement); f.scrollIntoView({ block: "center", behavior: "smooth" }); f.focus?.({ preventScroll: true }); };
+  const fixCheck = (step: number, key: string) => {
+    const here = key.startsWith("menu:") && key.endsWith(":p") ? document.querySelector(`[data-setup-field="confirm:${key}"]`) : null;
+    if (here) { focusField(here); return; }
+    go(step); window.setTimeout(() => { const el = document.querySelector(v5CheckSelectorOf(key)); if (el) focusField(el); }, 150);
+  };
   const next = () => { setS((s) => ({ ...s, done: { ...s.done, [s.step]: true }, step: s.step + 1 })); window.scrollTo({ top: 0, behavior: "smooth" }); };
   function pickType(id: V5Type) {
     const nm = v5TypeName(id);
@@ -144,6 +151,7 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
     } else setS((s) => applyType(s, id));
   }
   const W = useMemo(() => v5Checks(S), [S]);
+  const zeroItems = useMemo(() => v5ZeroPriceItems(S), [S]); // ★M-141: 確認画面のメニューの段に出す
   const ctx: V5Ctx = useMemo(() => ({ storeId: store.id, current: store.current, setupDone: store.setupDone /* ★裁定443 1-① */, deviceIdemKey: ids.current.device, staffIdemKeys: S.staff.map((_, i) => { if (!ids.current.staff[i]) ids.current.staff[i] = crypto.randomUUID(); return ids.current.staff[i]; }) }), [store.id, store.current, store.setupDone, S.staff]);
   const planAll = useMemo(() => buildV5Plan(S, ctx), [S, ctx]);
 
@@ -232,9 +240,10 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
 
   // ── 描画 ──
   const type = S.type; const shop = S.shop; const seats = S.seats; const list = seatNames(seats);
-  const box = (i: number, title: string, rows: [string, React.ReactNode][]) => (
-    <div key={title} style={{ ...t.card, padding: 10 }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><h4 style={{ margin: 0, fontSize: 13 }}>{title}</h4><button type="button" style={{ ...t.btnGhost, ...t.btnSm }} onClick={() => go(i)}>直す</button></div>
-      <dl style={{ margin: "6px 0 0", fontSize: 12, display: "grid", gridTemplateColumns: "auto 1fr", gap: "2px 10px" }}>{rows.map(([k, v]) => <><dt key={k + "k"} style={{ color: "var(--sub)" }}>{k}</dt><dd key={k + "v"} style={{ margin: 0 }}>{v}</dd></>)}</dl></div>
+  // ★M-142（2026-11-10）: 項目名を上・値を下の 2 段（値は途中で折らない＝keep-all）・wide＝PC で横 2 枠（.nox-setup-wide）
+  const box = (i: number, title: string, rows: [string, React.ReactNode][], wide = false) => (
+    <div key={title} style={{ ...t.card, padding: 10 }} className={wide ? "nox-setup-wide" : undefined} data-setup-box={i}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><h4 style={{ margin: 0, fontSize: 13 }}>{title}</h4><button type="button" style={{ ...t.btnGhost, ...t.btnSm }} onClick={() => go(i)}>直す</button></div>
+      <dl style={{ margin: "6px 0 0", fontSize: 12.5, display: "grid", gap: 8 }} data-setup-box-rows="2">{rows.map(([k, v]) => <div key={k} style={{ minWidth: 0 }}><dt style={{ color: "var(--sub)", fontSize: 11.5 }}>{k}</dt><dd style={{ margin: "1px 0 0", wordBreak: "keep-all", overflowWrap: "anywhere" }}>{v}</dd></div>)}</dl></div>
   );
   const seatOpts = (v: string): ReadonlyArray<readonly [string, string]> => { const o: [string, string][] = [["all", "全席"]]; if (seats.counter > 0) o.push(["counter", "カウンター"]); if (seats.table > 0) o.push(["table", "テーブル"]); if (seats.vip > 0) o.push(["vip", "VIP"]); if (!o.some((x) => x[0] === v)) o.push([v, `${({ counter: "カウンター", table: "テーブル", vip: "VIP" } as Record<string, string>)[v] ?? v}（席がありません）`]); return o; };
   const slideLabel = { sales: "売上スライド", point: "ポイントスライド", rate: "報酬率スライド", none: "使用しない" }[S.pay.slide];
@@ -317,7 +326,7 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
           <div style={grid(220)}>
             <div><span style={t.fieldLabel}>カウンター（席）</span><br /><Money value={seats.counter} unit="席" onChange={(n) => up((s) => { s.seats.counter = Math.max(0, n); })} width={80} /> <span style={t.fieldLabel}>名前の頭</span> <Text value={seats.cp} onChange={(v) => up((s) => { s.seats.cp = v; })} width={60} ariaLabel="カウンターの名前の頭" /></div>
             <div><span style={t.fieldLabel}>テーブル（卓）</span><br /><Money value={seats.table} unit="卓" onChange={(n) => up((s) => { s.seats.table = Math.max(0, n); })} width={80} /> <span style={t.fieldLabel}>名前の頭</span> <Text value={seats.tp} onChange={(v) => up((s) => { s.seats.tp = v; })} width={60} ariaLabel="テーブルの名前の頭" /></div>
-            <div><span style={t.fieldLabel}>VIP 席（卓）</span><br /><Money value={seats.vip} unit="卓" onChange={(n) => up((s) => { s.seats.vip = Math.max(0, n); })} width={80} /> <span style={t.fieldLabel}>名前の頭</span> <Text value={seats.vp} onChange={(v) => up((s) => { s.seats.vp = v; })} width={60} ariaLabel="VIP の名前の頭" /></div>
+            <div data-setup-field="seats:vip"><span style={t.fieldLabel}>VIP 席（卓）</span><br /><Money value={seats.vip} unit="卓" onChange={(n) => up((s) => { s.seats.vip = Math.max(0, n); })} width={80} /> <span style={t.fieldLabel}>名前の頭</span> <Text value={seats.vp} onChange={(v) => up((s) => { s.seats.vp = v; })} width={60} ariaLabel="VIP の名前の頭" /></div>
           </div>
           <div style={{ marginTop: 10 }}><span style={t.fieldLabel}>作られる席（{list.length}）</span><div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 4 }}>{list.map(([n, v]) => <span key={n} className={`nox-stpill${v ? " warn" : ""}`}>{n}</span>)}</div></div>
           <p style={note}>VIP 席は、料金で「VIP」のルールと VIP 料金が使われます。{counts.seats > 0 && "既存の席があるときは投入しません。"}</p>
@@ -416,9 +425,9 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
                     <>
                       <tr key={ii} style={{ opacity: it.on ? 1 : 0.55 }}>
                         <td style={t.td}><input type="checkbox" checked={it.on} aria-label={`${it.n} を出す`} onChange={(e) => up((s) => { s.menu[ci].items[ii].on = e.target.checked; })} /></td>
-                        <td style={t.td}><Text value={it.n} onChange={(v) => up((s) => { s.menu[ci].items[ii].n = v; })} width="100%" ariaLabel="商品名" /></td>
-                        <td style={t.td}><Money value={it.p} pre onChange={(n) => up((s) => { s.menu[ci].items[ii].p = n; })} width={104} /></td>
-                        <td style={t.td}><span className="nox-backcell"><Money value={it.b} pre={it.bt !== "pct"} unit={it.bt === "pct" ? "%" : undefined} onChange={(n) => up((s) => { s.menu[ci].items[ii].b = n; })} width={104} />
+                        <td style={t.td} data-setup-field={`menu:${ci}:${ii}:n`}><Text value={it.n} onChange={(v) => up((s) => { s.menu[ci].items[ii].n = v; })} width="100%" ariaLabel="商品名" /></td>
+                        <td style={t.td} data-setup-field={`menu:${ci}:${ii}:p`}><Money value={it.p} pre onChange={(n) => up((s) => { s.menu[ci].items[ii].p = n; })} width={104} /></td>
+                        <td style={t.td} data-setup-field={`menu:${ci}:${ii}:b`}><span className="nox-backcell"><Money value={it.b} pre={it.bt !== "pct"} unit={it.bt === "pct" ? "%" : undefined} onChange={(n) => up((s) => { s.menu[ci].items[ii].b = n; })} width={104} />
                           <span className="nox-mini2" role="radiogroup" aria-label="バックの単位">{([["yen", "円"], ["pct", "%"]] as const).map(([v, l]) => <button key={v} type="button" role="radio" aria-checked={(it.bt ?? "yen") === v} className={(it.bt ?? "yen") === v ? "on" : ""} onClick={() => up((s) => { s.menu[ci].items[ii].bt = v; })}>{l}</button>)}</span></span></td>
                         {isBottleCat(c) && <td style={{ ...t.td, textAlign: "center" }}><input type="checkbox" checked={it.keep} aria-label="ボトルキープ可" onChange={(e) => up((s) => { s.menu[ci].items[ii].keep = e.target.checked; })} /></td>}
                         <td style={t.td}><span className="nox-rowacts"><button type="button" className="nox-linkbtn" aria-pressed={it.byKind} onClick={() => up((s) => { const x = s.menu[ci].items[ii]; x.byKind = !x.byKind; if (!x.byKind) { x.bj = null; x.bf = null; } })}>区分ごと</button><button type="button" className="nox-linkbtn" aria-label="この商品を削除" onClick={() => up((s) => { s.menu[ci].items.splice(ii, 1); })}>削除</button></span></td>
@@ -441,7 +450,7 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
           <h3 style={h3}>時給</h3>
           <div style={grid(180)}>
             <Field label="基本時給（在籍）"><Money value={p.base} unit="円／時" pre onChange={(n) => up((s) => { s.pay.base = n; })} /></Field>
-            <Field label="体験入店の時給"><Money value={p.trial} unit="円／時" pre onChange={(n) => up((s) => { s.pay.trial = n; })} /></Field>
+            <span data-setup-field="pay:trial" style={{ display: "contents" }}><Field label="体験入店の時給"><Money value={p.trial} unit="円／時" pre onChange={(n) => up((s) => { s.pay.trial = n; })} /></Field></span>
             <Field label="体験入店の日数"><Money value={p.trialDays} unit="日" onChange={(n) => up((s) => { s.pay.trialDays = n; })} width={70} /></Field>
           </div>
           <p style={note}>体入で登録したキャストは、この時給（保証）で日数分働き、本採用で基本時給とスライドに切り替わります。</p>
@@ -457,7 +466,7 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
           </div>
           <div className="nox-actions" style={{ marginTop: 8 }}><button type="button" style={{ ...t.btnGhost, ...t.btnSm }} onClick={() => { setS((s) => ({ ...rebuildBack(s), dirty: true })); setSaved("メニューのバックを入れ直しました"); }}>この率でメニューのバックを入れ直す</button></div>
           <div style={{ marginTop: 8 }}><span style={t.fieldLabel}>指名の区分ごとの割合（メニューのバックは「本指名のとき」の値。場内・フリーはこの割合を掛けます）{later("店の割合＝0191")}</span>
-            <div style={{ ...grid(140), marginTop: 4 }}>
+            <div style={{ ...grid(140), marginTop: 4 }} data-setup-field="kindRate">
               <Field label="本指名"><Money value={S.kindRate.hon} unit="%" onChange={(n) => up((s) => { s.kindRate.hon = n; })} width={70} /></Field>
               <Field label="場内指名"><Money value={S.kindRate.jo} unit="%" onChange={(n) => up((s) => { s.kindRate.jo = n; })} width={70} /></Field>
               <Field label="フリー（指名なし）"><Money value={S.kindRate.free} unit="%" onChange={(n) => up((s) => { s.kindRate.free = n; })} width={70} /></Field>
@@ -567,7 +576,7 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
             <Field label="送り返した時間の自動確定"><Money value={S.shift.auto} unit="時間後" onChange={(n) => up((s) => { s.shift.auto = n; })} width={90} /></Field></div>}{/* ★便 A M-69 ①: 3 桁が収まる幅（2 つとも同じ型） */}
           <h3 style={h3}>最初のシフト期間</h3>
           <p style={lead}>初期設定が終わったら、この期間の希望を集め始めます（シフト画面で直せます）。</p>
-          <div style={grid(160)}>
+          <div style={grid(160)} data-setup-field="firstShift">
             <Field label="開始日"><DatePicker value={S.firstShift.from} onChange={(v) => up((s) => { s.firstShift.from = v; })} ariaLabel="開始日" /></Field>{/* ★M-82 */}
             <Field label="終了日"><DatePicker value={S.firstShift.to} onChange={(v) => up((s) => { s.firstShift.to = v; })} ariaLabel="終了日" /></Field>{/* ★M-82 */}
           </div>
@@ -576,10 +585,10 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
           <p style={lead}>シフト作成で「足りない日」を出すのに使います。定休日は 0 になります。時間帯ごと（30 分刻み）に分けるのはシフト画面であとから。</p>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: 6 }}>{WD.map((w, i) => { const hol = shop.holidays.includes(w); return <label key={w} style={{ textAlign: "center", display: "block" }}><span style={t.fieldLabel}>{w}{hol ? "（休）" : ""}</span><br />{hol ? <UnitInput value={0} type="number" unit="人" width="100%" ariaLabel={`${w}の必要人数（定休日）`} onChange={() => undefined} disabled /> : <UnitInput value={S.shift.need[i]} type="number" min={0} unit="人" width="100%" ariaLabel={`${w}の必要人数`} onChange={(v) => up((s) => { s.shift.need[i] = Math.max(0, Number(v || 0)); })} />}</label>; })}</div>{/* ★便 A M-69 ②: 単位「人」（「日前」「時間後」と同じ添字） */}
           <h3 style={h3}>打刻</h3>
-          <div><span style={t.fieldLabel}>打刻できる場所</span><SegSelect value={S.punch.how} onChange={(v) => up((s) => { s.punch.how = v as "device" | "any" | "store"; })} options={mig0197On() ? PUNCH_CHOICE_OPTIONS : ([["device", "店の端末（キオスク）だけ"], ["any", "本人のスマホからも"]] as const)} ariaLabel="打刻できる場所" wrap />{/* ★便 E（0197 用＝裁定455 の 4）: 3 択目「打刻しない（店が勤怠を付ける）」 */}
+          <div data-setup-field="punch:how"><span style={t.fieldLabel}>打刻できる場所</span><SegSelect value={S.punch.how} onChange={(v) => up((s) => { s.punch.how = v as "device" | "any" | "store"; })} options={mig0197On() ? PUNCH_CHOICE_OPTIONS : ([["device", "店の端末（キオスク）だけ"], ["any", "本人のスマホからも"]] as const)} ariaLabel="打刻できる場所" wrap />{/* ★便 E（0197 用＝裁定455 の 4）: 3 択目「打刻しない（店が勤怠を付ける）」 */}
           {S.punch.how === "store" && <p style={note} data-setup-punch-store="1">{PUNCH_CHOICE_NOTE.store}</p>}</div>
           {S.punch.how === "any" && <div style={{ marginTop: 8 }}><span style={t.fieldLabel}>条件に合わないとき</span><SegSelect value={S.punch.judge} onChange={(v) => up((s) => { s.punch.judge = v as "soft" | "hard"; })} options={[["hard", "打刻させない"], ["soft", "打刻して記録だけ残す"]] as const} ariaLabel="条件に合わないとき" /></div>}
-          <Opt title="出勤していない人はレジを使えない" sub={<>キャスト・スタッフが自分のスマホからレジ（開卓・注文・会計）を使えるのは、出勤の打刻があって退勤する前だけ。店長以上は対象外（操作は記録に残ります）。店の端末を置かないお店は OFF に。{later("打刻ゲート＝0190 の後")}</>}><OnOff on={S.punch.gate} onChange={(v) => up((s) => { s.punch.gate = v; })} label="出勤していない人はレジを使えない" /></Opt>
+          {/* ★M-143（2026-11-10）: 「出勤していない人はレジを使えない」（duty_gate）は撤去＝裁定472 で例外が廃止（レジは常に出勤中だけ） */}
           <div style={{ marginTop: 8 }}><span style={t.fieldLabel}>勤務時間の丸め</span><SegSelect value={String(S.punch.round)} onChange={(v) => up((s) => { s.punch.round = Number(v) as 1 | 5 | 15 | 30; })} options={[["1", "丸めない"], ["5", "5分"], ["15", "15分"], ["30", "30分"]] as const} ariaLabel="勤務時間の丸め" /></div>
         </section></>
       )}
@@ -594,7 +603,7 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
           <Opt title="キャストのレジ使用" sub="自分の卓だけ・自分のスマホから。伝票の取消・割引・手数料カットは店長以上のまま。"><SegSelect value={r.castReg} onChange={(v) => up((s) => { s.reg.castReg = v as "off" | "order" | "pay"; })} options={[["off", "使わない"], ["order", "注文まで"], ["pay", "会計まで"]] as const} ariaLabel="キャストのレジ使用" /></Opt>
           <Opt title="スタッフの割引・手数料カット" sub="スタッフ権限の人がレジで割引や手数料カットをするとき。"><SegSelect value={r.staffDisc ?? "approve"} onChange={(v) => up((s) => { s.reg.staffDisc = v as "approve" | "limit" | "no"; })} options={[["approve", "店長の承認を待つ"], ["limit", "上限内なら即時"], ["no", "できない"]] as const} ariaLabel="スタッフの割引・手数料カット" wrap /></Opt>
           {r.kiosk && (<>
-            <h3 style={h3}>店の端末</h3>
+            <h3 style={h3} data-setup-field="devReg">店の端末</h3>
             <p style={lead}>いま使っているこの iPad を店の端末として登録します（端末ごとに専用アカウント・初回ログインの端末に固定）。ほかの端末はあとでマスタ › キオスク端末から足せます。</p>
             {S.devReg ? <Message kind="success">✓ この端末を「{S.devName}」として登録します（「この内容で始める」で端末アカウントを発行し、ログイン ID と初期パスワードを完了画面に出します）。<button type="button" style={{ ...t.link, marginLeft: 8 }} onClick={() => up((s) => { s.devReg = false; })}>登録を外す</button></Message>
               : <><div style={grid(220)}><Field label="端末の名前"><Text value={S.devName} onChange={(v) => up((s) => { s.devName = v; })} width="100%" ariaLabel="端末の名前" /></Field></div><div className="nox-actions" style={{ marginTop: 8 }}><button type="button" style={{ ...t.btnGhost, ...t.btnSm }} onClick={() => up((s) => { s.devReg = true; })} data-devreg="1">この iPad を店の端末として登録</button></div></>}
@@ -631,14 +640,14 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
             </div>
           )}
           {W.length > 0 && (<div style={{ ...t.card, padding: 10, borderColor: "var(--warn, #6b5626)" }} data-setup-checks={W.length}><h3 style={{ margin: "0 0 6px", fontSize: 13 }}>要確認 {W.length} 件<span style={{ ...note, display: "inline", marginLeft: 10 }}>このまま始められます</span></h3>
-            {W.map(([i, w], k) => <div key={k} style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: "1px solid var(--line)", fontSize: 12.5 }}><span>{w}</span><button type="button" style={{ ...t.btnGhost, ...t.btnSm }} onClick={() => go(i - 1 < 0 ? 0 : i - 1)}>直す</button></div>)}</div>)}
+            {W.map(([i, w, key], k) => <div key={k} style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: "1px solid var(--line)", fontSize: 12.5 }}><span>{w}</span><button type="button" style={{ ...t.btnGhost, ...t.btnSm }} data-setup-fix={key} onClick={() => fixCheck(i, key)}>直す</button></div>)}</div>)}
           {planAll.deferred.length > 0 && <div style={{ marginTop: 10 }} data-setup-deferred={planAll.deferred.length}><Message kind="info">後で（マスタから）になる項目 {planAll.deferred.length} 件: {planAll.deferred.map((d) => `${d.item}（${d.note}）`).join("・")}</Message></div>}
           <div style={{ ...grid(260), marginTop: 10 }}>
             {box(0, "お店", [["タイプ", v5TypeName(type)], ["店舗名", shop.name], ["営業時間", `${shop.open}〜${shop.close}`], ["定休日", shop.holidays.length ? shop.holidays.join("・") : "なし"]])}
             {box(1, "席・卓", [["カウンター", `${seats.counter} 席`], ["テーブル", `${seats.table} 卓`], ["VIP", `${seats.vip} 卓`]])}
             {box(2, "料金", [["ルール", `${S.rules.length} 件`], ["延長", S.timeMode ? TIME_MODE_LABEL[S.timeMode] : "未選択"], ["端数", `${yen(S.roundUnit)} 円単位・${ROUND_MODE_LABEL[S.roundMode]}`], ["VIP", S.vip.on ? `${S.vip.mode === "table" ? "卓ごと" : "人ごと"} ¥${yen(S.vip.amt)}${S.vip.per === "set" ? "／セット" : "（1 回）"}` : "使わない"], ["本指名・場内・同伴", `¥${yen(S.fees.hon)}・¥${yen(S.fees.jo)}・¥${yen(S.fees.dohan)}`], ["サービス料", `${S.svc}%${seats.vip > 0 ? `／VIP ${S.svcVip}%` : ""}`]])}
-            {box(3, "メニュー", [["レジに出す商品", `${menuCount(S)} 品`], ["カテゴリ", `${S.menu.filter((c) => c.on).length} 個`]])}
-            {box(4, "キャスト待遇", [["基本時給／体入", `¥${yen(p.base)}／¥${yen(p.trial)}（${p.trialDays} 日）`], ["バック（本指名・同伴）", `¥${yen(S.back.hon)}・¥${yen(S.back.dohan)}`], ["商品バックの割合（本／場内／フリー）", `${S.kindRate.hon}／${S.kindRate.jo}／${S.kindRate.free}%`], ["時給スライド", slideLabel], ["ノルマ／達成ボーナス", `${p.norma ? "使う" : "使わない"}／${p.bonus ? "使う" : "使わない"}`], ["給与", `${({ month: "月ごと", half: "半月ごと", daily: "日ごと" } as const)[pr.period]}・支払 ${pr.payday} 日`]])}
+            {box(3, "メニュー", [["レジに出す商品", `${menuCount(S)} 品`], ["カテゴリ", `${S.menu.filter((c) => c.on).length} 個`], ...(zeroItems.length ? [["値段 0 円の商品（このまま直せます）", <div key="z" style={{ display: "grid", gap: 6 }} data-setup-zero-list={zeroItems.length}>{zeroItems.map((z) => <div key={`${z.ci}:${z.ii}`} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}><span style={{ minWidth: 0 }}>{z.cat}／{z.n}</span><span data-setup-field={`confirm:menu:${z.ci}:${z.ii}:p`}><Money value={z.p} pre onChange={(n) => up((s) => { s.menu[z.ci].items[z.ii].p = n; })} width={104} /></span></div>)}</div>] as [string, React.ReactNode]] : [])])}
+            {box(4, "キャスト待遇", [["基本時給／体入", `¥${yen(p.base)}／¥${yen(p.trial)}（${p.trialDays} 日）`], ["バック（本指名・同伴）", `¥${yen(S.back.hon)}・¥${yen(S.back.dohan)}`], ["商品バックの割合（本／場内／フリー）", `${S.kindRate.hon}／${S.kindRate.jo}／${S.kindRate.free}%`], ["時給スライド", slideLabel], ["ノルマ／達成ボーナス", `${p.norma ? "使う" : "使わない"}／${p.bonus ? "使う" : "使わない"}`], ["給与", `${({ month: "月ごと", half: "半月ごと", daily: "日ごと" } as const)[pr.period]}・支払 ${pr.payday} 日`]], true)}
             {box(5, "スタッフ", [["登録", `${S.staff.filter((s) => s.n.trim()).length} 人`]])}
             {box(6, "シフト・勤怠", [["集め方", ({ want: "シフト希望", off: "休み希望のみ", store: "店が決める" } as const)[S.shift.mode]], ["必要人数（日〜土）", S.shift.need.map((n, i) => (shop.holidays.includes(WD[i]) ? 0 : n)).join("・")], ["最初の期間", `${S.firstShift.from.slice(5).replace("-", "/")}〜${S.firstShift.to.slice(5).replace("-", "/")}`], ["打刻", `${S.punch.how === "device" ? "店の端末だけ" : "本人のスマホからも"}・丸め ${S.punch.round === 1 ? "なし" : `${S.punch.round}分`}`]])}
             {box(7, "会計・レジ", [["キャストのレジ使用", ({ off: "使わない", order: "注文まで", pay: "会計まで" } as const)[r.castReg]], ["カード手数料", `${S.cardfee}%`], ["現金割引", S.cashOff ? `${S.cashRate}%（${S.cashBase === "total" ? "合計" : "小計"}から）` : "なし"], ["領収書", S.receipt.tno ? "登録番号あり" : "登録番号なし"], ["店の端末", r.kiosk ? (S.devReg ? `登録する（${S.devName}）` : "あとで登録") : "使わない"]])}
