@@ -182,7 +182,8 @@ export function v5Checks(S: V5State): V5Check[] {
   S.rules.forEach((r, i) => {
     const sp = span(r.from, r.to); let a = sp[0], b = sp[1]; if (a < biz[0] - 60 && a + 1440 <= biz[1]) { a += 1440; b += 1440; }
     if (a < biz[0] || b > biz[1]) W.push([2, `料金ルール「${r.name}」の時間（${r.from}〜${r.to}）が営業時間（${S.shop.open}〜${S.shop.close}）からはみ出しています`, `rule:${i}`]);
-    if (!r.days.length) W.push([2, `料金ルール「${r.name}」の曜日が選ばれていません`, `rule:${i}`]);
+    if (!r.days.length) W.push([2, `曜日が無いルール「${r.name}」（料金で曜日を選んでください）`, `rule:${i}`]); // ★M-144 ③: 定休日を足して曜日が空になったルールもここに出る
+    else if (r.days.some((d) => S.shop.holidays.includes(d))) W.push([2, `料金ルール「${r.name}」に定休日（${r.days.filter((d) => S.shop.holidays.includes(d)).join("・")}）が入っています（定休日は選べません）`, `rule:${i}`]); // ★M-144 ②: 型紙や復元で入った場合
     if (r.seat === "vip" && S.seats.vip < 1) W.push([2, `料金ルール「${r.name}」は VIP 席向けですが、VIP 席がありません`, `rule:${i}`]);
     for (let j = i + 1; j < S.rules.length; j++) { const q = S.rules[j];
       if (q.seat === r.seat && q.days.some((d) => r.days.indexOf(d) >= 0)) { const s2 = span(q.from, q.to); if (s2[0] < sp[1] && sp[0] < s2[1]) W.push([2, `「${r.name}」と「${q.name}」の時間が重なっています（上のルールが優先されます）`, `rule:${j}`]); } }

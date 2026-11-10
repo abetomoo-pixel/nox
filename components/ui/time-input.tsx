@@ -110,7 +110,7 @@ export default function TimeInput({ value, onChange, after, maxHour = 47, disabl
             ))}</span>
           </span>
           <span className="nox-time-type">
-            <input value={typed} inputMode="numeric" placeholder="26:00 と打っても可" aria-label="時刻を入力" className="num"
+            <input value={typed} inputMode="numeric" placeholder="例 26:00" aria-label="時刻を入力" className="num"
               onChange={(e) => setTyped(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") commitTyped(); }} />
             <button type="button" onClick={commitTyped}>決定</button>

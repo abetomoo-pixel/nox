@@ -6,6 +6,7 @@
 // （全文 JSON を並べると金額1つの修正が読めないため。新規＝before null は「新規作成」表示）。
 // ページングは at 降順の単純 range（監査は直近確認が主用途・全量エクスポートは対象外）。
 import { useCallback, useEffect, useState } from "react";
+import Loading from "@/components/ui/loading"; // ★M-135: 読み込み中の表示の共通部品
 import { auditActionJa, auditSearchTextOf } from "@/lib/nox/audit/action-label"; // ★M-150（2026-11-10）: 操作名を業務の言葉に（辞書 1 本）・検索
 import { Message } from "@/components/ui/toast"; // ★裁定281（便 W-10 #7）
 import PageHead from "@/components/ui/page-head";
@@ -282,7 +283,7 @@ export default function AuditBoard({ users, stores }: {
         <p style={{ fontSize: 11.5, color: "var(--v2-muted)", margin: "6px 0 8px", lineHeight: 1.7 }}>
           自動で拾い上げます＝伝票の取消で ¥{AUDIT_HIGH_VOID_YEN.toLocaleString("en-US")} 以上・機微情報の閲覧が 6〜17 時台（営業時間外）。
         </p>
-        {alerts === null ? <p style={{ fontSize: 12.5, color: "var(--sub)" }}>読み込み中…</p> : alerts.length === 0 ? <p style={{ fontSize: 12.5, color: "var(--sub)" }}>該当はありません。</p> : (
+        {alerts === null ? <Loading /> : alerts.length === 0 ? <p style={{ fontSize: 12.5, color: "var(--sub)" }}>該当はありません。</p> : (
           <div style={{ display: "grid", gap: 4 }}>
             {alerts.slice(0, 20).map((a) => (
               <div key={a.id} className="nox-listrow" style={{ fontSize: 12.5 }} data-audit-alert={a.kind}>
@@ -425,7 +426,7 @@ export default function AuditBoard({ users, stores }: {
       {ptab === "cash" && (
       <>
         {daily === null ? (
-          <p style={{ fontSize: 13, color: "var(--sub)" }}>読み込み中…</p>
+          <Loading />
         ) : (
           <div className="nox-repsum">
             <div className="nox-rs"><div className="l">締め済み日報</div><div className="v num">{daily.length}<small>日分</small></div></div>
@@ -446,7 +447,7 @@ export default function AuditBoard({ users, stores }: {
           <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "-4px 0 10px" }}>
             締め確定時の帳簿額と実査額（直近14日・締め時のサーバ再集計値をそのまま表示します）。
           </p>
-          {daily === null ? <p style={{ fontSize: 13, color: "var(--sub)" }}>読み込み中…</p>
+          {daily === null ? <Loading />
             : daily.length === 0 ? <p style={{ fontSize: 13, color: "var(--sub)" }}>締め済みの日報はありません。</p> : (
             <div className="nox-tablewrap">
               <table className="nox-table">

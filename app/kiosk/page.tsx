@@ -8,6 +8,7 @@
 //   出勤/退勤 大ボタン → 結果表示（ok=名前+時刻／wrong_pin=残回数非表示でシンプル／locked=解除時刻）→
 //   数秒で name-select へ自動復帰。
 import { useCallback, useEffect, useRef, useState } from "react";
+import Loading from "@/components/ui/loading"; // ★M-135: 読み込み中の表示の共通部品
 import { PUNCH_STORE_OFF_NOTE } from "@/lib/nox/shift/punch-mode"; // ★便 E（0197 用）
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
@@ -215,7 +216,7 @@ export default function KioskPage() {
     <div style={{ position: "absolute", top: 18, right: 22, fontSize: 13, color: "var(--sub)" }}>
       <button
         onClick={async () => { await supabase.auth.signOut(); setCasts([]); setPhase("login"); }}
-        style={{ ...t.btnGhost, ...t.btnSm, opacity: 0.6 }}
+        style={{ ...t.btnGhost, ...t.btnSm, opacity: 0.8 }} /* ★M-139 */
       >
         端末ログアウト
       </button>
@@ -231,7 +232,7 @@ export default function KioskPage() {
           <span style={{ marginLeft: 12, fontSize: 13, color: "var(--sub)" }}>タイムレコーダー</span>
         </div>
 
-        {phase === "loading" && <p style={{ textAlign: "center", color: "var(--sub)" }}>読み込み中…</p>}
+        {phase === "loading" && <Loading />}
 
         {phase === "login" && (
           <form onSubmit={doLogin} className="nox-lcardtop" style={{ ...t.lcard, maxWidth: 430, margin: "0 auto" }}>

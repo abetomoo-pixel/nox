@@ -4,6 +4,7 @@
 //   ひな形（store の settlement_presets）と額を初期表示・額は変更可 → payroll_adjustment_add(source='settlement'・basis＝ひな形の文・target＝当日の shift)。
 //   run＝当期（営業日の月）の draft を探す（無ければ「当期の給与が未作成です」）。runId を渡されたときはそれを使う（給与明細から）。
 import { useEffect, useState } from "react";
+import Loading from "@/components/ui/loading"; // ★M-135: 読み込み中の表示の共通部品
 import MoneyInput from "@/components/ui/money-input"; // ★便 X-11-6: 金額欄の共通部品（数字のみ・3 桁区切り・右に「円」）
 import Modal from "@/components/ui/modal";
 import { Message } from "@/components/ui/toast";
@@ -73,7 +74,7 @@ export default function SettlementModal({ storeId, castId, castName, biz, shiftI
         <button type="button" className="nox-formmodal-x" aria-label="閉じる" disabled={busy} onClick={onClose}>×</button>
       </div>
       <p style={{ fontSize: 12.5, margin: "0 0 10px" }}>{castName}{biz ? `・${biz}` : ""}（委託・契約根拠つきの減額）</p>
-      {presets === null || run === undefined ? <p style={{ fontSize: 12, color: "var(--sub)" }}>読み込み中…</p> : (
+      {presets === null || run === undefined ? <Loading /> : (
         <>
           <label style={{ ...t.fieldLabel, display: "block", marginBottom: 6 }}>ひな形
             <select value={code} disabled={busy} onChange={(e) => { setCode(e.target.value); const p = presets.find((x) => x.code === e.target.value); if (p) setAmount(String(p.amount)); }} style={{ ...t.input, width: "100%", marginTop: 4 }}>

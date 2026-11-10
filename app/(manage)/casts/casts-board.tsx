@@ -4,6 +4,7 @@
 // 操作は全て RPC 経由＝trial_register/trial_update/trial_hire/trial_reject／cast_create。
 // 真の防御は trials RLS（owner/manager 限定）＋各 RPC ゲート（UI は操作面）。
 import { LoadMoreBar, useLoadMore } from "@/components/ui/load-more"; // ★便 M5b M-60
+import Loading from "@/components/ui/loading"; // ★M-135: 読み込み中の表示の共通部品
 import DatePicker from "@/components/ui/date-picker"; // ★M-82（裁定452・教訓133）: 日付は共通のピッカー
 import AddButton from "@/components/ui/add-button"; // ★便 M5b M-55
 import { hmLabelOf } from "@/lib/nox/time/hhmm"; // ★便 M5b M-51 追補: 日をまたぐ時刻は「翌02:00」
@@ -502,9 +503,9 @@ export default function CastsBoard({
   async function rpc(label: string, fn: string, args: Record<string, unknown>) {
     setBusy(true); setMsg(null);
     const { error } = await supabase.rpc(fn, args);
-    setMsg(error ? `${label}に失敗: ${errJa(error.message)}` : `${label}しました`);
     setBusy(false);
-    await load();
+    if (!error) await load(); // ★M-135: 一覧を先に更新してから文言
+    setMsg(error ? `${label}に失敗: ${errJa(error.message)}` : `${label}しました`);
     return !error;
   }
 
@@ -828,7 +829,7 @@ export default function CastsBoard({
             でキャストを選んで行います（理由必須・元に戻せません）。
           </p>
           {discardCands === null ? (
-            <p style={{ ...t.sub, margin: 0 }}>読み込み中…</p>
+            <Loading />
           ) : discardCands.length === 0 ? (
             <p style={{ ...t.sub, margin: 0 }}>該当するキャストはいません。</p>
           ) : (
@@ -1274,7 +1275,7 @@ export default function CastsBoard({
                   <SegSelect value={selCast.shift_request_mode ?? ""} disabled={busy} ariaLabel="シフト希望の方式"
                     onChange={(v) => void setShiftMode(selCast, v === "" ? null : (v as "shift" | "off_only"))}
                     options={[["", `店の既定に従う（${SHIFT_REQUEST_MODE_LABEL[mineSettingsOf(stores.find((st) => st.id === selCast.store_id)?.settings_json).shift_request_mode]}）`], ["shift", SHIFT_REQUEST_MODE_LABEL.shift], ["off_only", SHIFT_REQUEST_MODE_LABEL.off_only]] as const} wrap />{/* ★M-82: 3 択＝ボタン群 */}
-                  <span style={{ fontSize: 11, color: "var(--v2-muted)", marginLeft: 8 }}>キャストのスマホ（シフト希望／休み希望）と自動配置の候補に効きます</span>
+                  <span style={{ fontSize: 11, color: "var(--v2-muted)", marginLeft: 8 }}>キャストのスマホ（シフト希望／休み希望）に効きます</span>
                 </span>
               </div>
               {/* D2-4（mig0083/0085）: 指名ランクの割当（set_cast_rank_of・null=ランクなし）。

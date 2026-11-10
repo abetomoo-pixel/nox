@@ -99,6 +99,7 @@ body {
   --primary: #2f7fe7;                   /* 旧 #4f9fe8 */
   --primary-hover: #61a7ff;             /* ← パック primary2（明端＝hover 相当・旧 #68b2f0） */
   --primary-soft: rgba(47,127,231,.15); /* 旧 rgba(79,159,232,.12) */
+  --primary-fill: #1f6bd6;              /* ★M-139（2026-11-11）: 青塗りのボタンの地＝白文字で 5.08（--primary の地は 3.95＝AA 未満）。枠・文字の青は --primary のまま */
   --brand: #d8ad55;                     /* ＝--gold 同値（モック名の別名・パック brand と一致） */
   --brand-soft: rgba(216,173,85,.10);   /* 旧 .12 */
   --success: #4dc37d;                   /* ＝--ok 同値（旧 #52b788） */
@@ -1411,7 +1412,7 @@ body {
    高さ／角丸／padding は .nox-btn 基底のまま）。旧値＝金グラデ linear-gradient(135deg, var(--gold1), var(--gold3))・border var(--gold-bd)・
    color var(--on-gold)・影。金トークンは見出しラベル・状態バッジ・ブランド要素に残す（239-3）。theme.ts の btnGold と同値。 */
 .nox-btn.gold {
-  background: var(--primary); border-color: var(--primary); color: #fff;
+  background: var(--primary-fill); border-color: var(--primary-fill); color: #fff; /* ★M-139 */
   font-weight: 800; box-shadow: none;
 }
 .nox-btn.gold:hover { background: var(--primary-hover); border-color: var(--primary-hover); }
@@ -2483,7 +2484,7 @@ body {
 .nox-dtabs.nox-dtabs--seg button svg { width: 18px; height: 18px; flex: 0 0 auto; }
 .nox-dtabs.nox-dtabs--seg button.on { background: var(--gold); border-color: var(--gold); color: #000; }
 .nox-dtabs.nox-dtabs--seg button.pay { border-color: var(--primary); color: var(--primary-hover); }
-.nox-dtabs.nox-dtabs--seg button.pay.on { background: var(--primary); border-color: var(--primary); color: #fff; }
+.nox-dtabs.nox-dtabs--seg button.pay.on { background: var(--primary-fill); border-color: var(--primary-fill); color: #fff; } /* ★M-139 */
 /* 367: 上部ヘッダー（ロゴ・店名・ユーザーチップ）は非固定＝スクロールで流れる（下部ナビ・サイドバーは不変）。レジは操作バー＋セグメントの 2 段だけ sticky（不透明） */
 .nox-tb { position: static; }
 .nox-regsticky { position: sticky; top: 0; z-index: 6; background: var(--bg); padding-top: 2px; }
@@ -2785,6 +2786,13 @@ html, body { overflow-x: hidden; }
 .nox-rwrap table th { writing-mode: horizontal-tb !important; white-space: nowrap; }
 /* ★便 M2（BTN 追記・Agoora 10/26 夜）: キャスト別の目標の表＝見出しと値の列を同じ揃え（右）・同じ幅。390 のカードは 1 行＝「名前　日数 12・同伴 4」（見出し語「キャスト」「期間」は出さない・採用した軸だけ・未設定は —）。まとめて入力の数値欄は 2 つ横並び・各 50% */
 .nox-normtable th.num, .nox-normtable td.num { width: 7.5em; text-align: right; }
+/* ★M-155 ③: 名前の直後に数字の列（名前の列は詰める）・1 行おきに薄い色・まとめて入力は項目名を欄の上・4 欄を同じ幅 */
+.nox-normtable td.nox-norm-name, .nox-normtable th.nox-norm-namehead { width: 1%; white-space: nowrap; padding-right: 18px; }
+.nox-normtable tbody tr:nth-child(even) td { background: rgba(255, 255, 255, 0.03); }
+.nox-normtable tbody tr.on td { background: var(--primary-soft); }
+.nox-normbulk { display: grid !important; grid-template-columns: repeat(var(--nox-normbulk-n, 4), minmax(0, 160px)); gap: 10px !important; justify-content: center; }
+.nox-normbulk > label { display: flex; flex-direction: column; gap: 4px; min-width: 0; font-size: 12px; }
+.nox-normbulk > label .nox-unit { width: 100% !important; }
 @media (max-width: 599px) {
   .nox-rwrap table.nox-normtable tr { flex-wrap: wrap; gap: 2px 6px; } /* 軸が多くて 390 に収まらないときだけ折り返す */
   .nox-rwrap table.nox-normtable td.nox-norm-period { display: none; }
@@ -2796,6 +2804,7 @@ html, body { overflow-x: hidden; }
   .nox-normbulk { display: grid !important; grid-template-columns: 1fr 1fr; gap: 8px !important; }
   .nox-normbulk > label { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
   .nox-normbulk > label > input { width: 100% !important; min-width: 0; box-sizing: border-box; }
+  .nox-normtable td.nox-norm-name { width: auto; }
 }
 /* 382: FieldStack＝ラベル上・入力下（children が複数なら 1 行） */
 .nox-fieldstack { display: grid; gap: 4px; margin-bottom: 12px; }
@@ -2831,7 +2840,7 @@ button:disabled, .nox-btn:disabled { opacity: .45; cursor: not-allowed; }
 .nox-onoff { display: inline-flex; gap: 6px; }
 .nox-onoff > button { min-height: 36px; padding: 6px 14px; border-radius: 8px; border: 1px solid var(--line2); background: transparent; color: var(--sub); font-weight: 700; font-size: 13px; cursor: pointer; font-family: inherit; }
 .nox-onoff > button:disabled { cursor: default; }
-.nox-onoff > button.on[data-v="on"] { background: var(--primary); border-color: var(--primary); color: #fff; }
+.nox-onoff > button.on[data-v="on"] { background: var(--primary-fill); border-color: var(--primary-fill); color: #fff; } /* ★M-139 */
 .nox-onoff > button.on[data-v="off"] { background: #d9d6ce; border-color: #d9d6ce; color: #17140c; } /* ★便 M5 M-31（2026-10-30）: OFF 選択中＝明るい灰＋黒字（暗い灰では「選択中」が見えない・ON は青のまま） */
 .nox-onoff > button.on[data-v="inherit"] { background: var(--card2); border-color: var(--primary); color: var(--ink); }
 .nox-onoff-state { font-size: 12px; color: var(--sub); }
@@ -2943,7 +2952,7 @@ input[type="date"]::-webkit-date-and-time-value, input[type="time"]::-webkit-dat
 
 /* ★便 X13-G W-11: 今日タブの出勤前＝1 行目「出勤」（全幅・主ボタン 56px）・2 行目 遅刻／当欠／同伴／休み（4 等分・48px）。表表示（≥1280）も同じ */
 .nox-attpre { display: grid; gap: 6px; width: 100%; min-width: 0; }
-.nox-attpre-main { min-height: 56px; width: 100%; border: 0; border-radius: 12px; background: var(--primary); color: #fff; font: inherit; font-size: 17px; font-weight: 800; cursor: pointer; }
+.nox-attpre-main { min-height: 56px; width: 100%; border: 0; border-radius: 12px; background: var(--primary-fill); color: #fff; font: inherit; font-size: 17px; font-weight: 800; cursor: pointer; }
 .nox-attpre-main.on { background: var(--gold); color: #000; }
 .nox-attpre-sub { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
 .nox-attpre-sub > button { min-height: 48px; border: 1px solid var(--v2-line); border-radius: 10px; background: transparent; color: var(--ink); font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; white-space: nowrap; }
@@ -3003,17 +3012,22 @@ input[type="date"]::-webkit-date-and-time-value, input[type="time"]::-webkit-dat
 /* ★便 NR-1（裁定428 候補・2026-10-26）: ノルマ設定「軸と減額」＝1 軸 1 行（採用チェック｜方式 2 択｜金額｜単位）。
    390px（≤430）＝セグメントは 2 択を 50／50 で親幅いっぱい・金額欄も同じ幅・保存は中央。PC は 1 行に並ぶ。 */
 .nox-normax-head { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; margin: 0 0 8px; }
-.nox-normax-row { display: grid; grid-template-columns: 120px minmax(220px, 1fr) auto auto; gap: 8px 12px; align-items: center; padding: 6px 0; border-top: 1px solid var(--line); }
-.nox-normax-row .nox-normax-seg .nox-segtabs { width: 100%; }
-.nox-normax-row .nox-normax-seg .nox-segtabs > button { flex: 1 1 50%; min-width: 0; padding: 0 8px; }
-.nox-normax-row .nox-numfield { width: 7.5em; }
+/* ★M-155 ②（2026-11-10）: 1 行＝軸名 → 方式の切替（必要な幅だけ）→ 金額（MoneyInput）→ 短い説明。ページに最大幅（.nox-normapage） */
+.nox-normax-row { display: grid; grid-template-columns: 9em max-content 150px minmax(0, 1fr); gap: 8px 12px; align-items: center; padding: 6px 0; border-top: 1px solid var(--line); }
+.nox-normax-row .nox-normax-seg .nox-segtabs { width: auto; }
+.nox-normax-row .nox-normax-seg .nox-segtabs > button { flex: 0 0 auto; min-width: 0; padding: 0 10px; }
+.nox-normax-row .nox-normax-off { grid-column: 2 / -1; }
+.nox-normax-note { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 11.5px; color: var(--sub); min-width: 0; }
+.nox-normax-unit { display: inline-flex; align-items: center; gap: 6px; }
 .nox-normax-save { display: flex; gap: 10px; align-items: center; margin-top: 10px; }
+.nox-normapage { max-width: 980px; }
 @media (max-width: 430px) {
   .nox-normax-row { grid-template-columns: 1fr; gap: 6px; }
   .nox-normax-row .nox-normax-seg { width: 100%; }
+  .nox-normax-row .nox-normax-seg .nox-segtabs { width: 100%; }
   .nox-normax-row .nox-normax-seg .nox-segtabs > button { flex: 1 1 50%; font-size: 12px; }
-  .nox-normax-row .nox-normax-amt, .nox-normax-row .nox-normax-unit { display: flex; align-items: center; gap: 6px; width: 100%; }
-  .nox-normax-row .nox-normax-amt .nox-numfield, .nox-normax-row .nox-normax-unit .nox-numfield { flex: 1 1 auto; width: 100%; }
+  .nox-normax-row .nox-normax-amt { display: flex; width: 100%; }
+  .nox-normax-row .nox-normax-off { grid-column: auto; }
   .nox-normax-save { justify-content: center; flex-direction: column; }
   .nox-normax-save > button { width: 100%; max-width: 320px; }
 }
@@ -3139,9 +3153,9 @@ input[type="date"]::-webkit-date-and-time-value, input[type="time"]::-webkit-dat
 .nox-time-col button:hover { background: rgba(255, 255, 255, 0.06); }
 .nox-time-col button.on { background: var(--champ); color: #111; font-weight: 800; }
 .nox-time-col button:disabled { opacity: 0.35; cursor: default; }
-.nox-time-type { display: flex; gap: 6px; }
-.nox-time-type input { width: 120px; min-width: 0; padding: 6px 8px; background: var(--bg); color: var(--ink); border: 1px solid var(--line2); border-radius: 8px; font: inherit; font-size: 13px; }
-.nox-time-type button { padding: 6px 10px; border: 1px solid var(--line2); border-radius: 8px; background: transparent; color: var(--ink); font: inherit; font-size: 13px; cursor: pointer; }
+.nox-time-type { display: flex; gap: 6px; } /* ★2026-11-11: 375 で案内が切れ「決定」が 2 行になった＝欄は残りの幅・ボタンは折り返さない */
+.nox-time-type input { flex: 1 1 auto; width: 0; min-width: 0; padding: 6px 8px; background: var(--bg); color: var(--ink); border: 1px solid var(--line2); border-radius: 8px; font: inherit; font-size: 13px; }
+.nox-time-type button { flex: 0 0 auto; white-space: nowrap; padding: 6px 10px; border: 1px solid var(--line2); border-radius: 8px; background: transparent; color: var(--ink); font: inherit; font-size: 13px; cursor: pointer; }
 /* M-60 さらに表示／M-55 一覧の追加ボタン（中央・主ボタン） */
 .nox-loadmore { display: flex; align-items: center; justify-content: center; gap: 12px; margin: 12px 0 4px; }
 .nox-addbar { display: flex; justify-content: center; margin: 4px 0 12px; }
@@ -3200,3 +3214,51 @@ html[data-kiosk-person-bar="1"] .nox-tb { top: var(--nox-kpbar, 38px); }
 html[data-kiosk-person-bar="1"] .nox-regsticky { top: var(--nox-kpbar, 38px); }
 /* ★M-142（2026-11-10）: 初期設定の確認画面＝キャスト待遇のカードは PC で横 2 枠 */
 @media (min-width: 720px) { .nox-setup-wide { grid-column: span 2; } }
+/* ★M-144（2026-11-10）: 曜日の選択（components/ui/dow-chips.tsx）＝定休日は赤＋「定休」・料金ルールなどでは灰色で押せない・選んだ曜日は青 */
+.nox-dows { display: flex; flex-wrap: wrap; gap: 6px; }
+.nox-dows button { font-family: inherit; font-weight: 700; font-size: 12.5px; min-width: 40px; min-height: 40px; padding: 4px 8px; border-radius: 8px; cursor: pointer; border: 1px solid var(--line2); background: transparent; color: var(--sub); display: inline-flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.15; }
+.nox-dows button.on { border-color: var(--primary); background: var(--primary-soft); color: var(--primary-hover); }
+.nox-dows button.hol { border-color: var(--bad); background: var(--bad-bg); color: var(--bad); }
+.nox-dows button.off { cursor: not-allowed; opacity: .5; border-style: dashed; }
+.nox-dows button .k, .nox-dowmark .k { font-size: 10px; font-weight: 700; }
+.nox-dows button.off .k { color: var(--sub); }
+.nox-dowmark { display: inline-flex; flex-direction: column; align-items: center; line-height: 1.15; font-weight: 800; }
+.nox-dowmark.hol { color: var(--bad); }
+/* ★M-136（2026-11-10）: 折りたたみの共通部品（components/ui/fold.tsx）＝カードと同じ地・題名と 1 行の要約・押すと中身 */
+.nox-fold { background: linear-gradient(145deg, rgba(25,25,22,.95), rgba(15,15,14,.98)); border: 1px solid var(--line); border-radius: 11px; margin-bottom: 13px; box-shadow: var(--shadow); overflow: hidden; }
+.nox-fold > summary { list-style: none; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 12px 15px; cursor: pointer; min-height: 44px; }
+.nox-fold > summary::-webkit-details-marker { display: none; }
+.nox-fold > summary .t { font-weight: 800; font-size: 14px; color: var(--ink); }
+.nox-fold > summary .s { font-size: 11.5px; color: var(--sub); flex: 1 1 auto; }
+.nox-fold > summary .ch { margin-left: auto; color: var(--sub); transition: transform .15s; }
+.nox-fold[open] > summary .ch { transform: rotate(180deg); }
+.nox-fold > .b { padding: 0 15px 14px; }
+/* ★M-136: 会計タブの先頭（請求額・入金済み・残額＋入金へ進む）と、会計中の上の固定バー */
+.nox-payhead-amt { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.nox-payhead-amt .l { font-weight: 800; font-size: 14px; }
+.nox-payhead-amt .v { font-size: 28px; font-weight: 900; color: var(--champ); }
+.nox-payhead-sub { display: flex; justify-content: flex-end; gap: 4px; font-size: 12.5px; color: var(--sub); margin: 2px 0 6px; }
+.nox-payhead-done { margin: 8px 0 0; font-size: 12.5px; color: var(--ok); text-align: center; }
+.nox-paysticky { display: flex; gap: 14px; justify-content: flex-end; flex-wrap: wrap; font-size: 12px; color: var(--sub); padding: 0 2px 6px; }
+.nox-paysticky b { color: var(--ink); font-weight: 800; }
+@media (max-width: 430px) { .nox-paysticky { justify-content: space-between; gap: 6px; } .nox-payhead-amt .v { font-size: 24px; } }
+/* ★M-135（2026-11-10）: 読み込み中の共通部品（components/ui/loading.tsx）と、保存した行の一瞬の強調（表以外の行・カードにも） */
+.nox-loading { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--sub); margin: 6px 0; }
+.nox-loading .sp { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--line2); border-top-color: var(--champ); animation: nox-spin .8s linear infinite; flex: 0 0 auto; }
+@keyframes nox-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .nox-loading .sp { animation: none; } }
+tr.nox-rowflash, .nox-rowflash { animation: nox-rowflash 1.6s ease-out; }
+/* ★M-149（2026-11-10）: シフトの手順図（components/nox/shift-flow.tsx）＝4 段を横に（≤599 は縦）・今いる段は金の枠・各段に一覧で出る状態の名前 */
+.nox-shiftflow { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; counter-reset: none; }
+.nox-shiftflow > li { position: relative; border: 1px solid var(--line2); border-radius: 10px; padding: 8px 10px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.nox-shiftflow > li:not(:last-child)::after { content: "→"; position: absolute; right: -8px; top: 50%; transform: translate(50%, -50%); color: var(--sub); font-size: 12px; }
+.nox-shiftflow > li.on { border-color: var(--gold); background: var(--goldbg); }
+.nox-shiftflow > li.skip { opacity: 0.75; border-style: dashed; }
+.nox-shiftflow .h { font-weight: 800; font-size: 13px; display: inline-flex; gap: 6px; align-items: center; }
+.nox-shiftflow .h .num { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--card2); font-size: 11px; }
+.nox-shiftflow .n { font-size: 11.5px; color: var(--sub); line-height: 1.55; }
+.nox-shiftflow .st { font-size: 11px; color: var(--ink); }
+@media (max-width: 599px) {
+  .nox-shiftflow { grid-template-columns: 1fr; }
+  .nox-shiftflow > li:not(:last-child)::after { content: "↓"; right: 50%; top: auto; bottom: -8px; transform: translate(50%, 50%); }
+}

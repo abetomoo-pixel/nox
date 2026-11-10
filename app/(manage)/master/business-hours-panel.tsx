@@ -19,11 +19,13 @@ import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセ
 import SpecialDaysPanel from "@/components/nox/special-days-panel"; // ★便 W-10 #10（0186）
 import { mig0186On } from "@/lib/nox/rules-0175/flag";
 import { errJa } from "@/lib/nox/errors"; // ★裁定467（M-126）: 利用者向けの文言は辞書 1 本
+import { DowMark } from "@/components/ui/dow-chips"; // ★M-144 ①: 定休日の曜日は赤＋「定休」
+import { stripClosedDowsFromPricing } from "@/lib/nox/pricing/strip-closed-client"; // ★M-144 ③
 type Store = { id: string; name: string };
 // ★DP-R 第3弾: dirty＝「この曜日をこの画面で触った」印。未設定(exists=false)の曜日を
 //   一括保存で**意図せず作らない**という mig0032 の設計ロックを保ったまま、
 //   一括設定で明示的に触った曜日だけは週間保存の対象に含めるための1ビット。
-type DowForm = { exists: boolean; closed: boolean; open: string; close: string; nextDay: boolean; dirty?: boolean };
+type DowForm = { exists: boolean; closed: boolean; open: string; close: string; nextDay: boolean; dirty?: boolean; wasClosed?: boolean /* ★M-144 ③: 読み込んだ時点で定休日だったか */ };
 
 const secTitle: React.CSSProperties = t.cardTitle;
 const input: React.CSSProperties = { ...t.input, width: "auto", padding: "8px 10px", fontSize: 13 };
@@ -86,7 +88,7 @@ export default function BusinessHoursPanel({
     const next = Array.from({ length: 7 }, emptyForm);
     for (const r of (data ?? []) as BusinessHourRow[]) {
       if (r.is_closed) {
-        next[r.dow] = { exists: true, closed: true, open: "20:00", close: "06:00", nextDay: true };
+        next[r.dow] = { exists: true, closed: true, open: "20:00", close: "06:00", nextDay: true, wasClosed: true };
       } else {
         const closeRaw = hm2min(r.close_hm ?? "00:00");
         const closeMin = closeRaw <= hm2min(r.open_hm ?? "00:00") && closeRaw < 1440 ? closeRaw + 1440 : closeRaw; // ★M-147（2026-11-10）: 終了が開始以下（01:00 で保存された古い行）は翌日と読む＝1 日・週の合計が 0 時間にならない
@@ -146,7 +148,8 @@ export default function BusinessHoursPanel({
     });
     setBusy(false);
     if (error) { setMsg(`${DOW_LABELS[dow]}曜の保存に失敗: ${rpcErrJa(error.message)}`); return; }
-    setMsg(`${DOW_LABELS[dow]}曜の営業時間を保存しました`);
+    const strip = await stripClosedDowsFromPricing(supabase, storeSel, f.closed && !f.wasClosed ? [dow] : []); // ★M-144 ③
+    setMsg([`${DOW_LABELS[dow]}曜の営業時間を保存しました`, strip.notice, strip.errors.length ? `料金ルールの曜日を外せませんでした: ${strip.errors.join(" / ")}` : null].filter(Boolean).join("。"));
     await load();
   }
 
@@ -159,6 +162,7 @@ export default function BusinessHoursPanel({
     setBusy(true); setMsg(null);
     const supabase = createClient();
     const failed: string[] = [];
+    const newlyClosed: number[] = [];
     for (const { f, dow } of targets) {
       let closeHm: string | null = null;
       if (!f.closed) {
@@ -175,11 +179,13 @@ export default function BusinessHoursPanel({
         p_close_hm: f.closed ? null : closeHm,
       });
       if (error) failed.push(`${DOW_LABELS[dow]}(${rpcErrJa(error.message)})`);
+      else if (f.closed && !f.wasClosed) newlyClosed.push(dow); // ★M-144 ③
     }
+    const strip = await stripClosedDowsFromPricing(supabase, storeSel, newlyClosed);
     setBusy(false);
-    setMsg(failed.length === 0
+    setMsg([failed.length === 0
       ? `週間設定を保存しました（${targets.length}曜日）`
-      : `一部の曜日を保存できませんでした: ${failed.join(" / ")}`);
+      : `一部の曜日を保存できませんでした: ${failed.join(" / ")}`, strip.notice, strip.errors.length ? `料金ルールの曜日を外せませんでした: ${strip.errors.join(" / ")}` : null].filter(Boolean).join("。"));
     await load();
   }
 
@@ -316,7 +322,7 @@ export default function BusinessHoursPanel({
             <tbody>
               {forms.map((f, dow) => (
                 <tr key={dow}>
-                  <td style={{ fontWeight: 800 }}>{DOW_LABELS[dow]}</td>
+                  <td style={{ fontWeight: 800 }}><DowMark label={DOW_LABELS[dow]} closed={f.closed} /></td>
                   <td>
                     <label style={{ fontSize: 12.5, display: "flex", gap: 5, alignItems: "center", cursor: "pointer" }}>
                       <input type="checkbox" checked={f.closed} onChange={(e) => patch(dow, { closed: e.target.checked, dirty: true })} />

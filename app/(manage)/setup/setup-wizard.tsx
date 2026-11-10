@@ -11,6 +11,8 @@ import DatePicker from "@/components/ui/date-picker"; // ★M-82（裁定452・�
 import { PUNCH_CHOICE_NOTE, PUNCH_CHOICE_OPTIONS } from "@/lib/nox/shift/punch-mode"; // ★便 E（0197 用）
 import TimeInput from "@/components/ui/time-input"; // ★便 M5b M-51: 時刻欄の共通部品（時計アイコン・時と分を選ぶ・翌の表示）
 import UnitInput from "@/components/ui/unit-input"; // ★便 M5b M-50
+import DowChips from "@/components/ui/dow-chips"; // ★M-144: 曜日の選択の共通部品（定休日は赤＋「定休」・料金ルールでは選べない）
+import { stripHolidaysFromV5Rules, stripNoticeOf } from "@/lib/nox/pricing/closed-dows"; // ★M-144 ③
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
@@ -85,6 +87,7 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
   const [issued, setIssued] = useState<Issued[]>([]);
   const [planIds, setPlanIds] = useState<{ basic: string | null; trial: string | null }>({ basic: null, trial: null });
   const [castMsg, setCastMsg] = useState<string | null>(null);
+  const [dowMsg, setDowMsg] = useState<string | null>(null); // ★M-144 ③: 定休日を足したとき料金ルールから外した名前の 1 行
   const [castBusy, setCastBusy] = useState(false);
   const [newCat, setNewCat] = useState("");
   // ★便 M6 メニューテンプレート（業態×価格帯）＝選んだテンプレート・割りもの無料・全体の価格 ±%
@@ -310,9 +313,11 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
           </div>
           <div style={{ marginTop: 10 }} data-setup-holidays="1">
             <span style={t.fieldLabel}>定休日（複数選べます・無ければ選ばない）</span>
-            <div className="nox-seg" role="group" aria-label="定休日" style={{ marginTop: 4, width: "fit-content" }}>
-              {WD.map((d) => <button key={d} type="button" className={shop.holidays.includes(d) ? "on" : ""} aria-pressed={shop.holidays.includes(d)} onClick={() => up((s) => { const h = s.shop.holidays; const i = h.indexOf(d); if (i >= 0) h.splice(i, 1); else h.push(d); })}>{d}</button>)}
-            </div>
+            <DowChips mode="holiday" name="holidays" ariaLabel="定休日" style={{ marginTop: 4 }} selected={(i) => shop.holidays.includes(WD[i])}
+              onToggle={(i) => { const d = WD[i]; const adding = !shop.holidays.includes(d);
+                const st = adding ? stripHolidaysFromV5Rules(S.rules, [d]) : null; setDowMsg(st ? stripNoticeOf(st.touched, st.emptied) : null);
+                up((s) => { const h = s.shop.holidays; const k = h.indexOf(d); if (k >= 0) h.splice(k, 1); else h.push(d); if (adding) s.rules = stripHolidaysFromV5Rules(s.rules, [d]).rules; }); }} />{/* ★M-144 ①③: 定休日は赤＋「定休」・足した曜日は料金ルールから外して 1 行で知らせる */}
+            {dowMsg && <div style={{ marginTop: 6 }} data-setup-dow-msg="1"><Message kind="info">{dowMsg}</Message></div>}
           </div>
           <p style={note}>営業日の切替時刻＝この時刻までの売上・出勤は前日の営業日として数えます。</p>
         </section></>
@@ -348,7 +353,8 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
                 <Field label="終了（翌日も可）"><TimeInput value={x.to} onChange={(v) => up((s) => { s.rules[i].to = v; })} maxHour={23} after={x.from} ariaLabel="終了" /></Field>
                 <Field label="席"><SegSelect value={x.seat} onChange={(v) => up((s) => { s.rules[i].seat = v; })} options={seatOpts(x.seat)} ariaLabel="席" /></Field>
               </div>
-              <div style={{ marginTop: 8 }}><span style={t.fieldLabel}>曜日</span><div className="nox-seg" role="group" aria-label="曜日" style={{ marginTop: 4, width: "fit-content" }}>{WD.map((d) => <button key={d} type="button" className={x.days.includes(d) ? "on" : ""} aria-pressed={x.days.includes(d)} onClick={() => up((s) => { const ds = s.rules[i].days; const k = ds.indexOf(d); if (k >= 0) ds.splice(k, 1); else ds.push(d); })}>{d}</button>)}</div></div>
+              <div style={{ marginTop: 8 }}><span style={t.fieldLabel}>曜日</span><DowChips name={`rule-${i}`} ariaLabel="曜日" style={{ marginTop: 4 }} selected={(k) => x.days.includes(WD[k])} closed={(k) => shop.holidays.includes(WD[k])}
+                onToggle={(k) => up((s) => { const d = WD[k]; const ds = s.rules[i].days; const j = ds.indexOf(d); if (j >= 0) ds.splice(j, 1); else ds.push(d); })} /></div>{/* ★M-144 ②: 定休日は灰色＋「定休」で選べない */}
               <div style={{ ...grid(160), marginTop: 8 }}>
                 <Field label={x.min ? "セット料金" : "チャージ"}><Money value={x.set} unit={x.min ? `／${x.min}分` : ""} pre onChange={(n) => up((s) => { s.rules[i].set = n; })} /></Field>
                 {x.min > 0 && <Field label="セット時間"><Money value={x.min} unit="分" onChange={(n) => up((s) => { s.rules[i].min = n; })} width={80} /></Field>}
@@ -583,7 +589,7 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
           <label style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 8 }}><input type="checkbox" checked={S.firstShift.start} onChange={(e) => up((s) => { s.firstShift.start = e.target.checked; })} style={{ width: 22, height: 22 }} /><span>初期設定の完了と同時に募集を始める</span></label>
           <h3 style={h3}>曜日別の必要人数</h3>
           <p style={lead}>シフト作成で「足りない日」を出すのに使います。定休日は 0 になります。時間帯ごと（30 分刻み）に分けるのはシフト画面であとから。</p>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: 6 }}>{WD.map((w, i) => { const hol = shop.holidays.includes(w); return <label key={w} style={{ textAlign: "center", display: "block" }}><span style={t.fieldLabel}>{w}{hol ? "（休）" : ""}</span><br />{hol ? <UnitInput value={0} type="number" unit="人" width="100%" ariaLabel={`${w}の必要人数（定休日）`} onChange={() => undefined} disabled /> : <UnitInput value={S.shift.need[i]} type="number" min={0} unit="人" width="100%" ariaLabel={`${w}の必要人数`} onChange={(v) => up((s) => { s.shift.need[i] = Math.max(0, Number(v || 0)); })} />}</label>; })}</div>{/* ★便 A M-69 ②: 単位「人」（「日前」「時間後」と同じ添字） */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: 6 }}>{WD.map((w, i) => { const hol = shop.holidays.includes(w); return <label key={w} style={{ textAlign: "center", display: "block" }}><span style={{ ...t.fieldLabel, ...(hol ? { color: "var(--bad)" } : {}) }} data-setup-need-dow={i} data-setup-need-closed={hol ? "1" : "0"}>{w}{hol ? <span style={{ fontSize: 10, marginLeft: 2 }}>定休</span> : null}</span><br />{hol ? <UnitInput value={0} type="number" unit="人" width="100%" ariaLabel={`${w}の必要人数（定休日）`} onChange={() => undefined} disabled /> : <UnitInput value={S.shift.need[i]} type="number" min={0} unit="人" width="100%" ariaLabel={`${w}の必要人数`} onChange={(v) => up((s) => { s.shift.need[i] = Math.max(0, Number(v || 0)); })} />}</label>; })}</div>{/* ★便 A M-69 ②: 単位「人」（「日前」「時間後」と同じ添字） */}
           <h3 style={h3}>打刻</h3>
           <div data-setup-field="punch:how"><span style={t.fieldLabel}>打刻できる場所</span><SegSelect value={S.punch.how} onChange={(v) => up((s) => { s.punch.how = v as "device" | "any" | "store"; })} options={mig0197On() ? PUNCH_CHOICE_OPTIONS : ([["device", "店の端末（キオスク）だけ"], ["any", "本人のスマホからも"]] as const)} ariaLabel="打刻できる場所" wrap />{/* ★便 E（0197 用＝裁定455 の 4）: 3 択目「打刻しない（店が勤怠を付ける）」 */}
           {S.punch.how === "store" && <p style={note} data-setup-punch-store="1">{PUNCH_CHOICE_NOTE.store}</p>}</div>

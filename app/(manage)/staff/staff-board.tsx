@@ -5,6 +5,7 @@
 // 在籍解除/再雇用 staff_deactivate/reactivate（Q-1）・追加 POST /api/staff/create（Q-2）。
 // UI の出し分け（owner/manager・自店・自分の行）は利便のための表示制御＝真の防御は RPC ゲート（二重に守る）。
 import Staff0193 from "@/components/nox/staff-0193";
+import MoneyInput from "@/components/ui/money-input"; // ★M-155: 金額欄の共通部品
 import { mig0193On, mig0195On } from "@/lib/nox/rules-0175/flag"; // ★0193
 import { LoadMoreBar, useLoadMore } from "@/components/ui/load-more"; // ★便 M5b M-60
 import AddButton from "@/components/ui/add-button"; // ★便 M5b M-55
@@ -704,7 +705,7 @@ export default function StaffBoard({
                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
                       <label style={t.fieldLabel}>雇用形態<br /><SegSelect value={aWork.contract_kind} onChange={(v) => setAWork({ ...aWork, contract_kind: v })} options={[["contractor", "業務委託"], ["parttime", "アルバイト・パート"], ["employee", "正社員"]] as const} ariaLabel="雇用形態" /></label>
                       <label style={t.fieldLabel}>給与の形<br /><SegSelect value={aWork.pay_kind} onChange={(v) => setAWork({ ...aWork, pay_kind: v })} options={[["hourly", "時給"], ["daily", "日給"], ["monthly", "月給"]] as const} ariaLabel="給与の形" /></label>
-                      <label style={t.fieldLabel}>額<br /><input value={aWork.amount} onChange={(e) => setAWork({ ...aWork, amount: e.target.value })} inputMode="numeric" placeholder="例: 1,500" style={{ ...t.input, width: 120 }} aria-label="働き方の額" /></label>
+                      <label style={t.fieldLabel}>額<br /><MoneyInput value={aWork.amount} onChange={(d) => setAWork({ ...aWork, amount: d })} placeholder="例: 1,500" width={140} ariaLabel="働き方の額" /></label>
                     </div>
                     <span style={{ ...t.sub, lineHeight: 1.6 }}>源泉区分は雇用形態から既定で入ります（業務委託＝対象外・社員／アルバイト＝給与）。</span>
                   </div>

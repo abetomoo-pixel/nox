@@ -6,16 +6,15 @@
 //   遅刻・当欠の検知（閾値）はここに無い＝控除・送りタブ（PenaltyTab part="detect"）。純関数＝lib/nox/store/norm-panel.ts。
 import { useState } from "react";
 import SegSelect from "@/components/ui/seg-select";
+import MoneyInput from "@/components/ui/money-input"; // ★M-155 ①: 金額欄は 1 つの部品（暗い欄・左に ¥・右寄せ・3 桁区切り・数字キーボード）
 import { InfoNote, SegmentTabs } from "@/components/ui/responsive-kit";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import { rpcErrJa } from "@/lib/nox/ui/rpc-err";
 import type { NormPenaltyMode } from "@/lib/nox/pay";
 import { NORM_AXES, NORM_AXIS_LABEL, normAxesArgsOf, type NormAxes, type ShimeiScope } from "@/lib/nox/store/norm-axes";
-import { axisAmountOf, axisModeOf, axisSetAmountOf, axisSwitchModeOf, perUnitLabelOf } from "@/lib/nox/store/norm-panel";
+import { axisAmountOf, axisModeOf, axisSetAmountOf, axisSwitchModeOf, normPenaltyNoteOf, perUnitLabelOf } from "@/lib/nox/store/norm-panel"; // ★M-155 ②: normPenaltyNoteOf＝行の短い説明
 import { compErrJa, penaltyArgsOf, type Penalty } from "../comp-sections";
-
-const numWheelBlur = (e: React.WheelEvent<HTMLInputElement>) => e.currentTarget.blur();
 
 export default function NormAxesPenaltyPanel({ storeId, isOwner, initialAxes, initialShimeiScope, penalty, setPenalty, exists, setMsg, reload }: {
   storeId: string; isOwner: boolean; initialAxes: NormAxes; initialShimeiScope: ShimeiScope;
@@ -73,17 +72,18 @@ export default function NormAxesPenaltyPanel({ storeId, isOwner, initialAxes, in
                         onChange={(m) => { setModeSel((x) => ({ ...x, [ax]: m })); setPenalty(axisSwitchModeOf(penalty, ax, m)); }}
                         options={[["flat", "定額"], ["per", perUnitLabelOf(ax, penalty.norm_sales_unit)]] as const} />
                     </div>
-                    <label className="nox-normax-amt" style={{ fontSize: 12 }}>
-                      <input type="number" min={0} value={amount} className="nox-numfield num" inputMode="numeric" onWheel={numWheelBlur} disabled={busy}
-                        aria-label={`${NORM_AXIS_LABEL[ax]}ノルマ 未達の減額（${mode === "per" ? perUnitLabelOf(ax, penalty.norm_sales_unit) : "定額"}）`}
-                        onChange={(e) => setPenalty(axisSetAmountOf(penalty, ax, mode, Number(e.target.value)))} /> 円
-                    </label>
-                    {ax === "sales" && mode === "per" && (
-                      <label className="nox-normax-unit" style={{ fontSize: 12 }}>単位{" "}
-                        <input type="number" min={1} value={penalty.norm_sales_unit} className="nox-numfield num" inputMode="numeric" onWheel={numWheelBlur} disabled={busy} aria-label="売上ノルマ 不足の単位（円）"
-                          onChange={(e) => setPenalty({ ...penalty, norm_sales_unit: Math.max(1, Number(e.target.value) || 1) })} /> 円ごと
-                      </label>
-                    )}
+                    <span className="nox-normax-amt" data-norm-amt={ax}>
+                      <MoneyInput value={amount} disabled={busy} width="100%"
+                        ariaLabel={`${NORM_AXIS_LABEL[ax]}ノルマ 未達の減額（${mode === "per" ? perUnitLabelOf(ax, penalty.norm_sales_unit) : "定額"}）`}
+                        onChange={(d) => setPenalty(axisSetAmountOf(penalty, ax, mode, Number(d || 0)))} />
+                    </span>
+                    <span className="nox-normax-note" data-norm-note={ax}>
+                      {ax === "sales" && mode === "per" ? (
+                        <span className="nox-normax-unit">不足<MoneyInput value={penalty.norm_sales_unit} disabled={busy} width={130} ariaLabel="売上ノルマ 不足の単位"
+                          onChange={(d) => setPenalty({ ...penalty, norm_sales_unit: Math.max(1, Number(d) || 1) })} />ごと</span>
+                      ) : null}
+                      <span className="nox-normax-ex">{normPenaltyNoteOf(ax, mode, amount, penalty.norm_sales_unit)}</span>
+                    </span>
                   </>
                 ) : (
                   <span className="nox-normax-off" style={{ fontSize: 12, color: "var(--sub)" }}>{on ? "減額なし（「未達の減額を使う」で有効に）" : "不採用"}</span>

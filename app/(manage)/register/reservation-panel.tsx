@@ -558,7 +558,7 @@ export default function ReservationPanel({
           <div className="nox-rs"><div className="l">予約（{kpiDate === todayLocal() ? "本日" : kpiDate.slice(5)}）</div><div className="v num">{kpiBooked.length}件</div></div>
           <div className="nox-rs"><div className="l">予約人数</div><div className="v num">{kpiPeople}名</div></div>
           <div className="nox-rs"><div className="l">VIP希望</div><div className="v num">{kpiVip}件</div></div>
-          <div className="nox-rs" style={kpiOverdue > 0 ? undefined : { opacity: 0.5 }} data-rsv-overdue={kpiOverdue}><div className="l">未来店（時刻超過）</div><div className="v num" style={kpiOverdue > 0 ? { color: "var(--bad)" } : undefined}>{kpiOverdue}件</div></div>
+          <div className="nox-rs" style={kpiOverdue > 0 ? undefined : { opacity: 0.75 } /* ★M-139 */} data-rsv-overdue={kpiOverdue}><div className="l">未来店（時刻超過）</div><div className="v num" style={kpiOverdue > 0 ? { color: "var(--bad)" } : undefined}>{kpiOverdue}件</div></div>
         </div>
         {/* 当日の状況（キャパ分母＝seats.length 代用＝E8 裁定 gap#5 の注記どおり） */}
         <div className="nox-inset" style={{ marginTop: 10, padding: 10, fontSize: 12 }}>

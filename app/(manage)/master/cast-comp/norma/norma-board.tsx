@@ -27,7 +27,7 @@ export default function NormaBoard({ storeId, isManagerUp, isOwner, flags, setti
   const data = useCompData(storeId, setMsg); // ★裁定339: 一覧読取の error は赤帯（直前値は保持）
 
   return (
-    <div>
+    <div className="nox-normapage">{/* ★M-155 ②: ページに最大幅 */}
       <Toast msg={msg} />
 
       {/* ★便 NR-1（裁定428 候補・2026-10-26）: パネル 1「軸と減額」＝採用する軸と同じ行に未達の減額（定額／不足 1 単位ごと）・保存 1 つ。

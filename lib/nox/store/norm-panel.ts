@@ -37,6 +37,13 @@ export function axisSetAmountOf<P extends PenaltyAmounts>(p: P, ax: NormAxis, mo
 export function perUnitLabelOf(ax: NormAxis, salesUnit: number): string {
   return ax === "sales" ? `不足 ${Math.max(1, salesUnit || 10000).toLocaleString()} 円ごと` : `不足 1 ${NORM_PENALTY_UNIT[ax]}ごと`;
 }
+/** ★M-155 ②（2026-11-10）: 減額の行の短い説明（金額の後ろに 1 行）。定額＝未達の月に 1 回／不足ごと＝2 単位の不足の例。 */
+export function normPenaltyNoteOf(ax: NormAxis, mode: NormPenaltyMode, amount: number, salesUnit: number): string {
+  const a = Math.max(0, Math.trunc(amount || 0));
+  if (mode === "flat") return `未達の月に 1 回 ¥${a.toLocaleString()}`;
+  if (ax === "sales") return `例：¥${(Math.max(1, salesUnit || 10000) * 2).toLocaleString()} 不足で ¥${(a * 2).toLocaleString()}`;
+  return `例：2 ${NORM_PENALTY_UNIT[ax]}不足で ¥${(a * 2).toLocaleString()}`;
+}
 /** 保存＝3 本の RPC を常にこの順で（軸→カウント定義→減額）。採用していない軸の減額は送る値をそのまま（0 のまま） */
 export const NORM_PANEL_SAVE_ORDER = ["set_store_norm_axes", "set_store_norm_config", "set_penalty_config"] as const;
 /** 390px＝4 軸のセグメントは 2 択を 50／50・親幅いっぱい・金額欄も同じ幅・保存は中央（CSS .nox-normax の規約＝suite が逐語で見る） */

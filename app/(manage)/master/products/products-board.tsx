@@ -342,9 +342,8 @@ export default function ProductsBoard({ storeId, isManagerUp, initial, settings 
       // ★0191 ★2（MIG_0191_APPLIED）: %の商品の場内／フリーの個別率＝{jonai, free}（空欄のキーは送らない＝店の割合）・率%でないか「別の率」OFF は null。フラグ false の間は引数ごと送らない（旧 15 引数）
       ...(mig0191On() ? { p_back_rate_by_kind: pBackMode === "rate" && pByKind && (pBj.trim() !== "" || pBf.trim() !== "") ? { ...(pBj.trim() !== "" ? { jonai: Number(pBj) } : {}), ...(pBf.trim() !== "" ? { free: Number(pBf) } : {}) } : null } : {}),
     });
-    setMsg(error
-      ? (error.message.includes("bad category") ? "カテゴリの指定が不正です（他店のカテゴリは選べません）" : error.message)
-      : pId ? "商品を更新しました" : "商品を登録しました");
+    const okMsg = pId ? "商品を更新しました" : "商品を登録しました"; // ★M-135: 成功の文言は一覧の再読込の後（件数・一覧・文言を同じタイミングに）
+    if (error) setMsg(error.message.includes("bad category") ? "カテゴリの指定が不正です（他店のカテゴリは選べません）" : error.message);
     // ★④b-2: 成功時のみリセットして閉じる。移設前は error でもフォームを消していたが、
     //   モーダルでは「閉じずに中身だけ空になる」＝直す手がかりが消えるので、失敗時は入力を残す。
     if (!error) {
@@ -360,7 +359,10 @@ export default function ProductsBoard({ storeId, isManagerUp, initial, settings 
         setPId(null); setPName(""); setPPrice(0); setPReorder(""); setPCatId(""); setPExempt(false);
         setModalOpen(false);
       }
+      await reload();
+      setMsg((m) => m ?? okMsg); // 在庫 OFF の失敗の文言（M-146）があればそちらを残す
       if (savedId) setHighlightId(savedId);
+      return;
     }
     await reload();
   }

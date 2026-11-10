@@ -6,6 +6,7 @@
 //   顧客が 1 人も付いていなければ「指名・席」タブへ誘導（onNeedCustomer）。RPC の二重防御が正（権限・org／店・'bad line'・'not on check'）。
 //   「キープ済み」の表示は親（register-board）が持つ＝kept が true なら印だけを出す。メッセージは裁定281 の型。RPC 追加 0。
 import { useState } from "react";
+import Loading from "@/components/ui/loading"; // ★M-135: 読み込み中の表示の共通部品
 import Modal from "@/components/ui/modal";
 import { Message } from "@/components/ui/toast";
 import { createClient } from "@/lib/supabase/client";
@@ -84,7 +85,7 @@ export default function LineKeepButton({ storeId, checkId, lineId, productId, li
             <button type="button" className="nox-formmodal-x" aria-label="閉じる" disabled={busy} onClick={() => setOpen(false)}>×</button>
           </div>
           <p style={{ fontSize: 12.5, margin: "0 0 10px" }}>{lineName}</p>
-          {named === null && <p style={{ fontSize: 12, color: "var(--sub)", margin: 0 }}>読み込み中…</p>}
+          {named === null && <Loading />}
           {named !== null && named.length === 0 && !err && (
             <>
               <Message kind="info">この伝票にはまだお客様が付いていません。「お客様を選ぶ」から選べます（伝票にも併存で追加されます）。</Message>

@@ -185,6 +185,8 @@ if (LIST) for (const r of results) console.log(`${r.hit.ok ? "ok " : "NG "} ${r.
 console.log(`主ボタンの組 ${results.length}（画面 ${new Set(results.map((r) => r.url + "@" + r.w)).size}）・例外 ${ex.length}（${exKinds.join("／")}）・違反 ${bad.length}`);
 for (const r of bad.slice(0, LIST ? 0 : 200)) console.log(` - ${r.w} ${r.url} dx=${r.hit.dx} 「${r.hit.text}」 :: ${r.hit.path}`);
 if ((bad.length || extraFails.length) && !REPORT) { console.error(`verify:nox-actions-center FAIL 違反 ${bad.length}・M-43 ${extraFails.length}\n` + extraFails.map((f) => " - " + f).join("\n")); process.exit(1); }
+// ★M-139（2026-11-11）: 青塗りの色を変えたら主ボタンを 1 つも拾えず「0 checks で緑」になった＝全画面を回したのに組が少なすぎるときは赤（拾う側の壊れを検知）
+if (!ONLY && results.length < 150) { console.error(`verify:nox-actions-center FAIL 主ボタンの組が ${results.length}（全画面で 150 未満＝主ボタンの見つけ方が壊れている疑い・前回の実測 206）`); process.exit(1); }
 console.log(`verify:nox-actions-center OK ${results.length} checks（主ボタンの組・違反 ${bad.length}・例外 ${ex.length}）`);
 }
 main().then(() => process.exit(process.exitCode ?? 0), (e) => { console.error(e); process.exit(1); });

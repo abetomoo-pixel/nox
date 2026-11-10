@@ -453,7 +453,7 @@ export default function ShiftAddForm({
                     const atCell = !closed && !un && !ng && selCast ? availTimeCellOf(availTimeByCast[selCast.id]?.[dowOf(ymd)] ?? null) : null; // ★M-91: 時刻の制限＝「23:00〜01:00」
                     const conflict = e?.src === "new" && !!ex;
                     const style: React.CSSProperties = {
-                      ...(closed ? { background: "var(--line)", opacity: 0.55, cursor: "not-allowed" } : {}),
+                      ...(closed ? { background: "var(--line)", opacity: 0.75, cursor: "not-allowed" } : {}), // ★M-139
                       ...(un && !closed ? { background: "rgba(216,108,100,.07)", borderColor: "rgba(216,108,100,.35)" } : {}),
                       ...(ng && !ex ? { background: "rgba(216,108,100,.07)", borderColor: "rgba(216,108,100,.35)" } : {}),
                       ...(ask && !ex ? { background: "rgba(201,162,74,.08)", borderColor: "rgba(201,162,74,.4)" } : {}),

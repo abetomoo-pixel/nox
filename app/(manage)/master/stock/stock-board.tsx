@@ -194,7 +194,7 @@ export default function StockBoard({ isManagerUp, initial, users }: {
                       const d = deltaOf(raw, r.current);
                       const step = (k: number) => setActuals((a) => ({ ...a, [r.id]: stepActualOf(a[r.id], r.current, k) }));
                       return (
-                        <tr key={r.id} style={r.isActive ? undefined : { opacity: 0.6 }} data-stocktake-row={r.id} data-stocktake-delta={d ?? ""}>
+                        <tr key={r.id} style={r.isActive ? undefined : { opacity: 0.75 } /* ★M-139 */} data-stocktake-row={r.id} data-stocktake-delta={d ?? ""}>
                           <td data-label="商品" className="col-name">
                             <span className="nox-st-name">{r.name}{!r.isActive && <span style={{ ...t.tag, fontSize: 10, marginLeft: 6, color: "var(--sub)", borderColor: "var(--line2)" }}>無効</span>}</span>
                             <span className="nox-st-cur num" style={{ color: "var(--sub)" }}>現在庫 {r.current}{r.unit}</span>

@@ -148,7 +148,7 @@ const btnBase: CSSProperties = {
 // ★裁定239（2026-09-10）: (1) 実行ボタン＝背景 var(--primary)・文字 #fff（globals.css .nox-btn.gold と同値・名前は据え置き）。
 //   inline style のため hover は持てない（hover は .nox-btn.gold 側のみ）。旧値＝白抜き cta-white（border #f4f6f8・transparent・#f7f7f5・inset 影）。
 export const btnGold: CSSProperties = {
-  ...btnBase, border: "1px solid var(--primary)", background: "var(--primary)", color: "#fff", fontWeight: 800,
+  ...btnBase, border: "1px solid var(--primary-fill)", background: "var(--primary-fill)", color: "#fff", fontWeight: 800, // ★M-139: 白文字の青塗りは --primary-fill（5.08）
 };
 // モック `.btn.ghost`: background:transparent; color:var(--muted)＝NOX は --sub
 // ★裁定242（2026-09-11）: (2) 補助＝青枠・青字・透明地（globals.css .nox-btn.ghost と同値・名前は据え置き）。

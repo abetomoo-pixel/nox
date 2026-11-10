@@ -689,11 +689,13 @@ export function AssignTab({ plans, casts, castPlans, isManagerUp, setMsg, reload
             options={[["per_count", "円/本"], ["rate", "率(%)"]] as const} />
         </span>
       )}
-      <input type="number" min={0} max={mode === "rate" ? 100 : undefined} value={val} disabled={use}
-        className="nox-numfield num" inputMode="numeric" onWheel={numWheelBlur}
-        placeholder={use ? "既定" : ""} onChange={(e) => onVal(e.target.value)}
-        style={{ ...numFieldStyle(mode === "rate" ? 4 : 7), opacity: use ? 0.5 : 1 }} />
-      <span style={note}>{unit}</span>
+      {unit.startsWith("円") /* ★M-155 ①: 金額は MoneyInput（¥）・単位は「／本」だけ残す */
+        ? <MoneyInput value={val} disabled={use} placeholder={use ? "既定" : ""} onChange={onVal} width={130} ariaLabel={`${label}（金額）`} />
+        : <input type="number" min={0} max={mode === "rate" ? 100 : undefined} value={val} disabled={use}
+          className="nox-numfield num" inputMode="numeric" onWheel={numWheelBlur}
+          placeholder={use ? "既定" : ""} onChange={(e) => onVal(e.target.value)}
+          style={{ ...numFieldStyle(mode === "rate" ? 4 : 7), opacity: use ? 0.5 : 1 }} />}
+      {unit.replace("円/", "").replace("円", "") && <span style={note}>{unit.startsWith("円") ? `／${unit.replace("円/", "").replace("円", "")}` : unit}</span>}
     </div>
   );
 
@@ -872,7 +874,10 @@ export function NormTab({ casts, norms, isManagerUp, setMsg, reload, plans = [],
     await reload();
   }
   const fmt = (v: number | null | undefined) => (v == null ? "—" : v.toLocaleString());
-  const cell = (k: keyof NormBulk, v: string) => <input inputMode="numeric" placeholder="変えない" value={v} disabled={busy} onChange={(e) => setBulk((b) => ({ ...b, [k]: e.target.value.replace(/[^0-9]/g, "") }))} className="nox-numfield num" style={{ ...input, width: k === "sales" ? 110 : 70, textAlign: "right" }} aria-label={NORM_COL_LABEL[k]} />;
+  // ★M-155 ③: 売上は金額の部品（¥）・ほかは 3 桁区切りの数字欄・4 欄を同じ幅（.nox-normbulk の grid）
+  const cell = (k: keyof NormBulk, v: string) => k === "sales"
+    ? <MoneyInput placeholder="変えない" value={v} disabled={busy} onChange={(d) => setBulk((b) => ({ ...b, sales: d }))} ariaLabel={NORM_COL_LABEL[k]} width="100%" />
+    : <input inputMode="numeric" placeholder="変えない" value={v} disabled={busy} onChange={(e) => setBulk((b) => ({ ...b, [k]: e.target.value.replace(/[^0-9]/g, "") }))} className="nox-numfield num" style={{ ...input, width: "100%", textAlign: "right" }} aria-label={NORM_COL_LABEL[k]} />;
   return (
     <div>
       {isManagerUp && (
@@ -885,32 +890,31 @@ export function NormTab({ casts, norms, isManagerUp, setMsg, reload, plans = [],
       <table className="nox-table nox-normtable nox-rtable" style={{ marginBottom: 10 }}>
         <thead><tr>
           {isManagerUp && <th style={{ width: 34 }}><input type="checkbox" checked={allOn} onChange={toggleAll} aria-label="全員を選択" disabled={busy} /></th>}
-          <th>キャスト</th>{["期間", ...axisCols.map((k) => `${NORM_AXIS_LABEL[k]}(${NORM_AXIS_UNIT[k]})`)].map((h) => <th key={h} className="num" data-norm-head={h}>{h}</th>)}{/* ★便 BTN ③: 値（td.num＝右揃え）と見出しを同じ揃えに */}{/* ★裁定347: 採用軸だけ */}
+          <th className="nox-norm-namehead">キャスト</th>{axisCols.map((k) => `${NORM_AXIS_LABEL[k]}(${NORM_AXIS_UNIT[k]})`).map((h) => <th key={h} className="num" data-norm-head={h}>{h}</th>)}{/* ★M-155 ③: 名前の直後に数字（期間は表の上の選択で分かる＝列を出さない） */}{/* ★便 BTN ③: 値（td.num＝右揃え）と見出しを同じ揃えに */}{/* ★裁定347: 採用軸だけ */}
         </tr></thead>
         <tbody>
           {casts.map((c) => { const n = normOf(c.id); const r = resolvedOf(c.id, n); return (
             <tr key={c.id} className={picked.has(c.id) ? "on" : undefined} onClick={isManagerUp ? () => toggle(c.id) : undefined} style={isManagerUp ? { cursor: "pointer" } : undefined}>
               {isManagerUp && <td onClick={(e) => e.stopPropagation()}><input type="checkbox" checked={picked.has(c.id)} onChange={() => toggle(c.id)} aria-label={`${c.name} を選択`} disabled={busy} /></td>}
               <td className="nox-norm-name">{c.name}</td>
-              <td className="num nox-norm-period">{n ? n.period : period}</td>{/* ★便 M2（BTN 追記・Agoora 10/26 夜）: 390 のカードでは期間を出さない（表の上の期間で分かる） */}
               {axisCols.map((k) => (/* ★裁定347: 上書き（cast_norms）＝濃・継承（プラン既定）＝薄＋title・なし＝— */
                 <td key={k} className="num" data-short={NORM_AXIS_LABEL[k]} data-source={r.source[k] ?? "none"} title={r.source[k] === "plan" ? "プランの既定（継承）" : r.source[k] === "override" ? "個別の上書き" : undefined}
                   style={r.source[k] === "plan" ? { color: "var(--sub)", opacity: 0.75 } : r.source[k] === "override" ? { fontWeight: 700 } : undefined}>{fmt(r.value[k])}</td>
               ))}
             </tr>
           ); })}
-          {casts.length === 0 && <tr><td colSpan={(isManagerUp ? 3 : 2) + axisCols.length} style={note}>在籍キャストがいません</td></tr>}
+          {casts.length === 0 && <tr><td colSpan={(isManagerUp ? 2 : 1) + axisCols.length} style={note}>在籍キャストがいません</td></tr>}
         </tbody>
       </table>
       </ResponsiveTable>
       {isManagerUp ? (
         <>
           <div className="nox-inset" style={{ padding: "10px 12px" }}>
-            <div className="nox-normbulk" style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>{/* ★便 M2（BTN 追記）: 390 は 2 つ横並び・各 50%（「変えない」が切れない幅） */}
-              {axes.days && <label style={{ fontSize: 12 }}>日数(日) {cell("days", bulk.days)}</label>}
-              {axes.dohan && <label style={{ fontSize: 12 }}>同伴(回) {cell("dohan", bulk.dohan)}</label>}
-              {axes.sales && <label style={{ fontSize: 12 }}>売上(円) {cell("sales", bulk.sales)}</label>}
-              {axes.shimei && <label style={{ fontSize: 12 }}>指名(回) {cell("shimei", bulk.shimei)}</label>}
+            <div className="nox-normbulk" style={{ ["--nox-normbulk-n" as string]: String(Math.max(1, axisCols.length)) } as React.CSSProperties}>{/* ★M-155 ③: 項目名を欄の上・採用した軸の数で同じ幅 */}{/* ★便 M2（BTN 追記）: 390 は 2 つ横並び・各 50%（「変えない」が切れない幅） */}
+              {axes.days && <label data-norm-bulk="days"><span>日数(日)</span>{cell("days", bulk.days)}</label>}
+              {axes.dohan && <label data-norm-bulk="dohan"><span>同伴(回)</span>{cell("dohan", bulk.dohan)}</label>}
+              {axes.sales && <label data-norm-bulk="sales"><span>売上</span>{cell("sales", bulk.sales)}</label>}
+              {axes.shimei && <label data-norm-bulk="shimei"><span>指名(回)</span>{cell("shimei", bulk.shimei)}</label>}
             </div>
             <div className="nox-actions" style={{ marginTop: 8 }}>{/* ★便 BTN（今回の指摘）: まとめて入力は入力欄の下の中央 */}
               <button style={btnDark} onClick={() => void saveBulk()} disabled={busy || picked.size === 0 || !period || !anyInput} data-norm-bulk-save="1">選択した {picked.size} 人にまとめて入力</button>
@@ -1082,10 +1086,12 @@ export function PenaltyTab({ penalty, setPenalty, exists, isOwner, storeId, setM
   // ★表示のみ日本語化（k＝state キー／RPC 引数名は英語のまま save() で明示送信）。
   // ★裁定104: 円系（円/回・円）＝7桁・時間(h)/分＝4桁。スピナー非表示・右寄せ・ホイール無効。
   const num = (k: keyof Penalty, labelJa: string = PENALTY_LABEL_JA[k], unit: string | undefined = PENALTY_UNIT_JA[k]) => (
-    <label style={{ fontSize: 12 }}>{labelJa}{unit ? `（${unit}）` : ""} <input type="number" min={0} value={penalty[k] as number}
+    unit?.startsWith("円") /* ★M-155 ①: 円の欄は MoneyInput（¥）・ラベルの（円）は付けない（「／回」だけ残す） */
+      ? <span style={{ fontSize: 12, display: "inline-flex", alignItems: "center", gap: 6 }}>{labelJa}{unit.replace("円/", "").replace("円", "") ? `（1 ${unit.replace("円/", "").replace("円", "")}）` : ""} <MoneyInput value={penalty[k] as number} width={130} ariaLabel={labelJa} onChange={(d) => setPenalty({ ...penalty, [k]: Number(d || 0) })} /></span>
+      : <label style={{ fontSize: 12 }}>{labelJa}{unit ? `（${unit}）` : ""} <input type="number" min={0} value={penalty[k] as number}
       className="nox-numfield num" inputMode="numeric" onWheel={numWheelBlur}
       onChange={(e) => setPenalty({ ...penalty, [k]: Number(e.target.value) })}
-      style={numFieldStyle(unit?.includes("円") ? 7 : 4)} /></label>
+      style={numFieldStyle(4)} /></label>
   );
   async function save() {
     // ★便 P174 T-3（0174 ★3）: 全 17 引数を明示送信（新 5 引数は RPC に既定値がある＝省略すると保存のたびに既定へ戻る＝原則7）
@@ -1116,17 +1122,17 @@ export function PenaltyTab({ penalty, setPenalty, exists, isOwner, storeId, setM
                   <SegmentTabs value={mode} ariaLabel={`${label}ノルマ 未達の減額の方式`}
                     onChange={(m) => { setModeSel((x) => ({ ...x, [ax]: m })); setPenalty(m === "per" ? { ...penalty, [fk]: 0, [pk]: per > 0 ? per : Math.max(flat, 0) } : { ...penalty, [pk]: 0, [fk]: flat > 0 ? flat : Math.max(per, 0) }); }}
                     options={[["flat", "定額"], ["per", `不足 1 ${unit}ごと`]] as const} />
-                  <label style={{ fontSize: 12 }}>
-                    <input type="number" min={0} value={mode === "per" ? per : flat} className="nox-numfield num" inputMode="numeric" onWheel={numWheelBlur}
-                      aria-label={`${label}ノルマ 未達の減額（${mode === "per" ? `不足 1 ${unit}ごと` : "定額"}）`}
-                      onChange={(e) => setPenalty(mode === "per" ? { ...penalty, [pk]: Number(e.target.value), [fk]: 0 } : { ...penalty, [fk]: Number(e.target.value), [pk]: 0 })}
-                      style={numFieldStyle(7)} /> 円{mode === "per" ? `／${ax === "sales" ? `${(penalty.norm_sales_unit || 10000).toLocaleString()} 円` : unit}` : ""}
-                  </label>
+                  <span style={{ fontSize: 12, display: "inline-flex", alignItems: "center", gap: 6 }}>{/* ★M-155 ①: 金額は MoneyInput（¥・3 桁区切り）・後ろに「円」を付けない */}
+                    <MoneyInput value={mode === "per" ? per : flat} width={130}
+                      ariaLabel={`${label}ノルマ 未達の減額（${mode === "per" ? `不足 1 ${unit}ごと` : "定額"}）`}
+                      onChange={(d) => { const v = Number(d || 0); setPenalty(mode === "per" ? { ...penalty, [pk]: v, [fk]: 0 } : { ...penalty, [fk]: v, [pk]: 0 }); }} />
+                    {mode === "per" ? `／${ax === "sales" ? `¥${(penalty.norm_sales_unit || 10000).toLocaleString()}` : unit}` : ""}
+                  </span>
                   {ax === "sales" && mode === "per" && (
-                    <label style={{ fontSize: 12 }}>単位{" "}
-                      <input type="number" min={1} value={penalty.norm_sales_unit} className="nox-numfield num" inputMode="numeric" onWheel={numWheelBlur} aria-label="売上ノルマ 不足の単位（円）"
-                        onChange={(e) => setPenalty({ ...penalty, norm_sales_unit: Math.max(1, Number(e.target.value) || 1) })} style={numFieldStyle(7)} /> 円ごと
-                    </label>
+                    <span style={{ fontSize: 12, display: "inline-flex", alignItems: "center", gap: 6 }}>単位
+                      <MoneyInput value={penalty.norm_sales_unit} width={130} ariaLabel="売上ノルマ 不足の単位（円）"
+                        onChange={(d) => setPenalty({ ...penalty, norm_sales_unit: Math.max(1, Number(d) || 1) })} />ごと
+                    </span>
                   )}
                 </div>
                 {both && <div className="n" data-penalty-both="1">定額 {flat.toLocaleString()} 円と不足ごと {per.toLocaleString()} 円の両方が入っています＝「不足ごと」扱い（保存で定額は 0 になります）</div>}
@@ -1206,7 +1212,8 @@ export function BackTab({ backs, isManagerUp, storeId, setMsg, reload }: { backs
               <SegSelect value={basis} onChange={setBasis} options={METRICS.filter((m) => m !== "sales").map((m) => [m, metricJa(m)] as const)} ariaLabel="基準" wrap />{/* ★M-82: 7 択＝ボタン群（折返し） */}
             </label>
           )}
-          <label style={{ fontSize: 12 }}>値{basis === "sales" ? "(%)" : "(円)"} <input type="number" min={0} value={value} onChange={(e) => setValue(Number(e.target.value))} className="nox-numfield num" inputMode="numeric" onWheel={numWheelBlur} style={numFieldStyle(basis === "sales" ? 4 : 7)} /></label>
+          {basis === "sales" ? <label style={{ fontSize: 12 }}>値(%) <input type="number" min={0} value={value} onChange={(e) => setValue(Number(e.target.value))} className="nox-numfield num" inputMode="numeric" onWheel={numWheelBlur} style={numFieldStyle(4)} /></label>
+            : <span style={{ fontSize: 12, display: "inline-flex", alignItems: "center", gap: 6 }}>金額 <MoneyInput value={value} width={130} ariaLabel="金額" onChange={(d) => setValue(Number(d || 0))} /></span>}{/* ★M-155 ①: 円の欄は MoneyInput */}
           <label style={{ fontSize: 12 }}><input type="checkbox" checked={condOn} onChange={(e) => setCondOn(e.target.checked)} /> 達成条件</label>
           {condOn && (
             <>

@@ -12,6 +12,7 @@
 //   C2-6 合計表に 時給分｜バック｜罰金・減額｜現時点の差引支給（給与画面の同じ人と同じ値）・合計行・390px は キャスト｜日数｜現時点の差引の 3 列＋行を開いて残り。
 //   C2-7 1,024px 未満＝②は画面下のシートで開く（CSV／印刷用はシートの上端）。1,024px 以上は従来どおり下に表。
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import Loading from "@/components/ui/loading"; // ★M-135: 読み込み中の表示の共通部品
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import * as t from "@/lib/nox/ui/theme";
@@ -173,7 +174,7 @@ export default function AttendanceBoard({ stores, initialStoreId, initialPeriod,
       </div>
       {err && <div className="nox-noprint" style={{ marginBottom: 8 }}><Message kind="error">{err}</Message></div>}
       {msg && <div className="nox-noprint" style={{ marginBottom: 8 }}><Message kind="success">{msg}</Message></div>}
-      {busy && !sheet && <p style={{ fontSize: 12.5, color: "var(--sub)" }}>読み込み中…</p>}
+      {busy && !sheet && <Loading />}
 
       {sheet && (!sel || narrow) && (
         <section className="nox-cardtop" style={t.card} data-kintai-summary="1">

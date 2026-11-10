@@ -141,6 +141,7 @@ export default function LineConfigPanel({ stores, isOwner }: { stores: Store[]; 
           <b className="num">{lineLimitLabelOf(limit)}</b>
           <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} disabled={busy || isDemo} onClick={() => void saveLimit(lineLimitStepOf(limit, 1))} aria-label="1 段上げる">＋</button>
           <input inputMode="numeric" value={limitInput} onChange={(e) => setLimitInput(e.target.value)} style={{ ...t.input, width: 110 }} aria-label="任意の上限" />
+          {isDemo && <span style={{ fontSize: 11.5, color: "var(--sub)" }} data-demo-reason="line-limit">デモでは上限を変えられません（本番の店で使えます）</span>}{/* ★M-139: デモで使えない操作は近くに理由 */}
           {!isDemo && <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} disabled={busy} onClick={() => void saveLimit(Number(limitInput))}>この数にする</button>}
         </div>
         <p style={{ ...t.sub, margin: 0 }}>{LINE_PLAN_TIERS.map(lineLimitLabelOf).join("・")}。{LINE_LIMIT_NOTE}</p>

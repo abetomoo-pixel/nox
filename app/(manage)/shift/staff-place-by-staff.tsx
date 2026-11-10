@@ -186,7 +186,7 @@ export default function StaffPlaceByStaffModal({ storeId, bizToday, initialMonth
                   const ng = ymd in failed;
                   const cls = ["nox-cald", sel ? "sel" : "", p ? "ok" : "", block === "past" ? "past" : "", ymd === bizToday ? "today" : ""].filter(Boolean).join(" ");
                   const style: React.CSSProperties = {
-                    ...(block === "closed" ? { background: "var(--line)", opacity: 0.55, cursor: "not-allowed" } : {}),
+                    ...(block === "closed" ? { background: "var(--line)", opacity: 0.75, cursor: "not-allowed" } : {}), // ★M-139
                     ...(block === "placed" || block === "no_pattern" ? { cursor: "not-allowed" } : {}),
                     ...(ng ? { outline: "2px solid var(--bad)", outlineOffset: -2 } : {}),
                   };

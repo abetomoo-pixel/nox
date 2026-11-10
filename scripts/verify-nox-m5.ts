@@ -12,7 +12,7 @@ const src = (p: string) => fs.readFileSync(p, "utf8");
 const css = src("app/globals.css"), wz = src("app/(manage)/setup/setup-wizard.tsx");
 
 // M-31
-check("m5(31-1) onoff の OFF 選択中＝明るい灰（#d9d6ce）＋黒字（#17140c）・ON 選択中は青（--primary）のまま・部品 1 か所（CSS）", css.includes('.nox-onoff > button.on[data-v="off"] { background: #d9d6ce; border-color: #d9d6ce; color: #17140c; }') && css.includes('.nox-onoff > button.on[data-v="on"] { background: var(--primary); border-color: var(--primary); color: #fff; }') && !css.includes('[data-v="off"] { background: #5a5750'));
+check("m5(31-1) onoff の OFF 選択中＝明るい灰（#d9d6ce）＋黒字（#17140c）・ON 選択中は青（--primary）のまま・部品 1 か所（CSS）", css.includes('.nox-onoff > button.on[data-v="off"] { background: #d9d6ce; border-color: #d9d6ce; color: #17140c; }') && css.includes('.nox-onoff > button.on[data-v="on"] { background: var(--primary-fill); border-color: var(--primary-fill); color: #fff; }') /* ★M-139: 青塗りは --primary-fill（白文字 AA） */ && !css.includes('[data-v="off"] { background: #5a5750'));
 // M-32
 check("m5(32-1) select の幅＝max-width 100％＋box-sizing を部品で統一（.nox-dark／.nox-formfield／.nox-setup-wrap）", css.includes(".nox-dark select, .nox-formfield select, .nox-setup-wrap select { max-width: 100%; box-sizing: border-box; }"));
 {

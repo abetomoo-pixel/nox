@@ -11,6 +11,7 @@ import { REGISTER_DAY_GRANT_LABEL, REGISTER_DAY_GRANT_NOTE, storeDecidesPunchOf 
 import { mig0196On, mig0197On, mig0198On } from "@/lib/nox/rules-0175/flag";
 import DayDedAfterPunch from "@/components/nox/day-ded-after-punch"; // ★0198（裁定461 ①・M-120）: 代行の出勤の直後の「今日の控除」 // ★便 E（0196 用）: staff の代行 ★0197: 今日だけ許可
 import TimeInput from "@/components/ui/time-input"; // ★便 M5b M-51: 時刻欄の共通部品（時計アイコン・時と分を選ぶ・翌の表示）
+import DowChips, { DowMark } from "@/components/ui/dow-chips"; // ★M-144 ④: 必要人数の曜日も定休日は赤＋「定休」・選べない
 import { UnitBox } from "@/components/ui/unit-input"; // ★便 M5b M-50
 import { dayStateLabelOf } from "@/lib/nox/mine/day-state"; // ★便 GV-C C-14（GV-60）: 日の状態の語と色（/mine と同じ）
 import { SHIFT_REQUEST_MODE_LABEL } from "@/lib/nox/store/mine-settings"; // ★裁定337（0167）: 配置ビューの印
@@ -43,6 +44,9 @@ import { KIND_LABEL, correctionSummaryOf, disputedOf, pendingOf, requestedLabelO
 import { mdDowOf } from "@/lib/nox/shift/staff-place";
 // ★便 AU2／AU3（2026-09-24・週末バックログ 2／3）: 計画期間の進行段・期間ごとの帯と地色・確定シフトの「未確定」印・月セルの名前合成（純関数）
 import { PERIOD_STAGES, effectiveStageOf, isUnpublishedDay, periodBandText, periodStageOf, stageIndexOf } from "@/lib/nox/shift/period-stage";
+import ShiftFlow from "@/components/nox/shift-flow"; // ★M-149: シフトの手順図（希望の受付 → 確認 → 確定 → 本人へ公開）
+import Fold from "@/components/ui/fold"; // ★M-149: 手順図は折りたたみ（押すと出る）
+import { confirmNoteOf, periodFlowStageOf, shiftFlowStageOf, FLOW_LABEL } from "@/lib/nox/shift/flow"; // ★M-149
 import { PERIOD_LEGEND, periodCellClassOf, periodCellStageOf, unprocessedWishIdsOf, wishRowsOf } from "@/lib/nox/shift/period-cell"; // ★便 SH-UI-b2 B2-1（★便 SH-UI-c2 C2-19: セルの class は CalCell へ）
 import { CalCell, CalLegend, CalLegendLine } from "@/components/nox/shift-cal-cell"; // ★便 M2 M-15: CalLegendLine＝390 の凡例 1 行
 import {} from "@/components/nox/shift-cal-cell"; // ★便 SH-UI-c2 C2-19: 日セルと凡例（③④・確定シフトタブで共通）
@@ -117,6 +121,8 @@ const FILL_COLOR: Record<Fill, string> = { ok: "var(--ok)", warn: "var(--gold2)"
 //   4段フロー（設計書 §5）: 希望=shift_wishes(pending) → 管理者確認=planned → キャスト確認=proposed → 確定=confirmed。
 // ★裁定345（便 N1013b）: 語は lib/nox/shift/wish-state.ts の 4 段（planned／proposed＝採用・確認待ち・confirmed＝採用・確定）＝/mine と同じ純関数
 const SHIFT_ST_LABEL: Record<string, string> = { planned: WISH_STATE_LABEL.accepted_wait, proposed: WISH_STATE_LABEL.accepted_wait, confirmed: WISH_STATE_LABEL.accepted_fixed };
+// ★M-149: 状態の札の title＝手順図の段（確認／確定／本人へ公開）
+const shiftFlowTitleOf = (status: string, published: boolean): string => `手順：${FLOW_LABEL[shiftFlowStageOf(status, published)]}`;
 const shiftStColor = (st: string) =>
   st === "confirmed" ? "var(--ok)" : st === "proposed" ? "var(--gold2)" : "var(--champ)";
 // ★裁定135（v4.1 H9）: draft の表示語を「下書き」→「作成中」（モック逐語）。open/closed/published はモックに無い＝据え置き。
@@ -407,6 +413,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   const [userNames, setUserNames] = useState<Map<string, string>>(new Map());
   // E8-4 #3: バンド追加フォーム（時間帯は HH:MM テキスト＝24:00 を許すため type=time にしない）
   const [nDow, setNDow] = useState(0);
+  useEffect(() => { if (closedDows.has(nDow)) { const d = [0, 1, 2, 3, 4, 5, 6].find((x) => !closedDows.has(x)); if (d !== undefined) setNDow(d); } }, [bhRows]); // eslint-disable-line react-hooks/exhaustive-deps -- ★M-144 ④: 既定の曜日が定休日なら最初の営業日へ
   const [nAllDay, setNAllDay] = useState(false);
   const [nFrom, setNFrom] = useState("20:00");
   const [nTo, setNTo] = useState("24:00");
@@ -613,7 +620,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
       ? (accept && error.message.includes("closed day")
           ? "この希望日は定休日に設定されています。採用できません（見送りは可能です）"
           : rpcErrJa(error.message))
-      : accept ? (fixErr ? `採用しましたが確定に失敗: ${fixErr}` : "希望どおり採用し確定しました") : "見送りました");
+      : accept ? (fixErr ? `採用しましたが確定に失敗: ${fixErr}` : `希望どおり採用し確定しました${confirmNoteOf(isUnpublishedDay(periodsAll, wishes.find((x) => x.id === wishId)?.date ?? ""))}`) : "見送りました"); // ★M-149: 公開前なら「まだ本人には公開されません」
     await load();
   }
   // ★N4（対応表 H19・B層＝器あり UI なし）: 希望の一括承認＝**新 RPC は作らない**。表示中の pending 希望を
@@ -635,7 +642,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
       fixed += Number(n ?? chunk.length);
     }
     if (!fixErr) for (const w of wishes.filter((x) => ids.includes(x.id))) await notifyCast(supabase, { castId: w.cast_id, kind: "shift_added", body: shiftAddedBody(w.date, w.start_hm, w.end_hm), ref: notifRefOf("shift_periods", w.id) }); // ★便 ON-3: 一括採用＝1 人ずつ通知
-    setMsg(errs.length === 0 && !fixErr ? `${ok}件を希望どおり採用し確定しました`
+    setMsg(errs.length === 0 && !fixErr ? `${ok}件を希望どおり採用し確定しました${confirmNoteOf(wishes.some((x) => ids.includes(x.id) && isUnpublishedDay(periodsAll, x.date)))}`
       : `${ok}件を採用（確定 ${fixed}件）${errs.length > 0 ? `・${errs.length}件は失敗（${errs[0]}）` : ""}${fixErr ? `・確定に失敗: ${fixErr}` : ""}`); // ★裁定380
     await load();
   }
@@ -713,7 +720,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
       if (k) void notifyCast(supabase, { castId: adjTarget.cast_id, kind: k, body: k === "shift_changed" ? shiftChangedBody(adjTarget.date, { start: adjTarget.start_hm, end: adjTarget.end_hm }, { start: st, end: en }) : k === "shift_proposed" ? shiftProposedBody(adjTarget.date, st, en) : shiftAddedBody(adjTarget.date, st, en), ref: notifRefOf("shifts", adjTarget.id) });
     }
     setMsg(error ? `勤務時間の調整に失敗: ${rpcErrJa(error.message)}` : e3 ? `調整しましたが送り返しに失敗: ${e3}`
-      : next === "confirm" ? "調整して確定しました" : next === "sendback" ? "調整してキャストへ送り返しました（確認待ち）" : "勤務時間を調整しました");
+      : next === "confirm" ? `調整して確定しました${confirmNoteOf(isUnpublishedDay(periodsAll, adjTarget.date))}` : next === "sendback" ? "調整してキャストへ送り返しました（確認待ち）" : "勤務時間を調整しました");
     if (!error && !e3) setAdjTarget(null);
     await load();
   }
@@ -839,7 +846,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
       done += Number(n ?? chunk.length);
     }
     for (const s of shifts.filter((x) => ids.includes(x.id))) await notifyCast(supabase, { castId: s.cast_id, kind: "shift_added", body: shiftAddedBody(s.date, s.start_hm, s.end_hm), ref: notifRefOf("shifts", s.id) }); // ★便 ON-3
-    setMsg(`${done}件を${PROXY_CONFIRM_LABEL}しました`); // ★裁定345
+    setMsg(`${done}件を${PROXY_CONFIRM_LABEL}しました${confirmNoteOf(shifts.some((x) => ids.includes(x.id) && isUnpublishedDay(periodsAll, x.date)))}`); // ★裁定345・★M-149
     await load();
   }
   // ★裁定245-2: 承認待ちの行「確定」＝shift_confirm_bulk を 1 件で（planned／proposed とも・キャスト確認の有無に依らない）
@@ -847,7 +854,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
     setMsg(null);
     const { error } = await supabase.rpc("shift_confirm_bulk", { p_shift_ids: [id] });
     if (!error) { const s = shifts.find((x) => x.id === id); if (s) void notifyCast(supabase, { castId: s.cast_id, kind: "shift_added", body: shiftAddedBody(s.date, s.start_hm, s.end_hm), ref: notifRefOf("shifts", s.id) }); } // ★便 ON-3
-    setMsg(error ? `${PROXY_CONFIRM_LABEL}に失敗: ${bulkErrJa(error.message)}` : `${PROXY_CONFIRM_LABEL}しました`); // ★裁定345
+    setMsg(error ? `${PROXY_CONFIRM_LABEL}に失敗: ${bulkErrJa(error.message)}` : `${PROXY_CONFIRM_LABEL}しました${confirmNoteOf(isUnpublishedDay(periodsAll, shifts.find((x) => x.id === id)?.date ?? ""))}`); // ★裁定345・★M-149
     await load();
   }
 
@@ -1484,6 +1491,10 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
           ))}
         </ol>
       )}
+      {viewOfTab(tab) === "make" && (() => { const cur = periods[0] ? periodFlowStageOf(effectiveStageOf(periods[0], bizToday)) : null; return (
+        <Fold name="shift-flow" title="シフトの流れ" summary={`希望の受付 → 確認 → 確定 → 本人へ公開${cur ? `（いま：${FLOW_LABEL[cur]}）` : ""}`}>{/* ★M-149: 1 枚の手順図・各一覧の状態の名前を段に対応 */}
+          <ShiftFlow current={cur} storeDecides={storeDecides} />
+        </Fold>); })()}
       {/* ── タブ「今日」＝当日運用 ──
           ★DP-R S1/S2/S3（教訓26＝構造照合）でモック nox-shift-management の today パネルへ追随:
             S1 KPI 帯は**この面の中**（モックは .kpis を today パネル内に持つ）＝他タブへ引きずらない。
@@ -1802,7 +1813,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                           })()}
                         </td>
                         <td className="c-state" data-label="状態" style={{ whiteSpace: "nowrap" }}>{/* ★AT2-3: 「確定」の印を折り返し・見切れさせない */}
-                          <span className={`nox-stpill ${s.status === "confirmed" ? "ok" : ""}`}
+                          <span className={`nox-stpill ${s.status === "confirmed" ? "ok" : ""}`} title={shiftFlowTitleOf(s.status, !isUnpublishedDay(periodsAll, s.date))} data-flow-stage={shiftFlowStageOf(s.status, !isUnpublishedDay(periodsAll, s.date))}
                             style={s.status === "proposed" ? { color: "var(--gold2)", borderColor: "rgba(201, 162, 74, .45)" } : undefined}>
                             {SHIFT_ST_LABEL[s.status] ?? s.status}
                           </span>
@@ -2314,7 +2325,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
             const closedDow = closedDows.has(dow); // ★便 NR-1 B②: 定休日の曜日＝0 固定・入力不可
             return (
               <div key={dow} style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", padding: "5px 0", borderBottom: "1px solid var(--line)", fontSize: 12.5 }}>
-                <span style={{ width: 20, color: dow === 0 ? "var(--bad)" : dow === 6 ? "var(--champ)" : "var(--sub)", fontWeight: 700 }}>{label}</span>
+                <span style={{ width: 28, color: closedDow ? undefined : dow === 0 ? "var(--bad)" : dow === 6 ? "var(--champ)" : "var(--sub)", fontWeight: 700 }}><DowMark label={label} closed={closedDow} /></span>{/* ★M-144 ④ */}
                 {closedDow && <span data-need-closed={dow} style={{ color: "var(--sub)" }}>定休日（必要人数 0・入力不可）</span>}
                 {!closedDow && bs.length === 0 && <span style={{ color: "var(--v2-muted)" }}>未設定</span>}
                 {!closedDow && bs.map((n) => (
@@ -2340,7 +2351,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
           })}
           {/* バンド追加フォーム（検証の正は RPC＝bad band / overlap を日本語で返す） */}
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 10 }}>
-            <SegSelect value={String(nDow)} onChange={(v) => setNDow(Number(v))} options={DOW.map((l, d) => [String(d), l] as const)} ariaLabel="曜日" />{/* ★便 A M-76: 曜日はボタン群（教訓133） */}
+            <DowChips mode="single" name="need-band" ariaLabel="曜日" labels={DOW} selected={(d) => d === nDow} closed={(d) => closedDows.has(d)} onToggle={(d) => setNDow(d)} />{/* ★M-144 ④: 定休日は灰色＋「定休」で選べない */}{/* ★便 A M-76: 曜日はボタン群（教訓133） */}
             <label style={{ fontSize: 12.5, color: "var(--sub)", display: "flex", alignItems: "center", gap: 4 }}>
               <input type="checkbox" checked={nAllDay} onChange={(e) => setNAllDay(e.target.checked)} />終日
             </label>
@@ -2443,7 +2454,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
             {DOW.map((d, i) => { const def = storeNeedOf(i); const hol = closedDows.has(i); const cur = (pNeeds[i] ?? "").trim() === "" ? def : Number(pNeeds[i]); const over = (pNeeds[i] ?? "").trim() !== "";
               const setV = (v: number) => setPNeeds((f) => f.map((x, k) => (k === i ? (v === def ? "" : String(Math.max(0, Math.min(99, v)))) : x)));
               return (
-              <span key={d} style={{ fontSize: 12, display: "inline-flex", alignItems: "center", gap: 3 }} data-period-need-dow={i} data-period-need-over={over ? "1" : "0"}>{d}
+              <span key={d} style={{ fontSize: 12, display: "inline-flex", alignItems: "center", gap: 3 }} data-period-need-dow={i} data-period-need-over={over ? "1" : "0"}><DowMark label={d} closed={hol} />{/* ★M-144 ④ */}
                 {hol ? <span style={{ ...input, width: 70, padding: "6px 6px", textAlign: "center", color: "var(--sub)", opacity: 0.7 }} data-period-need={i} data-period-need-closed="1">定休</span>
                   : <span style={{ display: "inline-flex", alignItems: "center", border: "1px solid var(--line2)", borderRadius: 8, overflow: "hidden" }}>
                     <button type="button" style={{ ...btnLight, border: 0, borderRadius: 0, padding: "4px 8px" }} aria-label={`${d}曜の必要人数を 1 減らす`} onClick={() => setV(cur - 1)}>−</button>
@@ -2598,7 +2609,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                       </td>
                       <td style={{ fontSize: 11.5, color: "var(--v2-muted)" }}>{userNames.get(s.created_by) ?? "—"}</td>
                       <td>
-                        <span className={`nox-stpill ${s.status === "confirmed" ? "ok" : ""}`}
+                        <span className={`nox-stpill ${s.status === "confirmed" ? "ok" : ""}`} title={shiftFlowTitleOf(s.status, !isUnpublishedDay(periodsAll, s.date))} data-flow-stage={shiftFlowStageOf(s.status, !isUnpublishedDay(periodsAll, s.date))}
                           style={s.status === "proposed" ? { color: "var(--gold2)", borderColor: "rgba(201, 162, 74, .45)" } : undefined}>
                           {SHIFT_ST_LABEL[s.status] ?? s.status}
                         </span>
@@ -2921,7 +2932,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
               <div key={x.id} className="nox-listrow" style={{ fontSize: 12.5 }}>
                 <span style={{ flex: 1, minWidth: 0 }}>{castName(x.cast_id)}</span>
                 <span className="num">{fmtWin(x.start_hm, x.end_hm)}</span>
-                <span className={`nox-stpill ${x.status === "confirmed" ? "ok" : ""}`}
+                <span className={`nox-stpill ${x.status === "confirmed" ? "ok" : ""}`} title={shiftFlowTitleOf(x.status, !isUnpublishedDay(periodsAll, x.date))} data-flow-stage={shiftFlowStageOf(x.status, !isUnpublishedDay(periodsAll, x.date))}
                   style={x.status === "proposed" ? { color: "var(--gold2)", borderColor: "var(--gold-bd)" } : undefined}>
                   {SHIFT_ST_LABEL[x.status] ?? x.status}
                 </span>

@@ -180,7 +180,7 @@ export default function StaffShiftPanel({ stores }: { stores: Store[] }) {
     const ds = patternDisableStateOf(p.disabled_from, bizToday); // ★M4-3: active／scheduled（M/1 から無効）／disabled（無効）
     const muted = kind === "past" || kind === "disabled";
     return (
-    <tr key={p.id} style={muted ? { opacity: 0.6 } : undefined}>
+    <tr key={p.id} style={muted ? { opacity: 0.75 } : undefined}>{/* ★M-139 */}
       <td style={{ fontWeight: 800 }}>{p.name}</td>
       <td className="num">{hmLabelOf(p.start_hm)}〜{fmtEnd30(p.end_hm)}</td>
       <td className="num">{p.effective_from}</td>

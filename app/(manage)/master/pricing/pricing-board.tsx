@@ -43,6 +43,8 @@ import StoreFlagToggle from "../store-flag-toggle"; // ★mig0144: ext_shimei_en
 import { mineSettingsErrJa, mineSettingsOf } from "@/lib/nox/store/mine-settings"; // ★0160（起票96・便 M4-4）: contract_ack（加盟店契約の確認の記録＝店設定 8 キー目）
 import { swapAdjacent, reorderErrJa } from "@/lib/nox/ui/reorder";
 import { extCountTextOf } from "@/lib/nox/rules-0175/ext-pattern"; // ★連続便 3 追補 P-10 ④
+import DowChips from "@/components/ui/dow-chips"; // ★M-144 ②: 定休日の曜日は灰色＋「定休」で選べない
+import { maskOfDays, openDaysOf } from "@/lib/nox/pricing/closed-dows";
 
 const card: React.CSSProperties = t.card;
 const input: React.CSSProperties = { ...t.input, width: "auto", padding: "8px 10px", fontSize: 13 };
@@ -216,6 +218,12 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
   const [tab, setTab] = useState<"master" | "rules" | "checkout">(initTab);
   useEffect(() => { if (spTab === "rules" || spTab === "checkout" || spTab === "master") setTab(spTab); }, [spTab]);
   const [rules, setRules] = useState<PricingRule[]>(initial.rules);
+  // ★M-144 ②: 店の定休日の曜日（営業時間の is_closed）＝帯の曜日で選べない
+  const [closedDows, setClosedDows] = useState<number[]>([]);
+  useEffect(() => { let alive = true; void (async () => {
+    const { data } = await supabase.from("store_business_hours").select("dow").eq("store_id", storeId).eq("is_closed", true);
+    if (alive) setClosedDows(((data ?? []) as { dow: number }[]).map((r) => r.dow));
+  })(); return () => { alive = false; }; }, [storeId]); // eslint-disable-line react-hooks/exhaustive-deps
   const [ranks, setRanks] = useState<CastRank[]>(initial.ranks);
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -499,7 +507,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
   }
 
   function openNewBand() {
-    setEditKey(null); setMSeat(""); setMDays(Array(7).fill(true));
+    setEditKey(null); setMSeat(""); setMDays(openDaysOf(closedDows)); // ★M-144 ②: 新しい帯の既定＝定休日以外
     setMFrom(""); setMTo(""); setMSetFee(""); setMSetMin(""); setMExtFee(""); setMExtMin("");
     setMDohan(""); setMVip(""); setMUnitSet(""); setMUnitExt(""); setMUnitVip("");
     setMActive(true); setMName(""); setMTax("taxable_10"); setMCat(""); setMErr(null); setModalOpen(true);
@@ -507,7 +515,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
   function openEditBand(b: Band) {
     setEditKey(b.key);
     setMSeat(b.seat_kind ?? "");
-    setMDays(DOW_LABELS.map((_, i) => b.dow_mask === null ? true : ((b.dow_mask >> i) & 1) === 1));
+    setMDays(DOW_LABELS.map((_, i) => !closedDows.includes(i) && (b.dow_mask === null ? true : ((b.dow_mask >> i) & 1) === 1))); // ★M-144 ②: 定休日は選んでいない扱い（保存で外れる）
     setMFrom(b.from === null ? "" : minToHm(b.from));
     setMTo(b.to === null ? "" : minToHm(b.to));
     setMSetFee(b.cells.set ? String(b.cells.set.amount) : "");
@@ -533,9 +541,9 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
   async function saveBand() {
     setMErr(null);
     if ((mFrom === "") !== (mTo === "")) { setMErr("開始と終了は両方入力してください（終日は両方空欄）"); return; }
-    if (!mDays.some(Boolean)) { setMErr("曜日を1つ以上選択してください"); return; }
+    if (!mDays.some((on, i) => on && !closedDows.includes(i))) { setMErr("曜日を1つ以上選択してください（定休日の曜日は選べません）"); return; }
     if (mSetFee === "" && mExtFee === "" && mDohan === "" && mVip === "") { setMErr("セット・延長・同伴・VIPチャージのいずれかの料金を入力してください"); return; }
-    const dow = mDays.every(Boolean) ? null : mDays.reduce((m, on, i) => (on ? m | (1 << i) : m), 0);
+    const dow = maskOfDays(mDays, closedDows); // ★M-144 ②: 営業日を全部選んだら毎日（null）・定休日は入れない
     const from = mFrom === "" ? null : hmToMin(mFrom);
     const to = mTo === "" ? null : hmToMin(mTo);
     const band = editKey !== null ? bands.find((b) => b.key === editKey) : undefined;
@@ -926,13 +934,6 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
     );
   };
 
-  const dayChip = (on: boolean): React.CSSProperties => ({
-    fontFamily: "inherit", fontWeight: 700, fontSize: 12, padding: "6px 10px", borderRadius: 8, cursor: "pointer",
-    border: on ? "1px solid var(--primary)" : "1px solid var(--line2)",
-    background: on ? "var(--primary-soft)" : "transparent", // ★夜間レーン裁定③: 選択=青soft（旧: 金グラデ）
-    color: on ? "var(--primary-hover)" : "var(--sub)",
-  });
-
   return (
     <div className="nox-mv1">
       <Toast msg={msg} />
@@ -1054,7 +1055,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
                   </thead>
                   <tbody>
                     {cats.map((c, i) => (
-                      <tr key={c.id} style={c.is_active ? undefined : { opacity: 0.55 }}>
+                      <tr key={c.id} style={c.is_active ? undefined : { opacity: 0.75 }}>{/* ★M-139: 停止中も文字は AA（0.55→0.75） */}
                         <td data-label="並び">
                           <span style={{ display: "inline-flex", gap: 4 }}>
                             <button type="button" className="nox-ordbtn" aria-label="上へ"
@@ -1962,12 +1963,8 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
 
           <div className="nox-field">
             <span className="lab">適用日</span>
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-              {DOW_LABELS.map((d, i) => (
-                <button key={d} type="button" style={dayChip(mDays[i])}
-                  onClick={() => setMDays((p) => p.map((v, j) => (j === i ? !v : v)))}>{d}</button>
-              ))}
-            </div>
+            <DowChips name="band" ariaLabel="適用日" labels={DOW_LABELS} selected={(i) => mDays[i]} closed={(i) => closedDows.includes(i)}
+              onToggle={(i) => setMDays((p) => p.map((v, j) => (j === i ? !v : v)))} />{/* ★M-144 ②: 定休日は灰色＋「定休」・押しても反応しない */}
           </div>
 
           <div className="nox-field">

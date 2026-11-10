@@ -40,7 +40,7 @@ export default function KintaiRow({ r, withBy, onEdit, withPay = r.pay !== undef
     ? <button type="button" className="nox-link num" data-kintai-date={r.bizDate} data-kintai-edit="1" onClick={(e) => { e.stopPropagation(); onEdit!(r); }} title="この日を編集">{day}</button>
     : <span className="num" data-kintai-date={r.bizDate}>{day}</span>;
   const p = r.pay ?? null;
-  const dim: React.CSSProperties = r.cancelled ? { opacity: 0.55 } : {};
+  const dim: React.CSSProperties = r.cancelled ? { opacity: 0.75 } : {}; // ★M-139: 取消の行も文字は AA
   return (
     <>
       <tr data-kintai-day={r.bizDate} data-missing-out={r.missingOut ? "1" : undefined} data-cancelled={r.cancelled ? "1" : undefined} style={{ cursor: "pointer", ...dim }} onClick={() => setOpen((v) => !v)}>

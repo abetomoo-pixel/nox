@@ -5,6 +5,7 @@
 //   mode: "line"＝注文行のお客様を付ける（未付与なら併存で check_customer_add → check_line_set_customer）／"add"＝伝票にお客様を追加（check_customer_add だけ）／"select"＝選ぶだけ（親が使う＝キープの持ち主）。
 //   候補は customers 1 本＋customer_list_summary 1 本（N+1 なし・RPC 新設なし）。用語は「お客様」で統一（旧用語は画面・明細・印刷のどこにも出さない＝370）。
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Loading from "@/components/ui/loading"; // ★M-135: 読み込み中の表示の共通部品
 import { createClient } from "@/lib/supabase/client";
 import Modal from "@/components/ui/modal";
 import { Message } from "@/components/ui/toast";
@@ -156,7 +157,7 @@ export default function CustomerPickModal({ storeId, checkId, target, mode = "li
             ))}
           </div>
         )}
-        {named === null && <p style={{ fontSize: 12, color: "var(--sub)", margin: 0 }}>読み込み中…</p>}
+        {named === null && <Loading />}
         {named !== null && searching && (
           <div style={{ display: "grid", gap: 6, marginBottom: 8 }}>
             {hits.slice(0, shown).map(row)}

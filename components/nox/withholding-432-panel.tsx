@@ -94,7 +94,7 @@ export default function Withholding432Panel({ period, subjectKind, subjectId, ki
           {kind === "other_fee" && <p style={{ ...t.sub, margin: "2px 0 0" }}>{OTHER_FEE_PROVISIONAL_NOTE}</p>}
           {ovOpen && editable && (
             <div style={{ display: "grid", gap: 6, marginTop: 6 }} data-wh-override-form="1">
-              <label style={t.fieldLabel}>指定額（この期だけ）<input value={ovAmount} onChange={(e) => setOvAmount(e.target.value)} inputMode="numeric" style={t.input} aria-label="指定額" /></label>
+              <label style={t.fieldLabel}>指定額（この期だけ）<MoneyInput value={ovAmount} onChange={(d) => setOvAmount(d)} width="100%" ariaLabel="指定額" />{/* ★M-155 ① */}</label>
               <label style={t.fieldLabel}>理由（任意）<input value={ovReason} onChange={(e) => setOvReason(e.target.value)} maxLength={200} style={t.input} aria-label="指定の理由" /></label>
               <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 12.5, minHeight: 40 }}><input type="checkbox" checked={ovConfirmed} onChange={(e) => setOvConfirmed(e.target.checked)} data-wh-confirmed="1" />税理士確認済み</label>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>

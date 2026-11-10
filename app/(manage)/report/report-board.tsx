@@ -922,9 +922,8 @@ export default function ReportBoard({
           </p>
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
             <label style={{ ...t.fieldLabel, fontSize: 12 }}>回収額{" "}
-              <input type="number" min={1} max={remainOf(collectPick)} value={collectAmt}
-                onChange={(e) => setCollectAmt(e.target.value)} placeholder={`空欄＝全額（${remainOf(collectPick).toLocaleString()}）`}
-                style={{ ...input, width: 180 }} />
+              <MoneyInput value={collectAmt} onChange={(d) => setCollectAmt(d)} placeholder={`空欄＝全額（${remainOf(collectPick).toLocaleString()}）`}
+                width={200} ariaLabel="回収額" />{/* ★M-155 ①: 金額は MoneyInput（上限は RPC と保存前の判定のまま） */}
             </label>
             {/* ★D45（mig0143）: 回収方法（receivable_collect の p_method＝既存引数・既定 cash）。card／other は理論在高に入らない */}
             <label style={{ ...t.fieldLabel, fontSize: 12 }}>回収方法{" "}

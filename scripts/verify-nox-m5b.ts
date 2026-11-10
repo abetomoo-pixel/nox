@@ -25,7 +25,7 @@ const css = src("app/globals.css"); const ui = src("components/ui/unit-input.tsx
 check("m5b(2-1) .nox-unit（一体の枠・数値右寄せ・pre は左の箱）＋UnitBox の包み（中の入力の枠を消す）", css.includes(".nox-unit { display: inline-flex;") && css.includes(".nox-unit em.pre {") && css.includes(".nox-unitbox input { border: 0 !important;") && ui.includes("export function UnitBox("));
 check("m5b(2-2) UnitInput は ¥ と 円 を両方描かない・MoneyInput は ¥ の箱だけ（円なし）", ui.includes('const right = pre === "¥" && unit === "円" ? undefined : unit;') && money.includes('<em className="pre" aria-hidden="true">¥</em>') && !money.includes(">円</span>"));
 const boxUsers = ["app/(manage)/register/register-board.tsx", "app/(manage)/master/cast-comp/plan/plan-editor.tsx", "app/(manage)/master/cast-comp/comp-sections.tsx", "components/simulator-panel.tsx", "app/(manage)/master/staff-shift-panel.tsx", "app/(manage)/shift/shift-board.tsx", "app/(manage)/master/deduction-panel.tsx", "app/(manage)/register/reservation-panel.tsx", "app/(manage)/master/store-profile-panel.tsx", "app/(manage)/master/products/products-board.tsx", "app/(manage)/master/pricing/pricing-board.tsx"];
-check("m5b(2-3) 欄の外に浮いた単位をやめた画面＝UnitBox／UnitInput を使う（11 ファイル）", boxUsers.every((f) => /<UnitBox |<UnitInput /.test(src(f))), boxUsers.filter((f) => !/<UnitBox |<UnitInput /.test(src(f))));
+check("m5b(2-3) 欄の外に浮いた単位をやめた画面＝UnitBox／UnitInput を使う（11 ファイル）", boxUsers.every((f) => /<UnitBox |<UnitInput |<MoneyInput /.test(src(f))), boxUsers.filter((f) => !/<UnitBox |<UnitInput |<MoneyInput /.test(src(f)))); // ★M-155: 金額は MoneyInput（¥ の箱）も同じ扱い（送りの区分）
 check("m5b(2-4) register の ¥／円 の浮き（裁定253 R10 の 2 か所）が残らない", !src("app/(manage)/register/register-board.tsx").includes('<span style={{ fontSize: 12, color: "var(--sub)" }}>円</span>'));
 
 // (3)

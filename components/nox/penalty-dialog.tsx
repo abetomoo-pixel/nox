@@ -5,6 +5,7 @@
 //   確定＝payroll_adjustment_add（source 'settlement'・basis＝ひな形の契約根拠・target_shift_id＝その日のシフト・audit は RPC）。罰金なし＝勤怠の記録だけ（閉じる）。
 //   同じシフトに同じ種別の罰金が既にあれば二重に出さず「既に ¥n を記録済み」（変更・取消の RPC は無い＝0175・給与画面へ）。当期の draft run が無ければ登録できない（既存の精算調整と同じ）。
 import { useEffect, useState } from "react";
+import Loading from "@/components/ui/loading"; // ★M-135: 読み込み中の表示の共通部品
 import Link from "next/link";
 import MoneyInput from "@/components/ui/money-input";
 import Modal from "@/components/ui/modal";
@@ -82,7 +83,7 @@ export default function PenaltyDialog({ storeId, castId, castName, biz, shiftId,
         <strong>{PENALTY_TITLE[target]}（{castName}・{md}）</strong>
         <button type="button" className="nox-formmodal-x" aria-label="閉じる" disabled={busy} onClick={onClose}>×</button>
       </div>
-      {loading ? <p style={{ fontSize: 12, color: "var(--sub)" }}>読み込み中…</p> : !preset ? (
+      {loading ? <Loading /> : !preset ? (
         <Message kind="warn">精算調整のひな形（委託）に{target === "late" ? "遅刻" : "当欠"}の行がありません（報酬制度の精算調整のひな形で設定）。勤怠の記録だけ残しました。</Message>
       ) : existing !== null ? (
         <p style={{ fontSize: 13, margin: "0 0 10px" }} data-penalty-existing="1">既に ¥{existing.toLocaleString()} を記録済みです（このシフト・{preset.name}）。変更・取消は<Link href="/payroll" className="nox-link">給与画面</Link>の精算調整から。</p>

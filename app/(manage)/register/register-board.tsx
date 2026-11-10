@@ -16,6 +16,7 @@ import { discountArgsOf, discountRateTextOf, payDiscountBaseOf, payDiscountKeyOf
 import { extGuideLabelOf, extGuidePriceOf, extGuideRowsOf, type ExtSnapItem } from "@/lib/nox/register/ext-guide";
 import ExtEstimateTable from "@/components/nox/ext-estimate-table"; // ★便 B M-70（2026-11-04）: 延長シミュレーション（表）
 import { EXT_ESTIMATE_TITLE, extAddedBlocksOf, extEstimatePatternsOf } from "@/lib/nox/register/ext-estimate"; // ★便 B M-70: 延長 1〜3 回後の合計（会計と同じ関数） // ★0187（便 EXT）: 延長のご案内（お客様向け全画面・フラグ配下）
+import Fold from "@/components/ui/fold"; // ★M-136: 折りたたみの共通部品（カスタム明細・割引・無料）
 import ReceiptPrintSheet from "@/components/nox/receipt-print"; // ★便 GV-C C-13: 領収書の印字実体（共用）
 import GroupedNumberInput from "@/components/ui/grouped-number-input"; // ★便 X13-G W-12 ④: 3 桁区切りの入力欄
 import { renderSVG } from "uqr"; // R2-c: 領収書公開 URL の QR（依存ゼロの軽量ライブラリ・裁定 R2-13）
@@ -2340,7 +2341,7 @@ export default function RegisterBoard({
                       <input inputMode="decimal" value={feeRateIn} onChange={(e) => { setFeeRateIn(e.target.value.replace(/[^0-9.]/g, "").slice(0, 5)); setPayCardGross(null); }} aria-label="手数料の率" placeholder={String(rate)} data-fee-rate-input="1" style={{ ...t.input, width: 64, textAlign: "center" }} />%
                       <StepBtn label="＋" ariaLabel="手数料の率を 0.5% 上げる" testId="inc" dataAttr="data-fee-rate-step" className="nox-step-btn" onStep={() => { setFeeRateIn(feeRateTextOf(feeRateStepOf(feeRateInputOf(feeRateIn), 1, rate))); setPayCardGross(null); }} />
                     </span>}{/* ★便 M-6: 率を指定＝入金額×率を額に換算（p_fee_amount） */}
-                    {feeMode0 === "manual" && <input inputMode="numeric" value={feeManual} onChange={(e) => setFeeManual(e.target.value.replace(/[^0-9]/g, "").slice(0, 7))} aria-label="手数料の額" placeholder={`上限 ${balance.toLocaleString()}`} style={{ ...t.input, width: 120 }} />}
+                    {feeMode0 === "manual" && <MoneyInput value={feeManual} onChange={(d) => setFeeManual(d.slice(0, 7))} ariaLabel="手数料の額" placeholder={`上限 ${balance.toLocaleString()}`} width={140} />}{/* ★M-155 ①: 金額は MoneyInput */}
                     <span data-pay-fee-notes="1" style={{ width: "100%", fontSize: 10.5, color: "var(--sub)", lineHeight: 1.6 }}>手数料は伝票の行として残り、キャストの売上・ノルマ・歩合には含めません。併用時はこの方法で入金する分だけに掛かります。</span>{/* ★M-17 追補 ③: 末尾の枠の注記 2 行をここへ */}
                   </div>
                 ); })()}
@@ -2355,7 +2356,7 @@ export default function RegisterBoard({
                     ))}
                   </span>
                   {discMode0 === "rate" && <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><input inputMode="decimal" value={discRateIn} onChange={(e) => setDiscRateIn(e.target.value.replace(/[^0-9.]/g, "").slice(0, 5))} aria-label="割引の率" placeholder={String(discRate0)} data-disc-rate-input="1" style={{ ...t.input, width: 80 }} />%</span>}
-                  {discMode0 === "manual" && <input inputMode="numeric" value={discManual} onChange={(e) => setDiscManual(e.target.value.replace(/[^0-9]/g, "").slice(0, 7))} aria-label="割引の額" placeholder={`上限 ${balance0.toLocaleString()}`} data-disc-manual-input="1" style={{ ...t.input, width: 120 }} />}
+                  {discMode0 === "manual" && <span data-disc-manual-input="1" style={{ display: "inline-flex" }}><MoneyInput value={discManual} onChange={(d) => setDiscManual(d.slice(0, 7))} ariaLabel="割引の額" placeholder={`上限 ${balance0.toLocaleString()}`} width={140} /></span>}{/* ★M-155 ①: 金額は MoneyInput */}
                   <span style={{ width: "100%", fontSize: 10.5, color: "var(--sub)" }}>割引対象＝{PAY_DISCOUNT_BASE_SHORT[payDiscountBase]}（店設定「支払方法の調整」）。割引は伝票の行として残ります。</span>
                 </div>
               ); })()}
@@ -2595,6 +2596,7 @@ export default function RegisterBoard({
               setRcptForm({ amount: "", name: "", note: rules0175On() ? rcptDefaultDesc : "" }); // ★追補 2 同乗 R-6: 但し書きの既定（編集可）
             };
             return (
+              <Fold name="close-receipt" defaultOpen={rcptIssued.length > 0} title="領収書を発行する" summary="必要なときだけ（台帳に記録・発行番号つき）">{/* ★M-136: 領収書は完了画面の任意の操作＝押したときだけ開く */}
               <div className="nox-inset" style={{ padding: "12px 14px", marginBottom: 12 }}>
                 <p style={{ fontSize: 12.5, fontWeight: 800, margin: "0 0 4px", color: "var(--champ)" }}>領収書発行（台帳記録・発行番号つき）</p>
                 <p style={{ fontSize: 11, color: "var(--sub)", margin: "0 0 8px", lineHeight: 1.6 }}>
@@ -2731,6 +2733,7 @@ export default function RegisterBoard({
                   </div>
                 )}
               </div>
+              </Fold>
             );
           })()}
           <button type="button" style={{ ...t.btnSecondary48, width: "100%" }} data-close-sheet="1"
@@ -2953,6 +2956,10 @@ export default function RegisterBoard({
             <button key={k} type="button" className={`${dtab === k ? "on" : ""}${k === "pay" ? " pay" : ""}`} onClick={() => setDtab(k)}>{DTAB_ICON[k]}{label}</button>
           ))}
         </div>
+        {dtab === "pay" && (() => { const paidSum = groupInfo.reduce((a, gi) => a + gi.paid, 0); const remSum = groupInfo.reduce((a, gi) => a + Math.max(0, gi.remaining), 0); return (
+          <div className="nox-paysticky num" data-pay-sticky="1">{/* ★M-136: 会計中は卓名（上の段）・請求額・入金済み・残額を上に固定 */}
+            <span>請求 <b>{yen(sumDue)}</b></span><span>入金済み <b>{yen(paidSum)}</b></span><span>残額 <b style={{ color: remSum > 0 ? "var(--bad)" : "var(--ok)" }}>{yen(remSum)}</b></span>
+          </div>); })()}
         </div>{/* /nox-regsticky */}
         {peopleMsg && <Toast msg={peopleMsg} style={{ margin: "6px 0 0" }} />}
         {/* E8-1c: 人数±の注記（person 制のみ＝table 制は人数が料金に効かないため出さない・嘘をつかない）。
@@ -2978,6 +2985,37 @@ export default function RegisterBoard({
 
         {/* planB .checkcols＝左 1.4fr（操作）／右 1fr（明細・会計）。★各カードの dtab 条件は 1文字も変えていない。
             指名・席タブは右カラムに出るカードが無いため split を付けない＝空列を作らない（v2R の grid 教訓）。 */}
+        {/* ★M-136（2026-11-10 Agoora 指摘）: 会計タブの先頭＝請求額・入金済み・残額＋「入金へ進む」（主）・「会計を分ける」（副）。明細の調整（カスタム明細・割引）は下の折りたたみ */}
+        {dtab === "pay" && (() => {
+          const paidSum = groupInfo.reduce((a, gi) => a + gi.paid, 0);
+          const remSum = groupInfo.reduce((a, gi) => a + Math.max(0, gi.remaining), 0);
+          return (
+          <div className="nox-cardtop nox-payhead" style={card} data-pay-head="1">
+            <div className="nox-payhead-amt"><span className="l">請求額</span><span className="num v" data-pay-head-due={sumDue}>{yen(sumDue)}</span></div>
+            <div className="nox-payhead-sub num">入金済み {yen(paidSum)}<span aria-hidden="true">・</span>残額 <b style={{ color: remSum > 0 ? "var(--bad)" : "var(--ok)" }} data-pay-head-rem={remSum}>{yen(remSum)}</b></div>
+          {!allCovered && (
+            <div data-pay-step="1" style={{ display: "grid", gap: 8, margin: "10px 0 8px" }}>
+              {splitOn && <div>{groupSeg(payGroup || "A", setPayGroup)}</div>}
+              {(() => {
+                const gi = groupInfo.find((x) => x.g === (payGroup || "A"));
+                const remaining = gi?.remaining ?? 0;
+                return (
+                  <button type="button" style={t.btnPrimary56} data-pay-next="1" disabled={check.status !== "open" || remaining <= 0}
+                    onClick={() => { setPayAmount(remaining); setPayCardGross(null); setPaySplitN(null); setPayTendered(""); setPayDetail(""); setPayModal(true); }}>
+                    入金へ進む{splitOn ? `（会計${payGroup || "A"}）` : ""}
+                  </button>
+                );
+              })()}
+              <div style={t.btnRow48}>
+                <button type="button" style={t.btnSecondary48} data-pay-split="1" disabled={groupChoices.length >= 6}
+                  title={groupChoices.length >= 6 ? "会計分けは最大6つ（A〜F）です" : ""} onClick={() => addSplitGroup(setPayGroup)}>会計を分ける</button>
+              </div>
+            </div>
+          )}
+            {allCovered && <p className="nox-payhead-done" data-pay-head-done="1">入金は済んでいます。下の「会計を完了」を押してください。</p>}
+          </div>
+          );
+        })()}
         <div className={dtab === "nom" ? "nox-checkcols" : "nox-checkcols split"}>
           <div>
         {dtab === "nom" && (<>
@@ -3548,8 +3586,8 @@ export default function RegisterBoard({
 
         {/* カスタム明細（kind/名称/価格）＝段R2 で会計タブへ移設（フォームの中身・送る引数は不変） */}
         {dtab === "pay" && (
-        <div className="nox-cardtop" style={card}>
-          <h3 style={t.cardTitle}>カスタム明細</h3>
+        <Fold name="pay-custom" title="カスタム明細を追加" summary="一覧に無い料金・値引きを 1 行足す">{/* ★M-136: 折りたたみ（毎回は使わない） */}
+        <div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
             {/* R-A2（0089）: 種別から「セット」を除去＝開卓時の自動行と手打ちの二重計上を封じる */}
             <SegSelect value={cKind} onChange={(v) => setCKind(v)}
@@ -3564,14 +3602,15 @@ export default function RegisterBoard({
             <button onClick={addCustomLine} style={btnDark}>追加</button>
           </div>
         </div>
+        </Fold>
         )}
 
         {/* 割引・無料（承認ワークフロー・F3c）＝段R2 で会計タブへ */}
         {dtab === "pay" && !(rules0175On() && !isManagerUp && staffDiscountLevelOf(storeSj) === 2) && (/* ★追補 2（裁定421 候補）: 2＝不可のスタッフにはカードごと出さない */
-        <div className="nox-cardtop" style={card} data-staff-discount-level={rules0175On() ? staffDiscountLevelOf(storeSj) : undefined}>
-          <h3 style={t.cardTitle}>
-            割引・無料（{isManagerUp ? "適用・承認" : rules0175On() && staffDiscountLevelOf(storeSj) === 1 ? `申請・上限 ${yen(staffDiscountCapOf(storeSj))} までは即時` : "申請"}）
-          </h3>
+        <Fold name="pay-discount" defaultOpen={approvals.some((a) => a.status === "pending")} /* ★M-136: 承認待ちがあれば開いておく */
+          title={<>割引・無料（{isManagerUp ? "適用・承認" : rules0175On() && staffDiscountLevelOf(storeSj) === 1 ? `申請・上限 ${yen(staffDiscountCapOf(storeSj))} までは即時` : "申請"}）</>}
+          summary={approvals.length === 0 ? "申請なし" : `申請 ${approvals.length} 件（承認待ち ${approvals.filter((a) => a.status === "pending").length}）`}>
+        <div data-staff-discount-level={rules0175On() ? staffDiscountLevelOf(storeSj) : undefined}>
           {/* 申請（スタッフ can_register）／適用（owner/manager 直接）フォーム */}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 10 }}>
             <SegSelect value={apType} onChange={(v) => setApType(v as "discount" | "free")}
@@ -3625,6 +3664,7 @@ export default function RegisterBoard({
                 </div>
               ))}
         </div>
+        </Fold>
         )}
 
           </div>
@@ -3927,25 +3967,7 @@ export default function RegisterBoard({
           {/* E8-1 ④/⑦: 1行フォーム → 会計分けセグメント（現行位置）＋入金モーダル（BANZEN 型）。
               送る引数（check_pay の7引数）は不変＝入力 UI の置換のみ。 */}
           {/* ★裁定375（GV-B W-5）: 1 画面 1 ステップ＝①請求表→「入金へ進む」主（入金モーダル＝支払方法セグメント→金額（既定残額・数字キーパッド）→「入金する」主）・「会計を分ける」副。残額 0 で両ボタン非表示＝履歴だけ残し③へ */}
-          {!allCovered && (
-            <div data-pay-step="1" style={{ display: "grid", gap: 8, margin: "10px 0 8px" }}>
-              {splitOn && <div>{groupSeg(payGroup || "A", setPayGroup)}</div>}
-              {(() => {
-                const gi = groupInfo.find((x) => x.g === (payGroup || "A"));
-                const remaining = gi?.remaining ?? 0;
-                return (
-                  <button type="button" style={t.btnPrimary56} data-pay-next="1" disabled={check.status !== "open" || remaining <= 0}
-                    onClick={() => { setPayAmount(remaining); setPayCardGross(null); setPaySplitN(null); setPayTendered(""); setPayDetail(""); setPayModal(true); }}>
-                    入金へ進む{splitOn ? `（会計${payGroup || "A"}）` : ""}
-                  </button>
-                );
-              })()}
-              <div style={t.btnRow48}>
-                <button type="button" style={t.btnSecondary48} data-pay-split="1" disabled={groupChoices.length >= 6}
-                  title={groupChoices.length >= 6 ? "会計分けは最大6つ（A〜F）です" : ""} onClick={() => addSplitGroup(setPayGroup)}>会計を分ける</button>
-              </div>
-            </div>
-          )}
+          {/* ★M-136（2026-11-10）: 「入金へ進む」と「会計を分ける」は会計タブの先頭（data-pay-head）へ移した */}
           {/* ★台帳 #37（裁定 2026-07-17）: void 伝票の payments は無印（status 列を持たない）＝
               日次集計は checks.status='closed' の join で自動除外・端末側の返金で端末日計も減るため突合は成立する。 */}
           <div style={{ display: "flex", gap: 12, alignItems: "center" }}>

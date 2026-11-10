@@ -162,7 +162,7 @@ export default function ReceiptsBoard({ stores }: { stores: Store[] }) {
               </thead>
               <tbody>
                 {rows.map((r) => (
-                  <tr key={r.id} style={r.voided ? { opacity: 0.55 } : undefined}>
+                  <tr key={r.id} style={r.voided ? { opacity: 0.75 } : undefined}>{/* ★M-139 */}
                     <td data-label="番号"><span style={{ ...t.num, fontWeight: 700 }}>{serialNo(r.serial)}</span></td>
                     <td data-label="金額" style={{ textAlign: "right" }}><span style={t.num}>{yen(r.amount)}</span></td>
                     <td data-label="宛名">

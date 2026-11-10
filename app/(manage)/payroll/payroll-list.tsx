@@ -6,6 +6,7 @@
 //   B4 部品の写し: KPI 4 枚（H18）・nox-seg 切替（H20）・印刷隔離 nox-printpage（H37）・変更履歴（H39・owner 限定）・状態バッジ（既存 nox-runbadge）。
 //   裁定238: 「明細へ」＝.nox-link（遷移）／「支払済みにする」＝実行（青塗り＝t.btnGold）／CSV・印刷＝補助（ghost）／店舗別・月別＝(4) 切替（nox-seg）。
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Loading from "@/components/ui/loading"; // ★M-135: 読み込み中の表示の共通部品
 import { fmtPeriodYM } from "@/lib/nox/payroll/view"; // ★N3 AV-1（2026-09-24）: 期は YYYY/M
 import { finalizedPeriodsOf, periodCandidatesOf, periodOptionLabelOf, prevPeriodOf, previewHrefOf } from "@/lib/nox/payroll/list-periods"; // ★X-13-12／X-13-14: 期間候補（当月＋過去 12 か月・確定済みに印）と空状態の導線
 import { periodRangeOf, settlementCandidatesOf } from "@/lib/nox/payroll/settlement"; // ★0154 D4: 未登録候補
@@ -166,7 +167,7 @@ export default function PayrollList({ stores, isOwner }: { stores: Store[]; isOw
           <p style={{ fontSize: 12.5, margin: "0 0 8px", color: "var(--gold)" }}>精算調整の未登録候補: {n} 件（未確定の期・遅刻／当欠の検知から登録済みを除いた数）</p>
         ) : null; })()}
         {rows === null ? (
-          <p style={{ fontSize: 12.5, color: "var(--v2-muted)", margin: 0 }}>読み込み中…</p>
+          <Loading />
         ) : shown.length === 0 ? (
           <div>
             <p style={{ fontSize: 12.5, color: "var(--v2-muted)", margin: "0 0 8px" }}>

@@ -11,6 +11,7 @@
 // ボトルは件数のみ（bottle_keeps の SELECT は can_register 軸＝crm 軸の明細経路が現状無い）。
 // churn tier の再判定はしない（しきい値は RPC 側の責務）＝詳細は days_since 数値のみ。
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Loading from "@/components/ui/loading"; // ★M-135: 読み込み中の表示の共通部品
 import { lastVisitRelOf } from "@/lib/nox/register/customer-candidates"; // ★便 GV-C C-8（GV-50）
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
@@ -243,7 +244,7 @@ export default function CustomerDetail({
       </div>
     );
   }
-  if (!cust) return <p style={{ ...noneP, marginTop: 8 }}>読み込み中…</p>;
+  if (!cust) return <Loading />;
 
   const last = summary?.last_visit ?? null;
 

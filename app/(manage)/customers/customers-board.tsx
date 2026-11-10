@@ -9,6 +9,8 @@
 // 来店なし（last_visit null）は掘り起こし対象外に近いため末尾に置く）。可視スコープは RPC CTE が担保＝
 // cast は RPC 側で true でも休眠不可視（段23-3 実測）・UI でもトグルを出さない（canDormant 一次ガード）。
 import { LoadMoreBar, useLoadMore } from "@/components/ui/load-more"; // ★便 M5b M-60
+import Loading from "@/components/ui/loading"; // ★M-135: 読み込み中の表示の共通部品
+import { useRowFlash } from "@/lib/nox/ui/use-row-flash"; // ★M-135: 保存した行を一瞬強調
 import AddButton from "@/components/ui/add-button"; // ★便 M5b M-55
 import { useCallback, useEffect, useMemo, useState } from "react";
 import PageHead from "@/components/ui/page-head";
@@ -118,6 +120,7 @@ export default function CustomersBoard({
   const [addOpen, setAddOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const { flashId, flash } = useRowFlash("crow-"); // ★M-135
   const [aName, setAName] = useState("");
   const [aFuri, setAFuri] = useState("");
   const [aTel, setATel] = useState("");
@@ -236,12 +239,12 @@ export default function CustomersBoard({
     setMsg(null);
     const supabase = createClient();
     const { error } = await supabase.rpc("customer_set_grade", { p_id: sel, p_grade: g });
+    if (!error) { await loadDetail(sel); await load(); } // ★M-135: 一覧を先に更新してから文言と強調
     setMsg(error
       ? (error.message.includes("bad grade") ? "ランクは VIP / VVIP のみです"
         : error.message.includes("forbidden") ? "権限がありません" : error.message)
       : g ? `ランクを ${g.toUpperCase()} にしました` : "ランクを解除しました");
-    await loadDetail(sel);
-    await load();
+    if (!error) flash(sel); // ★M-135
   }
   async function noteAdd() {
     if (!sel || !noteBody.trim()) return;
@@ -336,7 +339,7 @@ export default function CustomersBoard({
   async function submitAdd() {
     setBusy(true); setMsg(null);
     const supabase = createClient();
-    const { error } = await supabase.rpc("customer_register", {
+    const { data: newId, error } = await supabase.rpc("customer_register", {
       p_store_id: aStore,
       p_name: aName.trim(),
       p_furigana: aFuri.trim() || null,
@@ -349,9 +352,10 @@ export default function CustomersBoard({
     });
     setBusy(false);
     if (error) { setMsg(`登録に失敗: ${errJa(error.message)}`); return; }
-    setMsg("登録しました");
     setAddOpen(false);
-    await load();
+    await load(); // ★M-135: 一覧と件数を先に更新してから文言と強調（文言だけ先に出さない）
+    setMsg("登録しました");
+    flash(typeof newId === "string" ? newId : null);
   }
 
   const addCastOptions = casts.filter((c) => c.store_id === aStore && c.is_active);
@@ -419,7 +423,7 @@ export default function CustomersBoard({
             最終来店から店設定の保持年数を過ぎた顧客。匿名化は各顧客の詳細で行います（理由必須・元に戻せません）。
           </p>
           {anonCands === null ? (
-            <p style={{ fontSize: 12, color: "var(--sub)", margin: 0 }}>読み込み中…</p>
+            <Loading />
           ) : anonCands.length === 0 ? (
             <p style={{ fontSize: 12, color: "var(--sub)", margin: 0 }}>該当する顧客はいません。</p>
           ) : (
@@ -575,8 +579,8 @@ export default function CustomersBoard({
             {!err && display.length === 0 && <p style={{ fontSize: 13, color: "var(--v2-muted)", margin: 0 }}>該当する顧客がいません</p>}
             {pageCust.shown.map((r) => (
               <button
-                key={r.customer_id}
-                className={`nox-crow2 ${sel === r.customer_id ? "sel" : ""}`}
+                key={r.customer_id} id={`crow-${r.customer_id}`}
+                className={`nox-crow2 ${sel === r.customer_id ? "sel" : ""}${flashId === r.customer_id ? " nox-rowflash" : ""}`}
                 onClick={() => setSel(sel === r.customer_id ? null : r.customer_id)}
               >
                 {/* 段E: 頭文字アバター（既存 name のみ由来・新情報なし・装飾）＝顧客は写真を持たない */}

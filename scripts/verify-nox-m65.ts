@@ -78,7 +78,7 @@ check("m75(9-1) 日タブの追加配置＝対象は選択中の日（todayDate�
 check("m76(10-1) 期間の必要人数＝店の曜日別の既定を初期表示（定休日は「定休」・入力不可）・−／＋のステッパー＋「名」・既定から変えた曜日だけ保存（既定に戻せば空）・「店の既定に戻す」・説明文・追加行は曜日ボタン群と TimePicker（ネイティブ select なし）",
   sb.includes("const storeNeedOf = (dow: number): number => (closedDows.has(dow) ? 0 : needs.filter((n) => n.dow === dow).reduce((m, n) => Math.max(m, n.required), 0));") && sb.includes('data-period-need-closed="1"') && sb.includes("data-period-need-value={cur}")
   && sb.includes("(v === def ? \"\" : String(Math.max(0, Math.min(99, v))))") && sb.includes('data-period-needs-reset="1"') && sb.includes("店の既定を表示しています。この期間だけ変える曜日を直してください。")
-  && sb.includes('<SegSelect value={String(nDow)} onChange={(v) => setNDow(Number(v))}') && sb.includes("<TimeInput value={nFrom} onChange={setNFrom} step={30} maxHour={47}") && !sb.includes("<select value={nDow}") && !sb.includes('data-band-from="1"'));
+  && sb.includes('<DowChips mode="single" name="need-band" ariaLabel="曜日" labels={DOW} selected={(d) => d === nDow}') /* ★M-144 ④: 曜日はボタン群のまま共通部品へ（定休日は選べない） */ && sb.includes("<TimeInput value={nFrom} onChange={setNFrom} step={30} maxHour={47}") && !sb.includes("<select value={nDow}") && !sb.includes('data-band-from="1"'));
 
 // ── M-79（不具合）: /staff の「＋ スタッフを追加」＝管理者と店長に出す・デモはボタンを出して押すと注記（入力はさせない）
 const sbd = src("app/(manage)/staff/staff-board.tsx");

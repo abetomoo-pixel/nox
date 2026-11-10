@@ -396,8 +396,8 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
                       <SegSelect value={form.wht_cast} onChange={(v) => setForm((f) => ({ ...f, wht_cast: v }))} options={[["hostess", "ホステス報酬"], ["none", "源泉なし"]] as const} /></div>
                     <div><span style={label}>源泉区分の既定（委託スタッフ）</span>
                       <SegSelect value={form.wht_staff} onChange={(v) => setForm((f) => ({ ...f, wht_staff: v }))} options={[["none", "源泉なし"], ["other_204", "その他（204 条）"]] as const} /></div>
-                    <div><span style={label}>釣銭準備金（日報の締めの既定・円）</span>
-                      <input type="number" min={0} max={9999999} step={1} inputMode="numeric" value={form.cash_float} disabled={busy} placeholder="毎回入力" onChange={(e) => setForm((f) => ({ ...f, cash_float: e.target.value }))} style={input} aria-label="釣銭準備金" /></div>
+                    <div><span style={label}>釣銭準備金（日報の締めの既定）</span>
+                      <MoneyInput value={form.cash_float} disabled={busy} placeholder="毎回入力" onChange={(d) => setForm((f) => ({ ...f, cash_float: d.slice(0, 7) }))} ariaLabel="釣銭準備金" width="100%" /></div>
                     <div><span style={label}>締め日</span>
                       <SegSelect value={form.close_day} onChange={(v) => setForm((f) => ({ ...f, close_day: v }))} options={[["15", "15 日"], ["20", "20 日"], ["25", "25 日"], ["31", "末日"]] as const} /></div>
                   </div>

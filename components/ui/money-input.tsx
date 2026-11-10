@@ -8,7 +8,7 @@
 import type { CSSProperties } from "react";
 import { moneyDigitsOf, moneyDisplayOf } from "@/lib/nox/ui/money";
 
-export default function MoneyInput({ value, onChange, placeholder, disabled, autoFocus, style, ariaLabel, className, width, invalid = false }: {
+export default function MoneyInput({ value, onChange, placeholder, disabled, autoFocus, style, ariaLabel, className, width, invalid = false, onBlur }: {
   /** 整数（円）の数字列（空＝未入力）。number を渡してもよい */
   value: string | number; onChange: (digits: string) => void;
   placeholder?: string; disabled?: boolean; autoFocus?: boolean;
@@ -17,6 +17,8 @@ export default function MoneyInput({ value, onChange, placeholder, disabled, aut
   /** 欄全体（¥＋入力）の幅。未指定は入力欄の style.width を使う */
   width?: number | string;
   invalid?: boolean;
+  /** ★M-155: 欄を離れたときに保存する画面用（任意） */
+  onBlur?: () => void;
 }) {
   const w = width ?? style?.width;
   // 枠は .nox-unit が持つ＝呼び出し側の t.input（枠線・背景・余白）は入力欄に重ねない（文字の大きさ・太さだけ引き継ぐ）
@@ -27,7 +29,7 @@ export default function MoneyInput({ value, onChange, placeholder, disabled, aut
       <input value={moneyDisplayOf(value)} inputMode="numeric" autoComplete="off" placeholder={placeholder} disabled={disabled} autoFocus={autoFocus}
         aria-label={ariaLabel} aria-invalid={invalid ? true : undefined} className={className ? `num ${className}` : "num"}
         style={{ ...rest, textAlign: "right" }}
-        onChange={(e) => onChange(moneyDigitsOf(e.target.value))} />
+        onChange={(e) => onChange(moneyDigitsOf(e.target.value))} onBlur={onBlur} />
     </span>
   );
 }

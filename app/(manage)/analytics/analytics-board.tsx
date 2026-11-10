@@ -18,6 +18,7 @@
 //   ★時刻粒度の集計（カテゴリ5分類・時間帯・ヒートマップ・コホート）は集計経路が未提供のため
 //     プレースホルダ（製品文言）に留める。DB・RPC は不触。
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import Loading from "@/components/ui/loading"; // ★M-135: 読み込み中の表示の共通部品
 import PageHead from "@/components/ui/page-head";
 import SegSelect from "@/components/ui/seg-select"; // ★裁定346: ランキングの軸切替
 import Link from "next/link";
@@ -765,7 +766,7 @@ export default function AnalyticsBoard({
               ★材料は明細（サービス料・丸め前）＝日報売上（丸め後・サ料込）とは一致しない＝注記で明示。 */}
           <section className="nox-panel">
             <h3>売上カテゴリ（5分類・{period}{allStores && isOwner ? "・全店舗" : ""}）</h3>
-            {catRows === null && <p style={noneP}>読み込み中…</p>}
+            {catRows === null && <Loading />}
             {catRows !== null && catSums.total === 0 && <p style={noneP}>この月の会計済み伝票がありません。</p>}
             {catRows !== null && catSums.total > 0 && (
               <>
@@ -802,7 +803,7 @@ export default function AnalyticsBoard({
           {/* ★B6-12: 商品売上（明細）＝drink＋champ＋bottle／時間料金（明細）＝time（既存 catSums の再形・5 分類ラベルは不触・KPI 売上とは基準が別） */}
           <section className="nox-panel">
             <h3>商品売上（明細）・時間料金（明細）（{period}）</h3>
-            {catRows === null ? <p style={noneP}>読み込み中…</p> : catSums.total === 0 ? (
+            {catRows === null ? <Loading /> : catSums.total === 0 ? (
               <p style={noneP}>この月の会計済み伝票がありません。</p>
             ) : (() => {
               const pt = productTimeOf(catSums);
@@ -836,7 +837,7 @@ export default function AnalyticsBoard({
             <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
               <h3 style={{ margin: 0 }}>注目ポイント</h3>
             </div>
-            {catRows === null ? <p style={noneP}>読み込み中…</p> : catSums.total === 0 ? (
+            {catRows === null ? <Loading /> : catSums.total === 0 ? (
               <p style={noneP}>この月の会計済み伝票がありません。</p>
             ) : (() => {
               const top = CATEGORY_ORDER
@@ -1021,7 +1022,7 @@ export default function AnalyticsBoard({
       {/* E8-6 #8（mig0096 結線）: 時間帯別売上バー（JST 時計時刻・月内Σ・非ゼロ時間のみ） */}
       <section className="nox-panel">
         <h3>時間帯別売上（{period}{allStores && isOwner ? "・全店舗" : ""}）</h3>
-        {hourly === null && <p style={noneP}>読み込み中…</p>}
+        {hourly === null && <Loading />}
         {hourly !== null && hourBars.length === 0 && <p style={noneP}>この月の会計済み伝票がありません。</p>}
         {hourly !== null && hourBars.length > 0 && (
           <>
@@ -1047,7 +1048,7 @@ export default function AnalyticsBoard({
         {/* ★DP2 T5（裁定 DP0-2）: 内部用語「ヒートマップ」を製品文言へ。
             表そのもの（7×24 の色濃淡）は不変＝見出しの語彙だけを変える。 */}
         <h3>曜日別・時間帯別の売上（{period}{allStores && isOwner ? "・全店舗" : ""}）</h3>
-        {hourly === null && <p style={noneP}>読み込み中…</p>}
+        {hourly === null && <Loading />}
         {hourly !== null && heat.size === 0 && <p style={noneP}>この月の会計済み伝票がありません。</p>}
         {hourly !== null && heat.size > 0 && (
           <>
@@ -1293,7 +1294,7 @@ export default function AnalyticsBoard({
             配下のラベル（新規／リピート／離反リスク 中・高）は元から和文＝不触。 */}
         <h3>客層の内訳</h3>
         {custSummaryErr && <Message kind="error">{custSummaryErr}</Message>}
-        {custSummary === null && !custSummaryErr && <p style={noneP}>読み込み中…</p>}
+        {custSummary === null && !custSummaryErr && <Loading />}
         {custSummary !== null && !custSummaryErr && (
           <>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 8 }}>
@@ -1320,7 +1321,7 @@ export default function AnalyticsBoard({
         {/* ★DP2 T5（裁定 DP0-2）: 内部用語「リテンション」を製品文言へ。
             括弧内は元から和文の言い換えだったので、見出し語をその言い換えに寄せる。 */}
         <h3>初来店の月ごとの再来店（直近6ヶ月{allStores && isOwner ? "・全店舗" : ""}）</h3>
-        {cohort === null && <p style={noneP}>読み込み中…</p>}
+        {cohort === null && <Loading />}
         {cohort !== null && cohortTable.length === 0 && (
           <p style={noneP}>この期間に初来店した客がいません（顧客が紐付いた会計済み伝票が対象）。</p>
         )}

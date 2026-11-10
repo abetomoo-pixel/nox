@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Loading from "@/components/ui/loading"; // ★M-135: 読み込み中の表示の共通部品
 import Link from "next/link"; // ★便 SH-UI-c C-2 ③
 import MoneyInput from "@/components/ui/money-input"; // ★便 X-11-6: 金額欄の共通部品（数字のみ・3 桁区切り・右に「円」）
 import { createClient } from "@/lib/supabase/client";
@@ -1300,7 +1301,7 @@ ${md.message}（入れずに確定すると控除 0 のまま確定します）`
             open の前借り（額−天引き済み）の合計。年を越しても同じ行で天引きを続けます。貸倒にする場合は「控除・送り」の当日一覧から取消（理由必須）してください。
           </p>
           {openBal === null ? (
-            <p style={{ fontSize: 12, color: "var(--sub)", margin: 0 }}>読み込み中…</p>
+            <Loading />
           ) : openBal.length === 0 ? (
             <p style={{ fontSize: 12, color: "var(--sub)", margin: 0 }}>未回収の前借り（貸付）はありません。</p>
           ) : (

@@ -5,6 +5,7 @@
 //   「店のキャスト会計 有効／無効」（set_store_cast_register・旧 cast_register_enabled）は廃止＝段階 ≠ OFF が有効。キャスト画面の設定からは「キャストのレジ使用」「操作端末」を外した（リンク 1 行）。
 //   真の防御は会計 RLS/RPC の cast 2段ゲート（auth_cast_can_register＝0200 からは端末も見る）＝ここは操作 UI。店の設定（段階・端末・卓）は owner だけ（set_store_profile）・キャスト別は owner／manager。
 import { useState } from "react";
+import MoneyInput from "@/components/ui/money-input"; // ★M-155
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 
@@ -34,6 +35,7 @@ export default function CastRegisterPanel({
   const supabase = createClient();
   const [sj, setSj] = useState<Record<string, unknown>>(settings ?? {});
   const [lvBusy, setLvBusy] = useState(false);
+  const [capDraft, setCapDraft] = useState<string | null>(null); // ★M-155: 上限の入力中の値（離れたら保存）
   const level = castRegisterLevelOf(sj);
   const enabled = level > 0 || (initialEnabled && !("sys_cast_register" in sj)); // ★裁定473: 有効＝段階 ≠ OFF
   const device: CastRegisterDevice = castRegisterDeviceOf(sj);
@@ -127,8 +129,9 @@ export default function CastRegisterPanel({
             ))}
           </div>
           <label style={{ display: "inline-flex", gap: 6, alignItems: "center", fontSize: 12.5, marginTop: 8 }}>上限（1 件あたり）
-            <input type="number" min={0} defaultValue={staffDiscountCapOf(sj)} disabled={!isOwner || lvBusy || staffDiscountLevelOf(sj) !== 1} aria-label="スタッフの即時適用の上限" style={{ ...t.input, width: 110 }}
-              onBlur={(e) => { const v = Math.max(0, Math.trunc(Number(e.target.value) || 0)); if (v !== staffDiscountCapOf(sj)) void patchStore({ staff_discount_cap: v }, `上限を ¥${v.toLocaleString()}`); }} /> 円
+            <MoneyInput value={capDraft ?? staffDiscountCapOf(sj)} disabled={!isOwner || lvBusy || staffDiscountLevelOf(sj) !== 1} ariaLabel="スタッフの即時適用の上限" width={140}
+              onChange={(d) => setCapDraft(d)}
+              onBlur={() => { if (capDraft === null) return; const v = Math.max(0, Math.trunc(Number(capDraft) || 0)); setCapDraft(null); if (v !== staffDiscountCapOf(sj)) void patchStore({ staff_discount_cap: v }, `上限を ¥${v.toLocaleString()}`); }} />{/* ★M-155 ①: 金額は MoneyInput（¥）・後ろの「円」をやめる */}
           </label>
           <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "6px 0 0" }}>即時適用も記録にスタッフ名と理由（必須）。上限超えと確定後の伝票は承認に回ります。キャストは常に不可です。</p>
         </section>
