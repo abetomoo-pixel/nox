@@ -8771,7 +8771,7 @@ anon-guard 段28 が無差別 `limit(1)` でそれを拾い 'bad amount'/BV=unde
 
 ## 次の番号（2026-11-10 昼・0199 本番適用＋フラグ便の時点）
 
-- **0199＝本番適用済み（2026-11-10 Agoora 手貼り・相談役の照合後・再検証 9 行全一致＝proof 10／fn 422／1／yes／yes／0/1／0／yes／0/0/1・関数 422／表 120 不変・set_store_profile md5 607313c1→287f6800・kiosk_person_claim 668850c3→bb2f83f6）→ 次の mig＝0200**。フラグ便＝MIG_0199_APPLIED=true・収蔵 supabase/migrations/0199_line_notify.sql・verify:nox-0199（25）・pin 張替え（0158／p172 の md5・store-systems の白名単 79→80・0196(1-2)・benf(4-5)(14-1)(14-2)）・M-114 の保存・M-125（cookie の直し＝クローズ）・ゲート 1／2／5／7／19 済・email_change＝CC 起草（相談役の確認待ち）。**次の裁定＝470**・**次の M＝M-129**・**次の起票＝124**・**次の教訓＝137**。f0／push／reset＝下の便の記録。
+- **0199＝本番適用済み（2026-11-10 Agoora 手貼り・相談役の照合後・再検証 9 行全一致＝proof 10／fn 422／1／yes／yes／0/1／0／yes／0/0/1・関数 422／表 120 不変・set_store_profile md5 607313c1→287f6800・kiosk_person_claim 668850c3→bb2f83f6）→ 次の mig＝0200**。**0199 フラグ便＝push cc70caa（2026-11-10 午後）・f0 2 連緑 179 段 7,487（at／au・1 連目 ar／as は bene(1-3) の pin 漏れで赤→張替え）・verify:nox-0199 25**。フラグ便＝MIG_0199_APPLIED=true・収蔵 supabase/migrations/0199_line_notify.sql・verify:nox-0199（25）・pin 張替え（0158／p172 の md5・store-systems の白名単 79→80・0196(1-2)・benf(4-5)(14-1)(14-2)）・M-114 の保存・M-125（cookie の直し＝クローズ）・ゲート 1／2／5／7／19 済・email_change＝CC 起草（相談役の確認待ち）。**次の裁定＝470**・**次の M＝M-129**・**次の起票＝124**・**次の教訓＝137**。f0／push／reset＝下の便の記録。
 
 ## 次の番号（2026-11-10 朝・v61 確定版＝起票 123 を収載・M-127 の撮影免除・メールテンプレ 4 本を確定した時点）
 
