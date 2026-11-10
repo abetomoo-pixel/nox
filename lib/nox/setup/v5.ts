@@ -233,7 +233,8 @@ export type V5Ctx = {
   /** スタッフ行の idemKey（行ごと） */ staffIdemKeys: string[];
 };
 const seatKind = (seat: string): string | null => (seat === "vip" ? "VIP" : seat === "counter" ? "カウンター" : seat === "table" ? "卓" : null);
-const dowMask = (days: readonly string[]): number | null => { if (days.length >= 7) return null; let m = 0; days.forEach((d) => { const i = WD.indexOf(d as typeof WD[number]); if (i >= 0) m |= 1 << i; }); return m || null; };
+// ★2026-11-11: dow_mask は bit0 月 … bit6 日（pricing_biz の biz_dow＝isodow−1）。旧版は WD（日始まり）の番号をそのまま bit にしていた＝「月〜土」が火〜日で入っていた（本番でこの経路で作られた曜日指定のルールは 0 件＝読取済み）
+const dowMask = (days: readonly string[]): number | null => { if (days.length >= 7) return null; let m = 0; days.forEach((d) => { const i = WD.indexOf(d as typeof WD[number]); if (i >= 0) m |= 1 << ((i + 6) % 7); }); return m || null; };
 const minOf = (hm: string): number => mins(hm) % 1440;
 /** ★裁定443 1-① → ★便 A M-71（2026-11-04）: 新しい店（setupDone=false）だけ v5 ③ の「端数の丸め」（roundUnit／roundMode・既定 1,000 円・切り捨て）を会計の丸めに送る。既存の店は今の値 */
 export const ROUND_UNIT_CHOICES = [100, 500, 1000] as const;

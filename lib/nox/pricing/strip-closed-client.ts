@@ -1,7 +1,7 @@
 // ★M-144 ③（2026-11-10）: 営業時間で定休日に変えた曜日を料金ルールの曜日から外す（client・set_pricing_rule を全値明示で呼ぶ＝原則7）。
 //   対象＝曜日を指定しているルール（dow_mask が null＝毎日のルールは触らない）。曜日が定休日だけのルールは外さずに名前を返す。
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { stripClosedDowsPlan, stripNoticeOf, type StripRule } from "@/lib/nox/pricing/closed-dows";
+import { maskBitOfBizDow, stripClosedDowsPlan, stripNoticeOf, type StripRule } from "@/lib/nox/pricing/closed-dows";
 import { errJa } from "@/lib/nox/errors";
 
 type RuleRow = StripRule & {
@@ -13,13 +13,14 @@ type RuleRow = StripRule & {
 const FEE_JA: Record<string, string> = { set: "セット", extension: "延長", dohan: "同伴", vip_charge: "VIPチャージ", shimei: "指名" };
 
 /** 外した結果の 1 行（外すものが無ければ null）。失敗は errors に積む。 */
+/** newlyClosed＝営業時間の曜日（0 日 … 6 土）。中で dow_mask の bit（0 月 … 6 日）に変換する。 */
 export async function stripClosedDowsFromPricing(supabase: SupabaseClient, storeId: string, newlyClosed: readonly number[]): Promise<{ notice: string | null; errors: string[] }> {
   if (!newlyClosed.length) return { notice: null, errors: [] };
   const { data, error } = await supabase.from("pricing_rules").select("*").eq("store_id", storeId);
   if (error) return { notice: null, errors: [errJa(error.message)] };
   const rows = (data ?? []) as RuleRow[];
   const nameOf = (r: StripRule) => { const x = r as RuleRow; return `${x.name?.trim() || "名前なし"}（${FEE_JA[x.fee_kind] ?? x.fee_kind}）`; };
-  const plan = stripClosedDowsPlan(rows, newlyClosed, nameOf);
+  const plan = stripClosedDowsPlan(rows, newlyClosed.map(maskBitOfBizDow), nameOf); // ★M-144 直し: 0 日 → bit6
   const errors: string[] = []; const done: string[] = [];
   for (const c of plan.change) {
     const r = rows.find((x) => x.id === c.id)!;

@@ -98,9 +98,12 @@ async function main(): Promise<void> {
         check("0197(5-5) on_duty_of＝確定シフトなし・打刻なし＝false", (await duty()) === false);
         await sh(mNow - 120, mNow - 90); check("0197(5-6) 窓①＝終了 +60 分を過ぎた確定シフト（終了 90 分前）＝false", (await duty()) === false); await clear();
         await sh(mNow - 300, mNow - 30); check("0197(5-7) 窓②＝終了 +60 分の中（終了 30 分前）＝true", mNow >= 300 ? (await duty()) === true : true); await clear();
-        await sh(mNow + 20, mNow + 300); check("0197(5-8) 窓③＝開始 −30 分の中（開始 20 分前）＝true（打刻が無くてもレジを開けられる）", (await duty()) === true);
+        // ★2026-11-11: 0 時を過ぎると「いま＋20 分」の開始が 24:00 以上＝shifts_start_hm_check（開始は 0〜23 時）で入らない＝窓③④はその時間帯だけ試さない（5-7 と同じ形）
+        const canStartLater = mNow + 20 < 24 * 60;
+        if (canStartLater) await sh(mNow + 20, mNow + 300);
+        check("0197(5-8) 窓③＝開始 −30 分の中（開始 20 分前）＝true（打刻が無くてもレジを開けられる）", canStartLater ? (await duty()) === true : true);
         await pc.query(`update public.stores set settings_json = settings_json || '{"register_window_before_min":10}'::jsonb where id=$1`, [st.id]);
-        check("0197(5-9) 窓④＝窓を 10 分に縮めると開始 20 分前は false", (await duty()) === false);
+        check("0197(5-9) 窓④＝窓を 10 分に縮めると開始 20 分前は false", canStartLater ? (await duty()) === false : true);
         x = await as(manager, `select public.register_day_grant_set('cast', $1, $2::date, true, 'verify')`, [nc.id, biz.d]);
         check("0197(5-10) 店長＝今日だけ許可を付与 → on_duty_of true・audit register_day_grant", x.ok && (await duty()) === true && (await pc.query(`select count(*)::int n from public.audit_logs where action='register_day_grant' and target like $1`, ["cast:" + nc.id + "%"])).rows[0].n === 1, x.err);
         x = await as(manager, `select public.register_day_grant_set('cast', $1, $2::date, false, null)`, [nc.id, biz.d]); check("0197(5-11) 取消＝行が消えて false に戻る", x.ok && (await duty()) === false && (await pc.query(`select count(*)::int n from public.register_day_grants where subject_id=$1`, [nc.id])).rows[0].n === 0, x.err);

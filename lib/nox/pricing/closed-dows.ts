@@ -2,7 +2,14 @@
 //   ③ 定休日を後から変えたら料金ルールからその曜日を外す＝外したルール名を 1 行で知らせる。
 //   曜日が空になるルールは DB の check（dow_mask between 1 and 127）に入らない＝マスタでは外さずに名前を返す
 //   （料金設定で直す）・初期設定（v5）では曜日を空にして確認画面の要確認「曜日が無いルール」に出す。
-//   dow_mask＝bit i が曜日 i（0＝日）・null＝毎日。
+//   ★dow_mask＝bit0 月 … bit6 日（pricing_biz の biz_dow＝isodow−1・設計書 v1_2）・null＝毎日。
+//   ★営業時間（store_business_hours.dow）と必要人数・シフトの曜日は 0 日 … 6 土＝**並びが違う**。比べる前に maskBitOfBizDow で変換する
+//   （2026-11-11: 変換せずに比べて、日曜定休の店で「月」を定休として外していた＝M-144 の直し）。
+/** 営業時間の曜日（0 日 … 6 土）→ dow_mask の bit（0 月 … 6 日） */
+export const maskBitOfBizDow = (dow: number): number => (dow + 6) % 7;
+/** 曜日の名前（日〜土・月〜日のどちらでも）→ dow_mask の bit */
+export const MASK_DOW_JA = ["月", "火", "水", "木", "金", "土", "日"] as const;
+export const maskBitOfJa = (d: string): number => MASK_DOW_JA.indexOf(d as typeof MASK_DOW_JA[number]);
 
 export const ALL_DOWS_MASK = 127;
 

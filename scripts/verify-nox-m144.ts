@@ -7,8 +7,8 @@
  *  ⑤ 臨時営業の料金＝裁定478（0201d）の返事待ち＝ここでは扱わない／⑥ 読取済み（定休日が入っていても料金の解決は壊れない＝RPC の検査は不要）
  */
 import fs from "node:fs";
-import { ALL_DOWS_MASK, maskOfDays, maskWithoutClosed, openDaysOf, stripClosedDowsPlan, stripHolidaysFromV5Rules, stripNoticeOf } from "../lib/nox/pricing/closed-dows";
-import { applyType, v5Checks, v5DefaultState, type V5State } from "../lib/nox/setup/v5";
+import { ALL_DOWS_MASK, maskBitOfBizDow, maskOfDays, maskWithoutClosed, openDaysOf, stripClosedDowsPlan, stripHolidaysFromV5Rules, stripNoticeOf } from "../lib/nox/pricing/closed-dows";
+import { applyType, buildV5Plan, v5Checks, v5DefaultState, type V5State } from "../lib/nox/setup/v5";
 let pass = 0; const fails: string[] = [];
 const check = (label: string, ok: boolean, detail?: unknown) => { if (ok) pass++; else fails.push(`${label}${detail !== undefined ? `: ${JSON.stringify(detail).slice(0, 400)}` : ""}`); };
 const src = (p: string) => fs.readFileSync(p, "utf8");
@@ -36,6 +36,21 @@ check("m144(1-6) 初期設定のルールから定休日を外す＝外したル
   J(st.rules.map((r) => r.days)) === J([["月", "火"], [], ["月"]]) && J(st.touched) === J(["通常", "日曜"]) && J(st.emptied) === J(["日曜"]) && st.rules[2] === v5r[2], st);
 check("m144(1-7) 知らせの 1 行＝外したルール名・曜日が無いルール・外していないルール", (stripNoticeOf(["通常"], ["日曜"], ["日曜だけ"]) ?? "").includes("定休日の曜日を料金ルールから外しました：通常") && (stripNoticeOf(["通常"], ["日曜"]) ?? "").includes("曜日が無いルール：日曜") && (stripNoticeOf([], [], ["日曜だけ"]) ?? "").includes("外していません：日曜だけ") && stripNoticeOf([]) === null);
 check("m144(1-8) ALL_DOWS_MASK＝127（DB の check＝dow_mask between 1 and 127 と同じ）", ALL_DOWS_MASK === 127);
+
+// ── 曜日の並び（2026-11-11 の直し）＝dow_mask は bit0 月 … bit6 日・営業時間の dow は 0 日 … 6 土 ──
+check("m144(1-9) 営業時間の曜日 → dow_mask の bit＝日(0)→6・月(1)→0・土(6)→5", maskBitOfBizDow(0) === 6 && maskBitOfBizDow(1) === 0 && maskBitOfBizDow(6) === 5);
+{
+  const sunClosedBits = [maskBitOfBizDow(0)];
+  check("m144(1-10) 日曜定休の店＝帯の「日」（7 番目）が定休・営業日を全部選ぶと毎日（null）・平日だけなら 31（月〜金）",
+    J(openDaysOf(sunClosedBits)) === J([true, true, true, true, true, true, false]) && maskOfDays(openDaysOf(sunClosedBits), sunClosedBits) === null && maskOfDays([true, true, true, true, true, false, false], sunClosedBits) === 31);
+  const pl = stripClosedDowsPlan([{ id: "w", name: "週末", dow_mask: 0b1110000 /* 金土日 */ }, { id: "m", name: "月曜", dow_mask: 0b0000001 }], sunClosedBits);
+  check("m144(1-11) 日曜を定休にしたとき外すのは bit6（日）＝金土日 → 金土・月曜だけのルールは触らない", J(pl.change) === J([{ id: "w", name: "週末", from: 0b1110000, to: 0b0110000 }]) && pl.empty.length === 0, pl);
+  const plan5 = buildV5Plan({ ...clone(applyType(v5DefaultState("2026-11-10"), "cabaret")), rules: [{ name: "平日", when: "", set: 5000, min: 60, ext: [[30, 2500, 1]], seat: "全席", from: "", to: "", days: ["月", "火", "水", "木", "金"] }] } as V5State, { storeId: "11111111-1111-4111-8111-111111111111", current: { round_unit: 100, round_mode: "down", time_mode: "auto", time_per: "person", receipt: { address: "", tel: "", reg_no: "", footer: "" }, mine: {} as never, tax: { business_tax_status: "taxable", price_display: "tax_included", invoice_status: "none", invoice_reg_no: null, tax_rounding: "floor", card_surcharge_rate: null } }, deviceIdemKey: "k", staffIdemKeys: [] } as never);
+  const r5 = plan5.steps.find((x) => x.rpc === "set_pricing_rule" && (x.args as { p_fee_kind?: string }).p_fee_kind === "set" && (x.args as { p_dow_mask?: number | null }).p_dow_mask != null);
+  check("m144(1-12) 初期設定 v5 の「月〜金」＝dow_mask 31（bit0 月）＝旧版の日始まり（62＝火〜土）ではない", (r5?.args as { p_dow_mask?: number } | undefined)?.p_dow_mask === 31, r5?.args);
+}
+const PB0 = src("app/(manage)/master/pricing/pricing-board.tsx"), SC0 = src("lib/nox/pricing/strip-closed-client.ts");
+check("m144(1-13) 画面と保存で並びを変換する（料金の帯＝maskBitOfBizDow(r.dow)・営業時間の保存＝newlyClosed.map(maskBitOfBizDow)）", PB0.includes("map((r) => maskBitOfBizDow(r.dow))") && SC0.includes("stripClosedDowsPlan(rows, newlyClosed.map(maskBitOfBizDow), nameOf)"));
 
 // ── 確認画面の要確認（v5Checks） ──
 const base = applyType(v5DefaultState("2026-11-10"), "cabaret");

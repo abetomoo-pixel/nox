@@ -44,7 +44,7 @@ import { mineSettingsErrJa, mineSettingsOf } from "@/lib/nox/store/mine-settings
 import { swapAdjacent, reorderErrJa } from "@/lib/nox/ui/reorder";
 import { extCountTextOf } from "@/lib/nox/rules-0175/ext-pattern"; // ★連続便 3 追補 P-10 ④
 import DowChips from "@/components/ui/dow-chips"; // ★M-144 ②: 定休日の曜日は灰色＋「定休」で選べない
-import { maskOfDays, openDaysOf } from "@/lib/nox/pricing/closed-dows";
+import { maskBitOfBizDow, maskOfDays, openDaysOf } from "@/lib/nox/pricing/closed-dows";
 
 const card: React.CSSProperties = t.card;
 const input: React.CSSProperties = { ...t.input, width: "auto", padding: "8px 10px", fontSize: 13 };
@@ -222,7 +222,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
   const [closedDows, setClosedDows] = useState<number[]>([]);
   useEffect(() => { let alive = true; void (async () => {
     const { data } = await supabase.from("store_business_hours").select("dow").eq("store_id", storeId).eq("is_closed", true);
-    if (alive) setClosedDows(((data ?? []) as { dow: number }[]).map((r) => r.dow));
+    if (alive) setClosedDows(((data ?? []) as { dow: number }[]).map((r) => maskBitOfBizDow(r.dow))); // ★M-144 直し: 営業時間の曜日（0 日）→ 帯の並び（0 月＝dow_mask の bit）
   })(); return () => { alive = false; }; }, [storeId]); // eslint-disable-line react-hooks/exhaustive-deps
   const [ranks, setRanks] = useState<CastRank[]>(initial.ranks);
   const [msg, setMsg] = useState<string | null>(null);
