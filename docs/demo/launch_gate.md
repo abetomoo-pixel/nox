@@ -18,13 +18,14 @@
 | 10 | Email OTP expiration＝3600 秒・メールテンプレを貼る（確認・招待・マジックリンク・パスワード再設定＝v61 §5 で確定・email_change＝CC 起草＝相談役の確認後） | Agoora | Supabase › Authentication › Providers › Email／Emails | 3600・4 テンプレが v61 §5 の文面（＋email_change） | 未（4 本の文面は 2026-11-10 確定済み・email_change は確認待ち） |
 | 11 | LINE 連携 1 回＝友だち追加→返事の URL が noxapp.jp・LIFF ログイン・紐付け・期限切れ ID トークンの自動再ログイン（M-116）が通る | Agoora（実機） | LINE アプリ／docs/demo/line_first_run.md 4〜8 | /api/line/bind・session が 200・Runtime Logs に line verify の理由（失敗時） | **済（2026-11-09・M-116 の実機 OK でクローズ）** |
 | 12 | キオスク PIN 1 回＝端末で「スタッフでログイン（PIN）」→ 本人の /register・卓カードの指名・出勤時の「今日の控除」 | Agoora（実機）／CC（デモで撮影済み） | 店の端末＝https://noxapp.jp/kiosk | 帯「端末で ◯◯ さんとして操作中」・チップ・チェック群 | デモ＝済（2026-11-09 撮影 shots_m128＝タイル → PIN → 本店のページ・無操作 3 分で戻る）・実機＝§4 手順 5 は**済**（相談役 11/09） |
-| 13 | Stripe Webhook 1 回＝エンドポイント https://noxapp.jp/api/stripe/webhook・テストイベントが 2xx | Agoora | Stripe › Developers › Webhooks | 配信ログ 2xx・org_billing が動く | 未（§4 手順 6） |
+| 13 | Stripe Webhook 1 回＝エンドポイント https://noxapp.jp/api/stripe/webhook・テストイベントが 2xx（★裁定479＝NOX 以外のイベントは 200 で無視・作成物に metadata.service='nox'） | Agoora（Stripe・Vercel）／CC（client と verify） | Stripe › Developers › Webhooks・Vercel › Environment Variables | 配信ログ 2xx・org_billing が動く | **未・未疎通（2026-11-10 読取）＝本番に STRIPE_SECRET_KEY／STRIPE_WEBHOOK_SECRET が無い（受け口は 500 not configured・課金画面は「Stripe 未接続」）・送り先は本番にもテストにも NOX の分が無い＝先にテスト環境で疎通（Stripe CLI listen か Preview）→ 本番の env と送り先 → 再デプロイ**（§4 手順 6） |
 | 14 | 11-⑦＝スタッフの登録→招待→受諾を自分の org で 1 回（メールのリンクが noxapp.jp/auth/set-password に着く） | Agoora | /staff → メール → /auth/set-password | 受諾後にログインできる | 未（§4 手順 9 の後） |
 | 15 | ロール 4 種のログイン＝オーナー／店長／スタッフ／キャスト（＋端末）で noxapp.jp に入り直せる（Cookie はホスト限定） | Agoora（本番 org）／CC（デモ 6 店） | /login・/demo | 各ロールの最初の画面（/dashboard・/mine・/kiosk） | デモ＝済・本番 org＝未（§4 手順 9＝全員ログインし直し） |
 | 16 | プリンタ（使っている店）＝SDP の 2 URL を noxapp.jp に・テスト印刷 | Agoora | プリンタの Web 設定 | テスト印刷が出る | 未（§4 手順 7） |
 | 17 | デモ 6 店の punch_mode／pick ルール＝gen-demo の最新 payload で reset（M-115 のヘアメ代・ACE の承認待ち 1 件） | CC | reset → /mine・ホーム | チェック群・要承認の行が出る | 済（2026-11-09 19:42 の reset 後＝ヘアメ代の pick・承認待ち） |
 | 18 | 0198（貸付台帳）＝起草・試走・handpaste まで（適用は相談役の合図）→ 適用後にフラグ便 | 相談役（合図）／Agoora（手貼り）／CC | docs/demo/handpaste_0198.md | 試走 BEGIN…ROLLBACK・DB 変更 0 | **済（2026-11-09）＝0198 本番適用→フラグ true 便（verify:nox-0198 28）・M-123（同意未／返済済）** |
 | 19 | 0199（★1 LINE 通知の種類ごとの保存＝set_store_profile の白名単 line_notify／★2 裁定466＝キオスクの本人セッションに cast ∧ can_register ∧ 店 ≥2）＝2 関数だけ・関数数不変 | 相談役（SQL の照合と合図）／Agoora（手貼り）／CC（フラグ便） | docs/demo/handpaste_0199.md・docs/tmp/0199_line_notify.sql | 事前確認＝md5 2 本・検証 9 行が期待値と全行一致 | **済（2026-11-10）＝Agoora 手貼り・再検証 9 行全一致（proof 10／fn 422／1／yes／yes／0/1／0／yes／0/0/1）→ CC の 0199 フラグ便（MIG_0199_APPLIED=true・verify:nox-0199・M-114 の保存・M-125）** |
+| 20 | 特定商取引法に基づく表示のページ（事業者名＝株式会社レクソル・住所・連絡先・販売価格・支払方法と時期・提供時期・解約／返金）＋ LP・フッター・課金画面からのリンク | 相談役と Agoora（文面）／CC（ページとリンク） | /legal/tokushoho（案） | 公開ページで全項目が読める・リンク 3 か所 | **未（2026-11-10 読取＝ページが無い）→ 同日 文面確定（販売事業者＝株式会社レクソル・運営責任者・所在地・電話・support@noxapp.jp・価格は 1 店舗あたり月額 29,800 円＝税の表示だけ【税別／税込】の印のまま・支払時期＝毎月 1 日・解約は月末まで・返金なし ほか）＝CC がページとリンク（LP フッター・課金画面・お申し込み・デモの入口のフッター）を作る** |
 
 ## 使い方
 - 上から順に埋める。「未」の行は domain_switch.md §4 の手順番号と対応（6→手順 8・7→1・2・12→5・13→6・16→7）。

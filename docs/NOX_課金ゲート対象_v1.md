@@ -363,6 +363,11 @@ kiosk_provision（新規 kiosk の追加＝拡大操作）
 - 0198 ★3 返済（裁定458 ④）: cast_loan_repay（店長以上・open の行・残額まで・現金の返済＝deducted_amount・冒頭に課金ゲート）
 （対象 202→**203**・live 実測＝'billing locked' **203**。貸付の発行の RPC（B(x) に収載）は前借りの発行 RPC（A・ゲート内蔵）を呼ぶ＝自身にはゲートを書かない（二重にしない）。0198 の作り直し 4 本（待遇プラン＝33 引数・デモ reset＝wipe 6 表・今日の控除＝cast 経路 forbidden＋staff・キオスク打刻＝操作担当ゲート）は名前不変で本数不変・新設の読取（店が付けた今日の控除の見え方）は B(x) へ・view 2＝全数 419→**422**）
 
+### A20. 0200（2 本・2026-11-10 本番適用（Agoora 手貼り・検証 32 行一致）・0200 のフラグ true 便で収載・規則A形でゲート内蔵・kiosk 腕なし）
+- 0200 ★6 スタッフ給与の支払い済み（裁定471）: staff_labor_mark_paid（店長以上・確定済みの月だけ・冪等キー・冒頭に課金の述語）
+- 0200 ★6 支払い済みの取消（裁定471）: staff_labor_unmark_paid（店長以上・冒頭に課金の述語）
+（対象 203→**204**＝+2・0200 で店のレジ使用の setter（A8）を drop＝−1 → 名簿の行は残すが live に無いので数えない＝live 実測＝'billing locked' **204**。0200 の作り直し（お知らせ 3 本・勤怠の確定・デモの reset・出勤の柵・領収書・キープ・店舗設定・キャストのレジの判定 2 本・会計の 8 本）は名前不変で本数不動）
+
 ## B. 除外（99本）
 
 ### B(a) 構造除外＝authenticated 実行不可（service/内部・28本）→ ゲート不要（B7 回避型(1)）
@@ -556,6 +561,13 @@ staff_deactivate / kiosk_deactivate
 - 構造除外（B(a) と同列＝service_role だけ・authenticated 実行不可）: kiosk_person_claim（PIN の本人セッション＝route /api/kiosk/person-session が端末の uid と fp を渡す・束縛と役割を判定して印を付ける・裁定448 B 方式）
 - 構造除外（B(a) と同列＝service_role だけ・authenticated 実行不可）: kiosk_person_end（本人セッションの終了＝route /api/kiosk/person-end・kiosk_sessions を ended・audit）
 （除外 215→**217**・全数 416→**418**（0196 ＋2＝B 2・対象 201 不変＝作り直し 9 本（kiosk_lock／kiosk_register_state／cast_day_deductions_set／kiosk_punch／kiosk_punch_state／kiosk_operator_list／kiosk_login／kiosk_unlock／punch_proxy）は名前不変で本数不動））
+
+### B(y). 0200 新設の除外（4本・2026-11-10・0200 のフラグ true 便で収載）
+- 読取（B(f) と同列＝STABLE・ゲート不要）: auth_register_access（レジに入れるか＝段階・本人・端末・出勤中の 1 本・client のナビと入場が読む）
+- 読取（B(f) と同列＝STABLE・ゲート不要）: auth_cast_check_allowed（キャストが会計できる卓か＝全卓／自分の卓・RLS と書込の柵が読む）
+- 構造除外（B(a) と同列＝内部専用・4 ロール revoke）: kiosk_person_active_of（キオスクの本人セッション中か＝無操作の時間を店設定で見る）
+- 構造除外（B(a) と同列＝service_role だけ・authenticated 実行不可）: kiosk_person_touch（本人セッションの heartbeat＝route が本人の auth と端末の fp を渡す・書くのは最終操作の時刻だけ）
+（除外 219→**223**・全数 422→**427**（0200 ＋6−1＝A +2・B +4・A8 の店のレジ使用の setter は drop））
 
 ## C. kiosk 腕を持つ対象（実装注意・18本）
 A1 の check_open / check_add_line / check_remove_line / check_add_seat / check_remove_seat /
