@@ -10,6 +10,7 @@
 
 ### 1-1. 前提（プラン）
 - **管理画面の二段階認証**＝Vercel＝済（2026-11-11・認証アプリ・Agoora）。Supabase・Stripe・Resend・LINE Developers・ドメインの管理＝未確認（launch_gate 22）。マイナンバーの鍵を Vercel に置く 0201f の前提＝Vercel と Supabase の二段階認証が済んでいること。
+- **Supabase の二段階認証**＝済（2026-11-11・認証アプリ 1 つ）・Access Tokens 0 件。**Supabase は復旧用のコードが無い＝認証アプリを失うと入れなくなる＝予備の認証アプリを登録するまで、スマホの機種変更・初期化をしない**。
 - **Supabase は Pro プラン確定**（日次自動バックアップ／PITR はオプション）。
   → バックアップ体制は**二層**：**一次＝Supabase の自動バックアップ／PITR**（データ本体）、
   **二次＝`npm run backup:schema`**（スキーマ定義のテキスト・②参照）。

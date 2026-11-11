@@ -9123,6 +9123,7 @@ anon-guard 段28 が無差別 `limit(1)` でそれを拾い 'bad amount'/BV=unde
 ## 管理画面の二段階認証（2026-11-11・Agoora）
 - Vercel のアカウントに二段階認証（認証アプリ）を設定済み。Supabase・Stripe・Resend・LINE Developers・ドメインの管理は未確認＝launch_gate 22。runbook の 1-1 に 1 行。
 - **0201f の前提**＝Vercel と Supabase の二段階認証が済んでいること＝0201f の起草のときに handpaste_0201f.md の事前確認の先頭に入れる（まだ起草していない＝ここに記録）。
+- **Supabase も済（2026-11-11・Agoora）**＝認証アプリ 1 つ・Access Tokens 0 件・予備の認証アプリは未登録（Supabase は復旧用のコードが無い＝予備を登録するまでスマホの機種変更・初期化をしない＝runbook 1-1）。**0201f の前提（Vercel と Supabase の二段階認証）＝満たした**（2026-11-11）。launch_gate 22＝Stripe・Resend・LINE Developers・ドメインの管理は未確認。
 
 ## 相談役の返事（2026-11-11 深夜・判断 9 点ほか）
 1. **課金の判定が無い 5 本＝免除のまま**（課金設計 v1.1 の裁定除外）＝0201e から外す・先の指示（billing_writable_of を足す）は取り消し。
