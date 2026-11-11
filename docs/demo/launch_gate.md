@@ -1,4 +1,4 @@
-# ローンチゲート（本番で最後に確認する項目・2026-11-06 夜便レーン 6 で起草・2026-11-11 朝に状態を更新）
+# ローンチゲート（本番で最後に確認する項目・2026-11-06 夜便レーン 6 で起草・2026-11-11 夜に状態を更新）
 
 本番＝Supabase ref **hiqbfagmkrdpmlqhkmsu**・Vercel 本番ドメイン **https://noxapp.jp**（nox-kappa-eight.vercel.app は fallback）。「誰が」＝Agoora（手貼り・実機・外部サービスの画面）／相談役（合図・文面・裁定）／CC（verify・reset・撮影・読取）。期待値は実測で埋める（本書は 1 枚＝済んだら「済（日付）」に書き換える・正本は台帳の「次の番号」）。
 
@@ -6,9 +6,9 @@
 
 | # | 項目 | 誰が | どこで | 期待値 | 状態 |
 |---|---|---|---|---|---|
-| 1 | mig 0001〜0200b が本番に適用済み（手貼りの検証行が期待値と全行一致） | Agoora（手貼り）／CC（突合） | Supabase › SQL Editor／verify:nox-0200・grants | 関数 427・表 121・0199 9 行／0200 31 行／0200b 7 行一致 | 済（2026-11-11 実測）＝0001〜0200b 適用済み（0199・0200・0200b＝11/10 Agoora 手貼り・関数 427／表 121＝11/11 01:2x の read only）。0201・0201b は相談役の合図待ち（適用後にこの行を更新） |
-| 2 | client のフラグ＝lib/nox/rules-0175/flag.ts の MIG_*_APPLIED が本番の mig と一致（0183〜0200 true・0201 は未設置） | CC | verify:nox-0200 ほか（フラグの pin） | f0 緑 | 済（2026-11-11 確認＝MIG_0199／MIG_0200 true＝0200 フラグ便 217ab52） |
-| 3 | f0 の基準線＝2 連緑（段数・件数・golden 5931／125802） | CC | docs/tmp/f0_*.log＋f0_count.cjs | 最新の 2 連緑と同じ段数・件数 | 済（2026-11-11）＝f0 2 連緑 f0_dow_2／f0_dow_3（189 段 7,729・golden 5931／125802・9d59112） |
+| 1 | mig 0001〜0201 が本番に適用済み（手貼りの検証行が期待値と全行一致） | Agoora（手貼り）／CC（突合） | Supabase › SQL Editor／verify:nox-0201・grants | 関数 431・表 121・0201 の検証 17 行一致 | 済（2026-11-11）＝0001〜0201 適用済み（0201＝11/11 Agoora 手貼り・ccf2d6d61e36da42・検証 17 行一致・関数 431／表 121）。0201b は相談役の合図待ち（適用後にこの行を更新） |
+| 2 | client のフラグ＝lib/nox/rules-0175/flag.ts の MIG_*_APPLIED が本番の mig と一致（0183〜0201 true） | CC | verify:nox-0201 ほか（フラグの pin） | f0 緑 | 済（2026-11-11＝MIG_0201 true＝0201 のフラグ便 5e0ac01） |
+| 3 | f0 の基準線＝2 連緑（段数・件数・golden 5931／125802） | CC | docs/tmp/f0_*.log＋f0_count.cjs | 最新の 2 連緑と同じ段数・件数 | 済（2026-11-11）＝f0 2 連緑 f0_0201_A／B（191 段 7,767・golden 5931／125802・5e0ac01） |
 | 4 | 6 店 reset が noxapp.jp の route で 6/6 ok（Vault nox_demo_reset_url の host＝noxapp.jp） | CC | docs/tmp/on1_reset.mjs | muse／luna／noir／ace／lily／nest＝200 ok | 済（2026-11-09 19:42 ほか＝6/6・ACE の wipe 500 は M-122 で解消） |
 | 5 | 無人 reset（pg_cron 06:05〜・Vercel Cron 03:00／05:00）が翌朝 200 | CC（翌朝読取） | cron.job_run_details・net._http_response・Vercel Logs | status 200・6 店＋retry・expire-trials／billing-reminders 200 | 済（2026-11-10 CC 読取）＝06:05〜06:15 の 6 店（muse／luna／noir／ace／lily／nest）すべて pg_cron succeeded・http 200（count 1・retry false）・06:35 の retry 200・05:15 demo-entries-purge／06:20 shift-periods-close（closed 1）も 200＝M-122 の先掃除の後の初回無人 reset OK |
 | 6 | vercel.app → noxapp.jp の 308（旧 URL の GET が 308 で noxapp.jp に飛ぶ・/r/<token> の領収書 QR も） | Agoora（Vercel › Domains）／CC（curl） | Vercel › Settings › Domains／curl -I | `curl -I https://nox-kappa-eight.vercel.app/login` が 308・Location が noxapp.jp | 未（§4 手順 8） |
