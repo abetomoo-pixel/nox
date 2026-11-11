@@ -41,7 +41,7 @@ export default function KioskUnlockPad({ onUnlocked }: { onUnlocked: (r: { membe
     await handle(data as UnlockResult);
   }
   return (
-    <div style={{ maxWidth: 380, margin: "0 auto" }} data-kiosk-unlock="1" data-kiosk-unlock-tab={tab}>
+    <div className="nox-pinpad-frame" data-pin-frame="unlock" data-kiosk-unlock="1" data-kiosk-unlock-tab={tab}>{/* ★M-154 の残り: 枠は出退勤と同じ */}
       {qrOk && (
         <div role="tablist" aria-label="解除の方法" style={{ display: "flex", gap: 8, justifyContent: "center", margin: "0 0 12px" }}>
           {([["pin", "PIN で解除"], ["qr", "QR で解除"]] as const).map(([k, label]) => (

@@ -12,6 +12,7 @@
 //   ★RPC・引数・エラー文言・対象条件は逐語で不変。set_staff_pin の送信は従来と同じ1本。
 //   ★モーダルの検証は 4桁・確認一致のみ（サーバに繰り返し禁止規則は無い＝逆転を作らない）。
 import { useCallback, useEffect, useState } from "react";
+import { PIN_DIGITS_LABEL, PIN_SHAPE_RE } from "@/components/nox/pin-pad"; // ★M-179: 桁数は 1 か所の定数から
 import SegSelect from "@/components/ui/seg-select"; // ★M-82（裁定452・教訓133）: 固定の選択肢はボタン群
 import { createClient } from "@/lib/supabase/client";
 import { mig0191On, mig0192On } from "@/lib/nox/rules-0175/flag"; // ★0191 ★3: PIN 4〜6 桁・★便 M5 M-45: 0192 cast_pin_status
@@ -134,13 +135,13 @@ export default function KioskPinPanel({ stores, isOwner }: { stores: Store[]; is
 
   // set_staff_pin（mig0056・owner/manager 自店＝RPC 側が強制。PIN は保存せず送信のみ・上書き設定）
   async function setStaffPin(membershipId: string, p: string) {
-    if (!(mig0191On() ? /^[0-9]{4,6}$/ : /^[0-9]{4}$/).test(p)) { setModalErr(mig0191On() ? "PIN は数字 4〜6 桁で入力してください" : "PIN は数字4桁で入力してください"); return; }   // ★0191 ★3
+    if (!PIN_SHAPE_RE.test(p)) { setModalErr(`PIN は数字 ${PIN_DIGITS_LABEL}で入力してください`); return; } /* ★M-179 */   // ★0191 ★3
     setBusy(true); setPinMsg(""); setModalErr(null);
     const { error } = await supabase.rpc("set_staff_pin", { p_membership_id: membershipId, p_pin: p });
     setBusy(false);
     if (error) {
       const m = error.message;
-      setModalErr(m.includes("bad pin") ? "PIN は数字4桁で入力してください"
+      setModalErr(m.includes("bad pin") ? `PIN は数字 ${PIN_DIGITS_LABEL}で入力してください`
         : m.includes("bad target") ? "この担当は PIN 設定の対象外です"
         : m.includes("inactive membership") ? "無効な担当です"
         : m.includes("not found") ? "担当が見つかりません"
@@ -190,7 +191,7 @@ export default function KioskPinPanel({ stores, isOwner }: { stores: Store[]; is
       <section className="nox-cardtop" style={card}>
         <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
           <h3 style={h3}>PIN</h3>{/* ★便 M5 M-45: 2 系統を 1 つの一覧に＝操作担当 PIN（スタッフ・ここで設定）／キオスク PIN（キャスト・設定はキャスト詳細） */}
-          <span className="nox-stpill" style={{ marginLeft: "auto" }}>{mig0191On() ? "4〜6桁" : "4桁"}</span>
+          <span className="nox-stpill" style={{ marginLeft: "auto" }}>{PIN_DIGITS_LABEL}</span>
         </div>
         <p style={sub} data-pin-two-kinds="1">操作担当 PIN（管理者・店長・スタッフ＝レジ操作を担当者と紐付ける・ここで設定）と、キオスク PIN（キャスト＝打刻・レジの本人確認・設定はキャスト詳細 › アカウント）</p>
         <div style={{ overflowX: "auto" }}>
@@ -290,7 +291,7 @@ export default function KioskPinPanel({ stores, isOwner }: { stores: Store[]; is
               </select>
             </label>
           )}
-          <div style={t.bdRow}><span style={t.bdKey}>桁数</span><span style={t.bdVal}><span className="nox-stpill">数字4桁</span></span></div>
+          <div style={t.bdRow}><span style={t.bdKey}>桁数</span><span style={t.bdVal}><span className="nox-stpill">数字 {PIN_DIGITS_LABEL}</span></span></div>
           <label style={{ display: "grid", gap: 3 }}><span style={t.fieldLabel}>連続失敗でロック</span>
             <SegSelect value={String(maxFail)} disabled={!isOwner || polBusy} onChange={(v) => setMaxFail(parseInt(v, 10))} options={MAX_FAIL_OPTIONS.map((n) => [String(n), `${n}回`] as const)} ariaLabel="失敗回数" />{/* ★M-82 */}
           </label>
@@ -318,7 +319,7 @@ export default function KioskPinPanel({ stores, isOwner }: { stores: Store[]; is
           <h3 style={h3}>{pinTarget.user_name} のPINを設定</h3>
           <p style={sub}>{storeName(pinTarget.store_id)}・{ROLE_LABEL[pinTarget.role] ?? pinTarget.role}</p>
           <div style={{ display: "grid", gap: 8 }}>
-            <label style={{ display: "grid", gap: 3 }}><span style={t.fieldLabel}>新しいPIN（数字4桁）</span>
+            <label style={{ display: "grid", gap: 3 }}><span style={t.fieldLabel}>新しいPIN（数字 {PIN_DIGITS_LABEL}）</span>
               <input value={newPin} inputMode="numeric" maxLength={4} placeholder="0000" autoFocus
                 onChange={(e) => setNewPin(e.target.value.replace(/[^0-9]/g, "").slice(0, 4))}
                 style={{ ...inp, width: 110, fontVariantNumeric: "tabular-nums", letterSpacing: 4 }} />

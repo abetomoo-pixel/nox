@@ -5,6 +5,9 @@
 //   決定のボタン（出勤・退勤・解除）は呼び手が下に置く（同じ形の横幅いっぱいの塗り＝.nox-pinpad-go）。値はマスク（●）＝入力値そのものは画面に出さない。
 export const PIN_MIN = 4, PIN_MAX = 6;
 export const pinReady = (p: string): boolean => p.length >= PIN_MIN && p.length <= PIN_MAX;
+/** ★M-179（2026-11-11）: 桁数の案内は全画面でこの 1 か所から（キャストもスタッフも 4〜6 桁） */
+export const PIN_DIGITS_LABEL = `${PIN_MIN}〜${PIN_MAX} 桁`;
+export const PIN_SHAPE_RE = new RegExp(`^[0-9]{${PIN_MIN},${PIN_MAX}}$`);
 
 export default function PinPad({ value, onChange, max = PIN_MAX, label = `PIN（${PIN_MIN}〜${PIN_MAX} 桁）`, disabled = false }: {
   value: string; onChange: (v: string) => void; max?: number; label?: string; disabled?: boolean;

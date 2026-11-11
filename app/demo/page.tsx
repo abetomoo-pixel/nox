@@ -40,7 +40,7 @@ export default function DemoPage() {
         <p style={{ fontSize: 11, color: "var(--v2-muted)", marginTop: 10, lineHeight: 1.7 }}>
           デモ環境では、ご契約（お支払い）・招待・スタッフ作成・メール／パスワードの変更・組織の削除・写真のアップロード・キオスク発行・印刷・外部への送信（LINE／メール）はできません。
         </p>
-        <footer style={{ marginTop: 22, paddingTop: 12, borderTop: "1px solid var(--line)", fontSize: 11.5, color: "var(--v2-muted)", display: "flex", gap: 14, flexWrap: "wrap" }} data-demo-footer="1"><Link href={TOKUSHOHO_HREF}>{TOKUSHOHO_TITLE}</Link><Link href="/lp">NOX のご紹介</Link><span>© 2026 {COMPANY_NAME}</span></footer>
+        <footer style={{ marginTop: 22, paddingTop: 12, borderTop: "1px solid var(--line)", fontSize: 11.5, color: "var(--v2-muted)", display: "flex", gap: 14, flexWrap: "wrap" }} data-demo-footer="1"><Link href={TOKUSHOHO_HREF} className="nox-footlink">{TOKUSHOHO_TITLE}</Link><Link href="/lp" className="nox-footlink">NOX のご紹介</Link><span>© 2026 {COMPANY_NAME}</span></footer>
       </div>
     </div>
   );

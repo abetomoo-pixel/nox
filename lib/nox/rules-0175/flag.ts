@@ -134,6 +134,13 @@ let override0201: boolean | null = null;
 export function mig0201On(): boolean { return override0201 ?? MIG_0201_APPLIED; }
 export function __set0201ForTest(v: boolean | null): void { override0201 = v; }
 
+/** ★0201b（起草済み・83d59c5b78778d2a を相談役 11/11 の指示で作り直す＝set_store_profile の白名単から tax_inclusive_display と ar_enabled を外す・set_store_receivable_policy が ar_enabled も書く）: 手貼りは相談役の合図。
+ *  false の間＝売掛のスイッチは set_store_receivable_policy（列）と set_store_profile（ar_enabled）の 2 つを書く（0201b の前は RPC が ar_enabled を書かないため）。true＝RPC 1 本だけ（ar_enabled は白名単から外れる）。 */
+export const MIG_0201B_APPLIED = false;
+let override0201b: boolean | null = null;
+export function mig0201bOn(): boolean { return override0201b ?? MIG_0201B_APPLIED; }
+export function __set0201bForTest(v: boolean | null): void { override0201b = v; }
+
 export const MIG_0197_APPLIED = true; // ★2026-11-06: 0197（sha16 f28f737489916c38）を Agoora が手貼り（06:53 UTC・本文 Success）＝verify 17 行が期待値と一致（unique は数え方の差・正本の式では 1）・関数 419・表 120・本文 3 本の md5 一致 → true
 let override0197: boolean | null = null;
 export function mig0197On(): boolean { return override0197 ?? MIG_0197_APPLIED; }

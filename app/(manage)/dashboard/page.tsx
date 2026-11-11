@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getSessionRole } from "@/lib/nox/auth";
 import DashboardBoard from "./dashboard-board";
 import { registerVisibilityServerOf } from "@/lib/nox/register/register-visibility-server"; // ★M-158／M-159
+import { deniedNoteOf } from "@/lib/nox/nav/denied"; // ★M-169
 import PinSelfCard from "@/components/nox/pin-self-card"; // ★0201（M-133）
 import Link from "next/link";
 import { myStaffScheduleOf } from "@/lib/nox/staff/my-shift-server"; // ★M-160
@@ -15,7 +16,8 @@ export const dynamic = "force-dynamic";
 // 表示される（fail-closed＝0行なら空・drink-claim-queue は 0件で自動非表示）。
 // IP 管理カード（モック dashboard 先頭）は E3+E2（N1-d）で追加＝ここでは作らない。
 // cast は (manage) layout が /mine へ戻すが、直 render 防止に page でも弾く（防御は二重・真の防御は RLS）。
-export default async function DashboardPage() {
+export default async function DashboardPage({ searchParams }: { searchParams?: Promise<{ denied?: string }> }) {
+  const deniedNote = deniedNoteOf((await searchParams)?.denied); // ★M-169: 見られない画面を直接開いた＝理由を 1 行
   const { role } = await getSessionRole();
   if (!role) redirect("/login");
   if (role === "cast") redirect("/mine");
@@ -88,6 +90,7 @@ export default async function DashboardPage() {
       casts={(casts ?? []) as { id: string; name: string; photo_updated_at: string | null; store_id: string }[]}
       shortcuts={shortcuts}
       registerNote={regVis.note}
+      deniedNote={deniedNote}
     />
     {mig0201On() && (role === "staff" || role === "manager") && <section style={{ marginTop: 14 }}><PinSelfCard kind="staff" /></section>}{/* ★0201（M-133）: 本人の PIN 変更（店長・スタッフ＝staff_pin） */}
     </>

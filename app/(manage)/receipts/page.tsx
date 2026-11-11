@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { deniedHrefOf } from "@/lib/nox/nav/denied"; // ★M-169
 import { createClient } from "@/lib/supabase/server";
 import { getSessionRole } from "@/lib/nox/auth";
 import ReceiptsBoard from "./receipts-board";
@@ -10,7 +11,7 @@ export const dynamic = "force-dynamic";
 export default async function ReceiptsPage() {
   const { role } = await getSessionRole();
   if (!role) redirect("/login");
-  if (role !== "owner" && role !== "manager") redirect("/register");
+  if (role !== "owner" && role !== "manager") redirect(deniedHrefOf("receipts")) /* ★M-169: レジではなくホームへ・理由を 1 行 */;
   const supabase = await createClient();
   const { data: stores } = await supabase.from("stores").select("id, name, settings_json").order("name"); // ★便 GV-C C-13: 印刷の登録番号（invoice_reg_no）
   return <ReceiptsBoard stores={(stores ?? []) as { id: string; name: string; settings_json: Record<string, unknown> | null }[]} />;

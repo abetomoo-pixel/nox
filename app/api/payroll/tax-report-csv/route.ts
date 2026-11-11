@@ -8,18 +8,20 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { decideTaxReportAccess } from "@/lib/nox/payroll/authz";
+import { TAX_REPORT_NOTE_BASIS, isTaxReportTarget, taxSumOf, type SlipPay } from "@/lib/nox/payroll/tax-report"; // ★裁定482: 日次精算の源泉・年 50 万円超・年分の 1 行
 
-type PayBreakdown = { pay?: { withholding?: number; gross?: number } };
+type PayBreakdown = { pay?: SlipPay };
 
 export async function POST(req: Request) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
 
-  let body: { storeId?: unknown; year?: unknown };
+  let body: { storeId?: unknown; year?: unknown; onlyTargets?: unknown };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "bad json" }, { status: 400 }); }
   const storeId = body.storeId;
   const year = body.year;
+  const onlyTargets = body.onlyTargets === true; // ★裁定482: 提出対象（年 50 万円超）だけを出す
   if (typeof storeId !== "string" || !storeId) return NextResponse.json({ error: "storeId required" }, { status: 400 });
   if (typeof year !== "string" || !/^\d{4}$/.test(year)) return NextResponse.json({ error: "year must be YYYY" }, { status: 400 });
 
@@ -58,7 +60,7 @@ export async function POST(req: Request) {
     if (eRun) throw new Error(eRun.message);
     const runIds = ((runs ?? []) as { id: string }[]).map((r) => r.id);
 
-    const sumByCast = new Map<string, { gross: number; withholding: number }>();
+    const paysByCast = new Map<string, SlipPay[]>(); // ★裁定482: 月末の源泉＋日次精算の源泉（pay.dailyWithheld）を合算（taxSumOf）
     if (runIds.length > 0) {
       const { data: ps, error: ePs } = await admin
         .from("payslips").select("cast_id, breakdown_json").in("run_id", runIds).in("cast_id", targetIds);
@@ -66,10 +68,7 @@ export async function POST(req: Request) {
       for (const p of (ps ?? []) as Record<string, unknown>[]) {
         const cid = p.cast_id as string;
         const bj = p.breakdown_json as PayBreakdown;
-        const cur = sumByCast.get(cid) ?? { gross: 0, withholding: 0 };
-        cur.gross += bj.pay?.gross ?? 0;
-        cur.withholding += bj.pay?.withholding ?? 0;
-        sumByCast.set(cid, cur);
+        paysByCast.set(cid, [...(paysByCast.get(cid) ?? []), bj.pay ?? {}]);
       }
     }
 
@@ -85,13 +84,15 @@ export async function POST(req: Request) {
     const csvRows: TaxRow[] = [];
     for (const tgt of targets) {
       const { data: myn } = await admin.rpc("get_cast_mynumber", { p_org_id: orgId, p_actor: actorId, p_cast_id: tgt.cast_id });
-      const sum = sumByCast.get(tgt.cast_id) ?? { gross: 0, withholding: 0 };
+      const sum = taxSumOf(paysByCast.get(tgt.cast_id) ?? []);
+      if (onlyTargets && !isTaxReportTarget(sum.gross)) continue;
       csvRows.push({
         name: nameById.get(tgt.cast_id) ?? "",
         realName: realById.get(tgt.cast_id) ?? "",
         mynumber: (myn as string | null) ?? "",
         gross: sum.gross,
         withholding: sum.withholding,
+        target: isTaxReportTarget(sum.gross),
         invoice: tgt.invoice ?? "",
         regNo: tgt.reg_no ?? "",
       });
@@ -102,7 +103,7 @@ export async function POST(req: Request) {
   }
 }
 
-type TaxRow = { name: string; realName: string | null; mynumber: string; gross: number; withholding: number; invoice: string; regNo: string };
+type TaxRow = { name: string; realName: string | null; mynumber: string; gross: number; withholding: number; target: boolean; invoice: string; regNo: string };
 
 function csvField(v: string | number): string {
   const s = String(v ?? "");
@@ -110,13 +111,13 @@ function csvField(v: string | number): string {
 }
 
 function csvResponse(year: string, rows: TaxRow[]): NextResponse {
-  const note = `支払調書作成用データ ${year}年（法定様式ではありません・様式は税理士にご確認ください）`;
-  const header = ["源氏名", "本名", "マイナンバー", "支払金額(源泉控除前)", "源泉徴収税額", "インボイス区分", "登録番号"];
+  const note = `支払調書作成用データ ${year}年（法定様式ではありません・様式は税理士にご確認ください）・${TAX_REPORT_NOTE_BASIS}`;
+  const header = ["源氏名", "本名", "マイナンバー", "支払金額(源泉控除前)", "源泉徴収税額", "提出対象（年50万円超）", "インボイス区分", "登録番号"];
   const lines = [
     csvField(note),
     header.map(csvField).join(","),
     ...rows.map((r) =>
-      [r.name, r.realName ?? "", r.mynumber, r.gross, r.withholding, r.invoice, r.regNo].map(csvField).join(",")),
+      [r.name, r.realName ?? "", r.mynumber, r.gross, r.withholding, r.target ? "対象" : "", r.invoice, r.regNo].map(csvField).join(",")),
   ];
   const body = "﻿" + lines.join("\r\n") + "\r\n"; // BOM 付き UTF-8
   return new NextResponse(body, {

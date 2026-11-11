@@ -93,12 +93,12 @@ const J = (v: unknown) => JSON.stringify(v);
 {
   const rb = src("app/(manage)/register/register-board.tsx"), mp = src("app/mine/page.tsx"), sb = src("app/(manage)/shift/shift-board.tsx"), py = src("app/(manage)/payroll/payroll-board.tsx"), mr = src("app/(manage)/report/month-report.tsx");
   check("op(1-1) register: stores.payment_methods／tax_inclusive_display を読み、カード／電子マネー／QR を出し分け・電子マネー／QR＝'other'＋固定 detail・OFF の方法が選択中なら現金へ・内税の印",
-    rb.includes('select("name, settings_json, card_surcharge_rate, payment_methods, tax_inclusive_display")') && rb.includes("const rpcMethodOf = (m: string): string => (m === \"emoney\" || m === \"qr\" ? \"other\" : m);")
+    rb.includes('select("name, settings_json, card_surcharge_rate, payment_methods, price_display")') && rb.includes("const rpcMethodOf = (m: string): string => (m === \"emoney\" || m === \"qr\" ? \"other\" : m);")
     && rb.includes("p_method: rpcMethodOf(payMethod)") && rb.includes("const detail = payMethod === \"emoney\" || payMethod === \"qr\" ? OPS_METHOD_LABEL[payMethod] :") && rb.includes("...(payMethodsOn.card ? [[\"card\", METHOD_LABEL.card]] : [])")
     && rb.includes("...(payMethodsOn.qr ? [[\"qr\", OPS_METHOD_LABEL.qr]] : [])") && rb.includes("{taxInclusive && <span className=\"nox-stpill\"") && rb.includes("(m === \"card\" && !pm.card) || (m === \"emoney\" && !pm.emoney) || (m === \"qr\" && !pm.qr) ? \"cash\" : m"));
   check("op(1-2) /mine: punch_methods.self が OFF なら本人打刻のボタンを出さず案内文（PunchActions の文字列は不変）", mp.includes('select("id, name, settings_json, punch_methods")') && mp.includes("opsProfileOf(myStore as Record<string, unknown> | undefined).punch_methods.self ? (") && mp.includes("<PunchActions state={ps.state}") && mp.includes("この店はスマホからの打刻を使っていません"));
   check("op(1-3) shift-board: punch_methods.proxy が OFF なら代行の退勤ボタンを出さず・出勤区分後の in 打刻も残さない", sb.includes('select("settings_json, punch_methods")') && sb.includes("const ob = proxyPunchOn ? ob0 : { ...ob0, show: false };") && sb.includes("if (!error && proxyPunchOn && punchInAfterAtt("));
-  check("op(1-4) payroll-board／month-report: 支払日（翌月 N 日・締め 月末）と内税表記の印（表示のみ）", py.includes('select("name, legal_name, settings_json, pay_day, tax_inclusive_display")') && py.includes("締め 月末・支払日 翌月 {storeOps.pay_day} 日{storeOps.tax_inclusive_display ? \"・金額表記 内税\" : \"\"}") && mr.includes('select("pay_day").eq("id", storeId).maybeSingle()') && mr.includes("締め 月末・支払日 翌月 {payDay} 日"));
+  check("op(1-4) payroll-board／month-report: 支払日（翌月 N 日・締め 月末）と内税表記の印（表示のみ）", py.includes('select("name, legal_name, settings_json, pay_day, price_display")') && py.includes("締め 月末・支払日 翌月 {storeOps.pay_day} 日{storeOps.tax_inclusive_display ? \"・金額表記 内税\" : \"\"}") && mr.includes('select("pay_day").eq("id", storeId).maybeSingle()') && mr.includes("締め 月末・支払日 翌月 {payDay} 日"));
   check("op(1-5) kiosk は不触（kiosk_punch_state に punch_methods を返す器が無い＝裁定要）", !src("app/kiosk/page.tsx").includes("punch_methods"));
 }
 

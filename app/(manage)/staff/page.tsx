@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { deniedHrefOf } from "@/lib/nox/nav/denied"; // ★M-169
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getSessionRole } from "@/lib/nox/auth";
@@ -17,7 +18,7 @@ export const dynamic = "force-dynamic";
 export default async function StaffPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
   const supabase = await createClient();
   const { role, roleRaw } = await getSessionRole();
-  if (role !== "owner" && role !== "manager") redirect("/register");
+  if (role !== "owner" && role !== "manager") redirect(deniedHrefOf("staff")) /* ★M-169: レジではなくホームへ・理由を 1 行 */;
   if (staffTabOf((await searchParams).tab) === "work") redirect(STAFF_WORK_HREF); // ★M-64
   const {
     data: { user },

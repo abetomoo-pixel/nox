@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { deniedHrefOf } from "@/lib/nox/nav/denied"; // ★M-169
 import { createClient } from "@/lib/supabase/server";
 import { getSessionRole } from "@/lib/nox/auth";
 import AnalyticsBoard from "./analytics-board";
@@ -15,7 +16,7 @@ export const dynamic = "force-dynamic";
 export default async function AnalyticsPage() {
   const { role } = await getSessionRole();
   if (!role) redirect("/login");
-  if (role !== "owner" && role !== "manager") redirect("/register");
+  if (role !== "owner" && role !== "manager") redirect(deniedHrefOf("analytics")) /* ★M-169: レジではなくホームへ・理由を 1 行 */;
   const supabase = await createClient();
   const { data: stores } = await supabase.from("stores").select("id, name").order("name");
   const { data: casts } = await supabase.from("casts")// 段P/A2: photo_updated_at＝ランキングのアバターを写真にする（null=写真なし＝頭文字）。

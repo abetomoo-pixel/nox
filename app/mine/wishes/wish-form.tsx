@@ -23,7 +23,7 @@ import {
   DEFAULT_END, DEFAULT_START, activeDaysOf, composeSubmissions, initialMonthOf, isLiveWish, monthAfterOf, monthCellsOf, selectionAfterSubmit, setOverride,
   summarizeResults, timesValid, toggleDay, wishMarkOf, type Selection, type SubmitResult, type WishLike,
 } from "@/lib/nox/mine/wish-calendar";
-import WithdrawButton from "./withdraw-button";
+import WithdrawButton, { WISHES_CHANGED_EVENT } from "./withdraw-button";
 import MonthNav, { useYmQuery } from "@/components/nox/month-nav"; // ★裁定306-4／306-6: 年月見出し＋前月／翌月／今月＝確定タブと同じ部品・?ym 同期
 import { outOfPeriodNoteOf, ymFromSearch } from "@/lib/nox/ui/month-nav";
 // ★裁定326-7／追補2-4（0160・便 M4-1）: 店設定 shift_request_mode。'off_only'＝休み希望（kind 'off'・時刻なし＝時間欄を出さない）。'shift'＝従来（kind 'work'）
@@ -110,6 +110,12 @@ export default function WishForm({ mode = "shift" }: { mode?: WishMode }) {
     setMonthShifts(m);
   }, [month]);
   useEffect(() => { void loadWishes(); }, [loadWishes]);
+  // ★M-162（2026-11-11）: 取り下げ（WithdrawButton）の成功で読み直す＝一覧・日付の詳細・カレンダーが再読込なしで一致・取り下げた後は「もう一度提出できます」
+  useEffect(() => {
+    const on = () => { void loadWishes(); setMsg({ kind: "success", text: "希望を取り下げました。もう一度提出できます" }); };
+    window.addEventListener(WISHES_CHANGED_EVENT, on);
+    return () => window.removeEventListener(WISHES_CHANGED_EVENT, on);
+  }, [loadWishes]);
 
   const notice = periods ? periodNoticeOf(periods, today) : null;
   const cells = monthCellsOf(month);

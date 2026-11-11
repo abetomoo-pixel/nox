@@ -31,7 +31,7 @@ const src = (p: string) => fs.readFileSync(p, "utf8");
     src("app/(manage)/casts/casts-board.tsx").includes("liffBindUrlOf(siteOriginOf(window.location.origin), c.store_id, data)") && src("app/(manage)/staff/staff-board.tsx").includes("liffBindUrlOf(siteOriginOf(window.location.origin), m.store_id, data)")
     && src("app/(manage)/master/line-config-panel.tsx").includes('const origin = siteOriginOf(typeof window !== "undefined" ? window.location.origin : "");') && src("app/api/line/webhook/[storeId]/route.ts").includes("liffEntryUrlOf(siteOriginOf(new URL(req.url).origin), storeId)")
     && src("app/liff/[storeId]/liff-bridge.tsx").includes("liff.login({ redirectUri: siteHrefOf(window.location.href, siteOriginOf(window.location.origin)) })") && !src("app/liff/[storeId]/liff-bridge.tsx").includes("redirectUri: window.location.href }")
-    && src("docs/tmp/domain_switch.md").includes("NEXT_PUBLIC_SITE_URL=https://noxapp.jp"));
+    && src("docs/demo/domain_switch.md") /* ★2026-11-11: docs/tmp から docs/demo へ移した（git に入れた） */.includes("NEXT_PUBLIC_SITE_URL=https://noxapp.jp"));
 }
 // (2) M-95
 const sb = src("app/(manage)/shift/shift-board.tsx");
@@ -43,7 +43,7 @@ check("bend(3-2) shift-board＝stores.settings_json.shift_request_mode==='store'
   && src("app/(manage)/master/mine-settings-panel.tsx").includes('(["shift", "off_only", "store"] as const).map((v) => [v, SHIFT_REQUEST_MODE_LABEL[v]] as const)'));
 // (4) M-98
 const rb = src("app/(manage)/report/report-board.tsx");
-check("bend(4-1) 日報＝receivable_policy='disabled' の店は「売掛」タブと「売掛 本日発生」を出さない（タブに居たら日報へ）", rb.includes('setArOff((data as { receivable_policy?: string | null } | null)?.receivable_policy === "disabled")') && rb.includes('(isManagerUp && !arOff ? (["day", "month", "ar"] as const) : (["day", "month"] as const))') && rb.includes('if (arOff && tab === "ar") setTab("day");') && rb.includes("{isManagerUp && ((arNew && !arOff) || pending) && (") && rb.includes("{!arOff && (/* ★便 D M-98"));
+check("bend(4-1) 日報＝receivable_policy='disabled' の店は「売掛」タブと「売掛 本日発生」を出さない（タブに居たら日報へ）", /* ★M-169（2026-11-11）: 売掛の正本は settings_json.ar_enabled（0201b で書き手は set_store_receivable_policy の 1 本） */ rb.includes('setArOff(((data as { settings_json?: Record<string, unknown> } | null)?.settings_json ?? {}).ar_enabled !== true)') && rb.includes('(isManagerUp && !arOff ? (["day", "month", "ar"] as const) : (["day", "month"] as const))') && rb.includes('if (arOff && tab === "ar") setTab("day");') && rb.includes("{isManagerUp && ((arNew && !arOff) || pending) && (") && rb.includes("{!arOff && (/* ★便 D M-98"));
 // (5) M-99
 check("bend(5-1) 契約チップ＝本文色（var(--ink)）・輪郭だけ（var(--line2)）・地は透明＝役割チップと同じトークン", CONTRACT_CHIP_STYLE.color === "var(--ink)" && CONTRACT_CHIP_STYLE.background === "transparent" && CONTRACT_CHIP_STYLE.border === "1px solid var(--line2)");
 check("bend(5-2) 使う場所＝/staff 一覧（押すと働き方の編集）・給与 › 勤怠（スタッフ）の契約列・キャスト管理のプラン名（旧 .nox-stpill の薄い文字は無い）",

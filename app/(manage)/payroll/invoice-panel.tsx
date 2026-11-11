@@ -5,6 +5,7 @@
 // set_cast_tax_profile（既存 RPC・manager+）。支払調書CSV は owner のみ（route が最狭防御）。
 // マイナンバー未取得は route が真偽のみ返す（値は client に出さない）。★源泉計算には一切触れない。
 import { useState } from "react";
+import { TAX_REPORT_NOTE_BASIS } from "@/lib/nox/payroll/tax-report"; // ★裁定482
 import SegSelect from "@/components/ui/seg-select";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
@@ -71,22 +72,22 @@ export default function InvoicePanel({ storeId, period, isOwner }: { storeId: st
     setBusy(false);
   }
 
-  async function downloadCsv() {
+  async function downloadCsv(onlyTargets = false) { // ★裁定482: 全員分／提出対象（年 50 万円超）だけ
     if (!/^\d{4}$/.test(year)) { setMsg("暦年は西暦4桁で入力してください"); return; }
     setBusy(true); setMsg("");
     try {
       const res = await fetch("/api/payroll/tax-report-csv", {
         method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ storeId, year }),
+        body: JSON.stringify({ storeId, year, onlyTargets }),
       });
       if (!res.ok) { const j = await res.json(); setMsg(`CSVエラー(${res.status}): ${j.error ?? ""}`); return; }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
-      a.href = url; a.download = `tax-report-${year}.csv`;
+      a.href = url; a.download = `tax-report-${year}${onlyTargets ? "-targets" : ""}.csv`;
       document.body.appendChild(a); a.click(); a.remove();
       URL.revokeObjectURL(url);
-      setMsg(`${year}年の支払調書作成用データを出力しました`);
+      setMsg(`${year}年の支払調書作成用データを出力しました${onlyTargets ? "（提出対象＝年 50 万円超だけ）" : ""}`);
     } catch (e) { setMsg(`通信エラー: ${(e as Error).message}`); }
     finally { setBusy(false); }
   }
@@ -197,7 +198,9 @@ export default function InvoicePanel({ storeId, period, isOwner }: { storeId: st
                 <input value={year} onChange={(e) => setYear(e.target.value)} style={{ ...t.input, width: 80, padding: "8px 10px", fontSize: 13 }} maxLength={4} />
               </label>
               <button onClick={() => void downloadCsv()} disabled={busy} style={{ ...t.btnGold, ...t.btnSm }}>支払調書CSVを出力</button>
+              <button onClick={() => void downloadCsv(true)} disabled={busy} style={{ ...t.btnGhost, ...t.btnSm }} data-tax-only-targets="1">提出対象（年 50 万円超）だけ</button>{/* ★裁定482 */}
               <span style={{ fontSize: 11, color: "var(--sub)" }}>※法定様式ではありません（様式は税理士にご確認ください）。owner のみ出力可。</span>
+              <span style={{ fontSize: 11, color: "var(--sub)", flexBasis: "100%" }} data-tax-basis="1">{TAX_REPORT_NOTE_BASIS}。源泉徴収税額には日払い（日次精算）で引いた分も含みます。「提出対象」は年の支払金額が 50 万円を超える人です。</span>{/* ★裁定482 */}
             </div>
           )}
         </>

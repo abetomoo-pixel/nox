@@ -858,7 +858,7 @@ export default function RegisterBoard({
     if (!storeId) return;
     let alive = true;
     void (async () => {
-      const { data } = await supabase.from("stores").select("name, settings_json, card_surcharge_rate, payment_methods, tax_inclusive_display").eq("id", storeId).single(); // ★0164（便 W5-2b）: 支払い方法・内税表示
+      const { data } = await supabase.from("stores").select("name, settings_json, card_surcharge_rate, payment_methods, price_display").eq("id", storeId).single(); // ★0164（便 W5-2b）: 支払い方法・内税表示
       if (alive) {
         setStoreName((data?.name as string | undefined) ?? "");
         setInvoiceRegNo(((data?.settings_json as Record<string, unknown> | null)?.invoice_reg_no as string | undefined) ?? "");
@@ -869,7 +869,7 @@ export default function RegisterBoard({
         // ★0164（便 W5-2b）: 支払い方法（列 payment_methods・既定 {cash,card}）と内税表示（列 tax_inclusive_display）。OFF の方法が選択中なら現金へ戻す
         const pm = opsProfileOf(data as Record<string, unknown> | null).payment_methods;
         setPayMethodsOn({ card: pm.card, emoney: pm.emoney, qr: pm.qr });
-        setTaxInclusive((data as Record<string, unknown> | null)?.tax_inclusive_display === true);
+        setTaxInclusive((data as Record<string, unknown> | null)?.price_display === "tax_included"); // ★0201b の前提（2026-11-11）: 正本は price_display
         setPayMethod((m) => ((m === "card" && !pm.card) || (m === "emoney" && !pm.emoney) || (m === "qr" && !pm.qr) ? "cash" : m));
         // ★B3: 営業日の判定に使う cutoff（report と同じ既定 06:00）
         const bc = (data?.settings_json as Record<string, unknown> | null)?.biz_cutoff_hm;

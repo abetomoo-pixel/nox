@@ -32,7 +32,7 @@ export function opsProfileOf(row: Record<string, unknown> | null | undefined): O
   return {
     invoice_registered_on: typeof row?.invoice_registered_on === "string" ? row.invoice_registered_on.slice(0, 10) : "",
     pay_day: typeof row?.pay_day === "number" ? String(row.pay_day) : "25",
-    tax_inclusive_display: row?.tax_inclusive_display === true,
+    tax_inclusive_display: row?.price_display === "tax_included", // ★0201b の前提（2026-11-11）: 表示の正本は price_display（料金の設定の税込／税抜）＝旧キーは読まない
     use_vip: row?.use_vip !== false,
     use_counter: row?.use_counter !== false,
     payment_methods: { cash: true, card: pm.card !== false, emoney: pm.emoney === true, qr: pm.qr === true },
@@ -45,7 +45,7 @@ export function opsPatchOf(form: OpsProfile, cur: OpsProfile): Record<string, un
   const out: Record<string, unknown> = {};
   if (form.invoice_registered_on !== cur.invoice_registered_on) out.invoice_registered_on = form.invoice_registered_on === "" ? null : form.invoice_registered_on;
   if (form.pay_day.trim() !== cur.pay_day) out.pay_day = Number(form.pay_day);
-  if (form.tax_inclusive_display !== cur.tax_inclusive_display) out.tax_inclusive_display = form.tax_inclusive_display;
+  // ★0201b の前提（2026-11-11）: tax_inclusive_display は送らない（0201b で set_store_profile の白名単から外す＝送ると 'bad key'）
   if (form.use_vip !== cur.use_vip) out.use_vip = form.use_vip;
   if (form.use_counter !== cur.use_counter) out.use_counter = form.use_counter;
   if (JSON.stringify(form.payment_methods) !== JSON.stringify(cur.payment_methods)) out.payment_methods = { ...form.payment_methods, cash: true };

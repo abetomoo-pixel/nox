@@ -21,7 +21,7 @@ const src = (p: string) => fs.readFileSync(p, "utf8");
 
 // op(1)
 {
-  const o = opsProfileOf({ invoice_registered_on: "2026-10-01", pay_day: 15, tax_inclusive_display: true, use_vip: false, use_counter: true, payment_methods: { cash: false, card: false, qr: true }, punch_methods: { self: false } });
+  const o = opsProfileOf({ invoice_registered_on: "2026-10-01", pay_day: 15, price_display: "tax_included", use_vip: false, use_counter: true, payment_methods: { cash: false, card: false, qr: true }, punch_methods: { self: false } });
   check("op(1-1) opsProfileOf: 列→形（cash は常に true・欠損キーは既定・use_vip false）", o.invoice_registered_on === "2026-10-01" && o.pay_day === "15" && o.tax_inclusive_display && !o.use_vip && o.use_counter
     && o.payment_methods.cash && !o.payment_methods.card && !o.payment_methods.emoney && o.payment_methods.qr && !o.punch_methods.self && o.punch_methods.proxy && o.punch_methods.kiosk, JSON.stringify(o));
   check("op(1-2) opsProfileOf(null)＝OPS_DEFAULT と同値（既定 25・外税・VIP／カウンター あり・現金＋カード・打刻 3 つ）", JSON.stringify(opsProfileOf(null)) === JSON.stringify(OPS_DEFAULT));
@@ -43,7 +43,7 @@ const src = (p: string) => fs.readFileSync(p, "utf8");
 {
   const sp = src("app/(manage)/master/store-profile-panel.tsx"), pg = src("app/(manage)/master/store-profile/page.tsx"), ft = src("app/(manage)/master/store-flag-toggle.tsx");
   check("sp(1-1) 節 'ops'（会計と運用）＝列 7 つを select・opsProfileOf・patch に opsPatchOf・先回り opsPatchErrorOf・保存ボタン「会計と運用を保存」",
-    sp.includes('select("name, short, settings_json, invoice_registered_on, pay_day, tax_inclusive_display, use_vip, use_counter, payment_methods, punch_methods")') && sp.includes("ops: opsProfileOf(data as Record<string, unknown> | null)")
+    sp.includes('select("name, short, settings_json, invoice_registered_on, pay_day, price_display, receivable_policy, use_vip, use_counter, payment_methods, punch_methods")') && sp.includes("ops: opsProfileOf(data as Record<string, unknown> | null)")
     && sp.includes("const out: Record<string, unknown> = { ...opsPatchOf(form.ops, cur.ops) };") && sp.includes("const e = opsPatchErrorOf(patch); if (e) { setMsg(e); return; }") && sp.includes('aria-label="会計と運用"') && sp.includes(">会計と運用を保存<")
     && sp.includes('| "ops"') && sp.includes('ariaLabel="インボイス登録日"') /* ★M-82: date→DatePicker */ && sp.includes('aria-label="給与の支払日"') && sp.includes("PAYMENT_METHOD_LABEL.map(") && sp.includes("PUNCH_METHOD_LABEL.map("));
   check("sp(1-2) store-profile ページの info タブに 'ops'・errJa に bad pay_day／bad payment_methods／bad punch_methods", pg.includes('sections={["profile", "shift", "ops"]}') && ft.includes('msg.includes("bad pay_day")') && ft.includes('msg.includes("bad payment_methods")') && ft.includes('msg.includes("bad punch_methods")'));

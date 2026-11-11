@@ -65,11 +65,13 @@ const dowOf = (ymd: string) => {
 const mdOf = (iso: string) =>
   new Date(iso).toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo", month: "numeric", day: "numeric" });
 
-export default function DashboardBoard({ storeId, storeName, cutoff, casts, shortcuts, stores = [], isOwner = false, isManagerUp = false, registerNote = null }: {
+export default function DashboardBoard({ storeId, storeName, cutoff, casts, shortcuts, stores = [], isOwner = false, isManagerUp = false, registerNote = null, deniedNote = null }: {
   storeId: string; storeName: string; cutoff: string; casts: Cast[];
   shortcuts: { href: string; label: string }[]; // ★306-16: icon は NavIcon（href キー）
   /** ★M-159（2026-11-11）: 出勤していない間のレジの案内（レジが許可されたスタッフだけ・それ以外は null） */
   registerNote?: string | null;
+  /** ★M-169（2026-11-11）: 見られない画面を直接開いてホームへ戻ったときの 1 行 */
+  deniedNote?: string | null;
   /** ★裁定192（B1・M6）: RLS が返す店一覧（owner=org 全店）。2 店以上かつ owner のときだけセレクタを出す */
   stores?: { id: string; name: string; cutoff: string }[];
   isOwner?: boolean;
@@ -202,6 +204,7 @@ export default function DashboardBoard({ storeId, storeName, cutoff, casts, shor
 
   return (
     <div className="nox-mv1 nox-mv1-sm">
+      {deniedNote && <p className="nox-inset" role="status" data-denied-note="1" style={{ fontSize: 13, margin: "0 0 12px", padding: "8px 12px" }}>{deniedNote}</p>/* ★M-169 */}
       {/* ★便 SH-UI-c2 C2-13: 最上段（デモ帯の直下）＝要承認カード（店長・オーナー＝種別ごとの行と承認／却下・スタッフ＝自分の申請の状態） */}
       <PendingCard storeId={curStoreId} role={isManagerUp ? "manager" : "staff"} />
       {/* 段0R 第1陣: モック .head を新シェルの nox-hero へ（ページ名＋店名＋営業日） */}
@@ -351,7 +354,7 @@ export default function DashboardBoard({ storeId, storeName, cutoff, casts, shor
           {/* ★裁定363（GV-11・便 GV-A）: 既定軸＝売上（按分）。本指名件数は切替で。★裁定156（v2.1 M27）: 見出しをモック「本指名ランキング（今月）」へ。上位 5 名・場内／同伴の併記は据え置き（情報を減らさない） */}
           <h2 style={{ ...secTitle, margin: 0 }}>{rankAxis === "sales" ? `売上ランキング（今月 ${month}・按分）` : `本指名ランキング（今月 ${month}・件数）`}</h2>
           <SegSelect value={rankAxis} onChange={(v) => setRankAxis(v as RankAxis)} options={[["sales", RANK_AXIS_LABEL.sales], ["nom", "本指名件数"]] as const} ariaLabel="ランキングの軸" />
-          <Link href="/analytics" className="nox-link" style={{ marginLeft: "auto", fontSize: 11, whiteSpace: "nowrap" }}>分析へ ›</Link>
+          {isManagerUp && <Link href="/analytics" className="nox-link" style={{ marginLeft: "auto", fontSize: 11, whiteSpace: "nowrap" }}>分析へ ›</Link>/* ★M-169: 分析は店長以上だけ＝見られない役割にはリンクを出さない */}
         </div>
         {rankAxis === "sales" && salesRanking.length === 0 && <p style={{ fontSize: 12.5, color: "var(--v2-muted)", margin: 0 }}>データがありません（按分売上のある伝票なし）</p>}
         {rankAxis === "sales" && salesRanking.map((r) => (

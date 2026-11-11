@@ -141,7 +141,7 @@ export default function ReportBoard({
   useEffect(() => {
     if (!storeId) return;
     let alive = true;
-    void (async () => { const { data } = await supabase.from("stores").select("receivable_policy").eq("id", storeId).maybeSingle(); if (alive) setArOff((data as { receivable_policy?: string | null } | null)?.receivable_policy === "disabled"); })();
+    void (async () => { const { data } = await supabase.from("stores").select("settings_json").eq("id", storeId).maybeSingle(); if (alive) setArOff(((data as { settings_json?: Record<string, unknown> } | null)?.settings_json ?? {}).ar_enabled !== true); })(); // ★0201b の前提（2026-11-11 相談役 ■4）: 日報の売掛タブは売掛の正本 settings_json.ar_enabled を読む（列 receivable_policy ではない）
     return () => { alive = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storeId]);

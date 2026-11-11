@@ -105,10 +105,14 @@ export function slideLinesOf(p: SlideLineInput, opts: { frozen?: boolean; showSa
   const bVal = (v: number) => (bLabel ? `${bLabel} ${v} 件` : `売上 ${yen(v)}`);
   const showSales = opts.showSales ?? true, showPt = opts.showPt ?? true;
   const gua = p.guarantee && p.guarantee.guaHours > 0 && p.guarantee.spans.length > 0 ? p.guarantee.spans[p.guarantee.spans.length - 1] : null;
-  const topUp = (wage: number) => {
+  // ★M-161（2026-11-11 相談役）: 上乗せは判定期間ごとに区切る（半月＝前半 1〜15 日・後半 16 日〜）＝月全体の額を 2 回出さない。
+  //   日ごとの内訳（wdays）が無い古い凍結値で半月のときは区切れない＝額を出さない（null）。
+  const inPeriod = (key: string, d: number) => (!/-H[12]$/.test(key) ? true : key.endsWith("H1") ? d <= 15 : d >= 16);
+  const topUp = (wage: number, key: string): number | null => {
     if (wage <= base) return 0;
-    const days = (p.wdays ?? []).filter((w) => w.hours > 0 && (w.basis === "売上" || w.basis === "ポイント"));
-    return Math.round(days.length > 0 ? days.reduce((a, w) => a + Math.max(0, w.hourly - base) * w.hours, 0) : (wage - base) * z(p.wHours));
+    const days = (p.wdays ?? []).filter((w) => w.hours > 0 && (w.basis === "売上" || w.basis === "ポイント") && inPeriod(key, w.d));
+    if (days.length > 0) return Math.round(days.reduce((a, w) => a + Math.max(0, w.hourly - base) * w.hours, 0));
+    return /-H[12]$/.test(key) ? null : Math.round((wage - base) * z(p.wHours));
   };
   const out: BreakdownLine[] = [];
   for (const m of sb.months) {
@@ -127,7 +131,11 @@ export function slideLinesOf(p: SlideLineInput, opts: { frozen?: boolean; showSa
       result = idx > 0 ? `${parts.join("・")} → 段 ${idx}（時給 ${yen(wage)}・+${yen(wage - base)}/h）` : `${parts.join("・")} → 時給 ${yen(wage)}（+${yen(wage - base)}/h）`;
     } else result = `${parts.join("・")} → 段なし・基本時給 ${yen(base)} のまま`;
     if (gua && gua.base >= wage) result += `・保証 ${yen(gua.base)}（${gua.to ? md(gua.to) + " まで" : "期末まで"}）が優先`;
-    out.push({ key: `slide-${m.month}`, label: head, label2: result, amount: hit ? topUp(wage) : 0, info: true, ...(hit ? {} : { amountText: "—" }) });
+    // ★M-161（2026-11-11 相談役）: スライドは時給の内数＝支給の欄に金額の行として出さない（足す列に入れない）。説明の 1 行＝「スライド適用後の時給で計算しています」＋この期間の上乗せ（時給の行に含む）
+    const up = hit ? topUp(wage, m.month) : 0;
+    const guaWins = !!gua && gua.base >= wage; // 保証が優先の期は「保証の期間の後は」を前に付ける（保証の日は保証の時給＝スライドの時給ではない）
+    if (hit) result += `・${guaWins ? "保証の期間の後は" : ""}スライド適用後の時給で計算しています${up ? `（この期間の上乗せ ${yen(up)} は時給の行に含みます）` : "（上乗せは時給の行に含みます）"}`;
+    out.push({ key: `slide-${m.month}`, label: head, label2: result, amount: 0, info: true, amountText: hit ? "（内数）" : "—" });
   }
   return out;
 }

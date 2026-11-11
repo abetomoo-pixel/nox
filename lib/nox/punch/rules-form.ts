@@ -4,9 +4,9 @@
 import type { RestrictMode } from "./geofence";
 
 export const PUNCH_MODE_LABEL: Record<RestrictMode, string> = {
-  gps: "位置情報", ip: "店の Wi-Fi", either: "位置情報か Wi-Fi のどちらか", both: "位置情報と Wi-Fi の両方", tablet: "店の端末のみ",
+  gps: "位置情報", ip: "店の Wi-Fi", either: "位置か Wi-Fi", both: "位置と Wi-Fi", tablet: "店の端末のみ", // ★375 で収まる長さ（2026-11-11 撮影で選択がはみ出した）＝意味は判定方法の説明の行
 };
-export const SHIFT_GATE_LABEL: Record<"off" | "warn" | "block", string> = { off: "許可（記録しない）", warn: "記録して通す", block: "禁止（確定シフトが無い日は出勤できない）" };
+export const SHIFT_GATE_LABEL: Record<"off" | "warn" | "block", string> = { off: "許可", warn: "記録して通す", block: "禁止" }; // ★375 で収まる長さ＝意味は説明の行
 
 export type PunchRulesForm = { enforce: boolean; mode: RestrictMode; lat: string; lng: string; radius: string; ipCount: number; requireShift: "off" | "warn" | "block" };
 

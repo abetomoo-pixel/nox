@@ -4,6 +4,7 @@
 // 操作は全て RPC 経由＝trial_register/trial_update/trial_hire/trial_reject／cast_create。
 // 真の防御は trials RLS（owner/manager 限定）＋各 RPC ゲート（UI は操作面）。
 import { LoadMoreBar, useLoadMore } from "@/components/ui/load-more"; // ★便 M5b M-60
+import { PIN_DIGITS_LABEL, PIN_MAX, PIN_SHAPE_RE } from "@/components/nox/pin-pad"; // ★M-179: 桁数は 1 か所の定数から
 import Loading from "@/components/ui/loading"; // ★M-135: 読み込み中の表示の共通部品
 import DatePicker from "@/components/ui/date-picker"; // ★M-82（裁定452・教訓133）: 日付は共通のピッカー
 import AddButton from "@/components/ui/add-button"; // ★便 M5b M-55
@@ -480,7 +481,7 @@ export default function CastsBoard({
 
   async function submitPin() {
     if (!pinTarget) return;
-    if (!(mig0191On() ? /^[0-9]{4,6}$/ : /^[0-9]{4}$/).test(pinVal)) { setPinErr(mig0191On() ? "PIN は数字 4〜6 桁で入力してください" : "PIN は数字4桁で入力してください"); return; }   // ★0191 ★3
+    if (!PIN_SHAPE_RE.test(pinVal)) { setPinErr(`PIN は数字 ${PIN_DIGITS_LABEL}で入力してください`); return; } /* ★M-179: 桁数は部品の定数（サーバは 4〜6 桁＝0191） */   // ★0191 ★3
     setBusy(true); setPinErr(null);
     const { error } = await supabase.rpc("set_cast_pin", { p_cast_id: pinTarget.id, p_pin: pinVal });
     setBusy(false);
@@ -1674,12 +1675,12 @@ export default function CastsBoard({
               <>
                 <h2 style={secTitle}>{pinTarget.name} のキオスク PIN</h2>{/* ★便 M5 M-45 */}
                 <p style={{ fontSize: 12.5, color: "var(--sub)", margin: "0 0 10px" }}>
-                  キオスク端末（タブレット）で打刻するときの4桁の数字です。
+                  キオスク端末（タブレット）で打刻するときの数字（{PIN_DIGITS_LABEL}）です。{/* ★M-179 */}
                   設定し直すと失敗カウント・ロックもリセットされます。
                 </p>
                 <label style={{ display: "grid", gap: 4 }}>
-                  <span style={t.fieldLabel}>PIN（数字4桁）</span>
-                  <input value={pinVal} onChange={(e) => setPinVal(e.target.value.replace(/[^0-9]/g, "").slice(0, 4))}
+                  <span style={t.fieldLabel}>PIN（数字 {PIN_DIGITS_LABEL}）</span>
+                  <input value={pinVal} onChange={(e) => setPinVal(e.target.value.replace(/[^0-9]/g, "").slice(0, PIN_MAX)) /* ★M-179: 4 文字で切らない */}
                     inputMode="numeric" autoComplete="off" placeholder="0000"
                     style={{ ...t.input, width: 120, letterSpacing: 6, fontSize: 18, textAlign: "center" }} />
                 </label>

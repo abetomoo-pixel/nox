@@ -18,6 +18,7 @@ import OnOffSeg from "@/components/ui/on-off"; // ★便 GV-C C-9（GV-52）
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import StoreFlagToggle, { storeProfileErrJa } from "./store-flag-toggle";
+import ReceivableSwitch from "./receivable-switch"; // ★0201b の前提（2026-11-11）
 
 import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 import MoneyInput from "@/components/ui/money-input";
@@ -53,6 +54,7 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
   const [cur, setCur] = useState<Profile>(EMPTY);   // サーバ現値
   const [form, setForm] = useState<Profile>(EMPTY); // 入力中
   const [loaded, setLoaded] = useState(false);
+  const [arPolicy, setArPolicy] = useState<string | null>(null); // ★0201b の前提: 売掛の列（cast_liability_allowed の店は ON のまま変えない）
   const [adj, setAdj] = useState<PayAdjustMode>("none"); // ★0187（便 CASH）: 支払方法の調整（なし／カード手数料／現金割引／両方）＝読み込み時に現値から決める
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -66,9 +68,10 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
   const load = useCallback(async () => {
     if (!storeSel) return;
     const supabase = createClient();
-    const { data, error } = await supabase.from("stores").select("name, short, settings_json, invoice_registered_on, pay_day, tax_inclusive_display, use_vip, use_counter, payment_methods, punch_methods").eq("id", storeSel).single(); // ★0164（便 W5-2a）: 列 7 つ
+    const { data, error } = await supabase.from("stores").select("name, short, settings_json, invoice_registered_on, pay_day, price_display, receivable_policy, use_vip, use_counter, payment_methods, punch_methods").eq("id", storeSel).single(); // ★0164（便 W5-2a）: 列 7 つ
     if (error) { setMsg(`読み込みに失敗: ${errJa(error.message)}`); return; }
     const sj = (data?.settings_json ?? {}) as Record<string, unknown>;
+    setArPolicy(((data as Record<string, unknown> | null)?.receivable_policy as string | null) ?? null);
     const p: Profile = {
       ops: opsProfileOf(data as Record<string, unknown> | null), // ★0164（便 W5-2a）
       name: typeof data?.name === "string" ? data.name : "",
@@ -319,7 +322,7 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
               </label>
               <div style={{ minWidth: 0 }}>
                 <span style={label}>消費税の表示<span style={{ fontWeight: 400, marginLeft: 6 }}>ON＝内税で表示（計算は変わりません）</span></span>
-                {onOff(form.ops.tax_inclusive_display, "消費税の表示（内税）", (b) => setOps({ tax_inclusive_display: b }))}
+                <p style={{ fontSize: 12, color: "var(--sub)", margin: "4px 0" }} data-tax-display-source="price_display">消費税の表示（内税／外税）は、料金の設定の「税込／税抜」に従います（今は{form.ops.tax_inclusive_display ? "内税" : "外税"}表示）。変えるときは マスタ › 料金 で。</p>{/* ★0201b の前提（2026-11-11）: スイッチは撤去＝正本は price_display */}
               </div>
               <div style={{ minWidth: 0 }}>
                 <span style={label}>フロア<span style={{ fontWeight: 400, marginLeft: 6 }}>OFF の席種はレジの卓席と席マスタの選択肢に出しません（登録済みの席は残ります）</span></span>
@@ -462,10 +465,7 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
         <section className="nox-cardtop" style={t.card}>
           <h2 style={{ ...secTitle, margin: "0 0 8px" }}>{on("data") ? "売掛・記録の保持" : "売掛"}</h2>
           {loaded && (
-            <StoreFlagToggle key={`${storeSel}:ar:${cur.ar_enabled}`} storeId={storeSel} flagKey="ar_enabled" isOwner={isOwner}
-              label="売掛を使う"
-              desc="OFF の店ではレジの支払方法に「売掛」が出ず、サーバ側でも売掛の入金を拒否します（既存の売掛の回収はそのまま行えます）"
-              initial={cur.ar_enabled} onSaved={() => load()} />
+            <ReceivableSwitch key={`${storeSel}:ar:${cur.ar_enabled}:${arPolicy}`} storeId={storeSel} isOwner={isOwner} initialOn={cur.ar_enabled} currentPolicy={arPolicy} onSaved={() => load()} />/* ★0201b の前提（2026-11-11）: 書き手は set_store_receivable_policy の 1 本（0201b の前は ar_enabled も）＝StoreFlagToggle の ar_enabled は使わない */
           )}
           {on("data") && <p style={{ fontSize: 12, color: "var(--sub)", margin: "10px 0 0", lineHeight: 1.7 }}>
             操作ログの保持: <b style={{ color: "var(--v2-text)" }}>7 年（固定）</b>。7 年を過ぎた操作ログは運用者が定期的に削除し、削除した件数と期間だけが記録に残ります（店ごとの変更はできません）。

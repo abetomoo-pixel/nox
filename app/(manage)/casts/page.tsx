@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { deniedHrefOf } from "@/lib/nox/nav/denied"; // ★M-169
 import { okuriTiersOn } from "@/lib/nox/rules-0175/flag"; // ★裁定414 追補（0180）
 // ★裁定414 追補（0180）: okuri_tier はフラグ true のときだけ select（列が無い本番で落ちない）。string 型にして supabase-js の型パーサを通さない
 const CAST_LOGIN_COLS: string = okuriTiersOn() ? "id, name, user_id, photo_updated_at, is_active, store_id, left_on, rank_id, joined_on, kind, employment, employment_valid_from, shift_request_mode, okuri_tier" : "id, name, user_id, photo_updated_at, is_active, store_id, left_on, rank_id, joined_on, kind, employment, employment_valid_from, shift_request_mode";
@@ -14,7 +15,7 @@ export const dynamic = "force-dynamic";
 export default async function CastsPage() {
   const supabase = await createClient();
   const { role } = await getSessionRole();
-  if (role !== "owner" && role !== "manager") redirect("/register");
+  if (role !== "owner" && role !== "manager") redirect(deniedHrefOf("casts")) /* ★M-169: レジではなくホームへ・理由を 1 行 */;
   const { data: trials } = await supabase
     .from("trials")
     .select("id, store_id, name, real_name, birthday, tier, rating, documents, memo, status, trial_date")

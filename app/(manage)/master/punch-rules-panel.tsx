@@ -108,8 +108,8 @@ export default function PunchRulesPanel({ stores, isOwner = false }: { stores: S
         <SegSelect value={form.enforce ? "hard" : "soft"} onChange={(v) => setForm((x) => ({ ...x, enforce: v === "hard" }))} options={[["soft", "ソフト"], ["hard", "ハード"]]} disabled={!canEdit} ariaLabel="判定" />
       </div>
       <div style={row}>
-        <div style={{ minWidth: 0, flex: "1 1 240px" }}><div style={rowLabel}>判定方法</div><p style={rowDesc}>位置は端末の申告のため抑止と記録の意味が強い方法です。厳しくしたい店は Wi-Fi を含む方法を選んでください</p></div>
-        <SegSelect value={form.mode} onChange={(v) => setForm((x) => ({ ...x, mode: v as RestrictMode }))} options={(["gps", "ip", "either", "both", "tablet"] as const).map((v) => [v, PUNCH_MODE_LABEL[v]] as const)} disabled={!canEdit} ariaLabel="判定方法" wrap />
+        <div style={{ minWidth: 0, flex: "1 1 240px" }}><div style={rowLabel}>判定方法</div><p style={rowDesc}>位置か Wi-Fi＝どちらかが合えば打刻できる・位置と Wi-Fi＝両方が合わないと打刻できない。位置は端末の申告のため抑止と記録の意味が強い方法です。厳しくしたい店は Wi-Fi を含む方法を選んでください</p></div>
+        <SegSelect value={form.mode} onChange={(v) => setForm((x) => ({ ...x, mode: v as RestrictMode }))} options={(["gps", "ip", "either", "both", "tablet"] as const).map((v) => [v, PUNCH_MODE_LABEL[v]] as const)} disabled={!canEdit} ariaLabel="判定方法" wrap style={{ flex: "1 1 100%", maxWidth: "100%", minWidth: 0 }} />
       </div>
       {needPos && (
         <div style={row} data-punch-pos="1">
@@ -136,8 +136,8 @@ export default function PunchRulesPanel({ stores, isOwner = false }: { stores: S
         </div>
       )}
       <div style={row}>
-        <div style={{ minWidth: 0, flex: "1 1 240px" }}><div style={rowLabel}>予定外の打刻（出勤）</div><p style={rowDesc}>今日の確定シフトが無いキャストの出勤を、許可／記録して通す／禁止のどれにするか</p></div>
-        <SegSelect value={form.requireShift} onChange={(v) => setForm((x) => ({ ...x, requireShift: v as PunchRulesForm["requireShift"] }))} options={(["off", "warn", "block"] as const).map((v) => [v, SHIFT_GATE_LABEL[v]] as const)} disabled={!canEdit} ariaLabel="予定外の打刻" wrap />
+        <div style={{ minWidth: 0, flex: "1 1 240px" }}><div style={rowLabel}>予定外の打刻（出勤）</div><p style={rowDesc}>今日の確定シフトが無いキャストの出勤を、許可（記録しない）／記録して通す（勤怠に印）／禁止（確定シフトが無い日は出勤できない）のどれにするか</p></div>
+        <SegSelect value={form.requireShift} onChange={(v) => setForm((x) => ({ ...x, requireShift: v as PunchRulesForm["requireShift"] }))} options={(["off", "warn", "block"] as const).map((v) => [v, SHIFT_GATE_LABEL[v]] as const)} disabled={!canEdit} ariaLabel="予定外の打刻" wrap style={{ flex: "1 1 100%", maxWidth: "100%", minWidth: 0 }} />
       </div>
       {msg && <Toast msg={msg} style={{ margin: "10px 0 0" }} />}
       {isOwner && (

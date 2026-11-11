@@ -1,6 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { getSessionRole } from "@/lib/nox/auth";
 import ReportBoard from "./report-board";
+import { redirect } from "next/navigation";
+import { castRegisterEntryOf } from "@/lib/nox/register/cast-entry-server"; // ★教訓142・裁定481（2026-11-11）: キャストの入場はページ自体でも判定
 
 export const dynamic = "force-dynamic";
 
@@ -9,6 +11,9 @@ export const dynamic = "force-dynamic";
 export default async function ReportPage() {
   const supabase = await createClient();
   const { role } = await getSessionRole();
+  // ★教訓142・裁定481（2026-11-11 相談役 ■1）: レイアウトは画面の移動で描き直さない＝キャストの入場（店 ON ∧ 本人の許可 ∧ 端末 ∧ 出勤中）を /report のページ自体でも判定（/register と同じ関数）。
+  //   退勤後に開いたままのタブ＝締めのボタンは押した時点でサーバ（0201e で出勤の判定）が拒否・画面の移動では、ここでマイページへ戻す。
+  if (role === "cast") { const e = await castRegisterEntryOf(supabase); if (!e.allowed) redirect(`/mine?denied=register&why=${e.reason ?? "not_allowed"}`); }
   // cutoff は settings_json（E1 対象外）／card_tax_rate は stores 列（E1 mig0051 で移行）。
   // RLS スコープの店一覧（owner=org 全店・manager/staff=自店1件）＝月報タブの店セレクタ用。
   //   日報タブは先頭店（[0]）を従来どおり使う。

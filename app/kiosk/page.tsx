@@ -317,7 +317,7 @@ export default function KioskPage() {
         )}
 
         {phase === "pin" && target && (
-          <div style={{ maxWidth: 380, margin: "0 auto" }}>
+          <div className="nox-pinpad-frame" data-pin-frame="punch">{/* ★M-154 の残り（2026-11-11）: 枠の幅は部品の側（.nox-pinpad-frame）＝スタッフでログインと同じ */}
             <p style={{ textAlign: "center", fontSize: 17, fontWeight: 800, margin: "0 0 4px" }}>{target.cast_name}</p>
             {/* ★M-154（2026-11-11）: PIN 入力は共通部品（スタッフでログインと同じ）＝マスク表示・丸は入力した数だけ */}
             <PinPad value={pin} onChange={setPin} max={pinMax()} label={pinMax() === 6 ? "PIN（4〜6 桁）" : "PIN（4 桁）"} />

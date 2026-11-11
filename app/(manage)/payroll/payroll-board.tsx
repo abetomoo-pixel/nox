@@ -187,7 +187,7 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
     if (!storeId) return;
     let alive = true;
     void (async () => {
-      const { data } = await supabase.from("stores").select("name, legal_name, settings_json, pay_day, tax_inclusive_display").eq("id", storeId).maybeSingle();
+      const { data } = await supabase.from("stores").select("name, legal_name, settings_json, pay_day, price_display").eq("id", storeId).maybeSingle();
       { const sj0 = ((data as { settings_json?: Record<string, unknown> } | null)?.settings_json ?? {}) as Record<string, unknown>; const d0 = data as { name?: string; legal_name?: string | null } | null; if (alive && d0?.name) setSlipStore({ name: d0.name, legalName: d0.legal_name ?? null, address: typeof sj0.receipt_address === "string" && sj0.receipt_address.trim() ? sj0.receipt_address : null }); } // ★0164（便 W5-2b）: 支払日・内税表示（期ヘッダーの表記）
       const sj = (data?.settings_json ?? {}) as Record<string, unknown>;
       const v = sj.biz_cutoff_hm;

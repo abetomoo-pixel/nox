@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { deniedHrefOf } from "@/lib/nox/nav/denied"; // ★M-169
 import { createClient } from "@/lib/supabase/server";
 import { getSessionRole } from "@/lib/nox/auth";
 import CustomerDetail from "./customer-detail";
@@ -18,7 +19,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
   const isManagerUp = role === "owner" || role === "manager";
   if (!isManagerUp) {
     const { data: canCrm } = role === "staff" ? await supabase.rpc("auth_staff_can_crm") : { data: false };
-    if (canCrm !== true) redirect("/register");
+    if (canCrm !== true) redirect(deniedHrefOf("customers")) /* ★M-169: レジではなくホームへ・理由を 1 行 */;
   }
   const { data: casts } = await supabase.from("casts").select("id, name, store_id, is_active");
   return (
