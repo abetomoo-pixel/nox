@@ -36,7 +36,7 @@ const src = (p: string) => fs.readFileSync(p, "utf8");
 {
   const css = src("app/globals.css"); const kp = src("app/kiosk/page.tsx"); const dt = src("components/ui/demo-terms.tsx");
   check("nd(3-1) kiosk グリッド: .nox-kioskgrid＝2 列・≥600px 3 列・≥900px 4 列・page が className で使う", css.includes(".nox-kioskgrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }") && css.includes("@media (min-width: 600px) { .nox-kioskgrid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }") && css.includes("@media (min-width: 900px) { .nox-kioskgrid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }") && kp.includes('<div className="nox-kioskgrid" data-kiosk-grid="1">') && !kp.includes('gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))"'));
-  check("nd(3-2) demo-terms: 端末ボタン脇に「デモの PIN は 1234」（デモ入口だけ＝本番 org には出ない）", dt.includes('data-demo-pin="1234">デモの PIN は 1234</span>') && !src("app/kiosk/page.tsx").includes("1234"));
+  check("nd(3-2) demo-terms: 端末ボタン脇に「デモの PIN は 1234」（デモ入口だけ＝本番 org には出ない）", dt.includes('data-demo-pin="per-person">PIN は端末の画面で名前の下に出ます（人ごとに違います）</span>') /* ★夜便レーン 1（2026-11-11）: 全員 1234 をやめた */ && !src("app/kiosk/page.tsx").includes("1234"));
 }
 
 // nd(4)

@@ -15,7 +15,14 @@ import path from "node:path";
 import { createHash } from "node:crypto";
 import { groupDueFull } from "../../lib/nox/check-calc.ts";
 import { ADVANCES, SLIDES, EXTRA_PLANS, PROFILES, TRIAL, STAFF_DEMO, BONUS_TIERS, EXT_PATTERNS, sysSettingsOf, backOf as profileBackOf, canonOf, okuriModeOf as profileOkuriModeOf } from "./profiles.mjs"; // ★X-13c: 6 店の差別化（表＝docs/demo/store_profiles_20261009.md）
-import { RULES_0175_APPLIED, MIG_0200_APPLIED } from "./rules-0175-flag.mjs"; // ★追補 3 R-8: デモ ACE の管理者はフラグ true のときだけ
+import { RULES_0175_APPLIED, MIG_0200_APPLIED } from "./rules-0175-flag.mjs";
+import { demoPinOf } from "../../lib/nox/demo/pin.ts"; // ★夜便レーン 1（2026-11-11）: デモの人ごとの PIN（全員 1234 をやめる）
+// ★デモの PIN のハッシュ＝scripts/demo/demo-pin-hashes.json（id → bcrypt・本番 DB の crypt を固定の salt で読み取りだけで呼んで作る＝gen-demo-pin-hashes.mjs）。足りない id は一覧に書いて止める
+const PIN_HASHES = fs.existsSync("scripts/demo/demo-pin-hashes.json") ? JSON.parse(fs.readFileSync("scripts/demo/demo-pin-hashes.json", "utf8")) : {};
+const PIN_MISSING = new Set(); const PIN_BY_STORE = new Map();
+// 鍵＝表示名（本番はデモの id を org ごとに付け替える＝キオスクから見える名前で揃える・同じ人＝同じ PIN）。店の中の名前と PIN の重複は止める
+const DEMO_STAFF_NAME = { MUSE: "田中", LUNA: "山本", NOIR: "鈴木", ACE: "小林", LILY: "松本", NEST: "中村" }; const DEMO_MANAGER_NAME = "デモ 店長";
+const pinHashOf = (name, storeKey) => { const pin = demoPinOf(name); const set = PIN_BY_STORE.get(storeKey) ?? new Map(); if (set.has(pin) && set.get(pin) !== name) throw new Error(`デモの PIN が店の中で重複: ${storeKey} ${pin}（${set.get(pin)} と ${name}）`); set.set(pin, name); PIN_BY_STORE.set(storeKey, set); const key = `${storeKey}:${name}`; const h = PIN_HASHES[key]; if (!h || h.pin !== pin) { PIN_MISSING.add(`${key}|${pin}`); return "MISSING"; } return h.hash; }; // ★追補 3 R-8: デモ ACE の管理者はフラグ true のときだけ
 
 const SRC = JSON.parse(fs.readFileSync("docs/demo/source/20261001/nox_demo_all.json", "utf8"));
 const D = (k) => SRC.datasets[k].records;
@@ -128,7 +135,7 @@ for (const st of STORES) {
   const memb = (role, user, extra = {}) => push("memberships", { id: uid(`memb:${code}:${role}`), user_id: user, store_id: storeId, role, is_active: true, can_register: role !== "cast", can_crm: role !== "cast", can_shift: role !== "cast", can_view_backs: role !== "cast", can_close: role !== "cast", can_reopen: role === "owner" || role === "manager", ...extra });
   // memberships は org_id 列なし（demo_org_reset の例外）＝org_id を外す
   // ★M-125（2026-11-10）: ACE の代表キャスト（can_register・会計まで）に操作担当 PIN（staff_pin・デモ用 1234＝店長／スタッフと同じ＝PIN だけの解錠は候補から選ぶ）＝キオスクのレジのタイル → PIN → キャストの本人セッション
-  if (code === "ace") push("staff_pin", { membership_id: uid(`memb:${code}:cast`), store_id: storeId, pin_hash: "$2a$06$es6a5JEXahHwq41iFe.f9OWukggPKCQgYnB32ozpl.8mpEOK1EJh2", fail_count: 0, locked_until: null, updated_at: { $rel: -1, t: "12:00:00" } });
+  if (code === "ace") push("staff_pin", { membership_id: uid(`memb:${code}:cast`), store_id: storeId, pin_hash: pinHashOf("ひなの", code) /* ACE の操作担当＝代表キャストのひなの（cast_pin と同じ PIN） */, fail_count: 0, locked_until: null, updated_at: { $rel: -1, t: "12:00:00" } });
   memb("owner", users.owner); memb("manager", users.manager); memb("staff", users.staff); memb("cast", users.cast, code === "ace" ? { can_register: true } : {}); // ★M-125／裁定466（2026-11-10）: ACE（キャストのレジ使用＝会計まで）の代表キャストにレジの許可＝キオスクの本人セッションの cast と、スマホのレジ（出勤中だけ＝裁定472）の撮影
   const DEMO_ACE_ADMIN_USER_READY = false; // ★便 ON-2（2026-10-26）: demo-ace-admin の users 行は未作成（create-demo-orgs --apply＝Agoora）。無いまま membership を載せると reset が 'org mismatch' で落ちる（13:45 ACE 実測）＝作成後に true
   if (RULES_0175_APPLIED && code === "ace" && DEMO_ACE_ADMIN_USER_READY) { users.admin = uid(`user:${code}:admin`); memb("admin", users.admin); } // ★追補 3 R-8（裁定425 候補・0175 v2 ★28）: デモ ACE に管理者 1 人（demo-ace-admin）＝フラグ true のときだけ（false は role CHECK に admin が無く load が落ちる＝payload 不変）。users 行と auth ユーザー・seed.ts DEMO_ROLES／env DEMO_USERS の ace:admin は Agoora の create-demo-orgs --apply（フラグ true の便）
@@ -147,8 +154,10 @@ for (const st of STORES) {
           push("staff_punches", { id: uid(`sp:${code}:${r.kind}:${d}:in`), membership_id: r.m, store_id: storeId, biz_date: { $rel: d }, kind: "in", punched_at: { $rel: d, t: "18:00:00" }, source: "manual", created_by: users.manager, created_at: { $rel: d, t: "18:00:00" } });
           push("staff_punches", { id: uid(`sp:${code}:${r.kind}:${d}:out`), membership_id: r.m, store_id: storeId, biz_date: { $rel: d }, kind: "out", punched_at: { $rel: d, t: "02:00:00" }, source: "manual", created_by: users.manager, created_at: { $rel: d, t: "02:00:00" } }); // ★便 GV-C（P174 live ⑥）: $rel は営業日・cutoff 前の時刻は翌暦日へ自動で繰り上がる＝d+1 だと 1 日余分（224 時間）
         }
+        // ★夜便レーン 1（2026-11-11・相談役）: 今日出勤中のスタッフを 1 人（「スタッフで入る」の人＝出勤中だけのレジ・本人の勤怠を試せる）＝営業日の始まり（06:10）に in・out はなし
+        if (r.m === uid(`memb:${code}:staff`)) push("staff_punches", { id: uid(`sp:${code}:${r.kind}:0:in`), membership_id: r.m, store_id: storeId, biz_date: { $rel: 0 }, kind: "in", punched_at: { $rel: 0, t: "06:10:00" }, source: "manual", created_by: users.manager, created_at: { $rel: 0, t: "06:10:00" } });
         // ★便 GV-C（P174 live ⑤・裁定355）: kiosk のスタッフ群で打刻できるよう PIN（cast_pin と同じデモ用ハッシュ）
-        push("staff_pin", { membership_id: r.m, store_id: storeId, pin_hash: "$2a$06$es6a5JEXahHwq41iFe.f9OWukggPKCQgYnB32ozpl.8mpEOK1EJh2", fail_count: 0, locked_until: null, updated_at: { $rel: -1, t: "12:00:00" } });
+        push("staff_pin", { membership_id: r.m, store_id: storeId, pin_hash: pinHashOf(r.m === uid(`memb:${code}:manager`) ? DEMO_MANAGER_NAME : DEMO_STAFF_NAME[st.store_code], code), fail_count: 0, locked_until: null, updated_at: { $rel: -1, t: "12:00:00" } });
       }
     } }
   // ★M-115（2026-11-06・便 F・相談役）: 「その日に選ぶ」の pick ルール 1 本（ヘアメ代 ¥500・全員・有効）＝出勤時の「今日の控除」のチェック群が /mine とキオスクに出る（0196 後・deductions は demo_org_reset が消す）
@@ -275,7 +284,7 @@ for (const st of STORES) {
   // ★裁定348（便 DM-1）: 日払い＝LILY（雇用・源泉 0）の 2 名（代表＋体験入店）に先月 10 日・20 日の 2 件＝先月分の確定（finalize hook）で「日払い済み」として天引き
   if (PF.dailyPay) for (const c of castsSrc.filter((x) => x === repCast || x.display_name === TR.cast)) for (const d of [10, 20]) push("daily_pays", { id: uid(`dp:${code}:${c.person_id}:${d}`), store_id: storeId, cast_id: CAST[c.person_id].id, biz_date: { $m: -1, d }, gross: 15000, withholding: 0, withholding_category: PF.employment ?? "委託", net: 15000, kind: "advance" /* ★0188（裁定434 ④）: 月次の店の日払いは前払だけ（settlement は daily の店だけ＝RPC も拒否） */, paid_by: users.manager, idem_key: uid(`dpk:${code}:${c.person_id}:${d}`), created_at: { $m: -1, d, t: "23:30:00" } });
   // ★裁定354（便 N1014 B-5）: デモのキャスト全員に PIN 1234（bcrypt 固定＝live crypt('1234', gen_salt('bf'))・/kiosk で押せる）。本番 org には無関係（gen-demo はデモ専用）
-  for (const c of castsSrc) if (CAST[c.person_id]) push("cast_pin", { cast_id: CAST[c.person_id].id, store_id: storeId, pin_hash: "$2a$06$es6a5JEXahHwq41iFe.f9OWukggPKCQgYnB32ozpl.8mpEOK1EJh2", fail_count: 0, locked_until: null, updated_at: { $rel: -1, t: "12:00:00" } });
+  for (const c of castsSrc) if (CAST[c.person_id]) push("cast_pin", { cast_id: CAST[c.person_id].id, store_id: storeId, pin_hash: pinHashOf(c.display_name, code), fail_count: 0, locked_until: null, updated_at: { $rel: -1, t: "12:00:00" } });
   push("kiosk_devices", { id: uid(`kiosk:${code}`), store_id: storeId, auth_user_id: users.kiosk, label: `${st.store_name} 打刻端末`, is_active: true, purpose: "punch" });
   // ★X-13-26（便 X-13d-2a）: 前借り＝代表キャストに 1 件・先月の中旬（$m:-1 d:15）＝先月分の確定（finalize hook）で天引き済み・当月に繰越なし（規則 A＝発行日の期で天引き）
   if (ADVANCES[code] > 0) push("advances", { id: uid(`adv:${code}:rep`), store_id: storeId, cast_id: CAST[repCast.person_id].id, amount: ADVANCES[code], deducted_amount: 0, status: "open", deduct_period: null,
@@ -701,3 +710,6 @@ for (const st of STORES) {
 fs.writeFileSync("docs/demo/ids.json", JSON.stringify({ generated_at: "2026-10-02", note: "source_id → uuid（決定的・sha1 v5 風）。再生時は org ごとに remapUuid（lib/nox/demo/seed.ts）。", people: Object.fromEntries(Object.entries(ids).filter(([k]) => k.startsWith("cast:")).map(([k, v]) => [k.slice(5), v])), staff_users: staffUsers, users: Object.fromEntries(Object.entries(ids).filter(([k]) => k.startsWith("user:") || k.startsWith("auth:"))), all: ids }, null, 1) + "\n");
 fs.writeFileSync("docs/demo/payload/_report.json", JSON.stringify(report, null, 1) + "\n");
 console.log("ids", Object.keys(ids).length, "payload →", OUT_DIR);
+// ★夜便レーン 1（2026-11-11）: デモの PIN のハッシュが足りない＝一覧を書いて止める（node scripts/demo/gen-demo-pin-hashes.mjs で足してからもう一度）
+fs.writeFileSync("scripts/demo/demo-pin-missing.json", JSON.stringify([...PIN_MISSING], null, 1) + "\n");
+if (PIN_MISSING.size) { console.error(`demo PIN hashes missing: ${PIN_MISSING.size}（scripts/demo/demo-pin-missing.json → node scripts/demo/gen-demo-pin-hashes.mjs）`); process.exit(2); }

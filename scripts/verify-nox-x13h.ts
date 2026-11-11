@@ -113,7 +113,7 @@ async function main() {
     && !/準備中|税理士|次のデータ更新/.test(swp + sb + src("app/(manage)/staff/page.tsx") + src("lib/nox/staff/pay.ts").replace(/\/\/.*$/gm, "")) && swp.includes("<span style={t.sub}>契約未登録</span>")
     && !sb.includes('ariaLabel="契約区分"') && sb.includes('data-staff-after="1"'));
   const st6 = ["muse", "luna", "noir", "ace", "lily", "nest"].map((c) => { const T = JSON.parse(src(`docs/demo/payload/${c}.json`)).tables; return { c, sc: (T.staff_contracts ?? []).length, sp: (T.staff_punches ?? []).length }; });
-  check("x13h(7-2) デモ＝6 店ともスタッフ 2 名の契約と 7 日×2 名の打刻（28 行）", st6.every((r) => r.sc === 2 && r.sp === 28), JSON.stringify(st6));
+  check("x13h(7-2) デモ＝6 店ともスタッフ 2 名の契約と 7 日×2 名の打刻（28 行）", st6.every((r) => r.sc === 2 && r.sp === 29 /* ★夜便レーン 1: 7 日×2 名＋今日出勤中のスタッフ 1 行 */), JSON.stringify(st6));
 
   // ── H-14
   const rbd = src("app/(manage)/register/register-board.tsx");

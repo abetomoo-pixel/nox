@@ -722,7 +722,7 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
             <div className="nox-actions" style={{ marginTop: 10 }}>
               <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} onClick={() => go(0)}>設定を見直す</button>
               {(S.casts.length > 0 || issued.length > 0) && <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} data-printpin="1" onClick={() => window.print()}>PIN の一覧を印刷</button>}
-              <Link href="/dashboard" style={{ ...t.btnGold, textDecoration: "none" }} data-setup-home="1">ホームへ</Link>
+              <a href="/dashboard" style={{ ...t.btnGold, textDecoration: "none" }} data-setup-home="1">ホームへ</a>{/* ★教訓142（2026-11-11 夜）: 全体の読み込み＝/setup の専用の殻（ナビなし）がレイアウトに残らない */}
             </div>
           </section>
         </div>); })()}

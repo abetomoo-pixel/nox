@@ -89,7 +89,7 @@ export default function DemoEntry({ biz, roles, kiosk }: { biz: readonly DemoBiz
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
             {roles.map((r) => btn(b.key, r))}
             {kiosk && btn(b.key, kiosk, true)}
-            {kiosk && <span style={{ fontSize: 11.5, color: "var(--sub)" }} data-demo-pin="1234">デモの PIN は 1234</span>}{/* ★裁定354（便 N1014 B-5）: デモ org だけ（この入口はデモ専用）。本番 org には表示なし */}
+            {kiosk && <span style={{ fontSize: 11.5, color: "var(--sub)" }} data-demo-pin="per-person">PIN は端末の画面で名前の下に出ます（人ごとに違います）</span>}{/* ★夜便レーン 1（2026-11-11）: 全員 1234 をやめた（lib/nox/demo/pin.ts）＝入口の案内も直す */}{/* ★裁定354（便 N1014 B-5）: デモ org だけ（この入口はデモ専用）。本番 org には表示なし */}
           </div>
         </section>
       ))}

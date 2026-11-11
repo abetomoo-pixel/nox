@@ -49,12 +49,13 @@ export function HeaderGear({ groups }: { groups: NavGroup[] }) {
   );
 }
 
-export function UserChip({ name, email, roleJa, storeLabel, storeInLabel = false, meId = null, mePhotoAt = null, canPhoto = false, isDemo = false, isOwner = false }: {
+export function UserChip({ name, email, roleJa, storeLabel, storeInLabel = false, meId = null, mePhotoAt = null, canPhoto = false, isDemo = false, isOwner = false, editHref = null }: {
   name: string | null; email: string | null; roleJa: string; storeLabel?: string; /** ★M-86: チップの文字にも店名を前置（キャスト画面） */ storeInLabel?: boolean;
   /** ★便 GV-C C-14h（X-13-2）: 「登録名・メールの変更は…」の注記はオーナーのときだけ（店長・スタッフ・キャストには出さない） */
   isOwner?: boolean;
   /** ★0162（便 M5-1）: 自分の users.id・写真の最終更新・写真を触れる役割（owner／manager／staff＝cast は /mine）・デモは導線を隠す */
   meId?: string | null; mePhotoAt?: string | null; canPhoto?: boolean; isDemo?: boolean;
+  /** ★M-177（2026-11-11）: 「自分の情報を編集」の行き先（スタッフ・店長・オーナー＝/staff/me/profile・キャストは出さない） */ editHref?: string | null;
 }) {
   const [open, setOpen] = useState(false);
   const chipRef = useRef<HTMLButtonElement | null>(null); // ★便 X13-H H-20: ポータルの出し先＝最寄りの .nox-dark
@@ -140,6 +141,7 @@ export function UserChip({ name, email, roleJa, storeLabel, storeInLabel = false
             </dl>
             {/* ★X-13-2（便 X-13a）: メールは PC・スマホとも非表示（ログイン ID を画面に出さない）。変更の案内 1 行は残す。≤900px は Modal の既存シート（variant top は ≥901 のみ） */}
             {isOwner && <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "8px 0 0" }} data-user-edit-note="1">登録名・メールの変更はスタッフ画面（管理者）から行います。</p>}
+            {editHref && <p style={{ margin: "10px 0 0", fontSize: 13 }}><a href={editHref} className="nox-link" data-user-edit-link="1">自分の情報を編集 ›</a></p>}{/* ★M-177: 連絡先・住所・緊急連絡先・PIN（全体の読み込み＝モーダルを閉じて移る） */}
             <div className="nox-navsheet-g nox-actions" style={{ marginTop: 14 }}>
               <form action="/auth/signout" method="post" style={{ display: "flex" }}>
                 <button type="submit" className="nox-btn ghost">ログアウト</button>{/* ★裁定242-(6): ログアウト＝補助（青枠）・POST /auth/signout は不変 */}

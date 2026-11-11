@@ -19,6 +19,7 @@ export default async function StaffMePage() {
   return (
     <div className="nox-mv1 nox-mv1-m">
       <PageHead eyebrow="MY WORK" title="自分の勤怠・報酬" desc="店の端末で打刻した出勤・退勤と、契約にもとづく報酬の見込みです（確定は店が行います）。" />
+      <p style={{ margin: "0 0 12px", fontSize: 13 }}><a href="/staff/me/profile" className="nox-link" data-staff-me-edit="1">自分の情報を編集（連絡先・住所・緊急連絡先・PIN） ›</a></p>{/* ★M-177 */}
       <StaffWorkPanel scope="me" stores={(stores ?? []) as { id: string; name: string }[]} />
     </div>
   );

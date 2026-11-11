@@ -45,7 +45,7 @@ check("sp(2-1) UserChip: props meId／mePhotoAt／canPhoto／isDemo・showPhoto�
   && (chips.match(/variant="top"/g) ?? []).length === 1 && chips.includes('<Message kind="error"') && chips.includes("rpcErrJa("));
 check("sp(2-2) layout: users 行の読取に id・photo_updated_at・UserChip に meId／mePhotoAt／canPhoto={role !== \"cast\"}／isDemo（nv(4-3) の name／email 形は不変）",
   lay.includes('.select("id, name, email, photo_updated_at").eq("auth_user_id"') && lay.includes("<UserChip name={meName} email={meEmail}") && lay.includes("meId={(meRow?.id as string | null) ?? null}")
-  && lay.includes("mePhotoAt={(meRow?.photo_updated_at as string | null) ?? null}") && lay.includes('canPhoto={role !== "cast"}') && lay.includes("isDemo={isDemo} />"));
+  && lay.includes("mePhotoAt={(meRow?.photo_updated_at as string | null) ?? null}") && lay.includes('canPhoto={role !== "cast" && !kioskPersonOn}') /* ★M-177 ★3（2026-11-11）: 店の端末の本人セッションでは写真の変更を出さない */ && lay.includes("isDemo={isDemo} />"));
 
 // (3) 店側
 const sb = src("app/(manage)/staff/staff-board.tsx"), cb = src("app/(manage)/casts/casts-board.tsx");

@@ -28,6 +28,8 @@ import { KIOSK_FEATURE_HREF, KIOSK_FEATURE_LABEL, type KioskFeature } from "@/li
 import { KIOSK_PERSON_LINK } from "@/lib/nox/kiosk/person-login"; // ★便 M5 M-49: 本人でログイン（店長以上）
 import { startKioskPersonLogin } from "@/lib/nox/kiosk/person-login-client";
 import PinPad from "@/components/nox/pin-pad"; // ★M-154: PIN 入力の共通部品
+import { useIsDemo } from "@/lib/nox/demo/context"; // ★夜便レーン 1（2026-11-11）: デモの端末だけ名前の下に PIN
+import { demoPinOf } from "@/lib/nox/demo/pin";
 import KioskPersonEntry from "@/components/nox/kiosk-person-entry"; // ★便 E（0196 用）: スタッフでログイン（PIN） // ★便 M5 M-49: 端末のセッションを控えて /login?kiosk=1
 type KRow = { cast_id: string; cast_name: string; has_pin: boolean; staff?: boolean }; // ★便 P174 T-6（355）: staff＝true は cast_id に membership_id（スタッフ群）
 type SRow = { membership_id: string; user_name: string; role: string; has_pin: boolean; last_kind: string | null; last_at: string | null }; // ★便 P174 T-6: kiosk_staff_list（0174 ★5）
@@ -49,6 +51,8 @@ const bigBtn: React.CSSProperties = {
 };
 export default function KioskPage() {
   const supabase = createClient();
+  const isDemo = useIsDemo();
+  const demoPinLine = (name: string) => (isDemo ? <div className="num" style={{ fontSize: 11.5, color: "var(--gold2, var(--gold))", fontWeight: 700, marginTop: 3 }} data-demo-pin-of={name}>デモの PIN {demoPinOf(name)}</div> : null);
   const [phase, setPhase] = useState<Phase>("loading");
   const [casts, setCasts] = useState<KRow[]>([]);
   const [staffs, setStaffs] = useState<SRow[]>([]); // ★便 P174 T-6（355）: 打刻端末のスタッフ群（manager／staff・オーナーは対象外）
@@ -295,6 +299,7 @@ export default function KioskPage() {
                     style={{ ...bigBtn, opacity: m.has_pin ? 1 : 0.35, cursor: m.has_pin ? "pointer" : "not-allowed" }}>
                     <span style={{ display: "flex", justifyContent: "center", marginBottom: 6 }}><CastAvatar name={m.user_name} url={photoUrls.operators[m.membership_id]} size={44} variant="flat" /></span>{/* ★便 M5 M-42 */}
                     {m.user_name}
+                    {m.has_pin && demoPinLine(m.user_name)}
                     <div style={{ fontSize: 11, color: "var(--sub)", fontWeight: 600, marginTop: 4 }}>
                       {m.role === "manager" ? "店長" : "スタッフ"}{!m.has_pin ? "・PIN未設定" : m.last_kind === "in" ? "・出勤中" : m.last_kind === "out" ? "・退勤済み" : ""}
                     </div>
@@ -308,6 +313,7 @@ export default function KioskPage() {
                   style={{ ...bigBtn, opacity: c.has_pin ? 1 : 0.35, cursor: c.has_pin ? "pointer" : "not-allowed" }}>
                   <span style={{ display: "flex", justifyContent: "center", marginBottom: 6 }}><CastAvatar name={c.cast_name} url={photoUrls.casts[c.cast_id]} size={44} variant="flat" /></span>{/* ★便 M5 M-42: 写真（本体と同じ部品・同じ署名 URL） */}
                   {c.cast_name}
+                  {c.has_pin && demoPinLine(c.cast_name)}
                   {!c.has_pin && <div style={{ fontSize: 11, color: "var(--sub)", fontWeight: 600, marginTop: 4 }}>PIN未設定</div>}
                 </button>
               ))}

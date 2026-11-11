@@ -204,7 +204,7 @@ export default async function ManageLayout({ children }: { children: React.React
               {/* ★裁定275 追補2-2（N4）: 右＝歯車（マスタ・監査・ご契約＝gear 群・cast／staff は項目 0＝描かない）＋「登録名｜役割」（自分の情報＋ログアウト）。POST /auth/signout は不変 */}
               {role !== "cast" && <PendingBell storeId={null} />}{/* ★便 SH-UI-c2 C2-13 ④: ベル＝未処理の合計（/api/home/pending＝HOME のカードと同じ数）・押すと HOME の要承認カードへ */}
               <HeaderGear groups={splitNav(navGroups, ["/dashboard", "/register", "/report", "/shift"]).gearGroups} />
-              <UserChip name={meName} email={meEmail} isOwner={role === "owner"} roleJa={roleJa} storeLabel={storeLabel} meId={(meRow?.id as string | null) ?? null} mePhotoAt={(meRow?.photo_updated_at as string | null) ?? null} canPhoto={role !== "cast"} isDemo={isDemo} />{/* ★0162（便 M5-1）: 本人の写真＝owner／manager／staff（cast は /mine）・デモは隠す */}
+              <UserChip name={meName} email={meEmail} isOwner={role === "owner"} roleJa={roleJa} storeLabel={storeLabel} meId={(meRow?.id as string | null) ?? null} mePhotoAt={(meRow?.photo_updated_at as string | null) ?? null} canPhoto={role !== "cast" && !kioskPersonOn} editHref={role !== "cast" ? "/staff/me/profile" : null} isDemo={isDemo} />{/* ★0162（便 M5-1）: 本人の写真＝owner／manager／staff（cast は /mine）・デモは隠す */}
             </div>
           </header>
           <main className="nox-mainarea">
