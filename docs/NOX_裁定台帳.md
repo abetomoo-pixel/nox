@@ -5370,7 +5370,7 @@ CC の読取（根拠）＝本人は deductions（per=day）を読める（RLS�
 ## M-102（2026-11-05 受領・相談役・client＋route・便 D）LINE の招待リンク・入口 URL・友だち追加の返事の URL は site 固定の 1 値から組む
 
 「window.location.origin や request の origin ではなく、site 固定の 1 値（NEXT_PUBLIC_SITE_URL＝https://noxapp.jp・未設定なら今の origin）から組む。対象＝casts-board／staff-board／店舗設定 line-config-panel の発行と /api/line/webhook の返事。LIFF 内の liff.login の redirectUri も同じ site 値＋現在の path＋query で組む（host だけ差し替え）。verify に pin 1 行（発行された URL のホストが site 値）。Vercel の env に NEXT_PUBLIC_SITE_URL=https://noxapp.jp を足すのは Agoora（切替手順 ⑤ に 1 行足す）。」
-CC の読取（LINE 初回テスト 4 の access.line.me 400）＝liff-bridge は liff.login({ redirectUri: window.location.href })・入口と招待の URL は liffEntryUrlOf(window.location.origin …)（casts-board:120／staff-board:254／line-config-panel:84）と Webhook の new URL(req.url).origin＝vercel.app でログイン中に発行したリンクは vercel.app 始まり→ LIFF のエンドポイント（noxapp.jp）と redirect_uri が不一致で 400。直し＝lib/nox/line/liff-endpoint.ts に siteOriginOf（NEXT_PUBLIC_SITE_URL ?? 今の origin）を置き 4 か所＋liff-bridge の redirectUri（host 差し替え）。docs/tmp/domain_switch.md §5 に env の 1 行。
+CC の読取（LINE 初回テスト 4 の access.line.me 400）＝liff-bridge は liff.login({ redirectUri: window.location.href })・入口と招待の URL は liffEntryUrlOf(window.location.origin …)（casts-board:120／staff-board:254／line-config-panel:84）と Webhook の new URL(req.url).origin＝vercel.app でログイン中に発行したリンクは vercel.app 始まり→ LIFF のエンドポイント（noxapp.jp）と redirect_uri が不一致で 400。直し＝lib/nox/line/liff-endpoint.ts に siteOriginOf（NEXT_PUBLIC_SITE_URL ?? 今の origin）を置き 4 か所＋liff-bridge の redirectUri（host 差し替え）。docs/demo/domain_switch.md §5 に env の 1 行。
 
 ## M-101（2026-11-05 受領・相談役・client・便 D）LINE の送信数カード（LineQuotaCard）＝ホームとお知らせ画面に
 

@@ -2,7 +2,7 @@
 
 本番＝Supabase ref **hiqbfagmkrdpmlqhkmsu**・Vercel 本番ドメイン **https://noxapp.jp**（nox-kappa-eight.vercel.app は fallback）。「誰が」＝Agoora（手貼り・実機・外部サービスの画面）／相談役（合図・文面・裁定）／CC（verify・reset・撮影・読取）。期待値は実測で埋める（本書は 1 枚＝済んだら「済（日付）」に書き換える・正本は台帳の「次の番号」）。
 
-**切替（docs/tmp/domain_switch.md §4）の状態（2026-11-09 夜）**＝手順 3（Vault）・4（NEXT_PUBLIC_SITE_URL）＝済（11/06）・手順 1・2（Auth の URL）＝ゲート 7 のとおり・**手順 5（キオスク端末の再固定）＝済**・**手順 9（全員ログインし直し）＝済（2026-11-11・Agoora）**・**手順 8（308）＝済（2026-11-11）**・**手順 6〜7（Stripe Webhook・プリンタ）＝未**・手順 10＝1〜2 週後。
+**切替（docs/demo/domain_switch.md §4）の状態（2026-11-09 夜）**＝手順 3（Vault）・4（NEXT_PUBLIC_SITE_URL）＝済（11/06）・手順 1・2（Auth の URL）＝ゲート 7 のとおり・**手順 5（キオスク端末の再固定）＝済**・**手順 9（全員ログインし直し）＝済（2026-11-11・Agoora）**・**手順 8（308）＝済（2026-11-11）**・**手順 6〜7（Stripe Webhook・プリンタ）＝未**・手順 10＝1〜2 週後。
 
 | # | 項目 | 誰が | どこで | 期待値 | 状態 |
 |---|---|---|---|---|---|
