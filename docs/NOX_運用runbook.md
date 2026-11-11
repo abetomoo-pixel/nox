@@ -9,6 +9,7 @@
 ## ① 本番構築手順
 
 ### 1-1. 前提（プラン）
+- **管理画面の二段階認証**＝Vercel＝済（2026-11-11・認証アプリ・Agoora）。Supabase・Stripe・Resend・LINE Developers・ドメインの管理＝未確認（launch_gate 22）。マイナンバーの鍵を Vercel に置く 0201f の前提＝Vercel と Supabase の二段階認証が済んでいること。
 - **Supabase は Pro プラン確定**（日次自動バックアップ／PITR はオプション）。
   → バックアップ体制は**二層**：**一次＝Supabase の自動バックアップ／PITR**（データ本体）、
   **二次＝`npm run backup:schema`**（スキーマ定義のテキスト・②参照）。

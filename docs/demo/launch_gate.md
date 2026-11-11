@@ -27,6 +27,7 @@
 | 19 | 0199（★1 LINE 通知の種類ごとの保存＝set_store_profile の白名単 line_notify／★2 裁定466＝キオスクの本人セッションに cast ∧ can_register ∧ 店 ≥2）＝2 関数だけ・関数数不変 | 相談役（SQL の照合と合図）／Agoora（手貼り）／CC（フラグ便） | docs/demo/handpaste_0199.md・docs/tmp/0199_line_notify.sql | 事前確認＝md5 2 本・検証 9 行が期待値と全行一致 | **済（2026-11-10）＝Agoora 手貼り・再検証 9 行全一致（proof 10／fn 422／1／yes／yes／0/1／0／yes／0/0/1）→ CC の 0199 フラグ便（MIG_0199_APPLIED=true・verify:nox-0199・M-114 の保存・M-125）** |
 | 20 | 特定商取引法に基づく表示のページ（事業者名＝株式会社レクソル・住所・連絡先・販売価格・支払方法と時期・提供時期・解約／返金）＋ LP・フッター・課金画面からのリンク | 相談役と Agoora（文面）／CC（ページとリンク） | /legal/tokushoho | 公開ページで全項目が読める・リンク 3 か所 | **ページとリンクは済（2026-11-10 夜便 f712d11）**＝/legal/tokushoho（正本 lib/nox/legal/tokushoho.ts）・販売事業者＝株式会社レクソル・価格は 1 店舗あたり**月額 29,800 円（税込）／年額 288,000 円（税込）**で確定・支払時期＝毎月 1 日・解約は月末まで・返金なし ほか・リンク＝LP フッター・課金画面（お申し込み）・デモの入口のフッター。**残り＝利用規約の「当社」の表記（版 0.9 のまま・再同意の要否は相談役）** |
 | 21 | Point in Time Recovery を有効にするか（Agoora の判断・実店舗の稼働前） | Agoora（判断・管理画面） | Supabase › Database › Backups | 有効にするか決める（有効なら追加料金） | **未**（2026-11-11 実測＝毎日のバックアップ 7 日分（Physical）・PITR は無効・リージョン Northeast Asia (Tokyo)） |
+| 22 | 管理画面の二段階認証（Vercel・Supabase・Stripe・Resend・LINE Developers・ドメインの管理） | Agoora（各管理画面） | 各サービスのアカウント設定 | すべて二段階認証（認証アプリ）が有効 | **一部済**＝Vercel＝済（2026-11-11・Agoora・認証アプリ）・Supabase・Stripe・Resend・LINE Developers・ドメインの管理＝未確認。★0201f（マイナンバーの鍵を Vercel に置く）の前提＝Vercel と Supabase が済んでいること（handpaste_0201f の事前確認に入れる） |
 
 ## 使い方
 - 上から順に埋める。「未」の行は domain_switch.md §4 の手順番号と対応（6→手順 8・7→1・2・12→5・13→6・16→7）。

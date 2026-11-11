@@ -9113,6 +9113,10 @@ anon-guard 段28 が無差別 `limit(1)` でそれを拾い 'bad amount'/BV=unde
 - **■5 リージョン**＝vercel.json に関数のリージョン hnd1 を固定（次の client 便）・反映後に本番の応答ヘッダで hnd1 を確認。
 - **■6**＝0201b の合図の前の 2 点とプライバシー a〜f は報告済み（上の「読取の結果（2026-11-11 夕・■A・■E・■F／v0.2）」の節・8b1f986）。
 
+## 管理画面の二段階認証（2026-11-11・Agoora）
+- Vercel のアカウントに二段階認証（認証アプリ）を設定済み。Supabase・Stripe・Resend・LINE Developers・ドメインの管理は未確認＝launch_gate 22。runbook の 1-1 に 1 行。
+- **0201f の前提**＝Vercel と Supabase の二段階認証が済んでいること＝0201f の起草のときに handpaste_0201f.md の事前確認の先頭に入れる（まだ起草していない＝ここに記録）。
+
 ## 相談役の返事（2026-11-11 深夜・判断 9 点ほか）
 1. **課金の判定が無い 5 本＝免除のまま**（課金設計 v1.1 の裁定除外）＝0201e から外す・先の指示（billing_writable_of を足す）は取り消し。
 2. **キャストの「締め」の許可＝スタッフの can_close は使わない・キャスト用に新しい列**（同じ列に 2 つの意味を持たせない）。再締めと差異の承認はキャストに許さないまま（今の拒否を verify で固定）。**列名の案（CC）＝memberships.cast_can_close**（boolean not null default false・キャストの行だけ意味を持つ・スタッフの can_close と並ぶが名前で別と分かる）。
