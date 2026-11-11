@@ -2,7 +2,7 @@
 
 本番＝Supabase ref **hiqbfagmkrdpmlqhkmsu**・Vercel 本番ドメイン **https://noxapp.jp**（nox-kappa-eight.vercel.app は fallback）。「誰が」＝Agoora（手貼り・実機・外部サービスの画面）／相談役（合図・文面・裁定）／CC（verify・reset・撮影・読取）。期待値は実測で埋める（本書は 1 枚＝済んだら「済（日付）」に書き換える・正本は台帳の「次の番号」）。
 
-**切替（docs/tmp/domain_switch.md §4）の状態（2026-11-09 夜）**＝手順 3（Vault）・4（NEXT_PUBLIC_SITE_URL）＝済（11/06）・手順 1・2（Auth の URL）＝ゲート 7 のとおり・**手順 5（キオスク端末の再固定）＝済**・**手順 9（全員ログインし直し）＝済（2026-11-11・Agoora）**・手順 8（308）＝Agoora の設定待ち（相談役が進めてよいと判断 11/11）・**手順 6〜7（Stripe Webhook・プリンタ）＝未**・手順 10＝1〜2 週後。
+**切替（docs/tmp/domain_switch.md §4）の状態（2026-11-09 夜）**＝手順 3（Vault）・4（NEXT_PUBLIC_SITE_URL）＝済（11/06）・手順 1・2（Auth の URL）＝ゲート 7 のとおり・**手順 5（キオスク端末の再固定）＝済**・**手順 9（全員ログインし直し）＝済（2026-11-11・Agoora）**・**手順 8（308）＝済（2026-11-11）**・**手順 6〜7（Stripe Webhook・プリンタ）＝未**・手順 10＝1〜2 週後。
 
 | # | 項目 | 誰が | どこで | 期待値 | 状態 |
 |---|---|---|---|---|---|
@@ -11,7 +11,7 @@
 | 3 | f0 の基準線＝2 連緑（段数・件数・golden 5931／125802） | CC | docs/tmp/f0_*.log＋f0_count.cjs | 最新の 2 連緑と同じ段数・件数 | 済（2026-11-11）＝f0 2 連緑 f0_0201_A／B（191 段 7,767・golden 5931／125802・5e0ac01） |
 | 4 | 6 店 reset が noxapp.jp の route で 6/6 ok（Vault nox_demo_reset_url の host＝noxapp.jp） | CC | docs/tmp/on1_reset.mjs | muse／luna／noir／ace／lily／nest＝200 ok | 済（2026-11-09 19:42 ほか＝6/6・ACE の wipe 500 は M-122 で解消） |
 | 5 | 無人 reset（pg_cron 06:05〜・Vercel Cron 03:00／05:00）が翌朝 200 | CC（翌朝読取） | cron.job_run_details・net._http_response・Vercel Logs | status 200・6 店＋retry・expire-trials／billing-reminders 200 | 済（2026-11-10 CC 読取）＝06:05〜06:15 の 6 店（muse／luna／noir／ace／lily／nest）すべて pg_cron succeeded・http 200（count 1・retry false）・06:35 の retry 200・05:15 demo-entries-purge／06:20 shift-periods-close（closed 1）も 200＝M-122 の先掃除の後の初回無人 reset OK |
-| 6 | vercel.app → noxapp.jp の 308（旧 URL の GET が 308 で noxapp.jp に飛ぶ・/r/<token> の領収書 QR も） | Agoora（Vercel › Domains）／CC（curl） | Vercel › Settings › Domains／curl -I | `curl -I https://nox-kappa-eight.vercel.app/login` が 308・Location が noxapp.jp | 未（§4 手順 8）＝2026-11-11 相談役が進めてよいと判断・Agoora が Vercel の Domains で設定 → CC が curl（/login と /r/<token>）で確認 |
+| 6 | vercel.app → noxapp.jp の 308（旧 URL の GET が 308 で noxapp.jp に飛ぶ・/r/<token> の領収書 QR も） | Agoora（Vercel › Domains）／CC（curl） | Vercel › Settings › Domains／curl -I | `curl -I https://nox-kappa-eight.vercel.app/login` が 308・Location が noxapp.jp | **済（2026-11-11・Agoora 設定・CC 確認）**＝/login・/r/<token>（領収書の QR）・www.noxapp.jp がどれも 308 で https://noxapp.jp の同じパスへ・POST の /api も 308（メソッドと本文を保つ）。★外部の webhook（Stripe・LINE）は転送を追わないことが多い＝送り先は noxapp.jp で登録すること（Stripe は未設定・LINE は管理画面で確認）。DB 側の送り先（pg_cron＝Vault から読む・Vault の URL＝noxapp.jp）に旧住所なし。手順 10（Supabase の Redirect URLs から vercel.app/** を外す）は 1〜2 週後 |
 | 7 | Supabase Auth の URL＝Site URL https://noxapp.jp・Redirect URLs に https://noxapp.jp/**（vercel.app/** は 1〜2 週残す） | Agoora | Supabase › Authentication › URL Configuration | 保存後の再表示で値が一致・/auth/forgot の戻りが noxapp.jp | 済（2026-11-10・相談役の指示＝切替 1〜5 済）＝/auth/forgot の戻りは Agoora が SMTP の 1 通（ゲート 9）で確認 |
 | 8 | Vercel env NEXT_PUBLIC_SITE_URL=https://noxapp.jp（Production）＋Redeploy | Agoora | Vercel › Settings › Environment Variables | LINE の招待リンク・LIFF の redirectUri が noxapp.jp 始まり | 済（2026-11-06・相談役の確認） |
 | 9 | カスタム SMTP（Resend・noreply@noxapp.jp・Sender name NOX）で 1 通届く（/auth/forgot の recovery） | Agoora | Supabase › Authentication › SMTP Settings／Resend | 件名・ロゴ・ボタン・リンク先 noxapp.jp/auth/set-password | 未（文面 4 本＝2026-11-10 相談役が確定＝docs/demo/mail_templates に反映済み・貼るのは Agoora） |
