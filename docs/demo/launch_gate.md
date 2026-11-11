@@ -2,7 +2,7 @@
 
 本番＝Supabase ref **hiqbfagmkrdpmlqhkmsu**・Vercel 本番ドメイン **https://noxapp.jp**（nox-kappa-eight.vercel.app は fallback）。「誰が」＝Agoora（手貼り・実機・外部サービスの画面）／相談役（合図・文面・裁定）／CC（verify・reset・撮影・読取）。期待値は実測で埋める（本書は 1 枚＝済んだら「済（日付）」に書き換える・正本は台帳の「次の番号」）。
 
-**切替（docs/tmp/domain_switch.md §4）の状態（2026-11-09 夜）**＝手順 3（Vault）・4（NEXT_PUBLIC_SITE_URL）＝済（11/06）・手順 1・2（Auth の URL）＝ゲート 7 のとおり・**手順 5（キオスク端末の再固定）＝済**・**手順 6〜9（Stripe Webhook・プリンタ・308・全員ログインし直し）＝未**・手順 10＝1〜2 週後。
+**切替（docs/tmp/domain_switch.md §4）の状態（2026-11-09 夜）**＝手順 3（Vault）・4（NEXT_PUBLIC_SITE_URL）＝済（11/06）・手順 1・2（Auth の URL）＝ゲート 7 のとおり・**手順 5（キオスク端末の再固定）＝済**・**手順 9（全員ログインし直し）＝済（2026-11-11・Agoora）**・手順 8（308）＝Agoora の設定待ち（相談役が進めてよいと判断 11/11）・**手順 6〜7（Stripe Webhook・プリンタ）＝未**・手順 10＝1〜2 週後。
 
 | # | 項目 | 誰が | どこで | 期待値 | 状態 |
 |---|---|---|---|---|---|
@@ -11,7 +11,7 @@
 | 3 | f0 の基準線＝2 連緑（段数・件数・golden 5931／125802） | CC | docs/tmp/f0_*.log＋f0_count.cjs | 最新の 2 連緑と同じ段数・件数 | 済（2026-11-11）＝f0 2 連緑 f0_0201_A／B（191 段 7,767・golden 5931／125802・5e0ac01） |
 | 4 | 6 店 reset が noxapp.jp の route で 6/6 ok（Vault nox_demo_reset_url の host＝noxapp.jp） | CC | docs/tmp/on1_reset.mjs | muse／luna／noir／ace／lily／nest＝200 ok | 済（2026-11-09 19:42 ほか＝6/6・ACE の wipe 500 は M-122 で解消） |
 | 5 | 無人 reset（pg_cron 06:05〜・Vercel Cron 03:00／05:00）が翌朝 200 | CC（翌朝読取） | cron.job_run_details・net._http_response・Vercel Logs | status 200・6 店＋retry・expire-trials／billing-reminders 200 | 済（2026-11-10 CC 読取）＝06:05〜06:15 の 6 店（muse／luna／noir／ace／lily／nest）すべて pg_cron succeeded・http 200（count 1・retry false）・06:35 の retry 200・05:15 demo-entries-purge／06:20 shift-periods-close（closed 1）も 200＝M-122 の先掃除の後の初回無人 reset OK |
-| 6 | vercel.app → noxapp.jp の 308（旧 URL の GET が 308 で noxapp.jp に飛ぶ・/r/<token> の領収書 QR も） | Agoora（Vercel › Domains）／CC（curl） | Vercel › Settings › Domains／curl -I | `curl -I https://nox-kappa-eight.vercel.app/login` が 308・Location が noxapp.jp | 未（§4 手順 8） |
+| 6 | vercel.app → noxapp.jp の 308（旧 URL の GET が 308 で noxapp.jp に飛ぶ・/r/<token> の領収書 QR も） | Agoora（Vercel › Domains）／CC（curl） | Vercel › Settings › Domains／curl -I | `curl -I https://nox-kappa-eight.vercel.app/login` が 308・Location が noxapp.jp | 未（§4 手順 8）＝2026-11-11 相談役が進めてよいと判断・Agoora が Vercel の Domains で設定 → CC が curl（/login と /r/<token>）で確認 |
 | 7 | Supabase Auth の URL＝Site URL https://noxapp.jp・Redirect URLs に https://noxapp.jp/**（vercel.app/** は 1〜2 週残す） | Agoora | Supabase › Authentication › URL Configuration | 保存後の再表示で値が一致・/auth/forgot の戻りが noxapp.jp | 済（2026-11-10・相談役の指示＝切替 1〜5 済）＝/auth/forgot の戻りは Agoora が SMTP の 1 通（ゲート 9）で確認 |
 | 8 | Vercel env NEXT_PUBLIC_SITE_URL=https://noxapp.jp（Production）＋Redeploy | Agoora | Vercel › Settings › Environment Variables | LINE の招待リンク・LIFF の redirectUri が noxapp.jp 始まり | 済（2026-11-06・相談役の確認） |
 | 9 | カスタム SMTP（Resend・noreply@noxapp.jp・Sender name NOX）で 1 通届く（/auth/forgot の recovery） | Agoora | Supabase › Authentication › SMTP Settings／Resend | 件名・ロゴ・ボタン・リンク先 noxapp.jp/auth/set-password | 未（文面 4 本＝2026-11-10 相談役が確定＝docs/demo/mail_templates に反映済み・貼るのは Agoora） |
@@ -20,7 +20,7 @@
 | 12 | キオスク PIN 1 回＝端末で「スタッフでログイン（PIN）」→ 本人の /register・卓カードの指名・出勤時の「今日の控除」 | Agoora（実機）／CC（デモで撮影済み） | 店の端末＝https://noxapp.jp/kiosk | 帯「端末で ◯◯ さんとして操作中」・チップ・チェック群 | デモ＝済（2026-11-09 撮影 shots_m128＝タイル → PIN → 本店のページ・無操作 3 分で戻る）・実機＝§4 手順 5 は**済**（相談役 11/09） |
 | 13 | Stripe Webhook 1 回＝エンドポイント https://noxapp.jp/api/stripe/webhook・テストイベントが 2xx（★裁定479＝NOX 以外のイベントは 200 で無視・作成物に metadata.service='nox'） | Agoora（Stripe・Vercel）／CC（client と verify） | Stripe › Developers › Webhooks・Vercel › Environment Variables | 配信ログ 2xx・org_billing が動く | **未・未疎通（2026-11-10 読取）＝本番に STRIPE_SECRET_KEY／STRIPE_WEBHOOK_SECRET が無い（受け口は 500 not configured・課金画面は「Stripe 未接続」）・送り先は本番にもテストにも NOX の分が無い＝先にテスト環境で疎通（Stripe CLI listen か Preview）→ 本番の env と送り先 → 再デプロイ**。課金の確定（裁定475 追補1・2）＝税込・お試しはカード登録なし・日割り・請求日は毎月 1 日・月額 29,800 円／年額 288,000 円（税込）・店舗の追加はローンチ時は運営側。テスト環境（サンドボックス「NOXテスト」）＝product prod_VbN6AYtVVg4n9u・月額 price_1UaAM5RD48RS7rDb70ErPby9（lookup_key nox_monthly）・年額 price_1UaAP8RD48RS7rDbDZo2P66K（nox_yearly）（§4 手順 6） |
 | 14 | 11-⑦＝スタッフの登録→招待→受諾を自分の org で 1 回（メールのリンクが noxapp.jp/auth/set-password に着く） | Agoora | /staff → メール → /auth/set-password | 受諾後にログインできる | 未（§4 手順 9 の後） |
-| 15 | ロール 4 種のログイン＝オーナー／店長／スタッフ／キャスト（＋端末）で noxapp.jp に入り直せる（Cookie はホスト限定） | Agoora（本番 org）／CC（デモ 6 店） | /login・/demo | 各ロールの最初の画面（/dashboard・/mine・/kiosk） | デモ＝済・本番 org＝未（§4 手順 9＝全員ログインし直し） |
+| 15 | ロール 4 種のログイン＝オーナー／店長／スタッフ／キャスト（＋端末）で noxapp.jp に入り直せる（Cookie はホスト限定） | Agoora（本番 org）／CC（デモ 6 店） | /login・/demo | 各ロールの最初の画面（/dashboard・/mine・/kiosk） | **済（2026-11-11・Agoora）**＝デモ＝済・本番 org＝済（§4 手順 9＝全員ログインし直し・キオスクのスマホも noxapp.jp で開き直し） |
 | 16 | プリンタ（使っている店）＝SDP の 2 URL を noxapp.jp に・テスト印刷 | Agoora | プリンタの Web 設定 | テスト印刷が出る | 未（§4 手順 7） |
 | 17 | デモ 6 店の punch_mode／pick ルール＝gen-demo の最新 payload で reset（M-115 のヘアメ代・ACE の承認待ち 1 件） | CC | reset → /mine・ホーム | チェック群・要承認の行が出る | 済（2026-11-09 19:42 の reset 後＝ヘアメ代の pick・承認待ち） |
 | 18 | 0198（貸付台帳）＝起草・試走・handpaste まで（適用は相談役の合図）→ 適用後にフラグ便 | 相談役（合図）／Agoora（手貼り）／CC | docs/demo/handpaste_0198.md | 試走 BEGIN…ROLLBACK・DB 変更 0 | **済（2026-11-09）＝0198 本番適用→フラグ true 便（verify:nox-0198 28）・M-123（同意未／返済済）** |
