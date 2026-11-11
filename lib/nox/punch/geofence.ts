@@ -1,7 +1,8 @@
 // ★0201（裁定474・2026-11-10）: 本人のスマホ打刻の場所の判定（純関数・DB を知らない）＝BANZEN（../makanai-shift）lib/geofence.ts・lib/punch-rules.ts の翻訳。
 //   route /api/punch/self がこれで判定し、結果（p_geo）を punch_self_impl（service_role）へ渡す。RPC は同じ決まりで再判定する（試走で lib と RPC の結果を突き合わせる＝docs/tmp/try_0201.mjs）。
 //   相談役 11/10 の作り直し②＝ハードで「判定できない」（位置情報の許可拒否・取得失敗・精度不足）は範囲外と同じ（理由を書けば通して geo_override・理由なしは geofence_unavailable）。
-//     ただし判定方法が Wi-Fi（IP）だけの店は IP の判定がそのまま判定（IP は route がサーバーで取る）。どちらか（either）／両方（both）は BANZEN の decidePunch と同じ決まり（精度不足は判定保留で通す）。
+//     ただし判定方法が Wi-Fi（IP）だけの店は IP の判定がそのまま判定（IP は route がサーバーで取る）。どちらか（either）は BANZEN の decidePunch と同じ決まり（精度不足は判定保留で通す）。
+//     両方（both）は裁定474 追補（2026-11-11 Agoora 確定）で BANZEN と違える＝IP が店のものでなければ、位置の精度不足でも止める（保留は位置の側だけ）。
 //   ⚠ 位置は端末の申告＝抑止と記録（施錠ではない）。厳格にしたい店は IP を含む方法を勧める。
 export type RestrictMode = "gps" | "ip" | "either" | "both" | "tablet";
 export type StoreGeo = { lat: number | null; lng: number | null; radius: number | null; allowIp: readonly string[] };
@@ -67,7 +68,8 @@ export function decidePunch(enforce: boolean, mode: RestrictMode, geo: GeoResult
     return geo.within ? ok : out("geofence_blocked");
   }
   if (mode === "ip") return geo.within ? ok : out("geofence_blocked");                   // IP は route がサーバーで取る＝常に判定できる
-  if (geo.within || geo.accuracy_pending) return ok;                                      // either／both＝BANZEN の decidePunch（精度不足は判定保留で通す）
+  if (mode === "both") return geo.ip_ok && (geo.gps_ok || geo.accuracy_pending) ? ok : out("geofence_blocked"); // ★裁定474 追補（2026-11-11 Agoora 確定・BANZEN と違える）: 両方＝IP は常に必須・精度不足の保留は位置の側だけ
+  if (geo.within || geo.accuracy_pending) return ok;                                      // either＝BANZEN の decidePunch（精度不足は判定保留で通す）
   return out("geofence_blocked");
 }
 /** 予定外の打刻（出勤だけ）＝off は未判定（null）・warn は記録・block は確定シフトなしを断る */
