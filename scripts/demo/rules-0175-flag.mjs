@@ -8,3 +8,4 @@ export const MIG_0183_APPLIED = true; // ★便 M（裁定429・M-4・M-7・0183
 export const MIG_0185_APPLIED = true; // ★QR 便（裁定423 変更・0185）: flag.ts の鏡
 export const MIG_0186_APPLIED = true; // ★便 W-10（0186）: flag.ts の鏡
 export const MIG_0200_APPLIED = true; // ★0200（裁定470〜473・2026-11-10 起草）: flag.ts の鏡＝個別送信のお知らせ・スタッフ給与の支払い済みはフラグ true（手貼り後）だけ payload に入れる
+export const MIG_0201_APPLIED = true; // ★0201（裁定474・2026-11-11 手貼り）: flag.ts の鏡

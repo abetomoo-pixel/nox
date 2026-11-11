@@ -65,9 +65,11 @@ const dowOf = (ymd: string) => {
 const mdOf = (iso: string) =>
   new Date(iso).toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo", month: "numeric", day: "numeric" });
 
-export default function DashboardBoard({ storeId, storeName, cutoff, casts, shortcuts, stores = [], isOwner = false, isManagerUp = false }: {
+export default function DashboardBoard({ storeId, storeName, cutoff, casts, shortcuts, stores = [], isOwner = false, isManagerUp = false, registerNote = null }: {
   storeId: string; storeName: string; cutoff: string; casts: Cast[];
   shortcuts: { href: string; label: string }[]; // ★306-16: icon は NavIcon（href キー）
+  /** ★M-159（2026-11-11）: 出勤していない間のレジの案内（レジが許可されたスタッフだけ・それ以外は null） */
+  registerNote?: string | null;
   /** ★裁定192（B1・M6）: RLS が返す店一覧（owner=org 全店）。2 店以上かつ owner のときだけセレクタを出す */
   stores?: { id: string; name: string; cutoff: string }[];
   isOwner?: boolean;
@@ -261,6 +263,7 @@ export default function DashboardBoard({ storeId, storeName, cutoff, casts, shor
               9 枚の導線（href/label/role ゲート）は据え置き＝既存機能を消さない。 */}
           <h2 style={{ ...t.cardTitle, margin: "0 0 2px" }}>クイック操作</h2>
           <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "0 0 9px" }}>よく使う業務だけに絞ります。</p>
+          {registerNote && <p className="nox-inset" style={{ fontSize: 13, margin: "0 0 9px", padding: "8px 12px" }} data-register-note="1">{registerNote}</p>/* ★M-159（2026-11-11）: 出勤していない間はレジを出さず案内の 1 行 */}
           <div className="nox-quickgrid">
             {shortcuts.map((s) => (
               <Link key={s.href} href={s.href} className="nox-quicktile">{/* ★306-15／306-16: 正方形タイル＝末尾の山括弧を出さずタイル全体がタップ対象・アイコンはメニューシートと同じ NavIcon */}

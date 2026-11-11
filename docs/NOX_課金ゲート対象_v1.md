@@ -368,6 +368,10 @@ kiosk_provision（新規 kiosk の追加＝拡大操作）
 - 0200 ★6 支払い済みの取消（裁定471）: staff_labor_unmark_paid（店長以上・冒頭に課金の述語）
 （対象 203→**204**＝+2・0200 で店のレジ使用の setter（A8）を drop＝−1 → 名簿の行は残すが live に無いので数えない＝live 実測＝'billing locked' **204**。0200 の作り直し（お知らせ 3 本・勤怠の確定・デモの reset・出勤の柵・領収書・キープ・店舗設定・キャストのレジの判定 2 本・会計の 8 本）は名前不変で本数不動）
 
+
+### A21. 0201（1 本・2026-11-11 本番適用（Agoora 手貼り・検証 17 行一致）・0201 のフラグ true 便で収載・規則A形でゲート内蔵・kiosk 腕なし）
+- 0201 ★7 店長の打刻の許可（裁定474）: set_store_manager_punch（オーナーだけ・冒頭に課金の述語）
+（対象 204→**205**・live 実測＝billing locked の関数 **205**）
 ## B. 除外（99本）
 
 ### B(a) 構造除外＝authenticated 実行不可（service/内部・28本）→ ゲート不要（B7 回避型(1)）
@@ -568,6 +572,12 @@ staff_deactivate / kiosk_deactivate
 - 構造除外（B(a) と同列＝内部専用・4 ロール revoke）: kiosk_person_active_of（キオスクの本人セッション中か＝無操作の時間を店設定で見る）
 - 構造除外（B(a) と同列＝service_role だけ・authenticated 実行不可）: kiosk_person_touch（本人セッションの heartbeat＝route が本人の auth と端末の fp を渡す・書くのは最終操作の時刻だけ）
 （除外 219→**223**・全数 422→**427**（0200 ＋6−1＝A +2・B +4・A8 の店のレジ使用の setter は drop））
+
+### B(z). 0201 新設の除外（3本・2026-11-11・0201 のフラグ true 便で収載）
+- 構造除外（B(a) と同列＝service_role だけ・authenticated 実行不可）: punch_self_impl（本人のスマホ打刻＝route /api/punch/self が本人の auth と判定の材料を渡す・打刻は課金の柵の外＝既存の punch_self と同じ扱い）
+- 本人の設定（B(f) と同列＝ゲート不要・本人の PIN だけ）: staff_pin_self_set（店長・スタッフが自分の PIN を変える）
+- 本人の設定（B(f) と同列＝ゲート不要・本人の PIN だけ）: cast_pin_self_set（キャストが自分の打刻の PIN を変える）
+（除外 223→**226**・全数 427→**431**（0201 ＋4＝A +1（A21）・B +3・作り直し 4 本は名前不変））
 
 ## C. kiosk 腕を持つ対象（実装注意・18本）
 A1 の check_open / check_add_line / check_remove_line / check_add_seat / check_remove_seat /

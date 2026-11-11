@@ -32,7 +32,7 @@ check("0198(2-1) 収蔵＝sha16 ed90503b54b54acd・begin〜commit 1 回・lock_t
     // (3) 22 行
     const rows = (await pc.query(fs.readFileSync("docs/tmp/0198_verify.sql", "utf8"))).rows as { k: string; v: string }[];
     const exp: Record<string, string> = {
-      "fn count (expect 422)": "427", "table count (expect 120)": "121", /* ★0200（2026-11-10 手貼り）: 422→427・表 120→121 */ "view count cast_loans/cast_loan_balances (expect 2)": "2", "new fns grant/repay (expect 2)": "2",
+      "fn count (expect 422)": "431" /* ★0201（2026-11-11 手貼り・+4＝punch_self_impl／set_store_manager_punch／staff_pin_self_set／cast_pin_self_set）: 427→431 */, "table count (expect 120)": "121", /* ★0200（2026-11-10 手貼り）: 422→427・表 120→121 */ "view count cast_loans/cast_loan_balances (expect 2)": "2", "new fns grant/repay (expect 2)": "2",
       "set_comp_plan 33 args (expect 1)": "1", "set_comp_plan 32 args (expect 0)": "0", "cols comp_plans agreed (expect 2)": "2", "cols advances ack (expect 3)": "3",
       "anon exec on 3 fns (expect 0)": "0", "authenticated exec on 3 fns (expect 3)": "3", "views grants authenticated=SELECT only (expect SELECT,SELECT)": "SELECT,SELECT",
       "views grants anon (expect 0)": "0", "views security_invoker (expect 2)": "2", "cast_loan_grant uses crypt+adv_issue (expect yes)": "yes", "set_comp_plan writes agreed (expect yes)": "yes",
@@ -104,10 +104,10 @@ check("0198(2-1) 収蔵＝sha16 ed90503b54b54acd・begin〜commit 1 回・lock_t
       // ★7
       const n7 = (await pc.query(`select count(*)::int n from pg_constraint where connamespace='public'::regnamespace and contype='f' and confdeltype='n' and conname in ('availability_terms_updated_by_fkey','cast_day_deductions_set_by_fkey','register_day_grants_granted_by_fkey','deduction_rule_casts_set_by_fkey')`)).rows[0].n;
       check("0198(4-20) ★7 監査系 FK＝set null（availability_terms.updated_by ほか）", n7 === 4, n7);
-      const mid = await cnt(); check("0198(4-21) tx 内も関数 422・表 120", mid.f === 427 && mid.t === 121 /* ★0200（2026-11-10 手貼り）: 422→427・表 120→121 */, mid);
+      const mid = await cnt(); check("0198(4-21) tx 内も関数 422・表 120", mid.f === 431 /* ★0201（2026-11-11 手貼り・+4＝punch_self_impl／set_store_manager_punch／staff_pin_self_set／cast_pin_self_set）: 427→431 */ && mid.t === 121 /* ★0200（2026-11-10 手貼り）: 422→427・表 120→121 */, mid);
     } finally { await pc.query("rollback"); }
     const after = await cnt();
-    check("0198(4-22) ROLLBACK＝DB 変更 0（関数 422・表 120）", after.f === before.f && after.t === before.t && after.f === 427 /* ★0200（2026-11-10 手貼り）: 422→427・表 120→121 */, after);
+    check("0198(4-22) ROLLBACK＝DB 変更 0（関数 422・表 120）", after.f === before.f && after.t === before.t && after.f === 431 /* ★0201（2026-11-11 手貼り・+4＝punch_self_impl／set_store_manager_punch／staff_pin_self_set／cast_pin_self_set）: 427→431 */ /* ★0200（2026-11-10 手貼り）: 422→427・表 120→121 */, after);
   } finally { await pc.end(); }
   if (fails.length) { console.error(`FAIL ${fails.length} 件 / pass ${pass}`); for (const f of fails) console.error(" - " + f); process.exit(1); }
   console.log(`verify:nox-0198 ALL PASS (${pass} assertions)`);

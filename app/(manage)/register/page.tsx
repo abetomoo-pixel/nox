@@ -1,5 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getSessionRole } from "@/lib/nox/auth";
+import { redirect } from "next/navigation";
+import { registerVisibilityServerOf } from "@/lib/nox/register/register-visibility-server"; // ★M-159 追記
 import RegisterBoard from "./register-board";
 import { seatsVisibleOf } from "@/lib/nox/floor-kinds"; // ★0164（便 W5-2a）
 import { castRegisterLevelOf } from "@/lib/nox/rules-0175/cast-register"; // ★裁定473
@@ -13,6 +15,9 @@ export const dynamic = "force-dynamic";
 export default async function RegisterPage() {
   const supabase = await createClient();
   const { role } = await getSessionRole();
+  // ★M-159 追記（2026-11-11・外部レビュー 4）: レイアウトは画面の移動で描き直さない＝layout の柵はホームのリンクからの移動で効かなかった（開卓で初めて off duty）。
+  //   ページ自体で同じ判定（registerVisibilityServerOf）を通し、出せない人はホームへ（ホームに案内の 1 行）＝卓や人数を選ばせてから止めない。
+  if (role === "staff" && !(await registerVisibilityServerOf(supabase, role)).show) redirect("/dashboard?reg=off");
   const isManagerUp = role === "owner" || role === "manager";
   const { data: seatsAll } = await supabase
     .from("seats")

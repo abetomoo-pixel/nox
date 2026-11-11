@@ -35,8 +35,8 @@ check("benf(1-3) liff-bridge＝401 bad id_token は sessionStorage の鍵（nox_
 // (2) M-112・(3) M-113
 const rb = src("app/(manage)/report/report-board.tsx"), ab = src("app/(manage)/analytics/analytics-board.tsx"), css = src("app/globals.css");
 check("benf(2-1) 日報プレビュー＝見出し（nox-rep-prevhead＝lbl nowrap・sw・bh）と指標の帯（nox-rep-kpiband）に印・480px 以下は縦積みと 4 列（td 25%）",
-  rb.includes('<div className="nox-rep-prevhead"') && rb.includes('<span className="lbl" style={{ fontSize: 13, color: "var(--v2-text)", whiteSpace: "nowrap" }}>営業日</span>') && rb.includes('<span className="sw"') && rb.includes('<span className="bh"') && rb.includes('className="nox-tablewrap plain nw nox-rep-kpiband"')
-  && css.includes(".nox-rep-prevhead .sw, .nox-rep-prevhead .bh { flex-basis: 100%; }") && css.includes(".nox-rep-kpiband td { display: inline-block; box-sizing: border-box; width: 25%;"));
+  rb.includes('<div className="nox-rep-prevhead"') && rb.includes('<span className="lbl" style={{ fontSize: 13, color: "var(--v2-text)", whiteSpace: "nowrap" }}>営業日</span>') && rb.includes('<span className="sw"') && rb.includes('<span className="bh"') && rb.includes('<div className="nox-repdetail" data-report-kpiband="1" data-report-detail="1">') /* ★M-139（2026-11-11）: 帯の表 → 内訳のブロック */
+  && css.includes(".nox-rep-prevhead .sw, .nox-rep-prevhead .bh { flex-basis: 100%; }") && css.includes(".nox-repdetail-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));") && css.includes("@media (max-width: 599px) { .nox-repdetail-list { grid-template-columns: 1fr; } }") /* ★M-139 */);
 check("benf(3-1) ランキング＝行は nm／cnt（本・場内・同伴）／cnt2（構成・報酬率）／amt に分け、480px 以下は grid 3 行（medal avatar name amt／cnt／cnt2）・CSV は見出しの下に右寄せ",
   ab.includes('<span className="nm">{r.name}</span>') && ab.includes('<span className="cnt num">本{r.hon}・場内{r.jonai}・同伴{r.dohan}</span>') && ab.includes('<span className="cnt2 num">') && ab.includes('<div className="nox-rank-head"') && ab.includes('<button className="csv"')
   && css.includes('grid-template-areas: "medal avatar name amt" "cnt cnt cnt cnt" "cnt2 cnt2 cnt2 cnt2";') && css.includes(".nox-rank-head .csv { flex-basis: 100%; margin-left: auto;"));

@@ -195,6 +195,12 @@ async function main() {
         row?.ext_menu_snap.length === 1
           && !row?.ext_menu_snap.some((m) => m.rule_id === eCatX || m.rule_id === eCatY),
         JSON.stringify(row?.ext_menu_snap));
+      // ★M-137（2026-11-11 相談役）: 本番の経路（check_open）でヘッダとセット行が同じルールから作られる＝セット行の単価＝checks.set_fee・set_rule_id はそのルール（デモだけで食い違った型の再発を本番の経路で固定）
+      {
+        const sl = o1.id ? (await admin.from("check_lines").select("fee_kind, unit_price_snapshot, qty").eq("check_id", o1.id).eq("fee_kind", "set")).data as { fee_kind: string; unit_price_snapshot: number; qty: number }[] | null : null;
+        check("prc(m137) ★check_open＝セット行の単価がヘッダの set_fee と一致・ヘッダの set_rule_id は解決したルール（M-137）",
+          !!sl && sl.length >= 1 && sl.every((l) => l.unit_price_snapshot === row?.set_fee) && row?.set_rule_id === rNull, JSON.stringify({ sl, set_fee: row?.set_fee, rule: row?.set_rule_id, rNull }));
+      }
       const o4 = await openAt(seat4, null);  // 明示 null
       const row4 = o4.id ? await checkRow(o4.id) : null;
       check("prc(a3) ★明示 null 開栓＝省略と同値（set 7000/60・ext_menu 1件）",

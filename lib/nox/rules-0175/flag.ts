@@ -127,6 +127,13 @@ let override0200: boolean | null = null;
 export function mig0200On(): boolean { return override0200 ?? MIG_0200_APPLIED; }
 export function __set0200ForTest(v: boolean | null): void { override0200 = v; }
 
+/** ★0201（裁定474＝打刻設定を BANZEN と同じ形に・M-133＝kiosk_login の 4〜6 桁と本人の PIN 変更・staff_pin_status の旧キー）: 2026-11-11 Agoora 手貼り＝sha16 ccf2d6d61e36da42・529 行・検証 17 行が全行一致（関数 431・表 121）。
+ *  true＝本人のスマホ打刻は route /api/punch/self → punch_self_impl（位置は端末・IP はサーバー）・店舗設定の打刻設定の節・本人の PIN 変更・キオスクの出退勤の PIN 4〜6 桁。 */
+export const MIG_0201_APPLIED = true;
+let override0201: boolean | null = null;
+export function mig0201On(): boolean { return override0201 ?? MIG_0201_APPLIED; }
+export function __set0201ForTest(v: boolean | null): void { override0201 = v; }
+
 export const MIG_0197_APPLIED = true; // ★2026-11-06: 0197（sha16 f28f737489916c38）を Agoora が手貼り（06:53 UTC・本文 Success）＝verify 17 行が期待値と一致（unique は数え方の差・正本の式では 1）・関数 419・表 120・本文 3 本の md5 一致 → true
 let override0197: boolean | null = null;
 export function mig0197On(): boolean { return override0197 ?? MIG_0197_APPLIED; }

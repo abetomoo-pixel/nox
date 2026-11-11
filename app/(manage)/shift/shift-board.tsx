@@ -8,7 +8,8 @@
 import { hmLabelOf } from "@/lib/nox/time/hhmm"; // ★便 M5b M-51 追補: 日をまたぐ時刻は「翌02:00」
 import DatePicker from "@/components/ui/date-picker"; // ★M-82（裁定452・教訓133）: 日付は共通のピッカー
 import { REGISTER_DAY_GRANT_LABEL, REGISTER_DAY_GRANT_NOTE, storeDecidesPunchOf } from "@/lib/nox/shift/punch-mode"; // ★便 E（0197 用）
-import { mig0196On, mig0197On, mig0198On } from "@/lib/nox/rules-0175/flag";
+import { mig0196On, mig0197On, mig0198On, mig0201On } from "@/lib/nox/rules-0175/flag";
+import { punchMarksOf, type PunchMarkRow } from "@/lib/nox/punch/marks"; // ★0201（裁定474）: 勤怠の印
 import DayDedAfterPunch from "@/components/nox/day-ded-after-punch"; // ★0198（裁定461 ①・M-120）: 代行の出勤の直後の「今日の控除」 // ★便 E（0196 用）: staff の代行 ★0197: 今日だけ許可
 import TimeInput from "@/components/ui/time-input"; // ★便 M5b M-51: 時刻欄の共通部品（時計アイコン・時と分を選ぶ・翌の表示）
 import DowChips, { DowMark } from "@/components/ui/dow-chips"; // ★M-144 ④: 必要人数の曜日も定休日は赤＋「定休」・選べない
@@ -316,6 +317,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   // ★裁定257 R20-a: 表示日の打刻行（in／out とも）＝matchPunches の入力。R20-b: 退勤（punch_proxy）後の再読込トリガ
   const [punchRows, setPunchRows] = useState<(PunchRow & { cast_id: string })[]>([]);
   // ★AT2: cast ごとの最初の in／最後の out（punch-match S1 と同じ採用規則・表示専用）
+  const [punchMarks, setPunchMarks] = useState<Map<string, string[]>>(new Map()); // ★0201（裁定474）: 勤怠の印（範囲外／予定外）
   const [punchIO, setPunchIO] = useState<Map<string, { inHm: string | null; outHm: string | null }>>(new Map());
   const [punchTick, setPunchTick] = useState(0);
   // ★0154 D1: 修正モーダルの対象（cast・区分・直す打刻）と、店側 warn 用の「異議あり」行（approved ∧ disputed・RLS＝自店 owner/manager）
@@ -1160,10 +1162,10 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
     let alive = true;
     void (async () => {
       const { startIso, endIso } = bizDateRange(todayDate, cutoff);
-      const { data } = await supabase.from("punches").select("id, cast_id, type, punched_at")
+      const { data } = await supabase.from("punches").select(mig0201On() ? "id, cast_id, type, punched_at, within_geofence, geo_override, within_schedule" : "id, cast_id, type, punched_at") // ★0201（裁定474）: 勤怠の印（範囲外／予定外）
         .eq("store_id", storeId).gte("punched_at", startIso).lt("punched_at", endIso).order("punched_at");
       const m = new Map<string, string>();
-      const rows = (data ?? []) as { id: string; cast_id: string; type: "in" | "out"; punched_at: string }[];
+      const rows = (data ?? []) as unknown as { id: string; cast_id: string; type: "in" | "out"; punched_at: string }[];
       setPunchIO(firstInLastOut(rows)); // ★AT2
       // ★0154 D1: 修正モーダルに渡す打刻の id／時刻（最初の in・最後の out＝punch-match S1 と同じ採用規則）
       const ref = new Map<string, { inId: string | null; inIso: string | null; outId: string | null; outIso: string | null }>();
@@ -1185,7 +1187,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
         if (p.type === "in") m.set(p.cast_id, new Date(p.punched_at).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" }));
         else m.delete(p.cast_id); // 'out' が後なら「打刻中」ではない＝表示しない
       }
-      if (alive) { setPunchIn(m); setPunchRows(rows); }
+      if (alive) { setPunchIn(m); setPunchRows(rows); setPunchMarks(punchMarksOf(rows as PunchMarkRow[])); }
     })();
     return () => { alive = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1752,6 +1754,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                                   return (
                                     <span className="nox-attchips" style={{ display: "inline-flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                                       <span className={`nox-stpill ${chip.late ? "warn" : "ok"}`} data-att-chip={mode}>{chip.label}</span>
+                                      {(punchMarks.get(s.cast_id) ?? []).map((mk) => <span key={mk} className="nox-stpill warn" data-punch-mark={mk}>{mk}</span>)}{/* ★0201（裁定474）: 本人のスマホ打刻の判定（ソフトは記録して通す＝店に見せる） */}
                                       {dseats && <span className="nox-stpill" data-dohan-chip="1" title={ex.note ?? "伝票の同伴（伝票で外すと消えます）"}>{dohanMarkTextOf(dseats)}</span>}
                                       {ex.note && <span className="sub" data-dohan-exempt="1" style={{ fontSize: 11 }}>{ex.note}</span>}
                                       {att?.eta ? <span className="num sub">見込み {hmLabelOf(att.eta)}</span> : null}

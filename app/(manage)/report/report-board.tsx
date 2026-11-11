@@ -400,6 +400,8 @@ export default function ReportBoard({
   }, [storeId, isManagerUp]);
   const canClose = isManagerUp || staffPerm.close || isCast;   // 再締め・差異承認（report_can_close と同じ判定＝UI は利便・真の防御は RPC）・★便 P173（裁定389）: ON のキャストは通常の締め（再締め・解除・承認は出さない）
   const canReopen = isManagerUp || staffPerm.reopen; // 解除（report_can_reopen と同じ判定）
+  // ★M-157（2026-11-11）: 差異の承認と再締め＝cash_diff_approve／daily_report_reclose は cast を拒否（0173 追補2）＝画面もサーバと同じ（店長以上・「締め」権限のスタッフ）。レジ ON のキャストには出さない
+  const canApproveDiff = isManagerUp || staffPerm.close;
   const isReopened = (r: Report) => !!r.reopened_at && !r.reclosed_at; // 解除中＝reopened_at not null and reclosed_at null（C③-1）
   // ★B2-a（裁定202/203/204）: 日報タブの追加 KPI。manager 以上のみ（staff の RLS 0 行を「0 件」と見せない）。
   //   D14＝receivables.created_at を営業日範囲 [startIso, endIso) で数える（裁定204＝bizDateOf と同じ cutoff）。
@@ -1025,17 +1027,11 @@ export default function ReportBoard({
                 </div>
               )}
             </div>
-            {/* ★裁定148（v2.1 D9）: 並びをモック順（売上／組数／客単価／現金／カード）へ。「暫定」表記と値は据え置き */}
-            <div className="nox-rs">
-              <div className="l">組数</div><div className="v num">{preview.slips}組</div>
-              <div className="l" style={{ marginTop: 2 }}>客数 {preview.guests}名</div>
-            </div>
-            <div className="nox-rs">
-              <div className="l">客単価</div><div className="v num">{perGuest != null ? yen(perGuest) : "—"}</div>
-              {perSlip != null && <div className="l" style={{ marginTop: 2 }}>組単価 {yen(perSlip)}</div>}
-            </div>
+            {/* ★M-139（2026-11-11 相談役）: 主要な数字＝売上・現金・組数・人数・未会計をカードで先頭（客単価・カードほかは下の「内訳」） */}
             <div className="nox-rs"><div className="l">現金</div><div className="v num">{yen(preview.cash)}</div></div>
-            <div className="nox-rs"><div className="l">カード</div><div className="v num">{yen(preview.card)}</div></div>
+            <div className="nox-rs"><div className="l">組数</div><div className="v num">{preview.slips}組</div>{perSlip != null && <div className="l" style={{ marginTop: 2 }}>組単価 {yen(perSlip)}</div>}</div>
+            <div className="nox-rs"><div className="l">人数</div><div className="v num">{preview.guests}名</div>{perGuest != null && <div className="l" style={{ marginTop: 2 }}>客単価 {yen(perGuest)}</div>}</div>
+            <div className="nox-rs" data-rep-open={String(preview.open)}><div className="l">未会計</div><div className="v num" style={preview.open > 0 ? { color: "var(--bad)" } : undefined}>{preview.open}件</div></div>
           </div>
           );
         })()}
@@ -1180,24 +1176,18 @@ export default function ReportBoard({
           })()}
         </div>
         {preview && (
-          <div className="nox-tablewrap plain nw nox-rep-kpiband" data-report-kpiband="1">{/* ★裁定251（M1）: 横スクロール容器（plain＝panel 内なので枠なし）・★裁定252（M9）: nw＝th／td nowrap・★M-112: 480px 以下は横スクロールでなく 4 列×段に折る（globals.css） */}
-          <table style={{ borderCollapse: "collapse", fontSize: 13 }}>
-            <tbody>
-              <tr>
-                {[
+          <div className="nox-repdetail" data-report-kpiband="1" data-report-detail="1">{/* ★M-139（2026-11-11）: 内訳＝別のブロック（2 列の行・項目名と数字を近く・数字は右寄せ・横スクロールなし） */}{/* ★裁定251（M1）: 横スクロール容器（plain＝panel 内なので枠なし）・★裁定252（M9）: nw＝th／td nowrap・★M-112: 480px 以下は横スクロールでなく 4 列×段に折る（globals.css） */}
+          <h4 className="nox-repdetail-h">内訳</h4>
+          <dl className="nox-repdetail-list">
+                {([
                   ["伝票", preview.slips], ["組客数", preview.guests], ["同伴", preview.dohan], ["未会計", preview.open],
                   ["現金", yen(preview.cash)], ["カード", yen(preview.card)], ["カード決済手数料（店負担・経費）", yen(preview.cardTax)], ["手数料（お客様負担）", yen(preview.payFee)], /* ★便 P173（裁定393 追補1）: 併存＝ラベルで区別 */
                   ["売掛", yen(preview.uri)], ["その他", yen(preview.other)], ["ドリンク/シャンパン売上", yen(preview.drink)],
                   ["セット・延長・指名", yen(preview.upper)], ["商品", yen(preview.products)], /* ★便 P173（裁定391）: 2 分類 */
-                ].map(([label, v]) => (
-                  <td key={label as string} style={{ padding: "4px 12px", borderRight: "1px solid var(--line)" }}>
-                    <div style={{ ...t.sub, fontSize: 11 }}>{label}</div>
-                    <div style={{ ...t.num, fontWeight: 700, color: "var(--ink)" }}>{v}</div>
-                  </td>
+                ] as [string, string | number][]).map(([label, v]) => (
+                  <div key={label} className="row"><dt>{label}</dt><dd className="num">{v}</dd></div>
                 ))}
-              </tr>
-            </tbody>
-          </table>
+          </dl>
           </div>
         )}
         {preview && <p style={{ ...t.sub, fontSize: 11, margin: "6px 0 0" }}>カード決済手数料（店負担）は店舗設定の率で算出した経費の見込み。手数料（お客様負担）は入金時に伝票へ立てた行の合計（キャスト売上には含めません）。</p>}{/* ★裁定252（M9）: 短縮したラベルの注記 */}
@@ -1567,7 +1557,7 @@ export default function ReportBoard({
                   {!reopenFlag && isManagerUp && <button style={btnLight} onClick={() => scrollToClose(r.biz_date)}>再締め</button>}
                   {reopenFlag && (isReopened(r) ? (<>
                     <span className="nox-stbadge open" style={{ marginRight: 6 }} title={r.reopen_reason ?? ""}>解除中</span>
-                    {canClose && <button style={btnLight} onClick={() => scrollToClose(r.biz_date)}>再締め</button>}
+                    {canApproveDiff && <button style={btnLight} onClick={() => scrollToClose(r.biz_date)}>再締め</button>}
                   </>) : (
                     canReopen && <button style={btnLight} onClick={() => { setReasonVal(""); setReopenPick(r); }}>解除</button>
                   ))}
@@ -1579,7 +1569,7 @@ export default function ReportBoard({
                         ・{new Date(r.diff_approved_at).toLocaleString("ja-JP", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}
                       </span>
                     ) : (
-                      canClose && <button style={{ ...btnLight, marginLeft: 6 }} onClick={() => { setReasonVal(""); setApprovePick(r); }}>差異を承認</button>
+                      canApproveDiff && <button style={{ ...btnLight, marginLeft: 6 }} data-diff-approve="1" onClick={() => { setReasonVal(""); setApprovePick(r); }}>差異を承認</button>
                     )
                   )}
                 </td>

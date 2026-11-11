@@ -59,6 +59,8 @@ const ALLOW = new Set<string>([
   "attendance/sheet", // ★便 SH-UI-c C-2: 勤怠一覧（guardPayroll・読取のみ＝給与 preview と同じ・デモ org も可）
   "home/pending", // ★便 SH-UI-c2 C2-13: HOME の要承認とベル（利用者の client＝RLS・読取のみ・デモ org も可）
   "kiosk/photos", // ★便 M5 M-42（2026-10-30）: 端末のキャスト／操作担当の写真の署名 URL（読取だけ・admin が署名・デモ org も可）
+  "punch/self", // ★0201（裁定474・2026-11-11）: 本人のスマホ打刻（本人の auth・IP はサーバー・punch_self_impl＝service_role・デモ org の中で完結）
+  "punch/wifi", // ★0201（裁定474）: 店の Wi-Fi の登録（本人の auth で store_wifi_add＝owner／自店 manager・店設定＝デモ org も可）
   "kiosk/person-touch", // ★0200（相談役 11/10）: 本人セッションの heartbeat（last_seen_at だけ・service_role の RPC が端末の fp を照合・デモ org も可）
   "kiosk/person-session", "kiosk/person-end", // ★便 E（2026-11-05・0196 用＝裁定448 B 方式）: PIN の本人セッション＝端末の uid を読んで kiosk_person_claim（service_role・束縛と役割は RPC）→ magiclink→verifyOtp・終了＝kiosk_person_end＋サインアウト（デモ org も可・MIG_0196_APPLIED=false の間は 409）
   "kiosk/lock-notice", // ★0190 フラグ true 便 K-1（2026-10-30）: 端末アカウントの PIN ロックのお知らせ 1 行（kiosk_devices で端末を確かめる・notices に 1 行・デモ org も可＝06:05 の reset で消える）

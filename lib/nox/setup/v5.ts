@@ -287,7 +287,9 @@ export function buildV5Plan(S: V5State, ctx: V5Ctx): { steps: V5Step[]; deferred
     patch.cash_float_default = Math.max(0, Math.min(9_999_999, Math.round(S.float || 0)));
     patch.settlement_close_day = CLOSE_DAY_OF[S.payroll.close] ?? 31;
   }
-  if (S.punch.how === "any") patch.punch_require_shift = S.punch.judge === "hard" ? "block" : "warn";
+  // ★0201（裁定474・setup_gap §3）: 「条件に合わないとき」の写し先は判定（punch_enforce）＝予定外の打刻（punch_require_shift）ではなかった（旧版の取り違え）。
+  //   ハードは判定方法に必要な値（店の位置か Wi-Fi）が揃わないと保存できない（相談役 11/11 ■3d）＝初期設定では位置も Wi-Fi も決めない＝ここはソフトで保存し、ハードは店舗設定 › 打刻の設定で値を入れてから切り替える（画面に 1 行）。
+  if (S.punch.how === "any") patch.punch_enforce = false;
   if (mig0197On()) patch.punch_mode = S.punch.how === "store" ? "store" : "punch";   // ★便 E（0197 用＝裁定455 の 1・4）: 3 択目＝punch_mode（白名単は 0197）。'store' のとき punch_methods は無視される
   if (S.seats.vip > 0 && S.svcVip !== S.svc) patch.service_rate_by_seat = { VIP: Math.max(0, Math.min(100, Math.round(S.svcVip))) };
   if (S.payroll.okuriMode === "fixed") patch.okuri_flat_tiers = [{ code: "near", name: "近距離", amount: S.payroll.okuriTiers[0] }, { code: "mid", name: "中距離", amount: S.payroll.okuriTiers[1] }, { code: "far", name: "遠距離", amount: S.payroll.okuriTiers[2] }];

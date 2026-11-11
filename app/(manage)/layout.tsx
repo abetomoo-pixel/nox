@@ -23,10 +23,11 @@ import KioskPersonGuard from "@/components/nox/kiosk-person-guard"; // ★便 M5
 import { kioskPersonIdleMinutesOf } from "@/lib/nox/kiosk/person-login"; // ★便 M5 M-49
 import { KIOSK_PERSON_IDLE_MINUTES, kioskPersonNavOf } from "@/lib/nox/rules-0175/kiosk"; // ★裁定469（M-128）
 import { KIOSK_PERSON_COOKIE, kioskNavOf, kioskPersonMustLeaveOf, parseKioskPersonCookie } from "@/lib/nox/kiosk/person-session"; // ★便 E（0196 用＝裁定448 B 方式）
-import { mig0196On, mig0199On, mig0200On } from "@/lib/nox/rules-0175/flag"; // ★便 E ★0199（裁定466・M-125）★0200（裁定472＝staff も出勤中だけ）
+import { mig0196On, mig0199On } from "@/lib/nox/rules-0175/flag"; // ★便 E ★0199（裁定466・M-125）★0200（裁定472＝staff も出勤中だけ）
 import * as t from "@/lib/nox/ui/theme";
 import { StoreHoursProvider } from "@/components/ui/store-hours-context"; // ★M-145: 時刻の選択の既定（営業開始・終了・切替時刻）
 import { storeHoursOf } from "@/lib/nox/time/store-hours-server";
+import { registerVisibilityServerOf } from "@/lib/nox/register/register-visibility-server"; // ★M-158／M-159: レジの出し分けは 1 つの関数
 
 // 店側エリア（register/shift/report/master）の layout。auth_role() rpc は「ここで1回/リクエスト」のみ。
 // cast は原則 /mine へ（利便のためのリダイレクト・真の防御はパターン2 RLS＝checks 系 0行）。
@@ -116,14 +117,11 @@ export default async function ManageLayout({ children }: { children: React.React
   let staffShift = false; // ★裁定381（GV-B W-10）: staff のシフトは can_shift（auth_staff_can_shift）で出し分け＝/shift の redirect と同じ述語
   let staffRegister = true; // ★便 M5 M-43（2026-10-30）: staff の会計権限 can_register（auth_staff_can_register）＝OFF ならレジをナビに出さず /register は /dashboard へ（RLS で伝票が隠れた「使用中 0／6・全席空席」の誤表示を出さない＝シフト権限と同じ型）
   if (role === "staff") {
-    const [{ data }, { data: sh }, { data: rg }] = await Promise.all([supabase.rpc("auth_staff_can_crm"), supabase.rpc("auth_staff_can_shift"), supabase.rpc("auth_staff_can_register")]);
+    const [{ data }, { data: sh }, regVis] = await Promise.all([supabase.rpc("auth_staff_can_crm"), supabase.rpc("auth_staff_can_shift"), registerVisibilityServerOf(supabase, role)]);
     staffCrm = data === true;
     staffShift = sh === true;
-    staffRegister = rg === true;
-    if (staffRegister && mig0200On()) { // ★0200（裁定472）: スタッフも出勤中だけ（打刻する店＝staff_punches の最終が in・打刻しない店＝確定シフトの窓か今日だけ許可）＝auth_register_access の 1 本（店長以上は常に可）
-      const { data: acc } = await supabase.rpc("auth_register_access");
-      staffRegister = (acc as { allowed?: boolean } | null)?.allowed === true;
-    }
+    // ★M-158／M-159（2026-11-11）: レジを出すかは 1 つの関数（ホームのクイック操作と同じ）＝can_register ∧ 出勤中（★0200 裁定472＝auth_register_access）
+    staffRegister = regVis.show;
     const pathnameReg = (await headers()).get("x-pathname") ?? "";
     if (!staffRegister && (pathnameReg === "/register" || pathnameReg.startsWith("/register/"))) redirect("/dashboard"); // ★M-43: 権限が無ければ画面に入れない（★0200: 出勤中でなくても）
   }

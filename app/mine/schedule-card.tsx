@@ -20,7 +20,8 @@ export function DaysNormNote({ norm }: { norm: DaysNormLine }) {
   );
 }
 
-export default function ScheduleCard({ tabs }: { tabs: ScheduleTab[] }) {
+// ★M-160（2026-11-11）: スタッフ・店長の「自分のシフト」でも使い回す＝readOnly で確認・辞退のボタンと「希望を提出」を出さない・見出しと空の文言を差し替え
+export default function ScheduleCard({ tabs, readOnly = false, title = "出勤予定", wishHref = "/mine/wishes", emptyText = "出勤予定はまだありません" }: { tabs: ScheduleTab[]; readOnly?: boolean; title?: string; wishHref?: string | null; emptyText?: string }) {
   const [i, setI] = useState(0);
   const cur = tabs[i];
   const row = (x: ScheduleItem) => (
@@ -28,22 +29,22 @@ export default function ScheduleCard({ tabs }: { tabs: ScheduleTab[] }) {
       <span className="num d">{Number(x.date.slice(5, 7))}/{Number(x.date.slice(8, 10))}（{x.dow}）</span>
       <span className="num tm">{x.time}</span>
       {x.kind === "pending" && <span className="nox-stpill" style={{ fontSize: 10.5 }}>{x.source === "wish" ? "申請済み" : x.proposed ? "確認待ち（あなた）" : "確認待ち"}</span>}
-      {x.proposed && <ShiftConfirmButton shiftId={x.id} />}
-      {x.proposed && <ShiftDeclineButton shiftId={x.id} />}{/* ★便 ON-3: 確認待ち（あなた）＝確認する／辞退 */}
+      {x.proposed && !readOnly && <ShiftConfirmButton shiftId={x.id} />}
+      {x.proposed && !readOnly && <ShiftDeclineButton shiftId={x.id} />}{/* ★便 ON-3: 確認待ち（あなた）＝確認する／辞退 */}
     </li>
   );
   return (
-    <section className="nox-panel" data-mine-schedule="1">
+    <section className="nox-panel" data-mine-schedule="1" data-schedule-readonly={readOnly ? "1" : "0"}>
       <h3>
-        出勤予定
-        <Link href="/mine/wishes" className="nox-link" style={{ marginLeft: "auto", fontSize: 12 }}>＋ 希望を提出</Link>
+        {title}
+        {wishHref && <Link href={wishHref} className="nox-link" style={{ marginLeft: "auto", fontSize: 12 }}>＋ 希望を提出</Link>}
       </h3>
       <div className="nox-seg" style={{ display: "inline-flex", margin: "4px 0 10px" }} role="tablist" aria-label="出勤予定の月">
         {tabs.map((tb, k) => <button key={tb.month} type="button" role="tab" aria-selected={k === i} className={k === i ? "on" : ""} onClick={() => setI(k)}>{tb.label}</button>)}
       </div>
       {cur.norm && <DaysNormNote norm={cur.norm} />}
       {cur.fixed.length === 0 && cur.pending.length === 0 ? (
-        <p style={{ fontSize: 13, color: "var(--sub)" }}>出勤予定はまだありません</p>
+        <p style={{ fontSize: 13, color: "var(--sub)" }}>{emptyText}</p>
       ) : (
         <>
           <div className="nox-schedh">確定（{cur.fixed.length}）</div>

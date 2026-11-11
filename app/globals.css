@@ -2805,6 +2805,10 @@ html, body { overflow-x: hidden; }
   .nox-normbulk > label { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
   .nox-normbulk > label > input { width: 100% !important; min-width: 0; box-sizing: border-box; }
   .nox-normtable td.nox-norm-name { width: auto; }
+  /* ★M-155 追記（2026-11-11）: 375 のカード（tr が flex）では 1 行おきの薄い色を td ではなく tr に＝行の一部（名前と数字の間）だけに付かない */
+  .nox-rwrap table.nox-normtable tbody tr:nth-child(even) { background: color-mix(in srgb, var(--card2) 94%, #fff 6%); }
+  .nox-rwrap table.nox-normtable tbody tr.on { background: var(--primary-soft); }
+  .nox-rwrap table.nox-normtable tbody tr td { background: transparent !important; }
 }
 /* 382: FieldStack＝ラベル上・入力下（children が複数なら 1 行） */
 .nox-fieldstack { display: grid; gap: 4px; margin-bottom: 12px; }
@@ -3262,3 +3266,24 @@ tr.nox-rowflash, .nox-rowflash { animation: nox-rowflash 1.6s ease-out; }
   .nox-shiftflow { grid-template-columns: 1fr; }
   .nox-shiftflow > li:not(:last-child)::after { content: "↓"; right: 50%; top: auto; bottom: -8px; transform: translate(50%, 50%); }
 }
+/* ★M-154（2026-11-11）: キオスクの PIN 入力の共通部品（components/nox/pin-pad.tsx）＝キーは横幅いっぱいの 3 列・金の枠・大きな数字・押した反応・丸は入力した数だけ */
+.nox-pinpad { width: 100%; }
+.nox-pinpad-label { text-align: center; font-size: 13px; color: var(--sub); margin: 0 0 10px; }
+.nox-pinpad-dots { display: flex; justify-content: center; gap: 14px; min-height: 20px; margin-bottom: 16px; }
+.nox-pinpad-dots .dot { width: 18px; height: 18px; border-radius: 999px; background: var(--gold); }
+.nox-pinpad-keys { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; width: 100%; }
+.nox-pinpad-keys .k { border: 1px solid var(--gold); border-radius: 14px; background: linear-gradient(180deg, var(--card2), var(--card)); color: var(--ink); font-family: inherit; font-size: 28px; font-weight: 800; padding: 16px 0; cursor: pointer; transition: transform 80ms ease, background-color 80ms ease; touch-action: manipulation; }
+.nox-pinpad-keys .k.sub { font-size: 16px; color: var(--sub); }
+.nox-pinpad-keys .k:active:not(:disabled) { transform: scale(0.96); background: var(--primary-soft); }
+.nox-pinpad-keys .k:disabled { opacity: 0.5; cursor: not-allowed; }
+.nox-pinpad-go { display: grid; grid-template-columns: 1fr; gap: 12px; margin-top: 16px; }
+.nox-pinpad-go.two { grid-template-columns: 1fr 1fr; }
+.nox-pinpad-go > button { width: 100%; padding: 18px 0; font-size: 19px; font-weight: 900; border-radius: 14px; }
+/* ★M-139（2026-11-11 相談役）: 日報の内訳＝別のブロック。2 列の行（項目名と数字を近く・数字は右寄せ）・375 は 1 列・横スクロールなし */
+.nox-repdetail { margin-top: 12px; border: 1px solid var(--v2-line); border-radius: 10px; padding: 10px 12px; background: var(--v2-panel2); }
+.nox-repdetail-h { margin: 0 0 6px; font-size: 12px; color: var(--v2-muted); font-weight: 700; }
+.nox-repdetail-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 24px; margin: 0; }
+.nox-repdetail-list .row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 5px 0; border-bottom: 1px solid var(--line2); min-width: 0; }
+.nox-repdetail-list dt { font-size: 12.5px; color: var(--sub); min-width: 0; }
+.nox-repdetail-list dd { margin: 0; font-weight: 700; color: var(--ink); text-align: right; white-space: nowrap; }
+@media (max-width: 599px) { .nox-repdetail-list { grid-template-columns: 1fr; } }

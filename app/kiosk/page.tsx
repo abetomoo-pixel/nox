@@ -19,7 +19,7 @@ import { Message } from "@/components/ui/toast"; // ★裁定281（便 U）: メ
 import { okuriSelfPlanOf, OKURI_PENDING_NOTE, type OkuriSelfPlan } from "@/lib/nox/shift/okuri-self";
 import { okuriOutTextOf, okuriRecordedTextOf } from "@/lib/nox/shift/okuri-mode"; // ★裁定414（S-4）: 方式の 1 文・「記録」
 import { rpcErrJa } from "@/lib/nox/ui/rpc-err"; // ★裁定327（0161・便 M1-4）: 順序検査の拒否 3 語は端末にも同じ和文
-import { mig0190On, mig0191On, mig0196On, mig0198On, rules0175On } from "@/lib/nox/rules-0175/flag";
+import { mig0190On, mig0196On, mig0198On, mig0201On, rules0175On } from "@/lib/nox/rules-0175/flag";
 import { DAY_DED_PICK_HEAD, dayDedPickLabelOf, dayDedPickRowsOf, dayDedAppliedTextOf, type DayDedPickRule, type DayDedApplied } from "@/lib/nox/payroll/day-ded-pick"; // ★便 D M-103 ★0198（裁定461 ②） // ★追補 2 同乗 R-7 ★0190: mig0190On
 import { bindErrJa, browserDeviceFp } from "@/lib/nox/kiosk/device-fp"; // ★0190（裁定436 ①b）: 端末の束縛＝ログイン直後に kiosk_device_bind
 import { KIOSK_FEATURE_READY, KIOSK_NO_TILES_NOTE, KIOSK_PUNCH_OFF_NOTE, kioskTilesShownOf } from "@/lib/nox/rules-0175/kiosk"; // ★裁定468（M-127） // ★0190（裁定435）: 5 タイル（シフト・在庫・日報は案内画面）
@@ -27,6 +27,7 @@ import CastAvatar from "@/components/ui/cast-avatar"; // ★便 M5 M-42: 写真�
 import { KIOSK_FEATURE_HREF, KIOSK_FEATURE_LABEL, type KioskFeature } from "@/lib/nox/rules-0175/kiosk"; // ★追補 2 同乗 R-7（裁定423 候補）
 import { KIOSK_PERSON_LINK } from "@/lib/nox/kiosk/person-login"; // ★便 M5 M-49: 本人でログイン（店長以上）
 import { startKioskPersonLogin } from "@/lib/nox/kiosk/person-login-client";
+import PinPad from "@/components/nox/pin-pad"; // ★M-154: PIN 入力の共通部品
 import KioskPersonEntry from "@/components/nox/kiosk-person-entry"; // ★便 E（0196 用）: スタッフでログイン（PIN） // ★便 M5 M-49: 端末のセッションを控えて /login?kiosk=1
 type KRow = { cast_id: string; cast_name: string; has_pin: boolean; staff?: boolean }; // ★便 P174 T-6（355）: staff＝true は cast_id に membership_id（スタッフ群）
 type SRow = { membership_id: string; user_name: string; role: string; has_pin: boolean; last_kind: string | null; last_at: string | null }; // ★便 P174 T-6: kiosk_staff_list（0174 ★5）
@@ -37,17 +38,15 @@ type PunchResult =
 
 const RESULT_MS = 4000; // 結果表示 → name-select 自動復帰
 /** ★0191 ★3: PIN 4〜6 桁（フラグ false は 4 桁固定） */
-const pinOk = (p: string): boolean => (mig0191On() ? p.length >= 4 && p.length <= 6 : p.length === 4);
+// ★M-154（2026-11-11）: 出退勤の側も 0201 の適用後は 4〜6 桁（kiosk_login と同じ）＝PinPad の max と同じ式
+const pinMax = (): number => (mig0201On() ? 6 : 4);
+const pinOk = (p: string): boolean => (pinMax() === 6 ? p.length >= 4 && p.length <= 6 : p.length === 4);
 
 const bigBtn: React.CSSProperties = {
   border: "1px solid var(--line2)", borderRadius: 14, background: "linear-gradient(180deg,var(--card2),var(--card))",
   color: "var(--ink)", fontSize: 20, fontWeight: 800, padding: "22px 10px", cursor: "pointer",
   fontFamily: "inherit",
 };
-const keyBtn: React.CSSProperties = {
-  ...bigBtn, fontSize: 26, padding: 0, height: 72, fontVariantNumeric: "tabular-nums",
-};
-
 export default function KioskPage() {
   const supabase = createClient();
   const [phase, setPhase] = useState<Phase>("loading");
@@ -130,10 +129,6 @@ export default function KioskPage() {
   function pick(c: KRow) {
     if (!c.has_pin) return;
     setTarget(c); setPin(""); setPhase("pin");
-  }
-
-  function keyIn(d: string) {
-    setPin((p) => (p.length >= (mig0191On() ? 6 : 4) ? p : p + d)); // 関数型更新（連打でも取りこぼさない）★0191 ★3: 4〜6 桁
   }
 
   /** ★便 D M-103（保存は 0196 の kiosk_punch p_day_deductions）: 出勤＝pick ルールがある店は先に「今日の控除」を聞く（読取に失敗したら聞かずに従来どおり打刻）。0196 まで＝従来どおり */
@@ -324,32 +319,15 @@ export default function KioskPage() {
         {phase === "pin" && target && (
           <div style={{ maxWidth: 380, margin: "0 auto" }}>
             <p style={{ textAlign: "center", fontSize: 17, fontWeight: 800, margin: "0 0 4px" }}>{target.cast_name}</p>
-            <p style={{ textAlign: "center", ...t.sub, margin: "0 0 14px" }}>PIN（4桁）を入力してください</p>
-            {/* マスク表示（●）＝入力値そのものは画面に出さない */}
-            <div style={{ display: "flex", justifyContent: "center", gap: 14, marginBottom: 18 }}>
-              {[0, 1, 2, 3].map((i) => (
-                <span key={i} style={{
-                  width: 18, height: 18, borderRadius: 999,
-                  border: "1px solid var(--line2)",
-                  background: i < pin.length ? "var(--gold)" : "transparent",
-                }} />
-              ))}
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
-              {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((d) => (
-                <button key={d} style={keyBtn} onClick={() => keyIn(d)}>{d}</button>
-              ))}
-              <button style={{ ...keyBtn, fontSize: 15, color: "var(--sub)" }} onClick={() => setPin("")}>クリア</button>
-              <button style={keyBtn} onClick={() => keyIn("0")}>0</button>
-              <button style={{ ...keyBtn, fontSize: 20, color: "var(--sub)" }} onClick={() => setPin((p) => p.slice(0, -1))}>⌫</button>
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 18 }}>
+            {/* ★M-154（2026-11-11）: PIN 入力は共通部品（スタッフでログインと同じ）＝マスク表示・丸は入力した数だけ */}
+            <PinPad value={pin} onChange={setPin} max={pinMax()} label={pinMax() === 6 ? "PIN（4〜6 桁）" : "PIN（4 桁）"} />
+            <div className="nox-pinpad-go two">
               <button disabled={!pinOk(pin) || busy} onClick={() => void startIn()}
-                style={{ ...t.btnGold, padding: "20px 0", fontSize: 20, fontWeight: 900, borderRadius: 14, opacity: pinOk(pin) ? 1 : 0.4 }}>{/* ★便 D M-103: pick ルールがあれば先に聞く（0196 まで従来どおり） */}
+                style={{ ...t.btnGold, opacity: pinOk(pin) ? 1 : 0.4 }}>{/* ★便 D M-103: pick ルールがあれば先に聞く（0196 まで従来どおり） */}
                 出勤
               </button>
               <button disabled={!pinOk(pin) || busy} onClick={() => void startOut()}
-                style={{ ...bigBtn, color: "var(--champ)", opacity: pinOk(pin) ? 1 : 0.4 }}>
+                style={{ ...t.btnGold, background: "var(--primary-fill)", borderColor: "var(--primary-fill)", color: "#fff", opacity: pinOk(pin) ? 1 : 0.4 }}>
                 退勤
               </button>
             </div>

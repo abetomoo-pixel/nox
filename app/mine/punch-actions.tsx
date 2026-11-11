@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { mig0196On, mig0198On } from "@/lib/nox/rules-0175/flag"; // ★便 D M-103（0196 まで非表示）★0198（裁定461）: 本人は選べない
+import { mig0196On, mig0198On, mig0201On } from "@/lib/nox/rules-0175/flag"; // ★便 D M-103（0196 まで非表示）★0198（裁定461）: 本人は選べない ★0201: route
+import { overridableOf, selfPunch, selfPunchErrJa } from "@/lib/nox/punch/self-client"; // ★0201（裁定474）: 本人のスマホ打刻は route
+import PunchReason from "./punch-reason";
 import { DAY_DED_PICK_HEAD, dayDedPickLabelOf, dayDedPickRowsOf, dayDedAppliedTextOf, type DayDedPickRule, type DayDedApplied } from "@/lib/nox/payroll/day-ded-pick"; // ★便 D M-103 ★0198（裁定461 ②）
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -27,6 +29,8 @@ export default function PunchActions({ okuriMode = "flat", okuriBase = null, sta
   const [busy, setBusy] = useState(false);
   const [okuri, setOkuri] = useState(false);
   const [dayDedOn, setDayDedOn] = useState<Record<string, boolean>>({}); // ★便 D M-103: 既定 off
+  const [needReason, setNeedReason] = useState<"in" | "out" | null>(null); // ★0201: 範囲外／位置が取れない＝理由を書いてもう一度
+  const [reason, setReason] = useState("");
   const plan = okuriSelfPlanOf({ okuri_mode: okuriMode, okuri_base_amount: okuriBase });
   const okuriActual = plan.ask; // ★裁定414: 名前は従来のまま＝意味は「送りの導線を出す店」（'none' 以外）
   const btn = punchButtonsOf(state);
@@ -36,9 +40,21 @@ export default function PunchActions({ okuriMode = "flat", okuriBase = null, sta
     setBusy(true);
     setMsg(null);
     const supabase = createClient();
-    const { data: punchId, error } = await supabase.rpc("punch_self", type === "out" && okuriActual
-      ? { p_type: type, p_lat: null, p_lng: null, p_okuri: okuri }
-      : { p_type: type, p_lat: null, p_lng: null });
+    // ★0201（裁定474・フラグ便）: 本人のスマホ打刻は route（位置は端末・IP はサーバー・判定は punch_self_impl）。範囲外／位置が取れないは理由を書けば通る
+    let punchId: unknown = null; let error: { message: string } | null = null;
+    if (mig0201On()) {
+      const r = await selfPunch({ type, okuri: type === "out" && okuriActual ? okuri : null, overrideReason: needReason && reason.trim() ? reason.trim() : null });
+      if (r.ok) { punchId = r.punch_id; setNeedReason(null); setReason(""); }
+      else {
+        if (overridableOf(r.code)) setNeedReason(type);
+        setMsg(selfPunchErrJa(r.code)); setBusy(false); return;
+      }
+    } else {
+      const x = await supabase.rpc("punch_self", type === "out" && okuriActual
+        ? { p_type: type, p_lat: null, p_lng: null, p_okuri: okuri }
+        : { p_type: type, p_lat: null, p_lng: null });
+      punchId = x.data; error = x.error;
+    }
     // ★便 D M-103（保存は 0196 の cast セルフ腕）: 出勤と同時に「今日の控除」を送る（on の行だけ・失敗しても打刻は残る）
     let dedNote = "";
     if (!error && type === "in" && mig0196On() && !mig0198On() && bizToday) { // ★0198（裁定461 ②）: 本人は選べない＝送らない（cast 経路は forbidden）
@@ -97,6 +113,7 @@ export default function PunchActions({ okuriMode = "flat", okuriBase = null, sta
           退勤
         </button>
       </div>
+      {needReason && <PunchReason type={needReason} value={reason} onChange={setReason} busy={busy} onSubmit={() => punch(needReason)} />/* ★0201（裁定474）: ハードの店で範囲外・位置が取れない＝理由を書けば打刻できる */}
       {note && <p className="nox-pstate" style={{ marginTop: 8 }}>{note}</p>}
       <Toast msg={msg} />
     </div>

@@ -2,6 +2,11 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getSessionRole } from "@/lib/nox/auth";
 import DashboardBoard from "./dashboard-board";
+import { registerVisibilityServerOf } from "@/lib/nox/register/register-visibility-server"; // ★M-158／M-159
+import PinSelfCard from "@/components/nox/pin-self-card"; // ★0201（M-133）
+import Link from "next/link";
+import { myStaffScheduleOf } from "@/lib/nox/staff/my-shift-server"; // ★M-160
+import { mig0201On } from "@/lib/nox/rules-0175/flag";
 
 export const dynamic = "force-dynamic";
 
@@ -40,8 +45,10 @@ export default async function DashboardPage() {
   // 段H2: アイコンはモック .qi の Unicode 字形を逐語（アイコンライブラリは導入しない＝裁定3・段N と同じ）。
   //   ★href/label/role ゲートは段H から1文字も変えない＝増えたのは icon だけ。
   // ★裁定306-16: アイコンはメニューシートと同じ線画（NavIcon＝href キー）に統一＝文字記号の icon は撤去
+  // ★M-158／M-159（2026-11-11・裁定472）: レジはナビと同じ 1 つの関数で出し分け（出勤していないスタッフには出さず、許可されていれば案内の 1 行）
+  const regVis = await registerVisibilityServerOf(supabase, role);
   const shortcuts: { href: string; label: string }[] = [
-    { href: "/register", label: "レジ" },
+    ...(regVis.show ? [{ href: "/register", label: "レジ" }] : []),
     { href: "/shift", label: "シフト" },
     { href: "/report", label: "日報" },
     { href: "/notices", label: "お知らせ" },
@@ -56,7 +63,21 @@ export default async function DashboardPage() {
       : []),
   ];
 
+  // ★M-160（2026-11-11）: スタッフ・店長のホームに「自分のシフト」（今日と今後の確定・自分の分だけの一覧へ）＝シフトの権限が無いスタッフにも出す
+  const my = role === "staff" || role === "manager" ? await myStaffScheduleOf(supabase, cutoffOf(store)) : null;
+  const myNext = my ? [...my.tabs[0].fixed, ...my.tabs[1].fixed].slice(0, 5) : [];
   return (
+    <>
+    {my && (
+      <section className="nox-panel" data-my-shift-card={String(myNext.length)} style={{ marginBottom: 14 }}>
+        <h3>自分のシフト<Link href="/shift/mine" className="nox-link" style={{ marginLeft: "auto", fontSize: 12 }}>一覧を見る</Link></h3>
+        {myNext.length === 0 ? <p style={{ fontSize: 13, color: "var(--sub)", margin: 0 }}>確定したシフトはまだありません</p> : (
+          <ul className="nox-schedlist">{myNext.map((x) => (
+            <li key={x.id} className="nox-schedrow" data-sched="fixed"><span className="num d">{Number(x.date.slice(5, 7))}/{Number(x.date.slice(8, 10))}（{x.dow}）{x.date === my.today ? "・今日" : ""}</span><span className="num tm">{x.time}</span><span className="nox-stpill ok" style={{ fontSize: 10.5 }}>確定</span></li>
+          ))}</ul>
+        )}
+      </section>
+    )}
     <DashboardBoard
       storeId={store?.id ?? ""}
       storeName={store?.name ?? ""}
@@ -66,6 +87,9 @@ export default async function DashboardPage() {
       isManagerUp={isManagerUp} // ★N4-3
       casts={(casts ?? []) as { id: string; name: string; photo_updated_at: string | null; store_id: string }[]}
       shortcuts={shortcuts}
+      registerNote={regVis.note}
     />
+    {mig0201On() && (role === "staff" || role === "manager") && <section style={{ marginTop: 14 }}><PinSelfCard kind="staff" /></section>}{/* ★0201（M-133）: 本人の PIN 変更（店長・スタッフ＝staff_pin） */}
+    </>
   );
 }

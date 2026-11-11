@@ -10,7 +10,8 @@ import { createClient } from "@/lib/supabase/server";
 import { bizDateOf, bizDateRange } from "@/lib/nox/biz-date";
 import PayslipSlip from "@/components/payslip-slip";
 import { okuriModeOf } from "@/lib/nox/shift/okuri-mode"; // ★裁定414（S-4）
-import { mig0185On, mig0196On, mig0198On, rules0175On } from "@/lib/nox/rules-0175/flag";
+import { mig0185On, mig0196On, mig0198On, mig0201On, rules0175On } from "@/lib/nox/rules-0175/flag";
+import PinSelfCard from "@/components/nox/pin-self-card"; // ★0201（M-133）: 本人の PIN 変更
 import { dayDedAppliedTextOf } from "@/lib/nox/payroll/day-ded-pick"; // ★裁定468 追補（M-127）: ボタンを出さない店でも「店が付けました」は残す // ★便 P175-prep P-4 ★QR 便: mig0185On
 import AvailabilityEditor from "@/components/nox/availability-editor"; // ★便 P175-prep P-4（裁定397＋413）
 import { wageNowOf } from "@/lib/nox/cast/wage-now"; // ★便 P174 T-5（GV-55／56）
@@ -494,6 +495,7 @@ export default async function MinePage({ searchParams }: { searchParams?: Promis
         </section>
       )}
 
+      {mig0201On() && <section className="nox-panel"><PinSelfCard kind="cast" /></section>}{/* ★0201（M-133）: 本人の PIN 変更（キャスト＝cast_pin＝店の端末の打刻） */}
     </div>
   );
 }

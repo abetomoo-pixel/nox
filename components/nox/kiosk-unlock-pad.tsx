@@ -11,6 +11,7 @@ import Toast from "@/components/ui/toast";
 import { mig0185On, mig0190On } from "@/lib/nox/rules-0175/flag";
 import { browserDeviceFp } from "@/lib/nox/kiosk/device-fp"; // ★M-110（2026-11-06・0196 フラグ便）: 束縛済み端末の印
 import KioskQrDisplay from "@/components/nox/kiosk-qr-display";
+import PinPad from "@/components/nox/pin-pad"; // ★M-154
 import { unlockNextOf, type UnlockResult } from "@/lib/nox/rules-0175/kiosk";
 
 type Cand = { membership_id: string; name: string; role: string };
@@ -39,7 +40,6 @@ export default function KioskUnlockPad({ onUnlocked }: { onUnlocked: (r: { membe
     if (error) { setMsg("この端末は現在使用できません（0175 適用前か店に確認）"); setPin(""); return; }
     await handle(data as UnlockResult);
   }
-  const keyBtn: React.CSSProperties = { ...t.btnGhost, fontSize: 24, fontWeight: 800, padding: "14px 0", borderRadius: 12 };
   return (
     <div style={{ maxWidth: 380, margin: "0 auto" }} data-kiosk-unlock="1" data-kiosk-unlock-tab={tab}>
       {qrOk && (
@@ -54,17 +54,11 @@ export default function KioskUnlockPad({ onUnlocked }: { onUnlocked: (r: { membe
         <>
           <p style={{ textAlign: "center", fontSize: 15, fontWeight: 800, margin: "0 0 4px" }}>PIN を入力してください</p>
           <p style={{ textAlign: "center", ...t.sub, margin: "0 0 14px" }}>誰かを選ぶ必要はありません（PIN で本人を特定します）</p>
-          <div style={{ display: "flex", justifyContent: "center", gap: 12, marginBottom: 16 }}>
-            {[0, 1, 2, 3, 4, 5].map((i) => <span key={i} style={{ width: 16, height: 16, borderRadius: 999, border: "1px solid var(--line2)", background: i < pin.length ? "var(--gold)" : "transparent", opacity: i >= 4 && pin.length <= 4 ? 0.35 : 1 }} />)}
+          <PinPad value={pin} onChange={setPin} />{/* ★M-154（2026-11-11）: 出退勤と同じ共通部品 */}
+          <div className="nox-pinpad-go">
+            <button disabled={pin.length < 4 || busy} onClick={() => void unlockPin()} data-kiosk-unlock-go="1"
+              style={{ ...t.btnGold, opacity: pin.length >= 4 ? 1 : 0.4 }}>解除</button>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
-            {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((d) => <button key={d} style={keyBtn} onClick={() => setPin((p) => (p.length >= 6 ? p : p + d))}>{d}</button>)}
-            <button style={{ ...keyBtn, fontSize: 15, color: "var(--sub)" }} onClick={() => setPin("")}>クリア</button>
-            <button style={keyBtn} onClick={() => setPin((p) => (p.length >= 6 ? p : p + "0"))}>0</button>
-            <button style={{ ...keyBtn, fontSize: 20, color: "var(--sub)" }} onClick={() => setPin((p) => p.slice(0, -1))}>⌫</button>
-          </div>
-          <button disabled={pin.length < 4 || busy} onClick={() => void unlockPin()} data-kiosk-unlock-go="1"
-            style={{ ...t.btnGold, width: "100%", marginTop: 16, padding: "16px 0", fontSize: 18, fontWeight: 900, borderRadius: 14, opacity: pin.length >= 4 ? 1 : 0.4 }}>解除</button>
         </>
       )}
       {cands && (

@@ -9,6 +9,8 @@ import MasterPageHead from "../master-page-head";
 import LineConfigPanel from "../line-config-panel"; // ★便 ON-3（0176 ★1 401）: LINE 連携と送信数
 import { systemUsageOf } from "@/lib/nox/store-systems";
 import { storeProfileTabOf } from "@/lib/nox/master/nav";
+import PunchRulesPanel from "../punch-rules-panel"; // ★0201（裁定474）: 打刻の設定
+import { mig0201On } from "@/lib/nox/rules-0175/flag";
 
 export const dynamic = "force-dynamic";
 
@@ -77,7 +79,8 @@ export default async function MasterStoreProfilePage({ searchParams }: { searchP
           <StoreProfilePanel stores={stores} isOwner={isOwner} sections={["ar", "timeBasis"]} />
           {isOwner && <FeatureFlagsPanel stores={stores} />}
           {/* ★裁定326-1／326-8（便 M1-2）→ 330 追補1: キャスト画面の設定＝店舗設定 ＞ 利用機能（owner／manager 自店＝RPC set_store_mine_settings の判定と同じ） */}
-          <MineSettingsPanel stores={stores} isOwner={isOwner} />{/* ★便 P173（裁定389）: レジ使用・操作端末は owner だけ切替 */}
+          <MineSettingsPanel stores={stores} isOwner={isOwner} />
+          {mig0201On() && <PunchRulesPanel stores={stores} isOwner={isOwner} />}{/* ★0201（裁定474・フラグ便）: 打刻の設定（判定・方法・位置・Wi-Fi・予定外）＝店長の打刻の許可は 0201c のフラグ便で出す */}{/* ★便 P173（裁定389）: レジ使用・操作端末は owner だけ切替 */}
         </>
       )}
       {tab === "info" && <StoreProfilePanel stores={stores} isOwner={isOwner} sections={["profile", "shift", "ops"]} />}{/* ★0164（便 W5-2a）: 会計と運用＝列 7 つ */}

@@ -45,7 +45,7 @@ const src = (p: string) => fs.readFileSync(p, "utf8");
     mp.includes('.select("id, date, start_hm, end_hm, status, wish_id")') && mp.includes("<ScheduleCard tabs={scheduleTabs} />") && !mp.includes("直近のシフト") && !mp.includes("MINE_RECENT_SHIFT_LIMIT"));
   {
     const sc = fs.readFileSync("app/mine/schedule-card.tsx", "utf8");
-    check("ws(3-4) /mine 出勤予定: proposed は「確認する」ボタンのまま・確認待ちは薄い色と印", sc.includes("{x.proposed && <ShiftConfirmButton shiftId={x.id} />}") && sc.includes('className={`nox-schedrow${x.kind === "pending" ? " pending" : ""}`}'));
+    check("ws(3-4) /mine 出勤予定: proposed は「確認する」ボタンのまま・確認待ちは薄い色と印", sc.includes("{x.proposed && !readOnly && <ShiftConfirmButton shiftId={x.id} />}") /* ★M-160（2026-11-11）: スタッフの「自分のシフト」で使い回すとき（readOnly）だけ出さない＝/mine は今のまま */ && sc.includes('className={`nox-schedrow${x.kind === "pending" ? " pending" : ""}`}'));
   }
   check("ws(3-5) wish-calendar: accepted 採用・rejected 見送り（旧 承認／却下は無い）", wishMarkOf("accepted") === "採用" && wishMarkOf("rejected") === "見送り" && wishMarkOf("pending") === "審査中");
 }
