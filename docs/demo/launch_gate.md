@@ -1,4 +1,4 @@
-# ローンチゲート（本番で最後に確認する項目・2026-11-06 夜便レーン 6 で起草・2026-11-09 夜に状態を更新）
+# ローンチゲート（本番で最後に確認する項目・2026-11-06 夜便レーン 6 で起草・2026-11-11 朝に状態を更新）
 
 本番＝Supabase ref **hiqbfagmkrdpmlqhkmsu**・Vercel 本番ドメイン **https://noxapp.jp**（nox-kappa-eight.vercel.app は fallback）。「誰が」＝Agoora（手貼り・実機・外部サービスの画面）／相談役（合図・文面・裁定）／CC（verify・reset・撮影・読取）。期待値は実測で埋める（本書は 1 枚＝済んだら「済（日付）」に書き換える・正本は台帳の「次の番号」）。
 
@@ -6,9 +6,9 @@
 
 | # | 項目 | 誰が | どこで | 期待値 | 状態 |
 |---|---|---|---|---|---|
-| 1 | mig 0001〜0197b が本番に適用済み（手貼りの検証行が期待値と全行一致） | Agoora（手貼り）／CC（突合） | Supabase › SQL Editor／verify:nox-0196・0197・grants | 関数 419・表 120・0196 22 行／0197 17 行／0197b 6 行一致 | 済（2026-11-10）＝0001〜0199 適用済み（0198＝11/09・0199＝11/10 Agoora 手貼り・検証 9 行一致・関数 422／表 120 不変） |
-| 2 | client のフラグ＝lib/nox/rules-0175/flag.ts の MIG_*_APPLIED が本番の mig と一致（0183〜0197 true・0198 false） | CC | verify:nox-bene／benf／0195〜0197（フラグの pin） | f0 緑 | 済（2026-11-10・0199 まで true＝0199 フラグ便） |
-| 3 | f0 の基準線＝2 連緑（段数・件数・golden 5931／125802） | CC | docs/tmp/f0_*.log＋f0_count.cjs | 最新の 2 連緑と同じ段数・件数 | 済（2026-11-09 夜）＝f0 2 連緑 AP／AQ（178 段 7,460・golden 5931／125802） |
+| 1 | mig 0001〜0200b が本番に適用済み（手貼りの検証行が期待値と全行一致） | Agoora（手貼り）／CC（突合） | Supabase › SQL Editor／verify:nox-0200・grants | 関数 427・表 121・0199 9 行／0200 31 行／0200b 7 行一致 | 済（2026-11-11 実測）＝0001〜0200b 適用済み（0199・0200・0200b＝11/10 Agoora 手貼り・関数 427／表 121＝11/11 01:2x の read only）。0201・0201b は相談役の合図待ち（適用後にこの行を更新） |
+| 2 | client のフラグ＝lib/nox/rules-0175/flag.ts の MIG_*_APPLIED が本番の mig と一致（0183〜0200 true・0201 は未設置） | CC | verify:nox-0200 ほか（フラグの pin） | f0 緑 | 済（2026-11-11 確認＝MIG_0199／MIG_0200 true＝0200 フラグ便 217ab52） |
+| 3 | f0 の基準線＝2 連緑（段数・件数・golden 5931／125802） | CC | docs/tmp/f0_*.log＋f0_count.cjs | 最新の 2 連緑と同じ段数・件数 | 済（2026-11-11）＝f0 2 連緑 f0_dow_2／f0_dow_3（189 段 7,729・golden 5931／125802・9d59112） |
 | 4 | 6 店 reset が noxapp.jp の route で 6/6 ok（Vault nox_demo_reset_url の host＝noxapp.jp） | CC | docs/tmp/on1_reset.mjs | muse／luna／noir／ace／lily／nest＝200 ok | 済（2026-11-09 19:42 ほか＝6/6・ACE の wipe 500 は M-122 で解消） |
 | 5 | 無人 reset（pg_cron 06:05〜・Vercel Cron 03:00／05:00）が翌朝 200 | CC（翌朝読取） | cron.job_run_details・net._http_response・Vercel Logs | status 200・6 店＋retry・expire-trials／billing-reminders 200 | 済（2026-11-10 CC 読取）＝06:05〜06:15 の 6 店（muse／luna／noir／ace／lily／nest）すべて pg_cron succeeded・http 200（count 1・retry false）・06:35 の retry 200・05:15 demo-entries-purge／06:20 shift-periods-close（closed 1）も 200＝M-122 の先掃除の後の初回無人 reset OK |
 | 6 | vercel.app → noxapp.jp の 308（旧 URL の GET が 308 で noxapp.jp に飛ぶ・/r/<token> の領収書 QR も） | Agoora（Vercel › Domains）／CC（curl） | Vercel › Settings › Domains／curl -I | `curl -I https://nox-kappa-eight.vercel.app/login` が 308・Location が noxapp.jp | 未（§4 手順 8） |
@@ -25,7 +25,7 @@
 | 17 | デモ 6 店の punch_mode／pick ルール＝gen-demo の最新 payload で reset（M-115 のヘアメ代・ACE の承認待ち 1 件） | CC | reset → /mine・ホーム | チェック群・要承認の行が出る | 済（2026-11-09 19:42 の reset 後＝ヘアメ代の pick・承認待ち） |
 | 18 | 0198（貸付台帳）＝起草・試走・handpaste まで（適用は相談役の合図）→ 適用後にフラグ便 | 相談役（合図）／Agoora（手貼り）／CC | docs/demo/handpaste_0198.md | 試走 BEGIN…ROLLBACK・DB 変更 0 | **済（2026-11-09）＝0198 本番適用→フラグ true 便（verify:nox-0198 28）・M-123（同意未／返済済）** |
 | 19 | 0199（★1 LINE 通知の種類ごとの保存＝set_store_profile の白名単 line_notify／★2 裁定466＝キオスクの本人セッションに cast ∧ can_register ∧ 店 ≥2）＝2 関数だけ・関数数不変 | 相談役（SQL の照合と合図）／Agoora（手貼り）／CC（フラグ便） | docs/demo/handpaste_0199.md・docs/tmp/0199_line_notify.sql | 事前確認＝md5 2 本・検証 9 行が期待値と全行一致 | **済（2026-11-10）＝Agoora 手貼り・再検証 9 行全一致（proof 10／fn 422／1／yes／yes／0/1／0／yes／0/0/1）→ CC の 0199 フラグ便（MIG_0199_APPLIED=true・verify:nox-0199・M-114 の保存・M-125）** |
-| 20 | 特定商取引法に基づく表示のページ（事業者名＝株式会社レクソル・住所・連絡先・販売価格・支払方法と時期・提供時期・解約／返金）＋ LP・フッター・課金画面からのリンク | 相談役と Agoora（文面）／CC（ページとリンク） | /legal/tokushoho（案） | 公開ページで全項目が読める・リンク 3 か所 | **未（2026-11-10 読取＝ページが無い）→ 同日 文面確定（販売事業者＝株式会社レクソル・運営責任者・所在地・電話・support@noxapp.jp・価格は 1 店舗あたり月額 29,800 円＝税の表示だけ【税別／税込】の印のまま・支払時期＝毎月 1 日・解約は月末まで・返金なし ほか）＝CC がページとリンク（LP フッター・課金画面・お申し込み・デモの入口のフッター）を作る** |
+| 20 | 特定商取引法に基づく表示のページ（事業者名＝株式会社レクソル・住所・連絡先・販売価格・支払方法と時期・提供時期・解約／返金）＋ LP・フッター・課金画面からのリンク | 相談役と Agoora（文面）／CC（ページとリンク） | /legal/tokushoho | 公開ページで全項目が読める・リンク 3 か所 | **ページとリンクは済（2026-11-10 夜便 f712d11）**＝/legal/tokushoho（正本 lib/nox/legal/tokushoho.ts）・販売事業者＝株式会社レクソル・価格は 1 店舗あたり**月額 29,800 円（税込）／年額 288,000 円（税込）**で確定・支払時期＝毎月 1 日・解約は月末まで・返金なし ほか・リンク＝LP フッター・課金画面（お申し込み）・デモの入口のフッター。**残り＝利用規約の「当社」の表記（版 0.9 のまま・再同意の要否は相談役）** |
 
 ## 使い方
 - 上から順に埋める。「未」の行は domain_switch.md §4 の手順番号と対応（6→手順 8・7→1・2・12→5・13→6・16→7）。
