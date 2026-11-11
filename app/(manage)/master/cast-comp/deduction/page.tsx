@@ -3,11 +3,13 @@ import { okuriModeOf, okuriFlatTiersOf } from "@/lib/nox/shift/okuri-mode"; // �
 import { createClient } from "@/lib/supabase/server";
 import { getSessionRole } from "@/lib/nox/auth";
 import DeductionBoard from "./deduction-board";
+import { managePageGate } from "@/lib/nox/nav/page-gate";
 
 export const dynamic = "force-dynamic";
 
 // 控除・送りの設定（D2-3）。okuri_mode/okuri_base と casts の読みは master/page.tsx の旧実装を移設。
 export default async function CastCompDeductionPage() {
+  await managePageGate(); // ★教訓142（2026-11-11）: 柵（キャストの入場・規約・初期設定）はページの先頭で＝画面の移動でも効く
   const { role } = await getSessionRole();
   const isManagerUp = role === "owner" || role === "manager";
   if (!isManagerUp) redirect("/dashboard");

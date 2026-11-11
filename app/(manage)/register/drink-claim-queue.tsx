@@ -109,7 +109,7 @@ export default function DrinkClaimQueue() {
   const btnGhost: React.CSSProperties = { ...t.btnGhost, ...t.btnSm };
 
   return (
-    <section className="nox-cardtop" style={{ ...card, width: "100%" }}>
+    <section id="drink-claim-queue" className="nox-cardtop" style={{ ...card, width: "100%" }}>{/* ★M-170: 要承認カードからの行き先 */}
       <h2 style={t.cardTitle}>
         ドリンク申告（承認待ち {claims.length}件）
       </h2>

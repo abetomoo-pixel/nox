@@ -3,6 +3,7 @@ import { deniedHrefOf } from "@/lib/nox/nav/denied"; // ★M-169
 import { createClient } from "@/lib/supabase/server";
 import { getSessionRole } from "@/lib/nox/auth";
 import AnalyticsBoard from "./analytics-board";
+import { managePageGate } from "@/lib/nox/nav/page-gate";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +15,7 @@ export const dynamic = "force-dynamic";
 // （is_active で絞らない＝退店 cast の過去実績も名前を出す。ranking は RPC が cast_name を返す）
 // 兼 section3 主要客リストの cast select 候補（B-2・store_id∧is_active でクライアント絞り）。
 export default async function AnalyticsPage() {
+  await managePageGate(); // ★教訓142（2026-11-11）: 柵（キャストの入場・規約・初期設定）はページの先頭で＝画面の移動でも効く
   const { role } = await getSessionRole();
   if (!role) redirect("/login");
   if (role !== "owner" && role !== "manager") redirect(deniedHrefOf("analytics")) /* ★M-169: レジではなくホームへ・理由を 1 行 */;

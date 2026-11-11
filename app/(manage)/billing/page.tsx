@@ -6,6 +6,7 @@ import { isStripeConfigured, getStripe } from "@/lib/stripe/client";
 import { contractAmountFromItem, contractAmountLabel, withDiscountLabel } from "@/lib/billing/amount";
 import { discountedTotalOf } from "@/lib/billing/nox-stripe";
 import BillingBoard, { type BillingView } from "./billing-board";
+import { managePageGate } from "@/lib/nox/nav/page-gate";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +16,7 @@ export const dynamic = "force-dynamic";
 //     未接続/失敗/明細欠落は amount.ts の degrade ラベル（"—"）に落とす（画面は必ず出る）。
 //   ★billingGate は噛ませない＝失効中でも復帰できる必要がある（route 側 _owner.ts と同じ理由）。
 export default async function BillingPage() {
+  await managePageGate(); // ★教訓142（2026-11-11）: 柵（キャストの入場・規約・初期設定）はページの先頭で＝画面の移動でも効く
   const { role, roleRaw } = await getSessionRole();
   if (!role) redirect("/login");
   if ((rules0175On() ? roleRaw : role) !== "owner") redirect("/dashboard"); // ★追補 3 R-8（裁定425 候補）: 契約と請求はオーナー本人だけ（管理者は不可＝RLS org_billing_select も auth_role_raw）

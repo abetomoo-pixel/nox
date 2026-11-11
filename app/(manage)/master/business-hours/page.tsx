@@ -4,6 +4,7 @@ import { getSessionRole } from "@/lib/nox/auth";
 import BusinessHoursPanel from "../business-hours-panel";
 import StaffShiftPanel from "../staff-shift-panel"; // ★C層② 面 a（設計書 v1 §4・flag off＝節ごと不在）
 import MasterPageHead from "../master-page-head";
+import { managePageGate } from "@/lib/nox/nav/page-gate";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +27,7 @@ export const dynamic = "force-dynamic";
 //   ★特別日は実体が無い（mig0032 は「店×曜日」の1テーブルのみ）＝器を置いて disabled＋準備中。
 //     旧コメントの「作らない（#7 後送り）」は本裁定で上書き＝器は出す・操作はさせない。
 export default async function MasterBusinessHoursPage() {
+  await managePageGate(); // ★教訓142（2026-11-11）: 柵（キャストの入場・規約・初期設定）はページの先頭で＝画面の移動でも効く
   const { role } = await getSessionRole();
   const isManagerUp = role === "owner" || role === "manager";
   if (!isManagerUp) redirect("/dashboard");

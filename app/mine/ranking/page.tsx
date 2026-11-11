@@ -56,7 +56,7 @@ export default async function RankingPage({ searchParams }: { searchParams?: Pro
         <h1 style={t.pheadH1}>ランキング（{period}）</h1>
         <p style={t.pheadP}>{axis === "sales" ? "売上（按分）によるランキングです。" : "指名件数によるランキングです。"}{rankMode === "self" ? `（自分の順位のみ・${allRows.length}人中）` : ""}</p>{/* ★裁定363: 既定＝売上 */}
         <p style={{ fontSize: 12, margin: "6px 0 0" }} data-rank-axis={axis}>{axis === "sales" ? <a href="/mine/ranking?axis=nom" className="nox-link">本指名件数で見る ›</a> : <a href="/mine/ranking" className="nox-link">売上で見る ›</a>}</p>{/* ★裁定346: self は他人の名前を出さない */}
-        {mySales && (/* ★裁定346 追補1（0171）: 売上軸の自分の順位（self・top とも自分の行だけ・他人の金額は出ない） */
+        {axis === "sales" && mySales && (/* ★M-168（2026-11-11 夜）: 本指名件数に切り替えたら売上の順位は出さない（選んだ指標を主表示に）・★裁定346 追補1（0171）: 売上軸の自分の順位（self・top とも自分の行だけ・他人の金額は出ない） */
           <p style={{ fontSize: 13, margin: "6px 0 0" }} data-sales-rank={mySales.rank}>
             売上の順位: <b className="num">{mySales.rank}位</b> / {allRows.length}人中 <span style={{ color: "var(--sub)" }}>（自分の按分売上 ¥{mySales.sales.toLocaleString()}・他の人の額は出ません）</span>
           </p>

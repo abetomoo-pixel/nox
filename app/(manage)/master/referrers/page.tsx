@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getSessionRole } from "@/lib/nox/auth";
 import ReferrersBoard, { type Referrer, type MemberOpt } from "./referrers-board";
+import { managePageGate } from "@/lib/nox/nav/page-gate";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +12,7 @@ export const dynamic = "force-dynamic";
 //   （owner ∨ manager 自店・課金ゲート）と 3 表の SELECT RLS（cast 0 行）。
 // 取得は「このページが描くのに要る分だけ」: referrers（一覧・編集）＋ memberships（staff 紹介者の所属候補・cast を除く）＋ storeId。
 export default async function MasterReferrersPage() {
+  await managePageGate(); // ★教訓142（2026-11-11）: 柵（キャストの入場・規約・初期設定）はページの先頭で＝画面の移動でも効く
   const { role } = await getSessionRole();
   const isManagerUp = role === "owner" || role === "manager";
   if (!isManagerUp) redirect("/dashboard");

@@ -11,6 +11,7 @@ import SensitiveTaxPanel from "../sensitive-tax-panel";
 import Link from "next/link"; // ★裁定330（便 MC2）: 機能の公開は店舗設定 ＞ 利用機能へ（案内行のリンク）
 import MasterPageHead from "../master-page-head";
 import SystemBoard, { type SystemTab } from "./system-board";
+import { managePageGate } from "@/lib/nox/nav/page-gate";
 
 export const dynamic = "force-dynamic";
 
@@ -36,6 +37,7 @@ export const dynamic = "force-dynamic";
 //   casts（機密・税務パネルの対象一覧）。
 //   ★products / product_categories / stock / seats はこのページが描かないので取らない。
 export default async function MasterSystemPage() {
+  await managePageGate(); // ★教訓142（2026-11-11）: 柵（キャストの入場・規約・初期設定）はページの先頭で＝画面の移動でも効く
   const { role } = await getSessionRole();
   const isManagerUp = role === "owner" || role === "manager";
   const canDevices = isOwner0194(role); // ★0194（裁定444 ①②）: 店長（自店）にも端末の発行・削除とレシートの店情報

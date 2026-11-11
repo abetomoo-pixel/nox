@@ -142,7 +142,7 @@ export default function DrinkClaimForm({ month }: { month: string }) {
         </div>
       ))}
       <p style={{ ...noteP, marginTop: 8 }}>
-        ※申告ドリンクのバックは承認後、給与明細に合算されます（上の「今月のバック」とは別枠の集計です）。
+        ※申告ドリンクのバックは承認後、給与明細に合算されます（給与明細の「ドリンクバック」の行に含まれます）。
       </p>
     </section>
   );

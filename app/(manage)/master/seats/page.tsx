@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getSessionRole } from "@/lib/nox/auth";
 import SeatsBoard from "./seats-board";
+import { managePageGate } from "@/lib/nox/nav/page-gate";
 import { hiddenKindsOf } from "@/lib/nox/floor-kinds"; // ★0164（便 W5-2a）
 
 export const dynamic = "force-dynamic";
@@ -17,6 +18,7 @@ export const dynamic = "force-dynamic";
 //   ★products / product_categories / stock_logs はこのページが描かないので取らない
 //     （旧 master-board は同じ load() で4系統をまとめて取っていた＝ハブ側に残す）。
 export default async function MasterSeatsPage() {
+  await managePageGate(); // ★教訓142（2026-11-11）: 柵（キャストの入場・規約・初期設定）はページの先頭で＝画面の移動でも効く
   const { role } = await getSessionRole();
   const isManagerUp = role === "owner" || role === "manager";
   if (!isManagerUp) redirect("/dashboard");

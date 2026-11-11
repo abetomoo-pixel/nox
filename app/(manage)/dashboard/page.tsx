@@ -8,6 +8,7 @@ import PinSelfCard from "@/components/nox/pin-self-card"; // ★0201（M-133）
 import Link from "next/link";
 import { myStaffScheduleOf } from "@/lib/nox/staff/my-shift-server"; // ★M-160
 import { mig0201On } from "@/lib/nox/rules-0175/flag";
+import { managePageGate } from "@/lib/nox/nav/page-gate";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +18,7 @@ export const dynamic = "force-dynamic";
 // IP 管理カード（モック dashboard 先頭）は E3+E2（N1-d）で追加＝ここでは作らない。
 // cast は (manage) layout が /mine へ戻すが、直 render 防止に page でも弾く（防御は二重・真の防御は RLS）。
 export default async function DashboardPage({ searchParams }: { searchParams?: Promise<{ denied?: string }> }) {
+  await managePageGate(); // ★教訓142（2026-11-11）: 柵（キャストの入場・規約・初期設定）はページの先頭で＝画面の移動でも効く
   const deniedNote = deniedNoteOf((await searchParams)?.denied); // ★M-169: 見られない画面を直接開いた＝理由を 1 行
   const { role } = await getSessionRole();
   if (!role) redirect("/login");

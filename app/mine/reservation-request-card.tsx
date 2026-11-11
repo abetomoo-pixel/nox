@@ -41,7 +41,7 @@ export default function ReservationRequestCard({ storeId, bizToday }: { storeId:
     const { data: cs } = await supabase.from("customers").select("id, name, tel").eq("is_active", true).order("name");
     setCustomers((cs ?? []) as Customer[]);
     // 自分の申請＝requested_by_cast が入っている行（RLS＝cast_id が自分の行）
-    const { data: rs } = await supabase.from("reservations").select("id, reserved_at, nom_type, status, rejected_reason, guest_name, customers(name)").not("requested_by_cast", "is", null).order("reserved_at", { ascending: false }).limit(40);
+    const { data: rs } = await supabase.from("reservations").select("id, reserved_at, nom_type, status, rejected_reason, guest_name, party_size, customers(name)").not("requested_by_cast", "is", null).order("reserved_at", { ascending: false }).limit(40);
     setRows(rsvRequestRowsOf((rs ?? []) as unknown as RsvRequestRow[]));
     setLoaded(true);
   }, []);
@@ -81,7 +81,7 @@ export default function ReservationRequestCard({ storeId, bizToday }: { storeId:
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }} data-rsv-guest="1">
               <input value={guestName} onChange={(e) => setGuestName(e.target.value)} maxLength={40} placeholder="お客様の呼び名（例: 田中様）" style={{ ...input, flex: "1 1 180px" }} aria-label="お客様の呼び名" />
               <NumStepper value={Math.max(1, Number(partySize) || 1)} onChange={(n) => setPartySize(String(n))} min={1} max={20} unit="名" ariaLabel="人数" disabled={busy} dataKey="data-rsv-party" />{/* ★便 D M-107: −／＋のステッパー（1〜20・直接入力も可） */}
-              <span style={{ flexBasis: "100%", fontSize: 11.5, color: "var(--sub)" }}>来店時にお店が顧客カルテに紐づけ、あなたの担当客に登録されます。</span>
+              <span style={{ flexBasis: "100%", fontSize: 11.5, color: "var(--sub)" }} data-rsv-party-note="1">人数は希望です。お店が確定します。来店時にお店が顧客カルテに紐づけ、あなたの担当客に登録されます。</span>
             </div>
           ) : (
           <Picker dense items={customers.map((c) => ({ id: c.id, label: c.name, sublabel: c.tel ?? undefined }))} value={customerId || null}
@@ -107,6 +107,7 @@ export default function ReservationRequestCard({ storeId, bizToday }: { storeId:
                 <span className="num" style={{ fontWeight: 700 }}>{rsvWhenLabelOf(r.reserved_at)}</span>
                 {(() => { const nm = rsvRowNameOf(r as RsvRequestRow & { guest_name?: string | null }); return <span style={{ fontWeight: 700 }}>{nm.name}{nm.isNew && <span className="nox-stpill" style={{ marginLeft: 6, fontSize: 10 }} data-rsv-new="1">{RSV_NEW_BADGE}</span>}</span>; })()}{/* ★便 M-4: 新規客は呼び名＋「新規」 */}
                 <span style={{ color: "var(--sub)" }}>{NOM_LABEL[r.nom_type ?? ""] ?? ""}</span>
+                {(r as { party_size?: number | null }).party_size != null && <span className="num" style={{ color: "var(--sub)" }} data-rsv-party-row="1">{(r as { party_size?: number | null }).party_size}名</span>}{/* ★M-165（2026-11-11 夜）: 自分の申請に人数 */}
                 <span style={pill(r.status)}>{RSV_REQ_STATUS_LABEL[r.status] ?? r.status}</span>
               </div>
               {r.status === "rejected" && r.rejected_reason && <div style={{ fontSize: 12, color: "var(--sub)", marginTop: 2 }}>理由: {r.rejected_reason}</div>}

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getSessionRole } from "@/lib/nox/auth";
 import ShiftBoard from "./shift-board";
+import { managePageGate } from "@/lib/nox/nav/page-gate";
 import { isSystemOn } from "@/lib/nox/store-systems"; // ★GV-3: sys_penalties
 
 export const dynamic = "force-dynamic";
@@ -10,6 +11,7 @@ export const dynamic = "force-dynamic";
 // シフト管理（staff=閲覧＋出勤板のみ・manager 以上=採否/確定/必要人数）。
 // F1 は先頭店固定（owner のマルチ店舗切替は F4）。
 export default async function ShiftPage() {
+  await managePageGate(); // ★教訓142（2026-11-11）: 柵（キャストの入場・規約・初期設定）はページの先頭で＝画面の移動でも効く
   const supabase = await createClient();
   const { role } = await getSessionRole();
   // ★裁定381（GV-B W-10）: staff はシフト権限（memberships.can_shift）が無ければ /shift を開かない（/customers の can_crm と同型・真の防御は RLS／RPC）

@@ -3,6 +3,7 @@ import { getSessionRole } from "@/lib/nox/auth";
 import { redirect } from "next/navigation";
 import { registerVisibilityServerOf } from "@/lib/nox/register/register-visibility-server"; // ★M-159 追記
 import RegisterBoard from "./register-board";
+import { managePageGate } from "@/lib/nox/nav/page-gate";
 import { seatsVisibleOf } from "@/lib/nox/floor-kinds"; // ★0164（便 W5-2a）
 import { castRegisterLevelOf } from "@/lib/nox/rules-0175/cast-register"; // ★裁定473
 
@@ -13,6 +14,7 @@ export const dynamic = "force-dynamic";
 // F3a-3: 予約タブ（canonical の register 3タブ目）。表示は owner/manager/staff(can_crm)＝
 // 表示制御は利便・真の防御は reservations RLS と予約 RPC ゲート。cast は layout で /mine へ。
 export default async function RegisterPage() {
+  await managePageGate(); // ★教訓142（2026-11-11）: 柵（キャストの入場・規約・初期設定）はページの先頭で＝画面の移動でも効く
   const supabase = await createClient();
   const { role } = await getSessionRole();
   // ★M-159 追記（2026-11-11・外部レビュー 4）: レイアウトは画面の移動で描き直さない＝layout の柵はホームのリンクからの移動で効かなかった（開卓で初めて off duty）。

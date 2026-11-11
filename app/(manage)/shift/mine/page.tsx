@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getSessionRole } from "@/lib/nox/auth";
 import ScheduleCard from "@/app/mine/schedule-card";
 import { myStaffScheduleOf } from "@/lib/nox/staff/my-shift-server";
+import { managePageGate } from "@/lib/nox/nav/page-gate";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +12,7 @@ export const dynamic = "force-dynamic";
 //   シフトの権限（can_shift）が無いスタッフも開ける＝シフトの全体の表は見えないまま（/shift は今までどおり権限で出し分け）。キャストは /mine。
 //   置き場は /shift/mine（ナビの「シフト」に当たる＝verify:nox-m2 (15-3) の「全画面がナビのどれかに当たる」）。
 export default async function MyShiftPage() {
+  await managePageGate(); // ★教訓142（2026-11-11）: 柵（キャストの入場・規約・初期設定）はページの先頭で＝画面の移動でも効く
   const { role } = await getSessionRole();
   if (role !== "staff" && role !== "manager") redirect(role === "cast" ? "/mine" : "/dashboard");
   const supabase = await createClient();

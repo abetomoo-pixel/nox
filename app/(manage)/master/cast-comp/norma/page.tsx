@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getSessionRole } from "@/lib/nox/auth";
 import NormaBoard from "./norma-board";
 import * as t from "@/lib/nox/ui/theme";
+import { managePageGate } from "@/lib/nox/nav/page-gate";
 
 export const dynamic = "force-dynamic";
 
@@ -10,6 +11,7 @@ export const dynamic = "force-dynamic";
 //   旧＝U-2（裁定101 §4）で /master/cast-comp/plan#norma へリダイレクト→上段タブが選択されず、中身は待遇プランの基本・保証のまま（GV-63）。
 //   プランごとの目標と達成ボーナスは待遇プランの下段タブ「ノルマ目標・ボーナス（プラン）」。読みは plan/page.tsx と同じ（settings_json の採用軸フラグ）。
 export default async function CastCompNormaPage() {
+  await managePageGate(); // ★教訓142（2026-11-11）: 柵（キャストの入場・規約・初期設定）はページの先頭で＝画面の移動でも効く
   const { role } = await getSessionRole();
   const isManagerUp = role === "owner" || role === "manager";
   if (!isManagerUp) redirect("/dashboard");

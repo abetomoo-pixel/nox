@@ -14,13 +14,15 @@ export type PendingSummary = {
   approvals: PendingApproval[]; wishes: PendingWishGroup[]; proposals: PendingProposal[]; missingOut: PendingMissingOut[];
   /** ★M-117: 予約の承認待ち（来店時刻の近い順・時刻超過が先頭） */
   reservations?: PendingReservation[];
+  /** ★M-170（2026-11-11 夜）: ドリンク申告の承認待ち（この人が処理できる分＝RLS が承認の権限と同じ形） */
+  drinkClaims?: number;
   /** スタッフ＝自分の申請（最新 5 件） */
   mine?: PendingApproval[];
   total: number;
 };
 
-/** 見出しの N＝予約の承認待ち（★M-117）＋割引・無料の申請＋シフト希望の未処理＋退勤記録なし（提案は数えない） */
-export const pendingTotalOf = (s: Pick<PendingSummary, "approvals" | "wishes" | "missingOut"> & { reservations?: readonly unknown[] }): number => (s.reservations?.length ?? 0) + s.approvals.length + s.wishes.reduce((a, w) => a + w.n, 0) + s.missingOut.length;
+/** 見出しの N＝ドリンク申告の承認待ち（★M-170）＋予約の承認待ち（★M-117）＋割引・無料の申請＋シフト希望の未処理＋退勤記録なし（提案は数えない） */
+export const pendingTotalOf = (s: Pick<PendingSummary, "approvals" | "wishes" | "missingOut"> & { reservations?: readonly unknown[]; drinkClaims?: number }): number => (s.drinkClaims ?? 0) + (s.reservations?.length ?? 0) + s.approvals.length + s.wishes.reduce((a, w) => a + w.n, 0) + s.missingOut.length;
 
 // ★M-117: 予約の承認待ちの純関数（表示の語・並び・時刻超過の印）
 export const RESERVATION_NOM_LABEL: Record<string, string> = { hon: "本指名", jonai: "場内", dohan: "同伴", free: "フリー" };

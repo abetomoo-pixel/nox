@@ -31,6 +31,7 @@ import LineQuotaCard from "@/components/nox/line-quota-card"; // ★便 D M-101
 // ★夜間便 N4-3（裁定282-3）: 保証時給の期限が近いキャスト（純関数・cast_plan 1 select）
 import { guaranteeNoticesOf, type PlanRowLike } from "@/lib/nox/cast/guarantee";
 import { Message } from "@/components/ui/toast";
+import Loading from "@/components/ui/loading"; // ★M-173（M-135 の共通部品）
 import SegSelect from "@/components/ui/seg-select"; // ★裁定363（GV-11・便 GV-A）: ランキングの軸切替
 import { castSalesRankingOf, RANK_AXIS_LABEL, type CastSalesRank, type CastSalesRow, type RankAxis } from "@/lib/nox/payroll/cast-sales"; // ★裁定363: 既定＝売上（按分＝給与の collect と同じ純関数）
 import { monthLastDayOf } from "@/lib/nox/month"; // ★便 X13-H H-9: 暦月の日付は 1 か所で（「-31」固定・翌月 0 日を撤去）
@@ -91,6 +92,7 @@ export default function DashboardBoard({ storeId, storeName, cutoff, casts, shor
   const [monthSales, setMonthSales] = useState(0);
   const [reportDays, setReportDays] = useState(0);
   const [ranking, setRanking] = useState<RankRow[]>([]);
+  const [rankLoaded, setRankLoaded] = useState(false); // ★M-173（2026-11-11 夜）: 取得の前に「データがありません」を出さない
   const [rankAxis, setRankAxis] = useState<RankAxis>("sales"); // ★裁定363: 既定＝売上（按分）・切替で本指名件数
   const [salesRanking, setSalesRanking] = useState<CastSalesRank[]>([]);
   // 段H2 追加取得（いずれも既存テーブルの素の SELECT・RLS はそのまま）
@@ -141,6 +143,7 @@ export default function DashboardBoard({ storeId, storeName, cutoff, casts, shor
     setMonthSales(reports.reduce((a, r) => a + r.cash + r.card_gross + r.uri + r.other, 0));
     setReportDays(reports.length);
     setRanking(((rk ?? []) as RankRow[]).slice(0, 5));
+    setRankLoaded(true);
     setSalesRanking(castSalesRankingOf((sr ?? []) as CastSalesRow[], (id) => casts.find((c) => c.id === id)?.name ?? "—").slice(0, 5));
     setTodayShifts((sh ?? []) as Shift[]);
     setNeeds((ns ?? []) as Need[]);
@@ -356,7 +359,8 @@ export default function DashboardBoard({ storeId, storeName, cutoff, casts, shor
           <SegSelect value={rankAxis} onChange={(v) => setRankAxis(v as RankAxis)} options={[["sales", RANK_AXIS_LABEL.sales], ["nom", "本指名件数"]] as const} ariaLabel="ランキングの軸" />
           {isManagerUp && <Link href="/analytics" className="nox-link" style={{ marginLeft: "auto", fontSize: 11, whiteSpace: "nowrap" }}>分析へ ›</Link>/* ★M-169: 分析は店長以上だけ＝見られない役割にはリンクを出さない */}
         </div>
-        {rankAxis === "sales" && salesRanking.length === 0 && <p style={{ fontSize: 12.5, color: "var(--v2-muted)", margin: 0 }}>データがありません（按分売上のある伝票なし）</p>}
+        {!rankLoaded && <div data-rank-loading="1"><Loading /></div>}
+        {rankLoaded && rankAxis === "sales" && salesRanking.length === 0 && <p style={{ fontSize: 12.5, color: "var(--v2-muted)", margin: 0 }}>データがありません（按分売上のある伝票なし）</p>}
         {rankAxis === "sales" && salesRanking.map((r) => (
           <div key={r.castId} className="nox-rk" data-rank-axis="sales">
             <span className={`nox-medal ${r.rank === 1 ? "g1" : r.rank === 2 ? "g2" : r.rank === 3 ? "g3" : "gx"}`}>{r.rank}</span>
@@ -365,7 +369,7 @@ export default function DashboardBoard({ storeId, storeName, cutoff, casts, shor
             <span className="pt num">¥{r.sales.toLocaleString()}・本指名 {r.hon}</span>
           </div>
         ))}
-        {rankAxis === "nom" && ranking.length === 0 && <p style={{ fontSize: 12.5, color: "var(--v2-muted)", margin: 0 }}>データがありません</p>}
+        {rankLoaded && rankAxis === "nom" && ranking.length === 0 && <p style={{ fontSize: 12.5, color: "var(--v2-muted)", margin: 0 }}>データがありません</p>}
         {rankAxis === "nom" && ranking.map((r) => (
           <div key={r.cast_id} className="nox-rk">
             {/* 段F の .nox-medal を再利用（1/2/3 は金銀銅・4位以降は neutral） */}

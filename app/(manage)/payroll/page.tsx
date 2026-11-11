@@ -8,6 +8,7 @@ import Link from "next/link";
 import StaffWorkPanel from "../staff/staff-work-panel";
 import AttendanceBoard from "./attendance-board"; // ★便 SH-UI-c C-2: 勤怠タブ（キャスト） // ★便 P174 T-7（356 追補1）: 給与画面のスタッフ側＝/staff の勤怠・報酬と同じ部品
 import * as t from "@/lib/nox/ui/theme";
+import { managePageGate } from "@/lib/nox/nav/page-gate";
 
 // ★便 P174 T-7（356 追補1）: 給与画面のキャスト／スタッフ切替（?who=staff・既定＝キャスト＝従来どおり）
 const whoOf = (v: unknown): "cast" | "staff" => (v === "staff" ? "staff" : "cast");
@@ -30,6 +31,7 @@ export const dynamic = "force-dynamic";
 //   その store×period を初期選択にして描く（一覧の「明細へ」＝.nox-link からの遷移・裁定238）。
 // 真の防御は payroll_finalize／payroll_reopen／payroll_mark_paid の service_role 限定＋route の manager+／owner 検証（ここは利便のリダイレクト）。
 export default async function PayrollPage({ searchParams }: { searchParams: Promise<{ mem?: string; store?: string | string[]; period?: string | string[]; who?: string | string[]; tab?: string | string[]; cast?: string | string[] }> }) {
+  await managePageGate(); // ★教訓142（2026-11-11）: 柵（キャストの入場・規約・初期設定）はページの先頭で＝画面の移動でも効く
   const { role } = await getSessionRole();
   if (!role) redirect("/login");
   if (role !== "owner" && role !== "manager") redirect(deniedHrefOf("payroll")) /* ★M-169: レジではなくホームへ・理由を 1 行 */;

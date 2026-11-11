@@ -25,10 +25,15 @@ export async function GET(req: Request) {
   try {
     const { data: me } = await supabase.from("users").select("id").eq("auth_user_id", user.id).maybeSingle();
     const myId = (me?.id as string | undefined) ?? null;
+    // ★M-170（2026-11-11 夜）: 処理できる承認待ちを全部数える＝ドリンク申告（owner／自店 manager／can_register のスタッフ）・予約の申請（owner／manager／can_crm のスタッフ）。どちらも RLS が承認の権限と同じ形＝見えた行だけ数える
+    const dcCount = async (): Promise<number> => { const { count } = await supabase.from("drink_claims").select("id", { count: "exact", head: true }).eq("store_id", storeId).eq("status", "pending"); return count ?? 0; };
     if (role === "staff") {
       const { data: mine } = myId ? await supabase.from("approvals").select("id, check_id, pay_group, type, amount, status, reason, created_at").eq("store_id", storeId).eq("requested_by", myId).order("created_at", { ascending: false }).limit(5) : { data: [] as Rec[] };
       const rows: PendingApproval[] = ((mine ?? []) as Rec[]).map((a) => ({ id: a.id as string, checkId: a.check_id as string, seatName: null, payGroup: String(a.pay_group), type: String(a.type), amount: Number(a.amount), reason: (a.reason as string | null) ?? null, requestedBy: null, createdAt: String(a.created_at), status: String(a.status) }));
-      const out: PendingSummary = { approvals: [], wishes: [], proposals: [], missingOut: [], mine: rows, total: rows.filter((r) => r.status === "pending").length };
+      let sReservations: PendingReservation[] = [];
+      try { sReservations = (await pendingReservationsOf(supabase, storeId)).pending; } catch { sReservations = []; }
+      const sDrink = await dcCount().catch(() => 0);
+      const out: PendingSummary = { approvals: [], wishes: [], proposals: [], missingOut: [], mine: rows, reservations: sReservations, drinkClaims: sDrink, total: rows.filter((r) => r.status === "pending").length + sReservations.length + sDrink };
       return NextResponse.json(out);
     }
     const { data: st } = await supabase.from("stores").select("settings_json").eq("id", storeId).maybeSingle();
@@ -66,7 +71,8 @@ export async function GET(req: Request) {
     }
     let reservations: PendingReservation[] = []; // ★M-117（2026-11-06・便 F）: 予約の承認待ち＝要承認の先頭・ベルの数に含める（今日タブと同じ取得）
     try { reservations = (await pendingReservationsOf(supabase, storeId)).pending; } catch { reservations = []; }
-    const out: PendingSummary = { approvals, wishes, proposals, missingOut, reservations, total: pendingTotalOf({ approvals, wishes, missingOut, reservations }) };
+    const drinkClaims = await dcCount().catch(() => 0);
+    const out: PendingSummary = { approvals, wishes, proposals, missingOut, reservations, drinkClaims, total: pendingTotalOf({ approvals, wishes, missingOut, reservations, drinkClaims }) };
     return NextResponse.json(out);
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });

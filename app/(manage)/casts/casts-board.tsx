@@ -825,7 +825,8 @@ export default function CastsBoard({
         <section className="nox-cardtop" style={{ ...card, marginBottom: 12 }}>
           <h3 style={{ ...secTitle, margin: "0 0 4px" }}>マイナンバーの廃棄候補</h3>
           <p style={{ ...t.sub, margin: "0 0 8px", lineHeight: 1.7 }}>
-            退店日の翌年 1 月 1 日から 7 年を過ぎ、マイナンバーの登録が残っているキャスト。廃棄は
+            {/* ★裁定483（2026-11-11）: 「法定保存期間満了」「7 年を過ぎ」の言い切りを外す（年数は店の運用の目安・判断はオーナー） */}
+            退店日の翌年 1 月 1 日から一定の年数（いまは 7 年＝お店の運用の目安）が過ぎ、マイナンバーの登録が残っているキャスト。廃棄するかはオーナーが判断します。廃棄は
             <Link href="/master/system" className="nox-link">機密・税務情報</Link>
             でキャストを選んで行います（理由必須・元に戻せません）。
           </p>

@@ -6,6 +6,7 @@ import { getSessionRole } from "@/lib/nox/auth";
 import { rules0175On } from "@/lib/nox/rules-0175/flag"; // ★追補 3 R-8
 import StaffBoard from "./staff-board";
 import { STAFF_WORK_HREF, staffTabOf } from "@/lib/nox/staff/tabs";
+import { managePageGate } from "@/lib/nox/nav/page-gate";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +17,7 @@ export const dynamic = "force-dynamic";
 // ★0172（裁定356・便 P172）: ?tab=work＝勤怠・報酬タブ（読取のみ・staff-work-panel）。既定＝一覧（従来どおり StaffBoard）。タブの解決＝lib/nox/staff/tabs.ts（page から export しない）。
 // ★M-64（2026-11-04 Agoora 決定）: 勤怠・報酬のタブは外した。正本＝給与 › 勤怠（スタッフ）（STAFF_WORK_HREF）。古い ?tab=work はそこへ redirect・一覧の上に案内のリンク 1 行。
 export default async function StaffPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
+  await managePageGate(); // ★教訓142（2026-11-11）: 柵（キャストの入場・規約・初期設定）はページの先頭で＝画面の移動でも効く
   const supabase = await createClient();
   const { role, roleRaw } = await getSessionRole();
   if (role !== "owner" && role !== "manager") redirect(deniedHrefOf("staff")) /* ★M-169: レジではなくホームへ・理由を 1 行 */;

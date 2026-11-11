@@ -55,6 +55,12 @@ export default function PendingCard({ storeId, role }: { storeId: string; role: 
     return (
       <section id={PENDING_CARD_ID} className="nox-panel nox-pending" data-pending-card="staff" style={{ marginBottom: 14 }}>
         <h2 style={{ ...t.cardTitle, margin: "0 0 4px" }}>自分の申請</h2>
+        {((data?.drinkClaims ?? 0) > 0 || (data?.reservations?.length ?? 0) > 0) && (/* ★M-170（2026-11-11 夜）: スタッフが処理できる承認待ち＝件数と行き先 */
+          <ul style={{ margin: "0 0 8px", paddingLeft: 0, listStyle: "none" }} data-pending-staff-todo="1">
+            {(data?.drinkClaims ?? 0) > 0 && <li className="nox-pending-row" data-pending-drink={data?.drinkClaims}><span className="nox-pending-l1"><span className="nox-stpill" style={{ marginRight: 6 }}>ドリンク申告</span><span className="num">{data?.drinkClaims} 件</span></span><span className="nox-pending-l2"><a href="#drink-claim-queue" className="nox-link" style={{ fontSize: 12 }}>このページの申告の一覧へ ›</a></span></li>}
+            {(data?.reservations?.length ?? 0) > 0 && <li className="nox-pending-row" data-pending-rsv-staff={data?.reservations?.length}><span className="nox-pending-l1"><span className="nox-stpill" style={{ marginRight: 6 }}>予約の申請</span><span className="num">{data?.reservations?.length} 件</span></span><span className="nox-pending-l2"><Link href="/register" className="nox-link" style={{ fontSize: 12 }}>レジの予約で確認 ›</Link></span></li>}
+          </ul>
+        )}
         {mine.length === 0 ? <p style={{ ...t.sub, margin: 0 }}>申請はありません。</p> : (
           <ul style={{ margin: 0, paddingLeft: 0, listStyle: "none" }}>{mine.map((a) => { const l = approvalLineOf(a); return <li key={a.id} className="nox-pending-row" data-pending-mine={a.id}><span className="nox-pending-l1">{l.head}</span><span className="nox-pending-l2"><span className="nox-stpill" data-pending-status={a.status}>{APPROVAL_STATUS_LABEL[a.status ?? ""] ?? a.status}</span></span></li>; })}</ul>
         )}
@@ -85,6 +91,11 @@ export default function PendingCard({ storeId, role }: { storeId: string; role: 
                 <ReservationDecide r={r} onDone={async (d) => { setMsg(d === "approve" ? "承認しました（予約として確定）" : "却下しました"); await load(); }} onError={(m) => setMsg(`処理できませんでした: ${m}`)} />
               </span>
             </li>); })}
+          {(data.drinkClaims ?? 0) > 0 && (/* ★M-170: ドリンク申告の承認待ち＝件数と行き先（承認はこのページの申告の一覧） */
+            <li className="nox-pending-row" data-pending-drink={data.drinkClaims}>
+              <span className="nox-pending-l1"><span className="nox-stpill" style={{ marginRight: 6 }}>ドリンク申告</span><span className="num">{data.drinkClaims} 件</span></span>
+              <span className="nox-pending-l2"><a href="#drink-claim-queue" className="nox-link" style={{ fontSize: 12 }}>このページの申告の一覧へ ›</a></span>
+            </li>)}
           {data.approvals.map((a) => { const l = approvalLineOf(a); return (
             <li key={a.id} className="nox-pending-row" data-pending-approval={a.id}>
               <span className="nox-pending-l1"><span className="nox-stpill" style={{ marginRight: 6 }}>割引・無料</span>{l.head}</span>

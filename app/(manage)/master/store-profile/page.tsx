@@ -11,6 +11,7 @@ import { systemUsageOf } from "@/lib/nox/store-systems";
 import { storeProfileTabOf } from "@/lib/nox/master/nav";
 import PunchRulesPanel from "../punch-rules-panel"; // ★0201（裁定474）: 打刻の設定
 import { mig0201On } from "@/lib/nox/rules-0175/flag";
+import { managePageGate } from "@/lib/nox/nav/page-gate";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +23,7 @@ export const dynamic = "force-dynamic";
 //   ★各パネルは 1 文字も変えていない（StoreProfilePanel に「どの節を描くか」の sections を足しただけ）。ページレベルでも isManagerUp を要求（master/layout.tsx の入口ガードと二重）。
 //   真の防御＝set_store_profile の owner 判定・set_store_mine_settings の owner／manager 自店・flag_set の owner・stores の RLS。
 export default async function MasterStoreProfilePage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
+  await managePageGate(); // ★教訓142（2026-11-11）: 柵（キャストの入場・規約・初期設定）はページの先頭で＝画面の移動でも効く
   const { role } = await getSessionRole();
   const isManagerUp = role === "owner" || role === "manager";
   if (!isManagerUp) redirect("/dashboard");

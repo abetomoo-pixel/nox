@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getSessionRole } from "@/lib/nox/auth";
 import { systemUsageOf } from "@/lib/nox/store-systems";
 import SystemsBoard from "./systems-board";
+import { managePageGate } from "@/lib/nox/nav/page-gate";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +12,7 @@ export const dynamic = "force-dynamic";
 //   269-3 用の使用数は cast_plan（overrides_json）と cast_norms を読んで純関数 systemUsageOf で数える（新しい判定式なし）。
 //   manager は閲覧のみ（店舗設定と同じ権限＝真の防御は set_store_profile の owner 限定）。
 export default async function CastCompSystemsPage() {
+  await managePageGate(); // ★教訓142（2026-11-11）: 柵（キャストの入場・規約・初期設定）はページの先頭で＝画面の移動でも効く
   const { role } = await getSessionRole();
   const isManagerUp = role === "owner" || role === "manager";
   if (!isManagerUp) redirect("/dashboard");

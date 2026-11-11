@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getSessionRole } from "@/lib/nox/auth";
 import ReportBoard from "./report-board";
 import { redirect } from "next/navigation";
+import { managePageGate } from "@/lib/nox/nav/page-gate";
 import { castRegisterEntryOf } from "@/lib/nox/register/cast-entry-server"; // ★教訓142・裁定481（2026-11-11）: キャストの入場はページ自体でも判定
 
 export const dynamic = "force-dynamic";
@@ -9,6 +10,7 @@ export const dynamic = "force-dynamic";
 // 日報（staff=閲覧・manager 以上=締め/再締め・★便 P173（裁定389）: レジ使用 ON のキャスト＝通常の締め）。
 // プレビュー集計はクライアント TS＋biz-date 純関数（daily_report_aggregate は内部専用のまま＝呼ばない）。
 export default async function ReportPage() {
+  await managePageGate(); // ★教訓142（2026-11-11）: 柵（キャストの入場・規約・初期設定）はページの先頭で＝画面の移動でも効く
   const supabase = await createClient();
   const { role } = await getSessionRole();
   // ★教訓142・裁定481（2026-11-11 相談役 ■1）: レイアウトは画面の移動で描き直さない＝キャストの入場（店 ON ∧ 本人の許可 ∧ 端末 ∧ 出勤中）を /report のページ自体でも判定（/register と同じ関数）。

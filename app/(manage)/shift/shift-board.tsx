@@ -451,9 +451,11 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   //     (2) cast は (manage)/layout が /mine へ戻すため本画面に到達しないが、
   //         到達しても isManagerUp=false ゆえ3箇所とも出ない（設計§3 の「cast に見せない」を構造で担保）。
   //   ★真の防御は RLS（cast は自分の cast_plan/comp_plans しか引けない）＝ここは表示ゲート。
+  // ★M-172（2026-11-11 夜・外部レビュー 3）: 予想人件費は owner／manager だけ＝シフト権限のスタッフ（isManagerUp に含まれる）は時給を RLS で読めない（0 行）＝「¥0・時給未設定 N 人」の誤り → 取得も表示もしない
+  const canSeeLabor = role === "owner" || role === "manager";
   const [comps, setComps] = useState<Record<string, ForecastComp>>({});
   const loadComps = useCallback(async () => {
-    if (!isManagerUp) return; // staff/cast は取得もしない（0行になるが呼ばない方が意図が明確）
+    if (!canSeeLabor) return; // staff/cast は取得もしない（0行になるが呼ばない方が意図が明確）・★M-172: シフト権限のスタッフも
     // ★月内 comps は「日×cast のループ」ではなく2クエリで一括取得し、全日の forecastDay で使い回す。
     //   待遇は日付に依存しないので月が変わっても取り直す必要はない（依存は isManagerUp のみ）。
     const [cpR, planR] = await Promise.all([
@@ -477,7 +479,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
     }
     setComps(next);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isManagerUp]);
+  }, [canSeeLabor]);
   useEffect(() => { void loadComps(); }, [loadComps]);
 
   const load = useCallback(async () => {
@@ -1036,7 +1038,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   //   （表示のたびに再計算しない・SELECT は loadComps の2本きり）。manager 未満は空 Map＝どこにも出ない。
   const fcByDate = useMemo(() => {
     const m = new Map<string, DayForecast>();
-    if (!isManagerUp) return m;
+    if (!canSeeLabor) return m; // ★M-172
     const byDate = new Map<string, Shift[]>();
     for (const s of shifts) {
       const list = byDate.get(s.date);
@@ -1048,7 +1050,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
       m.set(date, forecastDay(list.map((x) => ({ castId: x.cast_id, startHm: x.start_hm, endHm: x.end_hm })), comps));
     }
     return m;
-  }, [shifts, comps, isManagerUp, bhRows]); // eslint-disable-line react-hooks/exhaustive-deps -- closedDows は bhRows から毎描画で作る（★便 NR-1）
+  }, [shifts, comps, canSeeLabor, bhRows]); // eslint-disable-line react-hooks/exhaustive-deps -- closedDows は bhRows から毎描画で作る（★便 NR-1）
   const fcOf = (ymd: string) => fcByDate.get(ymd);
   const yen = (n: number) => "¥" + n.toLocaleString();
 
@@ -1584,7 +1586,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
         </div>
         {/* 段S-2: 予想人件費（今日）＝5枚目。manager 以上のみ（staff は cast_plan が 0行・cast は本画面に来ない）。
             時給未設定の cast が居たら人数を出す＝0円で混ざっていることを隠さない（設計§2）。 */}
-        {isManagerUp && todayFc && (
+        {canSeeLabor && todayFc && (
           <div className="nox-kpi2 money">
             <div className="nox-kpi2-l">予想人件費（{tdLabel}）</div>
             <div className="nox-kpi2-v num">{yen(todayFc.total)}</div>
@@ -2251,7 +2253,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                   <div className="nox-rs"><div className="l">確定人時</div><div className="v num">{Math.round(confMin / 60)}<small>h</small></div></div>
                   <div className="nox-rs">
                     <div className="l">予想人件費</div>
-                    <div className="v num">{isManagerUp ? yen(monthFcTotal) : "—"}</div>
+                    <div className="v num">{canSeeLabor ? yen(monthFcTotal) : "—"}</div>
                   </div>
                   <div className="nox-rs" data-shift-short-days-kpi={shortDays}><div className="l">不足日 <small style={{ fontWeight: 400 }}>期間のある日のうち</small></div><div className="v num">{shortDays}<small>日</small></div></div>
                   <div className="nox-rs"><div className="l">未処理希望</div><div className="v num">{pend}<small>件</small></div></div>
@@ -2299,7 +2301,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
               <b>日を押すとその日の割当が開きます。</b>
             </p>
             {/* E8-4 #4: 予想人件費の月次ロールアップ（fcByDate の表示月合算＝新規計算なし・manager 以上） */}
-            {isManagerUp && monthFcTotal > 0 && (
+            {canSeeLabor && monthFcTotal > 0 && (
               <>
                 <div className="nox-moneyrow" style={{ marginTop: 10 }}>
                   <span>予想人件費（{my}年{mm}月合計{monthFcHasUnknown ? "・時給未設定の日あり" : ""}）</span>

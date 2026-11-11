@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getSessionRole } from "@/lib/nox/auth";
 import { fetchProducts, fetchStockTotals } from "@/lib/nox/master/queries";
 import StockBoard from "./stock-board";
+import { managePageGate } from "@/lib/nox/nav/page-gate";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +18,7 @@ export const dynamic = "force-dynamic";
 //   ＋ users（履歴の記録者名解決＝/audit と同型。manager の users RLS は自店メンバー＋本人のみ
 //   ＝見えない actor は id 断片表示に落ちるだけ・fail-closed）。
 export default async function MasterStockPage() {
+  await managePageGate(); // ★教訓142（2026-11-11）: 柵（キャストの入場・規約・初期設定）はページの先頭で＝画面の移動でも効く
   const { role } = await getSessionRole();
   const isManagerUp = role === "owner" || role === "manager";
   if (!isManagerUp) redirect("/dashboard");

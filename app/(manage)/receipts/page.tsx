@@ -3,12 +3,14 @@ import { deniedHrefOf } from "@/lib/nox/nav/denied"; // ★M-169
 import { createClient } from "@/lib/supabase/server";
 import { getSessionRole } from "@/lib/nox/auth";
 import ReceiptsBoard from "./receipts-board";
+import { managePageGate } from "@/lib/nox/nav/page-gate";
 
 export const dynamic = "force-dynamic";
 
 // 領収書 発行台帳（R2-c mig0099・owner/manager のみ）。
 //   一覧は receipt_issues 直読（RLS select = owner/manager 自店＝二重防御）・void は receipt_issue_void 結線。
 export default async function ReceiptsPage() {
+  await managePageGate(); // ★教訓142（2026-11-11）: 柵（キャストの入場・規約・初期設定）はページの先頭で＝画面の移動でも効く
   const { role } = await getSessionRole();
   if (!role) redirect("/login");
   if (role !== "owner" && role !== "manager") redirect(deniedHrefOf("receipts")) /* ★M-169: レジではなくホームへ・理由を 1 行 */;

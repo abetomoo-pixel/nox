@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getSessionRole } from "@/lib/nox/auth";
 import * as t from "@/lib/nox/ui/theme";
+import { managePageGate } from "@/lib/nox/nav/page-gate";
 import { SYSTEM_KEYS, isSystemOn } from "@/lib/nox/store-systems"; // ★裁定269: 報酬制度カードの状況
 import { castRegisterLevelOf } from "@/lib/nox/rules-0175/cast-register"; // ★裁定473（M-131）
 
@@ -13,6 +14,7 @@ export const dynamic = "force-dynamic";
 //   1:1 を保つため register を4枚目として置く（裁定＝カード4枚を各実ページへ 1:1 結線）。
 //   状況サマリは server で軽く数えるだけ（有効プラン数・有効控除数・ノルマ採用フラグ）。
 export default async function CastCompHubPage() {
+  await managePageGate(); // ★教訓142（2026-11-11）: 柵（キャストの入場・規約・初期設定）はページの先頭で＝画面の移動でも効く
   const { role } = await getSessionRole();
   const isManagerUp = role === "owner" || role === "manager";
   if (!isManagerUp) redirect("/dashboard");

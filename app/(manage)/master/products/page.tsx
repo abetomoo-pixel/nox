@@ -5,6 +5,7 @@ import {
   fetchProducts, fetchProductCategories, fetchProductCosts, fetchStockTotals,
 } from "@/lib/nox/master/queries";
 import ProductsBoard from "./products-board";
+import { managePageGate } from "@/lib/nox/nav/page-gate";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,7 @@ export const dynamic = "force-dynamic";
 //   ★stock_logs は商品行の在庫バー（stockCell＝Σdelta と reorder_point）が使うため必要。
 //     seats は商品の描画に一切出てこないので取らない（移設前は同じ load() が巻き込んでいた）。
 export default async function MasterProductsPage() {
+  await managePageGate(); // ★教訓142（2026-11-11）: 柵（キャストの入場・規約・初期設定）はページの先頭で＝画面の移動でも効く
   const { role } = await getSessionRole();
   const isManagerUp = role === "owner" || role === "manager";
   if (!isManagerUp) redirect("/dashboard");

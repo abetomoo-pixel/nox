@@ -340,6 +340,37 @@ export default async function MinePage({ searchParams }: { searchParams?: Promis
       {/* ★便 X13-G W-22 ②⑤: 出勤予定（今月／来月・確定と確認待ち・募集中は出さない）＋出勤ノルマの不足（旧・直近の節は廃止） */}
       <ScheduleCard tabs={scheduleTabs} />
 
+      {/* ★M-163（2026-11-11 夜・Agoora 確定＝ローンチ前は並び替えだけ）: 今日の予定・打刻 → ドリンク申告 → 指名予約 → ノルマ・時給の見込み → 明細・勤怠（折りたたみ／別画面は案の報告の後） */}
+      {/* F3f 自己申告ドリンク（独立枠・承認後に給与明細へ合算） */}
+      {ms.drink_claim && <DrinkClaimForm month={month} />}{/* ★326-8: drink_claim OFF＝カード非表示 */}
+
+      {/* ★裁定326-4／326-8（便 M3-2）: 予約申請カード＝店設定 reservation_request ON のときだけ（OFF＝非表示・予約一覧は残す） */}
+      {ms.reservation_request && myStore && <ReservationRequestCard storeId={myStore.id as string} bizToday={bizToday} />}
+
+      <section className="nox-panel">
+        <h3>指名予約（今日以降）</h3>
+        {(rsv ?? []).length === 0 && <p style={noneP}>予約なし</p>}
+        {(rsv ?? []).map((r) => (
+          <div key={r.id as string} style={{ padding: "7px 0", borderBottom: "1px solid var(--line2)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13 }}>
+              <span style={{ ...t.num, fontWeight: 700 }}>{rsvWhen(r.reserved_at as string)}</span>
+              <span style={{ fontWeight: 700 }}>{rsvName((r.customers as RsvCustomer) ?? (r.customer_id && rsvCustName.get(r.customer_id as string) ? { name: rsvCustName.get(r.customer_id as string)! } : null), r.guest_name as string | null)}</span>
+              {r.party_size != null && <span style={{ color: "var(--sub)" }}>{r.party_size}名</span>}
+              <span style={{
+                fontSize: 10.5, fontWeight: 800, borderRadius: 999, padding: "2px 9px",
+                color: "var(--gold)", background: "var(--card2)", border: "1px solid var(--line2)",
+                whiteSpace: "nowrap", marginLeft: "auto",
+              }}>予約</span>
+            </div>
+            <div style={{ fontSize: 12, color: "var(--sub)", marginTop: 2 }}>
+              {NOM_LABEL[r.nom_type as string] ?? "指名種別は来店時に決定"}
+              {r.memo ? `・${r.memo}` : ""}
+            </div>
+          </div>
+        ))}
+        <p style={{ ...noteP, marginTop: 6 }}>※予約の変更・取消は店舗にご連絡ください。</p>
+      </section>
+
       {/* ノルマ進捗（mig0042・表示のみ）: 採用軸かつ目標>0 の軸だけ・全非表示ならカード自体出ない
           ★店が採用している軸のときだけ出る現行条件はそのまま（部品側の判定に一切触れていない）。 */}
       {isSectionOn((myStore?.settings_json ?? null) as StoreSettings, "mineNormCard") && <NormCard />}{/* ★裁定269-4: mineNormCard */}
@@ -384,8 +415,6 @@ export default async function MinePage({ searchParams }: { searchParams?: Promis
 
       {/* ★裁定326-2（便 M2-1）: 報酬シミュレーターと今月のバックの 2 カードは削除 */}
 
-      {/* F3f 自己申告ドリンク（独立枠・承認後に給与明細へ合算） */}
-      {ms.drink_claim && <DrinkClaimForm month={month} />}{/* ★326-8: drink_claim OFF＝カード非表示 */}
 
       <section className="nox-panel">
         <h3>今月の出勤ボーナス（{month}）</h3>
@@ -429,35 +458,10 @@ export default async function MinePage({ searchParams }: { searchParams?: Promis
         </section>
       )}
 
-      {/* ★裁定326-4／326-8（便 M3-2）: 予約申請カード＝店設定 reservation_request ON のときだけ（OFF＝非表示・予約一覧は残す） */}
-      {ms.reservation_request && myStore && <ReservationRequestCard storeId={myStore.id as string} bizToday={bizToday} />}
-
-      <section className="nox-panel">
-        <h3>指名予約（今日以降）</h3>
-        {(rsv ?? []).length === 0 && <p style={noneP}>予約なし</p>}
-        {(rsv ?? []).map((r) => (
-          <div key={r.id as string} style={{ padding: "7px 0", borderBottom: "1px solid var(--line2)" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13 }}>
-              <span style={{ ...t.num, fontWeight: 700 }}>{rsvWhen(r.reserved_at as string)}</span>
-              <span style={{ fontWeight: 700 }}>{rsvName((r.customers as RsvCustomer) ?? (r.customer_id && rsvCustName.get(r.customer_id as string) ? { name: rsvCustName.get(r.customer_id as string)! } : null), r.guest_name as string | null)}</span>
-              {r.party_size != null && <span style={{ color: "var(--sub)" }}>{r.party_size}名</span>}
-              <span style={{
-                fontSize: 10.5, fontWeight: 800, borderRadius: 999, padding: "2px 9px",
-                color: "var(--gold)", background: "var(--card2)", border: "1px solid var(--line2)",
-                whiteSpace: "nowrap", marginLeft: "auto",
-              }}>予約</span>
-            </div>
-            <div style={{ fontSize: 12, color: "var(--sub)", marginTop: 2 }}>
-              {NOM_LABEL[r.nom_type as string] ?? "指名種別は来店時に決定"}
-              {r.memo ? `・${r.memo}` : ""}
-            </div>
-          </div>
-        ))}
-        <p style={{ ...noteP, marginTop: 6 }}>※予約の変更・取消は店舗にご連絡ください。</p>
-      </section>
 
       <section className="nox-panel nox-kintai" data-mine-kintai="1">{/* ★便 SH-UI-c C-2 ④: 店長の勤怠表（②）と同じ部品・本人分・修正者名と金額は出さない */}
         <h3>今月の勤怠<span className="num" style={{ marginLeft: "auto", fontSize: 12, fontWeight: 700, color: "var(--sub)" }}>出勤 {kintaiSum.days} 日・実働 {kintaiSum.hours}h{kintaiSum.lateN ? `・遅刻 ${kintaiSum.lateN}` : ""}{kintaiSum.absentN ? `・当欠 ${kintaiSum.absentN}` : ""}</span></h3>
+        <p style={{ ...noteP, margin: "0 0 6px" }} data-mine-days-def="1">※ここの出勤日数＝シフトのある日の出勤。ノルマの出勤日数は打刻のある日（シフト無しの出勤を含む）で数えるため、多くなることがあります。</p>{/* ★M-166（2026-11-11 夜・外部レビュー 3）: 2 つの数え方の定義を数字の近くに（文言は仮置き） */}
         {kintaiRows.length === 0 ? <p style={noneP}>記録なし</p> : (
           <div style={{ overflowX: "auto" }}>
             <table className="nox-table nox-kintai-table" style={{ width: "100%", fontSize: 12.5 }}>

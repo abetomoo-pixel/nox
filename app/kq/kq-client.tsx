@@ -55,8 +55,8 @@ export default function KqClient() {
         const detector: BarcodeDetectorLike | null = BD ? new BD({ formats: ["qr_code"] }) : null;
         let jsqr: JsQrFn | null = null;
         if (!detector) {
-          await new Promise<void>((res, rej) => { const s = document.createElement("script"); s.src = "https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"; s.onload = () => res(); s.onerror = () => rej(new Error("jsqr")); document.head.appendChild(s); });
-          jsqr = (window as unknown as { jsQR?: JsQrFn }).jsQR ?? null;
+          // ★夜便レーン 1（2026-11-11）: jsQR は自前の配布物から（外部の CDN を読まない＝npm の jsqr 1.4.0 を動的 import・BarcodeDetector の無い端末だけ）
+          jsqr = ((await import("jsqr")).default as unknown as JsQrFn) ?? null;
         }
         const canvas = document.createElement("canvas");
         timer = window.setInterval(async () => {

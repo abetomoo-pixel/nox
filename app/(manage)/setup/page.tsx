@@ -4,6 +4,7 @@ import { getSessionRole } from "@/lib/nox/auth";
 import { mineSettingsOf } from "@/lib/nox/store/mine-settings";
 import type { V5Type } from "@/lib/nox/setup/v5";
 import SetupWizard from "./setup-wizard";
+import { managePageGate } from "@/lib/nox/nav/page-gate";
 import SetupWaiting from "./setup-waiting"; // ★便 SU（M-37 (3)）: manager／staff の案内
 
 export const dynamic = "force-dynamic";
@@ -12,6 +13,7 @@ export const dynamic = "force-dynamic";
 //   server は現値（料金の丸め・時間課金の方式・領収書の表記・キャスト画面の 8 キー・税設定の現値・冪等ガード用の件数）を読むだけ＝書込は client の計画（lib/nox/setup/v5.ts）。
 //   ?step=1〜9（深いリンク）・?type=cabaret（業態が未選択ならその初期値＝suite・actions-center 用）。
 export default async function SetupPage({ searchParams }: { searchParams: Promise<{ step?: string; type?: string }> }) {
+  await managePageGate(); // ★教訓142（2026-11-11）: 柵（キャストの入場・規約・初期設定）はページの先頭で＝画面の移動でも効く
   const { role } = await getSessionRole();
   if (!role) redirect("/login");
   if (role === "cast") redirect("/mine");

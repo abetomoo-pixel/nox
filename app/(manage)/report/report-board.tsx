@@ -675,8 +675,9 @@ export default function ReportBoard({
     <div className="nox-mv1 nox-mv1-sm">
       {/* 段0R 第3陣: ヘッダを新シェルの nox-hero へ（他画面と同基準・表示のみ） */}
       {/* ★裁定147（v2.1 D1）: lead をモック逐語へ（月次集計＝月報タブ・売掛回収＝売掛タブは器あり） */}
-      <PageHead eyebrow="DAILY REPORT" title="日報・締め管理"
-        desc="営業日の締め、月次集計、売掛回収までを一つの流れで管理します。" />
+      {/* ★M-171（2026-11-11 夜）: 締めの権限が無い人＝見出しは「日報」＋「締めは店長が行います」（できない操作の説明を出さない） */}
+      <PageHead eyebrow="DAILY REPORT" title={canClose ? "日報・締め管理" : "日報"}
+        desc={canClose ? "営業日の締め、月次集計、売掛回収までを一つの流れで管理します。" : "その日の売上と会計の状況を確認できます。締めは店長が行います。"} />
       <Toast msg={msg} />
       {/* ★0156（裁定309-9・便 V-5）: 締め前の「今日の送り」確認モーダル（actual 店・未発行 1 件以上のとき） */}
       {okuriRows && (
@@ -987,7 +988,7 @@ export default function ReportBoard({
           </span>
           {!closedReport && (preview?.open ?? 0) > 0 && (
             <span className="nox-repwarn">
-              open 伝票 {preview?.open}件 — 締めるには全伝票の会計が必要（強行も可）
+              未会計の伝票 {preview?.open}件 — 締めるには全伝票の会計が必要{isManagerUp ? "（店長は強行も可）" : ""}
             </span>
           )}
           {closedReport && closedReport.reclosed_count > 0 && (
@@ -1155,7 +1156,7 @@ export default function ReportBoard({
         )}
 
         <h3>
-          プレビュー（クライアント集計・確定値は締め時のサーバ再集計が正）
+          プレビュー（いまの見込み・確定値は締めのときに計算し直します）
         </h3>
         <div className="nox-rep-prevhead" style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10 }} data-report-prevhead="1">{/* ★M-112（2026-11-06・便 F）: 375 幅はラベル（nowrap）＋ピッカー／営業日切替／営業時間を縦積み 3 行に（globals.css） */}
           <span className="lbl" style={{ fontSize: 13, color: "var(--v2-text)", whiteSpace: "nowrap" }}>営業日</span>
@@ -1222,7 +1223,7 @@ export default function ReportBoard({
           </div>
           <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "8px 0 0", lineHeight: 1.7 }}>
             新規／リピートは<b>顧客登録のある組</b>で判定します（未登録の組は新規に数えます）。
-            確定値は締め時のサーバ再集計が正です。
+            確定値は締めのときに計算し直します。
           </p>
         </section>
         )}
@@ -1288,7 +1289,7 @@ export default function ReportBoard({
             const expected = cashFloat + preview.cash + preview.arCollectedToday - expense - payout;
             const diffLive = counted === "" ? null : Number(counted) - expected;
             const items: Array<[boolean | null, string]> = [
-              [preview.open === 0, preview.open === 0 ? "未会計 0 件" : `未会計 ${preview.open} 件（全伝票の会計が必要・強行も可）`],
+              [preview.open === 0, preview.open === 0 ? "未会計 0 件" : `未会計 ${preview.open} 件（全伝票の会計が必要${isManagerUp ? "・店長は強行も可" : ""}）`],
               [payMatch, payMatch ? "決済一致（入金合計＝伝票合計）" : `決済不一致（入金 ${yen(paysSum)} ≠ 伝票 ${yen(preview.closedTotal)}）`],
               [diffLive == null ? null : diffLive === 0,
                 diffLive == null ? "実査 未入力（入力すると差をここに表示）"

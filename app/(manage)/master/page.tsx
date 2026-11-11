@@ -1,4 +1,5 @@
 import MasterBoard from "./master-board";
+import { managePageGate } from "@/lib/nox/nav/page-gate";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +14,7 @@ export const dynamic = "force-dynamic";
 //
 // 本ページに残る責務は**ハブの描画のみ**。ハブが読むデータ（商品・カテゴリ・在庫・席の件数）は
 // MasterBoard が client で取得する（従来どおり）＝ここでの取得はゼロになった。
-export default function MasterPage() {
+export default async function MasterPage() {
+  await managePageGate(); // ★教訓142（2026-11-11）: 柵（キャストの入場・規約・初期設定）はページの先頭で＝画面の移動でも効く
   return <MasterBoard />;
 }

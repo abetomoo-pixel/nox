@@ -376,7 +376,7 @@ export default function SensitiveTaxPanel({ casts, stores, isOwner, isManager = 
                     暗号化されたマイナンバーを消去し、廃棄日時・実行者・方法を記録します。元に戻せません。理由は必須です（200 文字まで）。
                   </p>
                   <input value={discardReason} onChange={(e) => setDiscardReason(e.target.value)} maxLength={200} disabled={discardBusy}
-                    placeholder="理由（例: 退店から 7 年経過・法定保存期間満了）" style={{ ...input, width: "100%" }} aria-label="廃棄の理由" />
+                    placeholder="理由（例: 退店して番号を使う予定が無くなった）" style={{ ...input, width: "100%" }} aria-label="廃棄の理由" />
                   <div className="nox-formmodal-foot">
                     <button type="button" style={btnLight} disabled={discardBusy} onClick={() => setDiscardOpen(false)}>キャンセル</button>
                     <button type="button" style={{ ...btnDark, opacity: discardBusy || discardReason.trim() === "" ? 0.6 : 1 }} disabled={discardBusy || discardReason.trim() === ""}

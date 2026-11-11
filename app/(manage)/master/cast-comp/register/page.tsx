@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getSessionRole } from "@/lib/nox/auth";
 import CastRegisterPanel from "../../cast-register-panel";
+import { managePageGate } from "@/lib/nox/nav/page-gate";
 import { castRegisterLevelOf } from "@/lib/nox/rules-0175/cast-register"; // ★裁定473
 
 export const dynamic = "force-dynamic";
@@ -9,6 +10,7 @@ export const dynamic = "force-dynamic";
 // キャスト会計の許可（D2-1・カード1:1 の実ページ化）。castRegRows の組み立ては
 // master/page.tsx の旧 panels.cast 実装を逐語移設（F3g 2段ゲート＝店フラグ＋個別 can_register）。
 export default async function CastCompRegisterPage() {
+  await managePageGate(); // ★教訓142（2026-11-11）: 柵（キャストの入場・規約・初期設定）はページの先頭で＝画面の移動でも効く
   const { role } = await getSessionRole();
   const isManagerUp = role === "owner" || role === "manager";
   if (!isManagerUp) redirect("/dashboard");

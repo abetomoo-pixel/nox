@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getSessionRole } from "@/lib/nox/auth";
 import AuditBoard from "./audit-board";
+import { managePageGate } from "@/lib/nox/nav/page-gate";
 
 export const dynamic = "force-dynamic";
 
@@ -9,6 +10,7 @@ export const dynamic = "force-dynamic";
 // =mig0002・G6 恒久 assert。非 owner が直打ちしても 0行）。読取専用＝書込 RPC なし。
 // actor 名の解決は users を owner 可視の範囲で引く（見えない場合は id 断片表示＝fail-closed）。
 export default async function AuditPage() {
+  await managePageGate(); // ★教訓142（2026-11-11）: 柵（キャストの入場・規約・初期設定）はページの先頭で＝画面の移動でも効く
   const { role } = await getSessionRole();
   if (!role) redirect("/login");
   if (role !== "owner") redirect("/dashboard");

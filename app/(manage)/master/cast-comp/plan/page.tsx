@@ -3,12 +3,14 @@ import { createClient } from "@/lib/supabase/server";
 import { getSessionRole } from "@/lib/nox/auth";
 import { loadStoreSimData } from "@/lib/nox/payroll/sim-data";
 import PlanBoard from "./plan-board";
+import { managePageGate } from "@/lib/nox/nav/page-gate";
 
 export const dynamic = "force-dynamic";
 
 // 待遇プラン・報酬シミュレーター（D2-1）。旧 /master の view "cast" から実ページ化。
 // 取得は master/page.tsx の旧 panels.cast 組み立てを移設（sim-data.ts の読み経路は不変）。
 export default async function CastCompPlanPage() {
+  await managePageGate(); // ★教訓142（2026-11-11）: 柵（キャストの入場・規約・初期設定）はページの先頭で＝画面の移動でも効く
   const { role } = await getSessionRole();
   const isManagerUp = role === "owner" || role === "manager";
   if (!isManagerUp) redirect("/dashboard");

@@ -13,6 +13,7 @@ import * as t from "@/lib/nox/ui/theme";
 import { addDays, bizDateOf } from "@/lib/nox/biz-date";
 import { effectivePatterns, fmtEnd30, staffShiftErrJa } from "../master/staff-shift-panel";
 import StaffShiftManage from "./staff-shift-manage";
+import Loading from "@/components/ui/loading"; // ★M-173（M-135 の共通部品）
 
 import { Message, useClearOn } from "@/components/ui/toast"; // ★裁定281（便 U／AB）
 import { daysInMonthOf } from "@/lib/nox/month"; // ★便 X13-H H-9: 暦月の日付は 1 か所で（「-31」固定・翌月 0 日を撤去）
@@ -55,11 +56,14 @@ export default function StaffShiftBoard({ storeId, role, cutoff }: { storeId: st
   const [noteOf, setNoteOf] = useState<Record<string, string>>({});
   const [msg, setMsg] = useState<{ kind: "ok" | "bad"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [loaded, setLoaded] = useState(false); // ★M-173（2026-11-11 夜）: 取得が終わるまで空（枠なし・本人分 0 行）を出さない
+  const [savedKey, setSavedKey] = useState<string | null>(null); // ★M-174: いま保存した枠に印
   // ★便 AB-3（裁定281-4・S-4）: 月送り／今日で残留しない（対象切替 キャスト⇔スタッフ は unmount で消える）＝T の 1e007c3 と同じ型
   useClearOn(month, setMsg as (v: null) => void);
 
   const load = useCallback(async () => {
     if (!storeId) return;
+    setLoaded(false);
     const from = `${month}-01`, to = `${monthAfter(month, 1)}-01`;
     const [{ data: ps }, { data: ds }, { data: ws }, { data: ss }, { data: mid }] = await Promise.all([
       supabase.from("staff_shift_patterns").select("id, name, start_hm, end_hm, effective_from, sort_order").eq("store_id", storeId).order("name").order("effective_from", { ascending: false }),
@@ -73,6 +77,7 @@ export default function StaffShiftBoard({ storeId, role, cutoff }: { storeId: st
     setWishes((ws ?? []) as Wish[]);
     setShifts((ss ?? []) as StaffShift[]);
     setMyMid((mid as string | null) ?? null);
+    setLoaded(true);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storeId, month]);
   useEffect(() => { void load(); }, [load]);
@@ -89,7 +94,7 @@ export default function StaffShiftBoard({ storeId, role, cutoff }: { storeId: st
     const { error } = await supabase.rpc("staff_wish_set", { p_biz_date: day, p_pattern_id: p.id, p_available: next, p_note: (noteOf[day] ?? cur?.note ?? "") || null });
     setBusy(false);
     if (error) setMsg({ kind: "bad", text: staffShiftErrJa(error.message) });
-    else { setMsg({ kind: "ok", text: `${day.slice(5).replace("-", "/")} ${p.name}＝${next ? "◯" : "×"}` }); await load(); }
+    else { setMsg({ kind: "ok", text: `${day.slice(5).replace("-", "/")} ${p.name}＝${next ? "◯" : "×"}（保存しました）` }); setSavedKey(`${day}|${p.id}`); await load(); }
   }
   async function saveNote(day: string) {
     // note だけ変える＝その日の既存希望を同じ◯×で上書き（希望が無ければ何もしない）
@@ -115,7 +120,7 @@ export default function StaffShiftBoard({ storeId, role, cutoff }: { storeId: st
         <div>
           <h2 style={{ ...t.cardTitle, margin: 0 }}>スタッフシフト</h2>
           <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "2px 0 0" }}>
-            {isManagerUp ? "希望から配置し、営業日ごとに確定します。行の時刻は枠から写して固定（例外は上書き）。" : "枠ごとに ◯× をタップして希望を出します。締切後はロックされます。"}
+            {isManagerUp ? "希望から配置し、営業日ごとに確定します。行の時刻は枠から写して固定（例外は上書き）。" : "枠ごとに ◯× をタップして希望を出します。◯×は押すとその場で保存されます（提出のボタンはありません）。備考だけは「備考を保存」で保存します。締切後はロックされます。"}
           </p>
         </div>
         <span style={{ marginLeft: "auto", display: "inline-flex", gap: 6, alignItems: "center" }}>
@@ -133,6 +138,7 @@ export default function StaffShiftBoard({ storeId, role, cutoff }: { storeId: st
       ) : (
         <>
           {/* ★面 b: 月カレンダー × その日に有効な枠。◯／×／—（未入力）。締切後・過去日は減光してロック */}
+          {!loaded ? <div data-staff-wish-loading="1"><Loading /></div> : (
           <div className="nox-calgrid">
             {DOW.map((d) => <div key={d} className="nox-calh">{d}</div>)}
             {cells.map((day, i) => {
@@ -157,8 +163,8 @@ export default function StaffShiftBoard({ storeId, role, cutoff }: { storeId: st
                           border: w?.available ? "1px solid var(--gold)" : "1px solid var(--line)",
                           color: w ? (w.available ? "var(--champ)" : "var(--sub)") : "var(--v2-muted)",
                         }}>
-                        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</span>
-                        <b>{mark}</b>
+                        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}<small className="num" style={{ marginLeft: 3, fontSize: 9, color: "var(--v2-muted)" }} data-wish-pattern-time="1">{hmLabelOf(p.start_hm)}〜</small></span>
+                        <b>{mark}{savedKey === `${day}|${p.id}` && <small style={{ marginLeft: 2, fontSize: 9, color: "var(--ok, var(--champ))" }} data-wish-saved="1">✓</small>}</b>
                       </button>
                     );
                   })}
@@ -167,6 +173,7 @@ export default function StaffShiftBoard({ storeId, role, cutoff }: { storeId: st
               );
             })}
           </div>
+          )}
           {/* 選択日の備考 1 行（希望がある日だけ保存できる） */}
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 10 }}>
             <span className="num" style={{ fontSize: 12.5, fontWeight: 700 }}>{selDay}</span>
@@ -181,7 +188,7 @@ export default function StaffShiftBoard({ storeId, role, cutoff }: { storeId: st
           </div>
           <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "8px 0 0", lineHeight: 1.7 }}>
             ◯＝出られる・×＝出られない・—＝未入力。配置された日は店長の確定後に「確定シフト」で見えます（本人分＝
-            <span className="num">{shifts.filter((s) => s.staff_id === myMid).length}</span> 行）。
+            <span className="num">{loaded ? shifts.filter((s) => s.staff_id === myMid).length : "—"}</span> 行）。
           </p>
         </>
       )}

@@ -3,6 +3,7 @@ import { deniedHrefOf } from "@/lib/nox/nav/denied"; // ★M-169
 import { createClient } from "@/lib/supabase/server";
 import { getSessionRole } from "@/lib/nox/auth";
 import CustomersBoard from "./customers-board";
+import { managePageGate } from "@/lib/nox/nav/page-gate";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +14,7 @@ export const dynamic = "force-dynamic";
 // 休眠込みトグル（B-3・mig0030）は cast に出さない（canDormant）＝cast はそもそも本ページに
 // 到達しない（上の redirect）が一次ガードとして明示。真の防御は RPC の v_role<>'cast'（段23-3 実測）。
 export default async function CustomersPage() {
+  await managePageGate(); // ★教訓142（2026-11-11）: 柵（キャストの入場・規約・初期設定）はページの先頭で＝画面の移動でも効く
   const supabase = await createClient();
   const { role } = await getSessionRole();
   const isManagerUp = role === "owner" || role === "manager";

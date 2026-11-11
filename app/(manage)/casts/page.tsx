@@ -6,6 +6,7 @@ const CAST_LOGIN_COLS: string = okuriTiersOn() ? "id, name, user_id, photo_updat
 import { createClient } from "@/lib/supabase/server";
 import { getSessionRole } from "@/lib/nox/auth";
 import CastsBoard from "./casts-board";
+import { managePageGate } from "@/lib/nox/nav/page-gate";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +14,7 @@ export const dynamic = "force-dynamic";
 // （真の防御は trials RLS owner/manager 限定＋trial_*/cast_create RPC ゲート）。
 // 一覧は trials の直接 SELECT（RLS: owner=org 全店/manager=自店）。stores も同スコープ＝登録先候補。
 export default async function CastsPage() {
+  await managePageGate(); // ★教訓142（2026-11-11）: 柵（キャストの入場・規約・初期設定）はページの先頭で＝画面の移動でも効く
   const supabase = await createClient();
   const { role } = await getSessionRole();
   if (role !== "owner" && role !== "manager") redirect(deniedHrefOf("casts")) /* ★M-169: レジではなくホームへ・理由を 1 行 */;
