@@ -32,3 +32,15 @@ export function earlyLeaveMinutesOf(endHm: string | null | undefined, outPunchHm
   if (diff > 720) diff -= 1440; // 日跨ぎ（30 時間制の終了 vs 24 時間表示の打刻）
   return diff > 0 ? diff : 0;
 }
+
+// ★M-134（2026-11-11 夜便・相談役 ■E＝給与の数え方を正に KPI と行の表示を合わせる・golden 不変）: シフトの今日の画面で「遅刻」と数える・出す条件を 1 関数に。
+//   給与（punch-match の final＋collect.ts の同伴の重ね）と同じ規則＝①確定シフトだけ ②出勤の記録（shukkin）と同伴（伝票の同伴＝dohan）は遅刻を打ち消す
+//   ③当欠・休みは遅刻でない ④出勤の記録が「遅刻」なら打刻が無くても遅刻（分は打刻があればその差・無ければ 0）⑤それ以外は打刻と開始の差が猶予を超えたとき。
+//   返り値＝遅刻の分（開始からの素値）・遅刻でなければ null。給与の計算は触らない（表示と KPI の入力をそろえるだけ）。
+export function lateForPayOf(i: { shiftStatus: string | null | undefined; attStatus: string | null | undefined; hasDohanSlip: boolean; startHm: string | null | undefined; inHm: string | null | undefined; graceMin: number }): number | null {
+  if (i.shiftStatus !== "confirmed") return null;
+  if (i.hasDohanSlip || i.attStatus === "shukkin" || i.attStatus === "dohan" || i.attStatus === "absent" || i.attStatus === "off") return null;
+  const m = lateMinutesOf(i.startHm, i.inHm, i.graceMin);
+  if (i.attStatus === "late") return m ?? 0;
+  return m;
+}

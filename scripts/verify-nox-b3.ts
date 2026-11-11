@@ -6,6 +6,7 @@
 import fs from "node:fs";
 import { selfProfileErrorOf, selfProfilePatchOf } from "../lib/nox/people/self-profile";
 import { demoPinOf, guessablePinOf } from "../lib/nox/demo/pin";
+import { lateForPayOf } from "../lib/nox/shift/late";
 
 let pass = 0; const fails: string[] = [];
 const check = (label: string, ok: boolean, detail?: unknown) => { if (ok) pass++; else fails.push(`${label}${detail !== undefined ? `: ${JSON.stringify(detail).slice(0, 400)}` : ""}`); };
@@ -52,6 +53,17 @@ const src = (p: string) => fs.readFileSync(p, "utf8");
   check("b3(3-3) デモの端末だけ名前の下に PIN（layout が org の is_demo を server で判定して配る・本番の店は出ない）・入口の案内は「名前の下に出ます」",
     kl.includes("<DemoProvider isDemo={await kioskIsDemo()}>") && kl.includes('select("is_demo")') && kp.includes("const isDemo = useIsDemo();") && kp.includes("{c.has_pin && demoPinLine(c.cast_name)}") && kp.includes("{m.has_pin && demoPinLine(m.user_name)}") && !dt.includes("デモの PIN は 1234") && dt.includes('data-demo-pin="per-person"'));
   check("b3(3-4) 各店の「スタッフで入る」の人が今日出勤中（in・営業日の始まり）＝6 店で 6 行", onDuty === 6, onDuty);
+}
+
+// (4) M-134 遅刻＝給与と同じ規則の 1 関数（KPI と行が同じ関数・給与の計算は不変）
+{
+  const base = { shiftStatus: "confirmed", attStatus: null as string | null, hasDohanSlip: false, startHm: "20:00", inHm: "20:25", graceMin: 10 };
+  check("b3(4-1) M-134 lateForPayOf＝確定シフト・猶予を超えた打刻＝分（素値）／未確定・出勤の記録・同伴の伝票・当欠・休み＝null／出勤の記録が遅刻なら打刻なしでも 0",
+    lateForPayOf(base) === 25 && lateForPayOf({ ...base, shiftStatus: "planned" }) === null && lateForPayOf({ ...base, attStatus: "shukkin" }) === null && lateForPayOf({ ...base, hasDohanSlip: true }) === null
+    && lateForPayOf({ ...base, attStatus: "absent" }) === null && lateForPayOf({ ...base, inHm: "20:10" }) === null && lateForPayOf({ ...base, attStatus: "late", inHm: null }) === 0 && lateForPayOf({ ...base, attStatus: "late" }) === 25);
+  const sb = src("app/(manage)/shift/shift-board.tsx");
+  check("b3(4-2) M-134 行の遅刻（チップ・(+N 分)）は lateForPayOf・KPI は確定シフトだけ遅刻・伝票の同伴は打ち消し",
+    sb.includes("const n = lateForPayOf({ shiftStatus: s.status, attStatus: att?.status, hasDohanSlip: !!dohanSeats.get(s.cast_id), startHm: s.start_hm, inHm: io?.inHm, graceMin: lateGraceMin });") && sb.includes('if (fin?.type === "late" && s.status !== "confirmed") { arrived += 1; continue; }') && sb.includes('if (st === "shukkin" || st === "dohan" || dohanSeats.get(s.cast_id)) { arrived += 1; continue; }'));
 }
 
 if (fails.length) { console.error(`FAIL ${fails.length} 件 / pass ${pass}`); for (const f of fails) console.error(" - " + f); process.exit(1); }

@@ -29,7 +29,7 @@ import PageHead from "@/components/ui/page-head";
 import { createClient } from "@/lib/supabase/client";
 import { bizDateOf, bizDateRange, addDays } from "@/lib/nox/biz-date";
 import { fmtWin, fmtBand30, hm2min, min2hm, spanMinutes } from "@/lib/nox/shift-time";
-import { lateMinutesOf } from "@/lib/nox/shift/late"; // ★裁定268: 遅刻分数（KPI 未着判定と行表示の単一式）
+import { lateForPayOf, lateMinutesOf } from "@/lib/nox/shift/late"; // ★裁定268: 遅刻分数（KPI 未着判定と行表示の単一式）
 import { SHIFT_VIEWS, VIEW_TABS, makeStepsOf, searchOfTab, stepOfTab, tabFromSearch, tabOfView, viewOfTab, type ShiftTab } from "@/lib/nox/shift/tabs"; // ★裁定406（便 SH-UI-b）: 上段 3 タブ＋手順 4 段・URL（?tab=make&step=3&period=） // ★裁定274（R15）: 3 タブの写像
 import { matchPunches, LATE_GRACE_MIN_DEFAULT } from "@/lib/nox/punch-match"; // ★裁定257 R20-a: 遅刻判定は給与側と同じ純関数
 import { buildMatchInput, type PunchRow } from "@/lib/nox/punch-io";
@@ -1336,7 +1336,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
     let arrived = 0, late = 0, missing = 0, absent = 0;
     for (const s of list) {
       const st = attOf(s.cast_id, todayDate)?.status;
-      if (st === "shukkin" || st === "dohan") { arrived += 1; continue; }
+      if (st === "shukkin" || st === "dohan" || dohanSeats.get(s.cast_id)) { arrived += 1; continue; } // ★M-134: 伝票の同伴も遅刻を打ち消す（給与と同じ）
       if (st === "absent") { absent += 1; continue; }
       if (st === "off") continue; // 休み＝数えない
       const mine = punchRows.filter((p) => p.cast_id === s.cast_id).map((p) => ({ punched_at: p.punched_at, type: p.type }));
@@ -1346,6 +1346,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
         config: { lateGraceMin, close: s.end_hm },
       });
       const fin = r.days.find((d) => d.bizDate === todayDate)?.final;
+      if (fin?.type === "late" && s.status !== "confirmed") { arrived += 1; continue; } // ★M-134（2026-11-11）: 給与は確定シフトだけ遅刻に数える＝未確定のシフトの遅れは「出勤済み」（行も遅刻を出さない＝lateForPayOf）
       if (fin?.type === "late") late += 1;
       else if (fin?.type === "ok") arrived += 1;
       else if (lateMinutesOf(s.start_hm, min2hm(Math.max(0, Math.floor((nowMs - base) / 60_000))), lateGraceMin) !== null) missing += 1; // 打刻なし ∧ 猶予経過（★裁定268: 行の「(+N 分)」と同じ関数・同じ閾値＝式を 2 箇所に持たない。now は表示日 00:00 起点の 30 時間制 HH:MM）
@@ -1740,7 +1741,8 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                             const io = punchIO.get(s.cast_id);
                             const att = attOf(s.cast_id, todayDate);
                             const label = punchTimeLabel(io?.inHm, io?.outHm);
-                            const n = io?.inHm ? lateMinutesOf(s.start_hm, io.inHm, lateGraceMin) : null;
+                            const nRaw = io?.inHm ? lateMinutesOf(s.start_hm, io.inHm, lateGraceMin) : null; // 打刻の素の遅れ（同伴の注記用）
+                            const n = lateForPayOf({ shiftStatus: s.status, attStatus: att?.status, hasDohanSlip: !!dohanSeats.get(s.cast_id), startHm: s.start_hm, inHm: io?.inHm, graceMin: lateGraceMin }); // ★M-134（2026-11-11）: 給与と同じ規則（KPI と同じ関数）
                             const ob0 = outButtonOf({ canRecord, attStatus: att?.status, hasIn: !!io?.inHm, hasOut: !!io?.outHm });
                             const ob = proxyPunchOn ? ob0 : { ...ob0, show: false }; // ★0164（便 W5-2b）: 店設定 punch_methods.proxy が OFF なら代行の退勤ボタンを出さない（RPC は拒否しない）
                             const outOn = ob.show && ob.enabled;
@@ -1751,7 +1753,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                                 {(view === "arrived" || view === "done") && (() => {
                                   const mode = attRowModeOf({ hasIn: !!io?.inHm, hasOut: !!io?.outHm });
                                   const dseats = dohanSeats.get(s.cast_id); // ★便 PR-1 R-4（裁定417）: 同伴＝伝票が正本（今日タブの同伴ボタンは撤去・伝票で外せば印も消える）
-                                  const ex = lateExemptByDohanOf(n, !!dseats);   // 同伴の営業日は遅刻扱いなし（出勤記録は実時刻のまま）
+                                  const ex = lateExemptByDohanOf(dseats ? nRaw : n, !!dseats);   // 同伴の営業日は遅刻扱いなし（出勤記録は実時刻のまま）
                                   const chip = arrivedChipOf({ inHm: io?.inHm, outHm: io?.outHm, lateMin: ex.late ? n : 0 });
                                   return (
                                     <span className="nox-attchips" style={{ display: "inline-flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
