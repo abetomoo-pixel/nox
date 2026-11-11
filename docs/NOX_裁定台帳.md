@@ -8983,6 +8983,18 @@ anon-guard 段28 が無差別 `limit(1)` でそれを拾い 'bad amount'/BV=unde
   該当列なし）ため、消さずに理由を分けて残した。
   根拠の全文＝`docs/dp/survey_6-4.md`。
 
+## 読取の結果（2026-11-11 夕・本番 read only・docs/tmp/read_*_1111.mjs）＝■A（0201b の前）・■E M-153・■F／v0.2 プライバシー
+- **■A-1 tax_inclusive_display を set_store_profile に送る経路＝1 つ**＝店舗設定「会計と運用」の内税スイッチ（lib/nox/store/ops-profile.ts:48 opsPatchOf＝変えたときだけ・store-profile-panel.tsx の保存）。初期設定 v5・create-org・gen-demo・デモの reset（表へ直接 insert）・一括の保存は送らない。**0201b の後に赤になる verify**＝verify-nox-store-profile ⑪-1（このキーを書いて成功を期待）・同 :219（'bad type' が 'bad key' に）・verify-nox-store-systems（白名単の件数 81）。**案＝順序を「client を先に push（内税スイッチの撤去・表示は price_display 読み＝register-board・payroll-board・ops-profile・pin の張り替え）→ 0201b → フラグ便」に**。live＝デモ以外 4 店が price_display tax_included なのに tax_inclusive_display false（画面は「外税表示」と出る）・デモ 6 店は揃っている。
+- **■A-2 売掛の書き手＝2 系統**＝店舗設定のスイッチ（set_store_profile で ar_enabled だけ＝store-flag-toggle.tsx）と初期設定（set_store_receivable_policy で列 receivable_policy だけ＝v5.ts:298・template-plan.ts:324）。1 本（set_store_receivable_policy）にできる見込み＝判断 3 点：①スイッチは 2 値・RPC は 3 値＝ON を customer_only／cast_liability_allowed のどちらに ②0201b の後も set_store_profile の白名単に ar_enabled が残る（verify 4 本が書いている）＝外すか ③日報の売掛タブは列を読む＝スイッチ経由だと列とずれる。live の食い違い＝**今はデモ以外の 1 店だけ**（handpaste_0201b.md の「4 店」は張り替えが要る）。
+- **■A-3 18 歳未満の生年月日**＝0 件（cast_sensitive はデモ以外 2 行・デモ 0 行）。staff_sensitive は 0 行（0201b の 18 歳判定は cast 側だけ）。
+- **■E M-153**＝保証時給は待遇プランを切り替えても**続く**（set_cast_plan は戻し行より後の日しか受けない＝保証の行は書き換わらない・給与は保証行を日ごとに max(保証額, 基本)）。体入と保証は二重に効かない（max）が、いまの体入は体験入店プランと同額の保証行を両方持つ（デモ 6 人）。画面＝切替のフォームに「保証は続く」の説明なし・キャスト詳細と明細には出る。**気付き（未実行・コードの読み）**＝体入の「本採用」（casts-board.tsx hireTrialCast）は p_valid_from に今日を送る＝保証の期間中と終了の翌日は 'bad valid_from' で失敗するはず・本採用ボタンは体入の間ずっと出る＝0201c で扱うかは相談役。
+- **■F／v0.2 a 外部ツール**＝アクセス解析・広告の計測・エラーの監視は 0（GA／GTM／Vercel Analytics／Sentry なし・CSP の設定なし）。フォントは next/font（ビルド時に取り込み自前配信）。外部への通信＝Supabase・Stripe（サーバー）・LINE（api.line.me・LIFF SDK static.line-scdn.net）・cdnjs の jsQR（app/kq）・Vercel。メールの Resend は未結線（認証メールは Supabase の SMTP）。地図 0。打刻の IP はサーバーで取る・デモの入口は IP を sha256 の先頭 16 桁だけ。
+- **b punches の lat／lng**＝デモ以外 109 行（全部 NOX-VERIFY-A・2026-08-25〜08-31）・デモ 0 行・実店舗 0 行。0201 以降は座標を残さない。消す案＝verify の org の行なので 0201e で null にするか、verify の fixture の掃除で消す（相談役）。
+- **c マイナンバーの「退店の翌年 1 月 1 日から 7 年」**＝台帳の既定（裁定293-5 2026-09-24「既定は退職翌年から 7 年経過で対象」・裁定309-3 2026-09-28・0155_compliance.sql:575-581）。弁護士回答 L2（docs/expert/NOX_弁護士回答_L1-L6_2026-08-28.md）は「必要期間のみ、その後速やかに削除」＝**7 年の数字は専門家回答に無い**。
+- **d バックアップ**＝台帳に「日次バックアップ 7 日・PITR は未」（Pro 組織への移転 10/16 の段落）・runbook も同旨。いまの設定かは未確認＝Agoora が管理画面で確認。
+- **e 解約後の消去に要るもの**＝①public の表 121 のうち org_id を持つ 117（持たない 4＝kiosk_qr_keys・memberships・orgs・withholding_rates）＋Storage の cast-photos・org を消す関数は 0 本（demo_org_reset の削除順の名簿が使える）②法令で残す記録＝裁定88・弁護士 L2 の方針（労務 3 年［将来 5 年］・会計は原則 7 年）・監査ログは 7 年固定（裁定309-2）・種別ごとの保持は起票36（未着手）・帳簿の年限を条文で書いた記録は無い ③解約前の出力口＝給与・源泉・勤怠・監査・分析・請求・シフトの CSV と明細・領収書の印刷（顧客の出力口は無い）④実行の記録＝audit_logs は org_id 必須＝org ごと消すと記録も消える＝org の外に置く先が要る（未設計）。→ 起票126 の材料。
+- **f 利用規約 v0.9**＝役割分担の条は**ある**（docs/legal/terms_store_v0.9.md・第4条 店舗データの取扱い＝権利は店舗・第5条 2 項＝当社は店舗からの委託を受けて個人データを取り扱う者・第6条 再委託・第8条 バックアップ・第9条 解約時のデータ＝猶予 30 日の例・法令上の保存義務のある記録は除く）。全条に【弁護士確認】の印。
+
 ## Agoora の確定（2026-11-11 夕）＝裁定477 追補・裁定476 改 追補・起票126
 - **裁定477 追補（段 2 試し会計）**＝通常の伝票を作って取消で消す方式（取消の理由に「試し会計」を足す）。伝票に「試し」の印（is_test）は採らない。締めまで試す流れは作らない。読取＝取消した伝票が日報・売上・給与・キープ・領収書・打刻のどこにも残らないこと（残るものがあれば一覧）。
 - **裁定477 追補（段 3 残高の取り込み）**＝売掛とキープの開始残高を、オーナーが CSV で 1 回だけ取り込む・取り込み単位で取り消せる（取り消したらもう 1 回取り込める）・二重の取り込みは拒否。CSV の列の案と、取り込んだ残高が日報・売掛の一覧・キープの一覧でどう見えるかの案を報告してから起草。
