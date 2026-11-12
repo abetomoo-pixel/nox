@@ -3120,7 +3120,7 @@ input[type="date"]::-webkit-date-and-time-value, input[type="time"]::-webkit-dat
 .nox-setup-main [data-setup-rule-head="1"] input { width: 100% !important; max-width: none !important; }
 .nox-setup-main [data-setup-rule-head="1"] > button { margin-left: auto; white-space: nowrap; flex: 0 0 auto; }
 .nox-setup-main [data-staff-row] label:has(> span + .nox-seg) { grid-column: span 2; }
-.nox-setup-main [data-staff-row] .nox-seg > button { white-space: nowrap; font-size: 13px !important; padding: 0 10px !important; min-height: 44px !important; }
+.nox-setup-main [data-staff-row] .nox-seg > button { white-space: normal; flex: 1 1 auto; font-size: 13px !important; padding: 4px 10px !important; min-height: 44px !important; } /* ★M-181（2026-11-12）: 長い選択肢（店長（取消・割引・締め解除まで））はボタンの中で折り返す＝枠からはみ出さない（旧 nowrap・flex 1 1 0 は本番 PC 1879 で 228px のボタンが 172px の枠の外へ） */
 .nox-setup-main span:has(> input.num) > em { white-space: nowrap; flex: 0 0 auto; }
 .nox-setup-main button[data-type][aria-pressed="true"] > b { padding-right: 60px; }
 @media (max-width: 430px) { .nox-setup-main div:has(> button[data-type]) { grid-template-columns: 1fr !important; } .nox-setup-top .sub .nox-setup-sub-note { display: none; } .nox-setup-main [data-staff-row] label:has(> span + .nox-seg) { grid-column: 1 / -1; } }

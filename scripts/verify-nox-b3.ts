@@ -76,7 +76,8 @@ const src = (p: string) => fs.readFileSync(p, "utf8");
   check("b3(5-2) M-181 折り返すセグメント＝900px 以上は次の行へ折り返す・2 列のときも長い選択肢はセルの中で折り返す・初期設定のスタッフの職種・権限・雇用形態は wrap",
     css.includes(".nox-seg.nox-seg--wrap { flex-wrap: wrap; overflow: visible; }\n.nox-seg.nox-seg--wrap > * { flex: 1 1 auto; white-space: normal; text-align: center; }")
     && css.indexOf(".nox-seg.nox-seg--wrap { flex-wrap: wrap;") > css.indexOf(".nox-seg.nox-seg--wrap > * { min-height: 44px; white-space: nowrap;")
-    && ['ariaLabel="職種" wrap', 'ariaLabel="権限" wrap', 'ariaLabel="雇用形態" wrap'].every((k) => sw.includes(k)));
+    && ['ariaLabel="職種" wrap', 'ariaLabel="権限" wrap', 'ariaLabel="雇用形態" wrap'].every((k) => sw.includes(k))
+    && css.includes(".nox-setup-main [data-staff-row] .nox-seg > button { white-space: normal; flex: 1 1 auto;") && !css.includes(".nox-setup-main [data-staff-row] .nox-seg > button { white-space: nowrap;") /* ★初期設定の画面専用の規則も折り返す（本番の実測で発見） */);
   check("b3(5-3) 0201b の後＝MIG_0201B_APPLIED true（売掛のスイッチは set_store_receivable_policy の 1 本）", src("lib/nox/rules-0175/flag.ts").includes("export const MIG_0201B_APPLIED = true;"));
 }
 
