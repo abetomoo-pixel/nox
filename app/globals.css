@@ -2938,6 +2938,10 @@ input[type="date"]::-webkit-date-and-time-value, input[type="time"]::-webkit-dat
   .nox-seg.nox-seg--wrap { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); overflow: visible; }
   .nox-seg.nox-seg--wrap > * { min-height: 44px; white-space: nowrap; font-size: 13px; padding-left: 4px; padding-right: 4px; border-bottom: 1px solid var(--v2-line); }
 }
+/* ★M-181（2026-11-12・Agoora 撮影 PC 1794＝初期設定 6／9 スタッフの職種・権限・雇用形態が切れて読めない）: 折り返すセグメントは全部の選択肢を読める形に
+   ＝900px 以上は横スクロールでなく次の行へ折り返す・900px 未満の 2 列は長い選択肢をセルの中で折り返す（1 行で収まる画面の描画は不変） */
+.nox-seg.nox-seg--wrap { flex-wrap: wrap; overflow: visible; }
+.nox-seg.nox-seg--wrap > * { flex: 1 1 auto; white-space: normal; text-align: center; }
 
 /* ★便 X13-G W-3: 伝票上部のお客様（卓名の帯の直下・1 行・押すと顧客の節へ） */
 

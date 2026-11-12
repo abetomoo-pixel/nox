@@ -175,7 +175,8 @@ export default function WishForm({ mode = "shift" }: { mode?: WishMode }) {
     router.refresh();
   }
 
-  const input: React.CSSProperties = { ...t.input, width: 76, padding: "6px 8px", borderRadius: 9, fontSize: 12.5 };
+  // ★M-180（2026-11-12・Agoora 撮影 PC 1879）: 時刻欄は中身（時計＋「翌02:00」）の幅に合わせる＝固定 76／72px だと「翌02:00」が右へはみ出して注記に重なっていた
+  const timeBox: React.CSSProperties = { width: "auto" };
   const focusWish = focus ? wishOn(focus) : null;
 
   return (
@@ -235,10 +236,10 @@ export default function WishForm({ mode = "shift" }: { mode?: WishMode }) {
         {needsTimes ? (
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <b style={{ fontSize: 12.5 }}>時間（一括）</b>
-          <TimeInput value={defStart} onChange={setDefStart} maxHour={23} placeholder="20:00" ariaLabel="開始（一括）" style={input} disabled={busy} />
+          <TimeInput value={defStart} onChange={setDefStart} maxHour={23} placeholder="20:00" ariaLabel="開始（一括）" style={timeBox} disabled={busy} />
           <span style={{ fontSize: 13, color: "var(--sub)" }}>〜</span>
-          <TimeInput value={defEnd} onChange={setDefEnd} placeholder={hmLabelOf("26:00")} ariaLabel="終了（一括）" style={input} disabled={busy} />{/* ★便 D M-106: 表示は「翌02:00」（26:00 は出さない） */}
-          <span style={{ fontSize: 10.5, color: "var(--v2-muted)" }}>日ごとに変えるときは下で上書き</span>
+          <TimeInput value={defEnd} onChange={setDefEnd} placeholder={hmLabelOf("26:00")} ariaLabel="終了（一括）" style={timeBox} disabled={busy} />{/* ★便 D M-106: 表示は「翌02:00」（26:00 は出さない） */}
+          <span style={{ fontSize: 10.5, color: "var(--v2-muted)", flexBasis: "100%" }} data-wish-bulk-note="1">日ごとに変えるときは下で上書き</span>{/* ★M-180: 注記は次の行（入力と重ならない） */}
         </div>
         ) : (
         <b style={{ fontSize: 12.5 }}>休みたい日（時間は入力しません）</b>
@@ -254,10 +255,10 @@ export default function WishForm({ mode = "shift" }: { mode?: WishMode }) {
                   <span className="num" style={{ color: failed[ymd] ? "var(--bad)" : "var(--ink)", fontWeight: 700 }}>{mdDowOf(ymd)}{!needsTimes && <span style={{ color: "var(--sub)", fontWeight: 400, marginLeft: 8 }}>休み</span>}</span>
                   <span style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", minWidth: 0 }}>
                   {needsTimes && (<>
-                  <TimeInput value={o?.start ?? ""} maxHour={23} placeholder={hmLabelOf(defStart)} ariaLabel={`${mdDowOf(ymd)} 開始`} style={{ ...input, width: 72 }} disabled={busy}
+                  <TimeInput value={o?.start ?? ""} maxHour={23} placeholder={hmLabelOf(defStart)} ariaLabel={`${mdDowOf(ymd)} 開始`} style={timeBox} disabled={busy}
                     onChange={(v) => setSel((s) => setOverride(s, ymd, { start: v, end: o?.end ?? "" }))} />
                   <span style={{ color: "var(--sub)" }}>〜</span>
-                  <TimeInput value={o?.end ?? ""} placeholder={hmLabelOf(defEnd)} ariaLabel={`${mdDowOf(ymd)} 終了`} style={{ ...input, width: 72 }} disabled={busy}
+                  <TimeInput value={o?.end ?? ""} placeholder={hmLabelOf(defEnd)} ariaLabel={`${mdDowOf(ymd)} 終了`} style={timeBox} disabled={busy}
                     onChange={(v) => setSel((s) => setOverride(s, ymd, { start: o?.start ?? "", end: v }))} />{/* ★M-106: 終了の表示は一括と同じ「翌02:00」（TimeInput の表示規則） */}
                   {o && (o.start || o.end) && <button type="button" style={{ ...btnLight, padding: "2px 8px" }} disabled={busy} onClick={() => setSel((s) => setOverride(s, ymd, null))}>一括に戻す</button>}
                   </>)}

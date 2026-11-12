@@ -66,5 +66,19 @@ const src = (p: string) => fs.readFileSync(p, "utf8");
     sb.includes("const n = lateForPayOf({ shiftStatus: s.status, attStatus: att?.status, hasDohanSlip: !!dohanSeats.get(s.cast_id), startHm: s.start_hm, inHm: io?.inHm, graceMin: lateGraceMin });") && sb.includes('if (fin?.type === "late" && s.status !== "confirmed") { arrived += 1; continue; }') && sb.includes('if (st === "shukkin" || st === "dohan" || dohanSeats.get(s.cast_id)) { arrived += 1; continue; }'));
 }
 
+// (5) フラグ便 0201b（2026-11-12）に同乗＝M-180（希望の一括の注記の重なり）・M-181（折り返すセグメントで全部の選択肢を読める）
+{
+  const wf = src("app/mine/wishes/wish-form.tsx");
+  check("b3(5-1) M-180 希望の時刻欄 4 つは中身の幅（固定 76／72px をやめる）・一括の注記は次の行（flexBasis 100%）",
+    (wf.match(/style=\{timeBox\}/g) ?? []).length === 4 && wf.includes('const timeBox: React.CSSProperties = { width: "auto" };') && !/width: 7[26]\b/.test(wf)
+    && wf.includes('flexBasis: "100%" }} data-wish-bulk-note="1">日ごとに変えるときは下で上書き</span>'));
+  const css = src("app/globals.css"), sw = src("app/(manage)/setup/setup-wizard.tsx");
+  check("b3(5-2) M-181 折り返すセグメント＝900px 以上は次の行へ折り返す・2 列のときも長い選択肢はセルの中で折り返す・初期設定のスタッフの職種・権限・雇用形態は wrap",
+    css.includes(".nox-seg.nox-seg--wrap { flex-wrap: wrap; overflow: visible; }\n.nox-seg.nox-seg--wrap > * { flex: 1 1 auto; white-space: normal; text-align: center; }")
+    && css.indexOf(".nox-seg.nox-seg--wrap { flex-wrap: wrap;") > css.indexOf(".nox-seg.nox-seg--wrap > * { min-height: 44px; white-space: nowrap;")
+    && ['ariaLabel="職種" wrap', 'ariaLabel="権限" wrap', 'ariaLabel="雇用形態" wrap'].every((k) => sw.includes(k)));
+  check("b3(5-3) 0201b の後＝MIG_0201B_APPLIED true（売掛のスイッチは set_store_receivable_policy の 1 本）", src("lib/nox/rules-0175/flag.ts").includes("export const MIG_0201B_APPLIED = true;"));
+}
+
 if (fails.length) { console.error(`FAIL ${fails.length} 件 / pass ${pass}`); for (const f of fails) console.error(" - " + f); process.exit(1); }
 console.log(`verify:nox-b3 ALL PASS (${pass} assertions)`);
