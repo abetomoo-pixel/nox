@@ -6,6 +6,7 @@
 import { LoadMoreBar, useLoadMore } from "@/components/ui/load-more"; // ★便 M5b M-60
 import { PIN_DIGITS_LABEL, PIN_MAX, PIN_SHAPE_RE } from "@/components/nox/pin-pad"; // ★M-179: 桁数は 1 か所の定数から
 import Loading from "@/components/ui/loading"; // ★M-135: 読み込み中の表示の共通部品
+import { UnitBox } from "@/components/ui/unit-input"; // ★0201c: 体入の条件の欄
 import DatePicker from "@/components/ui/date-picker"; // ★M-82（裁定452・教訓133）: 日付は共通のピッカー
 import AddButton from "@/components/ui/add-button"; // ★便 M5b M-55
 import { hmLabelOf } from "@/lib/nox/time/hhmm"; // ★便 M5b M-51 追補: 日をまたぐ時刻は「翌02:00」
@@ -38,6 +39,8 @@ import DailyPayForm from "@/components/nox/daily-pay-form"; // ★0156（裁定3
 import { issueDateDefaultOf } from "@/lib/nox/payroll/advance-okuri";
 import { okuriModeOf, okuriFlatTiersOf, okuriTierLabelOf } from "@/lib/nox/shift/okuri-mode"; // ★裁定414（S-4）・追補（0180）: 送り区分
 import { okuriTiersOn } from "@/lib/nox/rules-0175/flag"; // ★裁定414 追補（0180）
+import { mig0201cOn } from "@/lib/nox/rules-0175/flag"; // ★0201c（裁定480・484）: 体入の条件・本採用／見送り
+import { SET_CAST_TRIAL_RPC, TRIAL_DECIDE_RPC, trialCastArgsOf, trialCastColsOf, trialDecideArgsOf, trialStoreTermsOf } from "@/lib/nox/cast/trial-terms";
 const CAST_RELOAD_COLS: string = okuriTiersOn() ? "id, name, user_id, photo_updated_at, is_active, store_id, left_on, rank_id, joined_on, kind, employment, employment_valid_from, shift_request_mode, okuri_tier" : "id, name, user_id, photo_updated_at, is_active, store_id, left_on, rank_id, joined_on, kind, employment, employment_valid_from, shift_request_mode";
 import { rules0175On } from "@/lib/nox/rules-0175/flag"; // ★便 P175-prep P-4
 import AvailabilityEditor from "@/components/nox/availability-editor"; // ★便 P175-prep P-4（裁定397＋413）: 基本の働き方
@@ -542,8 +545,11 @@ export default function CastsBoard({
   // 本採用＝店の既定プランへ切替（確認なし・今日から・上書きは引き継がない）。★在籍区分の更新は RPC が無い＝0175
   async function hireTrialCast(c: CastLogin, planId: string) {
     setBusy(true); setPlanMsg(null);
-    const { error } = await supabase.rpc("set_cast_plan", { p_cast_id: c.id, p_plan_id: planId, p_overrides: {}, p_valid_from: today });
-    if (error) { setBusy(false); setPlanMsg({ kind: "error", text: planSwitchErrJa(error.message) }); return; }
+    // ★0201c（裁定480・484）: 本採用＝cast_trial_decide 1 本（在籍区分をキャストへ＋待遇プラン・保証時給の期間中は保証の翌日から＝RPC が決める）
+    const { error } = mig0201cOn()
+      ? await supabase.rpc(TRIAL_DECIDE_RPC, trialDecideArgsOf(c.id, "hire", planId, today))
+      : await supabase.rpc("set_cast_plan", { p_cast_id: c.id, p_plan_id: planId, p_overrides: {}, p_valid_from: today });
+    if (error) { setBusy(false); setPlanMsg({ kind: "error", text: mig0201cOn() ? rpcErrJa(error.message) : planSwitchErrJa(error.message) }); return; }
     // ★便 X13-H H-11 ③: 本入店日が空なら当日（体入開始日は別の値のまま）
     if (!c.joined_on) {
       const pf = await supabase.rpc("set_cast_profile", { p_cast_id: c.id, p_name: c.name, p_joined_on: today });
@@ -551,10 +557,38 @@ export default function CastsBoard({
       await reloadLoginCasts();
     }
     setBusy(false);
-    setPlanMsg({ kind: "success", text: `本採用しました（待遇プラン「${activePlans.find((p) => p.id === planId)?.name ?? ""}」・${today} から・詳細から変更できます）` });
+    setPlanMsg({ kind: "success", text: mig0201cOn()
+      ? `本採用しました（在籍区分はキャスト・待遇プラン「${activePlans.find((p) => p.id === planId)?.name ?? ""}」。保証時給の期間中は、保証の最終日の翌日から切り替わります）`
+      : `本採用しました（待遇プラン「${activePlans.find((p) => p.id === planId)?.name ?? ""}」・${today} から・詳細から変更できます）` });
     await loadPlans();
+    if (mig0201cOn()) await reloadLoginCasts();
   }
   const [hirePick, setHirePick] = useState<string | null>(null);
+  // ★0201c（裁定480）: 見送り＝cast_trial_decide（在籍を外す・データは残す）
+  async function declineTrialCast(c: CastLogin) {
+    if (!confirm(`${c.name} さんの体験入店を見送りにします。よろしいですか？（在籍から外れます。記録は残ります）`)) return;
+    setBusy(true); setPlanMsg(null);
+    const { error } = await supabase.rpc(TRIAL_DECIDE_RPC, trialDecideArgsOf(c.id, "decline", null, today));
+    setBusy(false);
+    if (error) { setPlanMsg({ kind: "error", text: rpcErrJa(error.message) }); return; }
+    setPlanMsg({ kind: "success", text: `${c.name} さんを見送りにしました（在籍から外れました）` });
+    await reloadLoginCasts();
+  }
+  // ★0201c（裁定480）: 体入の条件の個人の上書き（set_cast_trial・空欄＝店の既定）
+  const [trialForm, setTrialForm] = useState<{ castId: string; wage: string; days: string; startedOn: string } | null>(null);
+  const [trialMsg, setTrialMsg] = useState<{ kind: "success" | "error"; text: string } | null>(null);
+  async function saveTrialTerms() {
+    if (!trialForm) return;
+    const a = trialCastArgsOf(trialForm.castId, trialForm);
+    if (!a.ok) { setTrialMsg({ kind: "error", text: a.err }); return; }
+    setBusy(true); setTrialMsg(null);
+    const { error } = await supabase.rpc(SET_CAST_TRIAL_RPC, a.args);
+    setBusy(false);
+    if (error) { setTrialMsg({ kind: "error", text: rpcErrJa(error.message) }); return; }
+    setTrialMsg({ kind: "success", text: "体入の条件を保存しました" });
+    setTrialForm(null);
+    await reloadLoginCasts();
+  }
 
   // ── mig0074 入退店（cast_leave / cast_rejoin・owner∨manager自店＝RPC 側が最終防御）──
   //   本ページは page.tsx が owner/manager 以外を redirect 済み＝ボタンの出し分けは role ではなく状態で行う。
@@ -663,7 +697,7 @@ export default function CastsBoard({
   // ── F3g' castログイン招待（招待=未結線 / PW再発行=結線済み・POST /api/cast/invite） ──
   const reloadLoginCasts = useCallback(async () => {
     // mig0074: left_on を含め、page.tsx と同一の取得にする（.eq(is_active,true) を外す＝段C2 の在籍/退店タブ前提）。
-    const { data } = await supabase.from("casts").select(CAST_RELOAD_COLS) /* ★裁定414 追補（0180）: okuri_tier はフラグ true のときだけ */.order("name"); // ★0154 D2／D6・★GV-C C-14f: 在籍区分
+    const { data } = await supabase.from("casts").select(CAST_RELOAD_COLS + trialCastColsOf()) /* ★裁定414 追補（0180）: okuri_tier はフラグ true のときだけ */.order("name"); // ★0154 D2／D6・★GV-C C-14f: 在籍区分
     setLoginCasts((data ?? []) as unknown as CastLogin[]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -1085,6 +1119,39 @@ export default function CastsBoard({
                         <span style={{ fontSize: 10.5, color: "var(--v2-muted)" }}>店の既定プランが未設定です</span>
                       </>
                     )}
+                    {mig0201cOn() && <button type="button" style={btnGhost} disabled={busy} data-trial-decline="1" onClick={() => void declineTrialCast(selCast)}>見送り</button>}{/* ★0201c（裁定480）: 在籍を外す・記録は残る */}
+                  </div>
+                );
+              })()}
+              {mig0201cOn() && isTrialCast(selCast) && (() => { /* ★0201c（裁定480）: 体入の条件＝店の既定（店舗設定 › 店舗情報）と、この人だけの上書き（空欄＝店の既定） */
+                const st = trialStoreTermsOf(stores.find((s) => s.id === selCast.store_id)?.settings_json ?? null);
+                const f = trialForm && trialForm.castId === selCast.id ? trialForm : null;
+                const wageLabel = selCast.trial_wage ?? null;
+                return (
+                  <div style={{ marginTop: 8, fontSize: 12, color: "var(--v2-muted)", lineHeight: 1.7 }} data-trial-terms="1">
+                    <div>
+                      体入の条件：時給 {wageLabel !== null ? `¥${wageLabel.toLocaleString()}（この人だけ）` : st.wage !== null ? `¥${st.wage.toLocaleString()}（店の既定）` : "未設定"}
+                      ・日数 {selCast.trial_days ?? st.days}日{selCast.trial_days != null ? "（この人だけ）" : ""}
+                      {selCast.trial_started_on ? `・開始 ${selCast.trial_started_on}` : ""}
+                      {!f && <button type="button" style={{ ...btnGhost, marginLeft: 8 }} disabled={busy} data-trial-terms-edit="1"
+                        onClick={() => { setTrialMsg(null); setTrialForm({ castId: selCast.id, wage: selCast.trial_wage != null ? String(selCast.trial_wage) : "", days: selCast.trial_days != null ? String(selCast.trial_days) : "", startedOn: selCast.trial_started_on ?? "" }); }}>条件を変える</button>}
+                    </div>
+                    {f && (
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end", marginTop: 6 }}>
+                        <label style={{ display: "grid", gap: 2 }}>時給（空欄＝店の既定）
+                          <UnitBox pre="¥" width={140}><input type="number" inputMode="numeric" min={0} max={100000} value={f.wage} disabled={busy} onChange={(e) => setTrialForm({ ...f, wage: e.target.value })} style={input} aria-label="体入の時給" placeholder={st.wage !== null ? String(st.wage) : ""} /></UnitBox>
+                        </label>
+                        <label style={{ display: "grid", gap: 2 }}>日数（空欄＝店の既定）
+                          <UnitBox post="日" width={110}><input type="number" inputMode="numeric" min={1} max={90} value={f.days} disabled={busy} onChange={(e) => setTrialForm({ ...f, days: e.target.value })} style={input} aria-label="体入の日数" placeholder={String(st.days)} /></UnitBox>
+                        </label>
+                        <label style={{ display: "grid", gap: 2 }}>開始日（任意）
+                          <DatePicker value={f.startedOn} disabled={busy} onChange={(v) => setTrialForm({ ...f, startedOn: v })} width={150} ariaLabel="体入の開始日" />
+                        </label>
+                        <button type="button" style={btnGold} disabled={busy} data-trial-terms-save="1" onClick={() => void saveTrialTerms()}>保存</button>
+                        <button type="button" style={btnGhost} disabled={busy} onClick={() => setTrialForm(null)}>やめる</button>
+                      </div>
+                    )}
+                    {trialMsg && <Message kind={trialMsg.kind} onDismiss={() => setTrialMsg(null)}>{trialMsg.text}</Message>}
                   </div>
                 );
               })()}

@@ -24,7 +24,7 @@ import {
 import { STOCK_REASON_RESTOCK } from "@/lib/nox/stock/reasons";
 import { swapAdjacent, reorderErrJa } from "@/lib/nox/ui/reorder";
 import { isSectionOn, type StoreSettings } from "@/lib/nox/store-systems"; // ★裁定269: 使う制度の出し分け
-import { mig0191On } from "@/lib/nox/rules-0175/flag"; // ★0191 ★2: 場内／フリーの個別率（p_back_rate_by_kind）
+import { mig0191On, mig0201cOn } from "@/lib/nox/rules-0175/flag"; import { productDefaultsOfCategory } from "@/lib/nox/master/category-defaults"; // ★0201c（M-146）: カテゴリの既定 // ★0191 ★2: 場内／フリーの個別率（p_back_rate_by_kind）
 import {
   parseProductBulk, duplicateWarnings, checkInactiveCategoryConflicts,
   newCategories, countByType, TYPE_LABEL_JA as BULK_TYPE_LABEL_JA,
@@ -320,6 +320,13 @@ export default function ProductsBoard({ storeId, isManagerUp, initial, settings 
 
   // keepOpen=true は「登録して続けて入力」。新規のときだけ使い、会計区分/表示カテゴリ等は
   //   前回値のまま残し、名称と価格だけ空に戻して次の1件へ続ける。
+  // ★0201c（M-146）: 新しい商品でカテゴリを選んだら、そのカテゴリの既定のバック率（%）を当てる（既定が無ければ触らない・登録済みの商品は変えない）
+  function pickCategory(id: string) {
+    setPCatId(id);
+    if (pId !== null || !mig0201cOn()) return;
+    const d = productDefaultsOfCategory(categories.find((c) => c.id === id));
+    if (d.backRate !== null) { setPBackMode("rate"); setPBackValue(d.backRate); }
+  }
   async function saveProduct(keepOpen = false) {
     setMsg(null);
     // 原価が読めていない状態の保存は p_cost の値が不明＝送れば cost 行を消しうる。ボタン無効化と二重で止める。
@@ -350,7 +357,9 @@ export default function ProductsBoard({ storeId, isManagerUp, initial, settings 
       // set_product は id（新規/更新とも）を返す＝保存した行へスクロールして光らせる材料。
       const savedId = typeof data === "string" ? data : pId;
       // ★M-146（2026-11-10 Agoora 確定）: 新しい商品の在庫の既定＝カテゴリの既定が無ければ OFF（DB の列の既定は true＝登録の直後に OFF にする・失敗しても登録は残す＝在庫の切替は一覧から）
-      if (!pId && typeof data === "string") { const { error: eT } = await supabase.rpc("set_product_track_stock", { p_product_id: data, p_track: false }); if (eT && !isRpcMissingError(eT.message)) setMsg(`商品を登録しました（在庫管理を OFF にできませんでした：${rpcErrJa(eT.message)}）`); }
+      if (!pId && typeof data === "string" && mig0201cOn()) { // ★0201c（M-146）: 列の既定は false（管理しない）＝カテゴリの既定が「管理する」のときだけ ON にする
+        if (productDefaultsOfCategory(categories.find((c) => c.id === pCatId)).trackStock) { const { error: eT } = await supabase.rpc("set_product_track_stock", { p_product_id: data, p_track: true }); if (eT) setMsg(`商品を登録しました（在庫管理を ON にできませんでした：${rpcErrJa(eT.message)}）`); }
+      } else if (!pId && typeof data === "string") { const { error: eT } = await supabase.rpc("set_product_track_stock", { p_product_id: data, p_track: false }); if (eT && !isRpcMissingError(eT.message)) setMsg(`商品を登録しました（在庫管理を OFF にできませんでした：${rpcErrJa(eT.message)}）`); }
       if (keepOpen) {
         // ★④b-3「登録して続けて入力」: 区分・カテゴリ・バック等は残し、名称と価格だけ空へ。
         setPId(null);
@@ -711,7 +720,7 @@ export default function ProductsBoard({ storeId, isManagerUp, initial, settings 
           <div className="nox-field">
             <span className="lab">表示カテゴリ</span>
             {/* 純増⑦（mig0063）: カテゴリ（未分類＝null）。無効カテゴリは現在値のときだけ選択肢に残す。 */}
-            <select value={pCatId} onChange={(e) => setPCatId(e.target.value)} style={inputLg}>
+            <select value={pCatId} onChange={(e) => pickCategory(e.target.value)} style={inputLg}>
               <option value="">未分類</option>
               {categories.filter((c) => c.is_active || c.id === pCatId).map((c) => (
                 <option key={c.id} value={c.id}>{c.name}{c.is_active ? "" : "（無効）"}</option>
@@ -752,7 +761,7 @@ export default function ProductsBoard({ storeId, isManagerUp, initial, settings 
                       <input type="checkbox" checked={on} disabled={busyId != null || trackBusy} aria-label="在庫を管理する" onChange={(e) => void toggleTrackStock(pId, e.target.checked)} />
                       {on ? "管理する（在庫数・発注点を表示）" : "管理しない（在庫「—」・発注点なし）"}
                     </label>
-                  ); })() : <span style={{ fontSize: 12, color: "var(--sub)" }}>登録後に切り替えられます（新しい商品は「管理しない」で登録）</span>}
+                  ); })() : <span style={{ fontSize: 12, color: "var(--sub)" }}>登録後に切り替えられます（新しい商品は「管理しない」で登録）{productDefaultsOfCategory(categories.find((c) => c.id === pCatId)).trackStock ? "。このカテゴリは「管理する」で登録します" : ""}</span>}
                 </div>
                 {/* 純増①（mig0062）: 発注点。空欄＝しきい無し（在庫バー非表示）＝null 送信 */}
                 <div className="nox-field">
@@ -848,7 +857,7 @@ export default function ProductsBoard({ storeId, isManagerUp, initial, settings 
             {/* ★M-146（2026-11-10）: 保存の直前に要約（値段／在庫管理／バック率）を必ず表示 */}
             <div style={{ width: "100%", fontSize: 12.5, color: "var(--sub)", display: "flex", gap: 14, flexWrap: "wrap", justifyContent: "center" }} data-product-summary="1">
               <span>値段 <b className="num" style={{ color: "var(--ink)" }}>¥{Number(pPrice || 0).toLocaleString("ja-JP")}</b></span>
-              <span>在庫管理 <b style={{ color: "var(--ink)" }}>{pId ? (products.find((x) => x.id === pId)?.track_stock !== false ? "ON" : "OFF") : "OFF"}</b></span>
+              <span>在庫管理 <b style={{ color: "var(--ink)" }}>{pId ? (products.find((x) => x.id === pId)?.track_stock !== false ? "ON" : "OFF") : productDefaultsOfCategory(categories.find((c) => c.id === pCatId)).trackStock ? "ON" : "OFF"}</b></span>
               <span>バック <b className="num" style={{ color: "var(--ink)" }}>{pBackMode === "rate" ? `${pBackValue}%` : pBackMode === "unit4" ? "区分ごとの額" : "—"}</b></span>
             </div>
             {/* ★④b-3: 主ボタンは横幅いっぱい。新規のときだけ「登録して続けて入力」を併置する。 */}

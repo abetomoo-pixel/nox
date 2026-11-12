@@ -141,6 +141,27 @@ let override0201b: boolean | null = null;
 export function mig0201bOn(): boolean { return override0201b ?? MIG_0201B_APPLIED; }
 export function __set0201bForTest(v: boolean | null): void { override0201b = v; }
 
+/** ★0201c（裁定480・484＝体入の条件と本採用／見送り・M-146＝新しい商品とカテゴリの既定）: 2026-11-12 Agoora 手貼り＝検証が全行一致。
+ *  true＝店舗設定の体入の 2 キー（trial_wage・trial_back）・キャスト詳細の体入の個人の上書き（set_cast_trial）と本採用／見送り（cast_trial_decide）・商品のカテゴリの既定（set_product_category_defaults）。体入の時給を給与に当てる式は入れない。 */
+export const MIG_0201C_APPLIED = true;
+let override0201c: boolean | null = null;
+export function mig0201cOn(): boolean { return override0201c ?? MIG_0201C_APPLIED; }
+export function __set0201cForTest(v: boolean | null): void { override0201c = v; }
+
+/** ★0201h（裁定485＝売掛の給与天引きは店の receivable_policy が cast_liability_allowed のときだけ）: 2026-11-12 Agoora 手貼り＝検証が全行一致。
+ *  true＝日報の売掛タブの「給与天引き」は cast_liability_allowed の店だけに出す。 */
+export const MIG_0201H_APPLIED = true;
+let override0201h: boolean | null = null;
+export function mig0201hOn(): boolean { return override0201h ?? MIG_0201H_APPLIED; }
+export function __set0201hForTest(v: boolean | null): void { override0201h = v; }
+
+/** ★0201e（裁定481＝キャストの締めは店が許可した人だけ・既定 OFF／取り下げ 2 つ／staff_my_work）＋0201e2（キオスクの伝票の読取の直し）: 2026-11-12 Agoora 手貼り＝検証が全行一致（関数 440）。
+ *  true＝スタッフ管理の「締めの許可」（set_cast_close）・/mine の取り下げ（drink_claim_withdraw・reservation_withdraw）・スタッフ本人の勤怠（staff_my_work）。 */
+export const MIG_0201E_APPLIED = true;
+let override0201e: boolean | null = null;
+export function mig0201eOn(): boolean { return override0201e ?? MIG_0201E_APPLIED; }
+export function __set0201eForTest(v: boolean | null): void { override0201e = v; }
+
 export const MIG_0197_APPLIED = true; // ★2026-11-06: 0197（sha16 f28f737489916c38）を Agoora が手貼り（06:53 UTC・本文 Success）＝verify 17 行が期待値と一致（unique は数え方の差・正本の式では 1）・関数 419・表 120・本文 3 本の md5 一致 → true
 let override0197: boolean | null = null;
 export function mig0197On(): boolean { return override0197 ?? MIG_0197_APPLIED; }

@@ -272,7 +272,7 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
             </div>}
             {on("profile") && (!mig0187On() || payAdjustHasFee(adj)) && <div style={{ minWidth: 0 }} data-pay-fee-rates="1">
               <span style={label}>支払方法別の手数料（お客様負担）<span style={{ fontWeight: 400, marginLeft: 6 }}>％・0 は手数料なし（モーダルに出ません）</span></span>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8, marginTop: 4 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(96px, 1fr))", gap: 8, marginTop: 4 }} data-pay-fee-grid="1">{/* ★2026-11-12: 3 等分（minmax(0, …)）は狭いと数字が消えた＝下限 96px で折り返す */}
                 {PAY_FEE_KEYS.map((k) => (
                   <label key={k} style={{ display: "block", minWidth: 0, fontSize: 12 }}>{PAY_FEE_KEY_LABEL[k]}
                     <UnitBox post="%" width="100%"><input type="number" min={0} max={100} step={1} inputMode="numeric" value={form.pay_fee[k]} disabled={busy || !loaded} aria-label={`${PAY_FEE_KEY_LABEL[k]}の手数料率`}
@@ -388,7 +388,7 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
               {mig0191On() && (/* ★0191 ★1（便 OB-2 ⑤・2026-10-30）: 初期設定 v5 の器＝店設定 5 キーの編集口（白名単＝set_store_profile）。指名区分ごとの割合（%の商品の場内／フリーは本指名の率×この割合・商品ごとの個別率が優先）・源泉区分の既定（新規のキャスト／スタッフの初期値＝人ごとに給与の画面で変えられる）・釣銭準備金（日報の締めの既定）・締め日 */
                 <div style={{ minWidth: 0, gridColumn: "1 / -1" }} data-store-0191="1">
                   <span style={label}>指名の区分ごとの割合（%の商品のバック＝本指名の率 × この割合）</span>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(96px, 1fr))", gap: 8 }}>
                     {([["hon", "本指名"], ["jonai", "場内指名"], ["free", "フリー"]] as const).map(([k, l]) => (
                       <label key={k} style={{ display: "grid", gap: 3 }}><span style={{ ...t.sub, fontSize: 11.5 }}>{l}</span>
                         <UnitBox post="%" width="100%"><input type="number" min={0} max={100} step={1} inputMode="numeric" value={form.kind_back[k]} disabled={busy} onChange={(e) => setForm((f) => ({ ...f, kind_back: { ...f.kind_back, [k]: e.target.value } }))} style={input} aria-label={`${l}の割合`} /></UnitBox></label>

@@ -8,6 +8,7 @@
 //   ★セッション 24 時間＝★D2-b（328 追補4）: Free は refresh token が無期限のため、本 route が httpOnly cookie nox_demo_until（入場＋24h）を置き、
 //     middleware（lib/supabase/middleware.ts）がデモユーザー（DEMO_USERS の auth user id）かつ期限切れ／欠落なら signOut → /demo?expired=1（lib/nox/demo/session.ts）。
 import { NextResponse } from "next/server";
+import { KIOSK_PERSON_COOKIE } from "@/lib/nox/kiosk/person-session";
 import { createHash } from "node:crypto";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -78,5 +79,6 @@ export async function POST(req: Request) {
   const res = NextResponse.redirect(new URL(demoDestOf(role as "owner" | "manager" | "staff" | "cast" | typeof DEMO_KIOSK_KEY), req.url), 303);
   // ★D2-b（328 追補4）: デモのセッション期限＝入場＋24h（httpOnly・Secure（https）・SameSite=Lax・path=/）。値は epoch ms＝資格情報ではない
   res.cookies.set(DEMO_UNTIL_COOKIE, demoUntilValue(Date.now()), demoUntilCookieOptions(new URL(req.url).protocol === "https:"));
+  res.cookies.set(KIOSK_PERSON_COOKIE, "", { path: "/", maxAge: 0 }); // ★通しの確かめ A-2（2026-11-12 夜）: 前の役割のキオスクの本人の cookie を残さない（残ると管理者がキオスクへ戻される）
   return res;
 }

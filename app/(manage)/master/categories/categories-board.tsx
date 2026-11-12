@@ -15,6 +15,10 @@ import Toast from "@/components/ui/toast";
 import Modal from "@/components/ui/modal";
 import MasterPageHead from "../master-page-head";
 import { swapAdjacent, reorderErrJa } from "@/lib/nox/ui/reorder";
+import { UnitBox } from "@/components/ui/unit-input";
+import { rpcErrJa } from "@/lib/nox/ui/rpc-err";
+import { mig0201cOn } from "@/lib/nox/rules-0175/flag"; // ★0201c（M-146）: 新しい商品の既定
+import { CATEGORY_DEFAULTS_RPC, categoryDefaultsArgsOf, categoryDefaultsLabelOf, productDefaultsOfCategory } from "@/lib/nox/master/category-defaults";
 import {
   fetchProducts, fetchProductCategories,
   type MasterProduct as Product, type MasterCategory as Category,
@@ -46,6 +50,9 @@ export default function CategoriesBoard({ storeId, isManagerUp, initial }: {
   //     編集時 = その行の現在値（据え置き＝並びを動かさない）
   //     新規時 = 現在の最大値 + 1（末尾に付く）
   const [cSort, setCSort] = useState(0);
+  // ★0201c（M-146）: 新しく足す商品の既定（バック率・在庫の管理）＝編集のときだけ（set_product_category_defaults）
+  const [cDefBack, setCDefBack] = useState("");
+  const [cDefTrack, setCDefTrack] = useState(false);
 
   async function reload() {
     const [cats, ps] = await Promise.all([fetchProductCategories(supabase), fetchProducts(supabase)]);
@@ -71,6 +78,7 @@ export default function CategoriesBoard({ storeId, isManagerUp, initial }: {
     setCCatName(c.name);
     setCActive(c.is_active);
     setCSort(c.sort_order); // 据え置き＝編集で並びを動かさない
+    const d = productDefaultsOfCategory(c); setCDefBack(d.backRate !== null ? String(d.backRate) : ""); setCDefTrack(d.trackStock); // ★0201c
     setModalOpen(true);
   }
 
@@ -78,12 +86,24 @@ export default function CategoriesBoard({ storeId, isManagerUp, initial }: {
   async function saveCategory() {
     if (!cCatName.trim()) return;
     setMsg(null);
+    // ★0201c（M-146）: 既定の入力を先に確かめる（不正なら何も送らない）
+    const defA = mig0201cOn() && cId ? categoryDefaultsArgsOf(cId, { backRate: cDefBack, trackStock: cDefTrack }) : null;
+    if (defA && !defA.ok) { setMsg(defA.err); return; }
     setBusy(true);
     const { error } = await supabase.rpc("set_product_category", {
       p_id: cId, p_store_id: storeId, p_name: cCatName.trim(), p_sort_order: cSort,
       p_is_active: cActive, // 明示 boolean（原則7）
     });
+    let defErr: string | null = null;
+    if (!error && defA && defA.ok) {
+      const cur = productDefaultsOfCategory(categories.find((x) => x.id === cId));
+      if (cur.backRate !== defA.args.p_back_rate || cur.trackStock !== defA.args.p_track_stock) {
+        const r = await supabase.rpc(CATEGORY_DEFAULTS_RPC, defA.args);
+        if (r.error) defErr = rpcErrJa(r.error.message);
+      }
+    }
     setBusy(false);
+    if (defErr) { setMsg(`カテゴリは更新しました。新しい商品の既定は保存できませんでした：${defErr}`); await reload(); return; }
     setMsg(error
       ? (error.message.includes("duplicate name") ? "同じ名前のカテゴリが既にあります"
         : error.message.includes("bad name") ? "カテゴリ名は40字以内で入力してください"
@@ -161,6 +181,7 @@ export default function CategoriesBoard({ storeId, isManagerUp, initial }: {
                       <span className="nox-pt-name">{c.name}</span>
                       {/* 並び替え後は 1..N の連番になる＝現在値をそのまま出して検収できるようにする */}
                       <span className="nox-pt-sub">並び順 {c.sort_order}</span>
+                      {mig0201cOn() && <span className="nox-pt-sub" data-cat-defaults="1">新しい商品：{categoryDefaultsLabelOf(c)}</span>}
                     </td>
                     <td className="col-margin" data-label="商品数">
                       <span style={t.num}>{products.filter((p) => p.category_id === c.id).length}</span>
@@ -205,6 +226,24 @@ export default function CategoriesBoard({ storeId, isManagerUp, initial }: {
             </label>
             <span className="hint">無効にすると、レジ・キオスクのタイル見出しから外れます（割り当て済みの商品は未分類として残ります）。</span>
           </div>
+
+          {mig0201cOn() && (/* ★0201c（M-146）: このカテゴリに新しく足す商品の既定 */
+            <div className="nox-field" data-cat-defaults-form="1">
+              <span className="lab">新しく足す商品の既定</span>
+              {cId ? (
+                <div style={{ display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap" }}>
+                  <label style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 13 }}>バック率
+                    <UnitBox post="%" width={110}><input type="number" inputMode="numeric" min={0} max={100} value={cDefBack} placeholder="なし" onChange={(e) => setCDefBack(e.target.value.replace(/[^0-9]/g, "").slice(0, 3))} style={inputLg} aria-label="新しい商品のバック率" /></UnitBox>
+                  </label>
+                  <label style={{ display: "inline-flex", alignItems: "center", gap: 9, fontSize: 13, cursor: "pointer" }}>
+                    <button type="button" role="switch" aria-checked={cDefTrack} aria-label="在庫を管理する" className={cDefTrack ? "nox-switch on" : "nox-switch"} onClick={() => setCDefTrack((v) => !v)}><i /></button>
+                    在庫を管理する
+                  </label>
+                </div>
+              ) : <span className="hint">カテゴリを登録した後、編集から設定できます。</span>}
+              <span className="hint">このカテゴリで商品を新しく登録するとき、バック率（%）と在庫の管理がこの値で始まります（登録済みの商品は変わりません）。空欄はバックの既定なし。</span>
+            </div>
+          )}
 
           <div className="nox-formmodal-foot">
             <button style={btnPrimaryLg} disabled={busy || !cCatName.trim()} onClick={saveCategory}>

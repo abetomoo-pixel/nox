@@ -3,7 +3,8 @@ import { deniedHrefOf } from "@/lib/nox/nav/denied"; // ★M-169
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getSessionRole } from "@/lib/nox/auth";
-import { rules0175On } from "@/lib/nox/rules-0175/flag"; // ★追補 3 R-8
+import { mig0201eOn, rules0175On } from "@/lib/nox/rules-0175/flag"; // ★追補 3 R-8 ★0201e: 締めの許可
+import CastClosePanel from "./cast-close-panel"; // ★0201e（裁定481）: キャストの締めの許可（キャストごと）
 import StaffBoard from "./staff-board";
 import { STAFF_WORK_HREF, staffTabOf } from "@/lib/nox/staff/tabs";
 import { managePageGate } from "@/lib/nox/nav/page-gate";
@@ -32,6 +33,7 @@ export default async function StaffPage({ searchParams }: { searchParams: Promis
     <p data-staff-work-link="1" style={{ fontSize: 12.5, color: "var(--sub)", margin: "0 0 12px" }}>勤怠は <Link href={STAFF_WORK_HREF} className="nox-link">給与 › 勤怠（スタッフ）</Link> で見ます。働き方（雇用形態・給与）は行を押して編集します。</p>
   );
   return (
+    <>
     <StaffBoard
       isOwner={role === "owner"}
       roleRaw={rules0175On() ? (roleRaw ?? role ?? "") : (role ?? "")} // ★追補 3 R-8（裁定425 候補）: 本来の役割（admin）＝任命・解除の出し分け
@@ -40,5 +42,7 @@ export default async function StaffPage({ searchParams }: { searchParams: Promis
       myAuthUserId={user?.id ?? ""}
       tabs={tabs}
     />
+    {mig0201eOn() && <div className="nox-mv1 nox-mv1-m"><CastClosePanel stores={(stores ?? []) as { id: string; name: string }[]} /></div>}{/* ★0201e（裁定481）: キャストの締めは店が許可した人だけ（既定 OFF） */}
+    </>
   );
 }

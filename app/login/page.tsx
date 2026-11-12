@@ -33,6 +33,8 @@ export default function LoginPage() {
     setBusy(true);
     setError(null);
     const supabase = createClient();
+    // ★通しの確かめ A-2（2026-11-12 夜）: 同じブラウザに残ったキオスクの本人のセッション（cookie nox_kiosk_person・24 時間）を先に終える＝残っていると管理者のログインがキオスクへ戻される
+    await fetch("/api/kiosk/person-end", { method: "POST", body: JSON.stringify({ reason: "manual" }) }).catch(() => undefined);
     const { error: eSign } = await supabase.auth.signInWithPassword({ email, password });
     if (eSign) {
       setError("メールアドレスまたはパスワードが違います");

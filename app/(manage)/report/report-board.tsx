@@ -13,6 +13,8 @@ import { cashPayoutRowsOf, cashPayoutTotalOf, cashPayoutWithOtherOf, otherPayout
 import CashPayoutIssue, { type PayoutIssueKind } from "@/components/nox/cash-payout-issue";
 import { OKURI_ROW_LABEL, okuriAsks, okuriCashOf, okuriExpenseOf, okuriModeOf, type OkuriMode } from "@/lib/nox/shift/okuri-mode"; // ★裁定414（S-4）: 送りの 4 方式＝現金支払／諸経費の読み分け // ★便 X13-G W-24 ②: 内訳の ＋発行 // ★裁定311-②／④（便 Y-4）: 現金支払のプレフィル集計と内訳
 import { mig0191On, rules0175On } from "@/lib/nox/rules-0175/flag"; // ★便 P175-prep P-2
+import { canMarkDeductOf, castCloseOf } from "@/lib/nox/report/gates"; // ★0201h（裁定485）: 給与天引きは cast_liability_allowed の店だけ・★0201e（裁定481）: キャストの締め
+import { mig0201eOn } from "@/lib/nox/rules-0175/flag";
 import { staffDirectDiscountOf } from "@/lib/nox/rules-0175/staff-discount"; // ★追補 2（裁定421 候補）
 import { castPaymentsOf } from "@/lib/nox/rules-0175/cast-register"; // ★追補 2（裁定420）
 import { roundYen } from "@/lib/nox/money";
@@ -137,11 +139,13 @@ export default function ReportBoard({
 }: { storeId: string; cutoff: string; cardTaxRate: number; isManagerUp: boolean; isOwner: boolean; stores: { id: string; name: string }[]; isCast?: boolean }) {
   const supabase = createClient();
   const [tab, setTab] = useState<"day" | "month" | "ar">("day"); // A4: 日報/月報 タブ＋B6: 売掛タブ（案7-A・owner/manager のみ）
+  const [arPolicy, setArPolicy] = useState<string | null>(null); // ★0201h（裁定485）: 売掛の方針の列＝「給与天引き」は cast_liability_allowed の店だけ
+  const castLiabilityOk = canMarkDeductOf(arPolicy);
   const [arOff, setArOff] = useState(false); // ★便 D M-98（2026-11-05・Agoora 実機）: stores.receivable_policy='disabled'（売掛を使わない店）＝「売掛」タブと「売掛 本日発生」を出さない
   useEffect(() => {
     if (!storeId) return;
     let alive = true;
-    void (async () => { const { data } = await supabase.from("stores").select("settings_json").eq("id", storeId).maybeSingle(); if (alive) setArOff(((data as { settings_json?: Record<string, unknown> } | null)?.settings_json ?? {}).ar_enabled !== true); })(); // ★0201b の前提（2026-11-11 相談役 ■4）: 日報の売掛タブは売掛の正本 settings_json.ar_enabled を読む（列 receivable_policy ではない）
+    void (async () => { const { data } = await supabase.from("stores").select("settings_json, receivable_policy").eq("id", storeId).maybeSingle(); if (!alive) return; setArOff(((data as { settings_json?: Record<string, unknown> } | null)?.settings_json ?? {}).ar_enabled !== true); setArPolicy((data as { receivable_policy?: string | null } | null)?.receivable_policy ?? null); })(); // ★0201h（裁定485）: 給与天引きの出し分けに方針の列も読む // ★0201b の前提（2026-11-11 相談役 ■4）: 日報の売掛タブは売掛の正本 settings_json.ar_enabled を読む（列 receivable_policy ではない）
     return () => { alive = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storeId]);
@@ -398,7 +402,17 @@ export default function ReportBoard({
     return () => { alive = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storeId, isManagerUp]);
-  const canClose = isManagerUp || staffPerm.close || isCast;   // 再締め・差異承認（report_can_close と同じ判定＝UI は利便・真の防御は RPC）・★便 P173（裁定389）: ON のキャストは通常の締め（再締め・解除・承認は出さない）
+  // ★0201e（裁定481）: キャストの締め＝店が許可した人だけ（既定 OFF）∧ 出勤中 ∧ 今日の営業日＝report_can_close のキャストの枝と同じ（auth_cast_close_ok＋今日）
+  const [castCloseOk, setCastCloseOk] = useState(false);
+  useEffect(() => {
+    if (!isCast || !storeId || !mig0201eOn()) return;
+    let alive = true;
+    void (async () => { const { data } = await supabase.rpc("auth_cast_close_ok", { p_store_id: storeId }); if (alive) setCastCloseOk(data === true); })();
+    return () => { alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storeId, isCast]);
+  const castClose = castCloseOf({ isCast, closeOk: castCloseOk, bizDate, todayBiz: bizDateOf(new Date().toISOString(), cutoff) });
+  const canClose = isManagerUp || staffPerm.close || castClose;   // 再締め・差異承認（report_can_close と同じ判定＝UI は利便・真の防御は RPC）・★便 P173（裁定389）: ON のキャストは通常の締め（再締め・解除・承認は出さない）
   const canReopen = isManagerUp || staffPerm.reopen; // 解除（report_can_reopen と同じ判定）
   // ★M-157（2026-11-11）: 差異の承認と再締め＝cash_diff_approve／daily_report_reclose は cast を拒否（0173 追補2）＝画面もサーバと同じ（店長以上・「締め」権限のスタッフ）。レジ ON のキャストには出さない
   const canApproveDiff = isManagerUp || staffPerm.close;
@@ -853,15 +867,15 @@ export default function ReportBoard({
                       <span style={{ ...t.sub, fontSize: 12 }}>次回給与で天引き予定</span>
                     ) : (
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        {r.cast_id && (
+                        {r.cast_id && castLiabilityOk && (
                           <label style={{ ...t.fieldLabel, fontSize: 12, display: "flex", alignItems: "center", gap: 4 }}>
                             <input type="checkbox" checked={!!consent[r.id]}
                               onChange={(e) => setConsent((s) => ({ ...s, [r.id]: e.target.checked }))} />
                             本人同意
                           </label>
                         )}
-                        {r.cast_id && (
-                          <button style={btnLight} disabled={!consent[r.id]}
+                        {r.cast_id && castLiabilityOk && (
+                          <button style={btnLight} disabled={!consent[r.id]} data-ar-deduct="1"
                             title={!consent[r.id] ? "本人同意が未取得のため天引きできません（労基法・全額払い）" : ""}
                             onClick={() => markDeductRecv(r)}>給与天引き</button>
                         )}
@@ -1195,7 +1209,7 @@ export default function ReportBoard({
       </section>
 
       {/* 締めは manager 以上のみ（RPC 側も owner/manager 強制＝二重）・★便 P173（裁定389）: ON のキャストも通常の締め */}
-      {(isManagerUp || isCast) && (
+      {(isManagerUp || castClose) && (
         <>
         {/* ★B4-3（DP-R 監査の欠落解消）: モック nox-daily-report の「営業サマリー」カード。
             ★新規取得はゼロ＝すべて既存 Preview の再形（newCust/repeatCust/hon/dohan/bottlesOpened/

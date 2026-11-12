@@ -3145,6 +3145,13 @@ input[type="date"]::-webkit-date-and-time-value, input[type="time"]::-webkit-dat
 /* 包み（UnitBox）＝中の input／MoneyInput／GroupedNumberInput の枠線・背景を消して 1 つの枠に（呼び出し側の inline の t.input に勝つため !important） */
 .nox-unitbox input { border: 0 !important; border-radius: 0 !important; background: transparent !important; box-shadow: none !important; min-width: 0; text-align: right; }
 .nox-unitbox > .nox-unit, .nox-unitbox .nox-money { border: 0; border-radius: 0; flex: 1 1 auto; min-width: 0; width: auto !important; }
+/* 単位つきの欄の下限の幅（2026-11-12）＝3 桁＋入力の左右の余白＋単位の箱が読める幅。格子で 3 等分しても数字が消えない（中の input の余白は呼び出し側の inline に左右されない） */
+.nox-unitbox { min-width: 84px; }
+.nox-unitbox input { padding: 9px 10px !important; min-width: calc(3ch + 20px) !important; }
+/* 単位つきの欄の中の数値は上下の矢印を出さない（矢印が数字の幅を食う＝.nox-numfield と同じ 3 行） */
+.nox-unit input[type="number"]::-webkit-inner-spin-button,
+.nox-unit input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; appearance: none; margin: 0; }
+.nox-unit input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
 /* M-51 時刻入力＝時計アイコン付きのボタン＋時／分を選ぶ小窓（ダーク配色） */
 .nox-time { position: relative; display: inline-flex; vertical-align: middle; min-width: 0; max-width: 100%; }
 .nox-time-btn { display: inline-flex; align-items: center; gap: 8px; width: 100%; min-height: 40px; padding: 8px 12px; background: var(--bg); color: var(--ink); border: 1px solid var(--line2); border-radius: 10px; font: inherit; font-size: 14px; cursor: pointer; white-space: nowrap; color-scheme: dark; }

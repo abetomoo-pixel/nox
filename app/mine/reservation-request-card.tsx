@@ -15,7 +15,8 @@ import Picker from "@/components/nox/picker";
 import SegSelect from "@/components/ui/seg-select";
 import { rpcErrJa } from "@/lib/nox/ui/rpc-err";
 import { mig0183On } from "@/lib/nox/rules-0175/flag"; // ★便 M-4（0183）
-import { RSV_KIND_OPTIONS, RSV_REQ_CANCEL_NOTE, RSV_REQ_EMPTY, RSV_REQ_SENT, RSV_REQ_STATUS_COLOR, RSV_REQ_STATUS_LABEL, rsvCustomerNameOf, rsvRequestArgsOf, rsvRequestRowsOf, rsvWhenLabelOf, RSV_CUSTOMER_MODE_OPTIONS, RSV_NEW_BADGE, rsvGuestArgsOf, rsvRowNameOf, type RsvCustomerMode, type RsvRequestRow } from "@/lib/nox/mine/reservation-request";
+import { RSV_WITHDRAW_CONFIRM, RSV_WITHDRAW_DONE, RSV_WITHDRAW_RPC, WITHDRAW_LABEL, canWithdrawOf, rsvCancelNoteOf } from "@/lib/nox/mine/withdraw"; // ★0201e: 承認前の申請の取り下げ
+import { RSV_KIND_OPTIONS, RSV_REQ_EMPTY, RSV_REQ_SENT, RSV_REQ_STATUS_COLOR, RSV_REQ_STATUS_LABEL, rsvCustomerNameOf, rsvRequestArgsOf, rsvRequestRowsOf, rsvWhenLabelOf, RSV_CUSTOMER_MODE_OPTIONS, RSV_NEW_BADGE, rsvGuestArgsOf, rsvRowNameOf, type RsvCustomerMode, type RsvRequestRow } from "@/lib/nox/mine/reservation-request";
 
 type Customer = { id: string; name: string; tel: string | null };
 const NOM_LABEL: Record<string, string> = { hon: "本指名", jonai: "場内", dohan: "同伴", free: "フリー" };
@@ -58,6 +59,15 @@ export default function ReservationRequestCard({ storeId, bizToday }: { storeId:
     if (error) { setMsg(rpcErrJa(error.message)); return; }
     setMsg(RSV_REQ_SENT);
     setCustomerId(""); setGuestName(""); setPartySize("1");
+    await load();
+  }
+  // ★0201e: 承認待ちの自分の申請を取り下げる（reservation_withdraw＝本人・承認前だけ・監査）
+  async function withdraw(id: string) {
+    if (busy || !confirm(RSV_WITHDRAW_CONFIRM)) return;
+    setBusy(true); setMsg(null);
+    const { error } = await createClient().rpc(RSV_WITHDRAW_RPC, { p_reservation_id: id });
+    setBusy(false);
+    setMsg(error ? rpcErrJa(error.message) : RSV_WITHDRAW_DONE);
     await load();
   }
 
@@ -109,13 +119,14 @@ export default function ReservationRequestCard({ storeId, bizToday }: { storeId:
                 <span style={{ color: "var(--sub)" }}>{NOM_LABEL[r.nom_type ?? ""] ?? ""}</span>
                 {(r as { party_size?: number | null }).party_size != null && <span className="num" style={{ color: "var(--sub)" }} data-rsv-party-row="1">{(r as { party_size?: number | null }).party_size}名</span>}{/* ★M-165（2026-11-11 夜）: 自分の申請に人数 */}
                 <span style={pill(r.status)}>{RSV_REQ_STATUS_LABEL[r.status] ?? r.status}</span>
+                {canWithdrawOf(r.status) && <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} disabled={busy} data-rsv-withdraw="1" onClick={() => void withdraw(r.id)}>{WITHDRAW_LABEL}</button>}
               </div>
               {r.status === "rejected" && r.rejected_reason && <div style={{ fontSize: 12, color: "var(--sub)", marginTop: 2 }}>理由: {r.rejected_reason}</div>}
             </div>
           ))}
         </div>
       )}
-      <p style={{ fontSize: 12, color: "var(--sub)", margin: "6px 0 0" }}>{RSV_REQ_CANCEL_NOTE}</p>
+      <p style={{ fontSize: 12, color: "var(--sub)", margin: "6px 0 0" }}>{rsvCancelNoteOf()}</p>
     </section>
   );
 }

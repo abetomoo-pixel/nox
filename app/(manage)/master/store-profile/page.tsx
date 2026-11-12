@@ -10,7 +10,8 @@ import LineConfigPanel from "../line-config-panel"; // ★便 ON-3（0176 ★1 4
 import { systemUsageOf } from "@/lib/nox/store-systems";
 import { storeProfileTabOf } from "@/lib/nox/master/nav";
 import PunchRulesPanel from "../punch-rules-panel"; // ★0201（裁定474）: 打刻の設定
-import { mig0201On } from "@/lib/nox/rules-0175/flag";
+import { mig0201On, mig0201cOn } from "@/lib/nox/rules-0175/flag";
+import TrialTermsPanel from "../trial-terms-panel"; // ★0201c（裁定480）: 体験入店の条件（店の既定）
 import { managePageGate } from "@/lib/nox/nav/page-gate";
 
 export const dynamic = "force-dynamic";
@@ -85,7 +86,8 @@ export default async function MasterStoreProfilePage({ searchParams }: { searchP
           {mig0201On() && <PunchRulesPanel stores={stores} isOwner={isOwner} />}{/* ★0201（裁定474・フラグ便）: 打刻の設定（判定・方法・位置・Wi-Fi・予定外）＝店長の打刻の許可は 0201c のフラグ便で出す */}{/* ★便 P173（裁定389）: レジ使用・操作端末は owner だけ切替 */}
         </>
       )}
-      {tab === "info" && <StoreProfilePanel stores={stores} isOwner={isOwner} sections={["profile", "shift", "ops"]} />}{/* ★0164（便 W5-2a）: 会計と運用＝列 7 つ */}
+      {tab === "info" && <StoreProfilePanel stores={stores} isOwner={isOwner} sections={["profile", "shift", "ops"]} />}
+      {tab === "info" && mig0201cOn() && <TrialTermsPanel stores={stores} isOwner={isOwner} />}{/* ★0201c（裁定480）: 体入の時給・日数・体入中のバック */}{/* ★0164（便 W5-2a）: 会計と運用＝列 7 つ */}
       {tab === "data" && <StoreProfilePanel stores={stores} isOwner={isOwner} sections={["data"]} />}
       {tab === "line" && <LineConfigPanel stores={stores} isOwner={isOwner} />}{/* ★便 ON-3（0176 ★1 401） */}
     </div>

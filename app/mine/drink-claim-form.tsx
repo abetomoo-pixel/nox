@@ -12,6 +12,8 @@ import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import Picker from "@/components/nox/picker";
+import { rpcErrJa } from "@/lib/nox/ui/rpc-err";
+import { DRINK_WITHDRAW_CONFIRM, DRINK_WITHDRAW_DONE, DRINK_WITHDRAW_RPC, WITHDRAW_LABEL, canWithdrawOf } from "@/lib/nox/mine/withdraw"; // ★0201e: 承認前の申告の取り下げ
 
 import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 type OpenCheck = { check_id: string; seat_name: string; seat_kind: string | null; started_at: string };
@@ -82,6 +84,16 @@ export default function DrinkClaimForm({ month }: { month: string }) {
     await load();
   }
 
+  // ★0201e: 承認前（審査中）の自分の申告を取り下げる（drink_claim_withdraw＝本人・承認前だけ・監査）
+  async function withdraw(c: Claim) {
+    if (busy || !confirm(DRINK_WITHDRAW_CONFIRM)) return;
+    setBusy(true); setMsg(null);
+    const { error } = await supabase.rpc(DRINK_WITHDRAW_RPC, { p_claim_id: c.id });
+    setMsg(error ? rpcErrJa(error.message) : DRINK_WITHDRAW_DONE);
+    setBusy(false);
+    await load();
+  }
+
   const noneP: React.CSSProperties = { fontSize: 13, color: "var(--sub)" };
   const noteP: React.CSSProperties = { fontSize: 12, color: "var(--sub)", margin: 0 };
   const inp: React.CSSProperties = { ...t.input, width: "auto", padding: "8px 10px", fontSize: 13 };
@@ -139,6 +151,9 @@ export default function DrinkClaimForm({ month }: { month: string }) {
             marginLeft: "auto", fontSize: 10.5, fontWeight: 800, borderRadius: 999, padding: "2px 9px",
             color: STATUS_COLOR[c.status] ?? "var(--sub)", background: "var(--card2)", border: "1px solid var(--line2)", whiteSpace: "nowrap",
           }}>{STATUS_LABEL[c.status] ?? c.status}</span>
+          {canWithdrawOf(c.status) && (
+            <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} disabled={busy} data-drink-withdraw="1" onClick={() => void withdraw(c)}>{WITHDRAW_LABEL}</button>
+          )}
         </div>
       ))}
       <p style={{ ...noteP, marginTop: 8 }}>
