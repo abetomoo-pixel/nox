@@ -785,9 +785,9 @@ export default function ProductsBoard({ storeId, isManagerUp, initial, settings 
                     {pByKind && (
                       <div className="nox-field2" style={{ marginTop: 6 }}>
                         <div className="nox-field"><span className="lab">場内指名のとき（%・空欄＝店の割合）</span>
-                          <input type="number" inputMode="numeric" min={0} max={100} value={pBj} placeholder="店の割合" onChange={(e) => setPBj(e.target.value)} style={inputLg} aria-label="場内指名のバック率" /></div>
+                          <UnitBox post="%" width="100%"><input type="number" inputMode="numeric" min={0} max={100} value={pBj} placeholder="店の割合" onChange={(e) => setPBj(e.target.value)} style={inputLg} aria-label="場内指名のバック率" data-back-pct="jonai" /></UnitBox></div>{/* ★M-190 */}
                         <div className="nox-field"><span className="lab">フリーのとき（%・空欄＝店の割合）</span>
-                          <input type="number" inputMode="numeric" min={0} max={100} value={pBf} placeholder="店の割合" onChange={(e) => setPBf(e.target.value)} style={inputLg} aria-label="フリーのバック率" /></div>
+                          <UnitBox post="%" width="100%"><input type="number" inputMode="numeric" min={0} max={100} value={pBf} placeholder="店の割合" onChange={(e) => setPBf(e.target.value)} style={inputLg} aria-label="フリーのバック率" data-back-pct="free" /></UnitBox></div>{/* ★M-190 */}
                       </div>
                     )}
                   </div>

@@ -83,7 +83,7 @@ export function issueErrJa(status: number, msg: string | null | undefined): stri
   const m = msg ?? "";
   if (m.includes("paid period")) return "支払済みの期間には発行できません";
   if (m.includes("okuri none")) return "送りの方式が「なし」の店では記録できません（控除・送りで切替）"; // ★裁定414（0177）
-  if (m.includes("okuri not actual")) return "この店の送り方式ではまだ記録できません（0177 の適用前は「実費」の店のみ）"; // ★裁定414: 適用前の DB
+  if (m.includes("okuri not actual")) return "この店の送り方式ではまだ記録できません（いまは「実費」の店のみ）"; // ★裁定414: 適用前の DB
   if (m.includes("forbidden") || status === 403) return "権限がありません（owner／manager 自店のみ）";
   if (m.includes("bad cast") || m.includes("inactive cast")) return "そのキャストには発行できません（在籍・自店を確認してください）";
   if (m.includes("bad amount") || m.includes("positive integer")) return "金額は正の整数で入力してください";

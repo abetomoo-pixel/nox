@@ -45,7 +45,7 @@ export default async function CastCompHubPage() {
       desc: "採用する軸（売上・指名）、キャスト別目標、未達成時のペナルティを設定。プランごとの目標と達成ボーナスは待遇プランで。",
       status: salesNorm || shimeiNorm ? "● 採用中" : "● 未採用" },
     { href: "/master/cast-comp/register", icon: "◈", title: "キャスト会計の許可",
-      desc: "キャスト本人がレジを使えるようにする設定（店フラグ＋対象キャストの個別許可）。",
+      desc: "キャスト本人がレジを使えるようにする設定（店の設定＋対象キャストの個別許可）。",
       status: castReg ? "● 店として許可中" : "● 店として停止中" },
     // ★裁定269-7／270-2: 使う制度（mig0147・settings_json.sys_*・欠損は ON）
     { href: "/master/cast-comp/systems", icon: "◇", title: "報酬制度",

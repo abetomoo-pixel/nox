@@ -80,7 +80,8 @@ export function sumListKpi(rows: ListRow[]): ListKpi {
 }
 
 /** ★M-132（2026-11-10）: 明細の「PDF で保存」のファイル名（＝印刷時の document.title）＝キャスト名_YYYY-MM_明細。ファイル名に使えない記号は「_」 */
-export function slipPdfTitleOf(castName: string, period: string): string {
-  const safe = (castName || "キャスト").replace(/[\/:*?"<>|\s]+/g, "_").slice(0, 40);
-  return `${safe}_${period}_明細`;
+// ★M-183（2026-11-12 Agoora）: 「給与明細_年月_店名_本人の名前」（例：給与明細_2026-10_CLUB ACE_ひなの）。ファイル名に使えない文字（\ / : * ? " < > |・改行・タブ）は「_」・店名の空白は残す
+export function slipPdfTitleOf(castName: string, period: string, storeName?: string | null): string {
+  const safe = (s: string, max: number) => s.replace(/[\\/:*?"<>|\r\n\t]+/g, "_").replace(/\s+/g, " ").trim().slice(0, max);
+  return ["給与明細", period, safe(storeName ?? "", 40), safe(castName || "キャスト", 40)].filter(Boolean).join("_");
 }

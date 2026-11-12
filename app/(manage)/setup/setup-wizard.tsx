@@ -438,7 +438,7 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
                         {isBottleCat(c) && <td style={{ ...t.td, textAlign: "center" }}><input type="checkbox" checked={it.keep} aria-label="ボトルキープ可" onChange={(e) => up((s) => { s.menu[ci].items[ii].keep = e.target.checked; })} /></td>}
                         <td style={t.td}><span className="nox-rowacts"><button type="button" className="nox-linkbtn" aria-pressed={it.byKind} onClick={() => up((s) => { const x = s.menu[ci].items[ii]; x.byKind = !x.byKind; if (!x.byKind) { x.bj = null; x.bf = null; } })}>区分ごと</button><button type="button" className="nox-linkbtn" aria-label="この商品を削除" onClick={() => up((s) => { s.menu[ci].items.splice(ii, 1); })}>削除</button></span></td>
                       </tr>
-                      {it.byKind && <tr key={`${ii}k`} style={{ background: "var(--bg)" }}><td style={t.td}></td><td style={{ ...t.td, color: "var(--sub)" }}>　↳ 場内指名／フリーのとき{it.bt === "pct" ? "（%）" : ""}{it.bt === "pct" && later("%の個別は 0191")}</td>{/* ★便 A M-69 ③: 「（円）」は外す（欄に ¥ が付く） */}
+                      {it.byKind && <tr key={`${ii}k`} style={{ background: "var(--bg)" }}><td style={t.td}></td><td style={{ ...t.td, color: "var(--sub)" }}>　↳ 場内指名／フリーのとき{it.bt === "pct" ? "（%）" : ""}{it.bt === "pct" && later("%の個別")}</td>{/* ★便 A M-69 ③: 「（円）」は外す（欄に ¥ が付く） */}
                         <td style={t.td} colSpan={isBottleCat(c) ? 4 : 3}><span style={{ display: "inline-flex", gap: 10, flexWrap: "wrap" }}><span>場内 <Money value={it.bj ?? kindVal(it, S.kindRate.jo)} pre={it.bt !== "pct"} unit={it.bt === "pct" ? "%" : undefined} onChange={(n) => up((s) => { s.menu[ci].items[ii].bj = n; })} width={104} /></span><span>フリー <Money value={it.bf ?? kindVal(it, S.kindRate.free)} pre={it.bt !== "pct"} unit={it.bt === "pct" ? "%" : undefined} onChange={(n) => up((s) => { s.menu[ci].items[ii].bf = n; })} width={104} /></span></span></td></tr>}
                     </>))}</tbody></table></div>
                 <div className="nox-actions" style={{ marginTop: 8 }}><button type="button" style={{ ...t.btnGhost, ...t.btnSm }} onClick={() => up((s) => { s.menu[ci].items.push({ n: "", p: 0, b: 0, keep: false, on: true, byKind: false, bj: null, bf: null, bt: "yen" }); })}>＋ {c.cat}に商品を追加</button></div>
@@ -471,7 +471,7 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
             <Field label="ボトル・シャンパン"><Money value={b.bottle} unit="%" onChange={(n) => up((s) => { s.back.bottle = n; })} width={70} /></Field>
           </div>
           <div className="nox-actions" style={{ marginTop: 8 }}><button type="button" style={{ ...t.btnGhost, ...t.btnSm }} onClick={() => { setS((s) => ({ ...rebuildBack(s), dirty: true })); setSaved("メニューのバックを入れ直しました"); }}>この率でメニューのバックを入れ直す</button></div>
-          <div style={{ marginTop: 8 }}><span style={t.fieldLabel}>指名の区分ごとの割合（メニューのバックは「本指名のとき」の値。場内・フリーはこの割合を掛けます）{later("店の割合＝0191")}</span>
+          <div style={{ marginTop: 8 }}><span style={t.fieldLabel}>指名の区分ごとの割合（メニューのバックは「本指名のとき」の値。場内・フリーはこの割合を掛けます）{later("店の割合")}</span>
             <div style={{ ...grid(140), marginTop: 4 }} data-setup-field="kindRate">
               <Field label="本指名"><Money value={S.kindRate.hon} unit="%" onChange={(n) => up((s) => { s.kindRate.hon = n; })} width={70} /></Field>
               <Field label="場内指名"><Money value={S.kindRate.jo} unit="%" onChange={(n) => up((s) => { s.kindRate.jo = n; })} width={70} /></Field>
@@ -517,10 +517,10 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
           <h3 style={h3}>給与の締め・支払い</h3>
           <div style={grid(200)}>
             <div><span style={t.fieldLabel}>給与の期間</span><br /><SegSelect value={pr.period} onChange={(v) => up((s) => { s.payroll.period = v as "month" | "half" | "daily"; })} options={[["month", "月ごと"], ["half", "半月ごと"], ["daily", "日ごと（日払いの店）"]] as const} ariaLabel="給与の期間" wrap /></div>
-            <Field label={<>締め日{!mig0191On() && pr.close !== "末日" && later("末日固定＝0191")}</>}><SegSelect value={pr.close} onChange={(v) => up((s) => { s.payroll.close = v; })} options={[["末日", "末日"], ["15日", "15日"], ["20日", "20日"], ["25日", "25日"]] as const} ariaLabel="締め日" /></Field>
+            <Field label="締め日"><span style={{ display: "block", padding: "10px 0", fontSize: 14 }} data-close-day-fixed="1">月末（固定）</span></Field>{/* ★裁定334（2026-11-12 相談役）: 締め日は月末固定＝選択と保存を外す */}
             <Field label="支払日（翌月）"><Money value={pr.payday} unit="日" onChange={(n) => up((s) => { s.payroll.payday = n; })} width={70} /></Field>
           </div>
-          <Opt title="源泉徴収の区分（既定）" sub={<>人ごとに給与の画面で変えられます。雇用（社員・アルバイト）は「給与」＝NOX は税額を計算せず、社会保険料・源泉所得税・住民税を入れた分だけ差し引きます。{later("店の既定＝0191")}<div style={{ ...grid(200), marginTop: 8 }}>
+          <Opt title="源泉徴収の区分（既定）" sub={<>人ごとに給与の画面で変えられます。雇用（社員・アルバイト）は「給与」＝NOX は税額を計算せず、社会保険料・源泉所得税・住民税を入れた分だけ差し引きます。{later("店の既定")}<div style={{ ...grid(200), marginTop: 8 }}>
             <div><span style={t.fieldLabel}>委託キャスト</span><br /><SegSelect value={pr.whtCast} onChange={(v) => up((s) => { s.payroll.whtCast = v as "hostess" | "none"; })} options={[["hostess", "ホステス報酬（10.21%・1 日 5,000 円×日数を控除）"], ["none", "対象外"]] as const} ariaLabel="委託キャストの源泉区分" wrap /></div>
             <div><span style={t.fieldLabel}>委託スタッフ</span><br /><SegSelect value={pr.whtStaff} onChange={(v) => up((s) => { s.payroll.whtStaff = v as "none" | "other_204"; })} options={[["none", "対象外"], ["other_204", "その他 204 条（100 万円まで 10.21%）"]] as const} ariaLabel="委託スタッフの源泉区分" wrap /></div></div></>}><span /></Opt>
           <Opt title="前払（仮払）" sub="その日に現金で先に渡し、月の給与から差し引きます。源泉はその場では引きません。"><OnOff on={pr.advance} onChange={(v) => up((s) => { s.payroll.advance = v; })} label="前払" /></Opt>

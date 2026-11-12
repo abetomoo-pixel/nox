@@ -76,7 +76,7 @@ __set0200ForTest(false); const off = mig0200On(); __set0200ForTest(null); check(
 // (4) M-132
 {
   const pb = src("app/(manage)/payroll/payroll-board.tsx");
-  check("c200(4-1) 一覧のボタン名＝「明細」・プレビュー上部に「PDF で保存」（1 人分だけ印刷＝nox-print-only・全員分は外す）・ファイル名＝キャスト名_YYYY-MM_明細", pb.includes("setSlipPreview(true); }}>明細</button>") && !pb.includes(">明細 PDF</button>") && pb.includes("data-slip-pdf={r.castId}") && pb.includes("PDF で保存") && pb.includes('className="nox-print nox-print-only" data-slip-print') && pb.includes("&& !slipPrint ?") && slipPdfTitleOf("ひなの", "2026-10") === "ひなの_2026-10_明細" && slipPdfTitleOf("a/b c", "2026-10") === "a_b_c_2026-10_明細");
+  check("c200(4-1) 一覧のボタン名＝「明細」・プレビュー上部に「PDF で保存」（1 人分だけ印刷＝nox-print-only・全員分は外す）・★M-183 ファイル名＝給与明細_年月_店名_本人の名前（使えない文字は _）", pb.includes("setSlipPreview(true); }}>明細</button>") && !pb.includes(">明細 PDF</button>") && pb.includes("data-slip-pdf={r.castId}") && pb.includes("PDF で保存") && pb.includes('className="nox-print nox-print-only" data-slip-print') && pb.includes("&& !slipPrint ?") && slipPdfTitleOf("ひなの", "2026-10", "CLUB ACE") === "給与明細_2026-10_CLUB ACE_ひなの" && slipPdfTitleOf("a/b:c", "2026-10", "X|Y") === "給与明細_2026-10_X_Y_a_b_c" && slipPdfTitleOf("ひなの", "2026-10") === "給与明細_2026-10_ひなの");
 }
 // (5) heartbeat
 {

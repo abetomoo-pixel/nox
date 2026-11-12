@@ -92,14 +92,14 @@ const bl = src("lib/nox/payroll/breakdown-lines.ts"), col = src("lib/nox/payroll
 // ── (5) カレンダー・今日タブ・体入・新規プラン
 {
   const st = (o: Parameters<typeof dayStateOf>[0]) => dayStateOf(o).key;
-  check("gvc(5-1) C-14 日の状態 7 種（シフト優先・確定／確認待ち／審査中／休み希望／見送り／募集中／定休・期間外）",
-    DAY_STATE_ORDER.length === 7
+  check("gvc(5-1) C-14 日の状態 8 種（シフト優先・確定／確認待ち／審査中／休み希望／見送り／募集中／★M-188 定休／期間外）",
+    DAY_STATE_ORDER.length === 8
     && st({ wish: null, shift: { status: "confirmed", start_hm: "20:00", end_hm: "25:00" }, open: false }) === "fixed"
     && st({ wish: { status: "accepted" }, shift: { status: "proposed", start_hm: "20:00", end_hm: "25:00" }, open: true }) === "wait"
     && st({ wish: { status: "pending", kind: "work" }, shift: null, open: true }) === "pending"
     && st({ wish: { status: "pending", kind: "off" }, shift: null, open: true }) === "off"
     && st({ wish: { status: "rejected" }, shift: null, open: true }) === "rejected"
-    && st({ wish: null, shift: null, open: true }) === "open" && st({ wish: null, shift: null, open: true, closed: true }) === "dim" && st({ wish: { status: "withdrawn" }, shift: null, open: false }) === "dim");
+    && st({ wish: null, shift: null, open: true }) === "open" && st({ wish: null, shift: null, open: true, closed: true }) === "closed" && dayStateOf({ wish: null, shift: null, open: false, closed: true }).mark === "定休" && st({ wish: { status: "withdrawn" }, shift: null, open: false }) === "dim");
   check("gvc(5-2) C-14 凡例＝345 の語・休み希望のみ方式は「出られる日」・/mine は data-day-state＋凡例・/shift 月表示も同じ色（確定）",
     dayStateLabelOf("fixed") === "採用・確定" && dayStateLabelOf("wait") === "採用・確認待ち" && dayStateLabelOf("pending") === "審査中" && dayStateLabelOf("rejected") === "見送り"
     && dayStateLabelOf("open", "off_only").startsWith("出られる日") && wish.includes("data-day-state={ds.key}") && wish.includes('data-day-legend="1"') && wish.includes('supabase.from("shifts").select("date, start_hm, end_hm, status")')

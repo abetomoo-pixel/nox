@@ -28,11 +28,11 @@ export async function lineNotifyAllowedOf(supabase: SupabaseClient, castId: stri
   return lineNotifyOnOf(await lineNotifySettingsOfCast(supabase, castId), lineNotifyKindOfNotif(kind, opts));
 }
 
-export async function notifyCast(supabase: SupabaseClient, p: { castId: string; kind: CastNotifKind; body: string; ref?: string | null; line?: boolean; lineKind?: string }): Promise<NotifyResult> { // ★便 C① M-77 ①: lineKind＝LINE 台帳の kind（省略＝kind）
+export async function notifyCast(supabase: SupabaseClient, p: { castId: string; kind: CastNotifKind; body: string; ref?: string | null; line?: boolean; lineKind?: string; remind?: boolean }): Promise<NotifyResult> { // ★M-186（2026-11-12）: remind＝催促の印（裁定459＝既定 OFF の種類 remind で判定） // ★便 C① M-77 ①: lineKind＝LINE 台帳の kind（省略＝kind）
   const { data, error } = await supabase.rpc("cast_notification_create", { p_cast_id: p.castId, p_kind: p.kind, p_body: p.body, p_ref: p.ref ?? null });
   if (error) { console.error(`notify: ${error.message}`); return { ok: false, id: null, err: error.message, line: "none" }; }
   let line: NotifyResult["line"] = "none";
-  if (p.line !== false && !(await lineNotifyAllowedOf(supabase, p.castId, p.lineKind ?? p.kind))) line = "off"; // ★M-114（裁定459）: 種類が OFF の店は LINE に送らない（通知の節には残る）
+  if (p.line !== false && !(await lineNotifyAllowedOf(supabase, p.castId, p.lineKind ?? p.kind, { remind: p.remind }))) line = "off"; // ★M-114（裁定459）: 種類が OFF の店は LINE に送らない（通知の節には残る）
   else if (p.line !== false) {
     try {
       const res = await fetch("/api/line/push", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ castId: p.castId, text: p.body, kind: p.lineKind ?? p.kind }) });

@@ -31,7 +31,8 @@ export function resolveRuleOf(rules: readonly EstimateRule[], q: { feeKind: stri
   const hit = rules.filter((r) => r.fee_kind === q.feeKind
     && (r.seat_kind === null || r.seat_kind === seat)
     && (r.category_id === null || r.category_id === q.categoryId)
-    && (r.dow_mask === null || ((r.dow_mask >> q.dow) & 1) === 1)
+    // ★M-192（2026-11-12）: q.dow は 0＝日（bizClockOf）・dow_mask は bit0＝月（pricing_resolve_core と同じ）＝(dow + 6) % 7 で bit に直す（旧＝そのまま当てて 1 日ずれていた）
+    && (r.dow_mask === null || ((r.dow_mask >> ((q.dow + 6) % 7)) & 1) === 1)
     && (r.time_from_min === null || r.time_to_min === null || (
       (r.time_from_min < cut ? r.time_from_min + 1440 : r.time_from_min) <= q.min
       && q.min < (r.time_to_min <= cut ? r.time_to_min + 1440 : r.time_to_min))));

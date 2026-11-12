@@ -52,7 +52,7 @@ export default async function MineLayout({ children }: { children: React.ReactNo
   const groups: NavGroup[] = [{
     label: null,
     items: [
-      { href: "/mine", label: "マイ" },
+      { href: "/mine", label: "ホーム" }, // ★M-187（2026-11-12 Agoora）: 「マイ」→「ホーム」（スタッフ側の「ホーム」と揃える）
       { href: "/mine/wishes", label: wishNavLabelOf(wishMode) }, // ★裁定337: 解決値
       { href: "/mine/ranking", label: "ランキング" },
       { href: "/mine/notices", label: noticeNavLabelOf(unread) },

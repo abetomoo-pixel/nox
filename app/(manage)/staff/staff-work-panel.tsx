@@ -339,7 +339,7 @@ export default function StaffWorkPanel({ scope, stores, daily = false, initialMe
                 {attMsg && <Message kind={attMsg.kind} style={{ margin: 0 }}>{attMsg.text}</Message>}
                 <p style={{ ...t.sub, margin: 0 }}>日計＝時給×実働（時給制だけ・月給／日給は —）。日付を押すとその日を修正できます（打刻の差し替え・当欠／遅刻／早退）。月を確定すると以後の修正と退勤の取消はできません（解除は店長以上）。</p>
               </div>
-            ) : <p style={{ ...t.sub, margin: "6px 0 0" }}>日計＝時給×実働（時給制だけ・月給／日給は —）。打刻の修正・シフト無し出勤の確定はスタッフの器が無いため 0190／0191 の後（キャストの勤怠と同じ部品）。</p>}
+            ) : <p style={{ ...t.sub, margin: "6px 0 0" }}>日計＝時給×実働（時給制だけ・月給／日給は —）。</p>}
           </div>);
         return narrow
           ? <BottomSheet onClose={() => setDailyMem(null)} title={title} testId="staff-kintai">{table}</BottomSheet>

@@ -45,6 +45,7 @@ import ContactForm from "./contact-form"; // ★便 ON-3（0176 ★4＝400）: �
 import NormCard from "./norm-card";
 import DrinkClaimForm from "./drink-claim-form";
 import PrintPayslipButton from "./print-payslip-button";
+import { slipPdfTitleOf } from "@/lib/nox/payroll/list"; // ★M-183
 import { isSectionOn, type StoreSettings } from "@/lib/nox/store-systems"; // ★裁定269: 使う制度の出し分け
 import { mineSettingsOf } from "@/lib/nox/store/mine-settings"; // ★裁定326-8（便 M1-3）: mine_settings の出し分け（既存の自店読取に相乗り＝新規 fetch 0）
 import { punchHeadOf, punchStateOf, todayShiftLineOf } from "@/lib/nox/shift/punch-state";
@@ -80,9 +81,9 @@ export default async function MinePage({ searchParams }: { searchParams?: Promis
   // ★裁定326-2（便 M2-1）: 「今月のバック」「報酬シミュレーター」の 2 カードは削除（check_cast_backs の読取と sim-data の読取も外した）
 
   // ★0154 D1（裁定294／295）: 自分の cast 行（id・employment＝用語）・修正申請（RLS 本人・表が無ければ空）
-  const MINE_CAST_COLS: string = okuriTiersOn() ? "id, employment, okuri_tier" : "id, employment"; // ★便 M5 M-33: okuri_tier（0180）は同じ 1 行読取に列を足すだけ（新規 fetch 0）
+  const MINE_CAST_COLS: string = okuriTiersOn() ? "id, name, employment, okuri_tier" : "id, name, employment"; // ★M-183: 明細の「本人の名前 様」とファイル名に name // ★便 M5 M-33: okuri_tier（0180）は同じ 1 行読取に列を足すだけ（新規 fetch 0）
   const { data: meCastRaw } = await supabase.from("casts").select(MINE_CAST_COLS).limit(1).maybeSingle();
-  const meCast = (meCastRaw ?? null) as unknown as { id: string; employment: string | null; okuri_tier?: string | null } | null;
+  const meCast = (meCastRaw ?? null) as unknown as { id: string; name?: string | null; employment: string | null; okuri_tier?: string | null } | null;
   const { data: meUser } = await supabase.from("users").select("contact_email, phone").limit(1).maybeSingle(); // ★便 ON-3（0176 ★4）: 自分の users 行（cast の RLS＝本人だけ）
   const term = termOf((meCast?.employment as string | null) ?? null);
   const { startIso: bizStartIso, endIso: bizEndIso } = bizDateRange(bizToday, cutoff);
@@ -149,7 +150,7 @@ export default async function MinePage({ searchParams }: { searchParams?: Promis
   const guaLabel = guaNow ? `保証時給 ${yen(guaNow.amount)}${guaNow.to ? `（${Number(guaNow.to.slice(5, 7))}/${Number(guaNow.to.slice(8, 10))} まで）` : ""}` : null;
 
   // 段M2: 所属店（ヘッダ表示用）。cast の可視 store は自店のみ（RLS）＝先頭行が自店（/mine/ranking と同型）。
-  const { data: myStores } = await supabase.from("stores").select("id, name, settings_json, punch_methods").limit(1); // ★裁定269: sys_* は既存の自店読取に列を足すだけ・★0164（便 W5-2b）: punch_methods（本人打刻の出し分け）
+  const { data: myStores } = await supabase.from("stores").select("id, name, legal_name, settings_json, punch_methods").limit(1); // ★M-183: legal_name＝明細の会社名 // ★裁定269: sys_* は既存の自店読取に列を足すだけ・★0164（便 W5-2b）: punch_methods（本人打刻の出し分け）
   const myStore = myStores?.[0];
   const mineWage = meCast && myStore ? await mineCurrentWageOf(supabase, meCast.id as string, myStore.id as string, bizToday.slice(0, 7), bizToday) : null; // ★便 X13-H H-8
   const ms = mineSettingsOf(myStore?.settings_json); // ★326-8: drink_claim／punch_correction_request／ranking の出し分け（reservation_request の申請カードは M3）
@@ -395,7 +396,7 @@ export default async function MinePage({ searchParams }: { searchParams?: Promis
       <section className="nox-panel nox-print">
         <h3>
           確定給与明細
-          <span style={{ marginLeft: "auto" }}>{(slips ?? []).length > 0 && <PrintPayslipButton />}</span>
+          <span style={{ marginLeft: "auto" }}>{(slips ?? []).length > 0 && <PrintPayslipButton fileTitle={slipPdfTitleOf(meCast?.name ?? "", String((slips ?? [])[0]?.period ?? ""), (myStore?.name as string | undefined) ?? null)} />}{/* ★M-183: ファイル名＝給与明細_年月（最新の明細）_店名_本人の名前 */}</span>
         </h3>
         {(slips ?? []).length === 0 && <p style={{ ...noneP, marginTop: 11 }}>確定分なし</p>}
         <div style={{ marginTop: 11 }}>
@@ -403,6 +404,8 @@ export default async function MinePage({ searchParams }: { searchParams?: Promis
             <PayslipSlip systems={(myStore?.settings_json ?? null) as Record<string, unknown> | null} /* ★便 GV-C C-10（GV-53） */ okuriModes={okuriModes} /* ★裁定414（S-4 ④） */
               key={i}
               compact={ms.payslip_visibility === "net_only"}
+              castName={meCast?.name ?? undefined} /* ★M-183（2026-11-12 Agoora）: 見出し＝店名・本人の名前・年月（旧「NOX 2026-10」） */
+              store={myStore ? { name: myStore.name as string, legalName: ((myStore as { legal_name?: string | null }).legal_name ?? null), address: (() => { const a = ((myStore.settings_json ?? {}) as Record<string, unknown>).receipt_address; return typeof a === "string" && a.trim() ? a : null; })() } : null}
               slip={{ period: s.period as string, net: s.net as number, breakdown_json: s.breakdown_json }}
             />
           ))}

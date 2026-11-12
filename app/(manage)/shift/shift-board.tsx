@@ -661,7 +661,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   // ★便 ON-3（0176 ★5 (d)・C2-13）: 催促＝本人へ通知（kind other）＋LINE（連携済みなら）
   async function remindOne(castId: string, pe: Period) {
     setBusyRemind(castId); setMsg(null);
-    const r = await notifyCast(supabase, { castId, kind: "other", body: remindWishBody(pe), ref: notifRefOf("shift_periods", pe.id) });
+    const r = await notifyCast(supabase, { castId, kind: "other", body: remindWishBody(pe), ref: notifRefOf("shift_periods", pe.id), remind: true }); // ★M-186（2026-11-12）: 1 人への催促も remind＝裁定459 で既定 OFF（旧＝お知らせ扱いで既定 ON になり LINE に出ていた）
     setBusyRemind(null);
     setMsg(r.ok ? `${castName(castId)} に催促を送りました${r.line === "sent" ? "（LINE にも）" : ""}` : `催促に失敗: ${rpcErrJaCommon(r.err ?? "")}`);
   }

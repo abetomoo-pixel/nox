@@ -28,7 +28,8 @@ import MonthNav, { useYmQuery } from "@/components/nox/month-nav"; // ★裁定3
 import { outOfPeriodNoteOf, ymFromSearch } from "@/lib/nox/ui/month-nav";
 // ★裁定326-7／追補2-4（0160・便 M4-1）: 店設定 shift_request_mode。'off_only'＝休み希望（kind 'off'・時刻なし＝時間欄を出さない）。'shift'＝従来（kind 'work'）
 import { wishNeedsTimes, wishPageTextOf, wishRowLabelOf, wishSubmitArgsOf, type WishMode } from "@/lib/nox/mine/wish-mode";
-import { DAY_STATE_ORDER, dayStateLabelOf, dayStateOf, type DayShift } from "@/lib/nox/mine/day-state"; // ★便 GV-C C-14（GV-60・裁定403）: 日の状態 7 種
+import { DAY_STATE_ORDER, dayStateLabelOf, dayStateOf, type DayShift } from "@/lib/nox/mine/day-state";
+import { closedDaysOfMonth, probeDaysOf } from "@/lib/nox/mine/closed-days"; // ★M-188 // ★便 GV-C C-14（GV-60・裁定403）: 日の状態 7 種
 import { rules0175On } from "@/lib/nox/rules-0175/flag"; // ★便 P175-prep P-4
 import { availFormOf, fixedOffConflictOf, wishDefaultOf, type AvailForm, type AvailRow, type AvailTerms } from "@/lib/nox/rules-0175/availability"; // ★便 P175-prep P-4（裁定397＋413）
 
@@ -110,6 +111,22 @@ export default function WishForm({ mode = "shift" }: { mode?: WishMode }) {
     setMonthShifts(m);
   }, [month]);
   useEffect(() => { void loadWishes(); }, [loadWishes]);
+  // ★M-188（2026-11-12 Agoora）: 月を開いたときにその月の定休日を先に出す（マスに「定休」）＝曜日ごとに 1 日ずつ shift_is_closed_day＋特別日を重ねる（lib/nox/mine/closed-days.ts）
+  useEffect(() => {
+    if (!storeId) return;
+    let alive = true;
+    void (async () => {
+      const supabase = createClient();
+      const { data: sp } = await supabase.from("store_special_days").select("day, kind").eq("store_id", storeId)
+        .gte("day", `${month}-01`).lt("day", `${monthAfterOf(month, 1)}-01`);
+      const specials = ((sp ?? []) as { day: string; kind: string }[]);
+      const probes = [...probeDaysOf(month, specials.map((s) => s.day)).entries()];
+      const res = await Promise.all(probes.map(([, d]) => supabase.rpc("shift_is_closed_day", { p_store_id: storeId, p_date: d })));
+      const dows = new Set<number>(probes.filter((_, i) => res[i].data === true).map(([w]) => w));
+      if (alive) setClosedDates(closedDaysOfMonth(month, dows, specials));
+    })();
+    return () => { alive = false; };
+  }, [month, storeId]);
   // ★M-162（2026-11-11）: 取り下げ（WithdrawButton）の成功で読み直す＝一覧・日付の詳細・カレンダーが再読込なしで一致・取り下げた後は「もう一度提出できます」
   useEffect(() => {
     const on = () => { void loadWishes(); setMsg({ kind: "success", text: "希望を取り下げました。もう一度提出できます" }); };

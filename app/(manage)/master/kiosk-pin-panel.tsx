@@ -247,7 +247,7 @@ export default function KioskPinPanel({ stores, isOwner }: { stores: Store[]; is
               })}
               {/* ★便 M5 M-45: キャストの行（キオスク PIN＝設定済み／未設定と失敗回数だけ・設定はキャスト詳細）。0192 未適用＝1 行の案内 */}
               {castRows === null ? (
-                <tr data-cast-pin-rows="pending"><td colSpan={5} style={{ padding: 8, color: "var(--sub)", fontSize: 11.5 }}>キャストのキオスク PIN の状態（設定済み／失敗回数）は 0192（cast_pin_status）の適用後にここに並びます。設定はキャスト詳細 › アカウント。</td></tr>
+                <tr data-cast-pin-rows="pending"><td colSpan={5} style={{ padding: 8, color: "var(--sub)", fontSize: 11.5 }}>キャストのキオスク PIN の状態（設定済み／失敗回数）は準備ができ次第ここに並びます。設定はキャスト詳細 › アカウント。</td></tr>
               ) : castRows.map((c) => {
                 const locked = !!c.locked_until && new Date(c.locked_until).getTime() > Date.now();
                 return (

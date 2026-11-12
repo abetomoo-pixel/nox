@@ -38,7 +38,7 @@ export default function SettlementPresetsEditor({ storeId, settings, readOnly, o
         雇用キャストには使いません（懲戒減給は給与画面・労基法 91 条の上限つき）。
       </p>
       <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 8px" }} data-preset-notes="1">{/* ★便 X13-H H-15（裁定410） */}
-        早退は罰金の対象外です（実働の減少、または不足分の自動起票で扱います）。<br />
+        早退は罰金の対象外です（実働の減少、または不足分の自動登録で扱います）。<br />
         適用は今日タブの遅刻・当欠の記録から（委託キャストに既定額のダイアログが出ます）。
       </p>
       <div className="nox-tablewrap plain">

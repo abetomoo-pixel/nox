@@ -163,7 +163,7 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
   useEffect(() => {
     if (!slipPrint) return;
     const prevTitle = document.title;
-    document.title = slipPdfTitleOf(slipPrint.castName, slipPrint.slip.period);
+    document.title = slipPdfTitleOf(slipPrint.castName, slipPrint.slip.period, slipStore?.name ?? null); // ★M-183
     const done = () => { document.title = prevTitle; setSlipPrint(null); };
     window.addEventListener("afterprint", done, { once: true });
     const tm = window.setTimeout(() => window.print(), 50);

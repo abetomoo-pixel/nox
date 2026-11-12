@@ -285,7 +285,7 @@ export function buildV5Plan(S: V5State, ctx: V5Ctx): { steps: V5Step[]; deferred
     patch.kind_back_rate = { hon: pct100(S.kindRate.hon), jonai: pct100(S.kindRate.jo), free: pct100(S.kindRate.free) };
     patch.withholding_default_cast = S.payroll.whtCast; patch.withholding_default_staff = S.payroll.whtStaff;
     patch.cash_float_default = Math.max(0, Math.min(9_999_999, Math.round(S.float || 0)));
-    patch.settlement_close_day = CLOSE_DAY_OF[S.payroll.close] ?? 31;
+    // ★裁定334（2026-11-12）: 締め日は月末固定＝settlement_close_day は送らない
   }
   // ★0201（裁定474・setup_gap §3）: 「条件に合わないとき」の写し先は判定（punch_enforce）＝予定外の打刻（punch_require_shift）ではなかった（旧版の取り違え）。
   //   ハードは判定方法に必要な値（店の位置か Wi-Fi）が揃わないと保存できない（相談役 11/11 ■3d）＝初期設定では位置も Wi-Fi も決めない＝ここはソフトで保存し、ハードは店舗設定 › 打刻の設定で値を入れてから切り替える（画面に 1 行）。
@@ -349,7 +349,7 @@ export function buildV5Plan(S: V5State, ctx: V5Ctx): { steps: V5Step[]; deferred
     p_slide_apply: "next", p_slide_method: null, p_pt_rules: S.pay.slide === "point" ? { hon: S.pt.hon, jonai: S.pt.jo, dohan: S.pt.dohan, sales_yen_per_pt: S.pt.salesPer } : null });
   push({ key: "comp_0", group: "comp", label: `待遇プラン「基本プラン」時給 ¥${S.pay.base}`, rpc: "set_comp_plan", guard: "plans_empty", args: planArgs("基本プラン", S.pay.base, true) });
   push({ key: "comp_1", group: "comp", label: `待遇プラン「体験入店」時給 ¥${S.pay.trial}（${S.pay.trialDays} 日）`, rpc: "set_comp_plan", guard: "plans_empty", args: planArgs("体験入店", S.pay.trial, false) });
-  if (S.pay.slide === "rate") deferred.push({ item: "報酬率スライドの段", note: "器＝待遇プランの pay_rate_tiers（段の写像は待遇プランの画面で）" });
+  if (S.pay.slide === "rate") deferred.push({ item: "報酬率スライドの段", note: "段は待遇プランの画面で設定します" });
   // 7) ノルマの減額（提案型＝set_penalty_config）
   if (S.pay.norma) { const P = S.normaPen; const flat = (k: keyof typeof P) => (P[k].m === "flat" ? P[k].a : 0), per = (k: keyof typeof P) => (P[k].m === "per" ? P[k].a : 0);
     push({ key: "penalty", group: "comp", label: "ノルマ未達の減額（提案型）", rpc: "set_penalty_config", args: { p_store_id: s, p_fine_absent: 10000, p_fine_late: 3000, p_hours_per_shift: 5, p_norm_on: true, p_norm_days_flat: S.normaAxes.days ? flat("days") : 0, p_norm_days_per: S.normaAxes.days ? per("days") : 0, p_norm_dohan_flat: S.normaAxes.dohan ? flat("dohan") : 0, p_norm_dohan_per: S.normaAxes.dohan ? per("dohan") : 0,
@@ -375,7 +375,6 @@ export function buildV5Plan(S: V5State, ctx: V5Ctx): { steps: V5Step[]; deferred
   if (!mig0191On() && S.menu.some((c) => c.items.some((it) => it.bt === "pct" && it.byKind))) deferred.push({ item: "商品ごとの場内／フリーの率（%）", note: "0191（円の商品は保存済み）" });
   if (!mig0191On() && S.shift.mode === "store") deferred.push({ item: "シフトの集め方「店が決める」", note: "0191（いまは休み希望のみとして保存）" });
   if (!mig0191On()) deferred.push({ item: "釣銭準備金（締めの基準額）", note: "0191（いまは日報の締めで毎回入力）" });
-  if (!mig0191On() && S.payroll.close !== "末日") deferred.push({ item: `締め日（${S.payroll.close}）`, note: "月次の締めは末日固定＝0191" });
   if (!mig0191On() && S.staff.some((st) => st.n.trim() && st.pin && !/^\d{4}$/.test(st.pin))) deferred.push({ item: "PIN 5〜6 桁", note: "0191（いまは 4 桁＝5〜6 桁は自動で 4 桁を振る）" });
   if (!S.mine.late || !S.mine.norma || !S.mine.bonus) deferred.push({ item: "マイページ（遅刻連絡・ノルマ進捗・出勤ボーナスの表示）", note: "0191（いまは常に出る）" });
   return { steps, deferred };
@@ -414,7 +413,6 @@ export const V5_SAVE_MAP: readonly V5SaveMap[] = [
   { step: 5, item: "達成ボーナス（段の数え方）", dest: "settings sys_bonus／bonus_tier_mode", has: true },
   { step: 5, item: "売上の数え方", dest: "settings sales_split", has: true },
   { step: 5, item: "給与の期間・支払日", dest: "settings settlement_cycle／pay_day", has: true },
-  { step: 5, item: "締め日（15／20／25 日）", dest: "なし（月次は末日固定）", has: mig0191On() },
   { step: 5, item: "源泉区分の既定（委託キャスト／委託スタッフ）", dest: "なし（人ごと＝set_withholding_kind・店の既定 2 列は無い）", has: mig0191On() },
   { step: 5, item: "前払・日次精算", dest: "settings mid_pay／settlement_cycle=daily（0188＝settlement は daily の店だけ）", has: true },
   { step: 5, item: "送り 4 方式＋距離 3 段", dest: "set_store_okuri_mode／settings okuri_flat_tiers（0180）・okuri_base_amount", has: true },

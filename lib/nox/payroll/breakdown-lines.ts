@@ -116,7 +116,10 @@ export function slideLinesOf(p: SlideLineInput, opts: { frozen?: boolean; showSa
   };
   const out: BreakdownLine[] = [];
   for (const m of sb.months) {
-    const head = `スライド ${periodLabelOf(m.month)}（${opts.frozen || apply === "next" ? basisWord : `暫定・期首〜今日`}）`;
+    // ★M-184（2026-11-12）: 前月の実績で段を決めるプラン（slide_apply next）は、凍結のとき apply が monthly／half に書き換わり prevMonth だけが残る（slide.ts の slideBasisForPeriodOf）
+    //   ＝prevMonth が月と違えば「適用する月（判定に使った月の実績）」と出す（旧＝前月の値に「10月（月の累計）」と付けていた）。判定の材料は締まった前の期間＝暫定ではない
+    const judgedBy = m.prevMonth && m.prevMonth !== m.month ? m.prevMonth : null;
+    const head = judgedBy ? `スライド ${periodLabelOf(m.month)}（${periodLabelOf(judgedBy)}の実績で判定）` : `スライド ${periodLabelOf(m.month)}（${opts.frozen || apply === "next" ? basisWord : `暫定・期首〜今日`}）`;
     const salesIdx = tiers.filter((t) => m.sales >= t.at).length;
     const ptIdx = ptTiers.filter((t) => m.pts >= t.at).length;
     const wage = Math.max(m.salesWage, m.ptsWage);

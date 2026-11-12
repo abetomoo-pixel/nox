@@ -87,7 +87,7 @@ check("s4(6) 給与＝collect.loadTransport は select * で mode を読み 'sto
 check("s4(7) 退勤の導線＝'none' 以外（/mine・kiosk の okuriSelfPlanOf・今日タブ）・記録可否 okuriEnabledOf は none だけ false・エラー文 'okuri none'／適用前の 'okuri not actual'",
   okuriSelfPlanOf({ okuri_mode: "flat", okuri_base_amount: 1000 }).ask && okuriSelfPlanOf({ okuri_mode: "store", okuri_base_amount: 1000 }).mode === "store" && !okuriSelfPlanOf({ okuri_mode: "none", okuri_base_amount: 1000 }).ask
   && okuriEnabledOf("flat") && okuriEnabledOf("store") && !okuriEnabledOf("none") && okuriEnabledOf(undefined)
-  && issueErrJa(400, "okuri none").includes("「なし」") && issueErrJa(400, "okuri not actual").includes("0177"));
+  && issueErrJa(400, "okuri none").includes("「なし」") && issueErrJa(400, "okuri not actual").includes("いまは「実費」の店のみ") /* ★M-189 b（2026-11-12）: 内部の言葉（0177）を外した */);
 check("s4(8) 設定画面＝4 択（実費／定額／店負担／なし）・'store'／'none' は P 前は無効「0177 の適用後に選べます」・route は 4 値を受ける",
   JSON.stringify(Object.values(OKURI_MODE_LABEL)) === JSON.stringify(["タクシー代の立替（レジ現金が出る）", "定額徴収", "店負担", "なし"]) /* ★裁定414 追補: 表示名 */ && okuriModeSelectableOf("store", false) === false && okuriModeSelectableOf("none", false) === false && okuriModeSelectableOf("flat", false) && okuriModeSelectableOf("store", true)
   && src("app/(manage)/master/deduction-panel.tsx").includes("okuriModeSelectableOf(m, okuri4wayOn())") && src("lib/nox/rules-0175/flag.ts").includes("export const OKURI_4WAY_APPLIED = true;") /* ★便 P175-prep P-7: フラグは flag.ts に一本化（pin 張替え）・便 ON-1（2026-10-26）から true */ && src("app/api/store/okuri-mode/route.ts").includes('mode !== "store" && mode !== "none"'));

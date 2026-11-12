@@ -623,7 +623,7 @@ export default function AuditBoard({ users, stores }: {
             <span style={{ flex: 1 }}>
               完全性チェック（ハッシュ連鎖）
               <span style={{ display: "block", fontSize: 10.5, color: "var(--v2-muted)" }}>
-                裁定により<b>採用していません</b>（作らない方針です）。改ざん防止は上の追記専用と権限で担保します。
+                <b>採用していません</b>（作らない方針です）。改ざん防止は上の追記専用と権限で担保します。
               </span>
             </span>
             <span className="nox-stpill">非採用</span>

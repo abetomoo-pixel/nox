@@ -30,7 +30,7 @@ check("m5c(1-4) 題名「基本の働き方の確認」・注記「条件が入�
 const gate = src("app/mine/contract-ack-gate.tsx"), mine = src("app/mine/page.tsx");
 check("m5c(1-5) 配線: gate は lines を受けて <ul data-contract-terms> で描く・page は既読の値だけで castTermsSummaryOf（mineWage・guaLabel・employment・okuriModeOf・okuri_tier→区分名・daysTargets[month]）・新規 fetch 0（casts の 1 行読取に okuri_tier を足すだけ・0180 フラグ）",
   gate.includes("export default function ContractAckGate({ lines }: { lines: readonly string[] })") && gate.includes("<ul data-contract-terms={lines.length}") && !gate.includes("加盟店契約")
-  && mine.includes("const termsLines = castTermsSummaryOf({") && mine.includes("normDaysTarget: daysTargets[month],") && mine.includes('okuriTiersOn() ? "id, employment, okuri_tier" : "id, employment"')
+  && mine.includes("const termsLines = castTermsSummaryOf({") && mine.includes("normDaysTarget: daysTargets[month],") && mine.includes('okuriTiersOn() ? "id, name, employment, okuri_tier" : "id, name, employment"')
   && mine.includes("okuriFlatTiersOf(storeSj).find((tr) => tr.code === meCast?.okuri_tier)?.name ?? null") && mine.includes('hourly: mineWage && ms.payslip_visibility !== "off" ? mineWage.hourly : null'));
 
 // ── (2) M-40 (c) ──

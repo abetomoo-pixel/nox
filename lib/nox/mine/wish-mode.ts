@@ -5,7 +5,8 @@ import { fmtWin } from "../shift-time";
 
 export type WishMode = "shift" | "off_only";
 
-export const wishNavLabelOf = (mode: WishMode): string => (mode === "off_only" ? "休み希望" : "シフト希望");
+// ★M-187（2026-11-12 Agoora）: ナビの名前は方式に関係なく「シフト」（旧＝シフト希望／休み希望）
+export const wishNavLabelOf = (_mode: WishMode): string => "シフト";
 
 export const OFF_MODE_NOTE = "休みたい日だけ提出します。提出のない日は出勤できる日として扱われ、店の確定案に載ることがあります";
 // ★M-167（2026-11-11 夜・外部レビュー 3）: 説明を手順（lib/nox/shift/flow.ts）と同じ言葉に＝審査中 → 採用・確認待ち（本人の確認が要る店）→ 採用・確定 → 店が公開すると確定シフトとしてマイページに出る
@@ -14,8 +15,8 @@ export const SHIFT_MODE_NOTE = "出たい日と時間を提出します。希望
 /** ページの文言（見出し・副題・提出節・説明） */
 export function wishPageTextOf(mode: WishMode): { title: string; sub: string; submitHeading: string; note: string; markNote: string } {
   return mode === "off_only"
-    ? { title: "休み希望", sub: "休みたい日を提出・審査状況を確認", submitHeading: "休みたい日を提出", note: OFF_MODE_NOTE, markNote: "募集期間中の無印の日は出られる日として扱われます。募集期間外・定休日は選べません。提出済みの日は押すと詳細（取り下げ）が出ます。時間は入力しません（休みの日だけを選びます）" }
-    : { title: "シフト希望", sub: "希望を提出・審査状況を確認", submitHeading: "希望を提出", note: SHIFT_MODE_NOTE, markNote: "募集期間外・定休日は選べません。提出済みの日は押すと詳細（取り下げ）が出ます。前の月に戻ると確定した実績が見られます。" };
+    ? { title: "シフト", sub: "休みたい日を提出・審査状況を確認", submitHeading: "休みたい日を提出", note: OFF_MODE_NOTE, markNote: "募集期間中の無印の日は出られる日として扱われます。募集期間外・定休日は選べません。提出済みの日は押すと詳細（取り下げ）が出ます。時間は入力しません（休みの日だけを選びます）" }
+    : { title: "シフト", sub: "希望を提出・審査状況を確認", submitHeading: "希望を提出", note: SHIFT_MODE_NOTE, markNote: "募集期間外・定休日は選べません。提出済みの日は押すと詳細（取り下げ）が出ます。前の月に戻ると確定した実績が見られます。" };
 }
 
 export type WishSubmitArgs = { p_date: string; p_start_hm: string | null; p_end_hm: string | null; p_kind: "work" | "off" };

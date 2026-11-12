@@ -143,7 +143,7 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
       if (form.wht_cast !== cur.wht_cast) out.withholding_default_cast = form.wht_cast;
       if (form.wht_staff !== cur.wht_staff) out.withholding_default_staff = form.wht_staff;
       if (form.cash_float !== cur.cash_float) out.cash_float_default = form.cash_float.trim() === "" ? 0 : Number(form.cash_float);
-      if (form.close_day !== cur.close_day) out.settlement_close_day = Number(form.close_day);
+      // ★裁定334 に画面を合わせる（2026-11-12 相談役）: 締め日は月末固定＝settlement_close_day は送らない（白名単のキーは次に set_store_profile を作り直すときに外す）
     }
     return out;
   };
@@ -242,7 +242,7 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
             {/* ★0172（裁定349・便 P172）: 精算方式（源泉の暦日数の単位＝月次／半月／週次／日次）と途中払い（なし／前払）＝settings_json の 2 キー（set_store_profile の白名単） */}
             {on("profile") && <label style={{ display: "block", minWidth: 0 }}>
               <span style={label}>精算方式<span style={{ fontWeight: 400, marginLeft: 6 }}>源泉の計算期間（暦日数）の単位</span></span>
-              <span data-settlement-cycle="1" style={{ display: "block" }}><SegSelect value={form.settlement_cycle} disabled={busy || !loaded} onChange={(v) => setForm((f) => ({ ...f, settlement_cycle: v }))} options={SETTLEMENT_CYCLE_OPTIONS} ariaLabel="精算方式" /></span>{/* ★M-82 */}
+              <span data-settlement-cycle="1" style={{ display: "block" }}><SegSelect value={form.settlement_cycle} disabled={busy || !loaded} onChange={(v) => setForm((f) => ({ ...f, settlement_cycle: v }))} options={SETTLEMENT_CYCLE_OPTIONS} ariaLabel="精算方式" wrap /></span>{/* ★M-82・★M-191（2026-11-12）: wrap＝全部の選択肢を読める（右端の「半月（13〜16）」が切れていた） */}
             </label>}
             {/* ★便 P173（裁定386・0173）: 途中合流＝セット終了後の＋は合流セット行（既定）／延長のみ。−は引き直さない */}
             {on("profile") && <label style={{ display: "block", minWidth: 0 }}>
@@ -275,8 +275,8 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
               <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8, marginTop: 4 }}>
                 {PAY_FEE_KEYS.map((k) => (
                   <label key={k} style={{ display: "block", minWidth: 0, fontSize: 12 }}>{PAY_FEE_KEY_LABEL[k]}
-                    <input type="number" min={0} max={100} step={1} inputMode="numeric" value={form.pay_fee[k]} disabled={busy || !loaded} aria-label={`${PAY_FEE_KEY_LABEL[k]}の手数料率`}
-                      onChange={(e) => setForm((f) => ({ ...f, pay_fee: { ...f.pay_fee, [k]: e.target.value.replace(/[^0-9]/g, "").slice(0, 3) } }))} style={{ ...input, marginTop: 2 }} placeholder="0" />
+                    <UnitBox post="%" width="100%"><input type="number" min={0} max={100} step={1} inputMode="numeric" value={form.pay_fee[k]} disabled={busy || !loaded} aria-label={`${PAY_FEE_KEY_LABEL[k]}の手数料率`}
+                      onChange={(e) => setForm((f) => ({ ...f, pay_fee: { ...f.pay_fee, [k]: e.target.value.replace(/[^0-9]/g, "").slice(0, 3) } }))} style={{ ...input, marginTop: 2 }} placeholder="0" data-pay-fee-pct={k} /></UnitBox>{/* ★M-190（2026-11-12）: 欄に「%」（指名の割合の欄と同じ形） */}
                   </label>
                 ))}
               </div>
@@ -379,7 +379,7 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
               </div>
               {/* ★M-143（2026-11-10）: 打刻ゲート（duty_gate）のスイッチは撤去＝裁定472 で例外が廃止（レジは常に出勤中だけ・DB の白名単の duty_gate は読まれない） */}
               {mig0192On() && (/* ★0192 M-49: キオスクの「本人でログイン」＝無操作 N 分で端末のセッションに戻す（店設定 kiosk_person_idle_minutes・1〜120・既定 10） */
-                <label style={{ minWidth: 0, display: "grid", gap: 3 }} data-kiosk-person-idle="0192">
+                <label style={{ minWidth: 0, display: "grid", gap: 3, alignContent: "start", alignSelf: "start", justifyItems: "start" }} data-kiosk-person-idle="0192">{/* ★M-189 a（2026-11-12）: 行の高さに引き伸ばされて大きな箱になっていた＝上に寄せ、項目名のすぐ下・ほかの数値の欄と同じ大きさ */}
                   <span style={label}>キオスクの本人でログイン：無操作で戻すまで</span>
                   <UnitInput value={form.kiosk_person_idle} type="number" min={1} max={120} step={1} inputMode="numeric" disabled={busy} onChange={(v) => setForm((f) => ({ ...f, kiosk_person_idle: v }))} unit="分" width={140} ariaLabel="無操作で戻すまでの分" />
                   <span style={{ ...t.sub, display: "block", fontSize: 11.5, lineHeight: 1.7 }}>キオスクから本人のアカウントで開いた画面は、この時間操作が無いと自動でログアウトして端末の画面に戻ります</span>
@@ -402,9 +402,9 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
                     <div><span style={label}>釣銭準備金（日報の締めの既定）</span>
                       <MoneyInput value={form.cash_float} disabled={busy} placeholder="毎回入力" onChange={(d) => setForm((f) => ({ ...f, cash_float: d.slice(0, 7) }))} ariaLabel="釣銭準備金" width="100%" /></div>
                     <div><span style={label}>締め日</span>
-                      <SegSelect value={form.close_day} onChange={(v) => setForm((f) => ({ ...f, close_day: v }))} options={[["15", "15 日"], ["20", "20 日"], ["25", "25 日"], ["31", "末日"]] as const} /></div>
+                      <span style={{ display: "block", padding: "8px 0", fontSize: 13.5 }} data-close-day-fixed="1">月末（固定）</span></div>{/* ★裁定334（2026-11-12）: 選択肢を外し表示だけ */}
                   </div>
-                  <span style={{ ...t.sub, display: "block", fontSize: 11.5, marginTop: 4, lineHeight: 1.7 }}>源泉区分の既定は新しく登録する人の初期値です（人ごとに給与の画面で変えられます）。締め日は月次の精算の区切り（末日以外は 0191 の器＝計算は次の便）。</span>
+                  <span style={{ ...t.sub, display: "block", fontSize: 11.5, marginTop: 4, lineHeight: 1.7 }}>源泉区分の既定は新しく登録する人の初期値です（人ごとに給与の画面で変えられます）。</span>
                 </div>
               )}
             </div>

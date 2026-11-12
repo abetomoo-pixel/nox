@@ -6,9 +6,10 @@ import { WISH_STATE_LABEL } from "@/lib/nox/shift/wish-state";
 import { fmtWin } from "@/lib/nox/shift-time";
 import type { WishMode } from "@/lib/nox/mine/wish-mode";
 
-export type DayStateKey = "fixed" | "wait" | "pending" | "off" | "rejected" | "open" | "dim";
+// ★M-188（2026-11-12 Agoora）: 定休日を「定休」として期間外（dim）と分ける＝マスに「定休」・凡例は「定休」と「期間外」
+export type DayStateKey = "fixed" | "wait" | "pending" | "off" | "rejected" | "open" | "closed" | "dim";
 
-export const DAY_STATE_ORDER: DayStateKey[] = ["fixed", "wait", "pending", "off", "rejected", "open", "dim"];
+export const DAY_STATE_ORDER: DayStateKey[] = ["fixed", "wait", "pending", "off", "rejected", "open", "closed", "dim"];
 
 export function dayStateLabelOf(k: DayStateKey, mode: WishMode = "shift"): string {
   switch (k) {
@@ -18,7 +19,8 @@ export function dayStateLabelOf(k: DayStateKey, mode: WishMode = "shift"): strin
     case "off": return "休み希望";
     case "rejected": return WISH_STATE_LABEL.rejected; // 見送り
     case "open": return mode === "off_only" ? "出られる日（募集中・無印）" : "募集中";
-    case "dim": return "定休・期間外";
+    case "closed": return "定休";
+    case "dim": return "期間外";
   }
 }
 
@@ -39,6 +41,7 @@ export function dayStateOf(a: { wish: DayWish; shift: DayShift; open: boolean; c
     // accepted だがシフトが無い（削除等）＝確認待ち（wishStateOf と同じ扱い）
     return { key: "wait", mark: wish.start_hm && wish.end_hm ? fmtWin(wish.start_hm, wish.end_hm) : null };
   }
-  if (a.open && !a.closed) return { key: "open", mark: null };
+  if (a.closed) return { key: "closed", mark: "定休" };
+  if (a.open) return { key: "open", mark: null };
   return { key: "dim", mark: null };
 }

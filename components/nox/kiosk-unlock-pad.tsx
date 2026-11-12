@@ -37,7 +37,7 @@ export default function KioskUnlockPad({ onUnlocked }: { onUnlocked: (r: { membe
     setBusy(true); setMsg(null);
     const { data, error } = await supabase.rpc("kiosk_unlock", { p_pin: pin, p_membership_id: membershipId ?? null, ...(mig0190On() ? { p_device_fp: browserDeviceFp() } : {}) }); // ★M-110（裁定457）: 端末の印を添える（束縛済み端末で 'device bound' にならない＝kiosk-workspace の kiosk_login と同じ型）
     setBusy(false);
-    if (error) { setMsg("この端末は現在使用できません（0175 適用前か店に確認）"); setPin(""); return; }
+    if (error) { setMsg("この端末は現在使用できません（店にご確認ください）"); setPin(""); return; }
     await handle(data as UnlockResult);
   }
   return (

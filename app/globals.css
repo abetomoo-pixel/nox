@@ -2870,6 +2870,7 @@ button:disabled, .nox-btn:disabled { opacity: .45; cursor: not-allowed; }
 [data-day-state="rejected"] { color: var(--sub) !important; }
 [data-day-state="open"]     { border: 1.5px dashed var(--line2) !important; }
 [data-day-state="dim"]      { opacity: .35; }
+[data-day-state="closed"]   { opacity: .55; background: repeating-linear-gradient(135deg, transparent 0 6px, rgba(140, 140, 150, .14) 6px 8px) !important; } /* ★M-188: 定休＝斜線＋「定休」の文字（期間外の減光と分ける） */
 .nox-cald[data-day-state="fixed"], .nox-cald[data-day-state="wait"], .nox-cald[data-day-state="off"], .nox-cald[data-day-state="rejected"], .nox-cald[data-day-state="pending"] { opacity: 1 !important; filter: none !important; }
 .nox-dstext { font-size: 9px; line-height: 1.2; color: var(--ink); }
 [data-day-state="rejected"] .nox-dstext { color: var(--sub); }
@@ -3298,3 +3299,18 @@ tr.nox-rowflash, .nox-rowflash { animation: nox-rowflash 1.6s ease-out; }
 .nox-footlink, .nox-footlink:visited { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
 .nox-footlink:hover { color: var(--gold2); }
 .nox-footlink:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; border-radius: 2px; }
+
+/* ★M-182（2026-11-12 Agoora＝案 A）: 分析の主要客リスト＝PC（1024px 以上）は左にキャスト別の表・右に選んだキャストの主要客（表を送っても右は見える位置に留まる）／タブレットと 375 は押した行の真下 */
+.nox-ana-a { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); gap: 14px; align-items: start; }
+.nox-ana-side { position: sticky; top: 12px; max-height: calc(100vh - 24px); overflow: auto; border: 1px solid var(--line); border-radius: 12px; padding: 12px; min-width: 0; }
+.nox-ana-inline { display: none; }
+.nox-ana-inline > td { padding: 10px 8px 14px !important; background: var(--card, transparent); }
+.nox-ana-casttable tbody tr[data-cast-row]:hover { background: rgba(255, 255, 255, .03); }
+.nox-ana-casttable tbody tr.sel { background: var(--primary-soft); }
+.nox-ana-casttable tbody tr.sel td:first-child { color: var(--primary-hover); font-weight: 700; }
+.nox-ana-casttable th .nox-sortbtn { background: transparent; border: 0; color: inherit; font: inherit; font-weight: 700; cursor: pointer; padding: 0; white-space: nowrap; }
+@media (max-width: 1023px) {
+  .nox-ana-a { display: block; }
+  .nox-ana-side { display: none; }
+  .nox-ana-inline { display: table-row; }
+}

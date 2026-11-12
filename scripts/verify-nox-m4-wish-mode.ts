@@ -20,8 +20,8 @@ const fails: string[] = [];
 function check(label: string, ok: boolean, detail?: string) { if (ok) pass++; else fails.push(`${label}${detail ? `: ${detail}` : ""}`); }
 
 // (1)
-check("wm(1-1) wishNavLabelOf／wishPageTextOf: 'shift'＝シフト希望／'off_only'＝休み希望（見出し・提出節・説明）・wishNeedsTimes", wishNavLabelOf("shift") === "シフト希望" && wishNavLabelOf("off_only") === "休み希望"
-  && wishPageTextOf("shift").title === "シフト希望" && wishPageTextOf("off_only").title === "休み希望" && wishPageTextOf("off_only").submitHeading === "休みたい日を提出" && wishPageTextOf("off_only").note === OFF_MODE_NOTE && OFF_MODE_NOTE.includes("提出のない日は出勤できる日")
+check("wm(1-1) wishNavLabelOf／wishPageTextOf: ★M-187＝ナビと見出しはどちらも「シフト」（方式の違いは副題・提出節・説明）・wishNeedsTimes", wishNavLabelOf("shift") === "シフト" && wishNavLabelOf("off_only") === "シフト"
+  && wishPageTextOf("shift").title === "シフト" && wishPageTextOf("off_only").title === "シフト" && wishPageTextOf("off_only").submitHeading === "休みたい日を提出" && wishPageTextOf("off_only").note === OFF_MODE_NOTE && OFF_MODE_NOTE.includes("提出のない日は出勤できる日")
   && wishNeedsTimes("shift") && !wishNeedsTimes("off_only"));
 const row = { date: "2026-10-10", start_hm: "20:00", end_hm: "26:00" };
 check("wm(1-2) wishSubmitArgsOf: 'off_only'＝時刻 null＋kind 'off'／'shift'＝時刻＋kind 'work'（0160 の 4 引数）", JSON.stringify(wishSubmitArgsOf(row, "off_only")) === JSON.stringify({ p_date: "2026-10-10", p_start_hm: null, p_end_hm: null, p_kind: "off" })

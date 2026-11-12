@@ -466,7 +466,7 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
           </div>
         </div>
         <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 10px" }}>
-          ※割合方式は、レジで「指名料を追加」した伝票の指名料額が対象です（裁定vi・本数カウントとは別系統）。
+          ※割合方式は、レジで「指名料を追加」した伝票の指名料額が対象です（本数で数えるバックとは別です）。
         </p>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
 

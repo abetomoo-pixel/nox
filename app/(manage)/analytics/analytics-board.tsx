@@ -34,12 +34,12 @@ import { sumCategories, twoClassOf, CATEGORY_ORDER, CATEGORY_LABEL, type Categor
 import { BILLING_LOCKED_MSG, isBillingLocked } from "@/lib/billing/messages";
 // ★B6-4（2026-09-11）: 人件費式は純関数 labor-cost（旧 :214〜232／:405／:491／:993 の直書きを付け替え・month-report と共用）
 import { finalRunOf, laborCostOf, laborRatePct, castLaborRatePct, type LaborRun, type LaborSlip } from "@/lib/nox/payroll/labor-cost";
+import { castTableRowsOf, filterCastRows, sortCastRows, type CastSortKey } from "@/lib/nox/analytics/cast-table"; // ★M-182
 // ★B6-11（2026-09-11）: KPI 5 枚の差分行（前月比（月全体）・前年同月比）＝純関数 compare（diffOf／prevMonthOf／prevYearMonthOf）
 import { diffOf, prevMonthOf, prevYearMonthOf, type Diff, type DiffKind } from "@/lib/nox/analytics/compare";
 // ★B6-12（2026-09-11）: 指名（店合計）・集中度・出勤実績・商品／時間（明細）＝純関数 cast-stats（出勤扱いの状態集合もここに集約）
 import { top3ShareOf, presentDaysOf, productTimeOf, nomStoreOf } from "@/lib/nox/analytics/cast-stats";
 import { castSalesRankingOf, RANK_AXIS_LABEL, type RankAxis } from "@/lib/nox/payroll/cast-sales"; // ★裁定346: 売上軸＝給与の collect と同じ合算（純関数）
-import Picker from "@/components/nox/picker";
 
 import Toast, { Message } from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 import { monthLastDayOf } from "@/lib/nox/month"; // ★便 X13-H H-9: 暦月の日付は 1 か所で（「-31」固定・翌月 0 日を撤去）
@@ -146,6 +146,8 @@ export default function AnalyticsBoard({
   const [err, setErr] = useState<string | null>(null);
   // section3（B-2）: cast 別指名客ランキング
   const [castSel, setCastSel] = useState("");
+  const [castQ, setCastQ] = useState(""); // ★M-182: 表の絞り込み
+  const [castSort, setCastSort] = useState<{ key: CastSortKey; dir: "asc" | "desc" }>({ key: "sales", dir: "desc" }); // ★M-182: 見出しで並べ替え
   const [custRank, setCustRank] = useState<CustRankRow[]>([]);
   const [custErr, setCustErr] = useState<string | null>(null);
   // ── 段A2（分析刷新・正本 nox-analytics-redesign-mock-v1.html）──
@@ -587,6 +589,78 @@ export default function AnalyticsBoard({
     ];
   }, [custSummary]);
 
+  // ★M-182（案 A）: 選んだキャストの詳細（4 つの数字・客の表・注記）＝右の欄（PC）と押した行の真下（タブレット・375）で同じものを出す
+  const castDetail = (
+    <div className="nox-ana-detail">
+        {/* E8-6 #11: 選択キャストの4スタット（客単価=按分売上÷指名伝票数・出勤=attendance PRESENT。
+            延長率・杯数は明細の時刻・行帰属の集計経路が要るため準備中（発明しない）。 */}
+        {castSel && (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 8, marginBottom: 12 }}>
+            <div style={{ border: "1px solid var(--line)", borderRadius: 9, padding: "8px 10px" }}>
+              <div style={{ fontSize: 11, color: "var(--sub)" }}>客単価（按分）</div>
+              <div className="num" style={{ fontSize: 17, fontWeight: 700 }}>
+                {selSalesRow && selNomCount > 0 ? yen(Math.round(selSalesRow.sales / selNomCount)) : "—"}
+              </div>
+              <div style={{ fontSize: 10.5, color: "var(--v2-muted)" }}>按分売上 ÷ 指名伝票数</div>
+            </div>
+            <div style={{ border: "1px solid var(--line)", borderRadius: 9, padding: "8px 10px" }}>
+              <div style={{ fontSize: 11, color: "var(--sub)" }}>出勤</div>
+              <div className="num" style={{ fontSize: 17, fontWeight: 700 }}>{attDays === null ? "—" : `${attDays}日`}</div>
+              <div style={{ fontSize: 10.5, color: "var(--v2-muted)" }}>出勤・同伴・遅刻の日数</div>
+            </div>
+            <div style={{ border: "1px solid var(--line)", borderRadius: 9, padding: "8px 10px" }}>
+              <div style={{ fontSize: 11, color: "var(--sub)" }}>延長率</div>
+              <div style={{ fontSize: 12, color: "var(--v2-muted)", marginTop: 4 }}>{COMING}</div>
+            </div>
+            <div style={{ border: "1px solid var(--line)", borderRadius: 9, padding: "8px 10px" }}>
+              <div style={{ fontSize: 11, color: "var(--sub)" }}>ドリンク杯数</div>
+              <div style={{ fontSize: 12, color: "var(--v2-muted)", marginTop: 4 }}>{COMING}</div>
+            </div>
+          </div>
+        )}
+        {custErr && <Message kind="error">{custErr}</Message>}
+        {!castSel && <p style={noneP}>キャストを選択すると、その月に指名した客の一覧（回数順）を表示します。</p>}
+        {castSel && !custErr && custRank.length === 0 && (
+          <p style={noneP}>該当なし（この月に客に紐付いた指名がありません）</p>
+        )}
+        {castSel && custRank.length > 0 && (
+          <div className="nox-tablewrap plain">{/* ★M1 第 2 レーン（裁定251・2026-09-18）: 横スクロール容器 */}
+          <table className="nox-table">
+            <thead>
+              <tr>
+                <th>客名</th>
+                <th className="num">本指名</th>
+                <th className="num">場内</th>
+                <th className="num">同伴</th>
+                <th className="num">合計</th>
+              </tr>
+            </thead>
+            <tbody>
+              {custRank.map((r) => (
+                <tr key={r.customer_id}>
+                  <td>{r.customer_name}</td>
+                  <td className="num">{r.hon_count}</td>
+                  <td className="num">{r.jonai_count}</td>
+                  <td className="num">{r.dohan_count}</td>
+                  <td className="num" style={{ color: "var(--champ)", fontWeight: 700 }}>{r.total_count}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          </div>
+        )}
+        {castSel && !custErr && (
+          <p style={{ fontSize: 11, color: dropCount > 0 ? "var(--gold2)" : "var(--sub)", margin: "8px 0 0" }}>
+            {dropCount > 0
+              ? `※客なし指名 ${dropCount} 件は対象外（客未紐付けの伝票＝指名件数ランキングとの差分）。`
+              : selTotalNom > 0
+                ? "※全指名が客に紐付いています。"
+                : "※この月の指名はありません。"}
+          </p>
+        )}
+    </div>
+  );
+  const castRows = sortCastRows(filterCastRows(castTableRowsOf(castOptions, salesRanking, labor.state, castGross), castQ), castSort.key, castSort.dir);
   return (
     <div className="nox-mv1 nox-mv1-sm">
       {/* 段0R 第2陣: モック .head を新シェルの nox-hero へ（/master・/home・/casts と同基準） */}
@@ -1206,82 +1280,48 @@ export default function AnalyticsBoard({
         </p>
       </section>
 
-      <section className="nox-panel">
+      <section className="nox-panel" data-cast-a="1">{/* ★M-182（2026-11-12 Agoora＝案 A）: キャスト別の表の行を押して選ぶ（名前のボタンの縦並びはやめる）・見出しで並べ替え・検索欄は表の絞り込み・PC は表の右に主要客リスト（送っても右は留まる）・タブレットと 375 は押した行の真下 */}
         <h3>主要客リスト（{period}・キャスト別指名客）</h3>
-        <div style={{ marginBottom: 10 }}>
-          <span style={t.fieldLabel}>キャスト</span>
-          {/* ★裁定259-b／259-a（2026-09-17）: label 内の行内小型 select→dense Picker。value=''→null・onChange('')→onClear（未選択＝4 スタット非表示のまま） */}
-          <div style={{ maxWidth: 360, marginTop: 5 }}>
-            <Picker dense items={castOptions.map((c) => ({ id: c.id, label: c.name }))} value={castSel || null}
-              onPick={setCastSel} onClear={() => setCastSel("")} placeholder="キャストを検索（未選択可）" />
+        <input type="search" value={castQ} onChange={(e) => setCastQ(e.target.value)} placeholder="キャストを絞り込む（名前）" aria-label="キャストを絞り込む" data-cast-filter="1"
+          style={{ ...t.input, width: "100%", maxWidth: 360, margin: "4px 0 10px" }} />
+        <div className="nox-ana-a">
+          <div className="nox-ana-a-main" style={{ minWidth: 0 }}>
+            <div className="nox-tablewrap plain">
+            <table className="nox-table nox-ana-casttable" data-cast-table="1">
+              <thead><tr>
+                <th className={""} aria-sort={castSort.key === "name" ? (castSort.dir === "asc" ? "ascending" : "descending") : "none"}><button type="button" className="nox-sortbtn" data-cast-sort="name" onClick={() => setCastSort((cs) => ({ key: "name", dir: cs.key === "name" && cs.dir === "desc" ? "asc" : "desc" }))}>キャスト{castSort.key === "name" ? (castSort.dir === "desc" ? " ▼" : " ▲") : ""}</button></th>
+                <th className={"num"} aria-sort={castSort.key === "sales" ? (castSort.dir === "asc" ? "ascending" : "descending") : "none"}><button type="button" className="nox-sortbtn" data-cast-sort="sales" onClick={() => setCastSort((cs) => ({ key: "sales", dir: cs.key === "sales" && cs.dir === "desc" ? "asc" : "desc" }))}>売上（按分）{castSort.key === "sales" ? (castSort.dir === "desc" ? " ▼" : " ▲") : ""}</button></th>
+                <th className={"num"} aria-sort={castSort.key === "share" ? (castSort.dir === "asc" ? "ascending" : "descending") : "none"}><button type="button" className="nox-sortbtn" data-cast-sort="share" onClick={() => setCastSort((cs) => ({ key: "share", dir: cs.key === "share" && cs.dir === "desc" ? "asc" : "desc" }))}>構成{castSort.key === "share" ? (castSort.dir === "desc" ? " ▼" : " ▲") : ""}</button></th>
+                <th className={"num"} aria-sort={castSort.key === "pay" ? (castSort.dir === "asc" ? "ascending" : "descending") : "none"}><button type="button" className="nox-sortbtn" data-cast-sort="pay" onClick={() => setCastSort((cs) => ({ key: "pay", dir: cs.key === "pay" && cs.dir === "desc" ? "asc" : "desc" }))}>報酬{castSort.key === "pay" ? (castSort.dir === "desc" ? " ▼" : " ▲") : ""}</button></th>
+                <th className={"num"} aria-sort={castSort.key === "rate" ? (castSort.dir === "asc" ? "ascending" : "descending") : "none"}><button type="button" className="nox-sortbtn" data-cast-sort="rate" onClick={() => setCastSort((cs) => ({ key: "rate", dir: cs.key === "rate" && cs.dir === "desc" ? "asc" : "desc" }))}>報酬率{castSort.key === "rate" ? (castSort.dir === "desc" ? " ▼" : " ▲") : ""}</button></th>
+                <th className={"num"} aria-sort={castSort.key === "hon" ? (castSort.dir === "asc" ? "ascending" : "descending") : "none"}><button type="button" className="nox-sortbtn" data-cast-sort="hon" onClick={() => setCastSort((cs) => ({ key: "hon", dir: cs.key === "hon" && cs.dir === "desc" ? "asc" : "desc" }))}>本指名{castSort.key === "hon" ? (castSort.dir === "desc" ? " ▼" : " ▲") : ""}</button></th>
+                <th className={"num"} aria-sort={castSort.key === "jonai" ? (castSort.dir === "asc" ? "ascending" : "descending") : "none"}><button type="button" className="nox-sortbtn" data-cast-sort="jonai" onClick={() => setCastSort((cs) => ({ key: "jonai", dir: cs.key === "jonai" && cs.dir === "desc" ? "asc" : "desc" }))}>場内{castSort.key === "jonai" ? (castSort.dir === "desc" ? " ▼" : " ▲") : ""}</button></th>
+                <th className={"num"} aria-sort={castSort.key === "dohan" ? (castSort.dir === "asc" ? "ascending" : "descending") : "none"}><button type="button" className="nox-sortbtn" data-cast-sort="dohan" onClick={() => setCastSort((cs) => ({ key: "dohan", dir: cs.key === "dohan" && cs.dir === "desc" ? "asc" : "desc" }))}>同伴{castSort.key === "dohan" ? (castSort.dir === "desc" ? " ▼" : " ▲") : ""}</button></th>
+              </tr></thead>
+              <tbody>
+                {castRows.map((r) => (
+                  <Fragment key={r.castId}>
+                    <tr className={castSel === r.castId ? "sel" : undefined} data-cast-row={r.castId} onClick={() => setCastSel(castSel === r.castId ? "" : r.castId)} style={{ cursor: "pointer" }} aria-selected={castSel === r.castId}>
+                      <td>{r.name}</td>
+                      <td className="num">{yen(r.sales)}</td>
+                      <td className="num">{r.share === null ? "—" : `${r.share}%`}</td>
+                      <td className="num">{r.pay === null ? "—" : yen(r.pay)}</td>
+                      <td className="num">{r.rate === null ? "—" : `${r.rate}%`}</td>
+                      <td className="num">{r.hon}</td>
+                      <td className="num">{r.jonai}</td>
+                      <td className="num">{r.dohan}</td>
+                    </tr>
+                    {castSel === r.castId && <tr className="nox-ana-inline" data-cast-inline="1"><td colSpan={8}>{castDetail}</td></tr>}
+                  </Fragment>
+                ))}
+              </tbody>
+            </table>
+            </div>
+            {castRows.length === 0 && <p style={noneP}>{castQ ? "該当するキャストがいません。" : "在籍のキャストがいません。"}</p>}
+            <p style={{ fontSize: 11, color: "var(--sub)", margin: "8px 0 0" }}>見出しを押すと並べ替え（もう一度で逆順）。報酬＝確定した給与の総支給（未確定の月は「—」）・報酬率＝報酬 ÷ 売上（按分）。</p>
           </div>
+          <aside className="nox-ana-side" data-cast-side="1">{castSel ? castDetail : <p style={noneP}>表の行を押すと、そのキャストがこの月に指名された客の一覧を表示します。</p>}</aside>
         </div>
-        {/* E8-6 #11: 選択キャストの4スタット（客単価=按分売上÷指名伝票数・出勤=attendance PRESENT。
-            延長率・杯数は明細の時刻・行帰属の集計経路が要るため準備中（発明しない）。 */}
-        {castSel && (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 8, marginBottom: 12 }}>
-            <div style={{ border: "1px solid var(--line)", borderRadius: 9, padding: "8px 10px" }}>
-              <div style={{ fontSize: 11, color: "var(--sub)" }}>客単価（按分）</div>
-              <div className="num" style={{ fontSize: 17, fontWeight: 700 }}>
-                {selSalesRow && selNomCount > 0 ? yen(Math.round(selSalesRow.sales / selNomCount)) : "—"}
-              </div>
-              <div style={{ fontSize: 10.5, color: "var(--v2-muted)" }}>按分売上 ÷ 指名伝票数</div>
-            </div>
-            <div style={{ border: "1px solid var(--line)", borderRadius: 9, padding: "8px 10px" }}>
-              <div style={{ fontSize: 11, color: "var(--sub)" }}>出勤</div>
-              <div className="num" style={{ fontSize: 17, fontWeight: 700 }}>{attDays === null ? "—" : `${attDays}日`}</div>
-              <div style={{ fontSize: 10.5, color: "var(--v2-muted)" }}>出勤・同伴・遅刻の日数</div>
-            </div>
-            <div style={{ border: "1px solid var(--line)", borderRadius: 9, padding: "8px 10px" }}>
-              <div style={{ fontSize: 11, color: "var(--sub)" }}>延長率</div>
-              <div style={{ fontSize: 12, color: "var(--v2-muted)", marginTop: 4 }}>{COMING}</div>
-            </div>
-            <div style={{ border: "1px solid var(--line)", borderRadius: 9, padding: "8px 10px" }}>
-              <div style={{ fontSize: 11, color: "var(--sub)" }}>ドリンク杯数</div>
-              <div style={{ fontSize: 12, color: "var(--v2-muted)", marginTop: 4 }}>{COMING}</div>
-            </div>
-          </div>
-        )}
-        {custErr && <Message kind="error">{custErr}</Message>}
-        {!castSel && <p style={noneP}>キャストを選択すると、その月に指名した客の一覧（回数順）を表示します。</p>}
-        {castSel && !custErr && custRank.length === 0 && (
-          <p style={noneP}>該当なし（この月に客に紐付いた指名がありません）</p>
-        )}
-        {castSel && custRank.length > 0 && (
-          <div className="nox-tablewrap plain">{/* ★M1 第 2 レーン（裁定251・2026-09-18）: 横スクロール容器 */}
-          <table className="nox-table">
-            <thead>
-              <tr>
-                <th>客名</th>
-                <th className="num">本指名</th>
-                <th className="num">場内</th>
-                <th className="num">同伴</th>
-                <th className="num">合計</th>
-              </tr>
-            </thead>
-            <tbody>
-              {custRank.map((r) => (
-                <tr key={r.customer_id}>
-                  <td>{r.customer_name}</td>
-                  <td className="num">{r.hon_count}</td>
-                  <td className="num">{r.jonai_count}</td>
-                  <td className="num">{r.dohan_count}</td>
-                  <td className="num" style={{ color: "var(--champ)", fontWeight: 700 }}>{r.total_count}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          </div>
-        )}
-        {castSel && !custErr && (
-          <p style={{ fontSize: 11, color: dropCount > 0 ? "var(--gold2)" : "var(--sub)", margin: "8px 0 0" }}>
-            {dropCount > 0
-              ? `※客なし指名 ${dropCount} 件は対象外（客未紐付けの伝票＝指名件数ランキングとの差分）。`
-              : selTotalNom > 0
-                ? "※全指名が客に紐付いています。"
-                : "※この月の指名はありません。"}
-          </p>
-        )}
       </section>
       </>
       )}
