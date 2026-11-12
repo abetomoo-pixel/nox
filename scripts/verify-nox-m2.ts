@@ -31,7 +31,7 @@ check("m2(15-2) CSV／印刷は横並び（≤899＝セグメントは全幅 1 �
   const lay = src("app/(manage)/layout.tsx");
   const items = [...new Set([...lay.matchAll(/href: "(\/[a-z0-9/_-]+)"/g)].map((m) => m[1]))].map((href) => ({ href, label: href }));
   const walk = (d: string): string[] => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(`${d}/${e.name}`) : e.name === "page.tsx" ? [d] : []));
-  const routes = walk("app/(manage)").map((d) => d.replace("app/(manage)", "").replace(/\[[^\]]+\]/g, "x") || "/").filter((r) => r !== "/setup");
+  const routes = walk("app/(manage)").map((d) => d.replace("app/(manage)", "").replace(/\[[^\]]+\]/g, "x") || "/").filter((r) => r !== "/setup" && r !== "/staff/me/profile"); // ★■N-6（2026-11-12）: 自分の情報を編集はどのナビも選ばない（b5(6-1)）
   const miss = routes.filter((r) => activeHrefOf(r, items) === "");
   check("m2(15-3) 下タブの現在地＝/shift と /shift?tab=… は「シフト」・app/(manage) の全画面が nav のどれかに当たる（/setup を除く）",
     activeHrefOf("/shift", items) === "/shift" && routes.length >= 30 && miss.length === 0, { miss, n: routes.length });

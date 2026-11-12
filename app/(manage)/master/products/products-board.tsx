@@ -291,7 +291,7 @@ export default function ProductsBoard({ storeId, isManagerUp, initial, settings 
     setTrackBusy(true);
     const { error } = await supabase.rpc("set_product_track_stock", { p_product_id: productId, p_track: next });
     setTrackBusy(false);
-    if (error) { setMsg(isRpcMissingError(error.message) ? "在庫管理の切替は 0166 適用後に使えます" : rpcErrJa(error.message)); return; }
+    if (error) { setMsg(rpcErrJa(error.message)); return; }
     setProducts((prev) => prev.map((x) => (x.id === productId ? { ...x, track_stock: next } : x)));
     setMsg(next ? "在庫を管理する設定にしました" : "在庫を管理しない設定にしました（在庫「—」）");
   }

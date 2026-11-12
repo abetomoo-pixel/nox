@@ -372,6 +372,12 @@ kiosk_provision（新規 kiosk の追加＝拡大操作）
 ### A21. 0201（1 本・2026-11-11 本番適用（Agoora 手貼り・検証 17 行一致）・0201 のフラグ true 便で収載・規則A形でゲート内蔵・kiosk 腕なし）
 - 0201 ★7 店長の打刻の許可（裁定474）: set_store_manager_punch（オーナーだけ・冒頭に課金の述語）
 （対象 204→**205**・live 実測＝billing locked の関数 **205**）
+
+### A22. 0201c／0201e（4 本・2026-11-12 本番適用（Agoora 手貼り・0201c 検証 12 行一致・0201e 検証 12 行一致）・0201c／h／e のフラグ便で収載・規則A形でゲート内蔵・kiosk 腕なし）
+- 0201c 体入の条件（裁定484）: set_cast_trial（個人の上書き・店長以上）・cast_trial_decide（本採用／見送り）
+- 0201c 商品とカテゴリの既定（M-146）: set_product_category_defaults
+- 0201e 締めの許可（裁定481）: set_cast_close（キャストの日報の締めの許可・店長以上）
+（対象 205→**209**・live 実測＝billing locked の関数 **209**）
 ## B. 除外（99本）
 
 ### B(a) 構造除外＝authenticated 実行不可（service/内部・28本）→ ゲート不要（B7 回避型(1)）
@@ -578,6 +584,12 @@ staff_deactivate / kiosk_deactivate
 - 本人の設定（B(f) と同列＝ゲート不要・本人の PIN だけ）: staff_pin_self_set（店長・スタッフが自分の PIN を変える）
 - 本人の設定（B(f) と同列＝ゲート不要・本人の PIN だけ）: cast_pin_self_set（キャストが自分の打刻の PIN を変える）
 （除外 223→**226**・全数 427→**431**（0201 ＋4＝A +1（A21）・B +3・作り直し 4 本は名前不変））
+
+### B(aa). 0201c／0201e 新設の除外（5本・2026-11-12・0201c／h／e のフラグ便で収載）
+- RLS の判定の内部ヘルパー（authenticated 実行可・読むだけ＝ゲート不要・B(l) と同列）: auth_cast_register_active（キャストのレジ ∧ 出勤中＝伝票系 6 表のキャストの腕・0201e2 で CASE の柵）・auth_cast_close_ok（＋締めの許可）
+- 本人の取り下げ（申請を消すだけ＝課金停止中でも取り下げられる＝B-補1 と同列）: drink_claim_withdraw・reservation_withdraw
+- 読取（B(f) と同列）: staff_my_work（スタッフ本人の勤怠と日計）
+（除外 226→**231**・全数 431→**440**（0201c ＋3・0201e ＋6＝A +4（A22）・B +5・0201h と 0201e2 は作り直しだけ＝名前不変））
 
 ## C. kiosk 腕を持つ対象（実装注意・18本）
 A1 の check_open / check_add_line / check_remove_line / check_add_seat / check_remove_seat /

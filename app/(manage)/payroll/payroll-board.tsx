@@ -603,6 +603,9 @@ ${md.message}（入れずに確定すると控除 0 のまま確定します）`
   };
   const payLinesOf = (): PayLine[] => (rows ?? []).map((r) => { const cp = castPaid?.get(r.castId); return { castId: r.castId, castName: r.castName, net: cp?.net ?? r.net, paid: cp?.paid ?? 0 }; });
 
+  // ★裁定491（2026-11-12）: 売掛（settings_json.ar_enabled）・送り（okuri_mode none）を使わない店は列ごと出さない。値の残る行（設定を切る前の分）があれば出す
+  const arColOn = storeSettings.ar_enabled === true || (rows ?? []).some((r) => !!r.arDeductTotal || !!r.arCarriedTotal);
+  const okuriColOn = okuriModeOf(storeSettings) !== "none" || (rows ?? []).some((r) => !!r.okuriDeductTotal);
   return (
     <div className="nox-printpage">
       {slipPrint && (/* ★M-132: 1 人分の明細の印刷（画面では隠す＝nox-print-only・印刷時はこれだけが残る） */
@@ -924,9 +927,9 @@ ${md.message}（入れずに確定すると控除 0 のまま確定します）`
                 <th className="fold" style={{ ...t.th, textAlign: "right" }}>日数</th>
                 <th className="fold" style={{ ...t.th, textAlign: "right" }}>総支給</th>
                 <th className="fold" style={{ ...t.th, textAlign: "right" }}>控除計</th>
-                <th className="fold" style={{ ...t.th, textAlign: "right" }}>売掛</th>
+                {arColOn && <th className="fold" style={{ ...t.th, textAlign: "right" }}>売掛</th>}{/* ★裁定491: 売掛を使わない店は列ごと出さない（値が残る行があれば出す） */}
                 <th className="fold" style={{ ...t.th, textAlign: "right" }}>貸付返済</th>{/* ★裁定458 ①④: 前借り（貸付）の返済 */}
-                <th className="fold" style={{ ...t.th, textAlign: "right" }}>{okuri4wayOn() ? OKURI_HEAD[okuriModeOf(storeSettings)] : "送り"}</th>{/* ★便 P175-prep P-7（裁定414）: 0177 後は方式を見出しに（実費／定額／店負担＝控除なし） */}
+                {okuriColOn && <th className="fold" style={{ ...t.th, textAlign: "right" }}>{okuri4wayOn() ? OKURI_HEAD[okuriModeOf(storeSettings)] : "送り"}</th>}{/* ★便 P175-prep P-7（裁定414）: 0177 後は方式を見出しに（実費／定額／店負担＝控除なし） */}
                 <th style={{ ...t.th, textAlign: "right" }}>差引支給</th>
                 <th className="fold" style={{ ...t.th, textAlign: "right" }}>不整合</th>
                 {/* ★U-1（裁定99-②）: 状態列＝支払状態のみ（未確定/未払/一部/支払済・キャスト単位確定は作らない） */}
@@ -958,9 +961,9 @@ ${md.message}（入れずに確定すると控除 0 のまま確定します）`
                   <td className="fold c-days" style={{ ...t.td, ...t.num, textAlign: "right" }}>{Array.isArray(pay?.wdays) ? `${pay.wdays.length}日` : "-"}</td>
                   <td className="fold" style={{ ...t.td, ...t.num, textAlign: "right" }}>{gross != null ? gross.toLocaleString() : "-"}</td>
                   <td className="fold" style={{ ...t.td, ...t.num, textAlign: "right", color: ded ? "var(--bad)" : "var(--sub)" }}>{ded ? `−${ded.toLocaleString()}` : "-"}</td>
-                  {dedCell(r.arDeductTotal, r.arCarriedTotal, "fold")}
+                  {arColOn && dedCell(r.arDeductTotal, r.arCarriedTotal, "fold")}
                   {advCell(r.advDeductTotal, r.advCarriedTotal, "fold")}
-                  {dedCell(r.okuriDeductTotal, undefined, "fold")}
+                  {okuriColOn && dedCell(r.okuriDeductTotal, undefined, "fold")}
                   {/* net＝読む情報の最重要値ゆえ白太（値そのものは r.net のまま・書式も toLocaleString で不変） */}
                   <td className="c-net" style={{ ...t.td, ...t.num, textAlign: "right", fontWeight: 700, color: "var(--v2-text)" }}>{r.net.toLocaleString()}{r.arDeductTotal ? <small className="nox-payar">売掛 −{r.arDeductTotal.toLocaleString()}</small> : null}</td>
                   <td className="fold" style={{ ...t.td, ...t.num, textAlign: "right", color: r.anomalyCount ? "var(--bad)" : "var(--sub)" }}>{r.anomalyCount || "-"}</td>

@@ -7,7 +7,7 @@ import PinSelfCard from "@/components/nox/pin-self-card";
 import ContactForm from "@/app/mine/contact-form";
 import { KIOSK_PERSON_COOKIE, parseKioskPersonCookie } from "@/lib/nox/kiosk/person-session";
 import { mig0196On, mig0201On } from "@/lib/nox/rules-0175/flag";
-import { SELF_PROFILE_KIOSK_NOTE, SELF_PROFILE_STORE_ONLY_NOTE } from "@/lib/nox/people/self-profile";
+import { SELF_PROFILE_KIOSK_NOTE, selfProfileStoreOnlyNoteOf } from "@/lib/nox/people/self-profile";
 import Link from "next/link";
 import { SelfProfileFields } from "./profile-form";
 import { managePageGate } from "@/lib/nox/nav/page-gate";
@@ -40,7 +40,7 @@ export default async function StaffProfilePage() {
           <section className="nox-panel" style={sec}><h3>住所・緊急連絡先</h3><SelfProfileFields row={prof ?? null} /></section>
           {mig0201On() && <section className="nox-panel" style={sec}><PinSelfCard kind="staff" /></section>}
           <section className="nox-panel" style={sec} data-self-password="1"><h3>パスワード</h3><p style={{ fontSize: 12.5, margin: 0 }}>パスワードの変更は、ログアウトしてログイン画面の「パスワードを忘れた方」から行えます（登録のメールに再設定の案内が届きます）。<Link href="/auth/forgot" className="nox-link">パスワードの再設定へ ›</Link></p></section>
-          <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 14px" }} data-self-store-only="1">{SELF_PROFILE_STORE_ONLY_NOTE}写真は右上の「自分の情報」から変更できます。</p>
+          <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 14px" }} data-self-store-only="1">{selfProfileStoreOnlyNoteOf(role)}写真は右上の「自分の情報」から変更できます。</p>
         </>
       )}
     </div>

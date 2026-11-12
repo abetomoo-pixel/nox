@@ -11,7 +11,7 @@ import Link from "next/link";
 import BrandLogo from "@/components/ui/brand-logo"; // ★便 SH-UI-a A-2: ロゴ（Concept 2 改）
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { OPEN_MENU_EVENT } from "@/lib/nox/ui/nav-tabs"; // ★裁定361（GV-9・便 GV-A）: ≡ ドロワー＝TabBar のシートを drawer 節で開く
+import { OPEN_MENU_EVENT, isNoActivePath } from "@/lib/nox/ui/nav-tabs"; // ★裁定361（GV-9・便 GV-A）: ≡ ドロワー＝TabBar のシートを drawer 節で開く
 import type { NavGroup } from "./nav";
 import { NavIcon } from "./nav-icons";
 
@@ -49,7 +49,7 @@ export default function SideNav({ groups, storeLabel , homeHref = "/" }: { /** �
     setPref(next); try { window.localStorage.setItem("nox.sidenav", next); } catch { /* noop */ }
   };
   const flat = groups.flatMap((g) => g.items);
-  const active = flat.reduce<string>((best, it) => {
+  const active = isNoActivePath(path) ? "" : flat.reduce<string>((best, it) => { // ★■N-6: 自分の情報を編集はどれも選ばない
     const hit = path === it.href || path.startsWith(it.href + "/");
     if (!hit) return best;
     return it.href.length > best.length ? it.href : best;

@@ -47,7 +47,8 @@ import DrinkClaimForm from "./drink-claim-form";
 import PrintPayslipButton from "./print-payslip-button";
 import { slipPdfTitleOf } from "@/lib/nox/payroll/list"; // ★M-183
 import { isSectionOn, type StoreSettings } from "@/lib/nox/store-systems"; // ★裁定269: 使う制度の出し分け
-import { mineSettingsOf } from "@/lib/nox/store/mine-settings"; // ★裁定326-8（便 M1-3）: mine_settings の出し分け（既存の自店読取に相乗り＝新規 fetch 0）
+import { mineSettingsOf } from "@/lib/nox/store/mine-settings";
+import { mineVisibilityOf, slipFootNoteOf, stripKintaiPay } from "@/lib/nox/mine/visibility"; // ★裁定491・492 // ★裁定326-8（便 M1-3）: mine_settings の出し分け（既存の自店読取に相乗り＝新規 fetch 0）
 import { punchHeadOf, punchStateOf, todayShiftLineOf } from "@/lib/nox/shift/punch-state";
 import { castPunchOffOf, opsProfileOf } from "@/lib/nox/store/ops-profile"; // ★0164（便 W5-2b）: punch_methods.self の出し分け // ★裁定326 追補3（便 M1-4）: 打刻カードの 3 状態（todayPunches から＝新規 fetch 0）
 
@@ -153,7 +154,8 @@ export default async function MinePage({ searchParams }: { searchParams?: Promis
   const { data: myStores } = await supabase.from("stores").select("id, name, legal_name, settings_json, punch_methods").limit(1); // ★M-183: legal_name＝明細の会社名 // ★裁定269: sys_* は既存の自店読取に列を足すだけ・★0164（便 W5-2b）: punch_methods（本人打刻の出し分け）
   const myStore = myStores?.[0];
   const mineWage = meCast && myStore ? await mineCurrentWageOf(supabase, meCast.id as string, myStore.id as string, bizToday.slice(0, 7), bizToday) : null; // ★便 X13-H H-8
-  const ms = mineSettingsOf(myStore?.settings_json); // ★326-8: drink_claim／punch_correction_request／ranking の出し分け（reservation_request の申請カードは M3）
+  const ms = mineSettingsOf(myStore?.settings_json);
+  const vis = mineVisibilityOf((myStore?.settings_json ?? null) as Record<string, unknown> | null, ms.payslip_visibility); // ★裁定491・492 // ★326-8: drink_claim／punch_correction_request／ranking の出し分け（reservation_request の申請カードは M3）
   // ★0162 ★4（便 M5-2）: 契約確認の要否＝店の contract_ack が ON のときだけ cast_contract_ack_needed()（cast セルフ・非ゲート）。読めなければ出さない（止めない）
   const { data: ackNeeded } = ms.contract_ack ? await supabase.rpc("cast_contract_ack_needed") : { data: null };
   // ★便 M5 M-33: showContractAck は要約（termsLines＝出勤ノルマの目標 daysTargets を含む）の後で決める＝下の daysTargets の直後
@@ -172,7 +174,7 @@ export default async function MinePage({ searchParams }: { searchParams?: Promis
     : null;
   const mineClosedDows: number[] = myStore ? (((await createAdminClient().from("store_business_hours").select("dow, is_closed").eq("store_id", myStore.id as string)).data ?? []) as { dow: number; is_closed: boolean }[]).filter((x) => x.is_closed).map((x) => x.dow) : [];
   const kintaiBuilt = meCast && myStore ? await buildKintaiSheet(createAdminClient(), supabase, myStore.id as string, month, { castId: meCast.id as string }).catch(() => null) : null;
-  const kintaiBuiltRows: AttendanceDayRow[] | null = kintaiBuilt?.casts[0]?.rows ?? null;
+  const kintaiBuiltRows: AttendanceDayRow[] | null = kintaiBuilt?.casts[0]?.rows ? (vis.payHidden ? stripKintaiPay(kintaiBuilt.casts[0].rows) : kintaiBuilt.casts[0].rows) : null; // ★裁定492: 表示しない店は金額を外してから渡す
   const kintaiRows = (kintaiBuiltRows ?? attendanceDayRowsOf({
     punches: ((monthPunches ?? []) as { id: string; type: string; punched_at: string }[]).map((p) => ({ id: p.id, punched_at: p.punched_at, type: p.type as "in" | "out" })),
     shifts: monthConfirmedShifts.map((s) => ({ date: s.date, start_hm: s.start_hm, end_hm: s.end_hm })),
@@ -181,7 +183,7 @@ export default async function MinePage({ searchParams }: { searchParams?: Promis
     transports: ((mineTransport ?? []) as Record<string, unknown>[]).map((tr) => ({ biz_date: tr.biz_date as string, amount: tr.amount as number, mode: (tr.mode as string | null | undefined) ?? null, status: tr.status as string })),
     cutoffHm: cutoff, closeHm: closeHmOf(myStore?.settings_json), payTimeBasis: payTimeBasisOf((myStore?.settings_json ?? null) as Record<string, unknown> | null, `${month}-01`), todayBiz: bizToday,
   })).filter((r) => !r.future && (r.inHm || r.shift || r.absent || r.corrections.length > 0 || r.okuri.n > 0 || (r.pay && r.pay.total !== 0))).reverse();
-  const kintaiPay = kintaiBuilt?.casts[0]?.pay ?? null; // ★C2-3: 月のまとめ（本人）
+  const kintaiPay = vis.payHidden ? null : (kintaiBuilt?.casts[0]?.pay ?? null); // ★裁定492 // ★C2-3: 月のまとめ（本人）
   const kintaiSum = attendanceSummaryOf(kintaiRows, bizToday);
   // ★326-5: 当月の勤怠一覧（日付・出勤・退勤・実働＝dayWorkedHours・確定シフトのある日だけ時間が出る）と当日の出勤・退勤時刻
   const attRowsPunch = monthAttendanceRowsOf({
@@ -246,12 +248,12 @@ export default async function MinePage({ searchParams }: { searchParams?: Promis
   const nextNext = nextPeriodOf(nextMonth);
   const { data: wishRows } = await supabase.from("shift_wishes").select("id, date, start_hm, end_hm, status, kind").gte("date", `${month}-01`).lt("date", `${nextNext}-01`);
   const workedThisMonth = new Set(((monthPunches ?? []) as { type: string; punched_at: string }[]).filter((x) => x.type === "in").map((x) => bizDateOf(x.punched_at, cutoff)).filter((d) => d.slice(0, 7) === month));
-  const daysTargets = meCast?.id && myStores?.[0]?.id ? await daysNormTargetsOf(meCast.id as string, myStores[0].id as string, [month, nextMonth], bizToday) : { [month]: null, [nextMonth]: null };
+  const daysTargets = vis.normDays && meCast?.id && myStores?.[0]?.id ? await daysNormTargetsOf(meCast.id as string, myStores[0].id as string, [month, nextMonth], bizToday) : { [month]: null, [nextMonth]: null };
   // ★便 M5 M-33（2026-10-30）: 「基本の働き方の確認」の本文＝本人の基本条件の要約（page が既に読んだ値だけ＝新規 DB 読取 0）。
   //   時給は明細の公開（payslip_visibility）が off の店では載せない（「今期の時給」カードと同じ出し分け）。バックはプランが cast の RLS で読めない＝今日は渡さない（将来の差替え点）。
   const storeSj = (myStore?.settings_json ?? {}) as Record<string, unknown>;
   const termsLines = castTermsSummaryOf({
-    hourly: mineWage && ms.payslip_visibility !== "off" ? mineWage.hourly : null, wageBasis: mineWage && ms.payslip_visibility !== "off" ? mineWage.basis : null, guaranteeLabel: guaLabel,
+    hourly: mineWage && ms.payslip_visibility !== "off" ? mineWage.hourly : null, wageBasis: mineWage && ms.payslip_visibility !== "off" ? mineWage.basis : null, guaranteeLabel: vis.payHidden ? null : guaLabel, /* ★裁定492 */
     employment: meCast?.employment ?? null,
     okuriMode: okuriModeOf(storeSj), okuriTierName: okuriFlatTiersOf(storeSj).find((tr) => tr.code === meCast?.okuri_tier)?.name ?? null,
     normDaysTarget: daysTargets[month],
@@ -387,7 +389,7 @@ export default async function MinePage({ searchParams }: { searchParams?: Promis
           )}
         </p>
       )}
-      {guaLabel && (/* ★裁定348 追補1: 期限付き保証時給の印（期間中だけ） */
+      {guaLabel && !vis.payHidden && (/* ★裁定348 追補1: 期限付き保証時給の印（期間中だけ） */
         <p style={{ fontSize: 12.5, margin: "0 0 10px" }} data-guarantee="1">
           <span className="nox-stpill ok">{guaLabel}</span><span style={{ color: "var(--sub)", marginLeft: 8 }}>期間中は時給の下限がこの額になります（期限後は基本時給）</span>
         </p>
@@ -410,7 +412,7 @@ export default async function MinePage({ searchParams }: { searchParams?: Promis
             />
           ))}
         </div>
-        <p style={{ ...noteP, marginTop: 6 }}>{ms.payslip_visibility === "net_only" ? "※手取りと期のみの表示です。内訳は店にご確認ください。" : "※確定後の明細です。売掛・前借り・送りの未収残は店にご確認ください。"}</p>
+        <p style={{ ...noteP, marginTop: 6 }}>{ms.payslip_visibility === "net_only" ? "※手取りと期のみの表示です。内訳は店にご確認ください。" : slipFootNoteOf(vis)}</p>
       </section>
       )}
       {/* ★0156（起票85・便 V-7）: マイナンバー廃棄後だけ本人にも「廃棄済み YYYY-MM-DD」を出す（値は出さない・未廃棄は何も出さない）。★M2: 明細カードの外へ（明細 'off' の店でも出す） */}
@@ -419,7 +421,8 @@ export default async function MinePage({ searchParams }: { searchParams?: Promis
       {/* ★裁定326-2（便 M2-1）: 報酬シミュレーターと今月のバックの 2 カードは削除 */}
 
 
-      <section className="nox-panel">
+      {vis.bonusCard && (/* ★裁定491: 使わない店は枠ごと出さない（店側の発行の口と同じ sys_bonus） */
+      <section className="nox-panel" data-mine-bonus="1">
         <h3>今月の出勤ボーナス（{month}）</h3>
         {(incentives ?? []).length === 0 && <p style={noneP}>発行なし</p>}
         <ul style={{ paddingLeft: 18, fontSize: 13, margin: 0 }}>
@@ -427,8 +430,8 @@ export default async function MinePage({ searchParams }: { searchParams?: Promis
             <li key={i} style={{ padding: "3px 0" }}>
               {r.biz_date}{" "}
               {r.amount_mode === "per_head"
-                ? <>定額 <span style={t.num}>{yen(r.amount as number)}</span></>
-                : <>プール <span style={t.num}>{yen(r.amount as number)}</span>（受給者数により変動・暫定）</>}
+                ? (vis.payHidden ? <>定額</> : <>定額 <span style={t.num}>{yen(r.amount as number)}</span></>)
+                : (vis.payHidden ? <>プール（受給者数により変動）</> : <>プール <span style={t.num}>{yen(r.amount as number)}</span>（受給者数により変動・暫定）</>)}{/* ★裁定492: 額は出さない */}
             </li>
           ))}
         </ul>
@@ -436,6 +439,7 @@ export default async function MinePage({ searchParams }: { searchParams?: Promis
           ※受給は当日の確定シフト出勤が条件・確定額は給与確定時に算出。
         </p>
       </section>
+      )}
 
 
       {/* ★便 X13-G W-22 ④: ランキングの既定＝売上（伝票の請求額（サ料込・カード手数料を除く）を指名の割合で按分＝給与・店の集計と同じ）。
@@ -464,7 +468,7 @@ export default async function MinePage({ searchParams }: { searchParams?: Promis
 
       <section className="nox-panel nox-kintai" data-mine-kintai="1">{/* ★便 SH-UI-c C-2 ④: 店長の勤怠表（②）と同じ部品・本人分・修正者名と金額は出さない */}
         <h3>今月の勤怠<span className="num" style={{ marginLeft: "auto", fontSize: 12, fontWeight: 700, color: "var(--sub)" }}>出勤 {kintaiSum.days} 日・実働 {kintaiSum.hours}h{kintaiSum.lateN ? `・遅刻 ${kintaiSum.lateN}` : ""}{kintaiSum.absentN ? `・当欠 ${kintaiSum.absentN}` : ""}</span></h3>
-        <p style={{ ...noteP, margin: "0 0 6px" }} data-mine-days-def="1">※ここの出勤日数＝シフトのある日の出勤。ノルマの出勤日数は打刻のある日（シフト無しの出勤を含む）で数えるため、多くなることがあります。</p>{/* ★M-166（2026-11-11 夜・外部レビュー 3）: 2 つの数え方の定義を数字の近くに（文言は仮置き） */}
+        {vis.normDays && <p style={{ ...noteP, margin: "0 0 6px" }} data-mine-days-def="1">※ここの出勤日数＝シフトのある日の出勤。ノルマの出勤日数は打刻のある日（シフト無しの出勤を含む）で数えるため、多くなることがあります。</p>}{/* ★M-166（2026-11-11 夜・外部レビュー 3）: 2 つの数え方の定義を数字の近くに（文言は仮置き） */}
         {kintaiRows.length === 0 ? <p style={noneP}>記録なし</p> : (
           <div style={{ overflowX: "auto" }}>
             <table className="nox-table nox-kintai-table" style={{ width: "100%", fontSize: 12.5 }}>

@@ -10,7 +10,13 @@ export const SELF_PROFILE_LABEL: Record<keyof SelfProfileForm, string> = {
   address: "住所", emergency_name: "緊急連絡先（お名前）", emergency_relation: "続柄", emergency_phone: "緊急連絡先（電話）",
 };
 export const SELF_PROFILE_MAXLEN: Record<keyof SelfProfileForm, number> = { address: 200, emergency_name: 60, emergency_relation: 20, emergency_phone: 20 };
-export const SELF_PROFILE_STORE_ONLY_NOTE = "氏名・生年月日・振込先の口座は店長とオーナーが登録します。変更は店長にお伝えください。";
+export const SELF_PROFILE_STORE_ONLY_NOTE = "氏名・生年月日・振込先の口座は管理者と店長が登録します。変更は店長にお伝えください。";
+/** ★■N-5（2026-11-12）: 役割ごとの注記（「オーナー」は「管理者」・管理者と店長には「店長に伝えて」を出さない） */
+export function selfProfileStoreOnlyNoteOf(role: string | null | undefined): string {
+  if (role === "owner" || role === "admin") return "氏名・生年月日・振込先の口座は、管理者と店長がスタッフの画面で登録します。";
+  if (role === "manager") return "氏名・生年月日・振込先の口座は管理者と店長が登録します。ご自身の分の変更は管理者にお伝えください。";
+  return SELF_PROFILE_STORE_ONLY_NOTE;
+}
 export const SELF_PROFILE_KIOSK_NOTE = "店の端末では PIN の変更だけできます。連絡先・写真・パスワードは、ご自身のスマホなどからログインして変更してください。";
 export const SELF_PROFILE_DEMO_NOTE = "デモでは連絡先・住所・パスワードの変更はできません（表示だけ）。";
 

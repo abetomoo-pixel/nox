@@ -2710,6 +2710,8 @@ body {
   .nox-modal-card:has([data-bulk-add]) .nox-bulkadd-cancel { grid-column: 1 / -1; order: 3; background: none !important; border: 0 !important; color: var(--sub) !important; text-decoration: underline; min-height: 36px; }
 } /* ★便 M-2: 合計表の行名と注記は折り返す（先頭が欠けない） */
 .nox-kintai-table td.opt, .nox-kintai-table th.opt { white-space: normal; }
+/* ★裁定492（2026-11-12 Agoora 実機）: 見出しは折り返さない（「店の修正」「遅刻・当欠・早退」が 1 文字ずつ縦に折れていた）＝本文の .opt は今までどおり折り返す・はみ出す分は表の外枠が横に送る */
+.nox-kintai-table thead th.opt { white-space: nowrap; }
 @media (max-width: 430px) { .nox-kintai .nox-kintai-table .opt { display: none; } .nox-kintai .nox-kintai-table { font-size: 12px; } }
 /* ★便 SH-UI-c2 C2-4／C2-6（2026-10-23）: 390px＝1 人の表は 日付・出／退・日計（.opt を隠す＝実働と日計以外の金額列も .opt）・合計表は キャスト｜日数｜現時点の差引（.nox-kintai-sum .opt を隠す・▸ で残りを開く）。広い幅は ▸ を出さない */
 .nox-kintai .nox-kintai-sum-more { display: none; }

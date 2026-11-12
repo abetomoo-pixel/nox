@@ -60,7 +60,11 @@ export function splitNav(groups: readonly NavGroup[], spPriority?: readonly stri
 }
 
 /** 最長一致で active を 1 つに絞る（/mine と /mine/wishes の二重点灯を防ぐ＝TabBar／SideNav と同じ規則） */
+/** ★■N-6（2026-11-12）: 自分の情報を編集（/staff/me/profile）はどのナビにも属さない＝どれも選ばれた色にしない */
+export const NAV_NO_ACTIVE_PREFIXES = ["/staff/me/profile"] as const;
+export const isNoActivePath = (path: string): boolean => NAV_NO_ACTIVE_PREFIXES.some((p) => path === p || path.startsWith(p + "/"));
 export function activeHrefOf(path: string, items: readonly NavItem[]): string {
+  if (isNoActivePath(path)) return "";
   return items.reduce<string>((best, it) => {
     const hit = path === it.href || path.startsWith(it.href + "/");
     if (!hit) return best;

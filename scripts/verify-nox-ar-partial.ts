@@ -63,6 +63,9 @@ async function main() {
   const sA1 = sA1row as { id: string; org_id: string };
   const { data: origStore } = await admin.from("stores")
     .select("set_min, set_fee, ext_min, ext_fee, time_mode, time_per").eq("id", sA1.id).single();
+  // ★0201h（2026-11-12 本番適用・裁定485）: キャストに負担させる売掛（mark_deduct）は店の receivable_policy＝cast_liability_allowed のときだけ＝段内で切り替えて finally で戻す
+  const { data: origPolicyRow } = await admin.from("stores").select("receivable_policy").eq("id", sA1.id).single();
+  const origPolicy = (origPolicyRow as { receivable_policy: string | null } | null)?.receivable_policy ?? null;
   const { data: actorRow } = await admin.from("users")
     .select("id").eq("email", FIXTURE_USERS.managerA1.email).single();
   const actorId = (actorRow as { id: string }).id;
@@ -95,6 +98,7 @@ async function main() {
     if (castIds.length) await admin.from("casts").delete().in("id", castIds);
     if (seatIds.length) await admin.from("seats").delete().in("id", seatIds);
     if (origStore) await admin.from("stores").update(origStore).eq("id", sA1.id);
+    await admin.from("stores").update({ receivable_policy: origPolicy }).eq("id", sA1.id); // ★0201h: 戻す
   };
 
   const mgr = await signIn("managerA1");
@@ -104,6 +108,7 @@ async function main() {
     // 時間料金 0 円化（開卓時 set 行を作らせない＝売掛額を custom 行のみで決定的にする）。finally 復元。
     await admin.from("stores").update({
       set_min: 60, set_fee: 0, ext_min: 30, ext_fee: 0, time_mode: "manual", time_per: "table",
+      receivable_policy: "cast_liability_allowed", // ★0201h: 給与天引きを許す店（finally で戻す）
     }).eq("id", sA1.id);
 
     const mkSeat = async (nm: string) =>

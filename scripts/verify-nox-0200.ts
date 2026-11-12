@@ -19,7 +19,7 @@ type R = { ok: true; rows: Row[] } | { ok: false; err: string };
 const errOf = (x: R) => (x.ok ? "ok" : x.err);
 const src = (p: string) => fs.readFileSync(p, "utf8");
 const J = (x: unknown) => JSON.stringify(x);
-const FN = 431, TB = 121; // ★0201（2026-11-11 手貼り・+4＝punch_self_impl／set_store_manager_punch／staff_pin_self_set／cast_pin_self_set）: 427→431   // 0200 の後（0201 の手貼りで張り替える）
+const FN = 440, TB = 121; // ★0201c／h／e（2026-11-12 手貼り・+9＝0201c 3・0201e 6）: 431→440 // ★0201（2026-11-11 手貼り・+4＝punch_self_impl／set_store_manager_punch／staff_pin_self_set／cast_pin_self_set）: 427→431   // 0200 の後（0201 の手貼りで張り替える）
 
 // (1)
 check("0200(1-1) MIG_0200_APPLIED=true（2026-11-10 手貼り・verify 32 行一致）・override", (MIG_0200_APPLIED as boolean) === true && mig0200On() === true);
@@ -53,6 +53,7 @@ check("0200(1-3) gen-demo の鏡（scripts/demo/rules-0175-flag.mjs）も true",
     for (const r of rows) {
       if (r.k === "nox-project-proof") continue;
       if (r.k.startsWith("fn count")) { if (r.v !== String(FN)) bad.push(`${r.k}=${r.v}`); continue; } // ★0201（2026-11-11 手貼り）: 関数は 427→431（0200 の検証 SQL の期待は 0200 の時点の 427）
+      if (r.k.startsWith("set_store_profile whitelist has cast_register_scope")) { const w = (await pc.query("select position('''cast_register_scope''' in prosrc) > 0 ok from pg_proc where proname='set_store_profile'")).rows[0]?.ok; if (!w) bad.push(`${r.k}=no-key`); continue; } // ★0201c（2026-11-12 手貼り）: set_store_profile の白名単に体入の 2 キーが続く＝「cast_register_scope で終わる」の形でなくなった＝キーがあることだけを見る
       if (r.k.startsWith("no payments yet")) { if (!/^\d+$/.test(r.v)) bad.push(`${r.k}=${r.v}`); continue; }
       const m = /\(expect ([^ )]+)/.exec(r.k); const exp = m ? (m[1] === "t/SELECT" ? "true/SELECT" : m[1]) : null;
       if (exp === null || exp !== r.v) bad.push(`${r.k}=${r.v}`);

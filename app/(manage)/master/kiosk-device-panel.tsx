@@ -313,7 +313,7 @@ export default function KioskDevicePanel({ stores }: { stores: Store[] }) {
                           <button style={{ ...btn, color: "var(--danger)", border: "1px solid var(--danger-bd)" }} disabled={busy} onClick={() => void deleteDevice(d)} data-kiosk-delete={d.id}>削除</button>
                         </span>
                       )}
-                      {!d.is_active && !mig0190On() && <span style={{ fontSize: 11, color: "var(--sub)" }} data-kiosk-inactive-ops="0190">再発行して有効化・削除＝0190 の後</span>}{/* ★便 M3 M-29 ⑤: RPC が無い（kiosk_reactivate／kiosk_delete＝0190）＝置かない（フラグ false の間だけ） */}
+                      {/* ★便 M3 M-29 ⑤: RPC が無い（kiosk_reactivate／kiosk_delete＝0190）＝置かない（フラグ false の間だけ） */}
                     </td>
                   </tr>
                 ))}
