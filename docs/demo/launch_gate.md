@@ -6,9 +6,9 @@
 
 | # | 項目 | 誰が | どこで | 期待値 | 状態 |
 |---|---|---|---|---|---|
-| 1 | mig 0001〜0201b が本番に適用済み（手貼りの検証行が期待値と全行一致） | Agoora（手貼り）／CC（突合） | Supabase › SQL Editor／verify:nox-0201・grants | 関数 431・表 121・0201b の検証 8 行一致 | 済（2026-11-12）＝0001〜0201 適用済み（0201＝11/11・ccf2d6d61e36da42・検証 17 行一致）＋**0201b（2026-11-12 午前・Agoora 手貼り・sha256 b0e1dad4982cfd9b・1,011 行・事前確認 1 行・検証 8 行一致・関数 431／表 121・set_store_profile 376ea335）**。未適用は下の 25〜32 の行 |
+| 1 | mig 0001〜0201b・0201c・0201h・0201e・0201e2 が本番に適用済み（手貼りの検証行が期待値と全行一致） | Agoora（手貼り）／CC（突合） | Supabase › SQL Editor／verify:nox-0201・grants | 関数 431・表 121・0201b の検証 8 行一致 | **済（2026-11-12 夜）**＝0201b／c／h／e／e2 を Agoora が手貼り・検証は全行一致（台帳「2026-11-12 の手貼り 5 本」）・関数 440・表 121。0201e の不具合（キオスクの端末の伝票の forbidden）は 0201e2 で直した（教訓148／149） |
 | 2 | client のフラグ＝lib/nox/rules-0175/flag.ts の MIG_*_APPLIED が本番の mig と一致（0183〜0201 true） | CC | verify:nox-0201 ほか（フラグの pin） | f0 緑 | 済（2026-11-12＝MIG_0201B true＝0201b のフラグ便 172701f6・0201c〜i は未適用） |
-| 3 | f0 の基準線＝2 連緑（段数・件数・golden 5931／125802） | CC | docs/tmp/f0_*.log＋f0_count.cjs | 最新の 2 連緑と同じ段数・件数 | 済（2026-11-12）＝f0 2 連緑 f0_cb_G／H（195 段 7,841・golden 5931／125802・client 便 6e069f8b） |
+| 3 | f0 の基準線＝2 連緑（段数・件数・golden 5931／125802） | CC | docs/tmp/f0_*.log＋f0_count.cjs | 最新の 2 連緑と同じ段数・件数 | 済（2026-11-12 夜）＝f0 2 連緑 f0_cb2_I／J（196 段 7,857・golden 5931／125802・client 便 2 16617c26） |
 | 4 | 6 店 reset が noxapp.jp の route で 6/6 ok（Vault nox_demo_reset_url の host＝noxapp.jp） | CC | docs/tmp/on1_reset.mjs | muse／luna／noir／ace／lily／nest＝200 ok | 済（2026-11-09 19:42 ほか＝6/6・ACE の wipe 500 は M-122 で解消） |
 | 5 | 無人 reset（pg_cron 06:05〜・Vercel Cron 03:00／05:00）が翌朝 200 | CC（翌朝読取） | cron.job_run_details・net._http_response・Vercel Logs | status 200・6 店＋retry・expire-trials／billing-reminders 200 | 済（2026-11-10 CC 読取）＝06:05〜06:15 の 6 店（muse／luna／noir／ace／lily／nest）すべて pg_cron succeeded・http 200（count 1・retry false）・06:35 の retry 200・05:15 demo-entries-purge／06:20 shift-periods-close（closed 1）も 200＝M-122 の先掃除の後の初回無人 reset OK |
 | 6 | vercel.app → noxapp.jp の 308（旧 URL の GET が 308 で noxapp.jp に飛ぶ・/r/<token> の領収書 QR も） | Agoora（Vercel › Domains）／CC（curl） | Vercel › Settings › Domains／curl -I | `curl -I https://nox-kappa-eight.vercel.app/login` が 308・Location が noxapp.jp | **済（2026-11-11・Agoora 設定・CC 確認）**＝/login・/r/<token>（領収書の QR）・www.noxapp.jp がどれも 308 で https://noxapp.jp の同じパスへ・POST の /api も 308（メソッドと本文を保つ）。★外部の webhook（Stripe・LINE）は転送を追わないことが多い＝送り先は noxapp.jp で登録すること（Stripe は未設定・LINE は管理画面で確認）。DB 側の送り先（pg_cron＝Vault から読む・Vault の URL＝noxapp.jp）に旧住所なし。手順 10（Supabase の Redirect URLs から vercel.app/** を外す）は 1〜2 週後 |
@@ -28,12 +28,12 @@
 | 20 | 特定商取引法に基づく表示のページ（事業者名＝株式会社レクソル・住所・連絡先・販売価格・支払方法と時期・提供時期・解約／返金）＋ LP・フッター・課金画面からのリンク | 相談役と Agoora（文面）／CC（ページとリンク） | /legal/tokushoho | 公開ページで全項目が読める・リンク 3 か所 | **ページとリンクは済（2026-11-10 夜便 f712d11）**＝/legal/tokushoho（正本 lib/nox/legal/tokushoho.ts）・販売事業者＝株式会社レクソル・価格は 1 店舗あたり**月額 29,800 円（税込）／年額 288,000 円（税込）**で確定・支払時期＝毎月 1 日・解約は月末まで・返金なし ほか・リンク＝LP フッター・課金画面（お申し込み）・デモの入口のフッター。**残り＝利用規約の「当社」の表記（版 0.9 のまま・再同意の要否は相談役）** |
 | 21 | Point in Time Recovery を有効にするか（Agoora の判断・実店舗の稼働前） | Agoora（判断・管理画面） | Supabase › Database › Backups | 有効にするか決める（有効なら追加料金） | **未**（2026-11-11 実測＝毎日のバックアップ 7 日分（Physical）・PITR は無効・リージョン Northeast Asia (Tokyo)） |
 | 22 | 管理画面の二段階認証（Vercel・Supabase・Stripe・Resend（★NOX 専用の新しいアカウント＝2026-11-12 に RECTUS・BANZEN と分けた）・LINE Developers・ドメインの管理） | Agoora（各管理画面） | 各サービスのアカウント設定 | すべて二段階認証（認証アプリ）が有効 | **一部済**＝Vercel＝済（2026-11-11・Agoora・認証アプリ）・**Supabase＝済（2026-11-11・Agoora・認証アプリ 1 つ・予備は未登録・Access Tokens 0 件）**・Stripe・Resend・LINE Developers・ドメインの管理＝未確認。★0201f（マイナンバーの鍵を Vercel に置く）の前提＝Vercel と Supabase が済んでいること（handpaste_0201f の事前確認に入れる） |・**Resend の新しいアカウント（NOX 専用）の二段階認証＝未確認（2026-11-12 追加）**
-| 23 | 日次精算（settlement_cycle＝daily）の店を作る前に 0201e を貼る（源泉の納付の集計に日次精算の源泉を足す＝withholding_monthly_summary の作り直し） | 相談役（合図）／Agoora（手貼り）／CC（試走） | Supabase › SQL Editor | 0201e の検証が全行一致した後に日次精算の店を作る | **未**（2026-11-11＝本番に日次精算の店は 0） |
-| 24 | プライバシーポリシーの公開（前提＝0201e と 0201f の適用・弁護士の確認） | 相談役（文面）／Agoora（弁護士・公開の判断）／CC（ページとリンク） | /privacy（未作成）・LP・フッター | 公開ページで全項目が読める・Google の審査にも使う | **未**（案 v0.2＝相談役のアーティファクト・まだ誰の決定でもない） |
+| 23 | 日次精算（settlement_cycle＝daily）の店を作る前に 0201e を貼る（源泉の納付の集計に日次精算の源泉を足す＝withholding_monthly_summary の作り直し） | 相談役（合図）／Agoora（手貼り）／CC（試走） | Supabase › SQL Editor | 0201e の検証が全行一致した後に日次精算の店を作る | 0201e は 2026-11-12 に適用済み＝日次精算の店を作れる（源泉の納付の集計に日次精算の分が入る） |
+| 24 | プライバシーポリシーの公開（前提＝0201e と 0201f の適用・弁護士の確認） | 相談役（文面）／Agoora（弁護士・公開の判断）／CC（ページとリンク） | /privacy（未作成）・LP・フッター | 公開ページで全項目が読める・Google の審査にも使う | **方針の変更（2026-11-12 夜・裁定494-3）**＝弁護士の確認の前に公開する（あとで直す）・/privacy・利用規約と LP とログイン画面からのリンク＝次の client 便・本文は Agoora が渡す版が正 |
 | 25 | マイナンバー特約と利用規約 v1.0（今は v0.9＝全条に【弁護士確認】） | 相談役（文面）／Agoora（弁護士） | docs/legal・/terms | 弁護士の確認の後に v1.0 を公開・同意の版を上げる | **未** |
-| 26 | 未適用の mig 0201c（体入の器・M-146・裁定484） | 相談役（合図）／Agoora（手貼り）／CC（フラグ便） | docs/tmp/handpaste_0201c.md | sha256 c9faee5e0a830f2f・1,068 行・事前確認 1 行・検証 12 行 | **未**（相談役の照合済み・0201h と続けて貼る予定） |
-| 27 | 未適用の mig 0201h（売掛の控除は方針が cast_liability_allowed の店だけ・裁定485） | 同上 | docs/tmp/handpaste_0201h.md | sha256 e72b67427e01c3cb・49 行・事前確認 1 行（関数 434）・検証 8 行 | **未**（相談役の照合済み・0201c の後） |
-| 28 | 未適用の mig 0201e（お金と申請・座標 109 行を null＝Agoora 了承） | 同上 | docs/tmp/handpaste_0201e.md | sha256 c5653c8ec6e1988c・339 行・事前確認 1 行（関数 434）・検証 13 行（関数 440） | **未**（2026-11-12 作り直し＝日次精算の区分は払った時点） |
+| 26 | 未適用の mig 0201c（体入の器・M-146・裁定484） | 相談役（合図）／Agoora（手貼り）／CC（フラグ便） | docs/tmp/handpaste_0201c.md | sha256 c9faee5e0a830f2f・1,068 行・事前確認 1 行・検証 12 行 | **済（2026-11-12 夕・適用）**＝フラグ便（画面）は次の便 |
+| 27 | 未適用の mig 0201h（売掛の控除は方針が cast_liability_allowed の店だけ・裁定485） | 同上 | docs/tmp/handpaste_0201h.md | sha256 e72b67427e01c3cb・49 行・事前確認 1 行（関数 434）・検証 8 行 | **済（2026-11-12 夕・適用）**＝フラグ便（給与天引きの出し分け）は次の便 |
+| 28 | 未適用の mig 0201e（お金と申請・座標 109 行を null＝Agoora 了承） | 同上 | docs/tmp/handpaste_0201e.md | sha256 c5653c8ec6e1988c・339 行・事前確認 1 行（関数 434）・検証 13 行（関数 440） | **済（2026-11-12 夕・適用）**＋0201e2（2026-11-12 夜）＝フラグ便（締めの許可・取り下げ・スタッフの勤怠）は次の便 |
 | 29 | 未適用の mig 0201g（PIN と端末・裁定489・打刻のキーを含む保存だけ IP／位置を検査・最後の IP は消せない） | 同上 | docs/tmp/handpaste_0201g.md | sha256 6303e00cd8afb230・1,333 行・事前確認 1 行（関数 440）・検証 12 行（関数 442） | **未**（2026-11-12 作り直し 2） |
 | 30 | 未適用の mig 0201f（マイナンバーの鍵・廃棄の候補＝裁定483） | 相談役（起草の合図）／Agoora（手貼り） | docs/tmp/0201f_changes.md | 起草の前に変更の一覧（set_store_profile は 0201g の版から） | **未起草** |
 | 31 | 未適用の mig 0201i（お知らせの確認と出欠＝裁定486） | 相談役（合図）／Agoora（手貼り）／CC（フラグ便） | docs/tmp/handpaste_0201i.md | sha256 feeca3b712987c5b・380 行・事前確認 1 行（関数 442＋0201f の分） | **未**（起草・試走 79/79） |
@@ -41,6 +41,12 @@
 | 33 | マイナンバーの鍵の env（0201f の前に Vercel に入れる＝アプリ側で暗号化・鍵の版） | Agoora（Vercel） | Vercel › Settings › Environment Variables | 鍵はチャットにも CC にも貼らない・0201f の事前確認で暗号文 0 件 | **未** |
 | 34 | Resend は NOX 専用の新しいアカウント（2026-11-12 に RECTUS・BANZEN と分けた）＝noxapp.jp のドメイン認証・Supabase のカスタム SMTP（Password＝新しいアカウントの API キー） | Agoora | Resend・Supabase › Authentication › SMTP Settings | アプリから Resend の API を呼ぶ所は無い（RESEND_API_KEY などの env も無い）＝Vercel で替える変数は無し・/auth/forgot の 1 通が noreply@noxapp.jp から届く | **未**（Agoora が 2026-11-12 に設定） |
 | 35 | Google カレンダー連携の審査の申請（裁定488＝連携はローンチ後・申請だけ今から） | Agoora（GCP）／相談役（プライバシーポリシーの Google の節） | GCP・docs/tmp/google_calendar_plan_1112.md | 同意画面・ドメインの確認・scope は calendar.app.created の 1 つ・ポリシーの公開の後に In production | **未** |
+| 36 | 0201e3（伝票系 6 表の読取を 1 回だけ評価する形に・読取 最大 8.4 秒 → 10〜18ms） | 相談役（合図）／Agoora（手貼り） | docs/tmp/handpaste_0201e3.md | 検証 4 行（10／440／12／0） | 起草・試走済み（2026-11-12 夜・sha256 53a003dc…・72 行）＝朝いちばんに貼る候補 |
+| 37 | 営業の通しで A（営業が止まる）と B（お金や個人情報が違う）が 0 件（裁定496） | CC | 筋書き＝営業の 1 日と月末・5 役割・3 幅・業態 2 つ以上 | A・B 0 件（通した表つき） | 未 |
+| 38 | Agoora の実機の通しで A と B が 0 件（裁定496） | Agoora | 実機（スマホ・タブレット・PC・キオスクの端末） | A・B 0 件 | 未（37 の後） |
+| 39 | /signup が本番に出たら Yuiba に知らせる（Yuiba の運営画面で NOX の申込 URL https://noxapp.jp/signup?ref={code} を入れてもらう・裁定495） | Agoora | Yuiba の運営 | Yuiba の代理店ポータルに NOX の URL | 未（0201j とその client の後＝テスター店舗の開始には要らない） |
+| 40 | 返金とチャージバックの手順（運営が Yuiba の運営に知らせる＝自動の記録は起票133・ローンチ後） | Agoora（運用） | 運用の手順 | 手順が 1 枚ある | 未 |
+| 41 | Yuiba の env（YUIBA_BASE_URL・YUIBA_INGEST_SECRET_NOX＝Preview と Production で別の値・鍵は Agoora が作って直接入れる） | Agoora（Vercel） | Vercel › Environment Variables | 値が入っている（CC は名前だけ確かめる） | 未（Yuiba の本番の送り先が決まってから） |
 
 ## 使い方
 - 上から順に埋める。「未」の行は domain_switch.md §4 の手順番号と対応（6→手順 8・7→1・2・12→5・13→6・16→7）。
