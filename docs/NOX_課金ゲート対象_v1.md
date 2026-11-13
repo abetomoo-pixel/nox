@@ -378,6 +378,10 @@ kiosk_provision（新規 kiosk の追加＝拡大操作）
 - 0201c 商品とカテゴリの既定（M-146）: set_product_category_defaults
 - 0201e 締めの許可（裁定481）: set_cast_close（キャストの日報の締めの許可・店長以上）
 （対象 205→**209**・live 実測＝billing locked の関数 **209**）
+
+### A23. 0201i（1 本・2026-11-13 本番適用（Agoora 手貼り・検証 18 行一致）・規則A形でゲート内蔵）
+- 0201i お知らせの出欠の設定（裁定486）: notice_set_rsvp（店長以上・notice_create と同じ 'billing locked'）
+（対象 209→**210**・live 実測＝billing locked の関数 **210**）
 ## B. 除外（99本）
 
 ### B(a) 構造除外＝authenticated 実行不可（service/内部・28本）→ ゲート不要（B7 回避型(1)）
@@ -595,6 +599,13 @@ staff_deactivate / kiosk_deactivate
 - 構造除外（B(a) と同列＝内部専用・4 ロール revoke）: pin_guessable（推測されやすい PIN の判定＝純関数）
 - 構造除外（B(a) と同列＝内部専用・4 ロール revoke）: pin_taken_in_store（同じ店の他の人の PIN と照合）
 （除外 231→**233**・全数 440→**442**（0201g ＋2＝B +2・作り直し 8 本は名前不変））
+
+### B(ac). 0201i 新設の除外（4本・2026-11-13・0201i の本番適用で収載）
+- 本人の確認（B-補1 と同列＝課金停止中でも確認できる・本人だけ）: notice_ack（「確認しました」）
+- 本人の回答（同上）: notice_rsvp（出欠「参加」「不参加」）
+- 読取（B(f) と同列＝ゲート不要）: notice_response_status（店長以上の確認と出欠の一覧）
+- 構造除外（B(a) と同列＝内部専用・4 ロール revoke）: notice_audience_has（宛先の判定）
+（除外 233→**237**・全数 442→**447**（0201i ＋5＝A +1（A23 notice_set_rsvp）・B +4・作り直し 1 本 demo_org_reset は名前不変））
 
 ## C. kiosk 腕を持つ対象（実装注意・18本）
 A1 の check_open / check_add_line / check_remove_line / check_add_seat / check_remove_seat /

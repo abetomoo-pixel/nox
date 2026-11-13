@@ -19,7 +19,7 @@ type R = { ok: true; rows: Row[] } | { ok: false; err: string };
 const errOf = (x: R) => (x.ok ? "ok" : x.err);
 const src = (p: string) => fs.readFileSync(p, "utf8");
 const J = (x: unknown) => JSON.stringify(x);
-const FN = 442 /* ★0201g（作り直し 4・手貼りの後）: 440→442 */, TB = 121; // ★0201c／h／e（2026-11-12 手貼り・+9＝0201c 3・0201e 6）: 431→440 // ★0201（2026-11-11 手貼り・+4＝punch_self_impl／set_store_manager_punch／staff_pin_self_set／cast_pin_self_set）: 427→431   // 0200 の後（0201 の手貼りで張り替える）
+const FN = 447 /* ★0201i（2026-11-13 夕 手貼り）: 442→447 */ /* ★0201g（作り直し 4・手貼りの後）: 440→442 */, TB = 122 /* ★0201i: 121→122 */; // ★0201c／h／e（2026-11-12 手貼り・+9＝0201c 3・0201e 6）: 431→440 // ★0201（2026-11-11 手貼り・+4＝punch_self_impl／set_store_manager_punch／staff_pin_self_set／cast_pin_self_set）: 427→431   // 0200 の後（0201 の手貼りで張り替える）
 
 // (1)
 check("0200(1-1) MIG_0200_APPLIED=true（2026-11-10 手貼り・verify 32 行一致）・override", (MIG_0200_APPLIED as boolean) === true && mig0200On() === true);
@@ -54,6 +54,7 @@ check("0200(1-3) gen-demo の鏡（scripts/demo/rules-0175-flag.mjs）も true",
       if (r.k === "nox-project-proof") continue;
       if (r.k.startsWith("fn count")) { if (r.v !== String(FN)) bad.push(`${r.k}=${r.v}`); continue; } // ★0201（2026-11-11 手貼り）: 関数は 427→431（0200 の検証 SQL の期待は 0200 の時点の 427）
       if (r.k.startsWith("set_store_profile whitelist has cast_register_scope")) { const w = (await pc.query("select position('''cast_register_scope''' in prosrc) > 0 ok from pg_proc where proname='set_store_profile'")).rows[0]?.ok; if (!w) bad.push(`${r.k}=no-key`); continue; } // ★0201c（2026-11-12 手貼り）: set_store_profile の白名単に体入の 2 キーが続く＝「cast_register_scope で終わる」の形でなくなった＝キーがあることだけを見る
+      if (r.k.startsWith("table count")) { if (r.v !== String(TB)) bad.push(`${r.k}=${r.v}`); continue; } // ★0201i（2026-11-13 夕）: 表は 121→122（0200 の検証 SQL の期待は 0200 の時点の 121）
       if (r.k.startsWith("no payments yet")) { if (!/^\d+$/.test(r.v)) bad.push(`${r.k}=${r.v}`); continue; }
       const m = /\(expect ([^ )]+)/.exec(r.k); const exp = m ? (m[1] === "t/SELECT" ? "true/SELECT" : m[1]) : null;
       if (exp === null || exp !== r.v) bad.push(`${r.k}=${r.v}`);
@@ -68,7 +69,7 @@ check("0200(1-3) gen-demo の鏡（scripts/demo/rules-0175-flag.mjs）も true",
       const Lb = mb.toString("utf8").split("\n");
       check("0200(3b-1) 0200b 収蔵＝sha16 961bd94c784f1d81・143 行・begin;／commit; 1 回ずつ・lock_timeout", sha === "961bd94c784f1d81" && Lb.length === 144 && Lb.filter((l) => l === "begin;").length === 1 && Lb.filter((l) => l === "commit;").length === 1 && Lb[Lb.indexOf("begin;") + 1] === "set local lock_timeout = '10s';", { sha, n: Lb.length });
       const rb = (await pc.query(src("docs/tmp/0200b_verify.sql"))).rows as { k: string; v: string }[];
-      const expB = [String(FN) /* ★0201: 427→431 */, "121", "84", "91", "yes", "0/0/1"];
+      const expB = [String(FN) /* ★0201: 427→431 */, "122" /* ★0201i */, "85" /* ★0201i */, "92" /* ★0201i */, "yes", "0/0/1"];
       check("0200(3b-2) 0200b の検証 7 行＝期待どおり（貼り先証明＋427／121／84／91／yes／0/0/1）", rb.length === 7 && rb.slice(1).every((r, i) => r.v === expB[i]), rb.map((r) => r.v));
       const md = (await pc.query(`select left(md5(replace(prosrc, chr(13), '')), 8) m, prosrc from pg_proc where pronamespace='public'::regnamespace and proname='demo_org_reset'`)).rows[0] as { m: string; prosrc: string };
       const strip = md.prosrc.replace(/--[^\n]*/g, "");
@@ -76,7 +77,7 @@ check("0200(1-3) gen-demo の鏡（scripts/demo/rules-0175-flag.mjs）も true",
       const pl = new Set<string>();
       for (const f of fs.readdirSync("docs/demo/payload").filter((x) => x.endsWith(".json") && !x.startsWith("_"))) for (const k of Object.keys((JSON.parse(src(`docs/demo/payload/${f}`)) as { tables: Record<string, unknown> }).tables)) pl.add(k);
       const loadSet = new Set(((strip.match(/c_load constant text\[\] := array\[([\s\S]*?)\];/)?.[1] ?? "").match(/'[a-z_]+'/g) ?? []).map((x) => x.slice(1, -1)));
-      check("0200(3b-3) live の demo_org_reset＝md5 f3a12f49・コメントを除いた c_load 84・デモの payload の表がすべて c_load にある（'bad table' にならない）", md.m === "f3a12f49" && loadN === 84 && [...pl].every((t) => loadSet.has(t)), { m: md.m, loadN, missing: [...pl].filter((t) => !loadSet.has(t)) });
+      check("0200(3b-3) live の demo_org_reset＝md5 f3a12f49・コメントを除いた c_load 84・デモの payload の表がすべて c_load にある（'bad table' にならない）", md.m === "9e417f94" /* ★0201i（2026-11-13 夕）: f3a12f49→9e417f94 */ && loadN === 85 /* ★0201i: 84→85 */ && [...pl].every((t) => loadSet.has(t)), { m: md.m, loadN, missing: [...pl].filter((t) => !loadSet.has(t)) });
     }
     // (4) BEGIN…ROLLBACK
     const cnt = async () => (await pc.query(`select (select count(*)::int from pg_proc where pronamespace='public'::regnamespace) f, (select count(*)::int from pg_tables where schemaname='public') t`)).rows[0] as { f: number; t: number };
