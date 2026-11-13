@@ -72,3 +72,22 @@ Agoora：
 ## 追記：所属の読取（相談役 0201f の準備 3）
 - 1 人が有効な所属を 2 行以上持てるか＝**持てない**：部分ユニーク索引 memberships_one_active_per_user_idx（user_id where is_active＝supabase/migrations/0001_f0_auth_core.sql:89-90）。キャストも casts_one_active_per_user_idx（:109-110）。本番に両方の索引がある・**有効な所属が 2 行以上の利用者 0**・有効なキャストが 2 行以上 0（docs/tmp/read_memberships_1113.log・begin read only）。
 - get_cast_mynumber_masked（0201f）が所属を 1 行だけ読む作り（order なし）でも、行は 1 行しか無い＝自店の店長が forbidden になる場合は無い。所属とキャストの両方を持つ利用者は 9 人（キャストの所属＝役割 cast の行・本人の確かめは casts で別に引く＝影響なし）。F4 のマルチ店舗で索引を外すときは、この関数も「今の店」を引く形に直す（台帳の 1 ユーザー 1 アクティブの注記と同じ）。
+
+## 追記 2（2026-11-13 16:1x・0201f の本番適用の後）
+### ■1 0201f のフラグ便
+- フラグ true＋verify の張替え（rls F2d・grants G9／G10・anon-guard・compliance・daily-pay・b6・0158／0199／p172 の md5・store-systems の白名単 81→82）＝f0 2 連緑（f0_D9／D10_1113.log・**197 段 7,916**）→ **push c9ac0b3d**（16:06・夕方の報告 38693022 も一緒）→ deploy 16:08（新しい route が 404→401）→ **6 店 reset 16:09 6/6 ok**。0201f を supabase/migrations に収蔵（sha 一致）・台帳に本番適用（3383f0df・push していない）。
+- 本番の確かめ（試験の会社 NOX-VERIFY-A1・架空の 12 桁・docs/tmp/check_0201f_live_1113.mts と .log・check_0201f_csv_1113.mts と .log）：
+  - ① 登録が通る＝鍵が読めている（200）・DB の値は `nox1:v1:` で始まる 64 字・12 桁の数字なし・登録日 2026-11-13。
+  - ② 末尾 4 桁＝オーナー・自店の店長・本人は 200（********＋末尾 4 桁）・ほかのキャストは 403。
+  - ③ 全桁＝オーナーは一致・監査 read_cast_mynumber +1・店長は 403。
+  - ④ 支払調書の CSV に番号が出る（A1a は税のプロファイルが無く CSV の対象外だった＝1 回目は NG→委託のプロファイルを一時的に作って確かめ・最後に消した）。
+  - ⑤ 平文の 12 桁を set_cast_sensitive に直に渡す＝plaintext rejected。
+  - ⑥ 廃棄の候補の RPC（オーナー）が新しい戻り値で動く（行 0）・店の年数＝7 は保存・21 は bad mynumber_retention_years。**画面（廃棄の候補の表示と店舗設定の欄）は Agoora がログインして見る**（CC は本番のログイン画面にパスワードを打たない）。
+  - 後片付け＝廃棄の操作で暗号文を消した（mynumber_enc null・廃棄の日・方法 overwrite_null・監査 cast_mynumber_discard が残る）。
+### ■2
+- a 0201i r2＝docs/tmp/0201i_notice_ack_rsvp.sql（置き換え済み）・**sha256 f3336f3adec36ec03cef25b2cc5820fa90f1108efaff22f778b76f46b049b555・381 行**・差分 0201i_r1_to_r2.diff（本文 1 行＋見出しの注記 1 行）・notice_audience_has の md5 8d05b6c7→**3100f39a**・検証 0201i_verify.sql（18 行）・事前確認 0201i_precheck.sql（中身は同じ・期待の文だけ）・handpaste_0201i.md（r2）・前の版＝*_r1*。
+- b 端末のロック＝docs/tmp/report_kiosk_lock_1113.md（名前を選ぶ入口は今の画面から届かない・案と食い違い 3 つ）。
+### ■3（止まった）
+- 0201i r2 の単独の試走（docs/tmp/try_0201i_r2.mjs＝1-13 forbidden・1-13b 読める・1-13c・6-10 キャストだけを張り替えた）と、0201i→0201d の通し（docs/tmp/try_chain_1113c.mjs）は**流していない**＝本番に BEGIN…ROLLBACK で接続する所で、CC の実行環境の権限の判定（本番の読取）が止めた。0201f2 の事前確認の読取も同じ理由で流していない。流すには Agoora の許可（または Agoora が流す）が要る。
+### 本番への接続
+- 0（DB・試走・ブラウザ・裏のエージェント）。
