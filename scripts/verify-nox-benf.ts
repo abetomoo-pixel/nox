@@ -130,7 +130,7 @@ check("benf(6-3) ホーム＝予約の申請が先頭（approvals の前）・�
     && dd.includes('.filter((d) => rc.get(d.id)?.enabled !== false)') && dd.includes("amount: rc.get(d.id)?.amount_override ?? d.amount") && dd.includes("data-day-ded-after-skip"));
   check("benf(11-2) /mine＝0198 後は選択肢を出さず・送らず（cast 経路は forbidden）・「今日の控除＝○○ ¥○○（店が付けました）」の表示だけ（cast_day_applied_of）",
     pa.includes('if (!error && type === "in" && mig0196On() && !mig0198On() && bizToday) {') && pa.includes("{mig0196On() && !mig0198On() && dayDedRules.length > 0 && btn.inEnabled && (") && pa.includes("<p data-mine-day-ded-applied={String(dayDedApplied.length)}")
-    && mp.includes('await supabase.rpc("cast_day_applied_of", { p_cast_id: meCast.id, p_biz_date: bizToday })') && mp.includes("mig0196On() && !mig0198On() && myStore")
+    && mp.includes('const pApplied = mig0198On() && meId && sId ? go(supabase.rpc("cast_day_applied_of", { p_cast_id: meId, p_biz_date: bizToday })) : null;') /* ★■7（2026-11-13 夜）: 読取を先に投げる形（同じクエリ・同じ条件） */ && mp.includes("mig0196On() && !mig0198On() && myStore")
     && dp.includes('export const DAY_DED_APPLIED_BY_STORE = "（店が付けました）";') && dayDedAppliedTextOf([{ id: "a", name: "ヘアメ代", amount: 500 }, { id: "b", name: "送迎", amount: 1000 }]) === "今日の控除＝ヘアメ代 ¥500・送迎 ¥1,000（店が付けました）" && dayDedAppliedTextOf([]) === "今日の控除＝なし");
   check("benf(11-3) キオスク PIN 出勤＝0198 後は聞かずに打刻（dayded の段を飛ばす）・結果に kiosk_punch の返り day_applied を表示だけ",
     kp.includes('if (target.staff || !mig0196On() || mig0198On()) { void punch("in"); return; }') && kp.includes('if (!error && pj?.ok && type === "in" && mig0198On() && Array.isArray(pj.day_applied)) note = dayDedAppliedTextOf(pj.day_applied as DayDedApplied[]);'));

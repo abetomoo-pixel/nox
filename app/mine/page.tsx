@@ -78,75 +78,77 @@ export default async function MinePage({ searchParams }: { searchParams?: Promis
   // ★便 M5 M-40 (c)（2026-10-30）: (manage)/layout が cast を /register から戻すとき ?denied=register&why=… を付ける＝最上部に理由を出す（知らない語は出さない）
   const sp = (await searchParams) ?? {};
   const deniedText = sp.denied === "register" ? castRegisterDenyTextOf(sp.why) : null;
-  const regNav = await castMineRegisterNavEntryOf(supabase); // ★便 M5 M-44（2026-10-30）: レジがナビに無いとき＝理由 1 行（店が許可していない／本人の許可がない／店の端末からだけ／出勤してから）
-  const cutoff = await loadCutoff(supabase);
+  // ★■7（2026-11-13 夜・相談役）: 読取は入力が揃った時点で先に投げ、使う所で待つ（同じクエリ・同じ RLS＝式と見える範囲は変えない）。supabase の builder は await まで送らない＝go() で送る
+  const go = <T,>(q: PromiseLike<T>): Promise<T> => Promise.resolve(q);
+  const MINE_CAST_COLS: string = okuriTiersOn() ? "id, name, employment, okuri_tier" : "id, name, employment"; // ★M-183: 明細の「本人の名前 様」とファイル名に name // ★便 M5 M-33: okuri_tier（0180）は同じ 1 行読取に列を足すだけ（新規 fetch 0）
+  const pMeCast = go(supabase.from("casts").select(MINE_CAST_COLS).limit(1).maybeSingle());
+  const pMeUser = go(supabase.from("users").select("contact_email, phone").limit(1).maybeSingle());
+  const pMyStores = go(supabase.from("stores").select("id, name, legal_name, settings_json, punch_methods").limit(1));
+  const pCorr = go(supabase.from("punch_corrections").select("id, cast_id, punch_id, biz_date, kind, before_at, after_at, reason, decision, decide_reason, ack, ack_at, requested_at, decided_at").order("requested_at", { ascending: false }).limit(20));
+  const pLast = go(supabase.from("punches").select("type, punched_at").order("punched_at", { ascending: false }).limit(1));
+  const pSlips = go(supabase.from("payslips").select("period, net, breakdown_json").order("period", { ascending: false }).limit(6));
+  const pRegNav = castMineRegisterNavEntryOf(supabase);
+  const [regNav, cutoffA] = await Promise.all([pRegNav, loadCutoff(supabase)]); // ★便 M5 M-44（2026-10-30）: レジがナビに無いとき＝理由 1 行（店が許可していない／本人の許可がない／店の端末からだけ／出勤してから）
+  const cutoff = cutoffA;
   const bizToday = bizDateOf(new Date().toISOString(), cutoff);
   const month = bizToday.slice(0, 7);
 
   // ★裁定326-2（便 M2-1）: 「今月のバック」「報酬シミュレーター」の 2 カードは削除（check_cast_backs の読取と sim-data の読取も外した）
 
   // ★0154 D1（裁定294／295）: 自分の cast 行（id・employment＝用語）・修正申請（RLS 本人・表が無ければ空）
-  const MINE_CAST_COLS: string = okuriTiersOn() ? "id, name, employment, okuri_tier" : "id, name, employment"; // ★M-183: 明細の「本人の名前 様」とファイル名に name // ★便 M5 M-33: okuri_tier（0180）は同じ 1 行読取に列を足すだけ（新規 fetch 0）
-  const { data: meCastRaw } = await supabase.from("casts").select(MINE_CAST_COLS).limit(1).maybeSingle();
+  // 段 B：月が決まったら月の読取を投げる（下の各行は待つだけ）
+  const nextNextB = nextPeriodOf(nextPeriodOf(month));
+  const { startIso: mStartB } = bizDateRange(`${month}-01`, cutoff);
+  const { startIso: mEndB } = bizDateRange(`${nextPeriodOf(month)}-01`, cutoff);
+  const pMonthPunches = go(supabase.from("punches").select("id, type, punched_at").gte("punched_at", mStartB).lt("punched_at", mEndB).order("punched_at"));
+  const pShifts = go(supabase.from("shifts").select("id, date, start_hm, end_hm, status, wish_id").gte("date", `${month}-01`).order("date"));
+  const pAtt = go(supabase.from("attendance").select("date, status, eta, source, reason, updated_at, ack_at").gte("date", `${month}-01`).order("date", { ascending: false }).limit(62));
+  const pIncent = go(supabase.from("attendance_incentives").select("biz_date, amount_mode, amount").eq("status", "published").gte("biz_date", `${month}-01`).order("biz_date", { ascending: false }).limit(20));
+  const pTransport = go(supabase.from("transport").select("*").gte("biz_date", `${month}-01`));
+  const pWish = go(supabase.from("shift_wishes").select("id, date, start_hm, end_hm, status, kind").gte("date", `${month}-01`).lt("date", `${nextNextB}-01`));
+  const pRsv = go(supabase.from("reservations").select("id, reserved_at, guest_name, party_size, nom_type, memo, customer_id, customers(name)").eq("status", "booked").gte("reserved_at", `${bizToday}T06:00:00+09:00`).order("reserved_at", { ascending: true }));
+  const { data: meCastRaw } = await pMeCast;
   const meCast = (meCastRaw ?? null) as unknown as { id: string; name?: string | null; employment: string | null; okuri_tier?: string | null } | null;
-  const { data: meUser } = await supabase.from("users").select("contact_email, phone").limit(1).maybeSingle(); // ★便 ON-3（0176 ★4）: 自分の users 行（cast の RLS＝本人だけ）
+  const { data: meUser } = await pMeUser; // ★便 ON-3（0176 ★4）: 自分の users 行（cast の RLS＝本人だけ）
   const term = termOf((meCast?.employment as string | null) ?? null);
   const { startIso: bizStartIso, endIso: bizEndIso } = bizDateRange(bizToday, cutoff);
   // ★裁定326-5（便 M2-1）: 当月の自分の打刻を 1 本で読む（勤怠一覧）→ 当日分はここから絞る（旧 todayPunches の fetch と置換＝新規 fetch 0）
   const nextMonth = nextPeriodOf(month);
   const { startIso: monthStartIso } = bizDateRange(`${month}-01`, cutoff);
   const { startIso: monthEndIso } = bizDateRange(`${nextMonth}-01`, cutoff);
-  const { data: monthPunches } = await supabase.from("punches").select("id, type, punched_at").gte("punched_at", monthStartIso).lt("punched_at", monthEndIso).order("punched_at");
+  if (monthStartIso !== mStartB || monthEndIso !== mEndB) throw new Error("mine: month range"); // 段 B と同じ範囲であることの柵
+  const { data: monthPunches } = await pMonthPunches;
   const todayPunches = ((monthPunches ?? []) as { id: string; type: string; punched_at: string }[]).filter((p) => Date.parse(p.punched_at) >= Date.parse(bizStartIso) && Date.parse(p.punched_at) < Date.parse(bizEndIso));
-  const { data: corrRows } = await supabase.from("punch_corrections").select("id, cast_id, punch_id, biz_date, kind, before_at, after_at, reason, decision, decide_reason, ack, ack_at, requested_at, decided_at").order("requested_at", { ascending: false }).limit(20);
+  const { data: corrRows } = await pCorr;
 
   // 最終打刻(自分の行のみ)
-  const { data: punches } = await supabase
-    .from("punches")
-    .select("type, punched_at")
-    .order("punched_at", { ascending: false })
-    .limit(1);
+  const { data: punches } = await pLast;
   const last = punches?.[0];
 
   // 直近の確定シフト（★326-5: 当月初からまとめて読み、直近 7 件はここから絞る・当月の確定分は勤怠一覧の実働計算に使う＝新規 fetch 0）
-  const { data: shiftsAll } = await supabase
-    .from("shifts")
-    .select("id, date, start_hm, end_hm, status, wish_id") // ★SD V2-3: id 追加（shift_cast_confirm の対象特定）・★裁定345: wish_id（希望由来の印）
-    .gte("date", `${month}-01`)
-    .order("date");
+  const { data: shiftsAll } = await pShifts; // ★SD V2-3: id・★裁定345: wish_id
   type ShiftLite = { id: string; date: string; start_hm: string; end_hm: string; status: string; wish_id: string | null };
   const monthConfirmedShifts = ((shiftsAll ?? []) as ShiftLite[]).filter((s) => s.status === "confirmed" && s.date < `${nextMonth}-01`);
 
   // 今月の勤怠
-  const { data: att } = await supabase
-    .from("attendance")
-    .select("date, status, eta, source, reason, updated_at, ack_at") // ★便 X13-H H-17 ③: 連絡の状態（本人＝self／店が記録）★便 SH-UI-c C-2 ④: 勤怠表の連絡時刻・備考 ★便 ON-3（I-4）: ack_at
-    .gte("date", `${month}-01`)
-    .order("date", { ascending: false })
-    .limit(62);
+  const { data: att } = await pAtt; // ★便 X13-H H-17 ③・★便 SH-UI-c C-2 ④・★便 ON-3（I-4）: ack_at
 
   // 今月の出勤ボーナス（attendance_incentives＝パターン3・店の published を可視）。
   // 受給は当日の確定シフト出勤（final∈{ok,late}）が条件・確定額は給与確定時。pooled は受給者数で変動＝暫定表示。
-  const { data: incentives } = await supabase
-    .from("attendance_incentives")
-    .select("biz_date, amount_mode, amount")
-    .eq("status", "published")
-    .gte("biz_date", `${month}-01`)
-    .order("biz_date", { ascending: false })
-    .limit(20);
+  const { data: incentives } = await pIncent;
 
   // 確定済み給与明細（payslips＝金額系・cast 本人可視）。breakdown_json.ar の売掛天引き額を表示（F2e-1）。
-  const { data: slips } = await supabase
-    .from("payslips")
-    .select("period, net, breakdown_json")
-    .order("period", { ascending: false })
-    .limit(6);
+  const { data: slips } = await pSlips;
   // ★裁定414（S-4 ④）: 凍結明細の「送り」行を方式で読み分ける＝breakdown.okuri の transport_id → transport.mode（自分の行＝RLS パターン1・0177 前は mode 列が無い＝'actual' 扱い）
   const okuriIds = [...new Set((slips ?? []).flatMap((s) => (((s.breakdown_json as { okuri?: { transport_id?: string }[] } | null)?.okuri ?? []).map((e) => e.transport_id).filter((x): x is string => typeof x === "string"))))];
   const { data: trModes } = okuriIds.length > 0 ? await supabase.from("transport").select("*").in("id", okuriIds) : { data: null };
   const okuriModes: Record<string, string> = Object.fromEntries(((trModes ?? []) as { id: string; mode?: string | null }[]).map((r) => [r.id, r.mode ?? "actual"]));
   // breakdown_json の解釈と1件描画は共有 PayslipSlip へ移設（D2＝表示の移設のみ・数値ロジック非改変）。
   // ★裁定348 追補1（便 DM-1 D-2b）: 期限付き保証時給の印＝今日を含む cast_plan 行（自分の行＝RLS）の overrides_json.guarantee が true なら「保証時給（〜MM/DD）¥X」。期限切れは何も出さない（基本時給に戻る）
+  const meId = meCast?.id as string | undefined;
+  const pDohan = meId ? go(supabase.from("check_nominations").select("cast_id, ended_at, checks!inner(started_at, status, store_id, seats(name))").eq("cast_id", meId).eq("is_dohan", true).neq("checks.status", "void").gte("checks.started_at", bizStartIso).lt("checks.started_at", bizEndIso)) : null;
+  const pDiscard = meId ? go(supabase.rpc("cast_mynumber_discard_status", { p_cast_id: meId })) : null;
+  const pNotices = mig0201iOn() && meId ? Promise.all([go(supabase.from("notices").select("id, title, cast_ids, rsvp, rsvp_at, rsvp_due")), go(supabase.from("notice_responses").select("notice_id, acked_at, rsvp").eq("subject_kind", "cast").eq("subject_id", meId))]) : null;
   const { data: guaRows } = meCast
     ? await supabase.from("cast_plan").select("overrides_json, valid_from, valid_to").eq("cast_id", meCast.id as string).lte("valid_from", bizToday).or(`valid_to.is.null,valid_to.gte.${bizToday}`).limit(3)
     : { data: null };
@@ -155,29 +157,42 @@ export default async function MinePage({ searchParams }: { searchParams?: Promis
   const guaLabel = guaNow ? `保証時給 ${yen(guaNow.amount)}${guaNow.to ? `（${Number(guaNow.to.slice(5, 7))}/${Number(guaNow.to.slice(8, 10))} まで）` : ""}` : null;
 
   // 段M2: 所属店（ヘッダ表示用）。cast の可視 store は自店のみ（RLS）＝先頭行が自店（/mine/ranking と同型）。
-  const { data: myStores } = await supabase.from("stores").select("id, name, legal_name, settings_json, punch_methods").limit(1); // ★M-183: legal_name＝明細の会社名 // ★裁定269: sys_* は既存の自店読取に列を足すだけ・★0164（便 W5-2b）: punch_methods（本人打刻の出し分け）
+  const { data: myStores } = await pMyStores; // ★M-183: legal_name＝明細の会社名 // ★裁定269: sys_* は既存の自店読取に列を足すだけ・★0164（便 W5-2b）: punch_methods（本人打刻の出し分け）
   const myStore = myStores?.[0];
-  const mineWage = meCast && myStore ? await mineCurrentWageOf(supabase, meCast.id as string, myStore.id as string, bizToday.slice(0, 7), bizToday) : null; // ★便 X13-H H-8
   const ms = mineSettingsOf(myStore?.settings_json);
   const vis = mineVisibilityOf((myStore?.settings_json ?? null) as Record<string, unknown> | null, ms.payslip_visibility); // ★裁定491・492 // ★326-8: drink_claim／punch_correction_request／ranking の出し分け（reservation_request の申請カードは M3）
+  // 段 D：店が分かったら店の読取を投げる（重い勤怠の表＝buildKintaiSheet もここで並べる）
+  const sId = myStore?.id as string | undefined;
+  const pWage = meId && sId ? mineCurrentWageOf(supabase, meId, sId, bizToday.slice(0, 7), bizToday) : null;
+  const pAck = ms.contract_ack ? go(supabase.rpc("cast_contract_ack_needed")) : null;
+  const pDedRules = mig0196On() && !mig0198On() && sId ? go(supabase.from("deductions").select("id, name, amount").eq("store_id", sId).eq("is_active", true).eq("per", "day").eq("day_rule", "pick").order("name")) : null;
+  const pApplied = mig0198On() && meId && sId ? go(supabase.rpc("cast_day_applied_of", { p_cast_id: meId, p_biz_date: bizToday })) : null;
+  const pClosed = sId ? go(createAdminClient().from("store_business_hours").select("dow, is_closed").eq("store_id", sId)) : null;
+  const pKintai = meId && sId ? buildKintaiSheet(createAdminClient(), supabase, sId, month, { castId: meId }).catch(() => null) : null;
+  const pRank = sId ? go(supabase.rpc("get_cast_ranking", { p_store_id: sId, p_period: month })) : null;
+  const pSales = sId ? go(supabase.rpc("get_cast_sales_rank", { p_store_id: sId, p_period: month })) : null;
+  const pDays = vis.normDays && meId && sId ? daysNormTargetsOf(meId, sId, [month, nextPeriodOf(month)], bizToday) : null;
+  // 先に投げた throw しうる読取は、待つ前に落ちても「未処理」と数えない（待つ所では今までどおり throw する）
+  void pWage?.catch(() => {}); void pDays?.catch(() => {});
+  const mineWage = pWage ? await pWage : null; // ★便 X13-H H-8
   // ★0162 ★4（便 M5-2）: 契約確認の要否＝店の contract_ack が ON のときだけ cast_contract_ack_needed()（cast セルフ・非ゲート）。読めなければ出さない（止めない）
-  const { data: ackNeeded } = ms.contract_ack ? await supabase.rpc("cast_contract_ack_needed") : { data: null };
+  const { data: ackNeeded } = pAck ? await pAck : { data: null };
   // ★便 M5 M-33: showContractAck は要約（termsLines＝出勤ノルマの目標 daysTargets を含む）の後で決める＝下の daysTargets の直後
   const ps = punchStateOf((todayPunches ?? []) as { type: string; punched_at: string }[]); // ★326 追補3: 当日営業日の自分の打刻 → 未出勤／出勤中／退勤済み
   // ★便 SH-UI-c C-2 ④: 「今月の勤怠」＝給与と同じ計算の表（lib/nox/payroll/attendance-sheet・自分の行＝RLS）。送りは transport の自分の行（mode は 0177 後）
-  const { data: mineTransport } = await supabase.from("transport").select("*").gte("biz_date", `${month}-01`);
+  const { data: mineTransport } = await pTransport;
   // ★便 SH-UI-c2 C2-3: 日別の算定給与＝店長の勤怠表と同じ builder（computePayrollDraft＝給与と同じ）。本人の cast で絞る・読めなければ従来の表（日計なし）
   // ★M-92（2026-11-05）: 店の定休日の曜日＝store_business_hours は RLS でキャストが読めない＝admin で読んで AvailabilityEditor に渡す（表示だけ・設定値を読むだけ）
   // ★便 D M-103（2026-11-05）: 「その日に選ぶ」控除（per=day・day_rule=pick・有効）＝出勤ボタンの下のチェック。保存の腕は 0196＝mig0196On() が false の間は空（UI を出さない）。本人は deductions を読める（RLS＝org ∧ 自店）
   const mineDayDedRules: { id: string; name: string; amount: number }[] = mig0196On() && !mig0198On() && myStore
-    ? ((((await supabase.from("deductions").select("id, name, amount").eq("store_id", myStore.id as string).eq("is_active", true).eq("per", "day").eq("day_rule", "pick").order("name")).data) ?? []) as { id: string; name: string; amount: number }[])
+    ? ((((await pDedRules!).data) ?? []) as { id: string; name: string; amount: number }[])
     : [];
   // ★0198（裁定461 ②・M-120）: 本人は選べない＝店が付けた今日の控除（cast_day_applied_of＝本人の行だけ）を表示だけ（フラグ false の間は null＝出さない）
   const mineDayDedApplied: { id: string; name: string; amount: number }[] | null = mig0198On() && meCast && myStore
-    ? ((((await supabase.rpc("cast_day_applied_of", { p_cast_id: meCast.id, p_biz_date: bizToday })).data) ?? []) as { id: string; name: string; amount: number }[])
+    ? ((((await pApplied!).data) ?? []) as { id: string; name: string; amount: number }[])
     : null;
-  const mineClosedDows: number[] = myStore ? (((await createAdminClient().from("store_business_hours").select("dow, is_closed").eq("store_id", myStore.id as string)).data ?? []) as { dow: number; is_closed: boolean }[]).filter((x) => x.is_closed).map((x) => x.dow) : [];
-  const kintaiBuilt = meCast && myStore ? await buildKintaiSheet(createAdminClient(), supabase, myStore.id as string, month, { castId: meCast.id as string }).catch(() => null) : null;
+  const mineClosedDows: number[] = pClosed ? (((await pClosed).data ?? []) as { dow: number; is_closed: boolean }[]).filter((x) => x.is_closed).map((x) => x.dow) : [];
+  const kintaiBuilt = pKintai ? await pKintai : null;
   const kintaiBuiltRows: AttendanceDayRow[] | null = kintaiBuilt?.casts[0]?.rows ? (vis.payHidden ? stripKintaiPay(kintaiBuilt.casts[0].rows) : kintaiBuilt.casts[0].rows) : null; // ★裁定492: 表示しない店は金額を外してから渡す
   const kintaiRows = (kintaiBuiltRows ?? attendanceDayRowsOf({
     punches: ((monthPunches ?? []) as { id: string; type: string; punched_at: string }[]).map((p) => ({ id: p.id, punched_at: p.punched_at, type: p.type as "in" | "out" })),
@@ -203,20 +218,16 @@ export default async function MinePage({ searchParams }: { searchParams?: Promis
   const todayRow = attRows.find((r) => r.bizDate === bizToday) ?? null;
   // ★便 PR-1 R-4（裁定417）: 今日の同伴＝伝票（check_nominations.is_dohan・void 除く・自分の行）→「同伴（A2）」の印＋遅刻扱いなし（今日タブと同じ読み方）
   type DohanRow = { cast_id: string; ended_at: string | null; checks: { status: string; seats: { name: string } | { name: string }[] | null } | { status: string; seats: { name: string } | { name: string }[] | null }[] | null };
-  const { data: myDohan } = meCast
-    ? await supabase.from("check_nominations").select("cast_id, ended_at, checks!inner(started_at, status, store_id, seats(name))").eq("cast_id", meCast.id as string).eq("is_dohan", true).neq("checks.status", "void").gte("checks.started_at", bizStartIso).lt("checks.started_at", bizEndIso)
-    : { data: null };
+  const { data: myDohan } = pDohan ? await pDohan : { data: null };
   const myDohanSeats = meCast ? dohanSeatsOf(((myDohan ?? []) as DohanRow[]).map((r) => { const ck = Array.isArray(r.checks) ? r.checks[0] : r.checks; const st = ck ? (Array.isArray(ck.seats) ? ck.seats[0] : ck.seats) : null; return { cast_id: r.cast_id, seat_name: st?.name ?? null, ended_at: r.ended_at, check_status: ck?.status ?? null }; })).get(meCast.id as string) : undefined;
   // ★0156（起票85・便 V-7）: マイナンバーの廃棄状況（cast_mynumber_discard_status＝cast 本人・値は返さない・audit なし）。廃棄後だけ「廃棄済み YYYY-MM-DD」を出す
-  const { data: discardRows } = meCast ? await supabase.rpc("cast_mynumber_discard_status", { p_cast_id: meCast.id as string }) : { data: null };
+  const { data: discardRows } = pDiscard ? await pDiscard : { data: null };
   const discard = ((discardRows ?? []) as { mynumber_deleted_at: string | null; mynumber_deletion_method: string | null; has_mynumber: boolean }[])[0];
   const discardYmd = discard?.mynumber_deleted_at ? new Date(discard.mynumber_deleted_at).toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" }) : null;
 
   // 段M2: 指名ランキングの★自分の行だけ（get_cast_ranking＝金額列を構造的に持たない既存 RPC・
   //   /mine/ranking が既に使っている経路と同一）。他キャストの数字は一切描画しない（順位と母数のみ）。
-  const { data: rankAll } = myStore
-    ? await supabase.rpc("get_cast_ranking", { p_store_id: myStore.id as string, p_period: month })
-    : { data: null };
+  const { data: rankAll } = pRank ? await pRank : { data: null };
   type MyRank = { rank: number; hon_count: number; jonai_count: number; dohan_count: number; is_self: boolean };
   const rankRows = (rankAll ?? []) as MyRank[];
   const myRank = rankRows.find((r) => r.is_self) ?? null;
@@ -224,12 +235,7 @@ export default async function MinePage({ searchParams }: { searchParams?: Promis
   // 自分指名の予約（F3a-3・read-only）。RLS が cast_id=auth_cast_id() の行のみ返す＝可視性の物理保証（段19-11）。
   // 表示は今営業日（06:00 起点）以降の booked のみ＝cast は予約に行動できないため過去/確定状態は出さない。
   // 客名は customers embed（cast は担当客のみ可視＝customers RLS）→不可視/フリー予約は guest_name フォールバック。
-  const { data: rsv } = await supabase
-    .from("reservations")
-    .select("id, reserved_at, guest_name, party_size, nom_type, memo, customer_id, customers(name)") // ★便 M-4 ①: +customer_id
-    .eq("status", "booked")
-    .gte("reserved_at", `${bizToday}T06:00:00+09:00`)
-    .order("reserved_at", { ascending: true });
+  const { data: rsv } = await pRsv; // ★便 M-4 ①: +customer_id
   type RsvCustomer = { name: string } | { name: string }[] | null;
   // ★便 M-4 ①（2026-10-26）: 自分指名の予約（RLS＝cast_id が自分の行だけ＝他人の予約は混ざらない）でも、お客様の担当が別のキャストだと customers の RLS で名前が見えず「お客様」になっていた
   //   ＝自分の予約の行に限って、サーバで名前だけ引く（admin・予約の customer_id だけ・他の列は読まない）
@@ -250,9 +256,10 @@ export default async function MinePage({ searchParams }: { searchParams?: Promis
 
   // ★便 X13-G W-22: 出勤予定（今月／来月）＝自分のシフト（shiftsAll＝今月初から）と提出済みの希望（自分の行＝RLS）・出勤ノルマ（店が出勤日数の軸を採用＋ノルマがあるときだけ）
   const nextNext = nextPeriodOf(nextMonth);
-  const { data: wishRows } = await supabase.from("shift_wishes").select("id, date, start_hm, end_hm, status, kind").gte("date", `${month}-01`).lt("date", `${nextNext}-01`);
+  if (nextNext !== nextNextB) throw new Error("mine: nextNext"); // 段 B と同じ範囲の柵
+  const { data: wishRows } = await pWish;
   const workedThisMonth = new Set(((monthPunches ?? []) as { type: string; punched_at: string }[]).filter((x) => x.type === "in").map((x) => bizDateOf(x.punched_at, cutoff)).filter((d) => d.slice(0, 7) === month));
-  const daysTargets = vis.normDays && meCast?.id && myStores?.[0]?.id ? await daysNormTargetsOf(meCast.id as string, myStores[0].id as string, [month, nextMonth], bizToday) : { [month]: null, [nextMonth]: null };
+  const daysTargets = pDays ? await pDays : { [month]: null, [nextMonth]: null };
   // ★便 M5 M-33（2026-10-30）: 「基本の働き方の確認」の本文＝本人の基本条件の要約（page が既に読んだ値だけ＝新規 DB 読取 0）。
   //   時給は明細の公開（payslip_visibility）が off の店では載せない（「今期の時給」カードと同じ出し分け）。バックはプランが cast の RLS で読めない＝今日は渡さない（将来の差替え点）。
   const storeSj = (myStore?.settings_json ?? {}) as Record<string, unknown>;
@@ -266,10 +273,7 @@ export default async function MinePage({ searchParams }: { searchParams?: Promis
   // ★0201i（裁定486）: 出欠を取るお知らせ（RLS＝見えるもの・宛先つきは本人を含むものだけ）と本人の確認・出欠 → ホームの件数と出勤予定の「お知らせの予定」
   let noticePending = 0; const rsvpByMonth = new Map<string, ReturnType<typeof rsvpEventsOf>>();
   if (mig0201iOn() && meCast) {
-    const [{ data: nr }, { data: rr }] = await Promise.all([
-      supabase.from("notices").select("id, title, cast_ids, rsvp, rsvp_at, rsvp_due"),
-      supabase.from("notice_responses").select("notice_id, acked_at, rsvp").eq("subject_kind", "cast").eq("subject_id", meCast.id as string),
-    ]);
+    const [{ data: nr }, { data: rr }] = await pNotices!;
     const vis = ((nr ?? []) as { id: string; title: string; cast_ids: string[] | null; rsvp: boolean; rsvp_at: string | null; rsvp_due: string | null }[]).filter((n) => noticeVisOf0201i(n.cast_ids ?? null, meCast.id as string));
     const mine = new Map(((rr ?? []) as { notice_id: string; acked_at: string | null; rsvp: RsvpAnswer | null }[]).map((r) => [r.notice_id, { acked_at: r.acked_at, rsvp: r.rsvp } as MyResponse]));
     noticePending = noticePendingCountOf(vis, mine, Date.now());
@@ -281,7 +285,7 @@ export default async function MinePage({ searchParams }: { searchParams?: Promis
     return { month: m, label, fixed: sc.fixed, pending: sc.pending, norm: daysNormLineOf({ target: daysTargets[m], worked: cnt.worked, fixedDays: cnt.fixedDays, pendingDays: cnt.pendingDays }), events: rsvpByMonth.get(m) ?? [] };
   });
   // ★便 X13-G W-22 ④: 売上の自分の順位（get_cast_sales_rank＝cast は自分の 1 行だけ・他人の金額と順位は返らない）
-  const { data: salesRank } = myStore ? await supabase.rpc("get_cast_sales_rank", { p_store_id: myStore.id as string, p_period: month }) : { data: null };
+  const { data: salesRank } = pSales ? await pSales : { data: null };
   const mySales = ((salesRank ?? []) as { rank: number; sales: number; is_self: boolean }[]).find((r) => r.is_self) ?? null;
 
   const noneP: React.CSSProperties = { fontSize: 13, color: "var(--sub)" };

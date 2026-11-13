@@ -72,7 +72,7 @@ check("sp(5-2) contract-ack-gate: cast_contract_ack_self → router.refresh()・
   gate.includes('supabase.rpc("cast_contract_ack_self")') && gate.includes("router.refresh();") && gate.includes('<Message kind="error"') && gate.includes("rpcErrJa(error.message)")
   && gate.includes("CONTRACT_ACK_LINES.map(") && !codeOf(gate).includes("加盟店契約"));
 check("sp(5-3) mine page: 店が ON のときだけ cast_contract_ack_needed（OFF は fetch 0）・contractAckGateOf（★便 M5 M-33: hasTerms＝termsLines.length > 0）・{showContractAck && <ContractAckGate lines={termsLines} />} は PhotoCard より前",
-  mine.includes('ms.contract_ack ? await supabase.rpc("cast_contract_ack_needed") : { data: null }') && mine.includes("contractAckGateOf(ms.contract_ack,") && mine.includes("termsLines.length > 0)")
+  mine.includes('const pAck = ms.contract_ack ? go(supabase.rpc("cast_contract_ack_needed")) : null;') /* ★■7（2026-11-13 夜）: 読取を先に投げる形（OFF は fetch 0 のまま） */ && mine.includes('const { data: ackNeeded } = pAck ? await pAck : { data: null };') && mine.includes("contractAckGateOf(ms.contract_ack,") && mine.includes("termsLines.length > 0)")
   && mine.indexOf("{showContractAck && <ContractAckGate lines={termsLines} />}") > 0 && mine.indexOf("{showContractAck && <ContractAckGate lines={termsLines} />}") < mine.indexOf("<PhotoCard storeName="));
 
 // (6) rpc-err

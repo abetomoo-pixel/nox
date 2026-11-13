@@ -63,7 +63,7 @@ const J = JSON.stringify;
   check("b5(4-3) /mine の配線＝金額を外してから渡す・月のまとめ null・保証時給の印と契約の要約・出勤ボーナスの額・枠は sys_bonus・ノルマの出勤日数・明細の注記",
     pg.includes("vis.payHidden ? stripKintaiPay(kintaiBuilt.casts[0].rows) : kintaiBuilt.casts[0].rows") && pg.includes("const kintaiPay = vis.payHidden ? null :")
     && pg.includes("{guaLabel && !vis.payHidden && (") && pg.includes("guaranteeLabel: vis.payHidden ? null : guaLabel") && pg.includes("{vis.bonusCard && (") && pg.includes('data-mine-bonus="1"')
-    && pg.includes("vis.payHidden ? <>定額</>") && pg.includes("const daysTargets = vis.normDays &&") && pg.includes("{vis.normDays && <p") && pg.includes(": slipFootNoteOf(vis)}"));
+    && pg.includes("vis.payHidden ? <>定額</>") && pg.includes("const pDays = vis.normDays && meId && sId ? daysNormTargetsOf(") /* ★■7（2026-11-13 夜）: 読取を先に投げる形（同じクエリ・同じ条件） */ && pg.includes("const daysTargets = pDays ? await pDays :") && pg.includes("{vis.normDays && <p") && pg.includes(": slipFootNoteOf(vis)}"));
   const pb = src("app/(manage)/payroll/payroll-board.tsx");
   check("b5(3-3) 給与一覧の「売掛」「送り」の列＝設定に従う（値の残る行があれば出す）",
     pb.includes("const arColOn = storeSettings.ar_enabled === true ||") && pb.includes('const okuriColOn = okuriModeOf(storeSettings) !== "none" ||')
