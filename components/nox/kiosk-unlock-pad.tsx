@@ -23,12 +23,24 @@ export default function KioskUnlockPad({ onUnlocked }: { onUnlocked: (r: { membe
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [cands, setCands] = useState<Cand[] | null>(null);
+  // ★2026-11-13（相談役 C）: 端末がロック中（PIN の失敗が続いた）でも、名前を選んで本人の PIN で入れる（kiosk_unlock に p_membership_id＝DB は端末のロックを見ず本人の側で数える＝0201g）
+  const [locked, setLocked] = useState(false);
+  const [people, setPeople] = useState<Cand[] | null>(null);
+  const [named, setNamed] = useState<Cand | null>(null);
   const qrOk = mig0185On();
+  async function openPeople() {
+    setBusy(true); setMsg(null);
+    const { data, error } = await supabase.rpc("kiosk_staff_list");
+    setBusy(false);
+    if (error) { setMsg("名前の一覧を読めませんでした（店にご確認ください）"); return; }
+    setPeople(((data ?? []) as { membership_id: string; user_name: string; role: string; has_pin: boolean }[]).filter((x) => x.has_pin).map((x) => ({ membership_id: x.membership_id, name: x.user_name, role: x.role })));
+  }
 
   const handle = useCallback(async (r: UnlockResult) => {
     const next = unlockNextOf(r);
     if (next.phase === "unlocked" && r.ok) { setMsg(null); await onUnlocked({ membership_id: r.membership_id, operator_name: (r as { operator_name?: string; name?: string }).operator_name ?? (r as { name?: string }).name, role: r.role, idle_sec: r.idle_sec, unlock_method: (r as { unlock_method?: string }).unlock_method }); return; }
     if (next.phase === "choose") { setCands(next.candidates ?? []); setMsg(next.message); return; }
+    if (!r.ok && r.reason === "device_locked") setLocked(true); // ★相談役 C: ロック中は「名前を選んで入る」を出す
     setMsg(next.message); setPin("");
   }, [onUnlocked]);
 
@@ -45,20 +57,34 @@ export default function KioskUnlockPad({ onUnlocked }: { onUnlocked: (r: { membe
       {qrOk && (
         <div role="tablist" aria-label="解除の方法" style={{ display: "flex", gap: 8, justifyContent: "center", margin: "0 0 12px" }}>
           {([["pin", "PIN で解除"], ["qr", "QR で解除"]] as const).map(([k, label]) => (
-            <button key={k} role="tab" aria-selected={tab === k} onClick={() => { setTab(k); setMsg(null); setCands(null); }}
+            <button key={k} role="tab" aria-selected={tab === k} onClick={() => { setTab(k); setMsg(null); setCands(null); setPeople(null); setNamed(null); }}
               style={{ ...t.btnGhost, ...t.btnSm, borderColor: tab === k ? "var(--gold)" : "var(--line2)", color: tab === k ? "var(--gold)" : "var(--ink)" }}>{label}</button>
           ))}
         </div>
       )}
-      {tab === "pin" && !cands && (
+      {tab === "pin" && !cands && !people && (
         <>
-          <p style={{ textAlign: "center", fontSize: 15, fontWeight: 800, margin: "0 0 4px" }}>PIN を入力してください</p>
-          <p style={{ textAlign: "center", ...t.sub, margin: "0 0 14px" }}>誰かを選ぶ必要はありません（PIN で本人を特定します）</p>
+          <p style={{ textAlign: "center", fontSize: 15, fontWeight: 800, margin: "0 0 4px" }}>{named ? `${named.name} さんの PIN を入力してください` : "PIN を入力してください"}</p>
+          <p style={{ textAlign: "center", ...t.sub, margin: "0 0 14px" }}>{named ? "名前を選んで入ります（端末のロックとは別に、本人の PIN の失敗を数えます）" : "誰かを選ぶ必要はありません（PIN で本人を特定します）"}</p>
           <PinPad value={pin} onChange={setPin} />{/* ★M-154（2026-11-11）: 出退勤と同じ共通部品 */}
           <div className="nox-pinpad-go">
-            <button disabled={pin.length < 4 || busy} onClick={() => void unlockPin()} data-kiosk-unlock-go="1"
+            <button disabled={pin.length < 4 || busy} onClick={() => void unlockPin(named?.membership_id)} data-kiosk-unlock-go="1"
               style={{ ...t.btnGold, opacity: pin.length >= 4 ? 1 : 0.4 }}>解除</button>
           </div>
+          {named && <button style={{ ...t.btnGhost, ...t.btnSm, width: "100%", marginTop: 10 }} onClick={() => { setNamed(null); setPin(""); }} data-kiosk-unlock-named-back="1">名前を選び直す</button>}
+          {locked && !named && (/* ★相談役 C: ロック中の画面に「名前を選んで入る」 */
+            <button style={{ ...t.btnGhost, width: "100%", marginTop: 12, padding: "12px 0", fontWeight: 800 }} disabled={busy} onClick={() => void openPeople()} data-kiosk-unlock-by-name="1">名前を選んで入る</button>
+          )}
+        </>
+      )}
+      {tab === "pin" && people && (
+        <>
+          <p style={{ textAlign: "center", fontSize: 14, fontWeight: 800, margin: "0 0 10px" }}>名前を選んでください</p>
+          {people.length === 0 ? <p style={{ textAlign: "center", ...t.sub }}>名前で入れる人がいません（PIN を設定した店長・スタッフだけが出ます）</p> : (
+          <div style={{ display: "grid", gap: 8 }} data-kiosk-unlock-people="1">
+            {people.map((c) => <button key={c.membership_id} style={{ ...t.btnGhost, padding: "12px 0", fontSize: 16, fontWeight: 800 }} disabled={busy} onClick={() => { setNamed(c); setPeople(null); setPin(""); setMsg(null); }}>{c.name}<span style={{ fontSize: 11, color: "var(--sub)", marginLeft: 8 }}>{c.role === "staff" ? "スタッフ" : c.role === "manager" ? "店長" : "管理者"}</span></button>)}
+          </div>)}
+          <button style={{ ...t.btnGhost, ...t.btnSm, width: "100%", marginTop: 10 }} onClick={() => setPeople(null)}>もどる</button>
         </>
       )}
       {cands && (

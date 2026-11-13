@@ -250,5 +250,21 @@ const LATIN = /[A-Za-z]/;
     && mynumberRetentionValidOf("1") && mynumberRetentionValidOf("20") && !mynumberRetentionValidOf("0") && !mynumberRetentionValidOf("21") && !mynumberRetentionValidOf("7.5"));
 }
 
+// ★2026-11-13 夕（相談役 A〜C・本番に接続しない段だけ）
+{
+  const rb = src("app/(manage)/register/register-board.tsx"), css = src("app/globals.css"), sw = src("app/(manage)/setup/setup-wizard.tsx"), v5 = src("lib/nox/setup/v5.ts"), kp = src("components/nox/kiosk-unlock-pad.tsx");
+  check("b6(c9-1) A 会計＝残額 0 で「会計を完了」を下に固定（下のナビのすぐ上・広い画面はサイドバーの右）＋最後の行と重ならない余白・いちばん下の今のボタンは残す",
+    rb.includes('<div className="nox-paydone-bar" data-pay-close-bar="1"><button type="button" onClick={closeCheck} disabled={!allCovered} style={t.btnPrimary56} data-pay-close-fixed="1">会計を完了</button></div>') && rb.includes('<div className="nox-paydone-spacer" aria-hidden="true" />')
+    && rb.includes('data-pay-close="1">会計を完了</button>') && css.includes("body:has(.nox-tabbar) .nox-paydone-bar { bottom: calc(var(--nox-bnav-h, 64px) + env(safe-area-inset-bottom, 0px)); }") && css.includes(".nox-paydone-spacer { height: 84px; }"));
+  check("b6(c9-2) A 緑の案内＝「入金は済んでいます。会計を完了してください。」＋同じボタン（「下の〜を押してください」は消した）",
+    rb.includes('const PAY_DONE_NOTE = "入金は済んでいます。会計を完了してください。";') && rb.includes('data-pay-close-head="1">会計を完了</button>') && !rb.includes("下の「会計を完了」を押してください"));
+  check("b6(c9-3) A 残額 0 のときは延長の表（自動・手動）・カスタム明細・割引を畳む（開けば使える）",
+    rb.includes('<PayDoneFold done={allCovered} name="pay-time-auto"') && rb.includes('<PayDoneFold done={allCovered} name="pay-time-manual"') && rb.includes('<Fold key={allCovered ? "pay-custom-done" : "pay-custom"} name="pay-custom"') && rb.includes('defaultOpen={!allCovered && approvals.some((a) => a.status === "pending")}'));
+  check("b6(c9-4) B 初期設定のカードの手数料＝1% 刻みの整数（小数は入らない）・確認の画面と保存で同じ値（cardFeePctOf）・Math.round で黙って丸めない",
+    sw.includes('<Money value={S.cardfee} unit="%" step={1} integer') && sw.includes('["カード手数料", `${cardFeePctOf(S)}%`]') && v5.includes("pay_fee_rates: { card: cardFeePctOf(S),") && v5.includes("p_card_tax_rate: cardFeePctOf(S)") && !v5.includes("Math.round(S.cardfee"));
+  check("b6(c9-5) C 端末のロック中に「名前を選んで入る」＝kiosk_staff_list（PIN を設定した人）→名前→本人の PIN→kiosk_unlock に p_membership_id",
+    kp.includes('if (!r.ok && r.reason === "device_locked") setLocked(true);') && kp.includes('supabase.rpc("kiosk_staff_list")') && kp.includes("filter((x) => x.has_pin)") && kp.includes("onClick={() => void unlockPin(named?.membership_id)}") && kp.includes('data-kiosk-unlock-by-name="1">名前を選んで入る</button>'));
+}
+
 if (fails.length) { console.error(`FAIL ${fails.length} 件 / pass ${pass}`); for (const f of fails) console.error(" - " + f); process.exit(1); }
 console.log(`verify:nox-b6 ALL PASS (${pass} assertions)`);
