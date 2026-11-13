@@ -73,7 +73,7 @@ async function main() {
       const kioskUid = (await one<{ u: string }>("select gen_random_uuid() u")).u;
       const dev = (await one<{ id: string }>("insert into public.kiosk_devices (org_id, store_id, auth_user_id, label, is_active, purpose) values ($1,$2,$3,'cp-kiosk',true,'register') returning id", [A1.org_id, A1.id, kioskUid])).id;
       await db.query("insert into public.kiosk_sessions (org_id, store_id, device_id, membership_id, operator_user_id) values ($1,$2,$3,$4,$5)", [A1.org_id, A1.id, dev, mgrMid, mgr.id]);
-      await db.query("insert into public.cast_sensitive (cast_id, org_id, store_id, real_name, mynumber_enc) values ($1,$2,$3,'cp-実名', decode('00ff','hex')) on conflict (cast_id) do update set mynumber_enc = excluded.mynumber_enc", [castA, A1.org_id, A1.id]);
+      await db.query("insert into public.cast_sensitive (cast_id, org_id, store_id, real_name, mynumber_enc, mynumber_registered_on) values ($1,$2,$3,'cp-実名', 'nox1:test1:' || encode(extensions.gen_random_bytes(40), 'base64'), '2019-03-01') on conflict (cast_id) do update set mynumber_enc = excluded.mynumber_enc, mynumber_registered_on = excluded.mynumber_registered_on /* ★0201f: 暗号文の形（CHECK）・登録日から数える（裁定483） */", [castA, A1.org_id, A1.id]);
       await db.query("update public.casts set left_on='2019-01-01', is_active=false where id=$1", [castA]);
       await db.query("insert into public.customer_notes (org_id, store_id, customer_id, body) values ($1,$2,$3,'cp-メモ1'), ($1,$2,$3,'cp-メモ2')", [A1.org_id, A1.id, custs["指名B"]]);
       await db.query("update public.customers set retention_until = current_date - 1 where id=$1", [custs["指名A"]]);
@@ -96,6 +96,7 @@ async function main() {
       // (4) cast_mynumber_discard／candidates
       const cand0 = await as(owner, "select cast_id from public.cast_mynumber_discard_candidates(null)");
       await db.query("update public.casts set left_on='2018-06-15' where id=$1", [castA]);
+      await db.query("update public.cast_sensitive set mynumber_registered_on='2018-03-01' where cast_id=$1", [castA]); // ★0201f（裁定483）: 支払いの無い人は登録した年から＝2018 の翌年 1/1＋7 年＝2026-01-01
       const cand1 = await as(owner, "select cast_id, name, left_on::text left_on, due_on::text due_on from public.cast_mynumber_discard_candidates(null)");
       const cand1s = await as(owner, "select cast_id from public.cast_mynumber_discard_candidates($1)", [A1.id]);
       const dMgr = await as(mgr, "select public.cast_mynumber_discard($1, 'cp manager') id", [castA]);
@@ -107,8 +108,8 @@ async function main() {
       const cand2 = await as(owner, "select cast_id from public.cast_mynumber_discard_candidates(null)");
       const csRow = await one<{ enc_null: boolean; del_at: boolean; by: string; method: string }>("select mynumber_enc is null enc_null, mynumber_deleted_at is not null del_at, mynumber_deleted_by by, mynumber_deletion_method method from public.cast_sensitive where cast_id=$1", [castA]);
       const dAudit = await q<{ target: string; before_json: Record<string, unknown>; after_json: Record<string, unknown>; reason: string; store_id: string; actor_user_id: string }>("select target, before_json, after_json, reason, store_id, actor_user_id from public.audit_logs where action='cast_mynumber_discard' and at >= now()");
-      check("cp(4-0) 候補一覧（owner）: left_on 2019-01-01（翌年 1/1 起算 7 年＝2027-01-01・未到来）は 0 行", cand0.ok && cand0.rows.length === 0, JSON.stringify(cand0));
-      check("cp(4-1) 候補一覧（owner・全店／店指定）: left_on 2018-06-15→due_on 2026-01-01（到来）で A1a 1 行", cand1.ok && cand1.rows.length === 1 && cand1.rows[0].cast_id === castA && cand1.rows[0].due_on === "2026-01-01" && cand1s.ok && cand1s.rows.length === 1, JSON.stringify(cand1));
+      check("cp(4-0) 候補一覧（owner）: 登録 2019-03-01・支払いなし（★0201f＝登録した年の翌年 1/1 起算 7 年＝2027-01-01・未到来）は 0 行", cand0.ok && cand0.rows.length === 0, JSON.stringify(cand0));
+      check("cp(4-1) 候補一覧（owner・全店／店指定）: 登録 2018-03-01→due_on 2026-01-01（到来・★0201f）で A1a 1 行", cand1.ok && cand1.rows.length === 1 && cand1.rows[0].cast_id === castA && cand1.rows[0].due_on === "2026-01-01" && cand1s.ok && cand1s.rows.length === 1, JSON.stringify(cand1));
       check("cp(4-2) manager: discard／候補一覧とも 'forbidden'", !dMgr.ok && /forbidden/.test(errOf(dMgr)) && !candMgr.ok && /forbidden/.test(errOf(candMgr)), errOf(dMgr) + " / " + errOf(candMgr));
       check("cp(4-3) owner: enc なし cast→'no mynumber'／空 reason→'bad reason'", !dNo.ok && /no mynumber/.test(errOf(dNo)) && !dBad.ok && /bad reason/.test(errOf(dBad)), errOf(dNo) + " / " + errOf(dBad));
       check("cp(4-4) owner: 成功→enc null・deleted_at・deleted_by=owner・method 'overwrite_null'", dOk.ok && csRow.enc_null && csRow.del_at && csRow.by === owner.id && csRow.method === "overwrite_null", JSON.stringify({ dOk, csRow }));

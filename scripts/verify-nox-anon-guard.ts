@@ -531,7 +531,7 @@ async function mainBody() {
   //   payment_record_add=authenticated。いずれも anon には grant なし＝BLOCKED。
   const F2D_ANON_PROBES: Array<[string, Record<string, unknown>]> = [
     ["get_cast_mynumber", { p_org_id: null, p_actor: null, p_cast_id: null }],
-    ["get_cast_mynumber_masked", { p_cast_id: null }],
+    ["get_cast_mynumber_masked", { p_org_id: null, p_actor: null, p_cast_id: null }], // ★0201f（2026-11-13）: 3 引数・service だけ
     ["payment_record_add", { p_run_id: null, p_cast_id: null, p_amount: null, p_paid_at: null, p_method: null, p_note: null, p_idem_key: null }],
   ];
   for (const [fn, args] of F2D_ANON_PROBES) {

@@ -239,8 +239,8 @@ const LATIN = /[A-Za-z]/;
     bad === 4 && mynumberPlainOf(" 1234 5678 9012 ") === "123456789012" && mynumberMaskedOf("123456789012") === "********9012"
     && mynumberKeysOf(undefined, "v1") === null && mynumberKeysOf("{", "v1") === null && mynumberKeysOf(JSON.stringify({ v2: "x" }), "v1") === null && mynumberKeysOf(JSON.stringify({ v1: "x" }), "v1")?.current === "v1");
   const reg = src("app/api/cast/mynumber/register/route.ts"), l4 = src("app/api/cast/mynumber/last4/route.ts"), full = src("app/api/cast/mynumber/route.ts"), csv = src("app/api/payroll/tax-report-csv/route.ts"), panel = src("app/(manage)/master/sensitive-tax-panel.tsx");
-  check("b6(c8-6) フラグ false（0201f の前）＝新しい route は 404・画面は今の RPC の直呼び・全桁と CSV は復号しない",
-    MIG_0201F_APPLIED === false && !mig0201fOn() && reg.includes('if (!mig0201fOn()) return NextResponse.json({ error: "not found" }, { status: 404 });') && l4.includes('if (!mig0201fOn()) return NextResponse.json({ error: "not found" }, { status: 404 });')
+  check("b6(c8-6) フラグ true（★0201f 本番適用 2026-11-13 夕）＝新しい route は動く（false のときだけ 404）・画面は route・全桁と CSV は復号",
+    MIG_0201F_APPLIED === true && mig0201fOn() && reg.includes('if (!mig0201fOn()) return NextResponse.json({ error: "not found" }, { status: 404 });') && l4.includes('if (!mig0201fOn()) return NextResponse.json({ error: "not found" }, { status: 404 });')
     && full.includes("if (mig0201fOn() && typeof data === \"string\")") && csv.includes("mig0201fOn() ? decryptMynumberEnv(v, castId) : v") && panel.includes('if (mig0201fOn() && p_mynumber !== null)') && panel.includes('fetch("/api/cast/mynumber/last4"'));
   check("b6(c8-7) 登録は利用者のセッションの client で set_cast_sensitive（service では呼ばない）・末尾 4 桁は service で get_cast_mynumber_masked(p_org_id, p_actor, p_cast_id)・どちらもデモは 403",
     reg.includes('supabase.rpc("set_cast_sensitive"') && !reg.includes("createAdminClient") && reg.includes("assertNotDemo") && l4.includes('admin.rpc("get_cast_mynumber_masked", { p_org_id: orgId, p_actor: actor.id, p_cast_id: castId })') && l4.includes("assertNotDemo"));

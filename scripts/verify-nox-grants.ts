@@ -481,7 +481,7 @@ async function main() {
       check("G9 0153 check_lines_kind_check＝11 値（+keep_out）", (k153.rows[0]?.d as string).includes("'keep_out'") && ((k153.rows[0]?.d as string).match(/::text/g) || []).length === 11, k153.rows[0]?.d);
       // ★0155（裁定309-3）: cast_sensitive 11 列（+mynumber_deleted_at／mynumber_deleted_by／mynumber_deletion_method・別表なし）
       const c155 = await db.query(`select count(*)::int n, bool_and(column_name in ('mynumber_deleted_at','mynumber_deleted_by','mynumber_deletion_method')) filter (where column_name like 'mynumber_del%') three from information_schema.columns where table_schema='public' and table_name='cast_sensitive'`);
-      check("G9 0155 列集合: cast_sensitive 18（+廃棄記録 3 列・★0193 +住所／電話／口座 5＝7 列）", c155.rows[0]?.n === 18 /* ★0193（2026-11-04）: 11→18 */ && c155.rows[0]?.three === true, JSON.stringify(c155.rows));
+      check("G9 0155 列集合: cast_sensitive 19（★0201f +登録日・+廃棄記録 3 列・★0193 +住所／電話／口座 5＝7 列）", c155.rows[0]?.n === 19 /* ★0201f（2026-11-13）: +mynumber_registered_on＝18→19 */ /* ★0193（2026-11-04）: 11→18 */ && c155.rows[0]?.three === true, JSON.stringify(c155.rows));
       // ★0156（裁定309-6／8／9）: 列集合＝punches 14（+okuri）／daily_pays 12／payroll_run_deduction_overrides 10・新表 2 の policy＝select 1 本ずつ・unique（run_id, cast_id, deduction_id）
       const c156 = await db.query(`select table_name, count(*)::int n from information_schema.columns where table_schema='public' and table_name in ('punches','daily_pays','payroll_run_deduction_overrides') group by 1 order by 1`);
       const n156 = Object.fromEntries(c156.rows.map((r) => [r.table_name, r.n]));
@@ -558,12 +558,14 @@ async function main() {
     check("G10 payment_records ポリシー = SELECT 1本（パターン1）", prp.rowCount === 1 && prp.rows[0].cmd === "SELECT", prp.rows.map((x) => `${x.policyname}:${x.cmd}`).join(", "));
     // get_cast_mynumber（full 平文）= service_role のみ（anon/authenticated/public 不在）
     {
-      const roles = await roleOf("get_cast_mynumber");
-      const leaked = roles.filter((x) => ["anon", "authenticated", "public"].includes(x));
-      check("G10 get_cast_mynumber EXECUTE = service_role のみ（full 平文封鎖）", roles.includes("service_role") && leaked.length === 0, `保持者: ${roles.join(", ") || "(なし)"}`);
+      for (const fn of ["get_cast_mynumber", "get_cast_mynumber_masked"]) { // ★0201f（2026-11-13）: masked も service_role だけ（route が復号）
+        const roles = await roleOf(fn);
+        const leaked = roles.filter((x) => ["anon", "authenticated", "public"].includes(x));
+        check(`G10 ${fn} EXECUTE = service_role のみ（暗号文の口＝route だけ）`, roles.includes("service_role") && leaked.length === 0, `保持者: ${roles.join(", ") || "(なし)"}`);
+      }
     }
     // get_cast_mynumber_masked / payment_record_add = authenticated（anon 不在）
-    for (const fn of ["get_cast_mynumber_masked", "payment_record_add"]) {
+    for (const fn of ["payment_record_add"]) { // ★0201f: masked は上の service_role だけへ
       const roles = await roleOf(fn);
       check(`G10 ${fn} EXECUTE = authenticated（anon 不在）`, roles.includes("authenticated") && !roles.includes("anon"), `保持者: ${roles.join(", ")}`);
     }
@@ -575,8 +577,13 @@ async function main() {
         [["set_cast_sensitive", "get_cast_mynumber", "get_cast_mynumber_masked"]],
       );
       for (const row of cfg.rows) {
-        check(`G10 ${row.proname} search_path=public,extensions 固定（pgcrypto 罠回避）`, (row.config as string).includes("search_path=public, extensions") || (row.config as string).includes("search_path=public,extensions"), row.config);
+        check(`G10 ${row.proname} search_path=public だけ（★0201f＝pgcrypto を使わない）`, row.config === "search_path=public", row.config);
       }
+      // ★0201f（2026-11-13）: 3 本の本文に鍵の名前と pgcrypto が無い＝DB の中だけでは平文に戻せない／暗号文の形の CHECK がある
+      const body3 = await db.query(`select count(*)::int n from pg_proc where pronamespace='public'::regnamespace and proname = any($1) and (prosrc like '%nox_mynumber_key%' or prosrc like '%pgp_sym%')`, [["set_cast_sensitive", "get_cast_mynumber", "get_cast_mynumber_masked"]]);
+      check("G10 ★0201f 3 本の本文に nox_mynumber_key・pgp_sym が無い", body3.rows[0]?.n === 0, body3.rows[0]?.n);
+      const ck = await db.query(`select count(*)::int n from pg_constraint where conrelid='public.cast_sensitive'::regclass and conname='cast_sensitive_mynumber_enc_form_check' and contype='c'`);
+      check("G10 ★0201f cast_sensitive_mynumber_enc_form_check がある（mynumber_enc は text）", ck.rows[0]?.n === 1, ck.rows[0]?.n);
     }
 
     // G11: F3a-2 顧客CRM（mig0023）— customers ポリシー・新 RPC 6本の EXECUTE ACL。

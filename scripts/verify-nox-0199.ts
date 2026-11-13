@@ -50,7 +50,7 @@ check("0199(2-2) M-114 純関数＝lineNotifyPatchOf は 4 鍵を常に明示（
     const ln = rows.find((r) => r.k.startsWith("no store has line_notify yet"))?.v ?? "";
     check("0199(3-1) 検証 9 行＝期待値どおり（Agoora の返り 2026-11-10 と同値・line_notify を持つ店は手貼り直後 0・client の保存で増える＝整数）", rows.length === 9 && bad.length === 0 && /^\d+$/.test(ln), { n: rows.length, bad, ln });
     const md = (await pc.query(`select proname, left(md5(replace(prosrc, chr(13), '')), 8) m from pg_proc where pronamespace='public'::regnamespace and proname in ('set_store_profile','kiosk_person_claim') order by 1`)).rows as { proname: string; m: string }[];
-    check("0199(3-2) 2 関数の prosrc md5＝手貼り直後の live（2026-11-10）", md.length === 2 && md[0].m === "bb2f83f6" && md[1].m === "d4f558b6" /* ★0201g（2026-11-13 作り直し 4・set_store_profile にハードの保存の検査）: bf90fe8f→d4f558b6 */ /* ★0201b（2026-11-12）: f4347735→bf90fe8f */ /* ★0200: 287f6800→f4347735 */, md);
+    check("0199(3-2) 2 関数の prosrc md5＝手貼り直後の live（2026-11-10）", md.length === 2 && md[0].m === "bb2f83f6" && md[1].m === "4b4135d4" /* ★0201f（2026-11-13・mynumber_retention_years）: d4f558b6→4b4135d4 */ /* ★0201g: bf90fe8f→d4f558b6 */ /* ★0201b（2026-11-12）: f4347735→bf90fe8f */ /* ★0200: 287f6800→f4347735 */, md);
     // (4) BEGIN…ROLLBACK
     const cnt = async () => (await pc.query(`select (select count(*)::int from pg_proc where pronamespace='public'::regnamespace) f, (select count(*)::int from pg_tables where schemaname='public') t`)).rows[0] as { f: number; t: number };
     const before = await cnt();

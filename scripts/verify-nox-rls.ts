@@ -22,7 +22,8 @@
  *  - seat 蓄積対策: 末尾で旧 run の「卓1/卓1改」を参照ゼロ限定で service 削除（seats は3行で定常・累積しない）。
  */
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
+import { decryptMynumber, encryptMynumber, mynumberMaskedOf } from "../lib/nox/mynumber/cipher"; // ★0201f
 import {
   ORG_A, ORG_B, STORE_A1, STORE_A2, STORE_B1, FIXTURE_USERS, FIXTURE_CUSTOMERS, loadEnvOrExit,
   type FixtureUserKey, endedRuns, punchInForVerify } from "./fixtures-f0"; // ★起票88: 確定の直前に run を「終了済み」にする（0158 ★3 の確定ガード）
@@ -1454,32 +1455,39 @@ async function main() {
     const owner = await signIn("ownerA");
     const ca = await signIn("castA1a");
 
-    // ── 暗号化往復（F2d 完了条件）: manager が平文 set → service get_cast_mynumber で平文一致 ──
+    // ── ★0201f（2026-11-13・案 1）: 暗号文の往復＝アプリで暗号化（試験の鍵＝ここで作る・本番の鍵は使わない）→ set_cast_sensitive は暗号文だけを受ける → get_cast_mynumber(service) は暗号文を返す → アプリで復号 ──
     const MY = "123456789012"; // 仮マイナンバー（12桁・verify 専用）
-    const { error: eSet } = await m.rpc("set_cast_sensitive", { p_cast_id: castIdA, p_real_name: "田中玲奈", p_birthday: "1998-04-15", p_mynumber: MY });
-    check("F2d set_cast_sensitive(平文入力→DB 内 pgp_sym 暗号化) 成功", !eSet, eSet?.message);
+    const KEYS = { keys: { test1: randomBytes(32).toString("base64") }, current: "test1" };
+    const ENC = encryptMynumber(MY, castIdA, KEYS);
+    const { error: ePlain } = await m.rpc("set_cast_sensitive", { p_cast_id: castIdA, p_real_name: "田中玲奈", p_birthday: "1998-04-15", p_mynumber: MY });
+    check("F2d ★0201f 平文 12 桁を RPC に直に渡す＝plaintext rejected", !!ePlain?.message?.includes("plaintext rejected"), ePlain?.message ?? "通ってしまった");
+    const { error: eSet } = await m.rpc("set_cast_sensitive", { p_cast_id: castIdA, p_real_name: "田中玲奈", p_birthday: "1998-04-15", p_mynumber: ENC });
+    check("F2d set_cast_sensitive(暗号文＝アプリで暗号化) 成功（★0201f）", !eSet, eSet?.message);
     // get_cast_sensitive は mynumber_set boolean のみ（平文/enc は返さない）
     const { data: gs } = await owner.rpc("get_cast_sensitive", { p_cast_id: castIdA });
     const gsRow = ((gs ?? [])[0] ?? {}) as Record<string, unknown>;
     check("F2d get_cast_sensitive: mynumber_set=true・real_name 復元・平文/enc は非返却",
       gsRow.mynumber_set === true && gsRow.real_name === "田中玲奈" && !("mynumber_enc" in gsRow) && !("mynumber" in gsRow), JSON.stringify(gsRow));
-    // service_role（admin）で full 平文復号 → 平文一致（Vault 鍵）
+    // service_role（admin）は暗号文を返す＝DB の中では平文に戻らない → アプリの鍵で戻る
     const { data: full, error: eFull } = await admin.rpc("get_cast_mynumber", { p_org_id: orgAId, p_actor: actorId, p_cast_id: castIdA });
-    check("F2d 往復: get_cast_mynumber(service) が平文一致（Vault 鍵で復号）", !eFull && full === MY, eFull?.message ?? `got ${full}`);
-    // full 平文は service_role 限定＝authenticated（manager）は BLOCKED
+    check("F2d 往復（★0201f）: get_cast_mynumber(service) は暗号文（nox1:test1:・12 桁の数字を含まない）→ アプリの鍵で平文一致",
+      !eFull && full === ENC && !/\d{12}/.test(String(full)) && decryptMynumber(String(full), castIdA, KEYS) === MY, eFull?.message ?? `got ${String(full).slice(0, 12)}…`);
+    // full は service_role 限定＝authenticated（manager）は BLOCKED
     const { error: eFullM } = await m.rpc("get_cast_mynumber", { p_org_id: orgAId, p_actor: actorId, p_cast_id: castIdA });
-    check("F2d get_cast_mynumber(full 平文) は service_role のみ＝manager BLOCKED", blocked(eFullM), eFullM?.message ?? "通ってしまった");
-    // masked: cast 本人 → 末尾4桁のみ（先頭 ******** ・full 平文は含まない）
-    const { data: mask, error: eMask } = await ca.rpc("get_cast_mynumber_masked", { p_cast_id: castIdA });
-    // 先頭8桁が一切現れないことを独立に assert（!includes(MY) は12桁一致の系で常真＝非判別なので先頭8桁で判別化）。
-    check("F2d masked: cast 本人が末尾4桁のみ取得（********＋下4桁・先頭8桁は非漏洩）",
-      !eMask && mask === "********" + MY.slice(-4) && !String(mask).includes(MY.slice(0, 8)), eMask?.message ?? `got ${mask}`);
-    // masked: cast 他人拒否
-    const { error: eMaskOther } = await ca.rpc("get_cast_mynumber_masked", { p_cast_id: castIdB });
-    check("F2d masked: cast 他人拒否（本人 cast_id 限定）", forbidden(eMaskOther), eMaskOther?.message ?? "通ってしまった");
-    // masked: manager 拒否（cast 本人限定・owner/manager 不可）
-    const { error: eMaskMgr } = await m.rpc("get_cast_mynumber_masked", { p_cast_id: castIdA });
-    check("F2d masked: manager 自店は末尾 4 桁のみ（★0193 ★2）", !eMaskMgr, eMaskMgr?.message);
+    check("F2d get_cast_mynumber(full) は service_role のみ＝manager BLOCKED", blocked(eFullM), eFullM?.message ?? "通ってしまった");
+    // masked（★0201f＝service だけ・(p_org_id, p_actor, p_cast_id)）: 本人・自店の店長・管理者は暗号文（route が末尾 4 桁にする）・他のキャストは forbidden・authenticated は BLOCKED
+    const uid = async (email: string) => ((await admin.from("users").select("id").eq("email", email).single()).data as { id: string }).id;
+    const castAUser = await uid(FIXTURE_USERS.castA1a.email), castBUser = await uid(FIXTURE_USERS.castA1b.email), ownerUser = await uid(FIXTURE_USERS.ownerA.email);
+    const masked = (actor: string, cast: string) => admin.rpc("get_cast_mynumber_masked", { p_org_id: orgAId, p_actor: actor, p_cast_id: cast });
+    const mk1 = await masked(castAUser, castIdA), mk2 = await masked(actorId, castIdA), mk3 = await masked(ownerUser, castIdA), mk4 = await masked(castBUser, castIdA);
+    check("F2d masked（★0201f・service）: 本人・自店の店長・管理者は暗号文 → 末尾 4 桁だけを出せる",
+      [mk1, mk2, mk3].every((x) => !x.error && x.data === ENC) && mynumberMaskedOf(decryptMynumber(String(mk1.data), castIdA, KEYS)) === "********" + MY.slice(-4), JSON.stringify([mk1.error?.message, mk2.error?.message, mk3.error?.message]));
+    check("F2d masked: 他のキャストは forbidden（本人 cast_id 限定）", forbidden(mk4.error), mk4.error?.message ?? "通ってしまった");
+    const { error: eMaskAuth } = await ca.rpc("get_cast_mynumber_masked", { p_org_id: orgAId, p_actor: castAUser, p_cast_id: castIdA });
+    check("F2d masked（★0201f）: authenticated（本人）からは呼べない＝BLOCKED（route だけ）", blocked(eMaskAuth), eMaskAuth?.message ?? "通ってしまった");
+    // 他人の行に写した暗号文は戻らない（AAD＝cast_id）
+    let aadNg = false; try { decryptMynumber(ENC, castIdB, KEYS); } catch { aadNg = true; }
+    check("F2d ★0201f 他人の行に写した暗号文は戻らない（AAD）", aadNg);
     // ★封印不変: 暗号化後も cast_sensitive 直 SELECT は permission denied（grant0 維持）
     const { error: eSel } = await ca.from("cast_sensitive").select("cast_id").limit(1);
     check("F2d 封印不変: 暗号化後も cast 直 SELECT permission denied（grant0 維持）", !!eSel?.message?.includes("permission denied"), eSel?.message ?? "読めてしまった");
@@ -1488,7 +1496,7 @@ async function main() {
     const { error: eKeep } = await m.rpc("set_cast_sensitive", { p_cast_id: castIdA, p_real_name: "田中改名", p_birthday: "1998-04-15", p_mynumber: null });
     check("F2d null=保持 set 成功", !eKeep, eKeep?.message);
     const { data: full2 } = await admin.rpc("get_cast_mynumber", { p_org_id: orgAId, p_actor: actorId, p_cast_id: castIdA });
-    check("F2d null=保持: p_mynumber=null の更新で mynumber は消えない（enc 温存）", full2 === MY, `got ${full2}`);
+    check("F2d null=保持: p_mynumber=null の更新で mynumber は消えない（暗号文を温存）", full2 === ENC, `got ${String(full2).slice(0, 12)}…`);
 
     // ── ★get_cast_mynumber は呼ぶ度に read_cast_mynumber 監査（F2d 支払調書CSV が cast 人数分 audit する根拠）──
     const mynAuditCount = async (): Promise<number> => {

@@ -47,7 +47,7 @@ async function main() {
     const before = JSON.stringify(await one(snapSql, [A1.id]));
     // masked は不触（md5 6f401f45・戻り text）
     const msk = await one<{ m: string; rt: string }>("select md5(replace(prosrc, E'\\r', '')) m, pg_get_function_result(oid) rt from pg_proc where pronamespace='public'::regnamespace and proname='get_cast_mynumber_masked'");
-    check("dp(5-0) get_cast_mynumber_masked（md5 d44d4f3c＝★0193 で店長の腕・戻り text）＝309 追補2 (f)", msk?.m.slice(0, 8) === "d44d4f3c" /* ★0193（2026-11-04）: 6f401f45→d44d4f3c */ && msk?.rt === "text", JSON.stringify(msk));
+    check("dp(5-0) get_cast_mynumber_masked（md5 b9804c26＝★0201f の 3 引数・service だけ・戻り text）＝309 追補2 (f)", msk?.m.slice(0, 8) === "b9804c26" /* ★0201f（2026-11-13）: d44d4f3c→b9804c26 */ /* ★0193（2026-11-04）: 6f401f45→d44d4f3c */ && msk?.rt === "text", JSON.stringify(msk));
 
     await db.query("begin");
     try {
@@ -174,7 +174,7 @@ async function main() {
       await db.query("update public.stores set settings_json = jsonb_set(settings_json, '{ar_enabled}', 'false'::jsonb, true) where id=$1", [A1.id]);
       const krs2 = await as({ auth_user_id: regUid }, "select (public.kiosk_register_state()->>'ar_enabled')::boolean ar");
       check("dp(5-1) kiosk_register_state: ar_enabled true→店設定 false で false・seats は配列", krs1.ok && krs1.rows[0].ar === true && krs1.rows[0].seats === "array" && krs2.ok && krs2.rows[0].ar === false, JSON.stringify([krs1, krs2]));
-      await db.query("insert into public.cast_sensitive (cast_id, org_id, store_id, mynumber_enc) values ($1,$2,$3, decode('00ff','hex')) on conflict (cast_id) do update set mynumber_enc = excluded.mynumber_enc, mynumber_deleted_at = null, mynumber_deletion_method = null", [castA, A1.org_id, A1.id]);
+      await db.query("insert into public.cast_sensitive (cast_id, org_id, store_id, mynumber_enc) values ($1,$2,$3, 'nox1:test1:' || encode(extensions.gen_random_bytes(40), 'base64')) on conflict (cast_id) do update set mynumber_enc = excluded.mynumber_enc, mynumber_deleted_at = null, mynumber_deletion_method = null", [castA, A1.org_id, A1.id]);
       const au0 = (await one<{ n: number }>("select count(*)::int n from public.audit_logs")).n;
       const st1o = await as(owner, "select mynumber_deleted_at, mynumber_deletion_method, has_mynumber from public.cast_mynumber_discard_status($1)", [castA]);
       const st1m = await as(mgr, "select has_mynumber from public.cast_mynumber_discard_status($1)", [castA]);
