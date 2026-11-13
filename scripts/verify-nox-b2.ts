@@ -86,7 +86,7 @@ const src = (p: string) => fs.readFileSync(p, "utf8");
 // (7) vercel.json・jsQR
 {
   const v = JSON.parse(src("vercel.json")) as { regions?: string[]; crons?: unknown[] };
-  check("b2(7-1) vercel.json＝regions hnd1・cron 4 本（★2026-11-13 夜 相談役■2 e: 監査ログの 7 年の消去 audit-purge を足した）", JSON.stringify(v.regions) === '["hnd1"]' && (v.crons ?? []).length === 4 && (v.crons ?? []).some((c: { path: string }) => c.path === "/api/cron/audit-purge"));
+  check("b2(7-1) vercel.json＝regions hnd1・cron 4 本（★2026-11-13 夜 相談役■2 e: 監査ログの 7 年の消去 audit-purge を足した）", JSON.stringify(v.regions) === '["hnd1"]' && (v.crons ?? []).length === 4 && (v.crons ?? []).some((c: unknown) => (c as { path?: string }).path === "/api/cron/audit-purge"));
   const kq = src("app/kq/kq-client.tsx");
   check("b2(7-2) キオスクの QR 読み取り＝jsQR は npm の jsqr を動的 import（外部 CDN を読まない）",
     kq.includes('(await import("jsqr")).default') && !kq.includes("cdnjs.cloudflare.com") && (JSON.parse(src("package.json")) as { dependencies: Record<string, string> }).dependencies.jsqr === "1.4.0");
