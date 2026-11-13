@@ -22,7 +22,7 @@ import SegSelect from "@/components/ui/seg-select";
 import { Message } from "@/components/ui/toast";
 import {
   CSV_HEADER, PIN_RE, V5_STEPS, V5_TYPES, WD, applyType, buildV5Plan, castPlanOf, clone, genPin, kindVal, menuCount, normRule, parseCsv, rebuildBack, seatNames, slideTiersFor, v5CheckSelectorOf, v5Checks, v5DefaultState, v5TypeName, v5ZeroPriceItems,
-  type V5Cast, type V5Ctx, type V5Rule, type V5State, type V5Step, type V5Type, ROUND_MODE_LABEL, TIME_MODE_LABEL, cardFeePctOf } from "@/lib/nox/setup/v5";
+  type V5Cast, type V5Ctx, type V5Rule, type V5State, type V5Step, type V5Type, ROUND_MODE_LABEL, TIME_MODE_LABEL, cardFeePctOf, payDayOf, trialDaysOf, cashRateOf, cashFloatOf, autoConfirmHoursOf, svcVipOf } from "@/lib/nox/setup/v5";
 import { mig0190On, mig0191On, mig0197On } from "@/lib/nox/rules-0175/flag"; // ★0190／0191 のフラグ true 便: 器が入った項目は「後で（マスタから）」を出さない
 import type { ProductRow } from "@/lib/nox/setup/template-plan";
 
@@ -43,10 +43,10 @@ function Field({ label, children, span }: { label: React.ReactNode; children: Re
 }
 /** ★便 M5b M-57: ボトルの表だけキープ欄を出す（productTypeOf と同じ判定＝カテゴリ名に「ボトル」・品名に「（ボトル）」・キープ ON の品がある表＝ウイスキー／焼酎のボトル） */
 const isBottleCat = (c: { cat: string; items: { n: string; keep: boolean }[] }): boolean => /ボトル/.test(c.cat) || c.items.some((i) => i.keep || /（ボトル）/.test(i.n));
-function Money({ value, unit, onChange, pre, width = 120, step = 1, integer = false }: { value: number; unit?: string; onChange: (n: number) => void; pre?: boolean; width?: number; step?: number; /** ★2026-11-13（相談役 B）: 小数を受けない（「.」を打っても欄は変わらない） */ integer?: boolean }) {
+function Money({ value, unit, onChange, pre, width = 120, step = 1, integer = false, decimals, min, max }: { value: number; unit?: string; onChange: (n: number) => void; pre?: boolean; width?: number; step?: number; /** ★2026-11-13（相談役 B）: 小数を受けない（「.」を打っても欄は変わらない） */ integer?: boolean; /** ★2026-11-13 夜（相談役■2 d）: 小数の桁の上限（それより細かい桁は欄が受けない） */ decimals?: number; /** 範囲（外の値は欄の上で端に寄せる＝見せた値をそのまま保存） */ min?: number; max?: number }) {
   // ★便 M5b M-50: 正本 .unit の形（¥ は左の箱・単位は右の箱・一体の枠）。¥ と 円 を同じ欄に両方付けない＝pre のときは「円」を外し「／時」などだけ右に
   const right = pre && unit ? (unit.replace(/^円/, "") || undefined) : unit;
-  return <UnitInput value={value} type="number" step={step} onChange={(v) => { if (integer && /[.,eE]/.test(String(v))) return; onChange(Number(v)); }} pre={pre ? "¥" : undefined} unit={right} width={width + (pre ? 34 : 0) + (right ? 44 : 0)} ariaLabel={unit ?? "数値"} />;
+  return <UnitInput value={value} type="number" step={step} onChange={(v) => { const sv = String(v); if (integer && /[.,eE]/.test(sv)) return; if (decimals !== undefined && new RegExp(`\\.\\d{${decimals + 1},}`).test(sv)) return; let n = Number(sv); if (min !== undefined && n < min) n = min; if (max !== undefined && n > max) n = max; onChange(n); }} pre={pre ? "¥" : undefined} unit={right} width={width + (pre ? 34 : 0) + (right ? 44 : 0)} ariaLabel={unit ?? "数値"} />;
 }
 function Text({ value, onChange, placeholder, width = 200, ariaLabel }: { value: string; onChange: (v: string) => void; placeholder?: string; width?: number | string; ariaLabel?: string }) {
   return <input value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} style={{ ...input, width }} aria-label={ariaLabel ?? placeholder} />;
@@ -406,7 +406,7 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
           <h3 style={h3}>サービス料・税・人数の増減</h3>
           <div style={grid(160)}>
             <Field label="サービス料（全席）"><Money value={S.svc} unit="%" onChange={(n) => up((s) => { s.svc = n; })} width={80} /></Field>
-            {seats.vip > 0 && <Field label="サービス料（VIP 席）"><Money value={S.svcVip} unit="%" onChange={(n) => up((s) => { s.svcVip = n; })} width={80} /></Field>}
+            {seats.vip > 0 && <Field label="サービス料（VIP 席）"><Money value={S.svcVip} unit="%" integer min={0} max={100} onChange={(n) => up((s) => { s.svcVip = n; })} width={80} /></Field>}
             <Field label="金額の表示"><SegSelect value={S.tax} onChange={(v) => up((s) => { s.tax = v as "in" | "ex"; })} options={[["in", "税込"], ["ex", "税別"]] as const} ariaLabel="金額の表示" /></Field>
           </div>
           <p style={note}>サービス料と税率・延長パターンは開卓のときに固まります（途中で設定を変えても開いている卓は変わりません）。端数の丸めだけは会計の時点の設定で掛かります。</p>
@@ -433,8 +433,8 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
                       <tr key={ii} style={{ opacity: it.on ? 1 : 0.55 }}>
                         <td style={t.td}><input type="checkbox" checked={it.on} aria-label={`${it.n} を出す`} onChange={(e) => up((s) => { s.menu[ci].items[ii].on = e.target.checked; })} /></td>
                         <td style={t.td} data-setup-field={`menu:${ci}:${ii}:n`}><Text value={it.n} onChange={(v) => up((s) => { s.menu[ci].items[ii].n = v; })} width="100%" ariaLabel="商品名" /></td>
-                        <td style={t.td} data-setup-field={`menu:${ci}:${ii}:p`}><Money value={it.p} pre onChange={(n) => up((s) => { s.menu[ci].items[ii].p = n; })} width={104} /></td>
-                        <td style={t.td} data-setup-field={`menu:${ci}:${ii}:b`}><span className="nox-backcell"><Money value={it.b} pre={it.bt !== "pct"} unit={it.bt === "pct" ? "%" : undefined} onChange={(n) => up((s) => { s.menu[ci].items[ii].b = n; })} width={104} />
+                        <td style={t.td} data-setup-field={`menu:${ci}:${ii}:p`}><Money value={it.p} pre integer min={0} onChange={(n) => up((s) => { s.menu[ci].items[ii].p = n; })} width={104} /></td>
+                        <td style={t.td} data-setup-field={`menu:${ci}:${ii}:b`}><span className="nox-backcell"><Money value={it.b} pre={it.bt !== "pct"} unit={it.bt === "pct" ? "%" : undefined} integer min={0} max={it.bt === "pct" ? 100 : undefined} onChange={(n) => up((s) => { s.menu[ci].items[ii].b = n; })} width={104} />
                           <span className="nox-mini2" role="radiogroup" aria-label="バックの単位">{([["yen", "円"], ["pct", "%"]] as const).map(([v, l]) => <button key={v} type="button" role="radio" aria-checked={(it.bt ?? "yen") === v} className={(it.bt ?? "yen") === v ? "on" : ""} onClick={() => up((s) => { s.menu[ci].items[ii].bt = v; })}>{l}</button>)}</span></span></td>
                         {isBottleCat(c) && <td style={{ ...t.td, textAlign: "center" }}><input type="checkbox" checked={it.keep} aria-label="ボトルキープ可" onChange={(e) => up((s) => { s.menu[ci].items[ii].keep = e.target.checked; })} /></td>}
                         <td style={t.td}><span className="nox-rowacts"><button type="button" className="nox-linkbtn" aria-pressed={it.byKind} onClick={() => up((s) => { const x = s.menu[ci].items[ii]; x.byKind = !x.byKind; if (!x.byKind) { x.bj = null; x.bf = null; } })}>区分ごと</button><button type="button" className="nox-linkbtn" aria-label="この商品を削除" onClick={() => up((s) => { s.menu[ci].items.splice(ii, 1); })}>削除</button></span></td>
@@ -458,7 +458,7 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
           <div style={grid(180)}>
             <Field label="基本時給（在籍）"><Money value={p.base} unit="円／時" pre onChange={(n) => up((s) => { s.pay.base = n; })} /></Field>
             <span data-setup-field="pay:trial" style={{ display: "contents" }}><Field label="体験入店の時給"><Money value={p.trial} unit="円／時" pre onChange={(n) => up((s) => { s.pay.trial = n; })} /></Field></span>
-            <Field label="体験入店の日数"><Money value={p.trialDays} unit="日" onChange={(n) => up((s) => { s.pay.trialDays = n; })} width={70} /></Field>
+            <Field label="体験入店の日数"><Money value={p.trialDays} unit="日" integer min={1} max={90} onChange={(n) => up((s) => { s.pay.trialDays = n; })} width={70} /></Field>
           </div>
           <p style={note}>体入で登録したキャストは、この時給（保証）で日数分働き、本採用で基本時給とスライドに切り替わります。</p>
           <p data-trial-wage-note="1" style={{ ...note, color: "var(--warning)" }}>{TRIAL_WAGE_NOT_IN_PAY_NOTE}</p>{/* ★2026-11-13（相談役【3】c）: 式が入った便で外す */}
@@ -520,7 +520,7 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
           <div style={grid(200)}>
             <div><span style={t.fieldLabel}>給与の期間</span><br /><SegSelect value={pr.period} onChange={(v) => up((s) => { s.payroll.period = v as "month" | "half" | "daily"; })} options={[["month", "月ごと"], ["half", "半月ごと"], ["daily", "日ごと（日払いの店）"]] as const} ariaLabel="給与の期間" wrap /></div>
             <Field label="締め日"><span style={{ display: "block", padding: "10px 0", fontSize: 14 }} data-close-day-fixed="1">月末（固定）</span></Field>{/* ★裁定334（2026-11-12 相談役）: 締め日は月末固定＝選択と保存を外す */}
-            <Field label="支払日（翌月）"><Money value={pr.payday} unit="日" onChange={(n) => up((s) => { s.payroll.payday = n; })} width={70} /></Field>
+            <Field label="支払日（翌月）"><Money value={pr.payday} unit="日" integer min={1} max={31} onChange={(n) => up((s) => { s.payroll.payday = n; })} width={70} /></Field>
           </div>
           <Opt title="源泉徴収の区分（既定）" sub={<>人ごとに給与の画面で変えられます。雇用（社員・アルバイト）は「給与」＝NOX は税額を計算せず、社会保険料・源泉所得税・住民税を入れた分だけ差し引きます。<div style={{ ...grid(200), marginTop: 8 }}>
             <div><span style={t.fieldLabel}>委託キャスト</span><br /><SegSelect value={pr.whtCast} onChange={(v) => up((s) => { s.payroll.whtCast = v as "hostess" | "none"; })} options={[["hostess", "ホステス報酬（10.21%・1 日 5,000 円×日数を控除）"], ["none", "対象外"]] as const} ariaLabel="委託キャストの源泉区分" wrap /></div>
@@ -578,7 +578,7 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
           <p style={note}>店が配置したシフトは既定で「確定」です。確定後に足した分も本人に通知されます。定休日には配置できません（特別営業日を入れたときだけ）。</p>
           {S.shift.mode !== "store" && <div style={{ ...grid(180), marginTop: 8 }}>
             <Field label="希望の締切（期間の何日前）"><Money value={S.shift.due} unit="日前" onChange={(n) => up((s) => { s.shift.due = n; })} width={90} /></Field>
-            <Field label="送り返した時間の自動確定"><Money value={S.shift.auto} unit="時間後" onChange={(n) => up((s) => { s.shift.auto = n; })} width={90} /></Field></div>}{/* ★便 A M-69 ①: 3 桁が収まる幅（2 つとも同じ型） */}
+            <Field label="送り返した時間の自動確定"><Money value={S.shift.auto} unit="時間後" integer min={0} max={168} onChange={(n) => up((s) => { s.shift.auto = n; })} width={90} /></Field></div>}{/* ★便 A M-69 ①: 3 桁が収まる幅（2 つとも同じ型） */}
           <h3 style={h3}>最初のシフト期間</h3>
           <p style={lead}>初期設定が終わったら、この期間の希望を集め始めます（シフト画面で直せます）。</p>
           <div style={grid(160)} data-setup-field="firstShift">
@@ -614,11 +614,11 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
               : <><div style={grid(220)}><Field label="端末の名前"><Text value={S.devName} onChange={(v) => up((s) => { s.devName = v; })} width="100%" ariaLabel="端末の名前" /></Field></div><div className="nox-actions" style={{ marginTop: 8 }}><button type="button" style={{ ...t.btnGhost, ...t.btnSm }} onClick={() => up((s) => { s.devReg = true; })} data-devreg="1">この iPad を店の端末として登録</button></div></>}
           </>)}
           <h3 style={h3}>締め</h3>
-          <div style={grid(220)}><Field label={<>釣銭準備金（毎日の締めの基準額）</>}><Money value={S.float} unit="円" pre onChange={(n) => up((s) => { s.float = n; })} /></Field></div>
+          <div style={grid(220)}><Field label={<>釣銭準備金（毎日の締めの基準額）</>}><Money value={S.float} unit="円" pre integer min={0} max={9999999} onChange={(n) => up((s) => { s.float = n; })} /></Field></div>
           <p style={note}>日報の締めで「レジ内の現金予定額」の起点になります。</p>
           <h3 style={h3}>カード手数料・現金割引</h3>
           <p style={lead}>カードで払うとき上乗せする率の既定値。会計のたびに「店の率／率を指定（±0.5%）／額を指定／なし」から選べます。</p>
-          <Opt title="現金割引" sub={<>現金で払うお客様に割引する店の設定。領収書・日報・分析に割引額が出ます。{S.cashOff && <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 6 }}><Money value={S.cashRate} unit="% OFF" step={0.5} onChange={(n) => up((s) => { s.cashRate = n; })} width={70} /><SegSelect value={S.cashBase} onChange={(v) => up((s) => { s.cashBase = v as "total" | "subtotal"; })} options={[["total", "合計から"], ["subtotal", "小計から"]] as const} ariaLabel="割引対象" /></div>}</>}><OnOff on={S.cashOff} onChange={(v) => up((s) => { s.cashOff = v; })} label="現金割引" /></Opt>
+          <Opt title="現金割引" sub={<>現金で払うお客様に割引する店の設定。領収書・日報・分析に割引額が出ます。{S.cashOff && <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 6 }}><Money value={S.cashRate} unit="% OFF" step={0.1} decimals={1} min={0} max={100} onChange={(n) => up((s) => { s.cashRate = n; })} width={70} /><SegSelect value={S.cashBase} onChange={(v) => up((s) => { s.cashBase = v as "total" | "subtotal"; })} options={[["total", "合計から"], ["subtotal", "小計から"]] as const} ariaLabel="割引対象" /></div>}</>}><OnOff on={S.cashOff} onChange={(v) => up((s) => { s.cashOff = v; })} label="現金割引" /></Opt>
           <div style={{ ...grid(200), marginTop: 8 }}>
             <Field label="カード"><Money value={S.cardfee} unit="%" step={1} integer onChange={(n) => up((s) => { s.cardfee = n; })} width={70} />{/* ★2026-11-13（相談役 B）: 1% 刻みの整数（店舗設定と同じ） */}</Field>
             <Field label="端数の扱い（サービス料・税・手数料・割引）"><SegSelect value={S.round} onChange={(v) => up((s) => { s.round = v as "round" | "floor" | "ceil"; })} options={[["round", "四捨五入"], ["floor", "切り捨て"], ["ceil", "切り上げ"]] as const} ariaLabel="端数の扱い" /></Field>
@@ -652,10 +652,10 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
             {box(1, "席・卓", [["カウンター", `${seats.counter} 席`], ["テーブル", `${seats.table} 卓`], ["VIP", `${seats.vip} 卓`]])}
             {box(2, "料金", [["ルール", `${S.rules.length} 件`], ["延長", S.timeMode ? TIME_MODE_LABEL[S.timeMode] : "未選択"], ["端数", `${yen(S.roundUnit)} 円単位・${ROUND_MODE_LABEL[S.roundMode]}`], ["VIP", S.vip.on ? `${S.vip.mode === "table" ? "卓ごと" : "人ごと"} ¥${yen(S.vip.amt)}${S.vip.per === "set" ? "／セット" : "（1 回）"}` : "使わない"], ["本指名・場内・同伴", `¥${yen(S.fees.hon)}・¥${yen(S.fees.jo)}・¥${yen(S.fees.dohan)}`], ["サービス料", `${S.svc}%${seats.vip > 0 ? `／VIP ${S.svcVip}%` : ""}`]])}
             {box(3, "メニュー", [["レジに出す商品", `${menuCount(S)} 品`], ["カテゴリ", `${S.menu.filter((c) => c.on).length} 個`], ...(zeroItems.length ? [["値段 0 円の商品（このまま直せます）", <div key="z" style={{ display: "grid", gap: 6 }} data-setup-zero-list={zeroItems.length}>{zeroItems.map((z) => <div key={`${z.ci}:${z.ii}`} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}><span style={{ minWidth: 0 }}>{z.cat}／{z.n}</span><span data-setup-field={`confirm:menu:${z.ci}:${z.ii}:p`}><Money value={z.p} pre onChange={(n) => up((s) => { s.menu[z.ci].items[z.ii].p = n; })} width={104} /></span></div>)}</div>] as [string, React.ReactNode]] : [])])}
-            {box(4, "キャスト待遇", [["基本時給／体入", `¥${yen(p.base)}／¥${yen(p.trial)}（${p.trialDays} 日）`], ["バック（本指名・同伴）", `¥${yen(S.back.hon)}・¥${yen(S.back.dohan)}`], ["商品バックの割合（本／場内／フリー）", `${S.kindRate.hon}／${S.kindRate.jo}／${S.kindRate.free}%`], ["時給スライド", slideLabel], ["ノルマ／達成ボーナス", `${p.norma ? "使う" : "使わない"}／${p.bonus ? "使う" : "使わない"}`], ["給与", `${({ month: "月ごと", half: "半月ごと", daily: "日ごと" } as const)[pr.period]}・支払 ${pr.payday} 日`]], true)}
+            {box(4, "キャスト待遇", [["基本時給／体入", `¥${yen(p.base)}／¥${yen(p.trial)}（${trialDaysOf(S)} 日）`], ["バック（本指名・同伴）", `¥${yen(S.back.hon)}・¥${yen(S.back.dohan)}`], ["商品バックの割合（本／場内／フリー）", `${S.kindRate.hon}／${S.kindRate.jo}／${S.kindRate.free}%`], ["時給スライド", slideLabel], ["ノルマ／達成ボーナス", `${p.norma ? "使う" : "使わない"}／${p.bonus ? "使う" : "使わない"}`], ["給与", `${({ month: "月ごと", half: "半月ごと", daily: "日ごと" } as const)[pr.period]}・支払 ${payDayOf(S)} 日`]], true)}
             {box(5, "スタッフ", [["登録", `${S.staff.filter((s) => s.n.trim()).length} 人`]])}
             {box(6, "シフト・勤怠", [["集め方", ({ want: "シフト希望", off: "休み希望のみ", store: "店が決める" } as const)[S.shift.mode]], ["必要人数（日〜土）", S.shift.need.map((n, i) => (shop.holidays.includes(WD[i]) ? 0 : n)).join("・")], ["最初の期間", `${S.firstShift.from.slice(5).replace("-", "/")}〜${S.firstShift.to.slice(5).replace("-", "/")}`], ["打刻", `${S.punch.how === "device" ? "店の端末だけ" : "本人のスマホからも"}・丸め ${S.punch.round === 1 ? "なし" : `${S.punch.round}分`}`]])}
-            {box(7, "会計・レジ", [["キャストのレジ使用", ({ off: "使わない", order: "注文まで", pay: "会計まで" } as const)[r.castReg]], ["カード手数料", `${cardFeePctOf(S)}%`], ["現金割引", S.cashOff ? `${S.cashRate}%（${S.cashBase === "total" ? "合計" : "小計"}から）` : "なし"], ["領収書", S.receipt.tno ? "登録番号あり" : "登録番号なし"], ["店の端末", r.kiosk ? (S.devReg ? `登録する（${S.devName}）` : "あとで登録") : "使わない"]])}
+            {box(7, "会計・レジ", [["キャストのレジ使用", ({ off: "使わない", order: "注文まで", pay: "会計まで" } as const)[r.castReg]], ["カード手数料", `${cardFeePctOf(S)}%`], ["現金割引", S.cashOff ? `${cashRateOf(S)}%（${S.cashBase === "total" ? "合計から" : "小計から"}）` : "使わない"], ["釣銭準備金", `¥${yen(cashFloatOf(S))}`], ...(S.seats.vip > 0 ? [["サービス料（VIP 席）", `${svcVipOf(S)}%`] as [string, string]] : []), ["送り返した時間の自動確定", autoConfirmHoursOf(S) === 0 ? "自動確定しない" : `${autoConfirmHoursOf(S)} 時間後`], ["現金割引", S.cashOff ? `${S.cashRate}%（${S.cashBase === "total" ? "合計" : "小計"}から）` : "なし"], ["領収書", S.receipt.tno ? "登録番号あり" : "登録番号なし"], ["店の端末", r.kiosk ? (S.devReg ? `登録する（${S.devName}）` : "あとで登録") : "使わない"]])}
           </div>
           <p style={note}>書込 {planAll.steps.length} 件（店舗設定・営業時間・席・料金・商品・待遇・スタッフ・シフト・端末）。</p>
           {(run.running || run.done > 0 || run.error) && (

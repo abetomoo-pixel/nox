@@ -52,7 +52,7 @@ check("m68(4-1) スタッフの日計に「時給分」列（KintaiHead wageOnly
 // ── M-69
 const sw = src("app/(manage)/setup/setup-wizard.tsx");
 check("m69(5-1) ① 自動確定の欄は 3 桁の幅（希望の締切と同じ 90）② 曜日別の必要人数に単位「人」（UnitInput・定休日は 0 で無効）③ 区分ごとの場内／フリーは ¥ の接頭辞・本指名と同じ幅 104・「（円）」なし",
-  sw.includes('unit="時間後" onChange={(n) => up((s) => { s.shift.auto = n; })} width={90} />') && sw.includes('unit="日前" onChange={(n) => up((s) => { s.shift.due = n; })} width={90} />') && sw.includes('unit="人" width="100%" ariaLabel={`${w}の必要人数`}')
+  sw.includes('unit="時間後" integer min={0} max={168} onChange={(n) => up((s) => { s.shift.auto = n; })} width={90} />') /* ★2026-11-13 夜（相談役■2 d）: 整数と範囲 */ && sw.includes('unit="日前" onChange={(n) => up((s) => { s.shift.due = n; })} width={90} />') && sw.includes('unit="人" width="100%" ariaLabel={`${w}の必要人数`}')
   && sw.includes('pre={it.bt !== "pct"} unit={it.bt === "pct" ? "%" : undefined} onChange={(n) => up((s) => { s.menu[ci].items[ii].bj = n; })} width={104}') && sw.includes('↳ 場内指名／フリーのとき{it.bt === "pct" ? "（%）" : ""}'));
 // ── M-71／M-72
 const ctx: V5Ctx = { storeId: "11111111-1111-4111-8111-111111111111", current: { round_unit: 100, round_mode: "up", time_mode: "manual", time_per: "person", receipt: { address: "", tel: "", reg_no: "", footer: "" }, mine: { ...MINE_SETTINGS_DEFAULT }, tax: { business_tax_status: "taxable", price_display: "tax_excluded", invoice_status: "unregistered", invoice_reg_no: "", tax_rounding: "floor", card_surcharge_rate: 0 } } as unknown as V5Ctx["current"], deviceIdemKey: "22222222-2222-4222-8222-222222222222", staffIdemKeys: [] };

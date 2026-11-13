@@ -9,6 +9,16 @@ import { mig0190On, mig0191On, mig0197On } from "../rules-0175/flag"; // ★0190
 export const CLOSE_DAY_OF: Record<string, 15 | 20 | 25 | 31> = { "15": 15, "20": 20, "25": 25, "末日": 31 };
 const pct100 = (n: number): number => Math.max(0, Math.min(100, Math.round(n || 0)));
 /** ★2026-11-13（相談役 B）: カードの手数料は 1% 刻みの整数（店舗設定と同じ・DB も整数だけ）＝確認の画面と保存で同じ値を使う（欄は小数を受けない＝Money の integer）。0〜100 の外は端に寄せる */
+/** ★2026-11-13 夜（相談役■2 d）: 整数の欄の保存の値＝範囲に寄せた整数（欄は小数を受けず範囲の外は欄の上で寄せる＝見せた値をそのまま保存する。古い下書きに小数があれば切った整数＝確認の画面も同じ関数で出す） */
+export const intIn = (n: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, Number.isInteger(n) ? n : Math.trunc(Number(n) || 0)));
+export const payDayOf = (S: { payroll: { payday: number } }): number => intIn(S.payroll.payday || 1, 1, 31);
+export const trialDaysOf = (S: { pay: { trialDays: number } }): number => intIn(S.pay.trialDays || 1, 1, 90);
+export const autoConfirmHoursOf = (S: { shift: { auto: number } }): number => intIn(S.shift.auto || 0, 0, 168);
+export const cashFloatOf = (S: { float: number }): number => intIn(S.float || 0, 0, 9_999_999);
+export const svcVipOf = (S: { svcVip: number }): number => intIn(S.svcVip, 0, 100);
+/** 現金割引の率＝小数 1 桁まで（欄も 0.1 刻み・それより細かい桁は欄が受けない）・0〜100 */
+export const cashRateOf = (S: { cashOff: boolean; cashRate: number }): number => (S.cashOff ? Math.max(0, Math.min(100, Math.trunc((Number(S.cashRate) || 0) * 10) / 10)) : 0);
+export const itemYenOf = (n: number): number => intIn(n, 0, 99_999_999);
 export const cardFeePctOf = (S: { cardfee: number }): number => Math.max(0, Math.min(100, Number.isInteger(S.cardfee) ? S.cardfee : Math.trunc(S.cardfee || 0)));
 
 // ── 9 STEP・業態 5 種（モック STEPS／TYPES 逐語） ──
@@ -270,30 +280,30 @@ export function buildV5Plan(S: V5State, ctx: V5Ctx): { steps: V5Step[]; deferred
     use_vip: S.seats.vip > 0, use_counter: S.seats.counter > 0,
     join_mode: S.join === "join" ? "join_set" : "extend_only",
     sys_drink_count_back: S.drinkBack, sales_split: S.salesSplit, bonus_tier_mode: S.bonusMode,
-    settlement_cycle: S.payroll.period === "month" ? "monthly" : S.payroll.period === "half" ? "half" : "daily", pay_day: Math.max(1, Math.min(31, Math.round(S.payroll.payday || 1))), mid_pay: S.payroll.advance ? "advance" : "none",
+    settlement_cycle: S.payroll.period === "month" ? "monthly" : S.payroll.period === "half" ? "half" : "daily", pay_day: payDayOf(S) /* ★2026-11-13 夜（相談役■2 d） */, mid_pay: S.payroll.advance ? "advance" : "none",
     okuri_base_amount: Math.max(0, Math.min(99999, Math.round(S.payroll.okuri || 0))),
-    trial_guarantee_days: Math.max(1, Math.min(90, Math.round(S.pay.trialDays || 1))),
-    shift_auto_confirm_hours: Math.max(0, Math.min(168, Math.round(S.shift.auto || 0))),
+    trial_guarantee_days: trialDaysOf(S), // ★2026-11-13 夜（相談役■2 d）
+    shift_auto_confirm_hours: autoConfirmHoursOf(S), // ★2026-11-13 夜（相談役■2 d）
     punch_methods: { self: S.punch.how === "any", proxy: true, kiosk: true },
     punch_round_unit: S.punch.round, punch_round_mode: "nearest",
     kiosk_features: { punch: S.reg.kiosk, register: S.reg.kiosk, shift: S.reg.kiosk },
     sys_cast_register: S.reg.castReg === "pay" ? 2 : S.reg.castReg === "order" ? 1 : 0,
     sys_staff_discount: S.reg.staffDisc === "limit" ? 1 : S.reg.staffDisc === "no" ? 2 : 0,
     pay_fee_rates: { card: cardFeePctOf(S), emoney: 0, other: 0 }, // ★2026-11-13（相談役 B）: 確認の画面と同じ値
-    pay_discount_rates: { cash: S.cashOff ? Math.round(Math.max(0, Math.min(100, S.cashRate)) * 10) / 10 : 0, card: 0, other: 0 }, pay_discount_base: S.cashBase,
+    pay_discount_rates: { cash: cashRateOf(S), card: 0, other: 0 } /* ★2026-11-13 夜（相談役■2 d） */, pay_discount_base: S.cashBase,
   };
   // ★M-143（2026-11-10）: duty_gate は送らない＝裁定472 で例外が廃止（店設定の duty_gate は読まれない）
   if (mig0191On()) {   // ★0191 ★1: 店設定 +5 キー（白名単＝set_store_profile）
     patch.kind_back_rate = { hon: pct100(S.kindRate.hon), jonai: pct100(S.kindRate.jo), free: pct100(S.kindRate.free) };
     patch.withholding_default_cast = S.payroll.whtCast; patch.withholding_default_staff = S.payroll.whtStaff;
-    patch.cash_float_default = Math.max(0, Math.min(9_999_999, Math.round(S.float || 0)));
+    patch.cash_float_default = cashFloatOf(S); // ★2026-11-13 夜（相談役■2 d）
     // ★裁定334（2026-11-12）: 締め日は月末固定＝settlement_close_day は送らない
   }
   // ★0201（裁定474・setup_gap §3）: 「条件に合わないとき」の写し先は判定（punch_enforce）＝予定外の打刻（punch_require_shift）ではなかった（旧版の取り違え）。
   //   ハードは判定方法に必要な値（店の位置か Wi-Fi）が揃わないと保存できない（相談役 11/11 ■3d）＝初期設定では位置も Wi-Fi も決めない＝ここはソフトで保存し、ハードは店舗設定 › 打刻の設定で値を入れてから切り替える（画面に 1 行）。
   if (S.punch.how === "any") patch.punch_enforce = false;
   if (mig0197On()) patch.punch_mode = S.punch.how === "store" ? "store" : "punch";   // ★便 E（0197 用＝裁定455 の 1・4）: 3 択目＝punch_mode（白名単は 0197）。'store' のとき punch_methods は無視される
-  if (S.seats.vip > 0 && S.svcVip !== S.svc) patch.service_rate_by_seat = { VIP: Math.max(0, Math.min(100, Math.round(S.svcVip))) };
+  if (S.seats.vip > 0 && S.svcVip !== S.svc) patch.service_rate_by_seat = { VIP: svcVipOf(S) }; // ★2026-11-13 夜（相談役■2 d）
   if (S.payroll.okuriMode === "fixed") patch.okuri_flat_tiers = [{ code: "near", name: "近距離", amount: S.payroll.okuriTiers[0] }, { code: "mid", name: "中距離", amount: S.payroll.okuriTiers[1] }, { code: "far", name: "遠距離", amount: S.payroll.okuriTiers[2] }];
   push({ key: "settings", group: "settings", label: "店舗設定（業態・使う制度・会計・シフト・打刻・キオスク）", rpc: "set_store_profile", args: { p_store_id: s, p_patch: patch } });
   push({ key: "okuri_mode", group: "settings", label: `送りの方式（${({ fixed: "定額を給与から引く", actual: "立替を給与から引く", store: "店負担", none: "送りなし" } as const)[S.payroll.okuriMode]}）`, rpc: "set_store_okuri_mode", args: { p_store_id: s, p_mode: OKURI_MODE_OF[S.payroll.okuriMode] } });
@@ -337,8 +347,8 @@ export function buildV5Plan(S: V5State, ctx: V5Ctx): { steps: V5Step[]; deferred
   const items: { name: string; type: string; price: number; cost: null; category: string; back: { mode: "rate" | "unit4"; value: number | null; unit4: { hon: number; jonai: number; dohan: number; free: number } | null }; keep: boolean }[] = [];
   S.menu.forEach((c) => { if (!c.on) return; c.items.forEach((it) => { if (!it.on || !String(it.n).trim()) return;
     const b = +it.b || 0; const jo = it.byKind && it.bj !== null ? +it.bj : kindVal(it, S.kindRate.jo); const fr = it.byKind && it.bf !== null ? +it.bf : kindVal(it, S.kindRate.free);
-    items.push({ name: it.n.trim(), type: productTypeOf(c.cat, it), price: Math.max(0, Math.round(it.p)), cost: null, category: c.cat,
-      back: it.bt === "pct" ? { mode: "rate", value: Math.round(b), unit4: null } : { mode: "unit4", value: null, unit4: { hon: Math.round(b), jonai: Math.round(jo), dohan: Math.round(b), free: Math.round(fr) } }, keep: it.keep }); }); });
+    items.push({ name: it.n.trim(), type: productTypeOf(c.cat, it), price: itemYenOf(it.p), cost: null, /* ★2026-11-13 夜（相談役■2 d） */ category: c.cat,
+      back: it.bt === "pct" ? { mode: "rate", value: intIn(b, 0, 100), unit4: null } : { mode: "unit4", value: null, unit4: { hon: itemYenOf(b), jonai: itemYenOf(jo), dohan: itemYenOf(b), free: itemYenOf(fr) } } /* ★2026-11-13 夜（相談役■2 d）: 欄は整数だけ（場内・フリーの円は kindVal が整数） */, keep: it.keep }); }); });
   if (items.length) { push({ key: "products_bulk", group: "products", label: `商品 ${items.length} 件`, rpc: "product_bulk_insert", guard: "products_empty", args: { p_store_id: s, p_items: items.map((x) => ({ name: x.name, type: x.type, price: x.price, cost: x.cost, category: x.category })) } });
     if (items.some((x) => x.back.mode === "rate" ? (x.back.value ?? 0) > 0 : (x.back.unit4?.hon ?? 0) > 0)) push({ key: "products_overrides", group: "overrides", label: `バックの上書き ${items.filter((x) => x.back.mode === "rate" ? (x.back.value ?? 0) > 0 : (x.back.unit4?.hon ?? 0) > 0).length} 件`, rpc: "set_product", argsOf: "product_overrides", guard: "products_empty" }); }
   // 6) 待遇プラン（基本・体験入店）
