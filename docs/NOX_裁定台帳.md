@@ -5895,6 +5895,12 @@ CC の処置＝M-130（下の節）。
 10. 店舗設定の作り直し（【9】A〜D）＝タブは 6 つ（店舗情報／レジ／シフトと打刻／給与／キャスト画面／税と請求・並びは Agoora の確認待ち）・#34〜36 は今の場所・#21 を主に #24／#25 は「詳しい設定」（その場で連動・保存は 1 回）・保存の帯（タブを移るときは確かめない・ページを離れるときだけ・#32 と #33 も帯・#33 を含む保存は「勤務時間の計算基準は、次の給与期の初日から切り替わります」・Wi-Fi の登録と外すは今のまま）・.nox-form と単位つきの欄の決まり・初期設定の曜日別の人数は狭い幅で 4＋3・C-5 は 13px に・言葉 24 項目（相談役の 1 通【9】D）。試作（docs/tmp/proto_settings_1113/）を Agoora と相談役が見てから実装。
 11. 起票134 は 0201g 作り直し 4 で閉じる（貼った後に閉じた印）。
 
+## 0201f 本番適用（2026-11-13 夕・Agoora 手貼り・相談役の合図）
+- sha256 3a7e6d8272b2e0cbeb9bf108f82c97838a54e5588807e10ae41c606d9884362b・1,197 行・LF。検証 22 行＝全行一致（関数 442・表 121・md5 set_cast_sensitive 71fdfaac／get_cast_mynumber 22106939／get_cast_mynumber_masked b9804c26／cast_mynumber_discard_candidates 760820bc／set_store_profile 4b4135d4）。Vercel の Production に NOX_MYNUMBER_KEYS・NOX_MYNUMBER_KEY_CURRENT（Agoora・Secret・Redeploy なし＝フラグ便のデプロイから効く）。
+- 収蔵＝supabase/migrations/0201f_mynumber_key.sql（sha 一致）。フラグ便＝ec99c0ad（フラグ false の実装）→ f1dd3980・c9ac0b3d（フラグ true・verify の張替え）＝f0 2 連緑（197 段 7,916）→ push c9ac0b3d（16:06）→ deploy 16:08 → 6 店 reset 16:09 6/6。
+- 本番の確かめ（試験の会社 NOX-VERIFY-A1・架空の 12 桁・docs/tmp/check_0201f_live_1113.mts と check_0201f_csv_1113.mts）＝① 登録が通る（鍵が読めている）・DB は nox1:v1:・12 桁の数字なし・登録日 ② 末尾 4 桁＝オーナー・自店の店長・本人は見える／ほかのキャスト 403 ③ 全桁＝オーナーだけ・監査 read_cast_mynumber +1・店長 403 ④ 支払調書の CSV に番号（委託の税のプロファイルを一時的に作って確かめ・消した）⑤ 平文の 12 桁を RPC に直に＝plaintext rejected ⑥ 廃棄の候補の RPC・店の年数（7 は保存・21 は bad mynumber_retention_years）＝画面は Agoora が見る。後片付け＝廃棄の操作で暗号文を消した（廃棄の記録＝日・方法 overwrite_null・監査が残る）。
+- 次＝0201f2（Vault の鍵の削除）は相談役の合図のあと。
+
 ## 0201g 本番適用（2026-11-13 夕・Agoora 手貼り・相談役の合図）
 - sha256 2d350815c91038659ab6159d3e0aaf8913fbff857df6a2225e5be9a3c62ce1b0・1,376 行・LF。検証 16 行＝全行一致（proof 10／fn 442／表 121／kiosk_devices の列 2／内部 0/0/0／pin_guessable yes／4／yes／yes／yes／yes／0/8／2／3 本の md5 staff_pin_self_set 5c455f21・kiosk_unlock a50c6f8a・cast_pin_self_set e278d733／上限と錠 2／for update yes）。本番＝関数 442・表 121。
 - 収蔵＝supabase/migrations/0201g_pin_device.sql（sha 一致）。フラグ便＝MIG_0201G_APPLIED=true（cb267b6f）＋f0 2 連のあと push。
