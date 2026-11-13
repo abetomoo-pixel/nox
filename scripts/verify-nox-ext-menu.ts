@@ -307,8 +307,8 @@ async function main() {
       });
       check("段55(12) 準備 kiosk_provision(register)", !eProv, eProv?.message);
       await kiosk.auth.signInWithPassword({ email: kEmail, password: env.SEED_PASSWORD });
-      await owner.rpc("set_staff_pin", { p_membership_id: ownerMemRow!.id, p_pin: "4444" });
-      const { data: rLogin } = await kiosk.rpc("kiosk_login", { p_membership_id: ownerMemRow!.id, p_pin: "4444" });
+      await owner.rpc("set_staff_pin", { p_membership_id: ownerMemRow!.id, p_pin: "5273" });
+      const { data: rLogin } = await kiosk.rpc("kiosk_login", { p_membership_id: ownerMemRow!.id, p_pin: "5273" });
       check("段55(12) 準備 kiosk_login ok:true", (rLogin as { ok?: boolean } | null)?.ok === true, JSON.stringify(rLogin));
 
       const seatK = await mkSeat(`${P55}-卓K`, "卓");

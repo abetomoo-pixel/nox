@@ -484,8 +484,8 @@ async function main() {
       });
       check("段44(7) 準備 kiosk_provision(register)", !eProv, eProv?.message);
       await kiosk.auth.signInWithPassword({ email: kEmail, password: env.SEED_PASSWORD });
-      await owner.rpc("set_staff_pin", { p_membership_id: ownerMemRow!.id, p_pin: "4444" });
-      const { data: rLogin } = await kiosk.rpc("kiosk_login", { p_membership_id: ownerMemRow!.id, p_pin: "4444" });
+      await owner.rpc("set_staff_pin", { p_membership_id: ownerMemRow!.id, p_pin: "5273" });
+      const { data: rLogin } = await kiosk.rpc("kiosk_login", { p_membership_id: ownerMemRow!.id, p_pin: "5273" });
       check("段44(7) 準備 kiosk_login ok:true", (rLogin as { ok?: boolean } | null)?.ok === true, JSON.stringify(rLogin));
 
       const { data: kcid, error: eKo } = await kiosk.rpc("check_open", { p_seat_id: seatA1b, p_people: 1, p_nom_type: "free" });
