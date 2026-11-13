@@ -138,10 +138,10 @@ async function main() {
       check("dp(3-3) flat の店: out 省略→okuri false（★0177 ★4＝便 ON-1 張替え: none 以外の 3 方式は送りを聞く＝省略は false・旧 追補2 (a) の null は none の店だけ）", (await okuriOf(p6)) === false, String(await okuriOf(p6)));
       const kioskUid = (await one<{ u: string }>("select gen_random_uuid() u")).u;
       await db.query("insert into public.kiosk_devices (org_id, store_id, auth_user_id, label, is_active, purpose) values ($1,$2,$3,'dp-punch',true,'punch')", [A1.org_id, A1.id, kioskUid]);
-      const pinSet = await as(mgr, "select public.set_cast_pin($1, '1234') r", [castB]);
+      const pinSet = await as(mgr, "select public.set_cast_pin($1, '6391') r", [castB]);
       await reopen(castB);
-      const kp = await as({ auth_user_id: kioskUid }, "select public.kiosk_punch($1, '1234', 'out', true) r", [castB]);
-      const kpOld = await as({ auth_user_id: kioskUid }, "select public.kiosk_punch($1, '1234', 'in') r", [castB]);
+      const kp = await as({ auth_user_id: kioskUid }, "select public.kiosk_punch($1, '6391', 'out', true) r", [castB]);
+      const kpOld = await as({ auth_user_id: kioskUid }, "select public.kiosk_punch($1, '6391', 'in') r", [castB]);
       const kpR = kp.ok ? (kp.rows[0].r as { ok: boolean; punch_id: string }) : null;
       const kpRow = kpR?.ok ? await one<{ okuri: boolean; source: string }>("select okuri, source from public.punches where id=$1", [kpR.punch_id]) : null;
       // ★0161（裁定327＋追補1）: 閉鎖後の in は kiosk でも raise 'already out'（3 引数の呼出が順序検査まで到達＝署名互換の証拠）

@@ -342,9 +342,9 @@ async function main() {
       const kioskUid = (await one("select gen_random_uuid() u")).u as string;
       const kdev = (await one("insert into public.kiosk_devices (org_id, store_id, auth_user_id, label, is_active, purpose) values ($1,$2,$3,'v0158-punch',true,'punch') returning id", [A1.org_id, A1.id, kioskUid])).id;
       await q("delete from public.transport where cast_id = any($1) and biz_date = $2::date", [[castA, castB], bizToday]);
-      const pin = await as(mgr, "select public.set_cast_pin($1, '1234') r", [castB]);
+      const pin = await as(mgr, "select public.set_cast_pin($1, '6391') r", [castB]);
       await reopen(castB);   // ★0161
-      const kp = await as({ auth_user_id: kioskUid }, "select public.kiosk_punch($1, '1234', 'out', true) r", [castB]);
+      const kp = await as({ auth_user_id: kioskUid }, "select public.kiosk_punch($1, '6391', 'out', true) r", [castB]);
       const kpid = rowsOf(kp)[0]?.r?.ok ? rowsOf(kp)[0].r.punch_id : null;
       const kt1 = await as({ auth_user_id: kioskUid }, "select public.kiosk_transport_issue($1) id", [kpid]);
       const kt1id = rowsOf(kt1)[0]?.id ?? null;
@@ -360,19 +360,19 @@ async function main() {
       const kt5 = await as(castU2, "select public.kiosk_transport_issue($1) id", [kpid]);
       check("6-7", "kiosk: self 打刻（source≠kiosk）は forbidden・manager／cast からは forbidden・★0192 M-47: レジ端末（purpose=register）からも通る（1 台で全タイル）", has(kt2, "forbidden") && has(kt3, "forbidden") && kt4.ok && has(kt5, "forbidden"), [err(kt2), err(kt3), err(kt4), err(kt5)].join(" / "));
       await reopen(castB);   // ★0161
-      const kp2 = await as({ auth_user_id: kioskUid }, "select public.kiosk_punch($1, '1234', 'out', true) r", [castB]);
+      const kp2 = await as({ auth_user_id: kioskUid }, "select public.kiosk_punch($1, '6391', 'out', true) r", [castB]);
       const kp2id = rowsOf(kp2)[0]?.r?.punch_id ?? null;
       await q("update public.punches set punched_at = now() - interval '11 minutes' where id=$1", [kp2id]);
       const kt6 = await as({ auth_user_id: kioskUid }, "select public.kiosk_transport_issue($1) id", [kp2id]);
       await reopen(castB);   // ★0161
-      const kp3 = await as({ auth_user_id: kioskUid }, "select public.kiosk_punch($1, '1234', 'out', false) r", [castB]);
+      const kp3 = await as({ auth_user_id: kioskUid }, "select public.kiosk_punch($1, '6391', 'out', false) r", [castB]);
       const kt7 = await as({ auth_user_id: kioskUid }, "select public.kiosk_transport_issue($1) id", [rowsOf(kp3)[0]?.r?.punch_id]);
       check("6-8", "kiosk: 打刻から 10 分超は 'punch expired'・okuri=false は 'not okuri punch'", has(kt6, "punch expired") && has(kt7, "not okuri punch"), [err(kt6), err(kt7)].join(" / "));
       await q("update public.payroll_runs set status='paid' where id=$1", [Rcur]);
       const p5 = await as(castU, "select public.punch_self('out', null, null, true) id");
       const t8 = await as(castU, "select public.transport_issue_self($1) id", [rowsOf(p5)[0]?.id]);
       await reopen(castB);   // ★0161
-      const kp4 = await as({ auth_user_id: kioskUid }, "select public.kiosk_punch($1, '1234', 'out', true) r", [castB]);
+      const kp4 = await as({ auth_user_id: kioskUid }, "select public.kiosk_punch($1, '6391', 'out', true) r", [castB]);
       const kt8 = await as({ auth_user_id: kioskUid }, "select public.kiosk_transport_issue($1) id", [rowsOf(kp4)[0]?.r?.punch_id]);
       check("6-9", "その営業日を含む run が paid: 本人・kiosk とも 'paid period'（transport は繰越の列なし）", has(t8, "paid period") && has(kt8, "paid period"), [err(t8), err(kt8)].join(" / "));
       const tbu = await md5s(["transport_issue_bulk", "transport_issue", "kiosk_punch", "punch_self"]);

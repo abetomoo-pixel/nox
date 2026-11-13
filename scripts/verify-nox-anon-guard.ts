@@ -5322,7 +5322,7 @@ async function mainBody() {
         }
 
         // ═══ c. set_cast_pin（castA1a のみ設定・castA1b は未設定のまま no_pin 用）═══
-        const { error: ePinO } = await owner.rpc("set_cast_pin", { p_cast_id: castIdA, p_pin: "5678" });
+        const { error: ePinO } = await owner.rpc("set_cast_pin", { p_cast_id: castIdA, p_pin: "5813" });
         check("段35 owner set_cast_pin 成功", !ePinO, ePinO?.message);
         // ★castIdA は fixture ＝この (action, target) の行は実行のたびに増える。order 無しの limit(1) だと
         //   どの実行の行が返るか不定で、当該実行の audit を見ている保証が無い（最新1行を明示する）。
@@ -5330,17 +5330,17 @@ async function mainBody() {
           .eq("action", "set_cast_pin").eq("target", `cast_pin:${castIdA}`)
           .order("at", { ascending: false }).limit(1);
         const audPinStr = JSON.stringify(audPin ?? []);
-        check("段35 ★audit に PIN/ハッシュ非含有（'5678'/'pin_hash' 不在・行は存在）",
-          (audPin ?? []).length === 1 && !audPinStr.includes("5678") && !audPinStr.includes("pin_hash"), audPinStr);
-        const { error: ePinM } = await mgr.rpc("set_cast_pin", { p_cast_id: castIdA, p_pin: "1234" });
+        check("段35 ★audit に PIN/ハッシュ非含有（'5813'/'pin_hash' 不在・行は存在）",
+          (audPin ?? []).length === 1 && !audPinStr.includes("5813") && !audPinStr.includes("pin_hash"), audPinStr);
+        const { error: ePinM } = await mgr.rpc("set_cast_pin", { p_cast_id: castIdA, p_pin: "3917" });
         check("段35 manager 自店 set_cast_pin 成功（upsert 上書き）", !ePinM, ePinM?.message);
-        const { error: ePinOs } = await mgr.rpc("set_cast_pin", { p_cast_id: cA2tmp.id, p_pin: "1234" });
+        const { error: ePinOs } = await mgr.rpc("set_cast_pin", { p_cast_id: cA2tmp.id, p_pin: "3917" });
         check("段35 manager 他店 set_cast_pin forbidden", forbidden(ePinOs), ePinOs?.message ?? "通ってしまった");
-        const { error: ePinC } = await castA.rpc("set_cast_pin", { p_cast_id: castIdA, p_pin: "1234" });
+        const { error: ePinC } = await castA.rpc("set_cast_pin", { p_cast_id: castIdA, p_pin: "3917" });
         check("段35 cast set_cast_pin forbidden", forbidden(ePinC), ePinC?.message ?? "通ってしまった");
         const { error: ePinBad } = await owner.rpc("set_cast_pin", { p_cast_id: castIdA, p_pin: "12a4" });
         check("段35 set_cast_pin '12a4' = bad pin", has(ePinBad, "bad pin"), ePinBad?.message ?? "通ってしまった");
-        const { error: ePinIn } = await owner.rpc("set_cast_pin", { p_cast_id: cInactive.id, p_pin: "1234" });
+        const { error: ePinIn } = await owner.rpc("set_cast_pin", { p_cast_id: cInactive.id, p_pin: "3917" });
         check("段35 inactive cast = inactive cast 拒否", has(ePinIn, "inactive cast"), ePinIn?.message ?? "通ってしまった");
 
         // ═══ b. kiosk_cast_list（kiosk 唯一の読み口）═══
@@ -5360,7 +5360,7 @@ async function mainBody() {
         const { data: cList } = await castA.rpc("kiosk_cast_list");
         check("段35 cast kiosk_cast_list = 0行（fail-closed）", ((cList ?? []) as KRow[]).length === 0, JSON.stringify(cList));
 
-        // ═══ d. kiosk_punch 状態遷移（castA1a・正 PIN='1234'）═══
+        // ═══ d. kiosk_punch 状態遷移（castA1a・正 PIN='3917'）═══
         if (offCastA1a) { await offCastA1a(); offCastA1a = null; } // ★0200: suite の頭で入れた castA1a の出勤打刻を外す（キオスクの in が already in にならないように）
         type KPunch = { ok: boolean; reason?: string; punch_id?: string; locked_until?: string };
         const kp = async (pin: string, type = "in"): Promise<KPunch> => {
@@ -5381,7 +5381,7 @@ async function mainBody() {
         };
 
         const seen0 = await devSeen();
-        const r1 = await kp("1234");
+        const r1 = await kp("3917");
         check("段35 ★正PIN = ok:true（punch_id uuid 返却）", r1.ok === true && typeof r1.punch_id === "string", JSON.stringify(r1));
         const { data: pRow1 } = await admin.from("punches")
           .select("cast_id, store_id, org_id, type, source, punched_at").eq("id", r1.punch_id ?? "").single();
@@ -5408,12 +5408,12 @@ async function mainBody() {
         const stL = await pinRow();
         check("段35 cast_pin: fail_count 0 リセット＋locked_until 未来", stL.fail_count === 0 && !!stL.locked_until && new Date(stL.locked_until) > new Date(), JSON.stringify(stL));
 
-        const rL = await kp("1234");
+        const rL = await kp("3917");
         check("段35 ロック中は正PINでも locked", rL.ok === false && rL.reason === "locked", JSON.stringify(rL));
 
         // テスト解除: locked_until を過去へ（admin 直接 UPDATE）
         await admin.from("cast_pin").update({ locked_until: new Date(Date.now() - 60_000).toISOString() }).eq("cast_id", castIdA);
-        const r6 = await kp("1234", "out");   // ★0161（裁定327）: r1 の in が開いている＝2 度目の in は 'already in' なので out で成功を見る
+        const r6 = await kp("3917", "out");   // ★0161（裁定327）: r1 の in が開いている＝2 度目の in は 'already in' なので out で成功を見る
         check("段35 ★ロック解除後 正PIN = ok:true（★0161: out）", r6.ok === true && typeof r6.punch_id === "string", JSON.stringify(r6));
         const st6 = await pinRow();
         check("段35 成功でカウンタ復元（fail_count 0・locked_until null）", st6.fail_count === 0 && st6.locked_until === null, JSON.stringify(st6));
@@ -5424,11 +5424,11 @@ async function mainBody() {
         check("段35 bad_pin（3桁・形式不正）= fail_count 非増加", rB.ok === false && rB.reason === "bad_pin" && stB.fail_count === 0, JSON.stringify({ rB, stB }));
         const seenB = await devSeen();
         check("段35 ★0109 逆張り bad_pin では last_seen_at 不変", seenB === seen2, JSON.stringify({ seen2, seenB }));
-        const { data: rNf } = await kiosk.rpc("kiosk_punch", { p_cast_id: cA2tmp.id, p_pin: "1234", p_type: "in" });
+        const { data: rNf } = await kiosk.rpc("kiosk_punch", { p_cast_id: cA2tmp.id, p_pin: "3917", p_type: "in" });
         check("段35 他店 cast = not_found（存在オラクル封じ）", (rNf as KPunch)?.reason === "not_found", JSON.stringify(rNf));
         const seenN = await devSeen();
         check("段35 ★0109 逆張り not_found では last_seen_at 不変", seenN === seen2, JSON.stringify({ seen2, seenN }));
-        const { data: rNp } = await kiosk.rpc("kiosk_punch", { p_cast_id: castIdB, p_pin: "1234", p_type: "in" });
+        const { data: rNp } = await kiosk.rpc("kiosk_punch", { p_cast_id: castIdB, p_pin: "3917", p_type: "in" });
         check("段35 PIN 未設定 cast = no_pin", (rNp as KPunch)?.reason === "no_pin", JSON.stringify(rNp));
 
         // ═══ e-4. deactivate → 失効実測 ═══
@@ -5438,7 +5438,7 @@ async function mainBody() {
         check("段35 ★owner kiosk_deactivate 成功", !eDeact, eDeact?.message);
         const { data: klist2 } = await kiosk.rpc("kiosk_cast_list");
         check("段35 ★deactivate 後 kiosk_cast_list = 0行（is_active 失効）", ((klist2 ?? []) as KRow[]).length === 0, JSON.stringify(klist2));
-        const { error: eKpDead } = await kiosk.rpc("kiosk_punch", { p_cast_id: castIdA, p_pin: "1234", p_type: "out" });
+        const { error: eKpDead } = await kiosk.rpc("kiosk_punch", { p_cast_id: castIdA, p_pin: "3917", p_type: "out" });
         check("段35 ★deactivate 後 kiosk_punch forbidden", forbidden(eKpDead), eKpDead?.message ?? "通ってしまった");
       } finally {
         await kiosk.auth.signOut().catch(() => undefined);
@@ -5788,9 +5788,9 @@ async function mainBody() {
         check("段37 owner kiosk_provision(register) 成功", !eProv && typeof devId === "string", eProv?.message);
         const { error: eKSign } = await kiosk.auth.signInWithPassword({ email: kEmail, password: env.SEED_PASSWORD });
         check("段37 kiosk register device signIn 成功", !eKSign, eKSign?.message);
-        const { error: ePin } = await owner.rpc("set_staff_pin", { p_membership_id: ownerMem, p_pin: "4321" });
+        const { error: ePin } = await owner.rpc("set_staff_pin", { p_membership_id: ownerMem, p_pin: "5273" });
         check("段37 set_staff_pin(owner) 成功", !ePin, ePin?.message);
-        const { data: rLogin } = await kiosk.rpc("kiosk_login", { p_membership_id: ownerMem, p_pin: "4321" });
+        const { data: rLogin } = await kiosk.rpc("kiosk_login", { p_membership_id: ownerMem, p_pin: "5273" });
         check("段37 kiosk_login(owner) ok:true", (rLogin as { ok?: boolean } | null)?.ok === true, JSON.stringify(rLogin));
 
         // ═══ ★mig0108（M-11b ①②③）: ロック閾値の店設定化・staff_pin_status・last_seen_at ═══
@@ -5923,7 +5923,7 @@ async function mainBody() {
               JSON.stringify({ locked_until: w3?.locked_until, diff_ms: lockedAt - (tLock + 5 * 60_000) }));
 
             // (d) set_staff_pin で has_pin=true・fail_count=0・ロック解除
-            const { error: eRePin } = await owner.rpc("set_staff_pin", { p_membership_id: ownerMem, p_pin: "4321" });
+            const { error: eRePin } = await owner.rpc("set_staff_pin", { p_membership_id: ownerMem, p_pin: "5273" });
             check("段37 ★0108(d) set_staff_pin 再設定 成功", !eRePin, eRePin?.message);
             const { data: st3raw } = await owner.rpc("staff_pin_status", { p_store_id: s37A1.id });
             const ownRow3 = ((st3raw ?? []) as StatusRow[]).find((r) => r.membership_id === ownerMem);
@@ -5933,7 +5933,7 @@ async function mainBody() {
 
             // (e) 成功ログインで last_seen_at が前進（以後の 段37 本流もこの新セッションで続行）
             const seenBeforeOk = await seen();
-            const { data: rLogin2 } = await kiosk.rpc("kiosk_login", { p_membership_id: ownerMem, p_pin: "4321" });
+            const { data: rLogin2 } = await kiosk.rpc("kiosk_login", { p_membership_id: ownerMem, p_pin: "5273" });
             check("段37 ★0108(e) 再ログイン ok:true", (rLogin2 as { ok?: boolean } | null)?.ok === true, JSON.stringify(rLogin2));
             const seenAfterOk = await seen();
             check("段37 ★0108(e) 成功ログインで last_seen_at 前進",

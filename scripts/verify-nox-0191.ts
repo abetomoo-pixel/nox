@@ -44,13 +44,13 @@ try {
   const p3 = await tx.as(owner, `select public.set_product(p_id => null, p_store_id => $1::uuid, p_type => 'drink', p_category => 'x', p_name => 't0191 bad', p_price => 100, p_cost => null, p_back_mode => 'rate', p_back_value => 0, p_unit4 => null, p_hon_pt => 0, p_is_active => true, p_back_rate_by_kind => $2::jsonb) id`, [A1.id, JSON.stringify({ hon: 1 })]);
   expect("★2 set_product＝1 定義（16 引数）・back_rate_by_kind {jonai 5, free 3} が保存・旧 15 引数の named 呼びも通る（既定 null）・bad key は拒否", sigs.length === 1 && sigs[0].n === 16 && p1.ok && prow?.b?.jonai === 5 && prow?.b?.free === 3 && p2.ok && !p3.ok && /bad back_rate_by_kind/.test(tx.errOf(p3)), { sigs, p1: tx.errOf(p1), p2: tx.errOf(p2), p3: tx.errOf(p3), prow });
   // ★3 PIN
-  const k5 = await tx.as(owner, `select public.set_cast_pin($1::uuid, '12345')`, [castId]);
-  const k6 = await tx.as(owner, `select public.set_cast_pin($1::uuid, '123456')`, [castId]);
+  const k5 = await tx.as(owner, `select public.set_cast_pin($1::uuid, '47291')`, [castId]);
+  const k6 = await tx.as(owner, `select public.set_cast_pin($1::uuid, '472918')`, [castId]);
   const k3 = await tx.as(owner, `select public.set_cast_pin($1::uuid, '123')`, [castId]);
   const k7 = await tx.as(owner, `select public.set_cast_pin($1::uuid, '1234567')`, [castId]);
-  const k4 = await tx.as(owner, `select public.set_cast_pin($1::uuid, '1234')`, [castId]);
+  const k4 = await tx.as(owner, `select public.set_cast_pin($1::uuid, '4729')`, [castId]);
   const mgrMem = (await tx.one<{ id: string }>(`select m.id from public.memberships m join public.users u on u.id = m.user_id where u.id = $1 and m.is_active limit 1`, [mgr.id]))!.id;
-  const s5 = await tx.as(owner, `select public.set_staff_pin($1::uuid, '98765')`, [mgrMem]);
+  const s5 = await tx.as(owner, `select public.set_staff_pin($1::uuid, '86203')`, [mgrMem]);
   const s3 = await tx.as(owner, `select public.set_staff_pin($1::uuid, '987')`, [mgrMem]);
   const kp = await tx.q<{ p: string }>(`select prosrc p from pg_proc where pronamespace='public'::regnamespace and proname in ('kiosk_punch','staff_punch')`);
   expect("★3 PIN 4〜6 桁＝5／6 桁 OK・3／7 桁 bad pin・4 桁も通る（cast／staff）・kiosk_punch／staff_punch も {4,6}", k5.ok && k6.ok && !k3.ok && /bad pin/.test(tx.errOf(k3)) && !k7.ok && k4.ok && s5.ok && !s3.ok && kp.length === 2 && kp.every((x) => x.p.includes("{4,6}")), { k3: tx.errOf(k3), k7: tx.errOf(k7), s3: tx.errOf(s3) });

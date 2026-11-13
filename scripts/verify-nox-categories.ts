@@ -174,8 +174,8 @@ async function main() {
       });
       check("(h) 準備 kiosk_provision(register)", !eProv, eProv?.message);
       await kiosk.auth.signInWithPassword({ email: kEmail, password: env.SEED_PASSWORD });
-      await owner.rpc("set_staff_pin", { p_membership_id: ownerMem, p_pin: "4321" });
-      const { data: rLogin } = await kiosk.rpc("kiosk_login", { p_membership_id: ownerMem, p_pin: "4321" });
+      await owner.rpc("set_staff_pin", { p_membership_id: ownerMem, p_pin: "5273" });
+      const { data: rLogin } = await kiosk.rpc("kiosk_login", { p_membership_id: ownerMem, p_pin: "5273" });
       check("(h) 準備 kiosk_login ok:true", (rLogin as { ok?: boolean } | null)?.ok === true, JSON.stringify(rLogin));
 
       // 滞在タイマー確認用に open 伝票を1枚（started_at が載ること）

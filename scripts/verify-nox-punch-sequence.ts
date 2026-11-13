@@ -98,8 +98,8 @@ async function main() {
       // (7) kiosk_punch（追補1＝raise）
       const kioskUid = (await one<{ u: string }>("select gen_random_uuid() u")).u;
       await q("insert into public.kiosk_devices (org_id, store_id, auth_user_id, label, is_active, purpose) values ($1,$2,$3,'ps-punch',true,'punch')", [A1.org_id, A1.id, kioskUid]);
-      const pinSet = await as(mgr, "select public.set_cast_pin($1, '1234') r", [T5.cast]);
-      const kiosk = async (type: "in" | "out") => { const r = await as({ auth_user_id: kioskUid }, `select public.kiosk_punch($1, '1234', '${type}') r`, [T5.cast]); if (r.ok) await bump((r.rows[0]?.r as { punch_id?: string } | undefined)?.punch_id); return r; };
+      const pinSet = await as(mgr, "select public.set_cast_pin($1, '7458') r", [T5.cast]);
+      const kiosk = async (type: "in" | "out") => { const r = await as({ auth_user_id: kioskUid }, `select public.kiosk_punch($1, '7458', '${type}') r`, [T5.cast]); if (r.ok) await bump((r.rows[0]?.r as { punch_id?: string } | undefined)?.punch_id); return r; };
       const k1 = await kiosk("in"), k2 = await kiosk("in"), k3 = await kiosk("out"), k4 = await kiosk("out");
       const k1ok = k1.ok && (k1.rows[0].r as { ok: boolean }).ok === true, k3ok = k3.ok && (k3.rows[0].r as { ok: boolean }).ok === true;
       check("ps(7-1) kiosk_punch: in OK → in raise 'already in' → out OK → out raise 'no open punch'（rpc-err 様式・端末の和文は M1）", pinSet.ok && k1ok && has(k2, "already in") && k3ok && has(k4, "no open punch"), [errOf(pinSet), errOf(k1), errOf(k2), errOf(k3), errOf(k4)].join(" | "));
