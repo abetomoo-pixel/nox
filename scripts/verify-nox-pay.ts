@@ -481,6 +481,53 @@ eq("補足 castPts（玲奈=308pt）", castPts(REINA, 110), 308);
   eq("T14-10 golden 不変（玲奈 5931／125802・payRule キー無し）", `${reinaR.wage}/${reinaR.withholding}/${"payRule" in reinaR}`, "5931/125802/false");
 }
 
+// ── T15 ★裁定490（2026-11-13 Agoora 確定・案 B）: 体入の時給（trialWageByDay）とバック「なし」（trialBackExclude）＝省略できるキー・無ければ従来と 1 バイト同値
+//   逆テスト（手動・1 回）＝pay.ts の「tw !== undefined ? (…) : Math.max(bySales, byPts, base)」の体入の側を Math.max(tw, base) にする→T15-2 赤・戻して緑
+{
+  // T15-0／0b: golden 不変（キーが無い・空のキー）
+  const g1 = payOf(REINA_INPUT), g1a = payOf({ ...REINA_INPUT, pointProducts: 0 });
+  eq("T15-0 golden 不変＝T1b 5931／125802・T1a 5170／117241・trial キー無し", `${g1.wage}/${g1.withholding}/${"trial" in g1}/${g1a.wage}/${g1a.withholding}/${"trial" in g1a}`, "5931/125802/false/5170/117241/false");
+  eq("T15-0b 空のキー（trialWageByDay: {}）は無いのと同じ（JSON が 1 バイトも変わらない）", JSON.stringify(payOf({ ...REINA_INPUT, trialWageByDay: {} })) === JSON.stringify(payOf(REINA_INPUT)), true);
+  // 共通＝base 2,500・売上スライド [800k→3,000]・指名 1,000／500／1,500（per_count）・4 日×5h
+  const P15: CompPlan = { id: "p15", name: "T15", base: 2500, honBack: 1000, jonaiBack: 500, dohanBack: 1500, salesSlide: [{ at: 800000, wage: 3000 }], pointSlide: [] };
+  const daily15 = [1, 2, 3, 4].map((d) => ({ d, hours: 5, sales: 900000 }));
+  const base15: PayInput = { ...REINA_INPUT, cast: { hon: 8, jonai: 4, dohan: 2, days: 4, sales: 3600000 }, daily: daily15, plan: P15, override: undefined, pointProducts: 0, customBackDefs: [], deductions: [], periodDays: 30, extrasTotal: 0, productBack: { drink: 2000, champ: 0, bottle: 0 }, guaranteeByDay: undefined, guaranteeSpans: undefined, salesBackTable: [], salesTarget: 0 };
+  const allDays = (w: number) => ({ 1: w, 2: w, 3: w, 4: w });
+  const r0 = payOf(base15);
+  eq("T15-前提 体入なし＝毎日売上スライド 3,000×20h＝60,000", `${r0.timePay}/${"trial" in r0}`, "60000/false");
+  const r1 = payOf({ ...base15, trialWageByDay: allDays(3000) });
+  eq("T15-1 全日・体入 3,000＝60,000・バックは今と同じ（指名 8×1,000＋4×500＋2×1,500＝13,000）・trial 4 日 20h", `${r1.timePay}/${r1.honBack + r1.jonaiBack + r1.dohanBack}/${r1.trial?.days}/${r1.trial?.hours}/${r1.trial?.backNone}`, "60000/13000/4/20/false");
+  const r2 = payOf({ ...base15, trialWageByDay: allDays(2000) });
+  eq("T15-2 全日・体入 2,000（base より低い）＝2,000 に下がる（置き換え・max にしない）・スライドも使わない（R）＝40,000・basis 体入", `${r2.timePay}/${r2.wbasis["体入"]}/${r2.wdays.every((w) => w.trial === true && w.hourly === 2000)}`, "40000/4/true");
+  const r3 = payOf({ ...base15, trialWageByDay: allDays(2000), guaranteeByDay: allDays(3200) });
+  eq("T15-3 全日・体入 2,000＋保証 3,200＝3,200（保証が勝つ・打ち消さない）＝64,000・basis 保証", `${r3.timePay}/${r3.wbasis["保証"]}`, "64000/4");
+  const r4 = payOf({ ...base15, trialWageByDay: allDays(3500), guaranteeByDay: allDays(3200) });
+  eq("T15-4 全日・体入 3,500＋保証 3,200＝3,500（高いほう）＝70,000", r4.timePay, 70000);
+  const r5 = payOf({ ...base15, trialWageByDay: { 1: 2000, 2: 2000 } });
+  eq("T15-5 1〜2 日だけ体入 2,000・3〜4 日はスライド 3,000＝(2,000＋2,000＋3,000＋3,000)×5h＝50,000・日ごとの時給", `${r5.timePay}/${r5.wdays.map((w) => w.hourly).join(",")}/${r5.trial?.days}`, "50000/2000,2000,3000,3000/2");
+  const exNone = { hon: 8, jonai: 4, dohan: 2, honShimeiAmt: 0, jonaiShimeiAmt: 0, drink: 2000, champ: 0, bottle: 0, calculated: 0, sales: 3600000 };
+  const r6 = payOf({ ...base15, trialWageByDay: allDays(2000), trialBackExclude: exNone });
+  eq("T15-6 全日・バックなし＝指名・商品・売上歩合を 0（per_count）・売上の合計と pt は減らさない・trial.backNone", `${r6.honBack}/${r6.jonaiBack}/${r6.dohanBack}/${r6.drinkBack}/${r6.salesBack}/${r6.gross}/${r6.trial?.backNone}`, "0/0/0/0/0/40000/true");
+  const r6b = payOf({ ...base15, trialWageByDay: { 1: 2000, 2: 2000 }, trialBackExclude: { ...exNone, hon: 4, jonai: 2, dohan: 1, drink: 1000, sales: 1800000 } });
+  eq("T15-6b 1〜2 日だけバックなし＝体入の日の本数だけ引く（(8−4)×1,000＋(4−2)×500＋(2−1)×1,500＝6,500・商品 2,000−1,000＝1,000）", `${r6b.honBack + r6b.jonaiBack + r6b.dohanBack}/${r6b.drinkBack}`, "6500/1000");
+  const PR: CompPlan = { ...P15, honBackMode: "rate", honBackRate: 10, jonaiBackMode: "rate", jonaiBackRate: 10 };
+  const r7 = payOf({ ...base15, plan: PR, cast: { ...base15.cast, honShimeiAmt: 30000, jonaiShimeiAmt: 10000 }, trialWageByDay: { 1: 2000, 2: 2000 }, trialBackExclude: { ...exNone, honShimeiAmt: 15005, jonaiShimeiAmt: 5000, hon: 4, jonai: 2, dohan: 1, drink: 1000, sales: 1800000 } });
+  eq("T15-7 rate のバックなし＝母数から体入の日の指名料を引いて Σ のあと 1 回丸め（(30,000−15,005)×10%＝1,499.5→1,500・(10,000−5,000)×10%＝500）", `${r7.honBack}/${r7.jonaiBack}`, "1500/500");
+  const r8 = payOf({ ...base15, calculatedBack: 5000, trialWageByDay: allDays(2000), trialBackExclude: { ...exNone, calculated: 3000 } });
+  eq("T15-8 商品バックの凍結値（calculatedBack）も体入の日の分を引く＝5,000−3,000＝2,000", r8.calculatedBack, 2000);
+  const r9 = payOf({ ...base15, trialWageByDay: allDays(2200) });
+  eq("T15-9 体入の日に売上スライドが当たっても使わない（R・Agoora 確定）＝2,200×20h＝44,000", r9.timePay, 44000);
+  const r10 = payOf({ ...base15, trialWageByDay: allDays(2000), trialBackExclude: exNone, taxMode: "委託" });
+  const r10n = payOf({ ...base15, trialWageByDay: allDays(2000), taxMode: "委託" });
+  eq("T15-10 源泉＝新しい総支給で計算（バックなしの方が総支給が少ない＝源泉も少ないか同じ）", r10.gross < r10n.gross && r10.withholding <= r10n.withholding, true);
+  const r11 = payOf({ ...base15, payTimeBasis: "shift", shiftHoursByDay: { 1: 6, 2: 6, 3: 6, 4: 6 }, trialWageByDay: allDays(2000) });
+  eq("T15-11 勤務時間の基準 shift と体入が両方効く＝2,000×24h＝48,000", r11.timePay, 48000);
+  const sb = { month: "2026-10", sales: 3600000, pts: 0 };
+  const r12 = payOf({ ...base15, slideByDay: { 3: sb, 4: sb }, trialWageByDay: { 1: 2200, 2: 2200 } });
+  eq("T15-12（裁定490-11）体入の間の売上は本採用のあとのスライドの段に入る＝体入の日はスライドなし 2,200・3〜4 日は前の月の合計で 3,000", r12.wdays.map((w) => w.hourly).join(","), "2200,2200,3000,3000");
+}
+
+
 if (fails.length) {
   console.error(`FAIL ${fails.length} 件 / pass ${pass}`);
   for (const f of fails) console.error(" - " + f);

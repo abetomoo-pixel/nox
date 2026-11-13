@@ -91,7 +91,7 @@ export type PayRuleDetail = {
 
 export type DailyRecord = { d: number; hours: number; sales: number };
 
-export type WageBasis = "売上" | "ポイント" | "保証";
+export type WageBasis = "売上" | "ポイント" | "保証" | "体入"; // ★裁定490: 体入の日（体入の時給・スライドなし）
 
 export type WageDay = {
   d: number;
@@ -100,6 +100,7 @@ export type WageDay = {
   hours: number;
   hourly: number;
   basis: WageBasis;
+  trial?: boolean; // ★裁定490（2026-11-13）: 体入の時給を当てた日（無い日はキーを持たない＝従来と同値）
   gua?: boolean; // ★便 PR-1 R-2（裁定416）: 保証行が効いた日（basis の「保証」は基本時給の日にも付く＝区間の区分はこの印で分ける）
 };
 
@@ -116,6 +117,18 @@ export type GuaranteeDetail = {
 export type SlideBasisMonth = { month: string; prevMonth: string; sales: number; pts: number; salesWage: number; ptsWage: number };
 export type SlideBasisDetail = { apply: "next"; months: SlideBasisMonth[] };
 
+/** ★裁定490（2026-11-13 Agoora 確定）: 体入の日の内訳＝体入の時給を当てた日がある cast にだけ返す（breakdown_json に凍結・無い cast は従来と 1 バイト同値） */
+export type TrialDetail = { days: number; hours: number; pay: number; backNone: boolean; backExcluded?: number };
+/** ★裁定490-4: バック「なし」のとき、体入の日の分（collect が日ごとに集める）。各バックの母数から引く（売上の合計・pt・スライド・ボーナスは減らさない） */
+export type TrialBackExclude = {
+  hon: number; jonai: number; dohan: number;              // 体入の日の指名本数（per_count の母数）
+  honShimeiAmt: number; jonaiShimeiAmt: number;          // 体入の日の指名料（rate の母数）
+  drink: number; champ: number; bottle: number;          // 体入の日の商品バック（凍結値）
+  calculated: number;                                     // 体入の日の calculatedBack（凍結値）
+  sales: number;                                          // 体入の日の売上（売上歩合の母数・率は期の合計の段のまま）
+  metrics?: Partial<Metrics>;                            // 体入の日の自由設計バックの指標（自由設計バックの計算にだけ使う）
+};
+
 export type WageDetail = {
   wage: number; // 加重平均時給
   timePay: number; // roundYen(Σ 日時給×hours)
@@ -124,6 +137,7 @@ export type WageDetail = {
   wdays: WageDay[]; // 日次内訳（明細表示用）
   guarantee?: GuaranteeDetail; // ★N3: 保証が効いた日があるときだけ
   slideBasis?: SlideBasisDetail; // ★N3b: 'next' のときだけ
+  trial?: TrialDetail; // ★裁定490: 体入の日があるときだけ
 };
 
 export type MetricKey =
@@ -246,6 +260,11 @@ export type PayInput = {
   guaranteeSpans?: GuaranteeSpan[];
   // ★夜間便 N3b（裁定288）: slide_apply='next' のときだけ、営業日 d が属する暦月の「前月の合計」（sales／pts）を渡す。未指定＝従来と 1 バイト同値
   slideByDay?: Record<number, { month: string; sales: number; pts: number }>;
+  // ★裁定490（2026-11-13 Agoora 確定・案 B）: 体入の日（d→体入の時給）。その日の時給＝体入の時給（保証の日は max(保証, 体入の時給)）・売上スライドとポイントスライドは使わない（R）。
+  //   未指定・空＝従来と 1 バイト同値（golden 5931／125802・5170／117241 不変）
+  trialWageByDay?: Record<number, number>;
+  // ★裁定490-4: バック「なし」のとき、体入の日の分を各バック（指名・商品・売上歩合・自由設計）から引く。ボーナスは対象外。未指定＝引かない
+  trialBackExclude?: TrialBackExclude;
   // ★裁定98: sanction 二層ガードの文脈。employment 未設定（null/undefined）で sanction 行がある cast は
   //   core が 'no_employment' blocker で先に止める＝payOf がここで null を見るのは sim 経路のみ（現行式同値で計算）。
   employment?: "委託" | "雇用" | null; // casts.employment
@@ -307,6 +326,7 @@ export type PayResult = {
   payRule?: PayRuleDetail; // ★0154 D2: 報酬型が actual 以外の cast だけ（breakdown_json に凍結される・actual はキー無し＝golden 不変）
   guarantee?: GuaranteeDetail; // ★N3: 保証が効いた cast だけ（breakdown_json に凍結される）
   slideBasis?: SlideBasisDetail; // ★N3b: 'next' の店だけ（breakdown_json に凍結される）
+  trial?: TrialDetail; // ★裁定490: 体入の日がある cast だけ（breakdown_json に凍結される）
   honBack: number;
   jonaiBack: number;
   dohanBack: number;
@@ -428,8 +448,10 @@ export function wageDetail(
   baseByDay?: Record<number, number>,   // ★N3: 営業日ごとの保証時給（無い日は eplan.base）
   spans?: GuaranteeSpan[],
   slideByDay?: Record<number, { month: string; sales: number; pts: number }>,   // ★N3b: 'next'＝前月合計で段判定（無い日は日次）
+  trialByDay?: Record<number, number>,   // ★裁定490: 体入の日（d→体入の時給）
 ): WageDetail {
   let gHours = 0, gPay = 0, bHours = 0, bPay = 0, gAny = false;
+  let tDays = 0, tHours = 0, tPay = 0; // ★裁定490
   const sbMonths = new Map<string, SlideBasisMonth>();
   const totalSales =
     daily.reduce((sum, r) => sum + r.sales, 0) || fallbackSales || 1;
@@ -445,11 +467,15 @@ export function wageDetail(
     if (sb && !sbMonths.has(sb.month)) sbMonths.set(sb.month, { month: sb.month, prevMonth: prevYm(sb.month), sales: sb.sales, pts: sb.pts, salesWage: bySales, ptsWage: byPts });
     const gBase = baseByDay?.[r.d];
     const base = gBase !== undefined ? Math.max(gBase, eplan.base || 0) : (eplan.base || 0);   // ★N3: 保証期間の日は max(保証額, 基本)＝minimum 相当（287-3）   // ★N3: 保証期間の日は max(保証額, 基本)＝minimum 相当（287-3）
-    const hourly = Math.max(bySales, byPts, base);
+    // ★裁定490（2026-11-13 Agoora 確定）: 体入の日＝体入の時給で置き換える（max にしない）・保証の日は max(保証, 体入の時給)・スライドは使わない（R）
+    const tw = trialByDay?.[r.d];
+    const hourly = tw !== undefined ? (gBase !== undefined ? Math.max(gBase, tw) : tw) : Math.max(bySales, byPts, base);
+    if (tw !== undefined) { tDays += 1; tHours += r.hours; tPay += hourly * r.hours; }
     if (gBase !== undefined) { gAny = true; gHours += r.hours; gPay += hourly * r.hours; } else { bHours += r.hours; bPay += hourly * r.hours; }
     // 同値時の優先: 売上 > ポイント > 保証（モックの判定式そのまま）
-    const basis: WageBasis =
-      hourly === bySales && bySales >= byPts && bySales >= base
+    const basis: WageBasis = tw !== undefined
+      ? (gBase !== undefined && gBase > tw ? "保証" : "体入")
+      : hourly === bySales && bySales >= byPts && bySales >= base
         ? "売上"
         : hourly === byPts && byPts >= base
           ? "ポイント"
@@ -457,13 +483,14 @@ export function wageDetail(
     weighted += hourly * r.hours;
     hours += r.hours;
     wbasis[basis] = (wbasis[basis] || 0) + 1;
-    wdays.push({ d: r.d, sales: r.sales, pts: dayPts, hours: r.hours, hourly, basis, ...(gBase !== undefined ? { gua: true } : {}) });   // ★PR-1 R-2: 保証の日に印（無い日はキーを持たない＝従来と同値）
+    wdays.push({ d: r.d, sales: r.sales, pts: dayPts, hours: r.hours, hourly, basis, ...(tw !== undefined ? { trial: true } : {}), ...(gBase !== undefined ? { gua: true } : {}) });   // ★PR-1 R-2: 保証の日に印（無い日はキーを持たない＝従来と同値）
   }
   return {
     wage: hours > 0 ? roundYen(weighted / hours) : eplan.base || 0,
     timePay: roundYen(weighted),
     ...(gAny ? { guarantee: { spans: spans ?? [], baseHours: roundPt1(bHours), basePay: roundYen(bPay), guaHours: roundPt1(gHours), guaPay: roundYen(gPay) } } : {}),
     ...(sbMonths.size > 0 ? { slideBasis: { apply: "next" as const, months: [...sbMonths.values()] } } : {}),
+    ...(tDays > 0 ? { trial: { days: tDays, hours: roundPt1(tHours), pay: roundYen(tPay), backNone: false } } : {}),   // ★裁定490: 体入の日がある cast だけ
     wHours: roundPt1(hours),
     wbasis,
     wdays,
@@ -502,6 +529,13 @@ export function allocateQty(qty: number, weights: number[]): number[] {
 }
 
 /** 売上バック率（モック uS）: 降順テーブルの最初のマッチ */
+/** ★裁定490-4: 指標から体入の日の分を引く（数の項目だけ・0 未満にしない） */
+function lessMetrics(m: Metrics, x: Partial<Metrics>): Metrics {
+  const out = { ...m } as Record<string, unknown>;
+  for (const [k, v] of Object.entries(x)) { const cur = out[k]; if (typeof cur === "number" && typeof v === "number") out[k] = Math.max(0, cur - v); }
+  return out as Metrics;
+}
+
 export function salesRateOf(
   sales: number,
   table: SalesBackStep[] = DEFAULT_SALES_BACK_TABLE,
@@ -635,9 +669,9 @@ export function payOf(input: PayInput): PayResult {
     ? dailyBase.map((r) => ({ ...r, hours: Math.max(r.hours, input.shiftHoursByDay?.[r.d] ?? 0) }))
     : dailyBase;
   const wd0 = rule === "shift_guarantee"
-    ? wageDetail(dailyEff, eplan, castPts(cast, input.pointProducts), cast.sales, input.guaranteeByDay, input.guaranteeSpans, input.slideByDay)
+    ? wageDetail(dailyEff, eplan, castPts(cast, input.pointProducts), cast.sales, input.guaranteeByDay, input.guaranteeSpans, input.slideByDay, input.trialWageByDay)
     : null;
-  const wd = wageDetail(dailyBase, eplan, castPts(cast, input.pointProducts), cast.sales, input.guaranteeByDay, input.guaranteeSpans, input.slideByDay); // ★N3／N3b（★324-2: 'shift' は dailyBase＝確定シフト時間・'punch' は input.daily と同一参照）
+  const wd = wageDetail(dailyBase, eplan, castPts(cast, input.pointProducts), cast.sales, input.guaranteeByDay, input.guaranteeSpans, input.slideByDay, input.trialWageByDay); // ★N3／N3b（★324-2: 'shift' は dailyBase＝確定シフト時間・'punch' は input.daily と同一参照）
   let payRule: PayRuleDetail | undefined;
   let timePayRule = wd.timePay;
   if (rule === "shift_guarantee" && wd0) {
@@ -659,26 +693,32 @@ export function payOf(input: PayInput): PayResult {
   // 指名バック（hon/jonai は実績・dohan は sim 上書き可＝モック te と同一）
   // mig0086: mode='rate' は Σ指名料行×%（母数=check_lines・裁定iii/vi・丸めは Σ後 roundYen 1回=裁定iv）。
   //   ★per_count 側の式は従来と1バイト不変（玲奈 golden 5170/5931 の経路）。dohan は円/本のみ（裁定i）。
+  // ★裁定490-4（2026-11-13 Agoora 確定）: バック「なし」＝体入の日の分を母数から引く（trialBackExclude が無ければ母数は従来のまま＝1 バイト同値）
+  const tx = input.trialBackExclude;
+  const less = (v: number, x: number | undefined): number => (tx ? Math.max(0, v - (x ?? 0)) : v);
   const honBack = eplan.honBackMode === "rate"
-    ? roundYen(((cast.honShimeiAmt ?? 0) * (eplan.honBackRate ?? 0)) / 100)
-    : cast.hon * eplan.honBack;
+    ? roundYen(((less(cast.honShimeiAmt ?? 0, tx?.honShimeiAmt)) * (eplan.honBackRate ?? 0)) / 100)
+    : less(cast.hon, tx?.hon) * eplan.honBack;
   const jonaiBack = eplan.jonaiBackMode === "rate"
-    ? roundYen(((cast.jonaiShimeiAmt ?? 0) * (eplan.jonaiBackRate ?? 0)) / 100)
-    : cast.jonai * eplan.jonaiBack;
-  const dohanBack = input.rules0175?.dohanBandBack != null ? input.rules0175.dohanBandBack : effDohan * eplan.dohanBack; // ★便 ON-2（CANON ④）: 同伴バックの時間帯（plan_rate_bands）があるプランは帯の率×同伴伝票のキャスト分（無ければ従来の円／本＝golden 不変）
+    ? roundYen(((less(cast.jonaiShimeiAmt ?? 0, tx?.jonaiShimeiAmt)) * (eplan.jonaiBackRate ?? 0)) / 100)
+    : less(cast.jonai, tx?.jonai) * eplan.jonaiBack;
+  // ★裁定490-4: 同伴の時間帯のバック（dohanBandBack＝帯の率×同伴伝票の額）は日で割れない＝体入の日だけの期（同伴が全部体入の日）なら 0・混ざる期は割らずに残す（判断待ち＝trial.backExcluded に入れない）
+  const dohanBack = input.rules0175?.dohanBandBack != null
+    ? (tx && effDohan > 0 && (tx.dohan ?? 0) >= effDohan ? 0 : input.rules0175.dohanBandBack)
+    : less(effDohan, tx?.dohan) * eplan.dohanBack; // ★便 ON-2（CANON ④）: 同伴バックの時間帯（plan_rate_bands）があるプランは帯の率×同伴伝票のキャスト分（無ければ従来の円／本＝golden 不変）
 
   // 商品バック（会計確定時に配分・集計済みの値を読む）
-  const drinkBack = input.productBack.drink || 0;
-  const champBack = input.productBack.champ || 0;
-  const bottleBack = input.productBack.bottle || 0;
+  const drinkBack = less(input.productBack.drink || 0, tx?.drink);
+  const champBack = less(input.productBack.champ || 0, tx?.champ);
+  const bottleBack = less(input.productBack.bottle || 0, tx?.bottle);
   // ★裁定113（設計書 v1.1 §4）＋裁定123: plan_rate／plan_fixed とも凍結値（check_cast_backs.calculated_back_amount）の
   //   単純Σ・再計算しない（plan_fixed は close が Σ按分数量×固定額を凍結＝0132 の「期間固定・payOf 側加算」は 0133 で廃止）。
   //   product_rule／未指定＝0（従来 grossBase と1バイト同値＝golden 5931/125802 の構造保証）。丸め不要（整数の Σ）。
-  const calculatedBack = input.calculatedBack ?? 0;
+  const calculatedBack = less(input.calculatedBack ?? 0, tx?.calculated);
 
   // 売上バック
   const sRate = salesRateOf(cast.sales, input.salesBackTable);
-  const salesBack = roundYen(cast.sales * sRate);
+  const salesBack = roundYen(less(cast.sales, tx?.sales) * sRate); // ★裁定490-4: 率は期の合計の段のまま・母数から体入の日の売上を引く
 
   // 自由設計バック（metrics は cast 実績＋pointProducts で補完・sim 上書きは反映しない＝モック Vy(u) と同一）
   const metrics: Metrics = {
@@ -692,7 +732,8 @@ export function payOf(input: PayInput): PayResult {
     bottleCnt: input.metrics?.bottleCnt ?? 0,
     ...stripUndefined(input.metrics),
   };
-  const cbacks = customBacks(input.customBackDefs, metrics);
+  // ★裁定490-4: 自由設計バックは体入の日の指標を引いた値で計算（metrics そのもの＝スライド・表示は減らさない）
+  const cbacks = customBacks(input.customBackDefs, tx?.metrics ? lessMetrics(metrics, tx.metrics) : metrics);
   const customTotal = cbacks.reduce((sum, c) => sum + c.amount, 0);
 
   // ── ★C1/C2 挙動段（裁定96 ①②③・mig0114/0115）: 行型コンポーネントの結線 ──
@@ -846,6 +887,7 @@ export function payOf(input: PayInput): PayResult {
     wdays: wd.wdays,
     ...(wd.guarantee ? { guarantee: wd.guarantee } : {}), // ★N3: 保証が効いた cast だけキーを持つ（凍結の互換）
     ...(wd.slideBasis ? { slideBasis: wd.slideBasis } : {}), // ★N3b: 'next' の店だけ
+    ...(wd.trial || tx ? { trial: { ...(wd.trial ?? { days: 0, hours: 0, pay: 0 }), backNone: !!tx } } : {}), // ★裁定490: 体入の日がある cast だけ（無い cast は従来と 1 バイト同値）
     honBack,
     jonaiBack,
     dohanBack,
