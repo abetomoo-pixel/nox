@@ -3326,3 +3326,10 @@ tr.nox-rowflash, .nox-rowflash { animation: nox-rowflash 1.6s ease-out; }
   .nox-ana-side { display: none; }
   .nox-ana-inline { display: table-row; }
 }
+/* ★2026-11-13（相談役 A）: 会計の残額が 0 のあいだ「会計を完了」を画面の下に固定（下のナビのすぐ上＝.nox-st-bar と同じ型）。
+   下のナビがある幅（≤899）はナビの上・広い画面（左のサイドバー）は下端・端末の下端の余白（safe-area）も足す。内容の最後の行と重ならないよう .nox-paydone-spacer で同じ高さを空ける */
+.nox-paydone-bar { position: fixed; left: 0; right: 0; bottom: env(safe-area-inset-bottom, 0px); z-index: 29; margin: 0; padding: 8px 12px; background: rgba(13, 13, 18, .94); border-top: 1px solid var(--line); display: flex; justify-content: center; }
+.nox-paydone-bar button { max-width: 520px; }
+.nox-paydone-spacer { height: 84px; }
+@media (max-width: 899px) { body:has(.nox-tabbar) .nox-paydone-bar { bottom: calc(var(--nox-bnav-h, 64px) + env(safe-area-inset-bottom, 0px)); } }
+@media (min-width: 900px) { body:has(.nox-tabbar) .nox-paydone-bar { left: 212px; } }

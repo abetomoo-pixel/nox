@@ -303,6 +303,13 @@ const DTAB_ICON: Record<"order" | "nom" | "pay", React.ReactNode> = {
 /** ★C-2（2026-11-13 通しの確かめ）: 入金の後、伝票を読み直す間に入金済み・残額の場所へ出す文 */
 export const PAY_REFRESHING_JA = "反映中…";
 
+/** ★2026-11-13（相談役 A）: 会計の残額が 0 のあいだ、延長の表など毎回は使わない節を畳む（開けば使える）。残額があるあいだは今のまま */
+const PAY_DONE_NOTE = "入金は済んでいます。会計を完了してください。";
+function PayDoneFold({ done, name, title, children }: { done: boolean; name: string; title: import("react").ReactNode; children: import("react").ReactNode }) {
+  if (!done) return <>{children}</>;
+  return <Fold name={name} title={title} summary="入金が済んだので畳んでいます（開けば使えます）">{children}</Fold>;
+}
+
 export default function RegisterBoard({
   seats, products, categories, casts, isManagerUp, showReserve, storeId, kioskNoms, castLevel = null,
 }: {
@@ -3020,7 +3027,7 @@ export default function RegisterBoard({
               </div>
             </div>
           )}
-            {allCovered && <p className="nox-payhead-done" data-pay-head-done="1">入金は済んでいます。下の「会計を完了」を押してください。</p>}
+            {allCovered && <p className="nox-payhead-done" data-pay-head-done="1">{PAY_DONE_NOTE}<button type="button" onClick={closeCheck} disabled={!allCovered} style={{ ...t.btnGold, marginLeft: 10, padding: "6px 14px", minHeight: 40 }} data-pay-close-head="1">会計を完了</button></p>/* ★2026-11-13（相談役 A）: 案内の所にも同じボタン・文は「入金は済んでいます。会計を完了してください。」 */}
           </div>
           );
         })()}
@@ -3410,6 +3417,7 @@ export default function RegisterBoard({
             ★レジ時間UX R3（裁定29）: 旧裁定(f)ボタン起点を更新＝会計タブを開いた時点で自動反映
             （手動ボタン廃止）。内訳は checks スナップ5列＋返値 jsonb。 */}
         {dtab === "pay" && timeMode === "auto" && check.status === "open" && (
+          <PayDoneFold done={allCovered} name="pay-time-auto" title="時間料金（自動）・延長">
           <div className="nox-cardtop" style={card}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
               <h3 style={{ ...t.cardTitle, margin: 0 }}>時間料金（自動）</h3>
@@ -3441,11 +3449,13 @@ export default function RegisterBoard({
             )}
             {timeMsg && <Toast msg={timeMsg} style={{ margin: "8px 0 0" }} />}
           </div>
+          </PayDoneFold>
         )}
 
         {/* R-A3（0089）: manual 店の時間料金カード＝延長を1押し=1行で追加（check_extension_add）。
             auto 店では非表示（RPC 側 'auto mode' 拒否と二重防御）。取消は注文タブの行削除。 */}
         {dtab === "pay" && timeMode === "manual" && check.status === "open" && (
+          <PayDoneFold done={allCovered} name="pay-time-manual" title="時間料金（手動）・延長">
           <div className="nox-cardtop" style={card}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
               <h3 style={{ ...t.cardTitle, margin: 0 }}>時間料金（手動）</h3>
@@ -3495,6 +3505,7 @@ export default function RegisterBoard({
             )}{/* ★裁定281（便 AB） */}
             {timeMsg && <Toast msg={timeMsg} style={{ margin: "8px 0 0" }} />}
           </div>
+          </PayDoneFold>
         )}
 
         {/* 明細追加（段R2: 注文タブ。カスタム明細フォームだけは会計タブへ移設） */}
@@ -3594,7 +3605,7 @@ export default function RegisterBoard({
 
         {/* カスタム明細（kind/名称/価格）＝段R2 で会計タブへ移設（フォームの中身・送る引数は不変） */}
         {dtab === "pay" && (
-        <Fold name="pay-custom" title="カスタム明細を追加" summary="一覧に無い料金・値引きを 1 行足す">{/* ★M-136: 折りたたみ（毎回は使わない） */}
+        <Fold key={allCovered ? "pay-custom-done" : "pay-custom"} name="pay-custom" title="カスタム明細を追加" summary="一覧に無い料金・値引きを 1 行足す">{/* ★M-136: 折りたたみ（毎回は使わない） */}
         <div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
             {/* R-A2（0089）: 種別から「セット」を除去＝開卓時の自動行と手打ちの二重計上を封じる */}
@@ -3615,7 +3626,7 @@ export default function RegisterBoard({
 
         {/* 割引・無料（承認ワークフロー・F3c）＝段R2 で会計タブへ */}
         {dtab === "pay" && !(rules0175On() && !isManagerUp && staffDiscountLevelOf(storeSj) === 2) && (/* ★追補 2（裁定421 候補）: 2＝不可のスタッフにはカードごと出さない */
-        <Fold name="pay-discount" defaultOpen={approvals.some((a) => a.status === "pending")} /* ★M-136: 承認待ちがあれば開いておく */
+        <Fold key={allCovered ? "pay-discount-done" : "pay-discount"} name="pay-discount" defaultOpen={!allCovered && approvals.some((a) => a.status === "pending")} /* ★2026-11-13（相談役 A）: 残額 0 なら畳む（開けば使える） */ /* ★M-136: 承認待ちがあれば開いておく */
           title={<>割引・無料（{isManagerUp ? "適用・承認" : rules0175On() && staffDiscountLevelOf(storeSj) === 1 ? `申請・上限 ${yen(staffDiscountCapOf(storeSj))} までは即時` : "申請"}）</>}
           summary={approvals.length === 0 ? "申請なし" : `申請 ${approvals.length} 件（承認待ち ${approvals.filter((a) => a.status === "pending").length}）`}>
         <div data-staff-discount-level={rules0175On() ? staffDiscountLevelOf(storeSj) : undefined}>
@@ -4003,6 +4014,9 @@ export default function RegisterBoard({
           <button type="button" onClick={closeCheck} disabled={!allCovered} style={t.btnPrimary56} data-pay-close="1">会計を完了</button>
           <div style={t.btnRow48}><button type="button" style={t.btnSecondary48} onClick={() => void closeDetail()}>← フロア</button></div>
           </div>
+          )}
+          {allCovered && (/* ★2026-11-13（相談役 A）: 残額 0 のあいだ「会計を完了」を画面の下に固定（下のナビのすぐ上・.nox-st-bar と同じ型）＋最後の行と重ならない余白 */
+          <><div className="nox-paydone-spacer" aria-hidden="true" /><div className="nox-paydone-bar" data-pay-close-bar="1"><button type="button" onClick={closeCheck} disabled={!allCovered} style={t.btnPrimary56} data-pay-close-fixed="1">会計を完了</button></div></>
           )}
         </div>
         )}
