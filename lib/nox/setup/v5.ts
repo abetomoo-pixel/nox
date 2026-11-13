@@ -8,6 +8,8 @@ import { mig0190On, mig0191On, mig0197On } from "../rules-0175/flag"; // ★0190
 /** ★0191 ★1: 締め日の表記→settlement_close_day（15／20／25／31＝末日） */
 export const CLOSE_DAY_OF: Record<string, 15 | 20 | 25 | 31> = { "15": 15, "20": 20, "25": 25, "末日": 31 };
 const pct100 = (n: number): number => Math.max(0, Math.min(100, Math.round(n || 0)));
+/** ★2026-11-13（相談役 B）: カードの手数料は 1% 刻みの整数（店舗設定と同じ・DB も整数だけ）＝確認の画面と保存で同じ値を使う（欄は小数を受けない＝Money の integer）。0〜100 の外は端に寄せる */
+export const cardFeePctOf = (S: { cardfee: number }): number => Math.max(0, Math.min(100, Number.isInteger(S.cardfee) ? S.cardfee : Math.trunc(S.cardfee || 0)));
 
 // ── 9 STEP・業態 5 種（モック STEPS／TYPES 逐語） ──
 export const V5_STEPS: readonly string[] = ["お店", "席・卓", "料金", "メニュー", "キャスト待遇", "スタッフ", "シフト・勤怠", "会計・レジ", "確認"];
@@ -277,7 +279,7 @@ export function buildV5Plan(S: V5State, ctx: V5Ctx): { steps: V5Step[]; deferred
     kiosk_features: { punch: S.reg.kiosk, register: S.reg.kiosk, shift: S.reg.kiosk },
     sys_cast_register: S.reg.castReg === "pay" ? 2 : S.reg.castReg === "order" ? 1 : 0,
     sys_staff_discount: S.reg.staffDisc === "limit" ? 1 : S.reg.staffDisc === "no" ? 2 : 0,
-    pay_fee_rates: { card: Math.max(0, Math.min(100, Math.round(S.cardfee || 0))), emoney: 0, other: 0 },
+    pay_fee_rates: { card: cardFeePctOf(S), emoney: 0, other: 0 }, // ★2026-11-13（相談役 B）: 確認の画面と同じ値
     pay_discount_rates: { cash: S.cashOff ? Math.round(Math.max(0, Math.min(100, S.cashRate)) * 10) / 10 : 0, card: 0, other: 0 }, pay_discount_base: S.cashBase,
   };
   // ★M-143（2026-11-10）: duty_gate は送らない＝裁定472 で例外が廃止（店設定の duty_gate は読まれない）
@@ -316,7 +318,7 @@ export function buildV5Plan(S: V5State, ctx: V5Ctx): { steps: V5Step[]; deferred
   seatNames(S.seats).forEach(([name, v], i) => push({ key: `seat_${i}`, group: "seats", label: `席 ${name}`, rpc: "set_seat", guard: "seats_empty", args: { p_id: null, p_store_id: s, p_name: name, p_kind: v === "vip" ? "VIP" : i < S.seats.counter ? "カウンター" : "卓", p_sort_order: i + 1, p_is_active: true } }));
   // 4) 料金
   const r0 = S.rules[0];
-  push({ key: "pricing", group: "pricing", label: "指名料・同伴料・サービス料・カード手数料", rpc: "set_store_pricing", args: { p_store_id: s, p_hon_fee: S.fees.hon, p_jonai_fee: S.fees.jo, p_dohan_fee: S.fees.dohan, p_service_rate: Math.round(S.svc), p_card_tax_rate: Math.round(S.cardfee || 0), p_round_unit: v5RoundUnitOf(S, ctx), p_round_mode: v5RoundModeOf(S, ctx) } }); // ★裁定443 1-① ★便 A M-71: 新しい店だけ v5 ③ の端数（単位・丸め方）
+  push({ key: "pricing", group: "pricing", label: "指名料・同伴料・サービス料・カード手数料", rpc: "set_store_pricing", args: { p_store_id: s, p_hon_fee: S.fees.hon, p_jonai_fee: S.fees.jo, p_dohan_fee: S.fees.dohan, p_service_rate: Math.round(S.svc), p_card_tax_rate: cardFeePctOf(S) /* ★2026-11-13（相談役 B） */, p_round_unit: v5RoundUnitOf(S, ctx), p_round_mode: v5RoundModeOf(S, ctx) } }); // ★裁定443 1-① ★便 A M-71: 新しい店だけ v5 ③ の端数（単位・丸め方）
   if (r0) { const e0 = r0.ext.find((e) => e[2]) ?? r0.ext[0];
     push({ key: "time_pricing", group: "pricing", label: `${r0.min ? `セット ${r0.min}分 ¥${r0.set}` : `チャージ ¥${r0.set}`}・延長 ${e0 ? `${e0[0]}分 ¥${e0[1]}` : "なし"}`, rpc: "set_store_time_pricing", args: { p_store_id: s, p_set_min: r0.min || 60, p_set_fee: r0.set, p_ext_min: e0 ? e0[0] : 30, p_ext_fee: e0 ? e0[1] : 0, p_time_mode: v5TimeModeOf(S, ctx), p_time_per: ctx.current.time_per } }); } // ★便 A M-72: 延長の付け方（自動／手動）
   const ruleBase = (key: string, label: string, args: Record<string, unknown>) => push({ key, group: "pricing", label, rpc: "set_pricing_rule", guard: "rules_empty", args: { p_id: null, p_store_id: s, p_fee_kind: "set", p_seat_kind: null, p_dow_mask: null, p_time_from_min: null, p_time_to_min: null, p_rank_id: null, p_amount: 0, p_duration_min: null, p_priority: 100, p_is_active: true, p_name: label, p_tax_category: "taxable_10", p_category_id: null, p_billing_unit: null, p_is_default_ext: false, ...args } });

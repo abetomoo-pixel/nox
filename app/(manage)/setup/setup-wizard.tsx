@@ -22,7 +22,7 @@ import SegSelect from "@/components/ui/seg-select";
 import { Message } from "@/components/ui/toast";
 import {
   CSV_HEADER, PIN_RE, V5_STEPS, V5_TYPES, WD, applyType, buildV5Plan, castPlanOf, clone, genPin, kindVal, menuCount, normRule, parseCsv, rebuildBack, seatNames, slideTiersFor, v5CheckSelectorOf, v5Checks, v5DefaultState, v5TypeName, v5ZeroPriceItems,
-  type V5Cast, type V5Ctx, type V5Rule, type V5State, type V5Step, type V5Type, ROUND_MODE_LABEL, TIME_MODE_LABEL } from "@/lib/nox/setup/v5";
+  type V5Cast, type V5Ctx, type V5Rule, type V5State, type V5Step, type V5Type, ROUND_MODE_LABEL, TIME_MODE_LABEL, cardFeePctOf } from "@/lib/nox/setup/v5";
 import { mig0190On, mig0191On, mig0197On } from "@/lib/nox/rules-0175/flag"; // ★0190／0191 のフラグ true 便: 器が入った項目は「後で（マスタから）」を出さない
 import type { ProductRow } from "@/lib/nox/setup/template-plan";
 
@@ -43,10 +43,10 @@ function Field({ label, children, span }: { label: React.ReactNode; children: Re
 }
 /** ★便 M5b M-57: ボトルの表だけキープ欄を出す（productTypeOf と同じ判定＝カテゴリ名に「ボトル」・品名に「（ボトル）」・キープ ON の品がある表＝ウイスキー／焼酎のボトル） */
 const isBottleCat = (c: { cat: string; items: { n: string; keep: boolean }[] }): boolean => /ボトル/.test(c.cat) || c.items.some((i) => i.keep || /（ボトル）/.test(i.n));
-function Money({ value, unit, onChange, pre, width = 120, step = 1 }: { value: number; unit?: string; onChange: (n: number) => void; pre?: boolean; width?: number; step?: number }) {
+function Money({ value, unit, onChange, pre, width = 120, step = 1, integer = false }: { value: number; unit?: string; onChange: (n: number) => void; pre?: boolean; width?: number; step?: number; /** ★2026-11-13（相談役 B）: 小数を受けない（「.」を打っても欄は変わらない） */ integer?: boolean }) {
   // ★便 M5b M-50: 正本 .unit の形（¥ は左の箱・単位は右の箱・一体の枠）。¥ と 円 を同じ欄に両方付けない＝pre のときは「円」を外し「／時」などだけ右に
   const right = pre && unit ? (unit.replace(/^円/, "") || undefined) : unit;
-  return <UnitInput value={value} type="number" step={step} onChange={(v) => onChange(Number(v))} pre={pre ? "¥" : undefined} unit={right} width={width + (pre ? 34 : 0) + (right ? 44 : 0)} ariaLabel={unit ?? "数値"} />;
+  return <UnitInput value={value} type="number" step={step} onChange={(v) => { if (integer && /[.,eE]/.test(String(v))) return; onChange(Number(v)); }} pre={pre ? "¥" : undefined} unit={right} width={width + (pre ? 34 : 0) + (right ? 44 : 0)} ariaLabel={unit ?? "数値"} />;
 }
 function Text({ value, onChange, placeholder, width = 200, ariaLabel }: { value: string; onChange: (v: string) => void; placeholder?: string; width?: number | string; ariaLabel?: string }) {
   return <input value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} style={{ ...input, width }} aria-label={ariaLabel ?? placeholder} />;
@@ -620,7 +620,7 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
           <p style={lead}>カードで払うとき上乗せする率の既定値。会計のたびに「店の率／率を指定（±0.5%）／額を指定／なし」から選べます。</p>
           <Opt title="現金割引" sub={<>現金で払うお客様に割引する店の設定。領収書・日報・分析に割引額が出ます。{S.cashOff && <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 6 }}><Money value={S.cashRate} unit="% OFF" step={0.5} onChange={(n) => up((s) => { s.cashRate = n; })} width={70} /><SegSelect value={S.cashBase} onChange={(v) => up((s) => { s.cashBase = v as "total" | "subtotal"; })} options={[["total", "合計から"], ["subtotal", "小計から"]] as const} ariaLabel="割引対象" /></div>}</>}><OnOff on={S.cashOff} onChange={(v) => up((s) => { s.cashOff = v; })} label="現金割引" /></Opt>
           <div style={{ ...grid(200), marginTop: 8 }}>
-            <Field label="カード"><Money value={S.cardfee} unit="%" step={0.5} onChange={(n) => up((s) => { s.cardfee = n; })} width={70} /></Field>
+            <Field label="カード"><Money value={S.cardfee} unit="%" step={1} integer onChange={(n) => up((s) => { s.cardfee = n; })} width={70} />{/* ★2026-11-13（相談役 B）: 1% 刻みの整数（店舗設定と同じ） */}</Field>
             <Field label="端数の扱い（サービス料・税・手数料・割引）"><SegSelect value={S.round} onChange={(v) => up((s) => { s.round = v as "round" | "floor" | "ceil"; })} options={[["round", "四捨五入"], ["floor", "切り捨て"], ["ceil", "切り上げ"]] as const} ariaLabel="端数の扱い" /></Field>
           </div>
           <p style={note}>手数料はキャストの売上・ノルマ・歩合には入りません。割引は引いてから端数を丸めます。</p>
@@ -655,7 +655,7 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
             {box(4, "キャスト待遇", [["基本時給／体入", `¥${yen(p.base)}／¥${yen(p.trial)}（${p.trialDays} 日）`], ["バック（本指名・同伴）", `¥${yen(S.back.hon)}・¥${yen(S.back.dohan)}`], ["商品バックの割合（本／場内／フリー）", `${S.kindRate.hon}／${S.kindRate.jo}／${S.kindRate.free}%`], ["時給スライド", slideLabel], ["ノルマ／達成ボーナス", `${p.norma ? "使う" : "使わない"}／${p.bonus ? "使う" : "使わない"}`], ["給与", `${({ month: "月ごと", half: "半月ごと", daily: "日ごと" } as const)[pr.period]}・支払 ${pr.payday} 日`]], true)}
             {box(5, "スタッフ", [["登録", `${S.staff.filter((s) => s.n.trim()).length} 人`]])}
             {box(6, "シフト・勤怠", [["集め方", ({ want: "シフト希望", off: "休み希望のみ", store: "店が決める" } as const)[S.shift.mode]], ["必要人数（日〜土）", S.shift.need.map((n, i) => (shop.holidays.includes(WD[i]) ? 0 : n)).join("・")], ["最初の期間", `${S.firstShift.from.slice(5).replace("-", "/")}〜${S.firstShift.to.slice(5).replace("-", "/")}`], ["打刻", `${S.punch.how === "device" ? "店の端末だけ" : "本人のスマホからも"}・丸め ${S.punch.round === 1 ? "なし" : `${S.punch.round}分`}`]])}
-            {box(7, "会計・レジ", [["キャストのレジ使用", ({ off: "使わない", order: "注文まで", pay: "会計まで" } as const)[r.castReg]], ["カード手数料", `${S.cardfee}%`], ["現金割引", S.cashOff ? `${S.cashRate}%（${S.cashBase === "total" ? "合計" : "小計"}から）` : "なし"], ["領収書", S.receipt.tno ? "登録番号あり" : "登録番号なし"], ["店の端末", r.kiosk ? (S.devReg ? `登録する（${S.devName}）` : "あとで登録") : "使わない"]])}
+            {box(7, "会計・レジ", [["キャストのレジ使用", ({ off: "使わない", order: "注文まで", pay: "会計まで" } as const)[r.castReg]], ["カード手数料", `${cardFeePctOf(S)}%`], ["現金割引", S.cashOff ? `${S.cashRate}%（${S.cashBase === "total" ? "合計" : "小計"}から）` : "なし"], ["領収書", S.receipt.tno ? "登録番号あり" : "登録番号なし"], ["店の端末", r.kiosk ? (S.devReg ? `登録する（${S.devName}）` : "あとで登録") : "使わない"]])}
           </div>
           <p style={note}>書込 {planAll.steps.length} 件（店舗設定・営業時間・席・料金・商品・待遇・スタッフ・シフト・端末）。</p>
           {(run.running || run.done > 0 || run.error) && (
