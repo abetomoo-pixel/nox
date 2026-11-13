@@ -162,6 +162,13 @@ let override0201e: boolean | null = null;
 export function mig0201eOn(): boolean { return override0201e ?? MIG_0201E_APPLIED; }
 export function __set0201eForTest(v: boolean | null): void { override0201e = v; }
 
+/** ★0201g（作り直し 4・M-156 PIN の重複／推測されやすい PIN／端末ごとのロック／本人の PIN の設定は 24 時間に 5 回／kiosk_staff_list の店長の打刻の許可／ハードの保存の検査／最後の Wi-Fi）: 手貼り＝検証 16 行が全行一致（関数 442）の後に true。
+ *  client の文言（weak／taken／too_many・device_locked・pin weak／pin taken）は 28e5f8f9 で先に入れた（貼る前の DB は返さない）。 */
+export const MIG_0201G_APPLIED = true;
+let override0201g: boolean | null = null;
+export function mig0201gOn(): boolean { return override0201g ?? MIG_0201G_APPLIED; }
+export function __set0201gForTest(v: boolean | null): void { override0201g = v; }
+
 export const MIG_0197_APPLIED = true; // ★2026-11-06: 0197（sha16 f28f737489916c38）を Agoora が手貼り（06:53 UTC・本文 Success）＝verify 17 行が期待値と一致（unique は数え方の差・正本の式では 1）・関数 419・表 120・本文 3 本の md5 一致 → true
 let override0197: boolean | null = null;
 export function mig0197On(): boolean { return override0197 ?? MIG_0197_APPLIED; }

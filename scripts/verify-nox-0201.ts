@@ -21,7 +21,7 @@ import { loadEnvOrExit } from "./fixtures-f0";
 let pass = 0; const fails: string[] = [];
 const check = (label: string, ok: boolean, detail?: unknown) => { if (ok) pass++; else fails.push(`${label}${detail !== undefined ? `: ${JSON.stringify(detail).slice(0, 400)}` : ""}`); };
 const src = (p: string) => fs.readFileSync(p, "utf8");
-const FN = 440, TB = 121; // ★0201c／h／e（2026-11-12 手貼り）: 431→440
+const FN = 442 /* ★0201g（作り直し 4・手貼りの後）: 440→442 */, TB = 121; // ★0201c／h／e（2026-11-12 手貼り）: 431→440
 
 // (1)
 check("0201(1-1) MIG_0201_APPLIED=true（2026-11-11 手貼り・検証 17 行一致）・override", (MIG_0201_APPLIED as boolean) === true && mig0201On() === true);
