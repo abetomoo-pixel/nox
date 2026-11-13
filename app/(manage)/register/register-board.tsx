@@ -300,6 +300,9 @@ const DTAB_ICON: Record<"order" | "nom" | "pay", React.ReactNode> = {
   pay: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><rect x="3" y="6" width="18" height="12" rx="2" /><path d="M3 10h18" /></svg>,
 };
 
+/** ★C-2（2026-11-13 通しの確かめ）: 入金の後、伝票を読み直す間に入金済み・残額の場所へ出す文 */
+export const PAY_REFRESHING_JA = "反映中…";
+
 export default function RegisterBoard({
   seats, products, categories, casts, isManagerUp, showReserve, storeId, kioskNoms, castLevel = null,
 }: {
@@ -541,6 +544,7 @@ export default function RegisterBoard({
   const [mergeBusy, setMergeBusy] = useState(false);
   const [lines, setLines] = useState<Line[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
+  const [payRefreshing, setPayRefreshing] = useState(false); // ★C-2（2026-11-13）: 入金の後、伝票を読み直す間は入金済み・残額を「反映中…」（古い額を見せない）
   // キャストドリンク（mig0066/0067）: この伝票の確定済み claim（line_id → claim）と、
   //   キャスト選択を開いている行（null=閉）。どちらも表示状態のみ＝money 導線は RPC が権威。
   const [claims, setClaims] = useState<DrinkClaim[]>([]);
@@ -754,26 +758,29 @@ export default function RegisterBoard({
   }, [lines, check?.id]);
 
   const loadCheck = useCallback(async (checkId: string) => {
-    const { data: c } = await supabase.from("checks").select("*").eq("id", checkId).single();
-    const { data: ls } = await supabase
+    // ★C-2（2026-11-13 通しの確かめ）: 伝票と関係する 8 本は互いに依存しない＝同時に投げる（順番に 1 本ずつ待つと入金の後の「入金済み」が 0.5〜3 秒古いまま見えた）。中身と並べ方は変えない
+    const [{ data: c }, { data: ls }, { data: dcs }, { data: ps }, { data: ns }, { data: aps }, { data: cs }, { data: cr }] = await Promise.all([
+    supabase.from("checks").select("*").eq("id", checkId).single(),
+    /* ls */ supabase
       // back_snapshot＝キャストドリンク判定の凍結値（mig0070）。中身は back_exempt だけを見る。
       .from("check_lines").select("id, kind, pay_group, name_snapshot, unit_price_snapshot, qty, line_total, back_snapshot, time_auto, fee_kind, cast_id, block_no, tax_category, customer_id, product_id, created_at") // ★0153: 注文者（同じ取得に同乗）
-      .eq("check_id", checkId).order("sort_order");
+      .eq("check_id", checkId).order("sort_order"),
     // キャストドリンク: 確定済み（approved）の claim だけを引く。void/rejected は行に紐づけない。
-    const { data: dcs } = await supabase
+    /* dcs */ supabase
       .from("drink_claims").select("id, check_line_id, cast_id, back_amount")
-      .eq("check_id", checkId).eq("status", "approved");
-    const { data: ps } = await supabase
-      .from("payments").select("id, pay_group, method, amount, tendered, method_detail").eq("check_id", checkId).order("paid_at");
-    const { data: ns } = await supabase
-      .from("check_nominations").select("cast_id, ratio_weight, nom_kind, is_dohan, prev_kind, kind_changed_at, created_at, ended_at").eq("check_id", checkId).order("position"); // ★便 S（S-6 ②）: 着席ログの 2 列 // ★0169（裁定341）: 切替記録の 2 列
-    const { data: aps } = await supabase
+      .eq("check_id", checkId).eq("status", "approved"),
+    /* ps */ supabase
+      .from("payments").select("id, pay_group, method, amount, tendered, method_detail").eq("check_id", checkId).order("paid_at"),
+    /* ns */ supabase
+      .from("check_nominations").select("cast_id, ratio_weight, nom_kind, is_dohan, prev_kind, kind_changed_at, created_at, ended_at").eq("check_id", checkId).order("position"), // ★便 S（S-6 ②）: 着席ログの 2 列 // ★0169（裁定341）: 切替記録の 2 列
+    /* aps */ supabase
       .from("approvals").select("id, pay_group, type, amount, status, reason, requested_by, created_at")
-      .eq("check_id", checkId).order("created_at", { ascending: false });
+      .eq("check_id", checkId).order("created_at", { ascending: false }),
     // B1/B2: この伝票の追加席一覧（席セクションの表示＋解除ボタン）
-    const { data: cs } = await supabase.from("check_seats").select("id, seat_id, check_id").eq("check_id", checkId);
+    /* cs */ supabase.from("check_seats").select("id, seat_id, check_id").eq("check_id", checkId),
     // ★0152: この伝票の紹介（1 伝票 1 紹介・無ければ null）
-    const { data: cr } = await supabase.from("check_referrals").select("id, referrer_id, method, value, burden, amount, frozen_at, memo").eq("check_id", checkId).maybeSingle();
+    /* cr */ supabase.from("check_referrals").select("id, referrer_id, method, value, burden, amount, frozen_at, memo").eq("check_id", checkId).maybeSingle(),
+    ]);
     // B4: 伝票の store の time_mode を live 取得（非スナップ＝裁定(g)。RLS で自店/自 org のみ可視）
     if (c) {
       const { data: st } = await supabase.from("stores").select("time_mode").eq("id", (c as CheckRow).store_id).single();
@@ -1675,7 +1682,8 @@ export default function RegisterBoard({
       ? { to: MSG_PAY, text: rpcErrJaCommon(error.message), kind: "bad" }
       : { to: MSG_PAY, text: `${yen(paidAmt)} を入金しました${feeN ? `（${payFeeLabelJa(feeN.key)} ${noteModeOf(feeN) !== "auto" ? PAY_FEE_MODE_LABEL[noteModeOf(feeN)] : `${feeN.rate}%`}＝${yen(feeN.fee)} を伝票に追加・お客様から ${yen(feeN.receive)}）` : ""}`, kind: "ok" });
     if (!error) { setPayTendered(""); setPayDetail(""); setFeeMode("auto"); setFeeManual(""); setDiscMode("auto"); setDiscManual(""); setDiscRateIn(""); }
-    await loadCheck(check.id);
+    if (!error) setPayRefreshing(true); // ★C-2
+    try { await loadCheck(check.id); } finally { setPayRefreshing(false); }
     return !error;
   }
 
@@ -2958,7 +2966,7 @@ export default function RegisterBoard({
         </div>
         {dtab === "pay" && (() => { const paidSum = groupInfo.reduce((a, gi) => a + gi.paid, 0); const remSum = groupInfo.reduce((a, gi) => a + Math.max(0, gi.remaining), 0); return (
           <div className="nox-paysticky num" data-pay-sticky="1">{/* ★M-136: 会計中は卓名（上の段）・請求額・入金済み・残額を上に固定 */}
-            <span>請求 <b>{yen(sumDue)}</b></span><span>入金済み <b>{yen(paidSum)}</b></span><span>残額 <b style={{ color: remSum > 0 ? "var(--bad)" : "var(--ok)" }}>{yen(remSum)}</b></span>
+            <span>請求 <b>{yen(sumDue)}</b></span><span>入金済み <b data-pay-refreshing={payRefreshing ? "1" : undefined}>{payRefreshing ? PAY_REFRESHING_JA : yen(paidSum)}</b></span><span>残額 <b style={{ color: payRefreshing ? "var(--sub)" : remSum > 0 ? "var(--bad)" : "var(--ok)" }}>{payRefreshing ? PAY_REFRESHING_JA : yen(remSum)}</b></span>
           </div>); })()}
         </div>{/* /nox-regsticky */}
         {peopleMsg && <Toast msg={peopleMsg} style={{ margin: "6px 0 0" }} />}
@@ -2992,7 +3000,7 @@ export default function RegisterBoard({
           return (
           <div className="nox-cardtop nox-payhead" style={card} data-pay-head="1">
             <div className="nox-payhead-amt"><span className="l">請求額</span><span className="num v" data-pay-head-due={sumDue}>{yen(sumDue)}</span></div>
-            <div className="nox-payhead-sub num">入金済み {yen(paidSum)}<span aria-hidden="true">・</span>残額 <b style={{ color: remSum > 0 ? "var(--bad)" : "var(--ok)" }} data-pay-head-rem={remSum}>{yen(remSum)}</b></div>
+            <div className="nox-payhead-sub num">入金済み {payRefreshing ? PAY_REFRESHING_JA : yen(paidSum)}<span aria-hidden="true">・</span>残額 <b style={{ color: payRefreshing ? "var(--sub)" : remSum > 0 ? "var(--bad)" : "var(--ok)" }} data-pay-head-rem={remSum}>{payRefreshing ? PAY_REFRESHING_JA : yen(remSum)}</b></div>
           {!allCovered && (
             <div data-pay-step="1" style={{ display: "grid", gap: 8, margin: "10px 0 8px" }}>
               {splitOn && <div>{groupSeg(payGroup || "A", setPayGroup)}</div>}

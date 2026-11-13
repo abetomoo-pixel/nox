@@ -1592,6 +1592,21 @@ async function main() {
       JSON.stringify(r.rows));
   }
 
+  // G44（0201e3・2026-11-13 本番適用）: 伝票系 6 表の SELECT ポリシー 12 本は auth_* を (select f()) で包んだ形（行ごとでなく 1 回だけ評価）
+  {
+    const T6 = ["checks", "check_lines", "check_nominations", "check_seats", "payments", "bottle_keeps"];
+    const r = await db.query(
+      `select tablename, policyname, qual,
+              regexp_count(qual, 'auth_[a-z_]+\\(\\)') - regexp_count(qual, 'SELECT auth_[a-z_]+\\(\\)') as bare
+       from pg_policies where schemaname = 'public' and tablename = any($1) and cmd = 'SELECT' order by tablename, policyname`,
+      [T6],
+    );
+    const wrapped = r.rows.filter((x) => String(x.qual).includes("( SELECT auth_"));
+    const bare = r.rows.reduce((a, x) => a + Number(x.bare), 0);
+    check("G44 伝票系 6 表の SELECT ポリシー＝12 本・全部が 1 回だけ評価する形（( SELECT auth_…) で包む）", r.rowCount === 12 && wrapped.length === 12, r.rows.map((x) => `${x.tablename}.${x.policyname}`).join(", "));
+    check("G44 包まれていない auth_ の呼び出し＝0", bare === 0, bare);
+  }
+
   await db.end();
 
   if (fails.length) {

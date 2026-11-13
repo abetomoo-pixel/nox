@@ -168,5 +168,24 @@ const LATIN = /[A-Za-z]/;
     && lg.indexOf('fetch("/api/kiosk/person-end"') > 0 && lg.indexOf('fetch("/api/kiosk/person-end"') < lg.indexOf("signInWithPassword"));
 }
 
+// ★通しの確かめ C-1・C-2・C-6（2026-11-13・相談役＝テスター店舗への依頼の前に直す）
+{
+  const nf = fs.readFileSync("app/not-found.tsx", "utf8");
+  check("b6(c1-1) 404 は日本語の画面（not-found.tsx・英字の文を出さない）",
+    nf.includes('const NOT_FOUND_TITLE = "ページが見つかりません";') && nf.includes("トップへ戻る") && nf.includes('href="/"') && !/could not be found/i.test(nf));
+  const rb = fs.readFileSync("app/(manage)/register/register-board.tsx", "utf8");
+  const lc = rb.slice(rb.indexOf("const loadCheck = useCallback"), rb.indexOf("const loadCheck = useCallback") + 4000);
+  check("b6(c2-1) 伝票の読み直しは 8 本を同時に投げる（Promise.all・順番に 1 本ずつ待たない）",
+    lc.includes("const [{ data: c }, { data: ls }, { data: dcs }, { data: ps }, { data: ns }, { data: aps }, { data: cs }, { data: cr }] = await Promise.all([")
+    && !/const \{ data: (ls|dcs|ps|ns|aps|cs|cr) \} = await supabase/.test(lc));
+  check("b6(c2-2) 入金の後、読み直しの間は入金済み・残額を「反映中…」（古い額を見せない）",
+    rb.includes('export const PAY_REFRESHING_JA = "反映中…";') && rb.includes("if (!error) setPayRefreshing(true);") && rb.includes("try { await loadCheck(check.id); } finally { setPayRefreshing(false); }")
+    && (rb.match(/payRefreshing \? PAY_REFRESHING_JA : yen\(paidSum\)/g) ?? []).length === 2 && (rb.match(/payRefreshing \? PAY_REFRESHING_JA : yen\(remSum\)/g) ?? []).length === 2);
+  const css = fs.readFileSync("app/globals.css", "utf8");
+  check("b6(c6-1) /mine の勤怠の表は入れ物の幅（600px 以下）で 3 列に畳む（PC でも横に送らない）",
+    css.includes("[data-mine-kintai] { container-type: inline-size; }") && css.includes("@container (max-width: 600px) { [data-mine-kintai] .nox-kintai-table .opt { display: none; }")
+    && fs.readFileSync("app/mine/page.tsx", "utf8").includes('data-mine-kintai="1"'));
+}
+
 if (fails.length) { console.error(`FAIL ${fails.length} 件 / pass ${pass}`); for (const f of fails) console.error(" - " + f); process.exit(1); }
 console.log(`verify:nox-b6 ALL PASS (${pass} assertions)`);

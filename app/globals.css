@@ -2712,6 +2712,9 @@ body {
 .nox-kintai-table td.opt, .nox-kintai-table th.opt { white-space: normal; }
 /* ★裁定492（2026-11-12 Agoora 実機）: 見出しは折り返さない（「店の修正」「遅刻・当欠・早退」が 1 文字ずつ縦に折れていた）＝本文の .opt は今までどおり折り返す・はみ出す分は表の外枠が横に送る */
 .nox-kintai-table thead th.opt { white-space: nowrap; }
+/* ★C-6（2026-11-13 通しの確かめ）: /mine の勤怠の表＝画面の幅でなく入れ物の幅で畳む（PC でも /mine の枠は約 400px＝表 807px が横に送らないと見えなかった）。600px 以下の枠は 日付・出／退・日計 の 3 列＋行を押して残り（390px と同じ形） */
+[data-mine-kintai] { container-type: inline-size; }
+@container (max-width: 600px) { [data-mine-kintai] .nox-kintai-table .opt { display: none; } [data-mine-kintai] .nox-kintai-table { font-size: 12px; } }
 @media (max-width: 430px) { .nox-kintai .nox-kintai-table .opt { display: none; } .nox-kintai .nox-kintai-table { font-size: 12px; } }
 /* ★便 SH-UI-c2 C2-4／C2-6（2026-10-23）: 390px＝1 人の表は 日付・出／退・日計（.opt を隠す＝実働と日計以外の金額列も .opt）・合計表は キャスト｜日数｜現時点の差引（.nox-kintai-sum .opt を隠す・▸ で残りを開く）。広い幅は ▸ を出さない */
 .nox-kintai .nox-kintai-sum-more { display: none; }
