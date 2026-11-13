@@ -23,6 +23,12 @@ import { STAFF_MY_WORK_RPC, staffMyWorkViewOf } from "../lib/nox/staff/my-work";
 
 let pass = 0; const fails: string[] = [];
 const check = (label: string, ok: boolean, detail?: unknown) => { if (ok) pass++; else fails.push(`${label}${detail !== undefined ? `: ${JSON.stringify(detail).slice(0, 400)}` : ""}`); };
+import { PUNCH_PENDING_TEXT, punchStateAfterOf, punchStateShownOf } from "../lib/nox/shift/punch-pending";
+import { hoursMinutesJaOf } from "../lib/nox/mine/attendance-month";
+import { TRIAL_WAGE_NOT_IN_PAY_NOTE } from "../lib/nox/cast/trial-terms";
+import { PRIVACY_PUBLISHED_ON, privacyBlocksOf, privacyPublishedOf } from "../lib/nox/legal/privacy";
+import { pinSelfErrJa } from "../components/nox/pin-self-card";
+import { unlockNextOf } from "../lib/nox/rules-0175/kiosk";
 const src = (p: string) => fs.readFileSync(p, "utf8");
 const J = JSON.stringify;
 const LATIN = /[A-Za-z]/;
@@ -185,6 +191,27 @@ const LATIN = /[A-Za-z]/;
   check("b6(c6-1) /mine の勤怠の表は入れ物の幅（600px 以下）で 3 列に畳む（PC でも横に送らない）",
     css.includes("[data-mine-kintai] { container-type: inline-size; }") && css.includes("@container (max-width: 600px) { [data-mine-kintai] .nox-kintai-table .opt { display: none; }")
     && fs.readFileSync("app/mine/page.tsx", "utf8").includes('data-mine-kintai="1"'));
+}
+
+// ★2026-11-13 client 便（相談役【3】a〜d・0201g の文言）
+{
+  const pend = src("lib/nox/shift/punch-pending.ts"), pa = src("app/mine/punch-actions.tsx"), pg2 = src("app/mine/page.tsx");
+  check("b6(c7-1) 打刻の直後＝打刻の後の状態で先に描く（出勤→出勤中・退勤→退勤済み・サーバーが追いついたら外す）",
+    punchStateAfterOf("in") === "open" && punchStateAfterOf("out") === "closed" && punchStateShownOf("none", { from: "none", to: "open" }) === "open" && punchStateShownOf("open", { from: "none", to: "open" }) === "open" && punchStateShownOf("closed", { from: "none", to: "open" }) === "closed" && punchStateShownOf("none", null) === "none");
+  check("b6(c7-2) 読み直しの間はサーバーで描いた行（今日のシフト・レジの理由）を「反映中…」に",
+    PUNCH_PENDING_TEXT === "反映中…" && pend.includes("PUNCH_PENDING_EVENT") && pa.includes("startRefresh(() => router.refresh())") && pa.includes("punchStateShownOf(state, optimistic)") && pg2.includes('<PunchPending attr="register-note">') && pg2.includes('<PunchPending attr="today-shift">'));
+  check("b6(c7-3) /mine の勤怠の行の時間＝「◯ 時間 ◯ 分」（0.9666…h＝0 時間 58 分・額は変えない）",
+    hoursMinutesJaOf(0.9666666666666667) === "0 時間 58 分" && hoursMinutesJaOf(7.5) === "7 時間 30 分" && hoursMinutesJaOf(2) === "2 時間 0 分" && src("components/nox/kintai-row.tsx").includes("× ${hoursMinutesJaOf(p.hours)}）") && !src("components/nox/kintai-row.tsx").includes("× ${p.hours}h"));
+  check("b6(c7-4) 体入の時給の欄の注記（店舗設定・キャスト・初期設定の 3 か所）",
+    TRIAL_WAGE_NOT_IN_PAY_NOTE === "体入の時給は、まだ給与の計算に反映されません" && ["app/(manage)/master/trial-terms-panel.tsx", "app/(manage)/casts/casts-board.tsx", "app/(manage)/setup/setup-wizard.tsx"].every((f) => src(f).includes("{TRIAL_WAGE_NOT_IN_PAY_NOTE}")));
+  const md = src("docs/legal/privacy_v0.5.md"); const bl = privacyBlocksOf(md, "2026-11-20");
+  check("b6(c7-5) /privacy＝公開の前は 404・リンクを出さない（LP・ログイン・規約）／本文は docs/legal/privacy_v0.5.md・表 5 つ・制定日に公開の日",
+    PRIVACY_PUBLISHED_ON === null && !privacyPublishedOf() && privacyPublishedOf("2026-11-20") && src("app/privacy/page.tsx").includes("if (!privacyPublishedOf()) notFound();")
+    && ["app/lp/page.tsx", "app/login/page.tsx", "app/terms/page.tsx"].every((f) => src(f).includes("privacyPublishedOf() &&") && src(f).includes("PRIVACY_PATH"))
+    && bl.filter((b) => b.kind === "table").length === 5 && bl.some((b) => b.kind === "p" && b.text === "制定日：2026 年 11 月 20 日") && bl[0].kind === "h1" && md.includes("制定日：{{公開日}}"));
+  check("b6(c7-6) 0201g の文言（本人の設定 weak／taken／too_many・端末の device_locked・管理側の pin weak／pin taken）",
+    pinSelfErrJa("too_many") === "PIN の変更は 1 日 5 回までです。店長に設定を頼んでください。" && pinSelfErrJa("weak") === "推測されやすい番号は使えません" && pinSelfErrJa("taken") === "この PIN は使えません。別の番号にしてください"
+    && unlockNextOf({ ok: false, reason: "device_locked" }).message === "この端末はしばらく使えません（PIN の失敗が続きました）" && rpcErrJa("pin weak") === "推測されやすい番号は使えません" && rpcErrJa("pin taken") === "この PIN は使えません。別の番号にしてください");
 }
 
 if (fails.length) { console.error(`FAIL ${fails.length} 件 / pass ${pass}`); for (const f of fails) console.error(" - " + f); process.exit(1); }

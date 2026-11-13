@@ -2,6 +2,7 @@
 
 // ★0201c（裁定480・2026-11-12）: 店舗設定 › 店舗情報「体験入店の条件」＝店の既定（settings_json の trial_wage・trial_back・trial_guarantee_days）。
 //   保存＝set_store_profile（オーナーだけ・変更分だけの patch）。店長は値を見るだけ。キャストごとの上書きはキャスト管理の詳細（set_cast_trial）。
+import { TRIAL_WAGE_NOT_IN_PAY_NOTE } from "@/lib/nox/cast/trial-terms"; // ★2026-11-13（相談役【3】c）
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
@@ -58,6 +59,7 @@ export default function TrialTermsPanel({ stores, isOwner }: { stores: { id: str
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10 }}>
         <label style={{ display: "block", minWidth: 0 }}>
           <span style={label}>体入の時給<span style={{ fontWeight: 400, marginLeft: 6 }}>0〜100,000 円</span></span>
+          <span data-trial-wage-note="1" style={{ display: "block", fontSize: 12, color: "var(--warning)", margin: "0 0 4px" }}>{TRIAL_WAGE_NOT_IN_PAY_NOTE}</span>{/* ★2026-11-13（相談役【3】c）: 式が入った便で外す */}
           <UnitBox pre="¥" width="100%"><input type="number" inputMode="numeric" min={0} max={100000} value={form.wage} disabled={ro} onChange={(e) => setForm((f) => ({ ...f, wage: e.target.value.replace(/[^0-9]/g, "").slice(0, 6) }))} style={input} aria-label="体入の時給" data-trial-wage="1" /></UnitBox>
         </label>
         <label style={{ display: "block", minWidth: 0 }}>

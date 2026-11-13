@@ -8,6 +8,7 @@ import { useState } from "react";
 import * as t from "@/lib/nox/ui/theme";
 import { BASIS_MARK, correctionTextOf, flagsTextOf, hm47Ja, kintaiOutCellOf, type AttendanceDayRow } from "@/lib/nox/payroll/attendance-sheet";
 import { backsDetailTextOf, yenCellOf } from "@/lib/nox/payroll/daily-pay";
+import { hoursMinutesJaOf } from "@/lib/nox/mine/attendance-month"; // ★2026-11-13（相談役【3】b）: 時間は「◯ 時間 ◯ 分」
 
 export const KINTAI_HEADS = ["日付", "確定シフト", "出", "退", "店の修正", "遅刻・当欠・早退", "実働", "送り", "備考"] as const;
 export const KINTAI_PAY_HEADS = ["時給分", "バック", "罰金・減額", "控除", "日計"] as const; // ★0195（裁定447 ③）: 「控除」列＝その日に引いた日ごとの控除
@@ -77,7 +78,7 @@ export default function KintaiRow({ r, withBy, onEdit, withPay = r.pay !== undef
       {open && (
         <tr className="nox-kintai-more" data-kintai-more={r.bizDate}><td colSpan={9 + (withPay ? KINTAI_PAY_HEADS.length : 0)} style={{ ...t.td, fontSize: 12, color: "var(--sub)" }}>
           確定シフト {r.shift ? `${r.shift.start}–${hm47Ja(r.shift.end)}` : "—"}／実働 {hoursTxt}{r.hours > 0 ? `（${BASIS_MARK[r.basis]}）` : ""}／{flags || "遅刻・当欠・早退なし"}／送り {r.okuri.n > 0 ? `${r.okuri.n}（${r.okuri.modes.join("・")}）` : "なし"}／{r.corrections.length > 0 ? r.corrections.map((c) => correctionTextOf(c, withBy)).join(" / ") : "店の修正なし"}{r.note ? `／${r.note}` : ""}
-          {withPay && p && <><br />時給分 {yenCellOf(p.wage)}{p.hourly ? `（¥${p.hourly.toLocaleString("en-US")}/h × ${p.hours}h）` : ""}／バック {yenCellOf(p.backs.total)}{p.backs.total !== 0 ? `（${backsDetailTextOf(p.backs)}）` : ""}／罰金・減額 {yenCellOf(p.fine, { neg: true })}{p.fineNotes.length ? `（${p.fineNotes.join("・")}）` : ""}／控除 {yenCellOf(p.ded, { neg: true })}{p.dedNotes.length ? `（${p.dedNotes.join("・")}）` : ""}／日計 {yenCellOf(p.total)}</>}
+          {withPay && p && <><br />時給分 {yenCellOf(p.wage)}{p.hourly ? `（¥${p.hourly.toLocaleString("en-US")}/h × ${hoursMinutesJaOf(p.hours)}）` : ""}／バック {yenCellOf(p.backs.total)}{p.backs.total !== 0 ? `（${backsDetailTextOf(p.backs)}）` : ""}／罰金・減額 {yenCellOf(p.fine, { neg: true })}{p.fineNotes.length ? `（${p.fineNotes.join("・")}）` : ""}／控除 {yenCellOf(p.ded, { neg: true })}{p.dedNotes.length ? `（${p.dedNotes.join("・")}）` : ""}／日計 {yenCellOf(p.total)}</>}
         </td></tr>
       )}
     </>

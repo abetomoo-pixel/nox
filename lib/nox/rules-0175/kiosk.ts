@@ -46,6 +46,7 @@ export function unlockNextOf(r: UnlockResult): { phase: "unlocked" | "choose" | 
   if (r.reason === "ambiguous") return { phase: "choose", message: "同じ PIN の人が複数います。名前を選んでください", candidates: r.candidates ?? [] };
   if (r.reason === "locked") return { phase: "pin", message: "失敗が続いたためロック中です（しばらくしてから）" };
   if (r.reason === "bad_pin") return { phase: "pin", message: "PIN は 4〜6 桁の数字です" };
+  if (r.reason === "device_locked") return { phase: "pin", message: "この端末はしばらく使えません（PIN の失敗が続きました）" }; // ★0201g（M-156）: 端末ごとのロック（貼る前の DB は返さない）
   return { phase: "pin", message: "PIN が違います" };
 }
 /** キオスクで出さない機能（裁定423 候補 (f)）＝ログアウト・店設定・給与（店設定で解禁可・既定 OFF）・顧客の個人情報 */

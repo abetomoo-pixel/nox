@@ -52,6 +52,8 @@ export function monthAttendanceRowsStoreOf(input: { shifts: ShiftRow[]; attendan
 export const ATTENDANCE_MONTH_NOTE_STORE = "この店は打刻がありません＝確定シフトの日を表示（出＝開始・退＝終了・実働＝給与と同じ計算・当欠／休みは —）";
 
 /** 実働の表示（給与一覧の hoursCellOf と同じ「Nh」・0 は —） */
+/** ★2026-11-13（相談役【3】b）: 時間（小数）→「◯ 時間 ◯ 分」（分に丸める・額の計算は変えない＝表示だけ）。0.9666…h＝「0 時間 58 分」 */
+export const hoursMinutesJaOf = (hours: number): string => { const mins = Math.round(hours * 60); return `${Math.floor(mins / 60)} 時間 ${mins % 60} 分`; };
 export const hoursLabelOf = (hours: number): string => (hours > 0 ? `${Math.round(hours * 10) / 10}h` : "—");
 
 /** 当日の「出勤 HH:MM／退勤 HH:MM」（打刻なしは —） */

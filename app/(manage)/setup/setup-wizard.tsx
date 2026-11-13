@@ -6,6 +6,7 @@
 //   完了画面＝キャスト 1 人ずつ／CSV（9 列）・PIN 一覧印刷・ホームへ。入力は自動保存（localStorage＝店ごと・途中で離れても再開＝org 単位の表は 0191 setup_drafts の後）。
 //   器が無い項目（V5_SAVE_MAP has=false）は画面に出して保存は「後で（マスタから）」の注記。主ボタンは中央（.nox-actions・教訓122）・iPad 横 1,024 と 390 の両方。既存の org（初期設定済み）には page が出さない。
 //   UI 規約 238〜244・新トークン 0。書込は既存 RPC（v5.ts の計画）＋route 3 本（/api/staff/create・/api/kiosk/provision・/api/cast/invite）。
+import { TRIAL_WAGE_NOT_IN_PAY_NOTE } from "@/lib/nox/cast/trial-terms"; // ★2026-11-13（相談役【3】c）
 import { applyMenuTemplate, menuTemplatesFor, tplStartBlockedOf, type TplConfirm } from "@/lib/nox/setup/menu-template"; // ★便 M6
 import DatePicker from "@/components/ui/date-picker"; // ★M-82（裁定452・教訓133）: 日付は共通のピッカー
 import { PUNCH_CHOICE_NOTE, PUNCH_CHOICE_OPTIONS } from "@/lib/nox/shift/punch-mode"; // ★便 E（0197 用）
@@ -460,6 +461,7 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
             <Field label="体験入店の日数"><Money value={p.trialDays} unit="日" onChange={(n) => up((s) => { s.pay.trialDays = n; })} width={70} /></Field>
           </div>
           <p style={note}>体入で登録したキャストは、この時給（保証）で日数分働き、本採用で基本時給とスライドに切り替わります。</p>
+          <p data-trial-wage-note="1" style={{ ...note, color: "var(--warning)" }}>{TRIAL_WAGE_NOT_IN_PAY_NOTE}</p>{/* ★2026-11-13（相談役【3】c）: 式が入った便で外す */}
           <h3 style={h3}>バック</h3>
           <p style={lead}>指名・同伴は 1 本（1 回）あたりの額。ドリンク・ボトルは値段に対する率の既定です。商品ごとに「円」か「%」をメニューで選べます。</p>
           <Opt title="ドリンクの本数バック" sub="ON＝キャストドリンク 1 杯ごとに下の率で返す。OFF＝本数では返さず、ドリンクの売上を売上小計に含めて指名率・スライドで返す（「誰のドリンクか」はレジに出ません）。"><OnOff on={S.drinkBack} onChange={(v) => up((s) => { s.drinkBack = v; })} label="ドリンクの本数バック" /></Opt>

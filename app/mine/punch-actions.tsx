@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { mig0196On, mig0198On, mig0201On } from "@/lib/nox/rules-0175/flag"; // ★便 D M-103（0196 まで非表示）★0198（裁定461）: 本人は選べない ★0201: route
 import { overridableOf, selfPunch, selfPunchErrJa } from "@/lib/nox/punch/self-client"; // ★0201（裁定474）: 本人のスマホ打刻は route
 import PunchReason from "./punch-reason";
@@ -13,6 +13,7 @@ import { rpcErrJa } from "@/lib/nox/ui/rpc-err";
 import { okuriSelfPlanOf, okuriResultTextOf, OKURI_PENDING_NOTE } from "@/lib/nox/shift/okuri-self";
 import { okuriOutTextOf, type OkuriMode } from "@/lib/nox/shift/okuri-mode"; // ★裁定414（S-4）: 方式の 1 文
 import { PUNCH_STATE_NOTE, punchButtonsOf, type PunchState } from "@/lib/nox/shift/punch-state";
+import { PUNCH_PENDING_EVENT, punchStateAfterOf, punchStateShownOf } from "@/lib/nox/shift/punch-pending"; // ★2026-11-13（相談役【3】a）: 打刻の直後に古い状態を見せない
 
 // ★裁定326 追補3（便 M1-4・2026-09-30）: 3 状態（未出勤／出勤中／退勤済み）は page.tsx が当日営業日の自分の打刻から punchStateOf で導き state を渡す（新規 fetch 0）。
 //   未出勤＝出勤 活性（主）・退勤 不活性・送り 不活性・補助文「出勤打刻がありません」／出勤中＝出勤 不活性・退勤 活性（主）・送り 活性／退勤済み＝両方不活性・補助文「本日は退勤済みです…」。
@@ -33,8 +34,13 @@ export default function PunchActions({ okuriMode = "flat", okuriBase = null, sta
   const [reason, setReason] = useState("");
   const plan = okuriSelfPlanOf({ okuri_mode: okuriMode, okuri_base_amount: okuriBase });
   const okuriActual = plan.ask; // ★裁定414: 名前は従来のまま＝意味は「送りの導線を出す店」（'none' 以外）
-  const btn = punchButtonsOf(state);
-  const note = PUNCH_STATE_NOTE[state];
+  // ★2026-11-13（相談役【3】a）: 打刻が通ったら読み直しが終わるまで打刻の後の状態で描く・サーバーで描いた行は PunchPending が「反映中…」に替える
+  const [optimistic, setOptimistic] = useState<{ from: PunchState; to: PunchState } | null>(null);
+  const [refreshing, startRefresh] = useTransition();
+  const shown = punchStateShownOf(state, optimistic);
+  useEffect(() => { if (!refreshing) { setOptimistic(null); window.dispatchEvent(new CustomEvent(PUNCH_PENDING_EVENT, { detail: false })); } }, [refreshing]);
+  const btn = punchButtonsOf(shown);
+  const note = PUNCH_STATE_NOTE[shown];
 
   async function punch(type: "in" | "out") {
     setBusy(true);
@@ -73,7 +79,8 @@ export default function PunchActions({ okuriMode = "flat", okuriBase = null, sta
     setMsg(error ? rpcErrJa(error.message) : type === "in" ? `出勤を打刻しました${dedNote}` : okuriResultTextOf(okuriActual && okuri, outcome, plan.amount, plan.mode));
     if (!error && type === "out") setOkuri(false);
     setBusy(false);
-    router.refresh();
+    if (!error) { setOptimistic({ from: state, to: punchStateAfterOf(type) }); window.dispatchEvent(new CustomEvent(PUNCH_PENDING_EVENT, { detail: true })); }
+    startRefresh(() => router.refresh());
   }
 
   return (

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { PRIVACY_PATH, privacyPublishedOf } from "@/lib/nox/legal/privacy"; // ★2026-11-13（相談役【3】d）: 公開までリンクを出さない
 import Link from "next/link";
 import fs from "node:fs";
 import path from "node:path";
@@ -32,6 +33,7 @@ export default function TermsPage() {
           return <p key={i} style={{ margin: "0 0 8px" }}>{b.text ?? ""}</p>; // 規約の本文＝メッセージではない（ms(2-1) の RAW_PROP 形を避ける・E-16: JSX コメントは式の外に置かない）
         })}
         <p style={{ marginTop: 24 }}><Link href="/terms/accept" style={{ color: "var(--gold)" }}>同意画面へ</Link></p>
+        {privacyPublishedOf() && <p style={{ marginTop: 8 }}><Link href={PRIVACY_PATH} style={{ color: "var(--gold)" }} data-privacy-link="terms">プライバシーポリシー</Link></p>}
       </article>
     </main>
   );

@@ -13,6 +13,10 @@ export const PIN_SELF_ERR_JA: Record<string, string> = {
   "bad current": "今の PIN が違います",
   locked: "続けて間違えたため、しばらく変更できません。時間をおいてやり直してください",
   "bad pin": "新しい PIN は 4〜6 桁の数字にしてください",
+  // ★0201g（作り直し 4・2026-11-13 相談役）: 貼る前の DB は返さない＝先に入れても出ない
+  weak: "推測されやすい番号は使えません",
+  taken: "この PIN は使えません。別の番号にしてください",
+  too_many: "PIN の変更は 1 日 5 回までです。店長に設定を頼んでください。",
 };
 export const pinSelfErrJa = (reason: string): string => PIN_SELF_ERR_JA[reason] ?? `変更できませんでした（${reason}）`;
 

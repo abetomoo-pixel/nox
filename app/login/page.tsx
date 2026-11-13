@@ -1,5 +1,6 @@
 "use client";
 
+import { PRIVACY_PATH, privacyPublishedOf } from "@/lib/nox/legal/privacy"; // ★2026-11-13（相談役【3】d）: 公開までリンクを出さない
 import { useEffect, useState } from "react";
 import Link from "next/link"; // ★M-84
 import BrandLogo from "@/components/ui/brand-logo"; // ★便 SH-UI-a A-2: ロゴ（Concept 2 改）
@@ -83,7 +84,7 @@ export default function LoginPage() {
             {busy ? "確認中…" : "ログイン"}
           </button>
         </form>
-        <p style={{ textAlign: "center", marginTop: 14, fontSize: 12.5 }}><Link href="/auth/forgot" className="nox-link" data-login-forgot="1">パスワードをお忘れの方</Link></p>{/* ★M-84（2026-11-05）: resetPasswordForEmail（redirectTo＝/auth/set-password）の 1 画面へ */}
+        <p style={{ textAlign: "center", marginTop: 14, fontSize: 12.5 }}><Link href="/auth/forgot" className="nox-link" data-login-forgot="1">パスワードをお忘れの方</Link></p>{privacyPublishedOf() && <p style={{ textAlign: "center", marginTop: 8, fontSize: 12 }}><Link href={PRIVACY_PATH} className="nox-link" data-privacy-link="login">プライバシーポリシー</Link></p>}{/* ★M-84（2026-11-05）: resetPasswordForEmail（redirectTo＝/auth/set-password）の 1 画面へ */}
       </div>
     </main>
   );

@@ -3,6 +3,7 @@
 // キャスト管理ボード（F3d 体入採用 UI・モック「体入・採用管理」＋「新規キャスト登録」準拠）。
 // 操作は全て RPC 経由＝trial_register/trial_update/trial_hire/trial_reject／cast_create。
 // 真の防御は trials RLS（owner/manager 限定）＋各 RPC ゲート（UI は操作面）。
+import { TRIAL_WAGE_NOT_IN_PAY_NOTE } from "@/lib/nox/cast/trial-terms"; // ★2026-11-13（相談役【3】c）
 import { LoadMoreBar, useLoadMore } from "@/components/ui/load-more"; // ★便 M5b M-60
 import { PIN_DIGITS_LABEL, PIN_MAX, PIN_SHAPE_RE } from "@/components/nox/pin-pad"; // ★M-179: 桁数は 1 か所の定数から
 import Loading from "@/components/ui/loading"; // ★M-135: 読み込み中の表示の共通部品
@@ -1138,6 +1139,7 @@ export default function CastsBoard({
                     </div>
                     {f && (
                       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end", marginTop: 6 }}>
+                        <span data-trial-wage-note="1" style={{ flexBasis: "100%", fontSize: 12, color: "var(--warning)" }}>{TRIAL_WAGE_NOT_IN_PAY_NOTE}</span>{/* ★2026-11-13（相談役【3】c）: 式が入った便で外す */}
                         <label style={{ display: "grid", gap: 2 }}>時給（空欄＝店の既定）
                           <UnitBox pre="¥" width={140}><input type="number" inputMode="numeric" min={0} max={100000} value={f.wage} disabled={busy} onChange={(e) => setTrialForm({ ...f, wage: e.target.value })} style={input} aria-label="体入の時給" placeholder={st.wage !== null ? String(st.wage) : ""} /></UnitBox>
                         </label>

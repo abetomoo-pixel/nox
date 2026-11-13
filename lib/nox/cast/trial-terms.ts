@@ -59,3 +59,6 @@ export function trialDecideArgsOf(castId: string, decision: "hire" | "decline", 
 export function trialCastColsOf(): string {
   return mig0201cOn() ? ", trial_wage, trial_days, trial_started_on" : "";
 }
+
+/** ★2026-11-13（相談役【3】c）: 体入の時給は記録できるが、まだ給与の計算（payOf）に入らない＝欄に出す注記。体入の式（裁定490）が入った便で外す */
+export const TRIAL_WAGE_NOT_IN_PAY_NOTE = "体入の時給は、まだ給与の計算に反映されません";

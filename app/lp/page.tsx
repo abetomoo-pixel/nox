@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { PRIVACY_PATH, privacyPublishedOf } from "@/lib/nox/legal/privacy"; // ★2026-11-13（相談役【3】d）: 公開までリンクを出さない
 import BrandLogo from "@/components/ui/brand-logo"; // ★便 SH-UI-a A-2: ロゴ（Concept 2 改）
 import Link from "next/link";
 import { COMPANY_NAME, SUPPORT_EMAIL, TOKUSHOHO_HREF, TOKUSHOHO_TITLE } from "@/lib/nox/legal/tokushoho"; // ★2026-11-10: 事業者＝株式会社レクソル・特定商取引法の表示
@@ -170,7 +171,7 @@ export default function LpPage() {
       </main>
       <footer><div className="wrap">
         <div><BrandLogo height={26} /><small>運営 {COMPANY_NAME}</small></div>
-        <small><Link href={TOKUSHOHO_HREF}>{TOKUSHOHO_TITLE}</Link>　　<Link href="/demo">デモ店舗一覧 ↗</Link>　　© 2026 {COMPANY_NAME}</small>
+        <small><Link href={TOKUSHOHO_HREF}>{TOKUSHOHO_TITLE}</Link>　　{privacyPublishedOf() && <><Link href={PRIVACY_PATH} data-privacy-link="lp">プライバシーポリシー</Link>　　</>}<Link href="/demo">デモ店舗一覧 ↗</Link>　　© 2026 {COMPANY_NAME}</small>
       </div></footer>
     </div>
   );

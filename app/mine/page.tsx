@@ -27,6 +27,7 @@ import { daysNormTargetsOf } from "@/lib/nox/mine/days-norm-server";
 import { castRankingModeOf } from "@/lib/nox/payroll/cast-sales"; // ★裁定346: off／self／top
 import * as t from "@/lib/nox/ui/theme";
 import PunchActions from "./punch-actions";
+import PunchPending from "./punch-pending"; // ★2026-11-13（相談役【3】a）: 打刻の直後の古い行を「反映中…」に
 import PunchCorrectionForm from "./punch-correction-form"; // ★0154 D1
 import PunchCorrectionList from "./punch-correction-list"; // ★0154 D1
 import { termOf, type CorrectionRow } from "@/lib/nox/shift/punch-correction";
@@ -283,7 +284,7 @@ export default async function MinePage({ searchParams }: { searchParams?: Promis
       {/* 段P: プロフィール写真（本人スコープのみ・client 自己完結＝他カードの取得に影響しない）
           段M2: モックの .me ヘッダ（写真＋名前＋店）へ。店名は上で引いた自店を渡すだけ。 */}
       {deniedText && <div data-mine-denied="register" style={{ marginBottom: 12 }}><Message kind="warn" style={{ margin: 0 }}>{deniedText}</Message></div>}
-      {!deniedText && !regNav.show && regNav.note && <p data-mine-register-note={regNav.reason ?? ""} style={{ margin: "0 0 12px", fontSize: 12.5, color: "var(--sub)" }}>{regNav.note}</p>}{/* ★便 M5 M-44: ナビにレジが無い理由（1 行・控えめ） */}{/* ★便 M5 M-40 (c): /register を通さなかった理由（layout の ?denied=register&why=…） */}
+      {!deniedText && !regNav.show && regNav.note && <PunchPending attr="register-note"><p data-mine-register-note={regNav.reason ?? ""} style={{ margin: "0 0 12px", fontSize: 12.5, color: "var(--sub)" }}>{regNav.note}</p></PunchPending>}{/* ★便 M5 M-44: ナビにレジが無い理由（1 行・控えめ） */}{/* ★便 M5 M-40 (c): /register を通さなかった理由（layout の ?denied=register&why=…） */}
       {showContractAck && <ContractAckGate lines={termsLines} />}{/* ★0162 ★4（便 M5-2）: 初回表示の契約確認＝記録済みは出さない・rev 更新で再表示 ★便 M5 M-33: 本文＝基本条件の要約 */}
       <PhotoCard storeName={myStore?.name as string | undefined} />
       {rules0175On() && mig0185On() && (<div style={{ margin: "-4px 0 10px", display: "flex", justifyContent: "flex-end" }}><Link href="/kq" style={{ ...t.btnGhost, ...t.btnSm, textDecoration: "none" }} data-kq-entry="1">キオスクを開く（QR を読む）</Link></div>)}{/* ★QR 便（裁定423 変更）: キオスクの QR をスマホで読む入口（旧＝スマホに QR を出す全画面は撤去）。フラグ false＝出ない */}
@@ -293,7 +294,7 @@ export default async function MinePage({ searchParams }: { searchParams?: Promis
       {/* ★裁定468 追補（M-127・2026-11-09）: 打刻しない店・キャストの打刻を使わない店・スマホ打刻 OFF でも、今日のシフト・店が付けた控除・最終打刻・勤怠一覧は残す＝出勤／退勤のボタンだけ出さない（従来は打刻カードごと消していた） */}
       {((minePunchOff: boolean) => (
       <section className="nox-panel" data-mine-punch-off={minePunchOff ? "1" : "0"}>
-        <p className="nox-pstate num" data-mine-today-shift={(((shiftsAll ?? []) as ShiftLite[]).find((x) => x.date === bizToday && x.status === "confirmed")) ? "1" : "0"} style={{ margin: "0 0 6px", fontWeight: 700 }}>{todayShiftLineOf({ shift: (((shiftsAll ?? []) as ShiftLite[]).find((x) => x.date === bizToday && x.status === "confirmed")) ?? null, state: ps.state, inAt: ps.inAt, nowMs: Date.now(), bizToday })}</p>{/* ★M-85（2026-11-05）: 今日の確定シフトの 1 行（残りは 15 分単位） */}
+        <PunchPending attr="today-shift"><p className="nox-pstate num" data-mine-today-shift={(((shiftsAll ?? []) as ShiftLite[]).find((x) => x.date === bizToday && x.status === "confirmed")) ? "1" : "0"} style={{ margin: "0 0 6px", fontWeight: 700 }}>{todayShiftLineOf({ shift: (((shiftsAll ?? []) as ShiftLite[]).find((x) => x.date === bizToday && x.status === "confirmed")) ?? null, state: ps.state, inAt: ps.inAt, nowMs: Date.now(), bizToday })}</p>{/* ★M-85（2026-11-05）: 今日の確定シフトの 1 行（残りは 15 分単位） */}</PunchPending>
         <h3>打刻{punchHeadOf(ps.state, ps.inAt) && <span className="num" style={{ marginLeft: "auto", fontSize: 12.5, fontWeight: 700, color: "var(--ok)" }}>{punchHeadOf(ps.state, ps.inAt)}</span>}</h3>{/* ★326 追補3: 出勤中は見出し横に「出勤中 HH:MM〜」 */}
         {/* ★0164（便 W5-2b）: 店設定 punch_methods.self が OFF の店は本人打刻のボタンを出さない（RPC punch_self は拒否しない＝UI の出し分けだけ・裁定要） */}
         {minePunchOff ? (<><p className="nox-pstate" data-cast-punch-off="1" style={{ margin: "0 0 6px" }}>出勤・退勤は店が記録します</p>{mig0198On() && mineDayDedApplied !== null && <p data-mine-day-ded-applied={String(mineDayDedApplied.length)} style={{ fontSize: 12.5, color: "var(--sub)", margin: "0 0 8px" }}>{dayDedAppliedTextOf(mineDayDedApplied)}</p>}</>) : opsProfileOf(myStore as Record<string, unknown> | undefined).punch_methods.self ? (

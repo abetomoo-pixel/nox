@@ -115,6 +115,8 @@ const MAP: Array<[RegExp, string]> = [
   // ★0161（裁定327＋追補1・2026-09-30・便 M1）: 打刻の順序検査（punch_self／punch_proxy／kiosk_punch 共通・端末にも同じ和文）
   [/^already in$/, "すでに出勤打刻があります"],
   [/^already out$/, "本日は退勤済みです"],
+  [/^pin weak$/, "推測されやすい番号は使えません"], // ★0201g（M-156・管理側の設定）
+  [/^pin taken$/, "この PIN は使えません。別の番号にしてください"], // ★0201g（誰の PIN かは出さない）
   [/^no open punch$/, "出勤打刻がありません"],
   // ★0160（裁定326-3・便 M2-2）: set_cast_quota（'bad cast' は 0156 の既存行）
   [/^bad quota$/, "目標は 0 以上の整数で入力してください（空欄＝目標なし）"],
