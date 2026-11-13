@@ -591,6 +591,11 @@ staff_deactivate / kiosk_deactivate
 - 読取（B(f) と同列）: staff_my_work（スタッフ本人の勤怠と日計）
 （除外 226→**231**・全数 431→**440**（0201c ＋3・0201e ＋6＝A +4（A22）・B +5・0201h と 0201e2 は作り直しだけ＝名前不変））
 
+### B(ab). 0201g 新設の除外（2本・2026-11-13・0201g のフラグ便で収載）
+- 構造除外（B(a) と同列＝内部専用・4 ロール revoke）: pin_guessable（推測されやすい PIN の判定＝純関数）
+- 構造除外（B(a) と同列＝内部専用・4 ロール revoke）: pin_taken_in_store（同じ店の他の人の PIN と照合）
+（除外 231→**233**・全数 440→**442**（0201g ＋2＝B +2・作り直し 8 本は名前不変））
+
 ## C. kiosk 腕を持つ対象（実装注意・18本）
 A1 の check_open / check_add_line / check_remove_line / check_add_seat / check_remove_seat /
 check_move_seat / check_set_nominations / check_time_charge_apply / check_shimei_add / check_dohan_add /
