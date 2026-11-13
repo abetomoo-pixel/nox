@@ -19,7 +19,9 @@ import PeriodSelect from "@/components/nox/period-select"; // ★X-13-28（便 P
 import { finalRunOf, laborCostOf, laborRatePct, type LaborRun, type LaborSlip } from "@/lib/nox/payroll/labor-cost";
 
 import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
-import { monthLastDayOf } from "@/lib/nox/month"; // ★便 X13-H H-9: 暦月の日付は 1 か所で（「-31」固定・翌月 0 日を撤去）
+import { monthLastDayOf } from "@/lib/nox/month";
+import { mig0201dOn } from "@/lib/nox/rules-0175/flag"; // ★0201d（裁定478）: 臨時営業の日の印
+import { DOW_JA } from "@/lib/nox/business-hours-special"; // ★便 X13-H H-9: 暦月の日付は 1 か所で（「-31」固定・翌月 0 日を撤去）
 type Store = { id: string; name: string };
 type DR = { biz_date: string; cash: number; card_gross: number; uri: number; other: number; slips: number; guests: number; dohan_checks: number; drink_sales: number };
 type Split = { sales: number; groups: number; guests: number; dohan: number; drink: number; shimei: number };
@@ -42,6 +44,7 @@ export default function MonthReport({ stores, defaultStoreId, isManagerUp }: {
   const [h1, setH1] = useState<Split>(empty());
   const [h2, setH2] = useState<Split>(empty());
   const [labor, setLabor] = useState<Labor>({ state: "none", gross: 0 });
+  const [specialMarks, setSpecialMarks] = useState<string[]>([]); // ★0201d: 臨時営業・臨時休業の日の印（「11/15 臨時営業（土曜の料金）」）
   const [staffLabor, setStaffLabor] = useState<{ total: number; confirmed: boolean } | null>(null); // ★便 M6: スタッフ給与のコスト（見込み／確定）
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -139,10 +142,11 @@ export default function MonthReport({ stores, defaultStoreId, isManagerUp }: {
         mig0192On() ? supabase.from("staff_attendance_days").select("membership_id, biz_date").eq("store_id", storeId).eq("status", "absent").gte("biz_date", start).lte("biz_date", end) : Promise.resolve({ data: [] as { membership_id: string; biz_date: string }[] }),
         mig0192On() ? supabase.from("staff_attendance_locks").select("period").eq("store_id", storeId).eq("period", period) : Promise.resolve({ data: [] as { period: string }[] }),
         supabase.from("store_business_hours").select("dow, is_closed").eq("store_id", storeId),
-        supabase.from("store_special_days").select("day, kind").eq("store_id", storeId).gte("day", start).lte("day", end),
+        supabase.from("store_special_days").select(mig0201dOn() ? "day, kind, price_dow" : "day, kind").eq("store_id", storeId).gte("day", start).lte("day", end),
       ]);
       const closed = new Set(((bh.data ?? []) as { dow: number; is_closed: boolean }[]).filter((r) => r.is_closed).map((r) => r.dow));
-      const sds = (sd.data ?? []) as { day: string; kind: string }[];
+      const sds = (sd.data ?? []) as unknown as { day: string; kind: string; price_dow?: number | null }[];
+      setSpecialMarks(mig0201dOn() ? [...sds].sort((a, b) => a.day.localeCompare(b.day)).map((x) => `${Number(x.day.slice(5, 7))}/${Number(x.day.slice(8, 10))} ${x.kind === "open" ? `臨時営業${x.price_dow !== null && x.price_dow !== undefined ? `（${DOW_JA[x.price_dow]}曜の料金）` : ""}` : "臨時休業"}`) : []);
       const bizDays = bizDaysOfMonth(period, closed, new Set(sds.filter((x) => x.kind === "closed").map((x) => x.day)), new Set(sds.filter((x) => x.kind === "open").map((x) => x.day)));
       const { data: al } = mig0195On() ? await supabase.from("staff_allowances").select("membership_id, name, amount, sort").eq("store_id", storeId).eq("is_active", true).order("sort") : { data: null }; // ★0195: 名称つきの固定手当も日割り
       const contracts = new Map(attachStaffAllowances((cc.data ?? []) as (StaffLaborContract & { membership_id: string })[], al as StaffAllowanceRow[] | null).map((c) => [c.membership_id, c]));
@@ -155,6 +159,7 @@ export default function MonthReport({ stores, defaultStoreId, isManagerUp }: {
         if (fr && fr.length > 0) sl = { total: (fr as { amount: number }[]).reduce((a, r) => a + r.amount, 0), confirmed: true };
       }
     }
+    if (!isManagerUp) setSpecialMarks([]);
     setStaffLabor(sl);
     if (isManagerUp && mig0200On()) { // ★M-130（裁定471）: 経費一覧＝日報の諸経費の月合計＋給与（スタッフ）の支払い記録（取消で行が消える＝表 1 本で連動）。日報の経費欄には出さない
       const [{ data: ex }, { data: pm }] = await Promise.all([
@@ -201,6 +206,7 @@ export default function MonthReport({ stores, defaultStoreId, isManagerUp }: {
         月報
         {/* ★0164（便 W5-2b・裁定334）: 締め日は月末固定・支払日は店設定 pay_day（翌月 N 日）＝見出しの注記（表示のみ） */}
         {payDay !== null && <span style={{ fontSize: 12, fontWeight: 400, color: "var(--sub)", marginLeft: 8 }} title="締め日（月末固定）と支払日（店舗設定 › 会計と運用）">締め 月末・支払日 翌月 {payDay} 日</span>}
+        {specialMarks.length > 0 && <span style={{ fontSize: 12, fontWeight: 400, color: "var(--sub)", marginLeft: 8 }} data-month-special="1">{specialMarks.join("・")}</span>}
         {stores.length > 1 && (
           <select value={storeId} onChange={(e) => setStoreId(e.target.value)} aria-label="店舗" style={{ ...t.input, width: "auto", fontSize: 13, fontWeight: 400 }}>
             {stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}

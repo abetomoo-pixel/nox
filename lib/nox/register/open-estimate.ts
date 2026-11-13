@@ -50,8 +50,11 @@ export type OpenEstimate = {
 export function openEstimateOf(i: {
   store: EstimateStore; rules: readonly EstimateRule[]; seatKind: string | null; categoryId: string | null; people: number;
   ruleId: string | null; now: Date; cutoffHm?: string;
+  /** ★0201d（裁定478）: 今日の営業日が臨時営業で料金の曜日（0＝日..6＝土）があればその曜日で当てる（biz_minutes_of の鏡）・無ければ省略 */
+  priceDow?: number | null;
 }): OpenEstimate {
-  const clk = bizClockOf(i.now, i.cutoffHm);
+  const clk0 = bizClockOf(i.now, i.cutoffHm);
+  const clk = i.priceDow !== null && i.priceDow !== undefined && i.priceDow >= 0 && i.priceDow <= 6 ? { ...clk0, dow: i.priceDow } : clk0;
   const q = { seatKind: i.seatKind, categoryId: i.categoryId, dow: clk.dow, min: clk.min, cutoffHm: i.cutoffHm };
   const picked = i.ruleId ? i.rules.find((r) => r.id === i.ruleId && r.fee_kind === "set") ?? null : resolveRuleOf(i.rules, { ...q, feeKind: "set" });
   const setUnit = picked ? picked.amount : i.store.set_fee;

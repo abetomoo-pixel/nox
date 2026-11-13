@@ -13,6 +13,8 @@ import { UserChip } from "@/components/ui/header-chips"; // ★便 GV-C C-14h（
 import { DemoProvider } from "@/lib/nox/demo/context";
 import { mineSettingsOf } from "@/lib/nox/store/mine-settings"; // ★裁定326-8（便 M1-3）: ranking OFF の店はナビ項目を出さない
 import { noticeNavLabelOf, unreadCountOf } from "@/lib/nox/mine/notice-unread";
+import { mig0201iOn } from "@/lib/nox/rules-0175/flag"; // ★0201i: ナビの件数＝未確認・未回答
+import { noticePendingCountOf, type MyResponse, type RsvpAnswer } from "@/lib/nox/notices/response";
 import { mineNavUnreadOf, noticeVisibleToCastOf, unreadNotifCountOf } from "@/lib/nox/people/notify-text"; // ★便 ON-3（0176 ★5 (d)(e)）: 通知の未読・宛先つき // ★裁定326-6（便 M2-3）: お知らせ未読数「お知らせ（N）」
 import { resolveWishMode, wishNavLabelOf } from "@/lib/nox/mine/wish-mode"; // ★裁定326-7（便 M4-1）: 「シフト希望」／'off_only' は「休み希望」
 import { castMineRegisterNavEntryOf } from "@/lib/nox/register/cast-entry-server"; // ★便 M5 M-44: ∧ 出勤中（duty_gate ON の店） // ★便 P173（裁定389）: レジ使用 ON ∧ 本人セッション可のときだけナビに「レジ」
@@ -40,11 +42,14 @@ export default async function MineLayout({ children }: { children: React.ReactNo
   const wishMode = resolveWishMode((meCast as { shift_request_mode?: string | null } | null)?.shift_request_mode, ms.shift_request_mode);
   // ★326-6（便 M2-3）: 未読＝可視のお知らせ（RLS＝自店・audience all|cast）− 自分の既読（cast_notice_reads・RLS 本人）。0 は文言だけ
   const [{ data: noticeRows }, { data: readRows }, { data: notifRows }] = await Promise.all([
-    supabase.from("notices").select("id, cast_ids"),
-    supabase.from("cast_notice_reads").select("notice_id"),
+    supabase.from("notices").select(mig0201iOn() ? "id, cast_ids, rsvp, rsvp_at, rsvp_due" : "id, cast_ids"),
+    mig0201iOn() ? supabase.from("notice_responses").select("notice_id, acked_at, rsvp").eq("subject_kind", "cast").eq("subject_id", (myCastId as string | null) ?? "00000000-0000-0000-0000-000000000000") : supabase.from("cast_notice_reads").select("notice_id"),
     supabase.from("cast_notifications").select("read_at").is("read_at", null).limit(200), // ★便 ON-3: 通知の未読（RLS 本人）
   ]);
-  const unreadNotices = unreadCountOf(((noticeRows ?? []) as { id: string; cast_ids?: string[] | null }[]).filter((n) => noticeVisibleToCastOf(n.cast_ids ?? null, (myCastId as string | null) ?? null)).map((r) => r.id), ((readRows ?? []) as { notice_id: string }[]).map((r) => r.notice_id));
+  const visN = ((noticeRows ?? []) as unknown as { id: string; cast_ids?: string[] | null; rsvp?: boolean | null; rsvp_at?: string | null; rsvp_due?: string | null }[]).filter((n) => noticeVisibleToCastOf(n.cast_ids ?? null, (myCastId as string | null) ?? null));
+  const unreadNotices = mig0201iOn()
+    ? noticePendingCountOf(visN, new Map(((readRows ?? []) as unknown as { notice_id: string; acked_at: string | null; rsvp: RsvpAnswer | null }[]).map((r) => [r.notice_id, { acked_at: r.acked_at, rsvp: r.rsvp } as MyResponse])), Date.now()) // ★0201i: 未確認・未回答
+    : unreadCountOf(visN.map((r) => r.id), ((readRows ?? []) as unknown as { notice_id: string }[]).map((r) => r.notice_id));
   const unread = mineNavUnreadOf(unreadNotices, unreadNotifCountOf((notifRows ?? []) as { read_at: string | null }[])); // ★便 ON-3: お知らせ（本人宛を含む）＋通知
   const regNav = await castMineRegisterNavEntryOf(supabase); // ★便 P173（裁定389）→ ★便 M5 M-44: 店 ON ∧ 自分のスマホ ∧ 本人の許可 ∧（duty_gate ON なら）出勤中
   // 段N: TabBar が群構造になったため1群（見出しなし）で渡す＝/mine の並び・挙動は完全に不変。

@@ -57,7 +57,9 @@ import { receiptDescDefaultOf } from "@/lib/nox/rules-0175/invoice-receipt"; // 
 
 import { rpcErrJa as rpcErrJaCommon } from "@/lib/nox/ui/rpc-err"; // ★N2-2（2026-09-18）: 生の RPC 語の日本語化（写像に無い語は「処理できませんでした（コード: …）」）
 import Toast, { Message } from "@/components/ui/toast"; // ★裁定281（便 U／AB）: メッセージ表示の共通部品
-import { errJa } from "@/lib/nox/errors"; // ★裁定467（M-126）: 利用者向けの文言は辞書 1 本
+import { errJa } from "@/lib/nox/errors";
+import { mig0201dOn } from "@/lib/nox/rules-0175/flag"; // ★0201d（裁定478）: 定休日の開卓＝臨時営業の問い
+import { specialOpenStepOf, priceDowChoicesOf, DOW_JA, SPECIAL_OPEN_ASK, SPECIAL_OPEN_DOW_ASK, SPECIAL_CLOSED_NOTE } from "@/lib/nox/business-hours-special"; // ★裁定467（M-126）: 利用者向けの文言は辞書 1 本
 type Seat = { id: string; name: string; kind: string | null; store_id: string };
 // 純増⑦（mig0063）: category_id でタイルをカテゴリ別に束ねる（未登録店は type 別へフォールバック）
 // 段R2: reorder_point＝低在庫「残N」のしきい（null=しきい無し＝表示しない）
@@ -390,6 +392,11 @@ export default function RegisterBoard({
   // ★便 X13-G W-14: 開卓の見込み用＝店の料金設定と set／vip_charge のルール（表示だけ・権威は check_open）
   const [estRules, setEstRules] = useState<EstimateRule[]>([]);
   const [estStore, setEstStore] = useState<(EstimateStore & { cutoff: string }) | null>(null);
+  // ★0201d（裁定478）: 定休日の開卓＝店長以上に「臨時営業にしますか？」→「料金は何曜日と同じ？」→ register_special_open → 開卓をやり直す。キャスト・スタッフは案内だけ
+  const [spAsk, setSpAsk] = useState<{ closed: boolean; step: "ask" | "dow" } | null>(null);
+  const [spNote, setSpNote] = useState<string | null>(null);
+  const [spDows, setSpDows] = useState<number[]>([]);
+  const [todayPriceDow, setTodayPriceDow] = useState<number | null>(null); // 今日の営業日の臨時営業の料金の曜日（見込みの曜日）
   useEffect(() => {
     if (!storeId) return;
     let alive = true;
@@ -402,6 +409,20 @@ export default function RegisterBoard({
       if (!alive) return;
       setEstRules((rs ?? []) as EstimateRule[]);
       if (st) { const sj = (st.settings_json ?? {}) as Record<string, unknown>; OFF_DUTY_STORE = storeDecidesPunchOf(sj); /* ★便 E（0197） */ setEstStore({ ...(st as unknown as EstimateStore), cutoff: typeof sj.biz_cutoff_hm === "string" && sj.biz_cutoff_hm ? (sj.biz_cutoff_hm as string) : "06:00" }); }
+      if (mig0201dOn()) { // ★0201d: 料金の曜日の候補（定休でない曜日）と今日の営業日の臨時営業
+        const cut = st && typeof (st.settings_json as Record<string, unknown> | null)?.biz_cutoff_hm === "string" ? String((st.settings_json as Record<string, unknown>).biz_cutoff_hm) : "06:00";
+        const j = new Date(Date.now() + 9 * 3600_000); const [ch, cm] = cut.split(":").map(Number);
+        if (j.getUTCHours() * 60 + j.getUTCMinutes() < (ch || 0) * 60 + (cm || 0)) j.setUTCDate(j.getUTCDate() - 1);
+        const bizd = j.toISOString().slice(0, 10);
+        const [{ data: bh }, { data: sd }] = await Promise.all([
+          supabase.from("store_business_hours").select("dow, is_closed").eq("store_id", storeId),
+          supabase.from("store_special_days").select("kind, price_dow").eq("store_id", storeId).eq("day", bizd).maybeSingle(),
+        ]);
+        if (!alive) return;
+        setSpDows(priceDowChoicesOf((bh ?? []) as { dow: number; is_closed: boolean }[]));
+        const r = sd as { kind: string; price_dow: number | null } | null;
+        setTodayPriceDow(r && r.kind === "open" ? r.price_dow : null);
+      }
     })();
     return () => { alive = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1056,6 +1077,7 @@ export default function RegisterBoard({
     setOpenCatSel(openCats[0]?.id ?? ""); // ★116-UI（D2）: 既定=sort 最小の active 区分（0件は ""=無送信）
     setOpenPeople("1"); // ★裁定352: ステッパーの既定 1
     setOpenCust(null); // ★便 GV-C C-2: 卓を替えたらお客様も空へ
+    setSpAsk(null); setSpNote(null); // ★0201d
     setOpenSeatTarget(seat);
   }
 
@@ -1075,6 +1097,11 @@ export default function RegisterBoard({
       ...(openCatSel ? { p_category_id: openCatSel } : {}),
     });
     setOpenBusy(false);
+    if (error && mig0201dOn()) { // ★0201d（裁定478）: 定休日・臨時休業＝モーダルの中で問う（店長以上）／案内（キャスト・スタッフ）
+      const sp = specialOpenStepOf(error.message, isManagerUp);
+      if (sp?.kind === "ask") { setSpNote(null); setSpAsk({ closed: sp.closed, step: "ask" }); return; }
+      if (sp?.kind === "note") { setSpAsk(null); setSpNote(sp.text); return; }
+    }
     if (error) {
       setMsg({ to: MSG_FLOOR, kind: "bad", text: error.message.includes("bad rule")
         ? "選択した料金ルールが使えません（無効化された可能性があります・自動で開卓し直してください）"
@@ -1095,6 +1122,17 @@ export default function RegisterBoard({
     setFeeMsg(null);
     await loadOpenMap();
     await loadCheck(data as string);
+  }
+
+  // ★0201d（裁定478）: 臨時営業の登録（今日の営業日・料金の曜日）→ そのまま開卓をやり直す
+  async function confirmSpecialOpen(dow: number) {
+    if (openBusy) return;
+    setOpenBusy(true);
+    const { error } = await supabase.rpc("register_special_open", { p_store_id: storeId, p_price_dow: dow });
+    setOpenBusy(false);
+    if (error) { setSpNote(errJa(error.message)); return; }
+    setTodayPriceDow(dow); setSpAsk(null); setSpNote(null);
+    await confirmOpenSeat();
   }
 
   // ★裁定110 A2-(4): w=0 の行も送る（0＝按分なしの名簿の一員・名簿から落とさない）。
@@ -2013,7 +2051,7 @@ export default function RegisterBoard({
           )}
           {/* ★便 X13-G W-14: VIP 料金の行（VIP 席でルールがあるときだけ）と開卓時の見込み（人数・ルールの選択で即時に変わる・「自動」は今の時刻で当たるルール） */}
           {estStore && (() => {
-            const est = openEstimateOf({ store: estStore, rules: estRules, seatKind: openSeatTarget.kind ?? null, categoryId: openCatSel || null, people: Number(openPeople) || 1, ruleId: openRuleSel || null, now: new Date(), cutoffHm: estStore.cutoff });
+            const est = openEstimateOf({ store: estStore, rules: estRules, seatKind: openSeatTarget.kind ?? null, categoryId: openCatSel || null, people: Number(openPeople) || 1, ruleId: openRuleSel || null, now: new Date(), cutoffHm: estStore.cutoff, priceDow: mig0201dOn() ? todayPriceDow : null });
             const b = est.breakdown; const mark = taxMarkOf(b.excluded);
             const setPart = `セット ${yen(est.setUnit)}${est.setQty > 1 || est.setLabel === "人ごと" ? `×${est.setQty} 名` : ""}`;
             const vipPart = est.vip ? `VIP ${yen(est.vip.amount)}${est.vip.per === "person" ? `×${est.vip.qty} 名` : ""}` : null;
@@ -2032,9 +2070,34 @@ export default function RegisterBoard({
             );
           })()}
           {/* ★裁定352 改訂: 主ボタン「開卓（セット開始）」を中央に大きく 1 つ（幅 100%・高さ 56px）。「予約を入れる」「やめる」はその下に小さく横並び（相席・予約の導線は不変） */}
+          {spNote && <div className="nox-inset" role="alert" data-special-open-note="1" style={{ padding: "10px 14px", marginBottom: 12, fontSize: 14, fontWeight: 700, color: "var(--bad, #e55)" }}>{spNote}</div>}
+          {spAsk ? (/* ★0201d（裁定478・文は相談役の固定）: 店長以上の問い＝臨時営業にするか → 料金の曜日 */
+            <div className="nox-inset" data-special-open-ask={spAsk.step} style={{ padding: "12px 14px", marginBottom: 12, fontSize: 14, lineHeight: 1.7 }}>
+              {spAsk.closed && <div style={{ fontWeight: 700 }}>{SPECIAL_CLOSED_NOTE}</div>}
+              {spAsk.step === "ask" ? (
+                <>
+                  <div style={{ fontWeight: 700, marginBottom: 10 }}>{spAsk.closed ? "臨時営業にしますか？" : SPECIAL_OPEN_ASK}</div>
+                  <div style={{ display: "flex", gap: 10 }}>
+                    <button type="button" style={{ ...t.btnGold, flex: 1 }} disabled={openBusy} onClick={() => setSpAsk({ ...spAsk, step: "dow" })} data-special-open-yes="1">臨時営業にする</button>
+                    <button type="button" style={{ ...t.btnGhost, flex: 1 }} disabled={openBusy} onClick={() => setSpAsk(null)}>しない</button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div style={{ fontWeight: 700, marginBottom: 10 }}>{SPECIAL_OPEN_DOW_ASK}</div>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    {spDows.map((d) => <button key={d} type="button" style={{ ...t.btnGhost, minWidth: 56 }} disabled={openBusy} onClick={() => void confirmSpecialOpen(d)} data-special-open-dow={d}>{DOW_JA[d]}曜</button>)}
+                  </div>
+                  {spDows.length === 0 && <div style={{ color: "var(--sub)" }}>営業する曜日がありません（店舗設定の営業時間を確かめてください）</div>}
+                  <button type="button" className="nox-link" style={{ background: "none", border: 0, fontSize: 13, cursor: "pointer", color: "var(--sub)", marginTop: 8 }} disabled={openBusy} onClick={() => setSpAsk({ ...spAsk, step: "ask" })}>もどる</button>
+                </>
+              )}
+            </div>
+          ) : (
           <button style={t.btnPrimary56} disabled={openBusy} onClick={() => void confirmOpenSeat()} data-open-seat="1">
             開卓（セット開始）
           </button>
+          )}
           <div className="nox-actions" style={{ display: "flex", gap: 18, justifyContent: "center", alignItems: "center", marginTop: 12 }}>
             {/* E8-1 ⑥: 卓起点予約＝この卓をプリフィルして予約タブへ（reserve タブが出せるロールのみ） */}
             {showReserve && (

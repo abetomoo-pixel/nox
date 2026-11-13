@@ -16,13 +16,16 @@ import { noticeLineResultOf } from "@/lib/nox/line/notice-line"; // ★便 W-10 
 import { jstMonthOf, type LineMonthRow } from "@/lib/nox/line/push-forecast"; // ★M-114（裁定459）: 送る前の確認（今月の残り）
 import { lineNotifyOnOf, noticeLineConfirmOf } from "@/lib/nox/line/notify-kinds"; // ★M-114（裁定459）
 import LineQuotaCard from "@/components/nox/line-quota-card"; // ★便 D M-101
-import { mig0200On } from "@/lib/nox/rules-0175/flag"; // ★M-129（裁定470・0200）
+import { mig0200On, mig0201iOn } from "@/lib/nox/rules-0175/flag"; // ★0201i（裁定486）: 確認と出欠
+import NoticeRespond from "@/components/nox/notice-respond";
+import { RSVP_CREATE_LABEL, RSVP_DUE_LABEL, ackLineOf, jstLocalToIso, noticeAudienceHasOf, noticeRespErrJa, personStateOf, responseSummaryOf, rsvpCountLineOf, rsvpFormErrOf, rsvpLinesOf, type MyResponse, type ResponseStatusRow, type RsvpAnswer } from "@/lib/nox/notices/response"; // ★M-129（裁定470・0200）
 import { NOTICE_TARGETS_LABEL, NOTICE_TARGETS_MAX, emptyTargetSel, noticeAudLabelOf, noticeConfirmLineOf, noticeRecipientsOf, noticeTargetsArgsOf, setTargetsAll, targetCountOf, targetPeopleFilterOf, targetSelOfGroup, toggleTarget, type NoticeAudience, type TargetPerson, type TargetSel } from "@/lib/nox/notices/targets"; // ★M-129
 
 type Notice = {
   id: string; title: string; body: string; audience: string;
   pinned: boolean; until: string | null; created_at: string;
   cast_ids?: string[] | null; staff_ids?: string[] | null; // ★M-129（0200）: 個別の宛先
+  rsvp?: boolean | null; rsvp_at?: string | null; rsvp_place?: string | null; rsvp_due?: string | null; // ★0201i: 出欠
 };
 
 const AUD_LABEL: Record<string, string> = { all: "全員", cast: "キャスト", staff: "スタッフ", targets: NOTICE_TARGETS_LABEL };
@@ -161,14 +164,36 @@ export default function NoticesBoard({ isManagerUp, audienceCounts, storeName, c
     ]);
   })(); }, [targetsOn, storeId]);
   const [eUntil, setEUntil] = useState("");
+  // ★0201i（裁定486）: 作る側の「出欠を取る」・受け取る側（スタッフ・宛先の店長）の確認と出欠・作る側の確認／出欠の一覧
+  const [fRsvp, setFRsvp] = useState(false);
+  const [fRsvpAt, setFRsvpAt] = useState("");
+  const [fRsvpPlace, setFRsvpPlace] = useState("");
+  const [fRsvpDue, setFRsvpDue] = useState("");
+  const [me, setMe] = useState<{ role: string; mid: string } | null>(null);
+  const [myResp, setMyResp] = useState<Map<string, MyResponse>>(new Map());
+  const [statusOf, setStatusOf] = useState<Map<string, ResponseStatusRow[]>>(new Map());
+  const [openStatus, setOpenStatus] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const { data } = await supabase
       .from("notices")
-      .select(mig0200On() ? "id, title, body, audience, pinned, until, created_at, cast_ids, staff_ids" : "id, title, body, audience, pinned, until, created_at") // ★M-129: 個別の宛先（0200 の列）
+      .select(mig0201iOn() ? "id, title, body, audience, pinned, until, created_at, cast_ids, staff_ids, rsvp, rsvp_at, rsvp_place, rsvp_due" : mig0200On() ? "id, title, body, audience, pinned, until, created_at, cast_ids, staff_ids" : "id, title, body, audience, pinned, until, created_at") // ★M-129: 個別の宛先（0200 の列）
       .order("pinned", { ascending: false })
       .order("created_at", { ascending: false });
     setRows((data ?? []) as unknown as Notice[]); // ★M-129: select の列はフラグで切り替わる（型は Notice に寄せる）
+    if (mig0201iOn()) {
+      const [{ data: role }, { data: mid }] = await Promise.all([supabase.rpc("auth_role"), supabase.rpc("auth_membership_id")]);
+      const m = { role: String(role ?? ""), mid: String(mid ?? "") }; setMe(m);
+      if (m.mid) {
+        const { data: rr } = await supabase.from("notice_responses").select("notice_id, acked_at, rsvp").eq("subject_kind", "membership").eq("subject_id", m.mid);
+        setMyResp(new Map(((rr ?? []) as { notice_id: string; acked_at: string | null; rsvp: RsvpAnswer | null }[]).map((r) => [r.notice_id, { acked_at: r.acked_at, rsvp: r.rsvp }])));
+      }
+      if (isManagerUp) { // 作る側の一覧＝確認 n／m・参加／不参加／未回答（新しい 40 件まで・1 件ずつの読取）
+        const list = ((data ?? []) as unknown as Notice[]).filter((n) => n.audience !== "owners").slice(0, 40);
+        const res = await Promise.all(list.map((n) => supabase.rpc("notice_response_status", { p_notice_id: n.id })));
+        setStatusOf(new Map(list.map((n, i) => [n.id, ((res[i].data ?? []) as ResponseStatusRow[])])));
+      }
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => { void load(); }, [load]);
@@ -185,6 +210,10 @@ export default function NoticesBoard({ isManagerUp, audienceCounts, storeName, c
       : await supabase.rpc("notice_create", { p_title: fTitle, p_body: fBody, p_audience: fAud, p_pinned: fPinned, p_until: untilFromSeg(fUntilSeg) });
     if (error) { setBusy(false); setMsg(`投稿に失敗: ${rpcErrJa(error.message)}`); return; }
     let lineMsg = "";
+    if (mig0201iOn() && fRsvp && typeof newId === "string") { // ★0201i: 作成の後に出欠の設定（notice_create の署名は変えない）
+      const { error: eR } = await supabase.rpc("notice_set_rsvp", { p_notice_id: newId, p_on: true, p_at: jstLocalToIso(fRsvpAt), p_place: fRsvpPlace.trim() || null, p_due: fRsvpDue ? jstLocalToIso(fRsvpDue) : null });
+      if (eR) lineMsg += `・出欠の設定に失敗（${noticeRespErrJa(eR.message) || rpcErrJa(eR.message)}）`;
+    }
     let sendLine = fLine;
     if (fLine && typeof newId === "string" && storeId) { // ★M-114（裁定459）: 送る前に確認＝○人に送ります・今月の残り ○通・不足なら送らない（お知らせは掲載済み）
       const [{ data: st }, { data: m }] = await Promise.all([
@@ -204,6 +233,7 @@ export default function NoticesBoard({ isManagerUp, audienceCounts, storeName, c
     setBusy(false);
     setMsg(`お知らせを投稿しました${lineMsg}`);
     setFTitle(""); setFBody(""); setFAud("all"); setFPinned(false); setFUntilSeg(0); setFLine(false); setSel(emptyTargetSel()); setTq("");
+    setFRsvp(false); setFRsvpAt(""); setFRsvpPlace(""); setFRsvpDue("");
     await load();
   }
 
@@ -434,6 +464,18 @@ export default function NoticesBoard({ isManagerUp, audienceCounts, storeName, c
                 <input type="checkbox" checked={fPinned} onChange={(e) => setFPinned(e.target.checked)} />ピン留め
               </label>
             </div>
+            {mig0201iOn() && (/* ★0201i（裁定486）: 出欠を取る＝日時は必須・作るときは未来の日時だけ／場所は任意／回答の締切は任意 */
+              <div style={{ display: "grid", gap: 6 }} data-notice-rsvp-form="1">
+                <label style={chkLabel}><input type="checkbox" checked={fRsvp} onChange={(e) => setFRsvp(e.target.checked)} data-notice-rsvp-on="1" />{RSVP_CREATE_LABEL}</label>
+                {fRsvp && (
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
+                    <label style={t.fieldLabel}>日時（必須）<br /><input type="datetime-local" value={fRsvpAt} onChange={(e) => setFRsvpAt(e.target.value)} style={{ ...t.input, maxWidth: 220 }} aria-label="出欠の日時" data-notice-rsvp-at="1" /></label>
+                    <label style={t.fieldLabel}>場所（任意）<br /><input value={fRsvpPlace} onChange={(e) => setFRsvpPlace(e.target.value)} maxLength={120} placeholder="例: 店内" style={{ ...t.input, maxWidth: 200 }} aria-label="場所" /></label>
+                    <label style={t.fieldLabel}>{RSVP_DUE_LABEL}（任意）<br /><input type="datetime-local" value={fRsvpDue} onChange={(e) => setFRsvpDue(e.target.value)} style={{ ...t.input, maxWidth: 220 }} aria-label={RSVP_DUE_LABEL} /></label>
+                  </div>
+                )}
+              </div>
+            )}
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
               <span style={t.fieldLabel}>掲載期限</span>
               {UNTIL_SEG.map(([v, l]) => (
@@ -455,7 +497,7 @@ export default function NoticesBoard({ isManagerUp, audienceCounts, storeName, c
               <button style={btnLight} onClick={() => { setFTitle(""); setFBody(""); }}>入力をクリア</button>
               {/* ★投稿は**確認モーダルを挟む**（モック `publishConfirm`）＝送る RPC・引数は不変 */}
               <button style={{ ...btnDark, opacity: busy ? 0.6 : 1 }} disabled={busy}
-                onClick={() => { if (!fTitle.trim() || !fBody.trim()) { setMsg("件名と本文を入力してください"); return; } if (fAud === "targets" && !noticeTargetsArgsOf(sel)) { setMsg("宛先を 1〜" + NOTICE_TARGETS_MAX + " 人選んでください"); return; }
+                onClick={() => { if (!fTitle.trim() || !fBody.trim()) { setMsg("件名と本文を入力してください"); return; } if (mig0201iOn() && fRsvp) { const er = rsvpFormErrOf({ at: jstLocalToIso(fRsvpAt), due: fRsvpDue ? jstLocalToIso(fRsvpDue) : "", place: fRsvpPlace }, Date.now()); if (er) { setMsg(er); return; } } if (fAud === "targets" && !noticeTargetsArgsOf(sel)) { setMsg("宛先を 1〜" + NOTICE_TARGETS_MAX + " 人選んでください"); return; }
                   if (targetsOn && storeId) void (async () => { const sb = createClient(); const [{ data: st }, { data: m }] = await Promise.all([sb.from("stores").select("line_monthly_limit").eq("id", storeId).maybeSingle(), sb.rpc("line_push_month_summary", { p_month: jstMonthOf(Date.now()).month })]); const row = (((m ?? []) as LineMonthRow[]).find((r) => r.store_id === storeId)) ?? null; setLineMonth({ sent: row?.sent ?? 0, limit: row?.monthly_limit ?? Number(st?.line_monthly_limit ?? 200) }); })();
                   setConfirmOpen(true); }}>
                 内容を確認して掲載
@@ -588,6 +630,23 @@ export default function NoticesBoard({ isManagerUp, audienceCounts, storeName, c
             </div>
             <p className="nox-nbody">{n.body}</p>
             {n.until && <p className="num" style={{ fontSize: 11, color: "var(--v2-muted)", margin: "3px 0 0" }}>掲載期限 {n.until}</p>}
+            {mig0201iOn() && me && me.mid && noticeAudienceHasOf(n, { kind: "membership", role: me.role, membershipId: me.mid }) && (/* ★0201i: 受け取る側（スタッフ・宛先の店長） */
+              <NoticeRespond noticeId={n.id} n={n} mine={myResp.get(n.id) ?? null} nowMs={Date.now()} onDone={load} />
+            )}
+            {mig0201iOn() && isManagerUp && statusOf.has(n.id) && (() => { const rows = statusOf.get(n.id)!; const s = responseSummaryOf(rows); return (/* ★0201i: 作る側＝確認 n／m・参加 a・不参加 b・未回答 c・人ごとの一覧 */
+              <div style={{ marginTop: 6, fontSize: 12.5 }} data-notice-status={n.id}>
+                {n.rsvp && <div className="num" style={{ color: "var(--ink)" }}>{rsvpLinesOf(n).join("・")}</div>}
+                <span className="num" data-notice-ack-count="1">{ackLineOf(s)}</span>
+                {n.rsvp && <span className="num" style={{ marginLeft: 10 }} data-notice-rsvp-count="1">{rsvpCountLineOf(s)}</span>}
+                <button type="button" className="nox-link" style={{ background: "none", border: 0, fontSize: 12, cursor: "pointer", marginLeft: 10 }} onClick={() => setOpenStatus(openStatus === n.id ? null : n.id)} data-notice-status-open="1">{openStatus === n.id ? "閉じる" : "人ごと"}</button>
+                {openStatus === n.id && (
+                  <ul style={{ listStyle: "none", padding: 0, margin: "6px 0 0", display: "grid", gap: 2 }}>
+                    {rows.map((r) => <li key={r.subject_kind + r.subject_id} style={{ display: "flex", gap: 8 }} data-notice-person={r.subject_kind}><span style={{ flex: 1 }}>{r.name ?? "（名前なし）"}{r.is_active ? "" : "（退店）"}</span><span>{personStateOf(r, !!n.rsvp)}</span></li>)}
+                    {rows.length === 0 && <li style={{ color: "var(--sub)" }}>宛先の人がいません</li>}
+                  </ul>
+                )}
+              </div>
+            ); })()}
             {isManagerUp && (
               <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
                 <button style={btnLight} onClick={() => startEdit(n)}>編集</button>
@@ -616,6 +675,7 @@ export default function NoticesBoard({ isManagerUp, audienceCounts, storeName, c
             <div className="nox-listrow"><span style={{ flex: 1 }}>掲載期限</span>
               <b className="num">{fUntilSeg === 0 ? "期限なし" : addDays(bizToday, fUntilSeg)}</b></div>
             <div className="nox-listrow"><span style={{ flex: 1 }}>ピン留め</span><b>{fPinned ? "する" : "しない"}</b></div>
+            {mig0201iOn() && <div className="nox-listrow" data-notice-confirm-rsvp="1"><span style={{ flex: 1 }}>{RSVP_CREATE_LABEL}</span><b className="num">{fRsvp ? rsvpLinesOf({ rsvp: true, rsvp_at: jstLocalToIso(fRsvpAt), rsvp_place: fRsvpPlace.trim() || null, rsvp_due: fRsvpDue ? jstLocalToIso(fRsvpDue) : null }).join("・") : "取らない"}</b></div>}
             <div className="nox-listrow"><span style={{ flex: 1 }}>LINE通知</span><b>{fLine ? `送る（連携 ${lineLinked ?? "—"} 人）` : "送らない"}</b></div>
             <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "8px 0 0", lineHeight: 1.7 }}>
               掲載すると、対象のマイページとこの一覧に表示されます。管理者・店長は公開範囲にかかわらず閲覧できます。

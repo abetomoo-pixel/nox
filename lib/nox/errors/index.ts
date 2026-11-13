@@ -43,6 +43,13 @@ export const ERR_DICT: ReadonlyArray<readonly [RegExp, string]> = [
   [/^has payments$/, "入金後は変更できません（入金を取り消してから操作してください）"],
   [/^exceeds balance$/, "入金額が残額を超えています"],
   [/^day closed$/, "この営業日は締め済みです"],
+  // ★0201d（裁定478）: 臨時営業／臨時休業（/^day closed$/＝締め済みとは別の語）
+  [/^needs special open$/, "今日は定休日です。店長に臨時営業の設定を頼んでください。"],
+  [/^closed day$/, "今日は臨時休業です。"],
+  [/^not closed day$/, "今日は定休日ではありません（臨時営業の登録は要りません）"],
+  [/^bad price dow$/, "料金の曜日を選んでください（定休日の曜日は選べません）"],
+  [/^past day$/, "過去の営業日は変更できません"],
+  [/^day has checks$/, "この営業日には卓があるため、変更も取消もできません"],
   [/^empty check$/, "明細がありません"],
   [/^balance remaining$/, "残額があります（入金を済ませてください）"],
   // 打刻・勤怠・給与

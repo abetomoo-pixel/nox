@@ -19,7 +19,7 @@ type R = { ok: true; rows: Row[] } | { ok: false; err: string };
 const errOf = (x: R) => (x.ok ? "ok" : x.err);
 const src = (p: string) => fs.readFileSync(p, "utf8");
 const J = (x: unknown) => JSON.stringify(x);
-const FN = 447 /* ★0201i（2026-11-13 夕 手貼り）: 442→447 */ /* ★0201g（作り直し 4・手貼りの後）: 440→442 */, TB = 122 /* ★0201i: 121→122 */; // ★0201c／h／e（2026-11-12 手貼り・+9＝0201c 3・0201e 6）: 431→440 // ★0201（2026-11-11 手貼り・+4＝punch_self_impl／set_store_manager_punch／staff_pin_self_set／cast_pin_self_set）: 427→431   // 0200 の後（0201 の手貼りで張り替える）
+const FN = 449 /* ★0201d（2026-11-13 夜 手貼り）: 447→449 */ /* ★0201i（2026-11-13 夕 手貼り）: 442→447 */ /* ★0201g（作り直し 4・手貼りの後）: 440→442 */, TB = 122 /* ★0201i: 121→122 */; // ★0201c／h／e（2026-11-12 手貼り・+9＝0201c 3・0201e 6）: 431→440 // ★0201（2026-11-11 手貼り・+4＝punch_self_impl／set_store_manager_punch／staff_pin_self_set／cast_pin_self_set）: 427→431   // 0200 の後（0201 の手貼りで張り替える）
 
 // (1)
 check("0200(1-1) MIG_0200_APPLIED=true（2026-11-10 手貼り・verify 32 行一致）・override", (MIG_0200_APPLIED as boolean) === true && mig0200On() === true);

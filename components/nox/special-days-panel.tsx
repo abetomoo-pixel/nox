@@ -7,7 +7,8 @@ import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import { Message } from "@/components/ui/toast";
-import { specialDayLineOf, specialDayErrorOf, type SpecialDay } from "@/lib/nox/business-hours-special";
+import { specialDayLineOf, specialDayErrorOf, priceDowChoicesOf, DOW_JA, type SpecialDay } from "@/lib/nox/business-hours-special";
+import { mig0201dOn } from "@/lib/nox/rules-0175/flag"; // ★0201d（裁定478）: 料金の曜日・過去の日と卓がある日は消せない
 import { errJa } from "@/lib/nox/errors"; // ★裁定467（M-126）: 利用者向けの文言は辞書 1 本
 
 export default function SpecialDaysPanel({ storeId, editable }: { storeId: string; editable: boolean }) {
@@ -19,15 +20,24 @@ export default function SpecialDaysPanel({ storeId, editable }: { storeId: strin
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ kind: "success" | "error"; text: string } | null>(null);
+  const [priceDow, setPriceDow] = useState<number | null>(null); // ★0201d: 特別営業の料金の曜日（既定の選択なし＝null＝その日の曜日）
+  const [dowChoices, setDowChoices] = useState<number[]>([]);
+  const [lockedDays, setLockedDays] = useState<Set<string>>(new Set()); // ★0201d: 卓がある日（今日の営業日だけ・消すを出さない）
 
   const load = useCallback(async () => {
     if (!storeId) return;
     const today = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
-    const { data } = await createClient().from("store_special_days").select("day, kind, open_hm, close_hm, note").eq("store_id", storeId).gte("day", today).order("day");
-    setRows((data ?? []) as SpecialDay[]);
+    const { data } = await createClient().from("store_special_days").select(mig0201dOn() ? "day, kind, open_hm, close_hm, note, price_dow" : "day, kind, open_hm, close_hm, note").eq("store_id", storeId).gte("day", today).order("day");
+    setRows((data ?? []) as unknown as SpecialDay[]);
+    if (mig0201dOn() && ((data ?? []) as unknown as { day: string }[]).some((r) => r.day === today)) {
+      // ★0201d: 今日の行＝卓が 1 つでもあれば消せない（server の store_day_has_checks が権威・ここは表示だけ＝今日の 0 時〜翌日 12 時の開卓で近似）
+      const { count } = await createClient().from("checks").select("id", { count: "exact", head: true }).eq("store_id", storeId).gte("started_at", `${today}T00:00:00+09:00`).lt("started_at", new Date(Date.parse(`${today}T12:00:00+09:00`) + 86400_000).toISOString());
+      setLockedDays(new Set((count ?? 0) > 0 ? [today] : []));
+    } else setLockedDays(new Set());
     // ★便 M5b M-51 追補 2: 時刻の初期値＝店の営業時間（最初の営業曜日の開始／終了・閉店が開店以前なら翌日＝24 時超の形）。固定の 20:00〜26:00 をやめる
     const { data: bh } = await createClient().from("store_business_hours").select("dow, is_closed, open_hm, close_hm").eq("store_id", storeId).order("dow");
     const r = ((bh ?? []) as { is_closed: boolean; open_hm: string | null; close_hm: string | null }[]).find((x) => !x.is_closed && x.open_hm && x.close_hm);
+    setDowChoices(priceDowChoicesOf((bh ?? []) as { dow: number; is_closed: boolean }[]));
     if (r) { const o = r.open_hm!.slice(0, 5), c = r.close_hm!.slice(0, 5); setOpenHm(o); setCloseHm(c <= o ? `${String(Number(c.slice(0, 2)) + 24).padStart(2, "0")}:${c.slice(3, 5)}` : c); }
   }, [storeId]);
   useEffect(() => { void load(); }, [load]);
@@ -36,10 +46,10 @@ export default function SpecialDaysPanel({ storeId, editable }: { storeId: strin
     const e = specialDayErrorOf({ day, kind, open_hm: openHm, close_hm: closeHm });
     if (e) { setMsg({ kind: "error", text: e }); return; }
     setBusy(true); setMsg(null);
-    const { error } = await createClient().rpc("set_store_special_day", { p_store_id: storeId, p_day: day, p_kind: kind, p_open_hm: kind === "open" ? openHm : null, p_close_hm: kind === "open" ? closeHm : null, p_note: note.trim() || null });
+    const { error } = await createClient().rpc("set_store_special_day", { p_store_id: storeId, p_day: day, p_kind: kind, p_open_hm: kind === "open" ? openHm : null, p_close_hm: kind === "open" ? closeHm : null, p_note: note.trim() || null, ...(mig0201dOn() ? { p_price_dow: kind === "open" ? priceDow : null } : {}) });
     setBusy(false);
     if (error) { setMsg({ kind: "error", text: /forbidden/.test(errJa(error.message)) ? "権限がありません（店長・管理者のみ）" : errJa(error.message) }); return; }
-    setMsg({ kind: "success", text: `${day} を${kind === "closed" ? "臨時休業" : "特別営業"}にしました` }); setDay(""); setNote("");
+    setMsg({ kind: "success", text: `${day} を${kind === "closed" ? "臨時休業" : "特別営業"}にしました` }); setDay(""); setNote(""); setPriceDow(null);
     await load();
   }
   async function remove(d: string) {
@@ -60,7 +70,8 @@ export default function SpecialDaysPanel({ storeId, editable }: { storeId: strin
           {rows.map((r) => (
             <li key={r.day} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 13 }} data-special-day={r.day}>
               <span className="num">{specialDayLineOf(r)}</span>
-              {editable && <button type="button" style={{ ...t.btnGhost, ...t.btnSm, marginLeft: "auto" }} disabled={busy} onClick={() => void remove(r.day)}>消す</button>}
+              {editable && !(mig0201dOn() && lockedDays.has(r.day)) && <button type="button" style={{ ...t.btnGhost, ...t.btnSm, marginLeft: "auto" }} disabled={busy} onClick={() => void remove(r.day)}>消す</button>}
+              {editable && mig0201dOn() && lockedDays.has(r.day) && <span style={{ fontSize: 11, color: "var(--v2-muted)", marginLeft: "auto" }} data-special-day-locked="1">卓があるため変更できません</span>}
             </li>
           ))}
         </ul>
@@ -77,6 +88,14 @@ export default function SpecialDaysPanel({ storeId, editable }: { storeId: strin
                 <label style={t.fieldLabel}>開店<TimeInput value={openHm} onChange={setOpenHm} maxHour={23} style={{ ...t.input, maxWidth: 100 }} ariaLabel="開店" /></label>
                 <label style={t.fieldLabel}>閉店<TimeInput value={closeHm} onChange={setCloseHm} style={{ ...t.input, maxWidth: 100 }} ariaLabel="閉店" /></label>
               </>
+            )}
+            {kind === "open" && mig0201dOn() && (/* ★0201d（裁定478）: 料金は何曜日と同じ（定休でない曜日・既定の選択なし＝その日の曜日） */
+              <div style={t.fieldLabel} data-special-price-dow="1">料金は何曜日と同じ<br />
+                <div className="nox-seg" role="group" aria-label="料金の曜日">
+                  {dowChoices.map((d) => <button key={d} type="button" className={priceDow === d ? "on" : ""} onClick={() => setPriceDow(priceDow === d ? null : d)}>{DOW_JA[d]}</button>)}
+                </div>
+                <div style={{ fontSize: 11, color: "var(--v2-muted)" }}>{priceDow === null ? "選ばない＝その日の曜日の料金" : `${DOW_JA[priceDow]}曜の料金で計算します`}</div>
+              </div>
             )}
             <label style={t.fieldLabel}>名称・理由<br /><input value={note} onChange={(e) => setNote(e.target.value)} maxLength={100} placeholder="例: 年末年始" style={{ ...t.input, maxWidth: 200 }} /></label>
           </div>

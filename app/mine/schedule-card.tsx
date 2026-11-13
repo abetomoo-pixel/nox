@@ -7,8 +7,9 @@ import Link from "next/link";
 import ShiftConfirmButton from "./shift-confirm-button";
 import ShiftDeclineButton from "./shift-decline-button"; // ★便 ON-3（0176 ★5 (c)・裁定406）: 辞退で店に戻る
 import type { DaysNormLine, ScheduleItem } from "@/lib/nox/mine/schedule";
+import { RSVP_NO, RSVP_YES, type RsvpEvent } from "@/lib/nox/notices/response"; // ★0201i: 出欠の予定
 
-export type ScheduleTab = { month: string; label: string; fixed: ScheduleItem[]; pending: ScheduleItem[]; norm: DaysNormLine | null };
+export type ScheduleTab = { month: string; label: string; fixed: ScheduleItem[]; pending: ScheduleItem[]; norm: DaysNormLine | null; /** ★0201i（裁定486）: 出欠を取るお知らせの予定（本人の宛先・今日以降） */ events?: RsvpEvent[] };
 
 export function DaysNormNote({ norm }: { norm: DaysNormLine }) {
   return (
@@ -51,6 +52,21 @@ export default function ScheduleCard({ tabs, readOnly = false, title = "出勤�
           {cur.fixed.length === 0 ? <p style={{ fontSize: 12.5, color: "var(--sub)", margin: "0 0 8px" }}>なし</p> : <ul className="nox-schedlist">{cur.fixed.map(row)}</ul>}
           <div className="nox-schedh">確認待ち（{cur.pending.length}）</div>
           {cur.pending.length === 0 ? <p style={{ fontSize: 12.5, color: "var(--sub)", margin: 0 }}>なし</p> : <ul className="nox-schedlist">{cur.pending.map(row)}</ul>}
+        </>
+      )}
+      {(cur.events?.length ?? 0) > 0 && (/* ★0201i: 本人の出勤予定に出欠の予定 */
+        <>
+          <div className="nox-schedh">お知らせの予定（{cur.events!.length}）</div>
+          <ul className="nox-schedlist">
+            {cur.events!.map((e) => (
+              <li key={e.id} className="nox-schedrow" data-sched="rsvp">
+                <span className="num d">{Number(e.date.slice(5, 7))}/{Number(e.date.slice(8, 10))}（{e.dow}）</span>
+                <span className="num tm">{e.time}</span>
+                <Link href="/mine/notices" className="nox-link" style={{ fontSize: 12.5 }}>{e.title}</Link>
+                <span className="nox-stpill" style={{ fontSize: 10.5 }}>{e.answer === "yes" ? RSVP_YES : e.answer === "no" ? RSVP_NO : "未回答"}</span>
+              </li>
+            ))}
+          </ul>
         </>
       )}
     </section>

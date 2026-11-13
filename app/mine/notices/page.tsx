@@ -4,6 +4,10 @@ import * as t from "@/lib/nox/ui/theme";
 import { NOTICE_NEW_BADGE, unreadIdsOf } from "@/lib/nox/mine/notice-unread";
 import { CAST_NOTIF_KIND_LABEL, NOTIF_EMPTY, NOTIF_NEW_BADGE, NOTIF_SECTION_TITLE, noticeVisibleToCastOf, notifWhenOf, type CastNotifKind, type CastNotifRow } from "@/lib/nox/people/notify-text"; // ★便 ON-3（0176 ★5 (d)(e)）: 通知・宛先つきお知らせ // ★裁定326-6（便 M2-3）: 開いたら既読（notice_mark_read）・開いた時点の未読に「新着」
 
+import { mig0201iOn } from "@/lib/nox/rules-0175/flag"; // ★0201i（裁定486）: 「確認しました」と出欠・自動の既読をやめる
+import NoticeRespond from "@/components/nox/notice-respond";
+import type { MyResponse, RsvpAnswer } from "@/lib/nox/notices/response";
+
 export const dynamic = "force-dynamic";
 
 /** 店設定の営業日切替時刻（stores.settings_json.biz_cutoff_hm・既定 '06:00'）。
@@ -23,12 +27,12 @@ export default async function MineNoticesPage() {
   const bizToday = bizDateOf(new Date().toISOString(), await loadCutoff(supabase));
   const { data: notices } = await supabase
     .from("notices")
-    .select("id, title, body, pinned, until, created_at, cast_ids") // ★便 ON-3（0176 ★5 (e)）: 宛先つき（cast_ids）
+    .select(mig0201iOn() ? "id, title, body, pinned, until, created_at, cast_ids, rsvp, rsvp_at, rsvp_place, rsvp_due" : "id, title, body, pinned, until, created_at, cast_ids") // ★便 ON-3（0176 ★5 (e)）: 宛先つき（cast_ids）
     .order("pinned", { ascending: false })
     .order("created_at", { ascending: false });
   // ★便 ON-3: 宛先つきお知らせ＝本人を含む行だけ（null＝全員）。通知（cast_notifications・RLS 本人）＝開いたら既読（cast_notification_read・冪等）
   const { data: myCastId } = await supabase.rpc("auth_cast_id");
-  const visibleNotices = ((notices ?? []) as { id: string; cast_ids?: string[] | null }[]).filter((n) => noticeVisibleToCastOf(n.cast_ids ?? null, (myCastId as string | null) ?? null));
+  const visibleNotices = ((notices ?? []) as unknown as { id: string; cast_ids?: string[] | null }[]).filter((n) => noticeVisibleToCastOf(n.cast_ids ?? null, (myCastId as string | null) ?? null));
   const { data: notifRows } = await supabase.from("cast_notifications").select("id, kind, body, ref, read_at, created_at").order("created_at", { ascending: false }).limit(50);
   const notifs = (notifRows ?? []) as CastNotifRow[];
   const newNotif = new Set(notifs.filter((n) => n.read_at === null).map((n) => n.id));
@@ -36,7 +40,14 @@ export default async function MineNoticesPage() {
   // ★326-6: 既読の記録＝未読分だけ notice_mark_read（冪等・RPC 側で自店・audience を再検査・audit は初回だけ）。失敗しても表示は止めない
   const { data: readRows } = await supabase.from("cast_notice_reads").select("notice_id");
   const unreadIds = new Set(unreadIdsOf(visibleNotices.map((n) => n.id), ((readRows ?? []) as { notice_id: string }[]).map((r) => r.notice_id)));
-  await Promise.all([...unreadIds].map((id) => supabase.rpc("notice_mark_read", { p_notice_id: id })));
+  if (!mig0201iOn()) await Promise.all([...unreadIds].map((id) => supabase.rpc("notice_mark_read", { p_notice_id: id }))); // ★0201i: 自動の既読はやめる（「確認しました」で記録）
+  // ★0201i: 本人の確認と出欠（notice_responses＝RLS で本人の行だけ）
+  const myResp = new Map<string, MyResponse>();
+  if (mig0201iOn() && myCastId) {
+    const { data: rr } = await supabase.from("notice_responses").select("notice_id, acked_at, rsvp").eq("subject_kind", "cast").eq("subject_id", myCastId as string);
+    for (const r of (rr ?? []) as { notice_id: string; acked_at: string | null; rsvp: RsvpAnswer | null }[]) myResp.set(r.notice_id, { acked_at: r.acked_at, rsvp: r.rsvp });
+  }
+  const nowMs = Date.now();
 
   const title: React.CSSProperties = t.cardTitle;
   const when = (iso: string) =>
@@ -67,19 +78,20 @@ export default async function MineNoticesPage() {
       <section style={{ ...t.card, marginTop: 12 }}>
         <h2 style={title}>お知らせ</h2>
         {visibleNotices.length === 0 && <p style={{ fontSize: 13, color: "var(--sub)" }}>お知らせはありません。</p>}
-        {((notices ?? []) as { id: string; title: string; body: string; pinned: boolean | null; until: string | null; created_at: string; cast_ids?: string[] | null }[]).filter((n) => visibleNotices.some((v) => v.id === n.id)).map((n) => {
+        {((notices ?? []) as unknown as { id: string; title: string; body: string; pinned: boolean | null; until: string | null; created_at: string; cast_ids?: string[] | null; rsvp?: boolean | null; rsvp_at?: string | null; rsvp_place?: string | null; rsvp_due?: string | null }[]).filter((n) => visibleNotices.some((v) => v.id === n.id)).map((n) => {
           const expired = !!n.until && (n.until as string) < bizToday;
           return (
             <div key={n.id as string} style={{ padding: "9px 0", borderBottom: "1px solid var(--line2)" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                 {n.pinned === true && <span style={{ fontSize: 10.5, fontWeight: 800, color: "var(--gold2)" }}>ピン</span>}
-                {unreadIds.has(n.id as string) && <span style={{ fontSize: 10.5, fontWeight: 800, color: "var(--champ)" }}>{NOTICE_NEW_BADGE}</span>}{/* ★326-6: 開いた時点で未読だったもの */}
+                {(mig0201iOn() ? !myResp.get(n.id)?.acked_at : unreadIds.has(n.id as string)) && <span style={{ fontSize: 10.5, fontWeight: 800, color: "var(--champ)" }}>{NOTICE_NEW_BADGE}</span>}{/* ★326-6: 開いた時点で未読だったもの */}
                 <span style={{ fontSize: 13.5, fontWeight: 700, color: "var(--ink)" }}>{n.title as string}</span>
                 {expired && <span style={{ fontSize: 11.5, fontWeight: 700, color: "var(--bad)" }}>期限切れ</span>}
                 <span style={{ marginLeft: "auto", ...t.num, fontSize: 11.5, color: "var(--sub)" }}>{when(n.created_at as string)}</span>
               </div>
               <p style={{ fontSize: 13, color: "var(--sub)", margin: "4px 0 0", whiteSpace: "pre-wrap" }}>{n.body as string}</p>
               {n.until != null && <p style={{ ...t.num, fontSize: 11, color: "var(--sub)", margin: "3px 0 0" }}>掲載期限 {n.until as string}</p>}
+              {mig0201iOn() && <NoticeRespond noticeId={n.id} n={n} mine={myResp.get(n.id) ?? null} nowMs={nowMs} />}
             </div>
           );
         })}

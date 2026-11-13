@@ -382,6 +382,10 @@ kiosk_provision（新規 kiosk の追加＝拡大操作）
 ### A23. 0201i（1 本・2026-11-13 本番適用（Agoora 手貼り・検証 18 行一致）・規則A形でゲート内蔵）
 - 0201i お知らせの出欠の設定（裁定486）: notice_set_rsvp（店長以上・notice_create と同じ 'billing locked'）
 （対象 209→**210**・live 実測＝billing locked の関数 **210**）
+
+### A24. 0201d（1 本・2026-11-13 本番適用（Agoora 手貼り・検証 18 行一致）・規則A形でゲート内蔵）
+- 0201d 当日の臨時営業の登録（裁定478）: register_special_open（owner／自店の manager／店の端末の操作者が店長以上・set_store_special_day と同じ 'billing locked'）
+（対象 210→**211**・live 実測＝billing locked の関数 **211**）
 ## B. 除外（99本）
 
 ### B(a) 構造除外＝authenticated 実行不可（service/内部・28本）→ ゲート不要（B7 回避型(1)）
@@ -606,6 +610,10 @@ staff_deactivate / kiosk_deactivate
 - 読取（B(f) と同列＝ゲート不要）: notice_response_status（店長以上の確認と出欠の一覧）
 - 構造除外（B(a) と同列＝内部専用・4 ロール revoke）: notice_audience_has（宛先の判定）
 （除外 233→**237**・全数 442→**447**（0201i ＋5＝A +1（A23 notice_set_rsvp）・B +4・作り直し 1 本 demo_org_reset は名前不変））
+
+### B(ad). 0201d 新設の除外（1本・2026-11-13・0201d の本番適用で収載）
+- 構造除外（B(a) と同列＝内部専用・4 ロール revoke）: store_day_has_checks（その営業日に卓があるか）
+（除外 237→**238**・全数 447→**449**（0201d ＋2＝A +1（A24 register_special_open）・B +1・作り直し 4 本 biz_minutes_of／check_open／set_store_special_day（署名変更＝drop＋create・名前不変）／remove_store_special_day は名前不変））
 
 ## C. kiosk 腕を持つ対象（実装注意・18本）
 A1 の check_open / check_add_line / check_remove_line / check_add_seat / check_remove_seat /

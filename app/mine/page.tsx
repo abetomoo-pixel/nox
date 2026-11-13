@@ -51,6 +51,9 @@ import { isSectionOn, type StoreSettings } from "@/lib/nox/store-systems"; // �
 import { mineSettingsOf } from "@/lib/nox/store/mine-settings";
 import { mineVisibilityOf, slipFootNoteOf, stripKintaiPay } from "@/lib/nox/mine/visibility"; // ★裁定491・492 // ★裁定326-8（便 M1-3）: mine_settings の出し分け（既存の自店読取に相乗り＝新規 fetch 0）
 import { punchHeadOf, punchStateOf, todayShiftLineOf } from "@/lib/nox/shift/punch-state";
+import { mig0201iOn } from "@/lib/nox/rules-0175/flag"; // ★0201i（裁定486）: ホームの件数（未確認・未回答）と出欠の予定
+import { noticePendingCountOf, rsvpEventsOf, type MyResponse, type RsvpAnswer } from "@/lib/nox/notices/response";
+import { noticeVisibleToCastOf as noticeVisOf0201i } from "@/lib/nox/people/notify-text";
 import { castPunchOffOf, opsProfileOf } from "@/lib/nox/store/ops-profile"; // ★0164（便 W5-2b）: punch_methods.self の出し分け // ★裁定326 追補3（便 M1-4）: 打刻カードの 3 状態（todayPunches から＝新規 fetch 0）
 
 export const dynamic = "force-dynamic";
@@ -260,10 +263,22 @@ export default async function MinePage({ searchParams }: { searchParams?: Promis
     normDaysTarget: daysTargets[month],
   });
   const showContractAck = contractAckGateOf(ms.contract_ack, typeof ackNeeded === "boolean" ? ackNeeded : null, termsLines.length > 0); // ★M-33: 要約 0 行なら枠を出さない
+  // ★0201i（裁定486）: 出欠を取るお知らせ（RLS＝見えるもの・宛先つきは本人を含むものだけ）と本人の確認・出欠 → ホームの件数と出勤予定の「お知らせの予定」
+  let noticePending = 0; const rsvpByMonth = new Map<string, ReturnType<typeof rsvpEventsOf>>();
+  if (mig0201iOn() && meCast) {
+    const [{ data: nr }, { data: rr }] = await Promise.all([
+      supabase.from("notices").select("id, title, cast_ids, rsvp, rsvp_at, rsvp_due"),
+      supabase.from("notice_responses").select("notice_id, acked_at, rsvp").eq("subject_kind", "cast").eq("subject_id", meCast.id as string),
+    ]);
+    const vis = ((nr ?? []) as { id: string; title: string; cast_ids: string[] | null; rsvp: boolean; rsvp_at: string | null; rsvp_due: string | null }[]).filter((n) => noticeVisOf0201i(n.cast_ids ?? null, meCast.id as string));
+    const mine = new Map(((rr ?? []) as { notice_id: string; acked_at: string | null; rsvp: RsvpAnswer | null }[]).map((r) => [r.notice_id, { acked_at: r.acked_at, rsvp: r.rsvp } as MyResponse]));
+    noticePending = noticePendingCountOf(vis, mine, Date.now());
+    for (const m of [month, nextMonth]) rsvpByMonth.set(m, rsvpEventsOf(vis, mine, m, bizToday));
+  }
   const scheduleTabs: ScheduleTab[] = ([[month, "今月"], [nextMonth, "来月"]] as const).map(([m, label]) => {
     const sc = scheduleOf({ shifts: (shiftsAll ?? []) as ScheduleShift[], wishes: (wishRows ?? []) as ScheduleWish[], month: m, today: bizToday });
     const cnt = daysCountOf({ workedDates: m === month ? workedThisMonth : new Set<string>(), schedule: sc });
-    return { month: m, label, fixed: sc.fixed, pending: sc.pending, norm: daysNormLineOf({ target: daysTargets[m], worked: cnt.worked, fixedDays: cnt.fixedDays, pendingDays: cnt.pendingDays }) };
+    return { month: m, label, fixed: sc.fixed, pending: sc.pending, norm: daysNormLineOf({ target: daysTargets[m], worked: cnt.worked, fixedDays: cnt.fixedDays, pendingDays: cnt.pendingDays }), events: rsvpByMonth.get(m) ?? [] };
   });
   // ★便 X13-G W-22 ④: 売上の自分の順位（get_cast_sales_rank＝cast は自分の 1 行だけ・他人の金額と順位は返らない）
   const { data: salesRank } = myStore ? await supabase.rpc("get_cast_sales_rank", { p_store_id: myStore.id as string, p_period: month }) : { data: null };
@@ -342,6 +357,9 @@ export default async function MinePage({ searchParams }: { searchParams?: Promis
       </section>
 
       {/* ★便 X13-G W-22 ②⑤: 出勤予定（今月／来月・確定と確認待ち・募集中は出さない）＋出勤ノルマの不足（旧・直近の節は廃止） */}
+      {noticePending > 0 && (/* ★0201i: ホームの件数＝未確認・未回答 */
+        <Link href="/mine/notices" className="nox-panel" style={{ display: "block", fontWeight: 700, textDecoration: "none" }} data-mine-notice-pending={noticePending}>お知らせ：未確認・未回答 {noticePending} 件 ›</Link>
+      )}
       <ScheduleCard tabs={scheduleTabs} />
 
       {/* ★M-163（2026-11-11 夜・Agoora 確定＝ローンチ前は並び替えだけ）: 今日の予定・打刻 → ドリンク申告 → 指名予約 → ノルマ・時給の見込み → 明細・勤怠（折りたたみ／別画面は案の報告の後） */}

@@ -181,3 +181,17 @@ export const MIG_0197_APPLIED = true; // ★2026-11-06: 0197（sha16 f28f7374899
 let override0197: boolean | null = null;
 export function mig0197On(): boolean { return override0197 ?? MIG_0197_APPLIED; }
 export function __set0197ForTest(v: boolean | null): void { override0197 = v; }
+
+/** ★0201d（裁定478＝臨時営業／臨時休業を営業日で持つ・price_dow・register_special_open・check_open の門）: 2026-11-13 Agoora 手貼り＝検証 18 行が全行一致（関数 449・表 122）→ true。
+ *  true＝開卓のモーダルの臨時営業の問い（店長以上）・キャストとスタッフの案内・特別日の「料金は何曜日と同じ」・日報の印・開卓の見込みの曜日。 */
+export const MIG_0201D_APPLIED = true;
+let override0201d: boolean | null = null;
+export function mig0201dOn(): boolean { return override0201d ?? MIG_0201D_APPLIED; }
+export function __set0201dForTest(v: boolean | null): void { override0201d = v; }
+
+/** ★0201i（裁定486＋追補＝お知らせの「確認しました」と出欠）: 2026-11-13 夕 Agoora 手貼り＝検証 18 行が全行一致（関数 447・表 122）→ true。
+ *  true＝受け取る側の「確認しました」／出欠（自動の既読をやめる）・作る側の「出欠を取る」と確認／出欠の一覧・ナビとホームの件数＝未確認・未回答・本人の出勤予定に出欠の予定。 */
+export const MIG_0201I_APPLIED = true;
+let override0201i: boolean | null = null;
+export function mig0201iOn(): boolean { return override0201i ?? MIG_0201I_APPLIED; }
+export function __set0201iForTest(v: boolean | null): void { override0201i = v; }

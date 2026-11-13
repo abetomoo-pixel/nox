@@ -1,4 +1,6 @@
 import { redirect } from "next/navigation";
+import { mig0201iOn } from "@/lib/nox/rules-0175/flag"; // ★0201i
+import { staffNoticePendingOf } from "@/lib/nox/notices/pending-server";
 import BrandLogo from "@/components/ui/brand-logo"; // ★便 SH-UI-a A-2: ロゴ（Concept 2 改）
 import { cookies, headers } from "next/headers"; // ★便 E（0196 用）: cookie nox_kiosk_person
 import { createClient } from "@/lib/supabase/server";
@@ -125,6 +127,8 @@ export default async function ManageLayout({ children }: { children: React.React
     const pathnameReg = (await headers()).get("x-pathname") ?? "";
     if (!staffRegister && (pathnameReg === "/register" || pathnameReg.startsWith("/register/"))) redirect("/dashboard"); // ★M-43: 権限が無ければ画面に入れない（★0200: 出勤中でなくても）
   }
+  // ★0201i（裁定486）: お知らせの件数＝未確認・未回答（スタッフ・宛先の店長）
+  const noticePending = mig0201iOn() && (role === "staff" || role === "manager") ? await staffNoticePendingOf(supabase, role).catch(() => 0) : 0;
   // ★UI刷新v2 段N（正本 nox-nav-redesign-mock-v2.html）: 5群構成へ再編。
   //   ★ルート/URL/ページ実体/role ゲートは完全不変＝並び・群見出し・ラベルだけを変えた
   //     （項目集合も現行と同一。モックの「受付/イベント/ポイント/権限設定/ヘルプ」等は作らない）。
@@ -157,7 +161,7 @@ export default async function ManageLayout({ children }: { children: React.React
         // ★裁定275（M12/M13）: 店舗群＝歯車の口（≤899 は歯車 Modal・900+ はサイドバー下部＝並びは従来どおり最後）。項目集合・role 条件は不変。
         { label: "店舗", gear: true, items: [
           ...(isManagerUp ? [{ href: "/master", label: "マスタ" }] : []),
-          { href: "/notices", label: "お知らせ" },
+          { href: "/notices", label: noticePending > 0 ? `お知らせ（${noticePending}）` : "お知らせ" }, // ★0201i: 未確認・未回答の数
           // 監査ログは owner 限定（RLS も owner 限定＝mig0002・非 owner は 0行。ここは表示ナビ）
           ...(role === "owner" ? [{ href: "/audit", label: "監査" }] : []),
           // 課金（設計書 §6）: owner 限定＝org_billing の RLS SELECT も owner 限定・route も requireOwner
