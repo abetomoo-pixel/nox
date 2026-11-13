@@ -91,3 +91,33 @@ Agoora：
 - 0201i r2 の単独の試走（docs/tmp/try_0201i_r2.mjs＝1-13 forbidden・1-13b 読める・1-13c・6-10 キャストだけを張り替えた）と、0201i→0201d の通し（docs/tmp/try_chain_1113c.mjs）は**流していない**＝本番に BEGIN…ROLLBACK で接続する所で、CC の実行環境の権限の判定（本番の読取）が止めた。0201f2 の事前確認の読取も同じ理由で流していない。流すには Agoora の許可（または Agoora が流す）が要る。
 ### 本番への接続
 - 0（DB・試走・ブラウザ・裏のエージェント）。
+
+## 追記 3（2026-11-13 夕・Agoora の外出中の A〜D＝本番に接続しない・f0 なし・push なし）
+### コミット（push していない・main は origin より 5 つ先＝3383f0df 台帳・b7fd1731 報告・53741f36 A・d470fda8 B・26f38733 C）
+- **A 会計の画面＝53741f36**：残額 0 で「会計を完了」を画面の下に固定（.nox-paydone-bar＝下のナビのすぐ上・広い画面はサイドバーの右・safe-area・最後の行と重ならない 84px の余白）／緑の案内＝「入金は済んでいます。会計を完了してください。」＋同じボタン（「下の〜を押してください」は消した）／残額 0 のときは延長の表（自動・手動）・カスタム明細・割引を畳む（開けば使える・残額が戻れば今のまま）／いちばん下の今のボタンは残す。
+  - ★375 の幅での重なりの目視は**していない**（dev サーバー 3200 は触らない決まり・本番には出していない）。CSS は .nox-st-bar（棚卸し）と同じ型。次の f0 のあとの push で本番で 375 を撮る。
+- **B 初期設定のカードの手数料＝d470fda8**：欄を 1% 刻みの整数（小数は入らない＝「.」を打っても欄が変わらない）・確認の画面と保存で同じ値（cardFeePctOf＝lib/nox/setup/v5.ts）・Math.round の黙った丸めを外した。古い下書き（再開）に小数が残っている店は、欄には小数が出たまま・確認と保存は小数を切った整数になる（本番の店の下書きの小数は未計測＝読取は本番の接続が要る）。
+- **C 店の端末のロック中に「名前を選んで入る」＝26f38733**：'device_locked' のあと PIN の画面に「名前を選んで入る」→ kiosk_staff_list（PIN を設定した人だけ）→ 名前 → 本人の PIN → kiosk_unlock に p_membership_id（DB は変えない）。
+  - **実装しなかった（判断が要る）**：kiosk_staff_list は店長とスタッフだけ・店長の打刻の許可が OFF の店は店長が出ない（0201g_pin_device.sql:373-374）＝オーナー・レジに入れるキャストは名前で入れない／打刻の許可 OFF の店の店長も名前で入れない。直すには新しい読取の関数か kiosk_staff_list の引数（どちらも mig）＝相談役の判断（docs/tmp/report_kiosk_lock_1113.md）。
+- 単独で流した suite（DB に接続しないものだけ・docs/tmp/presuite_ABC_1113.log）：b6 54（＋5＝c9）・b3・b4・b5・bend・gvb・m136（Fold の数 3→4・key の張替え）・m141・m144・m5・m5b・m63・m65・m6k2・ob・p175prep・payroll-view・s3・setup・su・w52a・x13g＝**全部緑**・tsc 0・lint 0。DB に接続する suite（0187・0197・0201・bene・night1110・ob2）は流していない。
+
+### B の洗い出し＝「見せる値と保存する値が違う」型（初期設定・lib/nox/setup/v5.ts の保存の式と app/(manage)/setup/setup-wizard.tsx の確認の画面）
+| 欄 | 欄の刻み | 保存の式 | 確認の画面 | 違う場合 |
+|---|---|---|---|---|
+| 給与の支払日 | 整数（小数も打てる） | Math.round＋1〜31 に寄せる（v5.ts:273） | `支払 ${pr.payday} 日`（そのまま） | 25.5→確認 25.5・保存 26／40→確認 40・保存 31 |
+| 体入の日数 | 整数（小数も打てる） | Math.round＋1〜90（v5.ts:275） | `（${p.trialDays} 日）`（そのまま） | 7.5→確認 7.5・保存 8／120→保存 90 |
+| 現金割引の率 | step 0.5（任意の小数も打てる） | 小数 1 桁に丸め＋0〜100（v5.ts:283） | 確認に出ない | 7.25→保存 7.3（欄は 7.25） |
+| 送りの基本額 | 整数 | Math.round＋0〜99,999（v5.ts:274） | 確認に出ない | 小数・上限超えは黙って変わる |
+| 自動確定の時間 | 自由な数値 | Math.round＋0〜168（v5.ts:276） | 確認に出ない | 店舗設定は 4 択＝36 などはどれも選ばれていない見た目（report_4_9EA §【9】E2） |
+| 釣銭準備金 | 整数 | Math.round＋0〜9,999,999（v5.ts:289） | 確認に出ない | 小数は黙って丸め |
+| VIP のサービス料 | 整数 | Math.round＋0〜100（v5.ts:296） | — | 小数は黙って丸め |
+| 商品の値段・バック | 整数 | Math.round（v5.ts:338-339） | 品数だけ | 小数は黙って丸め |
+- 案：B と同じ型（欄を integer にして小数を受けない・確認の画面は保存の式と同じ関数で出す）を、支払日・体入の日数・送りの基本額・釣銭準備金・VIP のサービス料・商品の値段とバックに当てる。現金割引は小数 1 桁を受ける欄（step 0.1）にして、保存の式と揃える。自動確定は 4 択に揃える（判断＝相談役）。
+
+### D 体入の式の実装の前の読取（コードだけ）
+- 今の cast_trial_decide（supabase/migrations/0201c_trial_product.sql:52-92）：本採用は `v_plan := coalesce(p_plan_id, 店の settings_json.default_plan_id)`（:69）→ 両方 null なら `raise 'no plan'`（:70＝set_cast_kind の前＝何も書かずに止まる）。p_plan_id が null でも既定があれば既定で本採用。既定が停止中のプランなら set_cast_plan の中で 'plan inactive'（0154:400）＝tx ごと戻る。見送りは p_plan_id を読まず cast_leave（:85）。どちらも監査を書く（:87-89）・p_from が null なら東京の今日（:67）。画面（casts-board.tsx:1112-1125）は既定のプランがあればその id を明示して渡し、無ければ選ぶまで押せない＝画面から本採用で null は渡らない（lib/nox/cast/trial-terms.ts:54-56）。
+- casts に「体入の条件が終わる日」（例 trial_ends_on date・null 可・既定なし）を足す mig で作り直しが要る関数＝**cast_trial_decide だけ**（個人の上書きも手で直すなら set_cast_trial も＝署名が変わるので drop と ACL の付け直し）。demo_org_reset（0200b:81・102-107＝列の重なりだけを入れる）・cast_create_apply（0040:147＝列名つき）・`public.casts` 型の変数で読む関数・監査の to_jsonb は作り直し不要。casts を返す関数・固定の列の jsonb_populate_record は 0 件。
+- 0201i（notice 系 5 本と demo_org_reset）・0201d（store_day_has_checks ほか 6 本）・0201j（org_signup_provision・set_my_contact）＝どれも cast_trial_decide・set_cast_trial・casts の列に触れない＝**順の制約は無い**（demo_org_reset を作り直すなら 0201i の後に、その版から）。demo の payload に列を足す必要は無い（null 可なら読み込みは通る）。verify-nox-b6.ts:61-68 は trialDecideArgsOf と trialCastColsOf の形を決め打ち＝引数や select の列を変えるならそこも張り替える。
+
+### 本番への接続
+- **0**（DB・試走・通しの確かめ・デモへの書き込み・ブラウザ・裏のエージェント＝この追記 3 の作業では一度も開いていない）。
