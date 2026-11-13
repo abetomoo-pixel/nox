@@ -3,6 +3,8 @@
 // キャスト管理ボード（F3d 体入採用 UI・モック「体入・採用管理」＋「新規キャスト登録」準拠）。
 // 操作は全て RPC 経由＝trial_register/trial_update/trial_hire/trial_reject／cast_create。
 // 真の防御は trials RLS（owner/manager 限定）＋各 RPC ゲート（UI は操作面）。
+import { mig0201fOn } from "@/lib/nox/rules-0175/flag"; // ★0201f
+import { MYNUMBER_DISCARD_NOTE_0201F, MYNUMBER_IN_SERVICE_LABEL, MYNUMBER_LAST_PAY_YEAR_LABEL } from "@/lib/nox/mynumber/discard-text";
 import { TRIAL_WAGE_NOT_IN_PAY_NOTE } from "@/lib/nox/cast/trial-terms"; // ★2026-11-13（相談役【3】c）
 import { LoadMoreBar, useLoadMore } from "@/components/ui/load-more"; // ★便 M5b M-60
 import { PIN_DIGITS_LABEL, PIN_MAX, PIN_SHAPE_RE } from "@/components/nox/pin-pad"; // ★M-179: 桁数は 1 か所の定数から
@@ -423,12 +425,12 @@ export default function CastsBoard({
   }, []);
   useEffect(() => { setGuaForm(null); setGuaMsg(null); }, [sel, dtab]); // 281-4: 選択・タブが変わったら節内のフォームと成否を消す
   // ★0155（裁定309-3・便 S-3）: マイナンバーの廃棄候補（cast_mynumber_discard_candidates＝owner のみ・退店日の翌年 1/1 起算 7 年経過＋登録あり・全店）。owner 以外は取得も描画もしない（S-6）
-  const [discardCands, setDiscardCands] = useState<{ cast_id: string; store_id: string; name: string; left_on: string; due_on: string }[] | null>(null);
+  const [discardCands, setDiscardCands] = useState<{ cast_id: string; store_id: string; name: string; left_on: string | null; due_on: string; in_service?: boolean; last_tax_year?: number | null; registered_on?: string | null; retention_years?: number }[] | null>(null); // ★0201f（裁定483）: フラグ true で在籍中の印・最後に報酬の支払いがあった年・登録日・年数
   useEffect(() => {
     if (!isOwner) return;
     let alive = true;
     void supabase.rpc("cast_mynumber_discard_candidates", { p_store_id: null })
-      .then(({ data }) => { if (alive) setDiscardCands((data ?? []) as { cast_id: string; store_id: string; name: string; left_on: string; due_on: string }[]); });
+      .then(({ data }) => { if (alive) setDiscardCands((data ?? []) as { cast_id: string; store_id: string; name: string; left_on: string | null; due_on: string; in_service?: boolean; last_tax_year?: number | null; registered_on?: string | null; retention_years?: number }[]); });
     return () => { alive = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOwner]);
@@ -861,7 +863,9 @@ export default function CastsBoard({
           <h3 style={{ ...secTitle, margin: "0 0 4px" }}>マイナンバーの廃棄候補</h3>
           <p style={{ ...t.sub, margin: "0 0 8px", lineHeight: 1.7 }}>
             {/* ★裁定483（2026-11-11）: 「法定保存期間満了」「7 年を過ぎ」の言い切りを外す（年数は店の運用の目安・判断はオーナー） */}
-            退店日の翌年 1 月 1 日から一定の年数（いまは 7 年＝お店の運用の目安）が過ぎ、マイナンバーの登録が残っているキャスト。廃棄するかはオーナーが判断します。廃棄は
+            {mig0201fOn()
+              ? MYNUMBER_DISCARD_NOTE_0201F /* ★0201f（裁定483・499-3）: 言葉は「最後に報酬の支払いがあった年」 */
+              : "退店日の翌年 1 月 1 日から一定の年数（いまは 7 年＝お店の運用の目安）が過ぎ、マイナンバーの登録が残っているキャスト。廃棄するかはオーナーが判断します。"}廃棄は
             <Link href="/master/system" className="nox-link">機密・税務情報</Link>
             でキャストを選んで行います（理由必須・元に戻せません）。
           </p>
@@ -875,7 +879,9 @@ export default function CastsBoard({
                 <div key={c.cast_id} style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", fontSize: 13, borderBottom: "1px solid var(--line)", padding: "4px 0" }}>
                   <span style={{ fontWeight: 700 }}>{c.name}</span>
                   <span style={lbl}>{storeName(c.store_id)}</span>
-                  <span style={lbl}>退店日 <span className="num">{c.left_on}</span></span>
+                  {mig0201fOn() && c.in_service && <span style={{ ...lbl, color: "var(--warning)" }} data-discard-in-service="1">{MYNUMBER_IN_SERVICE_LABEL}</span>}
+                  {mig0201fOn() ? (c.last_tax_year != null ? <span style={lbl}>{MYNUMBER_LAST_PAY_YEAR_LABEL} <span className="num">{c.last_tax_year}</span></span> : c.registered_on ? <span style={lbl}>登録 <span className="num">{c.registered_on}</span></span> : null) : null}
+                  {(!mig0201fOn() || !c.in_service) && c.left_on && <span style={lbl}>退店日 <span className="num">{c.left_on}</span></span>}
                   <span style={{ ...lbl, color: "var(--bad)" }}>期限 <span className="num">{c.due_on}</span></span>
                   <button type="button" style={{ ...btnGhost, marginLeft: "auto" }}
                     onClick={() => { setSel({ kind: "cast", id: c.cast_id }); setDtab("basic"); }}>詳細</button>

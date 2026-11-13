@@ -34,6 +34,8 @@ const DENY_GUARDED: Record<string, string> = {
   "staff/create": "lib/nox/staff/route-guard.ts",
   "staff/update-email": "app/api/staff/update-email/route.ts",
   "cast/mynumber": "app/api/cast/mynumber/route.ts",
+  "cast/mynumber/register": "app/api/cast/mynumber/register/route.ts", // ★0201f: 登録（サーバーで暗号化）＝デモは 403
+  "cast/mynumber/last4": "app/api/cast/mynumber/last4/route.ts", // ★0201f: 末尾 4 桁（サーバーで復号）＝デモは 403
   "kiosk/provision": "app/api/kiosk/provision/route.ts",
   "print/jobs": "app/api/print/jobs/route.ts",
   "staff/invite": "app/api/staff/invite/route.ts", // ★便 ON-3（0176 ★2 I-1）: 登録→招待＝staff/create と同じ柵（裁定273-6）

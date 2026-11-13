@@ -169,6 +169,14 @@ let override0201g: boolean | null = null;
 export function mig0201gOn(): boolean { return override0201g ?? MIG_0201G_APPLIED; }
 export function __set0201gForTest(v: boolean | null): void { override0201g = v; }
 
+/** ★0201f（案 1・裁定497-3／499-9）: マイナンバーをアプリ側で暗号化（Vercel の env 2 本）・廃棄の候補を裁定483 に。手貼り＝検証 22 行が全行一致の後に true。
+ *  false の間は今のまま（画面の登録は set_cast_sensitive に平文・末尾 4 桁は get_cast_mynumber_masked(p_cast_id)・全桁と CSV は DB の復号）。
+ *  true＝登録は /api/cast/mynumber/register（サーバーで暗号化）・末尾 4 桁は /api/cast/mynumber/last4・全桁と CSV はサーバーで復号・廃棄の候補の新しい列・店の年数。 */
+export const MIG_0201F_APPLIED = false;
+let override0201f: boolean | null = null;
+export function mig0201fOn(): boolean { return override0201f ?? MIG_0201F_APPLIED; }
+export function __set0201fForTest(v: boolean | null): void { override0201f = v; }
+
 export const MIG_0197_APPLIED = true; // ★2026-11-06: 0197（sha16 f28f737489916c38）を Agoora が手貼り（06:53 UTC・本文 Success）＝verify 17 行が期待値と一致（unique は数え方の差・正本の式では 1）・関数 419・表 120・本文 3 本の md5 一致 → true
 let override0197: boolean | null = null;
 export function mig0197On(): boolean { return override0197 ?? MIG_0197_APPLIED; }

@@ -4,6 +4,10 @@
 // 本名/生年月日は cast_sensitive（service・RLS バイパスは本 route の owner authz が防御＝payroll preview 前例）、
 // マイナンバーは get_cast_mynumber（service 限定・呼ぶ度 audit＝全件監査・未取得は空欄）経由のみ。
 // ★法定様式ではない（様式は税理士確認・留保#7）＝ヘッダ行に明記。BOM 付き UTF-8。
+import { mig0201fOn } from "@/lib/nox/rules-0175/flag";
+import { decryptMynumberEnv } from "@/lib/nox/mynumber/crypto";
+// ★0201f: フラグ true の間は DB が暗号文を返す＝復号して出す（フラグ false は今のまま）。復号の失敗は例外のまま＝route の 500
+const mynumberCsvOf = (v: string | null, castId: string): string => (v == null ? "" : mig0201fOn() ? decryptMynumberEnv(v, castId) : v);
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -89,7 +93,7 @@ export async function POST(req: Request) {
       csvRows.push({
         name: nameById.get(tgt.cast_id) ?? "",
         realName: realById.get(tgt.cast_id) ?? "",
-        mynumber: (myn as string | null) ?? "",
+        mynumber: mynumberCsvOf(myn as string | null, tgt.cast_id), // ★0201f（フラグ true）: 暗号文を復号（失敗は空欄にせず 500＝鍵の取り違えを見逃さない）
         gross: sum.gross,
         withholding: sum.withholding,
         target: isTaxReportTarget(sum.gross),

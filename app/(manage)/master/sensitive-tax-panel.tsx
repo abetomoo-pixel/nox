@@ -4,6 +4,7 @@
 //   ■ 機密は owner 限定: get_cast_sensitive は owner/cast本人のみ（manager は封印で読めない＝T6a）。
 //     real_name/birthday は上書き更新（現値を読めない manager の blind write が既存を消す事故を避けるため
 //     機密編集は owner に限定）。マイナンバーは平文入力 → set_cast_sensitive が DB 内で pgp_sym 暗号化（Vault 鍵）。
+//     ★0201f（フラグ true）: 平文はサーバー（/api/cast/mynumber/register）で暗号化して暗号文だけを DB へ（Vault の鍵は使わない）・末尾 4 桁は /api/cast/mynumber/last4。
 //     空欄のマイナンバーは「変更なし」（既存 enc 温存）。full 平文は owner の「表示」（service 経路・全件 audit）のみ。
 //   ■ 税務は manager+: cast_tax_profiles はパターン2（manager+ 可視）。
 //
@@ -14,6 +15,7 @@
 //     機密（本名・生年月日・マイナンバー）= owner のみ閲覧（get_cast_sensitive）・全平文は支払調書経路のみ。
 //     manager/staff は閲覧不可。税務（cast_tax_profiles）は manager+ が閲覧・編集可＝脚注で明示。
 //     モックの「経理」ロールは NOX に無い＝出さない（M-10 C-3 でモック側を是正）。
+import { mig0201fOn } from "@/lib/nox/rules-0175/flag"; // ★0201f
 import { useCallback, useEffect, useState } from "react";
 import SegSelect from "@/components/ui/seg-select";
 import DatePicker from "@/components/ui/date-picker"; // ★便 A M-80 追記③: 生年月日は共通ピッカー
@@ -182,12 +184,19 @@ export default function SensitiveTaxPanel({ casts, stores, isOwner, isManager = 
     setMsg(null);
     const p_mynumber = mynumber.trim() === "" ? null : mynumber.trim();
     if (p_mynumber !== null && !/^\d{12}$/.test(p_mynumber)) { setMsg("マイナンバーは数字12桁で入力してください"); return; }
-    const { error } = await supabase.rpc("set_cast_sensitive", {
-      p_cast_id: castId,
-      p_real_name: realName.trim() === "" ? null : realName.trim(),
-      p_birthday: birthday === "" ? null : birthday,
-      p_mynumber, // 空=変更なし（既存 enc 温存）
-    });
+    let error: { message: string } | null = null;
+    if (mig0201fOn() && p_mynumber !== null) {
+      // ★0201f（フラグ true）: 番号はサーバーで暗号化して保存（本名・生年月日も同じ呼び出しで）
+      const res = await fetch("/api/cast/mynumber/register", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ castId, realName: realName.trim() === "" ? null : realName.trim(), birthday: birthday === "" ? null : birthday, mynumber: p_mynumber }) });
+      if (!res.ok) { const j = (await res.json().catch(() => ({}))) as { error?: string }; error = { message: j.error ?? String(res.status) }; }
+    } else {
+      ({ error } = await supabase.rpc("set_cast_sensitive", {
+        p_cast_id: castId,
+        p_real_name: realName.trim() === "" ? null : realName.trim(),
+        p_birthday: birthday === "" ? null : birthday,
+        p_mynumber, // 空=変更なし（既存 enc 温存）
+      }));
+    }
     if (error) { setMsg(`機密保存エラー: ${errJa(error.message)}`); return; }
     // ★F193-4: 住所・電話・振込先＝変わった項目だけ patch（空＝null で消す・口座番号は数字 8 桁まで＝RPC の鏡）
     if (mig0193On()) {
@@ -207,6 +216,13 @@ export default function SensitiveTaxPanel({ casts, stores, isOwner, isManager = 
   // ★F193-4: 末尾 4 桁（get_cast_mynumber_masked＝本人・管理者・自店の店長・閲覧は記録）。全桁は管理者の「表示」（/api/cast/mynumber）のまま
   async function revealMasked() {
     setMsg(null); setMasked(null);
+    if (mig0201fOn()) {
+      // ★0201f（フラグ true）: 末尾 4 桁はサーバーで復号（DB は暗号文だけ）
+      const res = await fetch("/api/cast/mynumber/last4", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ castId }) });
+      const j = (await res.json().catch(() => ({}))) as { masked?: string | null; error?: string };
+      if (!res.ok) { setMsg(`末尾 4 桁の表示エラー: ${rpcErrJa(j.error ?? String(res.status))}`); return; }
+      setMasked(j.masked ?? "（未登録）"); return;
+    }
     const { data, error } = await supabase.rpc("get_cast_mynumber_masked", { p_cast_id: castId });
     if (error) { setMsg(`末尾 4 桁の表示エラー: ${rpcErrJa(error.message)}`); return; }
     setMasked((data as string | null) ?? "（未登録）");

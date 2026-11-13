@@ -7,6 +7,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 import { assertNotDemo } from "@/lib/nox/demo/guard"; // ★N7-1（裁定273-6）: デモ org は 403
+import { mig0201fOn } from "@/lib/nox/rules-0175/flag";
+import { decryptMynumberEnv } from "@/lib/nox/mynumber/crypto"; // ★0201f: DB は暗号文だけ＝ここで復号（AAD＝castId）
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function POST(req: Request) {
@@ -47,5 +49,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: error.message }, { status });
   }
   // data は復号済み平文 or null（未登録）。ブラウザ表示は呼び出し側で一時的に扱う（保存しない）。
+  if (mig0201fOn() && typeof data === "string") {
+    // ★0201f（フラグ true）: get_cast_mynumber は暗号文を返す＝サーバーで復号（鍵が無い＝503・形が違う＝500・鍵の値は出さない）
+    try { return NextResponse.json({ mynumber: decryptMynumberEnv(data, castId) }); }
+    catch (e) { const m = e instanceof Error ? e.message : ""; return NextResponse.json({ error: m === "mynumber key missing" ? "mynumber key missing" : "decrypt failed" }, { status: m === "mynumber key missing" ? 503 : 500 }); }
+  }
   return NextResponse.json({ mynumber: (data as string | null) ?? null });
 }

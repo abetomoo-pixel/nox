@@ -29,6 +29,10 @@ import { TRIAL_WAGE_NOT_IN_PAY_NOTE } from "../lib/nox/cast/trial-terms";
 import { PRIVACY_PUBLISHED_ON, privacyBlocksOf, privacyPublishedOf } from "../lib/nox/legal/privacy";
 import { pinSelfErrJa } from "../components/nox/pin-self-card";
 import { unlockNextOf } from "../lib/nox/rules-0175/kiosk";
+import crypto from "node:crypto";
+import { MYNUMBER_FORM_RE, decryptMynumber, encryptMynumber, mynumberKeysOf, mynumberMaskedOf, mynumberPlainOf } from "../lib/nox/mynumber/cipher";
+import { MYNUMBER_DISCARD_NOTE_0201F, MYNUMBER_LAST_PAY_YEAR_LABEL, mynumberRetentionValidOf } from "../lib/nox/mynumber/discard-text";
+import { MIG_0201F_APPLIED, mig0201fOn } from "../lib/nox/rules-0175/flag";
 const src = (p: string) => fs.readFileSync(p, "utf8");
 const J = JSON.stringify;
 const LATIN = /[A-Za-z]/;
@@ -212,6 +216,38 @@ const LATIN = /[A-Za-z]/;
   check("b6(c7-6) 0201g の文言（本人の設定 weak／taken／too_many・端末の device_locked・管理側の pin weak／pin taken）",
     pinSelfErrJa("too_many") === "PIN の変更は 1 日 5 回までです。店長に設定を頼んでください。" && pinSelfErrJa("weak") === "推測されやすい番号は使えません" && pinSelfErrJa("taken") === "この PIN は使えません。別の番号にしてください"
     && unlockNextOf({ ok: false, reason: "device_locked" }).message === "この端末はしばらく使えません（PIN の失敗が続きました）" && rpcErrJa("pin weak") === "推測されやすい番号は使えません" && rpcErrJa("pin taken") === "この PIN は使えません。別の番号にしてください");
+}
+
+// ★0201f のフラグ便（フラグ false・2026-11-13）: 暗号化の純関数・route と画面の配線・言葉（DB の 0201f が無くても流せる段だけ）
+{
+  const K = { keys: { test1: crypto.randomBytes(32).toString("base64"), test2: crypto.randomBytes(32).toString("base64") }, current: "test1" };
+  const cid = "7f441220-ff3f-456d-875c-7798d5afd82c", cid2 = "00000000-0000-0000-0000-000000000001";
+  const enc = encryptMynumber("1234-5678 9012", cid, K);
+  const raw = Buffer.from(enc.split(":")[2], "base64");
+  check("b6(c8-1) 暗号文の形＝nox1:test1:<base64>・40 バイト（DB の検査 29〜128・CHECK の正規表現と同じ形）・12 桁の数字が暗号文に現れない",
+    MYNUMBER_FORM_RE.test(enc) && enc.startsWith("nox1:test1:") && raw.length === 40 && !/d{12}/.test(enc) && enc.length <= 256 && enc.split(":")[2].length % 4 === 0);
+  check("b6(c8-2) 復号で戻る・nonce が毎回違う（同じ番号でも暗号文が違う）",
+    decryptMynumber(enc, cid, K) === "123456789012" && encryptMynumber("123456789012", cid, K) !== encryptMynumber("123456789012", cid, K));
+  let aadNg = false; try { decryptMynumber(enc, cid2, K); } catch { aadNg = true; }
+  let keyNg = false; try { decryptMynumber(enc, cid, { keys: { test1: K.keys.test2 }, current: "test1" }); } catch { keyNg = true; }
+  let tampered = false; const t2 = Buffer.from(raw); t2[20] ^= 1; try { decryptMynumber("nox1:test1:" + t2.toString("base64"), cid, K); } catch { tampered = true; }
+  check("b6(c8-3) 他人の行に写した暗号文は戻らない（AAD）・鍵が違えば戻らない・1 バイト変えれば戻らない", aadNg && keyNg && tampered);
+  const encV2 = encryptMynumber("123456789012", cid, { ...K, current: "test2" });
+  check("b6(c8-4) 版の入れ替え＝暗号文の版の鍵で戻る（test2 で作った暗号文を current test1 の鍵束で戻せる）", decryptMynumber(encV2, cid, K) === "123456789012" && encV2.startsWith("nox1:test2:"));
+  let bad = 0; for (const p of ["12345678901", "1234567890123", "12345678901a", ""]) { try { encryptMynumber(p, cid, K); } catch { bad++; } }
+  check("b6(c8-5) 平文は 12 桁の数字だけ（空白とハイフンは除く）・末尾 4 桁の表示・鍵の env の読み方（無い・壊れた JSON・版が無い＝null）",
+    bad === 4 && mynumberPlainOf(" 1234 5678 9012 ") === "123456789012" && mynumberMaskedOf("123456789012") === "********9012"
+    && mynumberKeysOf(undefined, "v1") === null && mynumberKeysOf("{", "v1") === null && mynumberKeysOf(JSON.stringify({ v2: "x" }), "v1") === null && mynumberKeysOf(JSON.stringify({ v1: "x" }), "v1")?.current === "v1");
+  const reg = src("app/api/cast/mynumber/register/route.ts"), l4 = src("app/api/cast/mynumber/last4/route.ts"), full = src("app/api/cast/mynumber/route.ts"), csv = src("app/api/payroll/tax-report-csv/route.ts"), panel = src("app/(manage)/master/sensitive-tax-panel.tsx");
+  check("b6(c8-6) フラグ false（0201f の前）＝新しい route は 404・画面は今の RPC の直呼び・全桁と CSV は復号しない",
+    MIG_0201F_APPLIED === false && !mig0201fOn() && reg.includes('if (!mig0201fOn()) return NextResponse.json({ error: "not found" }, { status: 404 });') && l4.includes('if (!mig0201fOn()) return NextResponse.json({ error: "not found" }, { status: 404 });')
+    && full.includes("if (mig0201fOn() && typeof data === \"string\")") && csv.includes("mig0201fOn() ? decryptMynumberEnv(v, castId) : v") && panel.includes('if (mig0201fOn() && p_mynumber !== null)') && panel.includes('fetch("/api/cast/mynumber/last4"'));
+  check("b6(c8-7) 登録は利用者のセッションの client で set_cast_sensitive（service では呼ばない）・末尾 4 桁は service で get_cast_mynumber_masked(p_org_id, p_actor, p_cast_id)・どちらもデモは 403",
+    reg.includes('supabase.rpc("set_cast_sensitive"') && !reg.includes("createAdminClient") && reg.includes("assertNotDemo") && l4.includes('admin.rpc("get_cast_mynumber_masked", { p_org_id: orgId, p_actor: actor.id, p_cast_id: castId })') && l4.includes("assertNotDemo"));
+  check("b6(c8-8) 言葉＝「最後に報酬の支払いがあった年」（「支払調書の対象になった年」は使わない）・3 つの拒否の和文・年数 1〜20",
+    MYNUMBER_LAST_PAY_YEAR_LABEL === "最後に報酬の支払いがあった年" && MYNUMBER_DISCARD_NOTE_0201F.includes("最後に報酬の支払いがあった年") && !src("app/(manage)/casts/casts-board.tsx").includes("支払調書の対象になった年") && !MYNUMBER_DISCARD_NOTE_0201F.includes("支払調書")
+    && rpcErrJa("plaintext rejected").startsWith("マイナンバーの保存の形") && rpcErrJa("bad ciphertext").startsWith("マイナンバーの保存の形") && rpcErrJa("bad mynumber_retention_years").includes("1〜20")
+    && mynumberRetentionValidOf("1") && mynumberRetentionValidOf("20") && !mynumberRetentionValidOf("0") && !mynumberRetentionValidOf("21") && !mynumberRetentionValidOf("7.5"));
 }
 
 if (fails.length) { console.error(`FAIL ${fails.length} 件 / pass ${pass}`); for (const f of fails) console.error(" - " + f); process.exit(1); }

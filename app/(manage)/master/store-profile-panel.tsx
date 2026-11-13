@@ -7,6 +7,8 @@
 //   読みは stores の直読（RLS 越し・owner は org 全店／manager は自店 1 件）。キー無しは既定（''／false）に倒す。
 //   保存後は同じ select で再取得して現値を表示。エラーは storeProfileErrJa で日本語へ。
 //   配置＝保存ボタンは .nox-actions で中央（裁定244）・トグルは切替＝例外。
+import { mig0201fOn } from "@/lib/nox/rules-0175/flag"; // ★0201f
+import { MYNUMBER_RETENTION_DEFAULT, mynumberRetentionValidOf } from "@/lib/nox/mynumber/discard-text";
 import { UnitBox } from "@/components/ui/unit-input"; // ★便 M5b M-50
 import DatePicker from "@/components/ui/date-picker"; // ★M-82（裁定452・教訓133）: 日付は共通のピッカー
 import { PUNCH_CHOICE_NOTE, PUNCH_CHOICE_OPTIONS, punchModeOf, registerWindowOf } from "@/lib/nox/shift/punch-mode"; // ★便 E（0197 用）
@@ -36,8 +38,8 @@ import { OPS_DEFAULT, PAYMENT_METHOD_LABEL, PUNCH_METHOD_LABEL, opsPatchErrorOf,
 import { MID_PAY_OPTIONS, SETTLEMENT_CYCLE_OPTIONS, midPayOf, settlementCycleOf } from "@/lib/nox/payroll/settlement-cycle"; // ★0172（裁定349・便 P172）: 店設定 2 キー
 import { SHIFT_AUTO_CONFIRM_OPTIONS, autoConfirmHoursOf } from "@/lib/nox/shift/auto-confirm"; // ★0172（裁定380・便 P172）: 自動確定時間
 import { errJa } from "@/lib/nox/errors"; // ★裁定467（M-126）: 利用者向けの文言は辞書 1 本
-type Profile = { kind_back: { hon: string; jonai: string; free: string }; wht_cast: string; wht_staff: string; cash_float: string; close_day: string; /* ★0191 ★1（2026-10-30）: 店設定 5 キー（指名区分ごとの割合・源泉区分の既定 2・釣銭準備金・締め日）＝文字列で持ち patch で数値に */ duty_gate: boolean; kiosk_person_idle: string; punch_mode: "punch" | "store"; reg_win_before: string; reg_win_after: string; /* ★便 E（0197 用） */ /* ★0192 M-49: キオスクの本人でログイン＝無操作で戻す分（1〜120・欠損＝10） */ /* ★0190（裁定436 ①a）: 打刻ゲート＝settings_json.duty_gate（欠損＝true＝DB の duty_gate_of と同じ既定） */ pay_disc_cash: string; pay_disc_base: PayDiscountBase; pay_disc_rates_raw: Record<PayDiscountKey, number>; /* ★0187（便 CASH） */ name: string; short: string; store_code: string; display_name: string; shift_cast_confirm: boolean; customer_purpose: string; customer_retention_years: string; ar_enabled: boolean; okuri_base_amount: string; okuri_actual: boolean; ops: OpsProfile; settlement_cycle: string; mid_pay: string; shift_auto_confirm_hours: string; join_mode: JoinMode; pay_fee: Record<PayFeeKey, string> }; // ★便 P173: join_mode（386）・pay_fee（393・％の文字列・空＝0） // ★0153（裁定305-11／293-4）: 利用目的・保持年数（1〜10・既定 5）・★0172（裁定349／380）: 精算方式・途中払い・自動確定時間
-const EMPTY: Profile = { kind_back: { hon: "100", jonai: "50", free: "30" }, wht_cast: "hostess", wht_staff: "none", cash_float: "", close_day: "31", duty_gate: true, kiosk_person_idle: "10", punch_mode: "punch", reg_win_before: "30", reg_win_after: "60", pay_disc_cash: "", pay_disc_base: "total", pay_disc_rates_raw: { cash: 0, card: 0, other: 0 }, name: "", short: "", store_code: "", display_name: "", shift_cast_confirm: false, customer_purpose: "", customer_retention_years: "5", ar_enabled: false, okuri_base_amount: "", okuri_actual: false, settlement_cycle: "monthly", mid_pay: "none", shift_auto_confirm_hours: "0", ops: OPS_DEFAULT, join_mode: "join_set", pay_fee: { card: "", emoney: "", other: "" } };
+type Profile = { kind_back: { hon: string; jonai: string; free: string }; wht_cast: string; wht_staff: string; cash_float: string; close_day: string; /* ★0191 ★1（2026-10-30）: 店設定 5 キー（指名区分ごとの割合・源泉区分の既定 2・釣銭準備金・締め日）＝文字列で持ち patch で数値に */ duty_gate: boolean; kiosk_person_idle: string; punch_mode: "punch" | "store"; reg_win_before: string; reg_win_after: string; /* ★便 E（0197 用） */ /* ★0192 M-49: キオスクの本人でログイン＝無操作で戻す分（1〜120・欠損＝10） */ /* ★0190（裁定436 ①a）: 打刻ゲート＝settings_json.duty_gate（欠損＝true＝DB の duty_gate_of と同じ既定） */ pay_disc_cash: string; pay_disc_base: PayDiscountBase; pay_disc_rates_raw: Record<PayDiscountKey, number>; /* ★0187（便 CASH） */ name: string; short: string; store_code: string; display_name: string; shift_cast_confirm: boolean; customer_purpose: string; customer_retention_years: string; mynumber_retention_years: string; /* ★0201f（裁定483）: マイナンバーの廃棄の目安の年数 1〜20・既定 7 */ ar_enabled: boolean; okuri_base_amount: string; okuri_actual: boolean; ops: OpsProfile; settlement_cycle: string; mid_pay: string; shift_auto_confirm_hours: string; join_mode: JoinMode; pay_fee: Record<PayFeeKey, string> }; // ★便 P173: join_mode（386）・pay_fee（393・％の文字列・空＝0） // ★0153（裁定305-11／293-4）: 利用目的・保持年数（1〜10・既定 5）・★0172（裁定349／380）: 精算方式・途中払い・自動確定時間
+const EMPTY: Profile = { kind_back: { hon: "100", jonai: "50", free: "30" }, wht_cast: "hostess", wht_staff: "none", cash_float: "", close_day: "31", duty_gate: true, kiosk_person_idle: "10", punch_mode: "punch", reg_win_before: "30", reg_win_after: "60", pay_disc_cash: "", pay_disc_base: "total", pay_disc_rates_raw: { cash: 0, card: 0, other: 0 }, name: "", short: "", store_code: "", display_name: "", shift_cast_confirm: false, customer_purpose: "", customer_retention_years: "5", mynumber_retention_years: "7", ar_enabled: false, okuri_base_amount: "", okuri_actual: false, settlement_cycle: "monthly", mid_pay: "none", shift_auto_confirm_hours: "0", ops: OPS_DEFAULT, join_mode: "join_set", pay_fee: { card: "", emoney: "", other: "" } };
 
 const secTitle: React.CSSProperties = t.cardTitle;
 const input: React.CSSProperties = { ...t.input, width: "100%", padding: "8px 10px", fontSize: 13 };
@@ -81,6 +83,7 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
       shift_cast_confirm: sj.shift_cast_confirm === true,
       customer_purpose: typeof sj.customer_purpose === "string" ? sj.customer_purpose : "", // ★0153
       customer_retention_years: typeof sj.customer_retention_years === "number" ? String(sj.customer_retention_years) : "5", // ★0153: 既定 5
+      mynumber_retention_years: typeof sj.mynumber_retention_years === "number" ? String(sj.mynumber_retention_years) : String(MYNUMBER_RETENTION_DEFAULT), // ★0201f: 既定 7
       okuri_base_amount: typeof sj.okuri_base_amount === "number" && sj.okuri_base_amount > 0 ? String(sj.okuri_base_amount) : "", // ★裁定317: 0／キー無し＝未設定
       okuri_actual: okuriAsks(okuriModeOf(sj)), // ★裁定414: 基本額は 'none' 以外の 3 方式で使う（名前は従来のまま）
       ar_enabled: sj.ar_enabled === true, // ★0155（裁定309-1）: 既存店は 0155 で true・新規店はキー無し＝false（サーバの ar_policy_ok と同じ既定）
@@ -113,6 +116,7 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
     }
     // ★0153（裁定305-11）: 保持年数は整数 1〜10（数値で送る＝RPC は 'bad type'／'bad customer_retention_years' で二段）
     if (form.customer_retention_years.trim() !== cur.customer_retention_years) out.customer_retention_years = Number(form.customer_retention_years);
+    if (mig0201fOn() && form.mynumber_retention_years.trim() !== cur.mynumber_retention_years) out.mynumber_retention_years = Number(form.mynumber_retention_years); // ★0201f（フラグ true だけ送る＝0201f の前の DB は 'bad key'）
     // ★裁定317（便 AB-6）: 送りの基本額は数値で送る（空欄＝0＝未設定）。送りの方式が一律の店は欄が非活性＝差分が出ない
     if (form.okuri_base_amount !== cur.okuri_base_amount) out.okuri_base_amount = form.okuri_base_amount === "" ? 0 : Number(form.okuri_base_amount);
     // ★0172（裁定349／380・便 P172）: 店設定 3 キー（文字列 2・整数 1＝set_store_profile の白名単と検証 'bad settlement_cycle'／'bad mid_pay'／'bad shift_auto_confirm_hours'）
@@ -153,6 +157,7 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
     const patch = patchOf();
     if (!Object.keys(patch).length) { setMsg("変更がありません"); return; }
     if ("name" in patch && (String(patch.name).length < 1 || String(patch.name).length > 50)) { setMsg("店舗名は 1〜50 文字で入力してください"); return; }
+    if ("mynumber_retention_years" in patch && !mynumberRetentionValidOf(String(patch.mynumber_retention_years))) { setMsg("マイナンバーの廃棄の目安の年数は 1〜20 の整数にしてください"); return; } // ★0201f
     if ("customer_retention_years" in patch && (!Number.isInteger(patch.customer_retention_years) || (patch.customer_retention_years as number) < 1 || (patch.customer_retention_years as number) > 10)) { setMsg("保持年数は 1〜10 の整数で入力してください"); return; }
     if ("customer_purpose" in patch && String(patch.customer_purpose).length > 200) { setMsg("利用目的は 200 文字までです"); return; }
     if ("okuri_base_amount" in patch && (!Number.isInteger(patch.okuri_base_amount) || (patch.okuri_base_amount as number) < 0 || (patch.okuri_base_amount as number) > 99999)) { setMsg("送りの基本額は 0〜99,999 の整数で入力してください"); return; }
@@ -231,6 +236,12 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
               <span style={label}>顧客情報の保持年数<span style={{ fontWeight: 400, marginLeft: 6 }}>1〜10 年・既定 5（最終来店日から）</span></span>
               <input type="number" min={1} max={10} step={1} inputMode="numeric" value={form.customer_retention_years} disabled={busy || !loaded}
                 onChange={(e) => setForm((f) => ({ ...f, customer_retention_years: e.target.value }))} style={input} aria-label="顧客情報の保持年数" />
+            </label>}
+            {/* ★0201f（裁定483・499-3）: マイナンバーの廃棄の目安の年数（1〜20・既定 7＝最後に報酬の支払いがあった年の翌年 1/1 から）＝フラグ true だけ */}
+            {on("data") && mig0201fOn() && <label style={{ display: "block", minWidth: 0 }}>
+              <span style={label}>マイナンバーの廃棄の目安<span style={{ fontWeight: 400, marginLeft: 6 }}>1〜20 年・既定 7（最後に報酬の支払いがあった年の翌年から）</span></span>
+              <input type="number" min={1} max={20} step={1} inputMode="numeric" value={form.mynumber_retention_years} disabled={busy || !loaded}
+                onChange={(e) => setForm((f) => ({ ...f, mynumber_retention_years: e.target.value }))} style={input} aria-label="マイナンバーの廃棄の目安の年数" data-mynumber-retention="1" />
             </label>}
             {/* ★裁定317（0158・便 AB-6）: 送りの基本額＝退勤の「送り あり」で記録する 1 回分の金額。送りの方式が実費の店だけ入力できる */}
             {on("profile") && <label style={{ display: "block", minWidth: 0 }}>
