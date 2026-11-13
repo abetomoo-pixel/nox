@@ -1,0 +1,50 @@
+{
+  "size": {
+    "width": 2500,
+    "height": 843
+  },
+  "selected": true,
+  "name": "nox-cast-3",
+  "chatBarText": "メニュー",
+  "areas": [
+    {
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "width": 833,
+        "height": 700
+      },
+      "action": {
+        "type": "uri",
+        "label": "シフト",
+        "uri": "https://liff.line.me/<店の liffId>?to=shift"
+      }
+    },
+    {
+      "bounds": {
+        "x": 833,
+        "y": 0,
+        "width": 834,
+        "height": 700
+      },
+      "action": {
+        "type": "uri",
+        "label": "お知らせ",
+        "uri": "https://liff.line.me/<店の liffId>?to=notices"
+      }
+    },
+    {
+      "bounds": {
+        "x": 1667,
+        "y": 0,
+        "width": 833,
+        "height": 700
+      },
+      "action": {
+        "type": "uri",
+        "label": "ホーム",
+        "uri": "https://liff.line.me/<店の liffId>?to=home"
+      }
+    }
+  ]
+}
