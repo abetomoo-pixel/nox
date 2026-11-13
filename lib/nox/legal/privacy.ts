@@ -5,7 +5,7 @@ export const PRIVACY_PATH = "/privacy";
 export const PRIVACY_SOURCE = "docs/legal/privacy_v0.5.md";
 export const PRIVACY_VERSION = "0.5";
 /** 公開の日（null＝公開していない）。 */
-export const PRIVACY_PUBLISHED_ON: string | null = null;
+export const PRIVACY_PUBLISHED_ON: string | null = "2026-11-13"; // ★2026-11-13 夜（相談役■2 e）: 公開＝画面の便 1（0201f のフラグ便の後）・制定日＝公開の日（JST・本番に出る日）
 
 export function privacyPublishedOf(publishedOn: string | null = PRIVACY_PUBLISHED_ON): boolean {
   return publishedOn !== null && /^\d{4}-\d{2}-\d{2}$/.test(publishedOn);

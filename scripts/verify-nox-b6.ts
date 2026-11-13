@@ -33,6 +33,8 @@ import crypto from "node:crypto";
 import { MYNUMBER_FORM_RE, decryptMynumber, encryptMynumber, mynumberKeysOf, mynumberMaskedOf, mynumberPlainOf } from "../lib/nox/mynumber/cipher";
 import { MYNUMBER_DISCARD_NOTE_0201F, MYNUMBER_LAST_PAY_YEAR_LABEL, mynumberRetentionValidOf } from "../lib/nox/mynumber/discard-text";
 import { MIG_0201F_APPLIED, mig0201fOn } from "../lib/nox/rules-0175/flag";
+import { kioskPersonIdleMinutesOf, kioskPersonIdleValidOf } from "../lib/nox/kiosk/person-login";
+import { autoConfirmHoursOf, cashFloatOf, cashRateOf, payDayOf, svcVipOf, trialDaysOf } from "../lib/nox/setup/v5";
 const src = (p: string) => fs.readFileSync(p, "utf8");
 const J = JSON.stringify;
 const LATIN = /[A-Za-z]/;
@@ -209,8 +211,8 @@ const LATIN = /[A-Za-z]/;
   check("b6(c7-4) 体入の時給の欄の注記（店舗設定・キャスト・初期設定の 3 か所）",
     TRIAL_WAGE_NOT_IN_PAY_NOTE === "体入の時給は、まだ給与の計算に反映されません" && ["app/(manage)/master/trial-terms-panel.tsx", "app/(manage)/casts/casts-board.tsx", "app/(manage)/setup/setup-wizard.tsx"].every((f) => src(f).includes("{TRIAL_WAGE_NOT_IN_PAY_NOTE}")));
   const md = src("docs/legal/privacy_v0.5.md"); const bl = privacyBlocksOf(md, "2026-11-20");
-  check("b6(c7-5) /privacy＝公開の前は 404・リンクを出さない（LP・ログイン・規約）／本文は docs/legal/privacy_v0.5.md・表 5 つ・制定日に公開の日",
-    PRIVACY_PUBLISHED_ON === null && !privacyPublishedOf() && privacyPublishedOf("2026-11-20") && src("app/privacy/page.tsx").includes("if (!privacyPublishedOf()) notFound();")
+  check("b6(c7-5) /privacy＝★2026-11-13 夜 公開（相談役■2 e・制定日 2026-11-13）・リンクは LP・ログイン・規約（公開の日が無ければ 404 とリンクなし）／本文は docs/legal/privacy_v0.5.md・表 5 つ・制定日に公開の日・デモの記録は 30 日",
+    PRIVACY_PUBLISHED_ON === "2026-11-13" && privacyPublishedOf() && !privacyPublishedOf(null) && md.includes("| デモのご利用 | IP アドレスをハッシュ化した値（30 日で消去します） |") && md.includes("| デモの入場の記録 | 30 日で消去 |") && !md.includes("毎日消去") && src("app/privacy/page.tsx").includes("if (!privacyPublishedOf()) notFound();")
     && ["app/lp/page.tsx", "app/login/page.tsx", "app/terms/page.tsx"].every((f) => src(f).includes("privacyPublishedOf() &&") && src(f).includes("PRIVACY_PATH"))
     && bl.filter((b) => b.kind === "table").length === 5 && bl.some((b) => b.kind === "p" && b.text === "制定日：2026 年 11 月 20 日") && bl[0].kind === "h1" && md.includes("制定日：{{公開日}}"));
   check("b6(c7-6) 0201g の文言（本人の設定 weak／taken／too_many・端末の device_locked・管理側の pin weak／pin taken）",
@@ -264,6 +266,38 @@ const LATIN = /[A-Za-z]/;
     sw.includes('<Money value={S.cardfee} unit="%" step={1} integer') && sw.includes('["カード手数料", `${cardFeePctOf(S)}%`]') && v5.includes("pay_fee_rates: { card: cardFeePctOf(S),") && v5.includes("p_card_tax_rate: cardFeePctOf(S)") && !v5.includes("Math.round(S.cardfee"));
   check("b6(c9-5) C 端末のロック中に「名前を選んで入る」＝kiosk_staff_list（PIN を設定した人）→名前→本人の PIN→kiosk_unlock に p_membership_id",
     kp.includes('if (!r.ok && r.reason === "device_locked") setLocked(true);') && kp.includes('supabase.rpc("kiosk_staff_list")') && kp.includes("filter((x) => x.has_pin)") && kp.includes("onClick={() => void unlockPin(named?.membership_id)}") && kp.includes('data-kiosk-unlock-by-name="1">名前を選んで入る</button>'));
+}
+
+// ★2026-11-13 夜（相談役■2 c）: 店の端末で本人がログインしたときの無操作＝店の設定に従う（3〜10 分・既定 10・範囲の外は寄せる）
+{
+  const io = (v: unknown) => kioskPersonIdleMinutesOf({ kiosk_person_idle_minutes: v });
+  check("b6(c10-1) 無操作＝設定なし 10・3〜10 はそのまま・範囲の外（1・120）は 3／10 に寄せる・小数と文字は既定 10・欄は 3〜10 の整数だけ",
+    kioskPersonIdleMinutesOf({}) === 10 && io(3) === 3 && io(7) === 7 && io(10) === 10 && io(1) === 3 && io(120) === 10 && io(5.5) === 10 && io("x") === 10 && io("8") === 8
+    && kioskPersonIdleValidOf("3") && kioskPersonIdleValidOf("10") && !kioskPersonIdleValidOf("2") && !kioskPersonIdleValidOf("11") && !kioskPersonIdleValidOf("5.5"));
+  const sp = src("app/(manage)/master/store-profile-panel.tsx");
+  check("b6(c10-2) 店舗設定の欄＝3〜10・既定 10・言葉「店の端末で本人がログインしたとき：操作が無いと戻るまで」・保存の前に 3〜10 で止める",
+    sp.includes('<UnitInput value={form.kiosk_person_idle} type="number" min={3} max={10} step={1}') && sp.includes("店の端末で本人がログインしたとき：操作が無いと戻るまで") && sp.includes('if ("kiosk_person_idle_minutes" in patch && !kioskPersonIdleValidOf(String(patch.kiosk_person_idle_minutes)))'));
+}
+
+// ★2026-11-13 夜（相談役■2 e）: 監査ログの 7 年の消去を 1 日 1 回（既存の audit_purge を Vercel Cron で）
+{
+  const cr = src("app/api/cron/audit-purge/route.ts"), vj = src("vercel.json");
+  check("b6(c11-1) cron の route＝CRON_SECRET で守る・admin で audit_purge を呼ぶだけ（DB は変えない）・vercel.json に 1 日 1 回（JST 4:30）",
+    cr.includes('if (req.headers.get("authorization") !== `Bearer ${secret}`)') && cr.includes('admin.rpc("audit_purge")') && vj.includes('{ "path": "/api/cron/audit-purge", "schedule": "30 19 * * *" }'));
+}
+
+// ★2026-11-13 夜（相談役■2 d）: 初期設定の 8 欄＝欄の刻みと範囲を保存できる値に合わせ、確認の画面は保存の式と同じ関数
+{
+  const sw = src("app/(manage)/setup/setup-wizard.tsx"), v5s = src("lib/nox/setup/v5.ts");
+  check("b6(c12-1) 保存の値＝範囲に寄せた整数（支払日 1〜31・体入 1〜90・自動確定 0〜168・釣銭 0〜999 万・VIP 0〜100）・現金割引は小数 1 桁",
+    payDayOf({ payroll: { payday: 40 } }) === 31 && payDayOf({ payroll: { payday: 25 } }) === 25 && trialDaysOf({ pay: { trialDays: 120 } }) === 90 && autoConfirmHoursOf({ shift: { auto: 36 } }) === 36
+    && cashFloatOf({ float: 30000 }) === 30000 && svcVipOf({ svcVip: 25 }) === 25 && cashRateOf({ cashOff: true, cashRate: 7.25 }) === 7.2 && cashRateOf({ cashOff: true, cashRate: 7.5 }) === 7.5 && cashRateOf({ cashOff: false, cashRate: 7 }) === 0);
+  check("b6(c12-2) 欄＝支払日・体入の日数・自動確定・釣銭・VIP・商品の値段とバックは整数だけ＋範囲・現金割引は 0.1 刻み・確認の画面は保存の式（payDayOf／trialDaysOf／cashRateOf／cashFloatOf／svcVipOf／autoConfirmHoursOf）",
+    sw.includes('<Money value={pr.payday} unit="日" integer min={1} max={31}') && sw.includes('<Money value={p.trialDays} unit="日" integer min={1} max={90}') && sw.includes('<Money value={S.shift.auto} unit="時間後" integer min={0} max={168}') && sw.includes('<Money value={S.float} unit="円" pre integer min={0} max={9999999}')
+    && sw.includes('<Money value={S.svcVip} unit="%" integer min={0} max={100}') && sw.includes('<Money value={it.p} pre integer min={0}') && sw.includes('<Money value={S.cashRate} unit="% OFF" step={0.1} decimals={1} min={0} max={100}')
+    && sw.includes("支払 ${payDayOf(S)} 日") && sw.includes("（${trialDaysOf(S)} 日）") && sw.includes("cashRateOf(S)") && sw.includes("cashFloatOf(S)") && sw.includes("svcVipOf(S)") && sw.includes("autoConfirmHoursOf(S)"));
+  check("b6(c12-3) 保存の側に黙った Math.round が残っていない（送りの基本額 1000 だけは判断待ちで触らない）",
+    !v5s.includes("Math.round(S.payroll.payday") && !v5s.includes("Math.round(S.pay.trialDays") && !v5s.includes("Math.round(S.shift.auto") && !v5s.includes("Math.round(S.float") && !v5s.includes("Math.round(S.svcVip") && !v5s.includes("Math.round(it.p)") && v5s.includes("okuri_base_amount: Math.max(0, Math.min(99999, Math.round(S.payroll.okuri || 0)))"));
 }
 
 if (fails.length) { console.error(`FAIL ${fails.length} 件 / pass ${pass}`); for (const f of fails) console.error(" - " + f); process.exit(1); }

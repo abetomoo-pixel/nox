@@ -47,7 +47,7 @@ const DENY_GUARDED: Record<string, string> = {
 };
 // B) セッション無し（差し込みなし）
 const DENY_NO_SESSION = new Set<string>([
-  "stripe/webhook", "cron/expire-trials", "cron/billing-reminders", "cron/billing-quantity" /* ★裁定475 承認（2026-11-10）: 店舗数と Stripe の数量の毎日の突き合わせ */, "cron/demo-reset", "cron/shift-auto-confirm", "cron/shift-periods-close" /* ★便 ON-3（0176 ★5 (b)） */, "staff/invite/accept" /* ★便 ON-3: トークンが境目（sha256）・Auth を作る */, "line/session", "line/bind", "line/webhook/[storeId]" /* ★便 ON-3（0176 ★1 401）: id_token／署名が境目 */ /* ★0172（裁定380・便 P172）: Bearer CRON_SECRET のみ・セッション無し */, "print/poll/[store_token]", "print/result/[store_token]",
+  "stripe/webhook", "cron/expire-trials", "cron/audit-purge" /* ★2026-11-13 夜（相談役■2 e）: 監査ログの 7 年の消去（CRON_SECRET） */, "cron/billing-reminders", "cron/billing-quantity" /* ★裁定475 承認（2026-11-10）: 店舗数と Stripe の数量の毎日の突き合わせ */, "cron/demo-reset", "cron/shift-auto-confirm", "cron/shift-periods-close" /* ★便 ON-3（0176 ★5 (b)） */, "staff/invite/accept" /* ★便 ON-3: トークンが境目（sha256）・Auth を作る */, "line/session", "line/bind", "line/webhook/[storeId]" /* ★便 ON-3（0176 ★1 401）: id_token／署名が境目 */ /* ★0172（裁定380・便 P172）: Bearer CRON_SECRET のみ・セッション無し */, "print/poll/[store_token]", "print/result/[store_token]",
 ]);
 // C) 許可
 const ALLOW = new Set<string>([
