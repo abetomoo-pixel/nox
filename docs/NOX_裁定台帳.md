@@ -5895,6 +5895,11 @@ CC の処置＝M-130（下の節）。
 10. 店舗設定の作り直し（【9】A〜D）＝タブは 6 つ（店舗情報／レジ／シフトと打刻／給与／キャスト画面／税と請求・並びは Agoora の確認待ち）・#34〜36 は今の場所・#21 を主に #24／#25 は「詳しい設定」（その場で連動・保存は 1 回）・保存の帯（タブを移るときは確かめない・ページを離れるときだけ・#32 と #33 も帯・#33 を含む保存は「勤務時間の計算基準は、次の給与期の初日から切り替わります」・Wi-Fi の登録と外すは今のまま）・.nox-form と単位つきの欄の決まり・初期設定の曜日別の人数は狭い幅で 4＋3・C-5 は 13px に・言葉 24 項目（相談役の 1 通【9】D）。試作（docs/tmp/proto_settings_1113/）を Agoora と相談役が見てから実装。
 11. 起票134 は 0201g 作り直し 4 で閉じる（貼った後に閉じた印）。
 
+## 0201i 本番適用（2026-11-13 夕・Agoora 手貼り・相談役の合図）
+- 直した版（notice_audience_has のスタッフの条件から 'cast' を外した）＝sha256 f3336f3adec36ec03cef25b2cc5820fa90f1108efaff22f778b76f46b049b555・381 行。事前確認＝1 行（CC の読取＝info: notices 9／cast_notice_reads 2）。検証 18 行＝全行一致（関数 447・表 122・md5 drift none）。試走＝単独 81/81・0201i→0201d の通し 25/25（0201f2 の後の本番）。
+- 収蔵＝supabase/migrations/0201i_notice_ack_rsvp.sql（sha 一致）。画面（「確認しました」・出欠）は画面の便 2（フラグ true）。verify の張替え（demo-reset 84→85・91→92・grants・anon-guard・billing の名簿）は画面の便 1。
+- 本番＝関数 447・表 122。
+
 ## 0201f2 本番適用（2026-11-13 夕・Agoora 手貼り・相談役の合図）
 - sha256 afe761de9badaffd240b4d7fcd87a1105d995fbf34b668efbf0cc2a4d2a28d8e・28 行。事前確認＝貼り先証明の 1 行だけ（info: vault key rows 1・CC の読取 docs/tmp/precheck_0201f2_1113.log）。検証 4 行＝全行一致（proof 10・Vault の nox_mynumber_key 0 行・mynumber_enc text・鍵を読む関数 0 本）。関数・表の数は不変（442／121）。収蔵は次の client 便で（supabase/migrations/0201f2_mynumber_vault_drop.sql）。
 - 0201i（直した版 f3336f3a…・381 行）の試走（0201f2 の後の本番）＝単独 81/81・0201i→0201d の通し 25/25・事前確認 1 行（info: notices 9／cast_notice_reads 2）＝相談役の合図のあとに Agoora が貼る。
