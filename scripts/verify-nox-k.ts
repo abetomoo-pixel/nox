@@ -11,7 +11,7 @@
  */
 import fs from "node:fs";
 import { deviceFpOf, isValidDeviceFp, DEVICE_FP_KEY, OFF_DUTY_MSG, isOffDuty, bindErrJa } from "../lib/nox/kiosk/device-fp";
-import { kioskTilesOf, kioskPersonNavOf, KIOSK_PERSON_IDLE_MINUTES, KIOSK_FEATURE_HREF, KIOSK_FEATURE_LABEL, KIOSK_FEATURE_READY, KIOSK_FEATURES_ALL } from "../lib/nox/rules-0175/kiosk";
+import { kioskTilesOf, kioskPersonNavOf, KIOSK_FEATURE_HREF, KIOSK_FEATURE_LABEL, KIOSK_FEATURE_READY, KIOSK_FEATURES_ALL } from "../lib/nox/rules-0175/kiosk";
 import { mig0190On, __set0190ForTest, MIG_0190_APPLIED } from "../lib/nox/rules-0175/flag";
 import { lockNoticeTextOf, jstDatePlus } from "../lib/nox/kiosk/lock-notice";
 import { kioskDeviceLimit, kioskErrJa } from "../lib/nox/kiosk/device-errors";
@@ -68,7 +68,7 @@ check("k(4-1) K-4 端末アカウントは / から /kiosk-register（kiosk_oper
 // gen-demo
 check("k(d-1) gen-demo の settings_json に duty_gate:false（6 デモ店＝06:05 の reset で ON に戻らない）・payload 6 本に反映", src("scripts/demo/gen-demo.mjs").includes("duty_gate: false") && ["ace", "lily", "luna", "muse", "nest", "noir"].every((s) => src(`docs/demo/payload/${s}.json`).includes('"duty_gate":false') || src(`docs/demo/payload/${s}.json`).includes('"duty_gate": false')));
 // 旧 pin の整合＝kiosk-register に残す文字列（qr／p175prep）
-check("k(x-1) ★裁定469（M-128・2026-11-09）: 本人セッションの無操作＝3 分（店設定が短ければ店設定）・帯のナビ＝ホーム／レジ／シフト／在庫／日報（cast はレジだけ）", KIOSK_PERSON_IDLE_MINUTES === 3 && src("app/(manage)/layout.tsx").includes("idleMinutes={Math.min(KIOSK_PERSON_IDLE_MINUTES, kioskPersonIdleMinutesOf(storeRows?.[0]?.settings_json))}") && JSON.stringify(kioskPersonNavOf("manager", { shift: false, register: false })[0].items.map((x) => x.label)) === JSON.stringify(["ホーム", "レジ", "シフト", "在庫", "日報"]) && JSON.stringify(kioskPersonNavOf("staff", { shift: false, register: true })[0].items.map((x) => x.label)) === JSON.stringify(["ホーム", "レジ", "日報"]) && JSON.stringify(kioskPersonNavOf("cast", { shift: true, register: true })[0].items.map((x) => x.label)) === JSON.stringify(["レジ"]));
+check("k(x-1) ★2026-11-13（相談役■2 c）: 本人セッションの無操作＝店の設定に従う（3〜10 分・既定 10・3 分の上限はやめた）・帯のナビ＝ホーム／レジ／シフト／在庫／日報（cast はレジだけ）", src("app/(manage)/layout.tsx").includes("idleMinutes={kioskPersonIdleMinutesOf(storeRows?.[0]?.settings_json)") && !src("app/(manage)/layout.tsx").includes("Math.min(KIOSK_PERSON_IDLE_MINUTES") && JSON.stringify(kioskPersonNavOf("manager", { shift: false, register: false })[0].items.map((x) => x.label)) === JSON.stringify(["ホーム", "レジ", "シフト", "在庫", "日報"]) && JSON.stringify(kioskPersonNavOf("staff", { shift: false, register: true })[0].items.map((x) => x.label)) === JSON.stringify(["ホーム", "レジ", "日報"]) && JSON.stringify(kioskPersonNavOf("cast", { shift: true, register: true })[0].items.map((x) => x.label)) === JSON.stringify(["レジ"]));
 
 if (fails.length) { console.error(`verify:nox-k FAIL ${fails.length}（pass ${pass}）\n` + fails.map((f) => ` - ${f}`).join("\n")); process.exit(1); }
 console.log(`verify:nox-k OK ${pass} checks（0190 のフラグ true 便＝K-5／K-0／K-1／435 タイル／K-4／M-29／退店／打刻ゲート）`);

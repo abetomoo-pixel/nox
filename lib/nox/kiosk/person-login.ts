@@ -7,12 +7,18 @@ export const KIOSK_DEVICE_SESSION = "nox.kiosk.device_session"; // localStorage:
 export const KIOSK_PERSON_IDLE_DEFAULT_MIN = 10;
 export const KIOSK_PERSON_ROLES = ["owner", "admin", "manager"] as const; // 店長以上
 
-/** 店設定 kiosk_person_idle_minutes（1〜120 の整数）・無ければ既定 10 */
+/** ★2026-11-13（相談役■2 c・裁定499-4）: 店の端末で本人がログインしたときの無操作＝店の設定に従う・選べる範囲 3〜10 分・既定 10 分 */
+export const KIOSK_PERSON_IDLE_MIN = 3;
+export const KIOSK_PERSON_IDLE_MAX = 10;
+/** 店設定 kiosk_person_idle_minutes・無い（整数でない）なら既定 10・範囲の外（DB は 1〜120 を受ける）は 3〜10 に寄せて使う（DB は変えない） */
 export function kioskPersonIdleMinutesOf(settings: unknown): number {
   const v = ((settings ?? {}) as Record<string, unknown>).kiosk_person_idle_minutes;
   const n = typeof v === "number" ? v : typeof v === "string" ? Number(v) : NaN;
-  return Number.isInteger(n) && n >= 1 && n <= 120 ? n : KIOSK_PERSON_IDLE_DEFAULT_MIN;
+  if (!Number.isInteger(n)) return KIOSK_PERSON_IDLE_DEFAULT_MIN;
+  return Math.max(KIOSK_PERSON_IDLE_MIN, Math.min(KIOSK_PERSON_IDLE_MAX, n));
 }
+/** 店舗設定の欄の値が保存できる形か（3〜10 の整数） */
+export const kioskPersonIdleValidOf = (v: string): boolean => /^\d{1,2}$/.test(v) && Number(v) >= KIOSK_PERSON_IDLE_MIN && Number(v) <= KIOSK_PERSON_IDLE_MAX;
 /** 本人でログインできる役割＝店長以上（staff／cast はキオスクへ戻す） */
 export const kioskPersonAllowedOf = (role: string | null | undefined): boolean => (KIOSK_PERSON_ROLES as readonly string[]).includes(role ?? "");
 /** 無操作が N 分を超えたか */

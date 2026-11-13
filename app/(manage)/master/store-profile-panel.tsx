@@ -13,7 +13,7 @@ import { UnitBox } from "@/components/ui/unit-input"; // ★便 M5b M-50
 import DatePicker from "@/components/ui/date-picker"; // ★M-82（裁定452・教訓133）: 日付は共通のピッカー
 import { PUNCH_CHOICE_NOTE, PUNCH_CHOICE_OPTIONS, punchModeOf, registerWindowOf } from "@/lib/nox/shift/punch-mode"; // ★便 E（0197 用）
 import UnitInput from "@/components/ui/unit-input"; // ★便 M5b M-50
-import { kioskPersonIdleMinutesOf } from "@/lib/nox/kiosk/person-login"; // ★0192 M-49
+import { kioskPersonIdleMinutesOf, kioskPersonIdleValidOf } from "@/lib/nox/kiosk/person-login"; // ★0192 M-49 ★2026-11-13（相談役■2 c）
 import { useCallback, useEffect, useState } from "react";
 import { okuriAsks, okuriModeOf } from "@/lib/nox/shift/okuri-mode"; // ★裁定414（S-4）
 import OnOffSeg from "@/components/ui/on-off"; // ★便 GV-C C-9（GV-52）
@@ -134,7 +134,7 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
     // ★0190（裁定436 ①a・MIG_0190_APPLIED）: 打刻ゲート＝boolean を明示値で送る（規約 7・白名単 'duty_gate'）。フラグ false の間は送らない（白名単に無い＝'bad key'）
     // ★M-143: duty_gate は送らない（スイッチを撤去）
     // ★0192 M-49（MIG_0192_APPLIED）: kiosk_person_idle_minutes＝整数 1〜120（白名単・検証は RPC＝'bad kiosk_person_idle_minutes'）。フラグ false の間は送らない
-    if (mig0192On() && form.kiosk_person_idle !== cur.kiosk_person_idle) out.kiosk_person_idle_minutes = Number(form.kiosk_person_idle);
+    if (mig0192On() && form.kiosk_person_idle !== cur.kiosk_person_idle) out.kiosk_person_idle_minutes = Number(form.kiosk_person_idle); // ★2026-11-13（相談役■2 c）: 3〜10 の整数だけ（保存の前に止める）
     // ★便 E（0197 用＝裁定455）: punch_mode と窓の 2 キー（白名単は 0197＝フラグ false の間は送らない）
     if (mig0197On()) {
       if (form.punch_mode !== cur.punch_mode) out.punch_mode = form.punch_mode;
@@ -158,6 +158,7 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
     if (!Object.keys(patch).length) { setMsg("変更がありません"); return; }
     if ("name" in patch && (String(patch.name).length < 1 || String(patch.name).length > 50)) { setMsg("店舗名は 1〜50 文字で入力してください"); return; }
     if ("mynumber_retention_years" in patch && !mynumberRetentionValidOf(String(patch.mynumber_retention_years))) { setMsg("マイナンバーの廃棄の目安の年数は 1〜20 の整数にしてください"); return; } // ★0201f
+    if ("kiosk_person_idle_minutes" in patch && !kioskPersonIdleValidOf(String(patch.kiosk_person_idle_minutes))) { setMsg("操作が無いと戻るまでの時間は 3〜10 分の整数にしてください"); return; } // ★2026-11-13（相談役■2 c）
     if ("customer_retention_years" in patch && (!Number.isInteger(patch.customer_retention_years) || (patch.customer_retention_years as number) < 1 || (patch.customer_retention_years as number) > 10)) { setMsg("保持年数は 1〜10 の整数で入力してください"); return; }
     if ("customer_purpose" in patch && String(patch.customer_purpose).length > 200) { setMsg("利用目的は 200 文字までです"); return; }
     if ("okuri_base_amount" in patch && (!Number.isInteger(patch.okuri_base_amount) || (patch.okuri_base_amount as number) < 0 || (patch.okuri_base_amount as number) > 99999)) { setMsg("送りの基本額は 0〜99,999 の整数で入力してください"); return; }
@@ -391,9 +392,9 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
               {/* ★M-143（2026-11-10）: 打刻ゲート（duty_gate）のスイッチは撤去＝裁定472 で例外が廃止（レジは常に出勤中だけ・DB の白名単の duty_gate は読まれない） */}
               {mig0192On() && (/* ★0192 M-49: キオスクの「本人でログイン」＝無操作 N 分で端末のセッションに戻す（店設定 kiosk_person_idle_minutes・1〜120・既定 10） */
                 <label style={{ minWidth: 0, display: "grid", gap: 3, alignContent: "start", alignSelf: "start", justifyItems: "start" }} data-kiosk-person-idle="0192">{/* ★M-189 a（2026-11-12）: 行の高さに引き伸ばされて大きな箱になっていた＝上に寄せ、項目名のすぐ下・ほかの数値の欄と同じ大きさ */}
-                  <span style={label}>キオスクの本人でログイン：無操作で戻すまで</span>
-                  <UnitInput value={form.kiosk_person_idle} type="number" min={1} max={120} step={1} inputMode="numeric" disabled={busy} onChange={(v) => setForm((f) => ({ ...f, kiosk_person_idle: v }))} unit="分" width={140} ariaLabel="無操作で戻すまでの分" />
-                  <span style={{ ...t.sub, display: "block", fontSize: 11.5, lineHeight: 1.7 }}>キオスクから本人のアカウントで開いた画面は、この時間操作が無いと自動でログアウトして端末の画面に戻ります</span>
+                  <span style={label}>店の端末で本人がログインしたとき：操作が無いと戻るまで<span style={{ fontWeight: 400, marginLeft: 6 }}>3〜10 分・既定 10</span></span>
+                  <UnitInput value={form.kiosk_person_idle} type="number" min={3} max={10} step={1} inputMode="numeric" disabled={busy} onChange={(v) => setForm((f) => ({ ...f, kiosk_person_idle: v }))} unit="分" width={140} ariaLabel="無操作で戻すまでの分" />
+                  <span style={{ ...t.sub, display: "block", fontSize: 11.5, lineHeight: 1.7 }}>店の端末から本人のアカウントで開いた画面は、この時間操作が無いと自動でログアウトして端末の画面に戻ります</span>
                 </label>
               )}
               {mig0191On() && (/* ★0191 ★1（便 OB-2 ⑤・2026-10-30）: 初期設定 v5 の器＝店設定 5 キーの編集口（白名単＝set_store_profile）。指名区分ごとの割合（%の商品の場内／フリーは本指名の率×この割合・商品ごとの個別率が優先）・源泉区分の既定（新規のキャスト／スタッフの初期値＝人ごとに給与の画面で変えられる）・釣銭準備金（日報の締めの既定）・締め日 */

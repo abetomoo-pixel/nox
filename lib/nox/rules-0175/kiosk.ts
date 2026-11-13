@@ -54,7 +54,7 @@ export const KIOSK_HIDDEN = ["logout", "settings", "payroll", "customer_pii"] as
 export const kioskPayrollAllowedOf = (settings: Record<string, unknown> | null | undefined): boolean => settings?.kiosk_payroll === true;
 
 /** ★裁定469（M-128）: 本人セッションの無操作＝3 分で端末へ戻る（店設定 kiosk_person_idle_minutes＝M-49 は DB 側のセッション有効期限に残す・帯の時計は 3 分固定） */
-export const KIOSK_PERSON_IDLE_MINUTES = 3;
+// ★2026-11-13（相談役■2 c）: 3 分の固定（KIOSK_PERSON_IDLE_MINUTES）はやめた＝店の設定に従う（lib/nox/kiosk/person-login.ts の kioskPersonIdleMinutesOf・3〜10 分・既定 10）
 /** ★裁定469（M-128）: 本人セッションの帯のナビ＝ホーム／レジ／シフト／在庫／日報だけ（権限は本店と同じ述語・cast は裁定466＝レジだけ） */
 export function kioskPersonNavOf(role: string, perms: { crm?: boolean; shift: boolean; register: boolean }): { label: string | null; items: { href: string; label: string }[] }[] {
   if (role === "cast") return [{ label: null, items: [{ href: "/register", label: "レジ" }] }];

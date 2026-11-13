@@ -21,7 +21,7 @@ import { castRegisterEntryOf } from "@/lib/nox/register/cast-entry-server"; // �
 import { isSetupPath, setupGateRedirectOf } from "@/lib/nox/setup/gate"; // ★便 SU（M-37）: /setup は専用の殻・未完の店は /setup へ
 import KioskPersonGuard from "@/components/nox/kiosk-person-guard"; // ★便 M5 M-49: キオスクからの本人ログイン＝無操作 N 分で戻す
 import { kioskPersonIdleMinutesOf } from "@/lib/nox/kiosk/person-login"; // ★便 M5 M-49
-import { KIOSK_PERSON_IDLE_MINUTES, kioskPersonNavOf } from "@/lib/nox/rules-0175/kiosk"; // ★裁定469（M-128）
+import { kioskPersonNavOf } from "@/lib/nox/rules-0175/kiosk"; // ★裁定469（M-128）
 import { KIOSK_PERSON_COOKIE, kioskNavOf, kioskPersonMustLeaveOf, parseKioskPersonCookie } from "@/lib/nox/kiosk/person-session"; // ★便 E（0196 用＝裁定448 B 方式）
 import { mig0196On, mig0199On } from "@/lib/nox/rules-0175/flag"; // ★便 E ★0199（裁定466・M-125）★0200（裁定472＝staff も出勤中だけ）
 import * as t from "@/lib/nox/ui/theme";
@@ -219,7 +219,7 @@ export default async function ManageLayout({ children }: { children: React.React
           cast は項目が レジ 1本のみ＝その他は出ない（従来と同一）。 */}
       {/* ★裁定275 追補2-1（N4）: 下タブ 5 本＝ホーム／レジ／日報／シフト／メニュー（残り＋お知らせ）。歯車はヘッダー右へ */}
       <TabBar groups={navGroups} spPriority={["/dashboard", "/register", "/report", "/shift"]} hideSide />
-      <KioskPersonGuard idleMinutes={Math.min(KIOSK_PERSON_IDLE_MINUTES, kioskPersonIdleMinutesOf(storeRows?.[0]?.settings_json))} role={role as string} name={meName} />{/* ★裁定469（M-128）: 無操作 3 分で端末へ戻る（店設定が短ければ店設定） */}{/* ★便 M5 M-49: 印が無ければ描画 0 */}
+      <KioskPersonGuard idleMinutes={kioskPersonIdleMinutesOf(storeRows?.[0]?.settings_json) /* ★2026-11-13（相談役■2 c）: 店の設定に従う（3〜10 分・既定 10）＝3 分の上限（Math.min）はやめた */} role={role as string} name={meName} />{/* ★裁定469（M-128）: 無操作 3 分で端末へ戻る（店設定が短ければ店設定） */}{/* ★便 M5 M-49: 印が無ければ描画 0 */}
     </div>
   );
 }
