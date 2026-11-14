@@ -22,7 +22,8 @@ NOX_PROD_CONFIRM=1 node scripts/admin/create-org.mjs --store "店名" --type cab
 - 書けるかの判定＝`billing_writable_of`：trialing／active／past_due で、trialing なら `trial_ends_at > now()`（`supabase/migrations/0087_org_billing.sql:48-60`）。切れると閲覧だけ（BillingBanner）。毎日 JST 3:00 の cron（`/api/cron/expire-trials`）が trialing を inactive に倒す（表示用）。
 - ★**「切れない」専用の設定は無い**（`trial_ends_at` は NOT NULL）。テスターを長く使わせる道は 2 つ。どちらも運営が SQL Editor で手で書く（org_billing の書込は service 専用＝画面も RPC も無い）。
   - (a) 期限を延ばす：`trial_ends_at` を先の日付に。cron で `inactive` に倒れていたら `status` も `trialing` に戻す。
-  - (b) 判定上は `status='active'`・Stripe の契約なし（デモと同じ形）にすると期限を見ない。★本物の会社にこの形を使う決まりは無い＝相談役の判断。請求の画面・cron との相性は未確認。
+  - (b) 判定上は `status='active'`・`stripe_subscription_id` は null（デモと同じ形）にすると期限を見ない。**テスター店舗はこの形を使う（裁定500-5・2026-11-14）**：入れた日と理由を台帳に 1 行・テストを終えるときは status を戻す。数量の cron は契約の無い店を飛ばす・お試しの帯は出ない＝有料の店と見分けが付かないので台帳の 1 行が目印。
+  - (a) の期限を遠くする形は使わない（checkout で残りのお試し期間を Stripe に持ち越すとき trial_end の上限に当たるおそれ）。
 - ★延ばした記録は audit_logs に残らない（SQL の直書き）。延ばしたら台帳か運用メモに日付と理由を書く。
 
 ## 3. 無料の間は Stripe を通さない
@@ -72,7 +73,7 @@ NOX_PROD_CONFIRM=1 node scripts/admin/create-org.mjs --store "店名" --type cab
 ## まとめ：今の作りで手作業になる所
 
 1. お試しを延ばす（org_billing を SQL で・記録は手で）。
-2. 「切れない」状態の決まりが無い（相談役の判断）。
+2. 「切れない」状態＝status='active' を SQL で入れる（裁定500-5）・記録は台帳に手で。
 3. 契約の押し間違いを止める柵が無い（口頭で伝える）。
 4. LINE の紐付けの解除（SQL）。
 5. リッチメニューのボタンごとの行き先（橋の直し待ち）。
