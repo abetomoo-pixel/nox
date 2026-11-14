@@ -1972,6 +1972,7 @@ export default function RegisterBoard({
           photoUrls={photoUrls} todayIds={todayIds}
           prefillSeatId={reservePrefillSeat}
           onPrefillConsumed={() => setReservePrefillSeat(null)}
+          isManagerUp={isManagerUp} spDows={spDows} onSpecialOpened={(d) => setTodayPriceDow(d)}
         />
       ) : (
     /* 動線改修v3（案B・選択駆動ビュー切替）: 正本 nox-register-mock-planB-viewswitch.html。

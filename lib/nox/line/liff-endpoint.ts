@@ -22,6 +22,13 @@ export function siteHrefOf(href: string, siteUrl: string): string {
 export const liffEntryUrlOf = (siteUrl: string, storeId: string): string => `${site(siteUrl)}/liff/${storeId}`;
 /** 紐付け（bind）の入口＝入口 URL ＋ ?t=<平文トークン>&m=bind（1 回だけ・7 日） */
 export const liffBindUrlOf = (siteUrl: string, storeId: string, token: string): string => `${liffEntryUrlOf(siteUrl, storeId)}?t=${encodeURIComponent(token)}&m=bind`;
+/** ★裁定500-6（2026-11-14）: リッチメニューのボタンごとの行き先＝入口の ?to=<鍵>（許可表の鍵だけ・それ以外と無しはサーバーの dest のまま）。
+ *  キャスト（dest が /mine）にだけ当てる＝スタッフ・店長の行き先は変えない。URL や path をそのまま受け取らない（開いたリダイレクトにしない）。 */
+export const LIFF_TO_DEST = { home: "/mine", shift: "/mine/wishes", notices: "/mine/notices" } as const;
+export function liffDestOf(dest: string, to: string | null | undefined): string {
+  if (dest !== "/mine" || !to) return dest;
+  return Object.prototype.hasOwnProperty.call(LIFF_TO_DEST, to) ? LIFF_TO_DEST[to as keyof typeof LIFF_TO_DEST] : dest;
+}
 export const webhookUrlOf = (siteUrl: string, storeId: string): string => `${site(siteUrl)}/api/line/webhook/${storeId}`;
 
 /** 公開値の検査（RPC と同じ: 100 字・bot_destination は 'U'＋32 桁の 16 進） */

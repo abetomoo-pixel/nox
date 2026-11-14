@@ -35,7 +35,7 @@ export default function NoticeRespond({ noticeId, n, mine, nowMs, onDone }: { no
           {rsvpLinesOf(n).map((l) => <span key={l} className="num">{l}</span>)}
         </div>
       )}
-      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "center", flexWrap: "wrap" }} data-notice-actions="1">{/* ★2026-11-14 Agoora: ボタンはセンター */}
         {n.rsvp ? (closed ? (
           <span style={{ fontSize: 12.5, fontWeight: 700, color: "var(--sub)" }} data-notice-rsvp-closed="1">{RSVP_CLOSED}{local?.rsvp ? `（${local.rsvp === "yes" ? RSVP_YES : RSVP_NO}）` : ""}</span>
         ) : (

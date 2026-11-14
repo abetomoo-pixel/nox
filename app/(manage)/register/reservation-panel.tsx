@@ -30,6 +30,8 @@ import Picker from "@/components/nox/picker";
 
 import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 import { errJa } from "@/lib/nox/errors"; // ★裁定467（M-126）: 利用者向けの文言は辞書 1 本
+import { mig0201dOn } from "@/lib/nox/rules-0175/flag"; // ★裁定500-3（2026-11-14）: 予約から来店でも定休日の問い（開卓と同じ）
+import { specialOpenStepOf, DOW_JA, SPECIAL_OPEN_ASK, SPECIAL_OPEN_DOW_ASK, SPECIAL_CLOSED_NOTE } from "@/lib/nox/business-hours-special";
 type Seat = { id: string; name: string; kind: string | null; store_id: string };
 type Cast = { id: string; name: string };
 // E8-1 ⑥: tel＝予約行の電話表示（customers.tel の select 追加のみ・フリー客は列なし＝非表示）
@@ -123,7 +125,7 @@ function fmtWhen(iso: string): string {
 }
 
 export default function ReservationPanel({
-  storeId, seats, casts, photoUrls, todayIds, prefillSeatId, onPrefillConsumed,
+  storeId, seats, casts, photoUrls, todayIds, prefillSeatId, onPrefillConsumed, isManagerUp = false, spDows = [], onSpecialOpened,
 }: {
   storeId: string; seats: Seat[]; casts: Cast[];
   /** E8-1 ⑥/⑤: CastPicker 用（register-board から受け渡し・無くても頭文字で動く） */
@@ -132,6 +134,8 @@ export default function ReservationPanel({
   /** E8-1 ⑥: 卓起点予約（開卓モーダル→「予約を入れる」）のプリフィル */
   prefillSeatId?: string | null;
   onPrefillConsumed?: () => void;
+  /** ★裁定500-3: 定休日の問い（店長以上＝臨時営業にするか→料金の曜日／それ以外＝案内の文）。spDows＝料金の曜日の候補（register-board と同じ） */
+  isManagerUp?: boolean; spDows?: number[]; onSpecialOpened?: (dow: number) => void;
 }) {
   const supabase = createClient();
   const [rows, setRows] = useState<Reservation[]>([]);
@@ -347,12 +351,29 @@ export default function ReservationPanel({
     await load();
   }
 
+  // ★裁定500-3（2026-11-14）: reservation_to_check も check_open の門（定休日＝needs special open／臨時休業＝closed day）を通る＝開卓のモーダルと同じ問いをこの来店の欄の中で出す
+  const [rsvSp, setRsvSp] = useState<{ id: string; closed: boolean; step: "ask" | "dow" } | null>(null);
+  async function confirmRsvSpecialOpen(r: Reservation, dow: number) {
+    if (busy) return;
+    setBusy(true);
+    const { error } = await supabase.rpc("register_special_open", { p_store_id: storeId, p_price_dow: dow });
+    setBusy(false);
+    if (error) { setMsg(errJa(error.message)); return; }
+    setRsvSp(null); onSpecialOpened?.(dow);
+    await toCheck(r);
+  }
+
   async function toCheck(r: Reservation) {
     if (!vSeat) { setMsg("卓を選択してください"); return; }
     setMsg(null); setBusy(true);
     const { data: checkId, error } = await supabase.rpc("reservation_to_check", {
       p_reservation_id: r.id, p_seat_id: vSeat, p_nom_type: vNom || null,
     });
+    if (error && mig0201dOn()) {
+      const sp = specialOpenStepOf(error.message, isManagerUp);
+      if (sp?.kind === "ask") { setBusy(false); setRsvSp({ id: r.id, closed: sp.closed, step: "ask" }); return; }
+      if (sp?.kind === "note") { setBusy(false); setRsvSp(null); setMsg(sp.text); return; }
+    }
     if (error) { setBusy(false); setMsg(`来店処理に失敗: ${rpcErrJa(error.message)}`); return; }
     // ★裁定378（GV-B W-8）: 選んだキャストが予約の担当と違う／種別を変えた→開いた伝票の名簿を check_set_nominations で上書き（RPC 不変・1 件）
     if (vCast && vNom && vNom !== "free" && typeof checkId === "string" && (vCast !== r.cast_id || (r.nom_type ?? "free") !== vNom)) {
@@ -690,8 +711,32 @@ export default function ReservationPanel({
                       </div>
                     </>
                   )}
+                  {rsvSp && rsvSp.id === r.id ? (/* ★裁定500-3: 開卓のモーダルと同じ文（相談役の固定）＝臨時営業にするか → 料金の曜日 */
+                    <div className="nox-inset" data-rsv-special-open-ask={rsvSp.step} style={{ padding: "12px 14px", fontSize: 14, lineHeight: 1.7 }}>
+                      {rsvSp.closed && <div style={{ fontWeight: 700 }}>{SPECIAL_CLOSED_NOTE}</div>}
+                      {rsvSp.step === "ask" ? (
+                        <>
+                          <div style={{ fontWeight: 700, marginBottom: 10 }}>{rsvSp.closed ? "臨時営業にしますか？" : SPECIAL_OPEN_ASK}</div>
+                          <div style={{ display: "flex", gap: 10 }}>
+                            <button type="button" style={{ ...t.btnGold, flex: 1 }} disabled={busy} onClick={() => setRsvSp({ ...rsvSp, step: "dow" })} data-rsv-special-open-yes="1">臨時営業にする</button>
+                            <button type="button" style={{ ...t.btnGhost, flex: 1 }} disabled={busy} onClick={() => setRsvSp(null)}>しない</button>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div style={{ fontWeight: 700, marginBottom: 10 }}>{SPECIAL_OPEN_DOW_ASK}</div>
+                          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                            {spDows.map((d) => <button key={d} type="button" style={{ ...t.btnGhost, minWidth: 56 }} disabled={busy} onClick={() => void confirmRsvSpecialOpen(r, d)} data-rsv-special-open-dow={d}>{DOW_JA[d]}曜</button>)}
+                          </div>
+                          {spDows.length === 0 && <div style={{ color: "var(--sub)" }}>営業する曜日がありません（店舗設定の営業時間を確かめてください）</div>}
+                          <button type="button" className="nox-link" style={{ background: "none", border: 0, fontSize: 13, cursor: "pointer", color: "var(--sub)", marginTop: 8 }} disabled={busy} onClick={() => setRsvSp({ ...rsvSp, step: "ask" })}>もどる</button>
+                        </>
+                      )}
+                    </div>
+                  ) : (
                   <button type="button" style={t.btnPrimary56} disabled={busy || !vSeat} onClick={() => void toCheck(r)} data-rsv-open="1">伝票を開く</button>
-                  <div style={t.btnRow48}><button type="button" style={t.btnSecondary48} onClick={() => setVisitId(null)}>閉じる</button></div>
+                  )}
+                  <div style={t.btnRow48}><button type="button" style={t.btnSecondary48} onClick={() => { setVisitId(null); setRsvSp(null); }}>閉じる</button></div>
                 </div>
               )}
               {/* 予約編集（F3b-B 新設・booked のみ・全フィールド明示送信＝規約7）。★便 SH-UI-c2 C2-20 ①: 1,024px 以上は右のフォームに切り替わる（editBlockOf） */}

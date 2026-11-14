@@ -1,6 +1,6 @@
 "use client";
 
-import { siteHrefOf, siteOriginOf } from "@/lib/nox/line/liff-endpoint"; // ★便 D M-102
+import { siteHrefOf, siteOriginOf, liffDestOf } from "@/lib/nox/line/liff-endpoint"; // ★便 D M-102
 // ★便 ON-3（2026-10-26・0176 ★1＝401）: LIFF の橋＝SDK を読み込み liff.init → 未ログインなら liff.login → getIDToken → クエリで分岐（t と m=bind＝POST /api/line/bind／無し＝POST /api/line/session）→ 行き先へ。
 //   id_token はこの POST にだけ乗せる（URL・ログに出さない）。失敗は画面に 1 行（route の語→日本語）。
 import { useEffect, useState } from "react";
@@ -55,7 +55,7 @@ export default function LiffBridge({ storeId, liffId }: { storeId: string; liffI
         if (!res.ok || !j.ok || !j.dest) { setErr(jaOf(j.error ?? String(res.status))); setMsg(""); return; }
         writeRetry(retryKeyOf(storeId), false); // ★M-116: 成功＝再試行の鍵を消す
         setMsg("移動します…");
-        window.location.replace(j.dest);
+        window.location.replace(liffDestOf(j.dest, q.get("to"))); // ★裁定500-6: リッチメニューの ?to=shift／notices／home（許可表だけ）
       } catch (e) { if (!cancelled) { setErr(jaOf(e instanceof Error ? errJa(e.message) : "error")); setMsg(""); } }
     })();
     return () => { cancelled = true; };

@@ -362,7 +362,7 @@ export default async function MinePage({ searchParams }: { searchParams?: Promis
 
       {/* ★便 X13-G W-22 ②⑤: 出勤予定（今月／来月・確定と確認待ち・募集中は出さない）＋出勤ノルマの不足（旧・直近の節は廃止） */}
       {noticePending > 0 && (/* ★0201i: ホームの件数＝未確認・未回答 */
-        <Link href="/mine/notices" className="nox-panel" style={{ display: "block", fontWeight: 700, textDecoration: "none" }} data-mine-notice-pending={noticePending}>お知らせ：未確認・未回答 {noticePending} 件 ›</Link>
+        <Link href="/mine/notices" className="nox-panel" style={{ display: "block", fontWeight: 700, textDecoration: "none", color: "var(--gold)" }} data-mine-notice-pending={noticePending}>{/* ★2026-11-14 Agoora「見えない」: 既定のリンク色（紫）→ 金 */}お知らせ：未確認・未回答 {noticePending} 件 ›</Link>
       )}
       <ScheduleCard tabs={scheduleTabs} />
 
