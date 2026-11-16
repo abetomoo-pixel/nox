@@ -297,8 +297,8 @@ const LATIN = /[A-Za-z]/;
     sw.includes('<Money value={pr.payday} unit="日" integer min={1} max={31}') && sw.includes('<Money value={p.trialDays} unit="日" integer min={1} max={90}') && sw.includes('<Money value={S.shift.auto} unit="時間後" integer min={0} max={168}') && sw.includes('<Money value={S.float} unit="円" pre integer min={0} max={9999999}')
     && sw.includes('<Money value={S.svcVip} unit="%" integer min={0} max={100}') && sw.includes('<Money value={it.p} pre integer min={0}') && sw.includes('<Money value={S.cashRate} unit="% OFF" step={0.1} decimals={1} min={0} max={100}')
     && sw.includes("支払 ${payDayOf(S)} 日") && sw.includes("（${trialDaysOf(S)} 日）") && sw.includes("cashRateOf(S)") && sw.includes("cashFloatOf(S)") && sw.includes("svcVipOf(S)") && sw.includes("autoConfirmHoursOf(S)"));
-  check("b6(c12-3) 保存の側に黙った Math.round が残っていない（送りの基本額 1000 だけは判断待ちで触らない）",
-    !v5s.includes("Math.round(S.payroll.payday") && !v5s.includes("Math.round(S.pay.trialDays") && !v5s.includes("Math.round(S.shift.auto") && !v5s.includes("Math.round(S.float") && !v5s.includes("Math.round(S.svcVip") && !v5s.includes("Math.round(it.p)") && v5s.includes("okuri_base_amount: Math.max(0, Math.min(99999, Math.round(S.payroll.okuri || 0)))"));
+  check("b6(c12-3) 保存の側に黙った Math.round が残っていない（★2026-11-16 ■6-1: 送りの基本額＝okuriBaseOf＝定額は聞いた額・定額でない方式は従来の式）",
+    !v5s.includes("Math.round(S.payroll.payday") && !v5s.includes("Math.round(S.pay.trialDays") && !v5s.includes("Math.round(S.shift.auto") && !v5s.includes("Math.round(S.float") && !v5s.includes("Math.round(S.svcVip") && !v5s.includes("Math.round(it.p)") && v5s.includes("{ const ob = okuriBaseOf(S); if (ob !== null) patch.okuri_base_amount = ob; }") && v5s.includes(": Math.max(0, Math.min(99999, Math.round(S.payroll.okuri || 0)));"));
 }
 
 if (fails.length) { console.error(`FAIL ${fails.length} 件 / pass ${pass}`); for (const f of fails) console.error(" - " + f); process.exit(1); }

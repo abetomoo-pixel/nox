@@ -19,6 +19,16 @@ export const svcVipOf = (S: { svcVip: number }): number => intIn(S.svcVip, 0, 10
 /** 現金割引の率＝小数 1 桁まで（欄も 0.1 刻み・それより細かい桁は欄が受けない）・0〜100 */
 export const cashRateOf = (S: { cashOff: boolean; cashRate: number }): number => (S.cashOff ? Math.max(0, Math.min(100, Math.trunc((Number(S.cashRate) || 0) * 10) / 10)) : 0);
 export const itemYenOf = (n: number): number => intIn(n, 0, 99_999_999);
+/** ★2026-11-16（Agoora 確定 ■6-1）: 保存する送りの基本額（okuri_base_amount）。定額（fixed）の店＝聞いた額（空＝null＝保存しない・先へ進めない）／定額でない方式＝従来の式のまま（基本額の欄の値・既定 1000） */
+export const okuriBaseOf = (S: { payroll: { okuriMode: string; okuri: number; okuriFlatBase?: number | null } }): number | null =>
+  S.payroll.okuriMode === "fixed" ? (S.payroll.okuriFlatBase == null ? null : intIn(S.payroll.okuriFlatBase, 0, 99_999)) : Math.max(0, Math.min(99999, Math.round(S.payroll.okuri || 0)));
+export const okuriFlatBaseMissingOf = (S: { payroll: { okuriMode: string; okuriFlatBase?: number | null } }): boolean => S.payroll.okuriMode === "fixed" && S.payroll.okuriFlatBase == null;
+export const OKURI_FLAT_BASE_LABEL = "本人の退勤と店の端末から送りを記録するときの額（1 回）";
+/** ★2026-11-16（■6-3）: 初期設定の「キャストのレジ使用」の説明＝実際の最初の値（会計できる卓＝全卓 cast_register_scope 'all'・操作端末＝店の端末だけ・使えるのは本人ごとにレジ使用を許可したキャスト＝can_register） */
+export const CAST_REGISTER_SETUP_NOTE = "最初は全卓・店の端末だけで使えます。使えるのは、キャストの詳細で「レジ使用」を許可した人だけです。伝票の取消・割引・手数料カットは店長以上のまま（卓と端末はあとで権限・情報管理で変えられます）。";
+export const OKURI_FLAT_BASE_REQUIRED = "送りが定額の店は、本人の退勤と店の端末から送りを記録するときの額を入れてください";
+/** ★2026-11-16（Agoora 確定 ■6-2）: 控除の画面（sys_penalties）＝ノルマが ON、または遅刻・当欠の控除の額が 0 より大きい（額を保存したのに画面が隠れる件） */
+export const penaltiesOnOf = (S: { pay: { norma: boolean }; payroll: { lateAmt?: number; absentAmt?: number } }): boolean => S.pay.norma || (S.payroll.lateAmt ?? 0) > 0 || (S.payroll.absentAmt ?? 0) > 0;
 export const cardFeePctOf = (S: { cardfee: number }): number => Math.max(0, Math.min(100, Number.isInteger(S.cardfee) ? S.cardfee : Math.trunc(S.cardfee || 0)));
 
 // ── 9 STEP・業態 5 種（モック STEPS／TYPES 逐語） ──
@@ -55,7 +65,7 @@ export type V5State = {
   pt: { hon: number; jo: number; dohan: number; salesPer: number };
   normaAxes: { days: boolean; dohan: boolean; hon: boolean; sales: boolean }; normaGoal: { days: number; hon: number; dohan: number; sales: number };
   normaPen: Record<"days" | "hon" | "dohan" | "sales", { m: V5PenMode; a: number }>; bonusMode: "max" | "sum";
-  payroll: { period: "month" | "half" | "daily"; close: string; payday: number; /** ★便 D 裁定455-3: 遅刻控除／当欠控除の額（settlement_presets の late／absent・0＝登録しない） */ lateAmt?: number; absentAmt?: number; whtCast: "hostess" | "none"; whtStaff: "none" | "other_204"; advance: boolean; settle: boolean; okuriMode: "fixed" | "actual" | "store" | "none"; okuri: number; okuriTiers: [number, number, number]; mypage: "none" | "net" | "full" };
+  payroll: { period: "month" | "half" | "daily"; close: string; payday: number; /** ★便 D 裁定455-3: 遅刻控除／当欠控除の額（settlement_presets の late／absent・0＝登録しない） */ lateAmt?: number; absentAmt?: number; whtCast: "hostess" | "none"; whtStaff: "none" | "other_204"; advance: boolean; settle: boolean; okuriMode: "fixed" | "actual" | "store" | "none"; /** ★2026-11-16（Agoora 確定 ■6-1）: 定額の店の「本人の退勤と店の端末から送りを記録するときの額」（最初は空＝null・入れないと先へ進めない） */ okuriFlatBase?: number | null; okuri: number; okuriTiers: [number, number, number]; mypage: "none" | "net" | "full" };
   staff: V5Staff[];
   shift: { mode: "want" | "off" | "store"; due: number; auto: number; need: number[] };
   punch: { judge: "soft" | "hard"; how: "device" | "any" | "store" /* ★便 E（0197 用）: store＝打刻しない */; round: 1 | 5 | 15 | 30; gate: boolean };
@@ -208,6 +218,7 @@ export function v5Checks(S: V5State): V5Check[] {
     else if (!(+it.p > 0)) W.push([3, `「${it.n}」の値段が 0 円です`, `menu:${ci}:${ii}:p`]);
     if (it.bt === "pct" && +it.b > 100) W.push([3, `「${it.n}」のバックが 100% を超えています`, `menu:${ci}:${ii}:b`]); }); });
   if (S.pay.slide !== "none") { for (let k = 1; k < S.slideTiers.length; k++) { const asc = S.pay.slide !== "rate"; if (asc ? (+S.slideTiers[k][0] <= +S.slideTiers[k - 1][0]) : (+S.slideTiers[k][0] >= +S.slideTiers[k - 1][0])) W.push([4, `時給スライドの ${k + 1} 段目の順番が前の段と逆です（${asc ? "昇順" : "報酬率は降順"}にしてください）`, `slide:${k}`]); } }
+  if (okuriFlatBaseMissingOf(S)) W.push([4, OKURI_FLAT_BASE_REQUIRED, "payroll:okuriFlat"]); // ★2026-11-16（■6-1）: 定額の店の送りの額は必須
   if (+S.pay.trial < +S.pay.base) W.push([4, "体験入店の時給が基本時給より低くなっています", "pay:trial"]);
   if (+S.kindRate.jo > +S.kindRate.hon || +S.kindRate.free > +S.kindRate.jo) W.push([4, "商品バックの割合が 本指名 ≥ 場内 ≥ フリー の順になっていません", "kindRate"]);
   // 店の端末の欄は「キオスクを使う」のときだけ画面にある＝使わない店は打刻の場所（STEP 7）へ
@@ -276,22 +287,22 @@ export function buildV5Plan(S: V5State, ctx: V5Ctx): { steps: V5Step[]; deferred
   // 1) 店舗設定（settings_json の patch＝白名単のキーだけ）
   const patch: Record<string, unknown> = {
     name: S.shop.name.trim(), biz_type: S.type, billing_mode: "table", setup_done: false,
-    sys_hourly: true, sys_backs: true, sys_sales_rate: false, sys_points: S.pay.slide === "point", sys_sales_slide: S.pay.slide === "sales", sys_point_slide: S.pay.slide === "point", sys_norms: S.pay.norma, sys_penalties: S.pay.norma, sys_bonus: S.pay.bonus,
+    sys_hourly: true, sys_backs: true, sys_sales_rate: false, sys_points: S.pay.slide === "point", sys_sales_slide: S.pay.slide === "sales", sys_point_slide: S.pay.slide === "point", sys_norms: S.pay.norma, sys_penalties: penaltiesOnOf(S) /* ★■6-2 */, sys_bonus: S.pay.bonus,
     use_vip: S.seats.vip > 0, use_counter: S.seats.counter > 0,
     join_mode: S.join === "join" ? "join_set" : "extend_only",
     sys_drink_count_back: S.drinkBack, sales_split: S.salesSplit, bonus_tier_mode: S.bonusMode,
     settlement_cycle: S.payroll.period === "month" ? "monthly" : S.payroll.period === "half" ? "half" : "daily", pay_day: payDayOf(S) /* ★2026-11-13 夜（相談役■2 d） */, mid_pay: S.payroll.advance ? "advance" : "none",
-    okuri_base_amount: Math.max(0, Math.min(99999, Math.round(S.payroll.okuri || 0))),
     trial_guarantee_days: trialDaysOf(S), // ★2026-11-13 夜（相談役■2 d）
     shift_auto_confirm_hours: autoConfirmHoursOf(S), // ★2026-11-13 夜（相談役■2 d）
     punch_methods: { self: S.punch.how === "any", proxy: true, kiosk: true },
     punch_round_unit: S.punch.round, punch_round_mode: "nearest",
-    kiosk_features: { punch: S.reg.kiosk, register: S.reg.kiosk, shift: S.reg.kiosk },
+    kiosk_features: { punch: S.reg.kiosk, register: S.reg.kiosk, shift: S.reg.kiosk }, // ★2026-11-16（■6-4 は入れられない）: 在庫・日報のキーは set_store_profile の白名単が punch／register／shift だけ＝足すと 'bad kiosk_features' で保存が止まる（mig が要る＝報告）
     sys_cast_register: S.reg.castReg === "pay" ? 2 : S.reg.castReg === "order" ? 1 : 0,
     sys_staff_discount: S.reg.staffDisc === "limit" ? 1 : S.reg.staffDisc === "no" ? 2 : 0,
     pay_fee_rates: { card: cardFeePctOf(S), emoney: 0, other: 0 }, // ★2026-11-13（相談役 B）: 確認の画面と同じ値
     pay_discount_rates: { cash: cashRateOf(S), card: 0, other: 0 } /* ★2026-11-13 夜（相談役■2 d） */, pay_discount_base: S.cashBase,
   };
+  { const ob = okuriBaseOf(S); if (ob !== null) patch.okuri_base_amount = ob; } // ★2026-11-16（■6-1）: 定額の店は聞いた額だけ（聞いていない 1000 を書かない）・空は先へ進めない（v5Checks／固定バー）
   // ★M-143（2026-11-10）: duty_gate は送らない＝裁定472 で例外が廃止（店設定の duty_gate は読まれない）
   if (mig0191On()) {   // ★0191 ★1: 店設定 +5 キー（白名単＝set_store_profile）
     patch.kind_back_rate = { hon: pct100(S.kindRate.hon), jonai: pct100(S.kindRate.jo), free: pct100(S.kindRate.free) };

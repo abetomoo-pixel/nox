@@ -29,7 +29,7 @@ check("m6(2-1) 税は内税・バックは全部 0・指名料 3,000・セット
 check("m6(2-2) 割りもの無料＝0 円・adjustPrice（100 円単位・0 は 0）", a.menu.filter((c) => /割りもの/.test(c.cat)).flatMap((c) => c.items).every((i) => i.p === 0) && adjustPrice(1550, 0) === 1600 && adjustPrice(0, 10) === 0 && adjustPrice(8000, -10) === 7200);
 check("m6(2-3) 開始の柵＝テンプレートを入れたら確認 2 つまで不可・入れていなければ柵なし", tplStartBlockedOf(a) !== null && tplStartBlockedOf({ ...a, tplConfirm: { pricing: true, backs: true } }) === null && tplStartBlockedOf({}) === null);
 const wz = src("app/(manage)/setup/setup-wizard.tsx");
-check("m6(2-4) 初期設定＝テンプレートの欄（価格帯・割りもの無料・±%）と確認の 2 つ・開始ボタンは tplBlocked で止まる", wz.includes('data-setup-template="1"') && wz.includes('data-setup-template-confirm="1"') && wz.includes("disabled={run.running || !type || !isOwner || !!tplBlocked}"));
+check("m6(2-4) 初期設定＝テンプレートの欄（価格帯・割りもの無料・±%）と確認の 2 つ・開始ボタンは tplBlocked で止まる", wz.includes('data-setup-template="1"') && wz.includes('data-setup-template-confirm="1"') && wz.includes("disabled={run.running || !type || !isOwner || !!tplBlocked || okuriFlatBaseMissingOf(S) /* ★■6-1: 段の番号から飛んでも始められない */}"));
 // (3)
 /* ★裁定469（M-128・2026-11-09）: 包み（kiosk-workspace）と views は廃止 */
 check("m6(3-1) ★裁定469（M-128・2026-11-09）: /kiosk-shift・/kiosk-report・/kiosk-register・/kiosk-inventory は /kiosk へ redirect（簡易画面は廃止）", ["register", "shift", "inventory", "report"].every((f) => fs.readFileSync(`app/kiosk-${f}/page.tsx`, "utf8").includes('redirect("/kiosk");')));

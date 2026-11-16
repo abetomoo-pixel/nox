@@ -38,8 +38,8 @@ const W2 = v5Checks(S2);
 const all = [...W, ...W2.filter(([, , k]) => k === "punch:how")];
 const kinds = new Set(all.map(([, , k]) => k.replace(/:\d+/g, ":#")));
 check("m141(1-1) 要確認の全種類に鍵（直す先）がある", all.length > 0 && all.every(([i, w, k]) => Number.isInteger(i) && !!w && typeof k === "string" && k.length > 0), all.filter(([, , k]) => !k));
-const EXPECT_KINDS = ["rule:#", "seats:vip", "timeMode", "roundUnit", "menu:#:#:n", "menu:#:#:p", "menu:#:#:b", "slide:#", "pay:trial", "kindRate", "devReg", "punch:how", "firstShift"];
-check("m141(1-2) 種類＝13（ルール・VIP 席・延長の付け方・丸め・商品の名前／値段／バック・時給スライド・体入の時給・バックの割合・店の端末・打刻の場所・最初の期間）", EXPECT_KINDS.every((k) => kinds.has(k)) && kinds.size === EXPECT_KINDS.length, [...kinds]);
+const EXPECT_KINDS = ["rule:#", "seats:vip", "timeMode", "roundUnit", "menu:#:#:n", "menu:#:#:p", "menu:#:#:b", "slide:#", "pay:trial", "kindRate", "devReg", "punch:how", "firstShift", "payroll:okuriFlat" /* ★2026-11-16（■6-1）: 定額の店の送りの額（既定の状態＝定額で空） */];
+check("m141(1-2) 種類＝14（★■6-1 送りの額・ルール・VIP 席・延長の付け方・丸め・商品の名前／値段／バック・時給スライド・体入の時給・バックの割合・店の端末・打刻の場所・最初の期間）", EXPECT_KINDS.every((k) => kinds.has(k)) && kinds.size === EXPECT_KINDS.length, [...kinds]);
 
 // 飛び先の目印が「その STEP の描画」の中にある（{S.step === N && の直後〜次の STEP の前）
 const stepBlocks: { n: number; from: number; to: number }[] = [];
