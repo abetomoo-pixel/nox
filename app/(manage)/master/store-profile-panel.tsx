@@ -45,13 +45,20 @@ const secTitle: React.CSSProperties = t.cardTitle;
 const input: React.CSSProperties = { ...t.input, width: "100%", padding: "8px 10px", fontSize: 13 };
 const label: React.CSSProperties = { ...t.fieldLabel, display: "block", marginBottom: 4 };
 
-export type StoreProfileSection = "profile" | "data" | "timeBasis" | "shift" | "ar" | "ops";
-const ALL_SECTIONS: StoreProfileSection[] = ["profile", "data", "timeBasis", "shift", "ar", "ops"];
+// ★2026-11-16（■8・6 タブ）: 節を項目の行き先ごとに細かく＝profile（店舗名・略称・店舗コード・表示名）／payprof（送りの基本額・精算方式・途中払い）／regprof（途中合流・支払方法の調整・手数料）／
+//   opsTax（インボイス登録日・消費税の表示・源泉区分の既定）／opsPay（給与の支払日・指名の区分ごとの割合・締め日）／opsReg（フロア・支払い方法・釣銭準備金）／opsShift（打刻・キャストの打刻・出退勤の打刻・端末の本人ログインの戻る時間）。
+//   "ops"＝旧の会計と運用の全部（ops* の 4 つ）。patchOf・save・RPC は 1 文字も変えない（見えない欄は form と cur が同値＝差分に出ない）。
+export type StoreProfileSection = "profile" | "payprof" | "regprof" | "data" | "timeBasis" | "shift" | "ar" | "ops" | "opsTax" | "opsPay" | "opsReg" | "opsShift";
+const ALL_SECTIONS: StoreProfileSection[] = ["profile", "payprof", "regprof", "data", "timeBasis", "shift", "ar", "ops"];
 // ★裁定330（便 MC2）: 店舗設定を 3 面（利用機能／店舗情報／データ管理）に分けるため、どの節を描くかを sections で受ける（既定＝全節＝従来どおり）。
 //   profile＝店舗名・略称・店舗コード・表示名・送りの基本額／data＝顧客情報の利用目的・保持年数・操作ログの保持／timeBasis＝勤務時間の計算基準／shift＝キャスト確認／ar＝売掛を使う。
 //   節を分けても patchOf・save・RPC は 1 文字も変えない（見えない欄は form と cur が同値＝差分に出ない）。
 export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECTIONS }: { stores: Store[]; isOwner: boolean; sections?: StoreProfileSection[] }) {
-  const on = (k: StoreProfileSection) => sections.includes(k);
+  const on = (k: StoreProfileSection) => sections.includes(k) || (k.startsWith("ops") && k !== "ops" && sections.includes("ops"));
+  const card1 = on("profile") || on("data") || on("payprof") || on("regprof"); // ★■8: 上のカード（店舗名・データ管理・給与の運用・レジの運用）
+  const card1Title = on("profile") ? "店舗情報" : on("payprof") ? "給与の運用" : on("regprof") ? "レジの運用" : "データ管理";
+  const opsCard = on("opsTax") || on("opsPay") || on("opsReg") || on("opsShift"); // ★■8: 会計と運用のカード（列 7 つ＋0191 の 5 キー）
+  const opsTitle = on("ops") ? "会計と運用" : on("opsTax") ? "税と請求" : on("opsPay") ? "給与の締めと支払い" : on("opsReg") ? "レジの支払いとフロア" : "打刻";
   const [storeSel, setStoreSel] = useState(stores[0]?.id ?? "");
   const [cur, setCur] = useState<Profile>(EMPTY);   // サーバ現値
   const [form, setForm] = useState<Profile>(EMPTY); // 入力中
@@ -169,7 +176,7 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
     const { error } = await setStoreProfile(patch);
     setBusy(false);
     if (error) { setMsg(`保存に失敗: ${storeProfileErrJa(error.message)}`); return; }
-    setMsg(on("ops") && !on("profile") && !on("data") ? "会計と運用を保存しました" : "店舗情報を保存しました");
+    setMsg(card1 ? `${card1Title}を保存しました` : `${opsTitle}を保存しました`);
     await load();
   }
   const setOps = (patch: Partial<OpsProfile>) => setForm((f) => ({ ...f, ops: { ...f.ops, ...patch } }));
@@ -213,12 +220,12 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
 
   return (
     <>
-      {isOwner && (on("profile") || on("data")) && (
+      {isOwner && card1 && (
         <section className="nox-cardtop" style={t.card}>
           <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap", marginBottom: 10 }}>
             <div>
-              <h2 style={{ ...secTitle, margin: 0 }}>{on("profile") ? "店舗情報" : "データ管理"}</h2>
-              <p style={{ ...t.sub, fontSize: 12, margin: "4px 0 0" }}>店舗名・略称・店舗コード・表示名・顧客情報の利用目的と保持年数・送りの基本額。変更した項目だけを保存します（管理者のみ）。</p>
+              <h2 style={{ ...secTitle, margin: 0 }}>{card1Title}</h2>
+              <p style={{ ...t.sub, fontSize: 12, margin: "4px 0 0" }}>変更した項目だけを保存します（管理者のみ）。</p>
             </div>
             {stores.length > 1 && (
               <select value={storeSel} onChange={(e) => setStoreSel(e.target.value)} style={{ ...input, width: "auto" }} aria-label="店舗">
@@ -245,25 +252,25 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
                 onChange={(e) => setForm((f) => ({ ...f, mynumber_retention_years: e.target.value }))} style={input} aria-label="マイナンバーの廃棄の目安の年数" data-mynumber-retention="1" />
             </label>}
             {/* ★裁定317（0158・便 AB-6）: 送りの基本額＝退勤の「送り あり」で記録する 1 回分の金額。送りの方式が実費の店だけ入力できる */}
-            {on("profile") && <label style={{ display: "block", minWidth: 0 }}>
+            {on("payprof") && <label style={{ display: "block", minWidth: 0 }}>
               <span style={label}>送りの基本額<span style={{ fontWeight: 400, marginLeft: 6 }}>{form.okuri_actual ? "0〜99,999・空欄は未設定（店が締めで金額を決めます）" : "送りの方式が「なし」の店では使いません"}</span></span>
               <MoneyInput value={form.okuri_base_amount} disabled={busy || !loaded || !form.okuri_actual} width="100%" style={{ padding: "8px 10px", fontSize: 13 }} ariaLabel="送りの基本額"
                 onChange={(v) => setForm((f) => ({ ...f, okuri_base_amount: v.slice(0, 5) }))} />
               {!form.okuri_actual && loaded && <span style={{ display: "block", fontSize: 11.5, color: "var(--sub)", marginTop: 4 }}>送りの方式は「マスタ › キャスト・報酬 › 控除・送り」で切り替えます</span>}
             </label>}
             {/* ★0172（裁定349・便 P172）: 精算方式（源泉の暦日数の単位＝月次／半月／週次／日次）と途中払い（なし／前払）＝settings_json の 2 キー（set_store_profile の白名単） */}
-            {on("profile") && <label style={{ display: "block", minWidth: 0 }}>
+            {on("payprof") && <label style={{ display: "block", minWidth: 0 }}>
               <span style={label}>精算方式<span style={{ fontWeight: 400, marginLeft: 6 }}>源泉の計算期間（暦日数）の単位</span></span>
               <span data-settlement-cycle="1" style={{ display: "block" }}><SegSelect value={form.settlement_cycle} disabled={busy || !loaded} onChange={(v) => setForm((f) => ({ ...f, settlement_cycle: v }))} options={SETTLEMENT_CYCLE_OPTIONS} ariaLabel="精算方式" wrap /></span>{/* ★M-82・★M-191（2026-11-12）: wrap＝全部の選択肢を読める（右端の「半月（13〜16）」が切れていた） */}
             </label>}
             {/* ★便 P173（裁定386・0173）: 途中合流＝セット終了後の＋は合流セット行（既定）／延長のみ。−は引き直さない */}
-            {on("profile") && <label style={{ display: "block", minWidth: 0 }}>
+            {on("regprof") && <label style={{ display: "block", minWidth: 0 }}>
               <span style={label}>途中合流<span style={{ fontWeight: 400, marginLeft: 6 }}>セット終了後に人数が増えたとき</span></span>
               <span data-join-mode="1" style={{ display: "block" }}><SegSelect value={form.join_mode} disabled={busy || !loaded} onChange={(v) => setForm((f) => ({ ...f, join_mode: v as JoinMode }))} options={(Object.keys(JOIN_MODE_LABEL) as JoinMode[]).map((v) => [v, JOIN_MODE_LABEL[v]] as const)} ariaLabel="途中合流" /></span>{/* ★M-82 */}
               <span style={{ display: "block", fontSize: 11.5, color: "var(--sub)", marginTop: 4 }}>セット料金は引き直しません（減った場合も同じ）。合流セット＝増えた人数分のセット料金を 1 行追加。</span>
             </label>}
             {/* ★便 P173（裁定393・0173）: 支払方法別の手数料（お客様負担）＝入金額×率・伝票に行・日報に合計 1 行・キャスト売上には含めない。既存店は欠損＝0（新規店の初期値はカード 10%） */}
-            {on("profile") && mig0187On() && <div style={{ minWidth: 0, gridColumn: "1 / -1" }} data-pay-adjust="1">{/* ★0187（便 CASH・Agoora 確定 10/27）: 支払方法の調整＝なし／カード手数料／現金割引／両方。現金割引の率と割引対象（合計から＝既定／小計から＝税理士 T15 の回答待ちの仮置き） */}
+            {on("regprof") && mig0187On() && <div style={{ minWidth: 0, gridColumn: "1 / -1" }} data-pay-adjust="1">{/* ★0187（便 CASH・Agoora 確定 10/27）: 支払方法の調整＝なし／カード手数料／現金割引／両方。現金割引の率と割引対象（合計から＝既定／小計から＝税理士 T15 の回答待ちの仮置き） */}
               <span style={label}>支払方法の調整<span style={{ fontWeight: 400, marginLeft: 6 }}>お客様への手数料の上乗せ・現金のときの割引</span></span>
               <span className="nox-seg" role="radiogroup" aria-label="支払方法の調整" style={{ display: "inline-flex", flexWrap: "wrap" }}>
                 {PAY_ADJUST_MODES.map((m) => (
@@ -282,7 +289,7 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
                 <span style={{ gridColumn: "1 / -1", fontSize: 11.5, color: "var(--sub)", lineHeight: 1.6 }}>合計から＝税・サービス料込みの残額×率を最後に引き、店の端数処理で丸めます（既定・税理士に確認中）。小計から＝税・サービス料の前の小計から引いてから税・サービス料。入金のたびに「率を指定／額を指定／なし」で上書きできます（店長以上）。</span>
               </div>}
             </div>}
-            {on("profile") && (!mig0187On() || payAdjustHasFee(adj)) && <div style={{ minWidth: 0 }} data-pay-fee-rates="1">
+            {on("regprof") && (!mig0187On() || payAdjustHasFee(adj)) && <div style={{ minWidth: 0 }} data-pay-fee-rates="1">
               <span style={label}>支払方法別の手数料（お客様負担）<span style={{ fontWeight: 400, marginLeft: 6 }}>％・0 は手数料なし（モーダルに出ません）</span></span>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(96px, 1fr))", gap: 8, marginTop: 4 }} data-pay-fee-grid="1">{/* ★2026-11-12: 3 等分（minmax(0, …)）は狭いと数字が消えた＝下限 96px で折り返す */}
                 {PAY_FEE_KEYS.map((k) => (
@@ -294,7 +301,7 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
               </div>
               <span style={{ display: "block", fontSize: 11.5, color: "var(--sub)", marginTop: 4 }}>店負担のカード決済手数料（経費の見込み）は「会計ルール」の率で別に集計します。</span>
             </div>}
-            {on("profile") && <label style={{ display: "block", minWidth: 0 }}>
+            {on("payprof") && <label style={{ display: "block", minWidth: 0 }}>
               <span style={label}>途中払い<span style={{ fontWeight: 400, marginLeft: 6 }}>前払（仮払）は控除なし＝期の精算で控除</span></span>
               <span data-mid-pay="1" style={{ display: "block" }}><SegSelect value={form.mid_pay} disabled={busy || !loaded} onChange={(v) => setForm((f) => ({ ...f, mid_pay: v }))} options={MID_PAY_OPTIONS} ariaLabel="途中払い" /></span>{/* ★M-82 */}
             </label>}
@@ -310,7 +317,7 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
           )}
           <div className="nox-actions" style={{ marginTop: 12 }}>
             <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} disabled={busy || !dirty} onClick={() => { setForm(cur); setMsg(null); }}>元に戻す</button>
-            <button type="button" style={{ ...t.btnGold, ...t.btnSm }} disabled={busy || !dirty || !loaded} onClick={() => void save()}>{on("profile") ? "店舗情報を保存" : "データ管理を保存"}</button>
+            <button type="button" style={{ ...t.btnGold, ...t.btnSm }} disabled={busy || !dirty || !loaded} onClick={() => void save()}>{`${card1Title}を保存`}</button>
           </div>
         </section>
       )}
@@ -318,32 +325,32 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
       {/* ★0164（裁定331 C 5 項目＋裁定334・便 W5-2a）: 会計と運用＝stores の列 7 つを set_store_profile の patch で保存（owner のみ＝RPC と同じ）。
           インボイス登録日（印字判定は receipt 側＝W5-3）／支払日（締め日は月末固定＝334・表示と案内用）／内税表示（表示だけ・計算不変）／
           フロア（VIP・カウンターの種別表示＝register／seats が読む・既存の席は残る）／支払い方法（レジのボタン出し分け・現金は常に ON）／打刻方法（1 つ以上・RPC は拒否しない） */}
-      {isOwner && on("ops") && (
-        <section className="nox-cardtop" style={t.card} aria-label="会計と運用">
-          <h2 style={{ ...secTitle, margin: "0 0 4px" }}>会計と運用</h2>
-          <p style={{ ...t.sub, fontSize: 12, margin: "0 0 10px" }}>インボイス登録日・給与の支払日・消費税の表示・フロアの席種・レジの支払い方法・打刻方法。計算は変わらず、表示と出し分けだけが変わります。</p>
+      {isOwner && opsCard && (
+        <section className="nox-cardtop" style={t.card} aria-label={opsTitle}>
+          <h2 style={{ ...secTitle, margin: "0 0 4px" }}>{opsTitle}</h2>
+          <p style={{ ...t.sub, fontSize: 12, margin: "0 0 10px" }}>変更した項目だけを保存します（管理者のみ）。</p>
           {loaded && (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 12 }}>
-              <label style={{ display: "block", minWidth: 0 }}>
+              {on("opsTax") && <label style={{ display: "block", minWidth: 0 }}>
                 <span style={label}>インボイス登録日<span style={{ fontWeight: 400, marginLeft: 6 }}>登録日より前の会計には登録番号を印字しません・空欄＝未登録</span></span>
                 <DatePicker value={form.ops.invoice_registered_on} disabled={busy} onChange={(v) => setOps({ invoice_registered_on: v })} ariaLabel="インボイス登録日" />{/* ★M-82 */}
-              </label>
-              <label style={{ display: "block", minWidth: 0 }}>
+              </label>}
+              {on("opsPay") && <label style={{ display: "block", minWidth: 0 }}>
                 <span style={label}>給与の支払日<span style={{ fontWeight: 400, marginLeft: 6 }}>翌月 1〜31 日・締め日は月末固定・表示と案内に使います</span></span>
                 <input type="number" min={1} max={31} step={1} inputMode="numeric" value={form.ops.pay_day} disabled={busy} onChange={(e) => setOps({ pay_day: e.target.value })} style={input} aria-label="給与の支払日" />
-              </label>
-              <div style={{ minWidth: 0 }}>
+              </label>}
+              {on("opsTax") && <div style={{ minWidth: 0 }}>
                 <span style={label}>消費税の表示<span style={{ fontWeight: 400, marginLeft: 6 }}>ON＝内税で表示（計算は変わりません）</span></span>
                 <p style={{ fontSize: 12, color: "var(--sub)", margin: "4px 0" }} data-tax-display-source="price_display">消費税の表示（内税／外税）は、料金の設定の「税込／税抜」に従います（今は{form.ops.tax_inclusive_display ? "内税" : "外税"}表示）。変えるときは マスタ › 料金 で。</p>{/* ★0201b の前提（2026-11-11）: スイッチは撤去＝正本は price_display */}
-              </div>
-              <div style={{ minWidth: 0 }}>
+              </div>}
+              {on("opsReg") && <div style={{ minWidth: 0 }}>
                 <span style={label}>フロア<span style={{ fontWeight: 400, marginLeft: 6 }}>OFF の席種はレジの卓席と席マスタの選択肢に出しません（登録済みの席は残ります）</span></span>
                 <div style={{ display: "flex", gap: 14, flexWrap: "wrap", alignItems: "center" }}>
                   <span style={{ display: "inline-flex", gap: 6, alignItems: "center", fontSize: 12.5 }}>VIP {onOff(form.ops.use_vip, "VIP 席を使う", (b) => setOps({ use_vip: b }))}</span>
                   <span style={{ display: "inline-flex", gap: 6, alignItems: "center", fontSize: 12.5 }}>カウンター {onOff(form.ops.use_counter, "カウンターを使う", (b) => setOps({ use_counter: b }))}</span>
                 </div>
-              </div>
-              <div style={{ minWidth: 0 }}>
+              </div>}
+              {on("opsReg") && <div style={{ minWidth: 0 }}>
                 <span style={label}>お客様の支払い方法<span style={{ fontWeight: 400, marginLeft: 6 }}>レジの入金ボタンに出すもの・現金は常に ON</span></span>
                 <div style={{ display: "flex", gap: 12, flexWrap: "wrap", fontSize: 12.5 }}>
                   {PAYMENT_METHOD_LABEL.map(([k, l]) => (
@@ -353,8 +360,8 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
                     </label>
                   ))}
                 </div>
-              </div>
-              <div style={{ minWidth: 0 }}>
+              </div>}
+              {on("opsShift") && <div style={{ minWidth: 0 }}>
                 {mig0197On() && (/* ★便 E（0197 用＝裁定455 の 4）: 3 択（店の端末だけ／本人のスマホからも／打刻しない）＝'store' のとき punch_methods は無視・窓の 2 欄 */
                   <div style={{ margin: "0 0 10px" }} data-punch-choice={form.punch_mode === "store" ? "store" : form.ops.punch_methods.self ? "any" : "device"}>
                     <span style={label}>打刻</span>
@@ -388,43 +395,43 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
                     </label>
                   ))}
                 </div>
-              </div>
+              </div>}
               {/* ★M-143（2026-11-10）: 打刻ゲート（duty_gate）のスイッチは撤去＝裁定472 で例外が廃止（レジは常に出勤中だけ・DB の白名単の duty_gate は読まれない） */}
-              {mig0192On() && (/* ★0192 M-49: キオスクの「本人でログイン」＝無操作 N 分で端末のセッションに戻す（店設定 kiosk_person_idle_minutes・1〜120・既定 10） */
+              {on("opsShift") && mig0192On() && (/* ★0192 M-49: キオスクの「本人でログイン」＝無操作 N 分で端末のセッションに戻す（店設定 kiosk_person_idle_minutes・1〜120・既定 10） */
                 <label style={{ minWidth: 0, display: "grid", gap: 3, alignContent: "start", alignSelf: "start", justifyItems: "start" }} data-kiosk-person-idle="0192">{/* ★M-189 a（2026-11-12）: 行の高さに引き伸ばされて大きな箱になっていた＝上に寄せ、項目名のすぐ下・ほかの数値の欄と同じ大きさ */}
                   <span style={label}>店の端末で本人がログインしたとき：操作が無いと戻るまで<span style={{ fontWeight: 400, marginLeft: 6 }}>3〜10 分・既定 10</span></span>
                   <UnitInput value={form.kiosk_person_idle} type="number" min={3} max={10} step={1} inputMode="numeric" disabled={busy} onChange={(v) => setForm((f) => ({ ...f, kiosk_person_idle: v }))} unit="分" width={140} ariaLabel="無操作で戻すまでの分" />
                   <span style={{ ...t.sub, display: "block", fontSize: 11.5, lineHeight: 1.7 }}>店の端末から本人のアカウントで開いた画面は、この時間操作が無いと自動でログアウトして端末の画面に戻ります</span>
                 </label>
               )}
-              {mig0191On() && (/* ★0191 ★1（便 OB-2 ⑤・2026-10-30）: 初期設定 v5 の器＝店設定 5 キーの編集口（白名単＝set_store_profile）。指名区分ごとの割合（%の商品の場内／フリーは本指名の率×この割合・商品ごとの個別率が優先）・源泉区分の既定（新規のキャスト／スタッフの初期値＝人ごとに給与の画面で変えられる）・釣銭準備金（日報の締めの既定）・締め日 */
+              {mig0191On() && (on("opsPay") || on("opsTax") || on("opsReg")) && (/* ★■8: 割合と締め日＝給与・源泉区分＝税と請求・釣銭準備金＝レジ */ /* ★0191 ★1（便 OB-2 ⑤・2026-10-30）: 初期設定 v5 の器＝店設定 5 キーの編集口（白名単＝set_store_profile）。指名区分ごとの割合（%の商品の場内／フリーは本指名の率×この割合・商品ごとの個別率が優先）・源泉区分の既定（新規のキャスト／スタッフの初期値＝人ごとに給与の画面で変えられる）・釣銭準備金（日報の締めの既定）・締め日 */
                 <div style={{ minWidth: 0, gridColumn: "1 / -1" }} data-store-0191="1">
-                  <span style={label}>指名の区分ごとの割合（%の商品のバック＝本指名の率 × この割合）</span>
+                  {on("opsPay") && <><span style={label}>指名の区分ごとの割合（%の商品のバック＝本指名の率 × この割合）</span>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(96px, 1fr))", gap: 8 }}>
                     {([["hon", "本指名"], ["jonai", "場内指名"], ["free", "フリー"]] as const).map(([k, l]) => (
                       <label key={k} style={{ display: "grid", gap: 3 }}><span style={{ ...t.sub, fontSize: 11.5 }}>{l}</span>
                         <UnitBox post="%" width="100%"><input type="number" min={0} max={100} step={1} inputMode="numeric" value={form.kind_back[k]} disabled={busy} onChange={(e) => setForm((f) => ({ ...f, kind_back: { ...f.kind_back, [k]: e.target.value } }))} style={input} aria-label={`${l}の割合`} /></UnitBox></label>
                     ))}
-                  </div>
+                  </div></>}
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 10, marginTop: 10 }}>
-                    <div><span style={label}>源泉区分の既定（委託キャスト）</span>
-                      <SegSelect value={form.wht_cast} onChange={(v) => setForm((f) => ({ ...f, wht_cast: v }))} options={[["hostess", "ホステス報酬"], ["none", "源泉なし"]] as const} /></div>
-                    <div><span style={label}>源泉区分の既定（委託スタッフ）</span>
-                      <SegSelect value={form.wht_staff} onChange={(v) => setForm((f) => ({ ...f, wht_staff: v }))} options={[["none", "源泉なし"], ["other_204", "その他（204 条）"]] as const} /></div>
-                    <div><span style={label}>釣銭準備金（日報の締めの既定）</span>
-                      <MoneyInput value={form.cash_float} disabled={busy} placeholder="毎回入力" onChange={(d) => setForm((f) => ({ ...f, cash_float: d.slice(0, 7) }))} ariaLabel="釣銭準備金" width="100%" /></div>
-                    <div><span style={label}>締め日</span>
-                      <span style={{ display: "block", padding: "8px 0", fontSize: 13.5 }} data-close-day-fixed="1">月末（固定）</span></div>{/* ★裁定334（2026-11-12）: 選択肢を外し表示だけ */}
+                    {on("opsTax") && <div><span style={label}>源泉区分の既定（委託キャスト）</span>
+                      <SegSelect value={form.wht_cast} onChange={(v) => setForm((f) => ({ ...f, wht_cast: v }))} options={[["hostess", "ホステス報酬"], ["none", "源泉なし"]] as const} /></div>}
+                    {on("opsTax") && <div><span style={label}>源泉区分の既定（委託スタッフ）</span>
+                      <SegSelect value={form.wht_staff} onChange={(v) => setForm((f) => ({ ...f, wht_staff: v }))} options={[["none", "源泉なし"], ["other_204", "その他（204 条）"]] as const} /></div>}
+                    {on("opsReg") && <div><span style={label}>釣銭準備金（日報の締めの既定）</span>
+                      <MoneyInput value={form.cash_float} disabled={busy} placeholder="毎回入力" onChange={(d) => setForm((f) => ({ ...f, cash_float: d.slice(0, 7) }))} ariaLabel="釣銭準備金" width="100%" /></div>}
+                    {on("opsPay") && <div><span style={label}>締め日</span>
+                      <span style={{ display: "block", padding: "8px 0", fontSize: 13.5 }} data-close-day-fixed="1">月末（固定）</span></div>}{/* ★裁定334（2026-11-12）: 選択肢を外し表示だけ */}
                   </div>
-                  <span style={{ ...t.sub, display: "block", fontSize: 11.5, marginTop: 4, lineHeight: 1.7 }}>源泉区分の既定は新しく登録する人の初期値です（人ごとに給与の画面で変えられます）。</span>
+                  {on("opsTax") && <span style={{ ...t.sub, display: "block", fontSize: 11.5, marginTop: 4, lineHeight: 1.7 }}>源泉区分の既定は新しく登録する人の初期値です（人ごとに給与の画面で変えられます）。</span>}
                 </div>
               )}
             </div>
           )}
-          {msg && !on("profile") && !on("data") && <Toast msg={msg} style={{ margin: "10px 0 0" }} />}
+          {msg && !card1 && <Toast msg={msg} style={{ margin: "10px 0 0" }} />}
           <div className="nox-actions" style={{ marginTop: 12 }}>
             <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} disabled={busy || !dirty} onClick={() => { setForm(cur); setMsg(null); }}>元に戻す</button>
-            <button type="button" style={{ ...t.btnGold, ...t.btnSm }} disabled={busy || !dirty || !loaded} onClick={() => void save()}>会計と運用を保存</button>
+            <button type="button" style={{ ...t.btnGold, ...t.btnSm }} disabled={busy || !dirty || !loaded} onClick={() => void save()}>{`${opsTitle}を保存`}</button>
           </div>
         </section>
       )}

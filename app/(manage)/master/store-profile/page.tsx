@@ -13,6 +13,8 @@ import PunchRulesPanel from "../punch-rules-panel"; // ★0201（裁定474）: �
 import { mig0201On, mig0201cOn } from "@/lib/nox/rules-0175/flag";
 import TrialTermsPanel from "../trial-terms-panel"; // ★0201c（裁定480）: 体験入店の条件（店の既定）
 import { managePageGate } from "@/lib/nox/nav/page-gate";
+import ManagerPunchPanel from "../manager-punch-panel"; // ★2026-11-16（■8）: 店長の打刻の許可（set_store_manager_punch）＝シフトと打刻
+import StoreSettingsTabs from "../store-settings-tabs"; // ★2026-11-16（■8）: 6 タブの並び
 
 export const dynamic = "force-dynamic";
 
@@ -37,7 +39,7 @@ export default async function MasterStoreProfilePage({ searchParams }: { searchP
 
   // ★MC2: 利用機能タブの報酬制度＝systems/page.tsx と同じ組み立て（先頭店・settings_json・使用数は純関数 systemUsageOf）
   let systems: { storeId: string; storeName: string; settings: Record<string, unknown>; usage: ReturnType<typeof systemUsageOf> } | null = null;
-  if (tab === "features") {
+  if (tab === "pay") { // ★■8: 報酬制度（SystemsBoard）は給与のタブ（旧 利用機能）
     const { data: first } = await supabase.from("stores").select("id, name, settings_json").order("name").limit(1);
     const store = first?.[0];
     const storeId = (store?.id as string | undefined) ?? "";
@@ -61,33 +63,42 @@ export default async function MasterStoreProfilePage({ searchParams }: { searchP
     }
   }
 
-  const head = tab === "line"
-    ? { eyebrow: "LINE", title: "店舗設定 › LINE 連携", desc: "LINE ログイン（LIFF）・通知（Messaging API）・月の送信上限と今月の送信数。LINE Developers に貼る URL はこの画面で確認できます。" }
-    : tab === "info"
-    ? { eyebrow: "STORE PROFILE", title: "店舗設定 › 店舗情報", desc: "店舗名・略称・店舗コード・表示名・送りの基本額とキャスト確認、会計と運用（インボイス登録日・支払日・消費税の表示・フロア・支払い方法・打刻方法）。住所・電話・インボイス登録番号は「端末・印刷 › レシート・プリンタ」で編集します（二重に編集する場所を作りません）。" }
-    : tab === "data"
-      ? { eyebrow: "DATA MANAGEMENT", title: "権限・情報管理 › データ管理", desc: "顧客情報の利用目的と保持年数、操作ログの保持。店舗情報とは別の画面にしています。" }
-      : { eyebrow: "STORE SETTINGS", title: "店舗設定 › 利用機能", desc: isOwner
-          ? "この店舗で使う機能の選択です。報酬制度（ノルマを使うかを含む）・売掛・機能の公開・勤務時間の計算基準・キャスト画面の設定。金額や計算条件は各マスタで管理します。"
-          : "この店舗で使う機能の選択です。報酬制度（ノルマを使うかを含む）・売掛・勤務時間の計算基準・キャスト画面の設定。金額や計算条件は各マスタで管理します。" }; // ★X-13-10（便 X-13a）: 機能の公開は owner だけに描く＝店長の説明文からも外す
+  // ★2026-11-16（■8・裁定499-10）: 6 タブ＝店舗情報／レジ／シフトと打刻／給与／キャスト画面／税と請求（＋データ管理は権限・情報管理の入口・LINE 連携は従来の入口）
+  const HEADS: Record<string, { eyebrow: string; title: string; desc: string }> = {
+    info: { eyebrow: "STORE PROFILE", title: "店舗設定 › 店舗情報", desc: "店舗名・略称・店舗コード・表示名。営業時間と定休日は「営業時間・定休日」で。住所・電話・インボイス登録番号は「端末・印刷 › レシート・プリンタ」で編集します（二重に編集する場所を作りません）。" },
+    register: { eyebrow: "REGISTER", title: "店舗設定 › レジ", desc: "お客様の支払い方法・支払方法の調整と手数料・フロアの席種・途中合流・釣銭準備金。" },
+    shift: { eyebrow: "SHIFT & PUNCH", title: "店舗設定 › シフトと打刻", desc: "打刻の方法と判定・店長の打刻・送り返しの自動確定・店の端末で本人がログインしたとき・機能の公開。" },
+    pay: { eyebrow: "PAYROLL", title: "店舗設定 › 給与", desc: "報酬制度（ノルマを使うかを含む）・精算方式・途中払い・支払日・送りの基本額・勤務時間の計算基準・指名の区分ごとの割合・体験入店の条件。金額や計算条件は各マスタで管理します。" },
+    mine: { eyebrow: "CAST PAGE", title: "店舗設定 › キャスト画面", desc: "キャストのマイページ（スマホ）に出すもの。" },
+    tax: { eyebrow: "TAX & BILLING", title: "店舗設定 › 税と請求", desc: "インボイス登録日・消費税の表示・源泉区分の既定・売掛。" },
+    data: { eyebrow: "DATA MANAGEMENT", title: "権限・情報管理 › データ管理", desc: "顧客情報の利用目的と保持年数、操作ログの保持。店舗情報とは別の画面にしています。" },
+    line: { eyebrow: "LINE", title: "店舗設定 › LINE 連携", desc: "LINE ログイン（LIFF）・通知（Messaging API）・月の送信上限と今月の送信数。LINE Developers に貼る URL はこの画面で確認できます。" },
+  };
+  const head = HEADS[tab] ?? HEADS.info;
 
   return (
     <div className="nox-mv1">
       <MasterPageHead eyebrow={head.eyebrow} title={head.title} desc={head.desc} />
-      {tab === "features" && (
-        <>
-          {systems && (
-            <SystemsBoard storeId={systems.storeId} storeName={systems.storeName} isOwner={isOwner} initialSettings={systems.settings} usage={systems.usage} />
-          )}
-          <StoreProfilePanel stores={stores} isOwner={isOwner} sections={["ar", "timeBasis"]} />
-          {isOwner && <FeatureFlagsPanel stores={stores} />}
-          {/* ★裁定326-1／326-8（便 M1-2）→ 330 追補1: キャスト画面の設定＝店舗設定 ＞ 利用機能（owner／manager 自店＝RPC set_store_mine_settings の判定と同じ） */}
-          <MineSettingsPanel stores={stores} isOwner={isOwner} />
-          {mig0201On() && <PunchRulesPanel stores={stores} isOwner={isOwner} />}{/* ★0201（裁定474・フラグ便）: 打刻の設定（判定・方法・位置・Wi-Fi・予定外）＝店長の打刻の許可は 0201c のフラグ便で出す */}{/* ★便 P173（裁定389）: レジ使用・操作端末は owner だけ切替 */}
-        </>
+      {tab !== "data" && <StoreSettingsTabs current={tab} />}
+      {/* ★2026-11-16（■8）: 各パネルは中身を変えていない（StoreProfilePanel は節の鍵を細かくしただけ）＝保存する値と RPC は不変。対応表＝docs/tmp/settings_map_1116.md */}
+      {tab === "info" && <StoreProfilePanel stores={stores} isOwner={isOwner} sections={["profile"]} />}
+      {tab === "register" && <StoreProfilePanel stores={stores} isOwner={isOwner} sections={["opsReg"]} />}
+      {tab === "register" && <StoreProfilePanel stores={stores} isOwner={isOwner} sections={["regprof"]} />}
+      {tab === "shift" && <StoreProfilePanel stores={stores} isOwner={isOwner} sections={["opsShift"]} />}
+      {tab === "shift" && mig0201On() && <ManagerPunchPanel stores={stores} isOwner={isOwner} />}{/* ★■8: 店長の打刻の許可＝シフトと打刻 */}
+      {tab === "shift" && mig0201On() && <PunchRulesPanel stores={stores} isOwner={isOwner} />}{/* ★0201（裁定474）: 打刻の設定（判定・方法・位置・Wi-Fi・予定外） */}
+      {tab === "shift" && <StoreProfilePanel stores={stores} isOwner={isOwner} sections={["shift"]} />}
+      {tab === "shift" && isOwner && <FeatureFlagsPanel stores={stores} />}
+      {tab === "pay" && systems && (
+        <SystemsBoard storeId={systems.storeId} storeName={systems.storeName} isOwner={isOwner} initialSettings={systems.settings} usage={systems.usage} />
       )}
-      {tab === "info" && <StoreProfilePanel stores={stores} isOwner={isOwner} sections={["profile", "shift", "ops"]} />}
-      {tab === "info" && mig0201cOn() && <TrialTermsPanel stores={stores} isOwner={isOwner} />}{/* ★0201c（裁定480）: 体入の時給・日数・体入中のバック */}{/* ★0164（便 W5-2a）: 会計と運用＝列 7 つ */}
+      {tab === "pay" && <StoreProfilePanel stores={stores} isOwner={isOwner} sections={["payprof"]} />}
+      {tab === "pay" && <StoreProfilePanel stores={stores} isOwner={isOwner} sections={["opsPay"]} />}
+      {tab === "pay" && <StoreProfilePanel stores={stores} isOwner={isOwner} sections={["timeBasis"]} />}
+      {tab === "pay" && mig0201cOn() && <TrialTermsPanel stores={stores} isOwner={isOwner} />}{/* ★0201c（裁定480）: 体入の時給・日数・体入中のバック */}
+      {tab === "mine" && <MineSettingsPanel stores={stores} isOwner={isOwner} />}
+      {tab === "tax" && <StoreProfilePanel stores={stores} isOwner={isOwner} sections={["opsTax"]} />}
+      {tab === "tax" && <StoreProfilePanel stores={stores} isOwner={isOwner} sections={["ar"]} />}
       {tab === "data" && <StoreProfilePanel stores={stores} isOwner={isOwner} sections={["data"]} />}
       {tab === "line" && <LineConfigPanel stores={stores} isOwner={isOwner} />}{/* ★便 ON-3（0176 ★1 401） */}
     </div>

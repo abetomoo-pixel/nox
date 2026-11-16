@@ -33,8 +33,8 @@ const tabsOf = (label: string) => entries.find((p) => p.label === label)?.tabs ?
 check("mt(1-3) タブ構成（MC2）: 商品管理 2・料金・会計 3（?tab=master／rules／checkout）・報酬設定 3（待遇プラン／控除・送り／ノルマ＝仮置きは無い）・店舗設定 3（利用機能 ?tab=features（alias 2＝報酬制度ページ・system#features）／店舗情報 ?tab=info／LINE 連携 ?tab=line＝ON-3）・端末・印刷 3・権限・情報管理 3（キャスト会計の許可／データ管理 ?tab=data／機密情報 #secrets）",
   tabsOf("商品管理").length === 2 && tabsOf("料金・会計").map((t) => t.href).join() === "/master/pricing?tab=master,/master/pricing?tab=rules,/master/pricing?tab=checkout"
   && tabsOf("報酬設定").map((t) => t.label).join() === "待遇プラン,控除・送り,ノルマ設定（店）" /* ★GV-63（便 P173） */
-  && tabsOf("店舗設定").map((t) => `${t.label}:${t.href}`).join() === "利用機能:/master/store-profile?tab=features,店舗情報:/master/store-profile?tab=info,LINE 連携:/master/store-profile?tab=line" /* ★便 ON-3（0176 ★1 401）: 3 本目 */
-  && JSON.stringify(tabsOf("店舗設定")[0].aliases) === JSON.stringify(["/master/cast-comp/systems", "/master/system#features"])
+  && tabsOf("店舗設定").map((t) => `${t.label}:${t.href}`).join() === "店舗情報:/master/store-profile?tab=info,レジ:/master/store-profile?tab=register,シフトと打刻:/master/store-profile?tab=shift,給与:/master/store-profile?tab=pay,キャスト画面:/master/store-profile?tab=mine,税と請求:/master/store-profile?tab=tax,LINE 連携:/master/store-profile?tab=line" /* ★2026-11-16（■8）: 6 タブ＋LINE */ /* ★便 ON-3（0176 ★1 401）: 3 本目 */
+  && JSON.stringify(tabsOf("店舗設定")[3].aliases) === JSON.stringify(["/master/store-profile?tab=features", "/master/cast-comp/systems", "/master/system#features"]) /* ★■8: 旧 利用機能（とその alias）は給与へ */
   && tabsOf("キオスク端末").length === 3 && tabsOf("権限・情報管理").map((t) => `${t.label}:${t.href}`).join() === "キャスト会計の許可:/master/cast-comp/register,データ管理:/master/store-profile?tab=data,機密情報:/master/system#secrets"
   && entries.find((p) => p.label === "権限・情報管理")?.href === "/master/cast-comp/register", JSON.stringify(entries.map((p) => [p.label, (p.tabs ?? []).map((t) => t.href)])));
 
@@ -48,7 +48,7 @@ check("mt(2-5) ★GV-63（便 P173）: 報酬設定（path で分かれるタブ
   [lab("/master/cast-comp/plan?tab=quota"), lab("/master/pricing?tab=zzz")].join(" | "));
 check("mt(2-2) 解決の形（MC2）: categories→商品管理/商品カテゴリ・pricing?tab=rules→料金適用ルール・pricing（無指定）→料金マスタ・cast-comp/systems（alias）→店舗設定/利用機能・system#features（alias）→店舗設定/利用機能・store-profile（無指定）→店舗設定/利用機能・store-profile?tab=info→店舗情報・store-profile?tab=data→権限・情報管理/データ管理・register→権限・情報管理/キャスト会計の許可・#secrets→権限・情報管理/機密情報・norma→報酬設定/ノルマ・system（無指定）→端末・印刷/打刻・レジ端末",
   lab("/master/categories") === "商品・料金/商品管理/商品カテゴリ" && lab("/master/pricing?tab=rules") === "商品・料金/料金・会計/料金適用ルール" && lab("/master/pricing") === "商品・料金/料金・会計/料金マスタ"
-  && lab("/master/cast-comp/systems") === "店舗・運用/店舗設定/利用機能" && lab("/master/system#features") === "店舗・運用/店舗設定/利用機能" && lab("/master/store-profile") === "店舗・運用/店舗設定/利用機能"
+  && lab("/master/cast-comp/systems") === "店舗・運用/店舗設定/給与" && lab("/master/system#features") === "店舗・運用/店舗設定/給与" && lab("/master/store-profile") === "店舗・運用/店舗設定/店舗情報"
   && lab("/master/store-profile?tab=info") === "店舗・運用/店舗設定/店舗情報" && lab("/master/store-profile?tab=data") === "スタッフ・システム/権限・情報管理/データ管理"
   && lab("/master/cast-comp/register") === "スタッフ・システム/権限・情報管理/キャスト会計の許可" && lab("/master/system#secrets") === "スタッフ・システム/権限・情報管理/機密情報"
   && lab("/master/cast-comp/norma") === "キャスト・報酬/報酬設定/ノルマ設定（店）" /* ★GV-63（便 P173） */ && lab("/master/system") === "スタッフ・システム/キオスク端末/キオスク端末" && lab("/master/seats") === "店舗・運用/席・卓/-",
@@ -59,7 +59,7 @@ check("mt(2-3) ナビ未登録＝null: /master・/master/cast-comp（概要）�
 
 // (3) 検索
 const pm = entries.find((p) => p.label === "商品管理")!, hs = entries.find((p) => p.label === "報酬設定")!, st = entries.find((p) => p.label === "席・卓")!, ss = entries.find((p) => p.label === "店舗設定")!;
-check("mt(3-1) masterSearchHit: 「カテゴリ」→商品管理（タブ名）・「ノルマ」→報酬設定・「利用機能」→店舗設定・「席」→席・卓・空は全件・無関係は 0", masterSearchHit(pm, "カテゴリ") && masterSearchHit(hs, "ノルマ") && masterSearchHit(ss, "利用機能") && masterSearchHit(st, "席") && !masterSearchHit(st, "カテゴリ") && entries.every((p) => masterSearchHit(p, "  ")) && entries.every((p) => !masterSearchHit(p, "zzz-none")));
+check("mt(3-1) masterSearchHit: 「カテゴリ」→商品管理（タブ名）・「ノルマ」→報酬設定・「利用機能」→店舗設定・「席」→席・卓・空は全件・無関係は 0", masterSearchHit(pm, "カテゴリ") && masterSearchHit(hs, "ノルマ") && masterSearchHit(ss, "シフトと打刻") /* ★■8: 旧「利用機能」はタブ名から外れた */ && masterSearchHit(st, "席") && !masterSearchHit(st, "カテゴリ") && entries.every((p) => masterSearchHit(p, "  ")) && entries.every((p) => !masterSearchHit(p, "zzz-none")));
 
 // (4) master-board
 const mb = src("app/(manage)/master/master-board.tsx"), mbC = codeOf(mb);
@@ -83,14 +83,16 @@ check("mt(6-1) stock-board: 発注推奨の警告（.nox-alert danger・reorder_
 
 // (7) 店舗設定ページ・パネルの節・system
 const spp = src("app/(manage)/master/store-profile/page.tsx"), spn = src("app/(manage)/master/store-profile-panel.tsx"), syp = src("app/(manage)/master/system/page.tsx"), sypC = codeOf(syp);
-check("mt(7-1) storeProfileTabOf: features 既定・info／data はそのまま・未知は features", storeProfileTabOf(undefined) === "features" && storeProfileTabOf("info") === "info" && storeProfileTabOf("data") === "data" && storeProfileTabOf("x") === "features" && storeProfileTabOf(null) === "features");
-check("mt(7-2) store-profile page: ?tab＝storeProfileTabOf・利用機能＝SystemsBoard＋StoreProfilePanel sections ar／timeBasis＋FeatureFlagsPanel（owner）＋MineSettingsPanel・店舗情報＝sections profile／shift／ops（W5-2a）・データ管理＝sections data・住所／インボイスは端末・印刷への注記（二重編集なし）",
-  spp.includes("storeProfileTabOf((await searchParams).tab)") && spp.includes('{tab === "features" && (') && spp.includes("<SystemsBoard storeId={systems.storeId}") && spp.includes('sections={["ar", "timeBasis"]}') && spp.includes("{isOwner && <FeatureFlagsPanel stores={stores} />}") && spp.includes("<MineSettingsPanel stores={stores} isOwner={isOwner} />" /* ★便 P173（裁定389）: レジ使用・操作端末は owner */)
-  && spp.includes('{tab === "info" && <StoreProfilePanel stores={stores} isOwner={isOwner} sections={["profile", "shift", "ops"]} />}') /* ★W5-2a: 会計と運用 */ && spp.includes('{tab === "data" && <StoreProfilePanel stores={stores} isOwner={isOwner} sections={["data"]} />}') && spp.includes("レシート・プリンタ」で編集します"));
-check("mt(7-3) StoreProfilePanel: sections（既定＝全節 6＝W5-2a で ops）・profile＝店舗名／略称／店舗コード／表示名／送りの基本額・data＝利用目的／保持年数／操作ログ注記・timeBasis／shift／ar は節ごと・RPC と patchOf は不変（set_store_profile 1 回・set_store_pay_time_basis 1 回）",
-  spn.includes('const ALL_SECTIONS: StoreProfileSection[] = ["profile", "data", "timeBasis", "shift", "ar", "ops"];') && spn.includes('{on("profile") && field("name", "店舗名"') && spn.includes('{on("data") && field("customer_purpose"') && spn.includes('{on("timeBasis") && <section') && spn.includes('{on("shift") && <section') && spn.includes('{isOwner && on("ar") && (')
+check("mt(7-1) storeProfileTabOf（★2026-11-16 ■8）: 店舗情報が既定・6 タブ＋data／line はそのまま・旧 features は給与・未知は店舗情報", storeProfileTabOf(undefined) === "info" && storeProfileTabOf("info") === "info" && storeProfileTabOf("data") === "data" && storeProfileTabOf("x") === "info" && storeProfileTabOf(null) === "info" && storeProfileTabOf("features") === "pay" && (["register", "shift", "pay", "mine", "tax", "line"] as const).every((k) => storeProfileTabOf(k) === k));
+check("mt(7-2) store-profile page（★2026-11-16 ■8）: ?tab＝storeProfileTabOf・6 タブの並び＝StoreSettingsTabs・店舗情報＝profile／レジ＝opsReg＋regprof／シフトと打刻＝opsShift＋店長の打刻＋打刻の設定＋shift＋機能の公開（owner）／給与＝SystemsBoard＋payprof＋opsPay＋timeBasis＋体入の条件／キャスト画面＝MineSettingsPanel／税と請求＝opsTax＋ar／データ管理＝data",
+  spp.includes("storeProfileTabOf((await searchParams).tab)") && spp.includes('{tab !== "data" && <StoreSettingsTabs current={tab} />}') && spp.includes('{tab === "info" && <StoreProfilePanel stores={stores} isOwner={isOwner} sections={["profile"]} />}')
+  && spp.includes('sections={["opsReg"]}') && spp.includes('sections={["regprof"]}') && spp.includes('sections={["opsShift"]}') && spp.includes('{tab === "shift" && mig0201On() && <ManagerPunchPanel stores={stores} isOwner={isOwner} />}') && spp.includes('{tab === "shift" && mig0201On() && <PunchRulesPanel') && spp.includes('sections={["shift"]}') && spp.includes('{tab === "shift" && isOwner && <FeatureFlagsPanel stores={stores} />}')
+  && spp.includes("<SystemsBoard storeId={systems.storeId}") && spp.includes('sections={["payprof"]}') && spp.includes('sections={["opsPay"]}') && spp.includes('sections={["timeBasis"]}') && spp.includes('{tab === "pay" && mig0201cOn() && <TrialTermsPanel') && spp.includes('{tab === "mine" && <MineSettingsPanel stores={stores} isOwner={isOwner} />}')
+  && spp.includes('sections={["opsTax"]}') && spp.includes('{tab === "tax" && <StoreProfilePanel stores={stores} isOwner={isOwner} sections={["ar"]} />}') && spp.includes('{tab === "data" && <StoreProfilePanel stores={stores} isOwner={isOwner} sections={["data"]} />}') && spp.includes("レシート・プリンタ」で編集します"));
+check("mt(7-3) StoreProfilePanel（★■8）: 節の鍵＝profile／payprof／regprof／data／timeBasis／shift／ar／ops（＝ops* の 4 つ）・profile＝店舗名／略称／店舗コード／表示名・payprof＝送りの基本額・data＝利用目的／保持年数・timeBasis／shift／ar は節ごと・RPC と patchOf は不変（set_store_profile 1 回・set_store_pay_time_basis 1 回）",
+  spn.includes('const ALL_SECTIONS: StoreProfileSection[] = ["profile", "payprof", "regprof", "data", "timeBasis", "shift", "ar", "ops"];') && spn.includes('{on("profile") && field("name", "店舗名"') && spn.includes('{on("payprof") && <label style={{ display: "block", minWidth: 0 }}>\n              <span style={label}>送りの基本額') && spn.includes('{on("data") && field("customer_purpose"') && spn.includes('{on("timeBasis") && <section') && spn.includes('{on("shift") && <section') && spn.includes('{isOwner && on("ar") && (')
   && (spn.match(/rpc\("set_store_profile"/g) ?? []).length === 1 && (spn.match(/rpc\("set_store_pay_time_basis"/g) ?? []).length === 1 && spn.includes(">勤務時間の計算基準</h2>"));
-check("mt(7-4) system page: 機能の公開タブは無い（店舗設定 ＞ 利用機能へ・案内行＋リンク）・devices／pins／receipts／secrets は不変", !sypC.includes('key: "features"') && !sypC.includes("<FeatureFlagsPanel") && syp.includes('href="/master/store-profile?tab=features"') && sypC.includes('key: "devices"') && sypC.includes('key: "pins"') && sypC.includes('key: "receipts"') && sypC.includes('key: "secrets"'));
+check("mt(7-4) system page: 機能の公開タブは無い（店舗設定 ＞ 利用機能へ・案内行＋リンク）・devices／pins／receipts／secrets は不変", !sypC.includes('key: "features"') && !sypC.includes("<FeatureFlagsPanel") && syp.includes('href="/master/store-profile?tab=shift"') /* ★2026-11-16（■8）: 機能の公開はシフトと打刻 */ && sypC.includes('key: "devices"') && sypC.includes('key: "pins"') && sypC.includes('key: "receipts"') && sypC.includes('key: "secrets"'));
 
 if (fails.length) {
   console.error(`verify:nox-master-top FAIL ${fails.length} / pass ${pass}`);

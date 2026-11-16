@@ -41,7 +41,7 @@ export default function DeductionBoard({ storeId, isManagerUp, isOwner, casts, o
       {!isSectionOn(settings, "compDeductionTab") && !isSectionOn(settings, "deductionPanel") && (
         <section className="nox-cardtop" style={{ ...card, marginBottom: 14 }} data-systems-off-note="1">
           <p style={{ fontSize: 13.5, margin: "0 0 10px", lineHeight: 1.8 }}>この店では精算調整・控除の制度を使っていません。利用機能で ON にできます。</p>
-          <a href="/master/store-profile?tab=features" className="nox-rowbtn" data-open-features="1">利用機能を開く</a>
+          <a href="/master/store-profile?tab=pay" className="nox-rowbtn" data-open-features="1">店舗設定（給与）を開く</a>{/* ★2026-11-16（■8）: 報酬制度は店舗設定 › 給与 */}
         </section>
       )}
       {/* ② 送り設定・前借り・送り実費（既存パネル移設＝RPC/引数 不変） */}

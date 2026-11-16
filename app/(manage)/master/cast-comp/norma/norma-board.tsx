@@ -34,7 +34,7 @@ export default function NormaBoard({ storeId, isManagerUp, isOwner, flags, setti
           遅刻・当欠の検知（閾値）は控除・送りタブへ移設（PenaltyTab part="detect"）。
           ★便 X13-G W-13 ②: 節が全部隠れる店（ノルマ・罰金とも OFF）は空にせず案内 */}
       {!isSectionOn(settings, "normConfigPanel") && !isSectionOn(settings, "compNormTab") && !isSectionOn(settings, "compPenaltyTab") && (
-        <section className="nox-cardtop" style={card} data-systems-off-note="1"><p style={{ fontSize: 13.5, margin: "0 0 10px", lineHeight: 1.8 }}>この店ではノルマ・精算調整の制度を使っていません。利用機能で ON にできます。</p><a href="/master/store-profile?tab=features" className="nox-rowbtn" data-open-features="1">利用機能を開く</a></section>
+        <section className="nox-cardtop" style={card} data-systems-off-note="1"><p style={{ fontSize: 13.5, margin: "0 0 10px", lineHeight: 1.8 }}>この店ではノルマ・精算調整の制度を使っていません。店舗設定 › 給与（報酬制度）で ON にできます。</p><a href="/master/store-profile?tab=pay" className="nox-rowbtn" data-open-features="1">店舗設定（給与）を開く</a></section>
       )}
       {(isSectionOn(settings, "normConfigPanel") || isSectionOn(settings, "compPenaltyTab")) && (<NormAxesPenaltyPanel
         storeId={storeId} isOwner={isOwner}

@@ -44,9 +44,9 @@ const src = (p: string) => fs.readFileSync(p, "utf8");
   const sp = src("app/(manage)/master/store-profile-panel.tsx"), pg = src("app/(manage)/master/store-profile/page.tsx"), ft = src("app/(manage)/master/store-flag-toggle.tsx");
   check("sp(1-1) 節 'ops'（会計と運用）＝列 7 つを select・opsProfileOf・patch に opsPatchOf・先回り opsPatchErrorOf・保存ボタン「会計と運用を保存」",
     sp.includes('select("name, short, settings_json, invoice_registered_on, pay_day, price_display, receivable_policy, use_vip, use_counter, payment_methods, punch_methods")') && sp.includes("ops: opsProfileOf(data as Record<string, unknown> | null)")
-    && sp.includes("const out: Record<string, unknown> = { ...opsPatchOf(form.ops, cur.ops) };") && sp.includes("const e = opsPatchErrorOf(patch); if (e) { setMsg(e); return; }") && sp.includes('aria-label="会計と運用"') && sp.includes(">会計と運用を保存<")
+    && sp.includes("const out: Record<string, unknown> = { ...opsPatchOf(form.ops, cur.ops) };") && sp.includes("const e = opsPatchErrorOf(patch); if (e) { setMsg(e); return; }") && sp.includes('aria-label={opsTitle}') && sp.includes('const opsTitle = on("ops") ? "会計と運用"') /* ★2026-11-16（■8）: 店舗設定の 6 タブで節の鍵を細かく */ && sp.includes('onClick={() => void save()}>{`${opsTitle}を保存`}</button>')
     && sp.includes('| "ops"') && sp.includes('ariaLabel="インボイス登録日"') /* ★M-82: date→DatePicker */ && sp.includes('aria-label="給与の支払日"') && sp.includes("PAYMENT_METHOD_LABEL.map(") && sp.includes("PUNCH_METHOD_LABEL.map("));
-  check("sp(1-2) store-profile ページの info タブに 'ops'・errJa に bad pay_day／bad payment_methods／bad punch_methods", pg.includes('sections={["profile", "shift", "ops"]}') && ft.includes('msg.includes("bad pay_day")') && ft.includes('msg.includes("bad payment_methods")') && ft.includes('msg.includes("bad punch_methods")'));
+  check("sp(1-2) store-profile ページの info タブに 'ops'・errJa に bad pay_day／bad payment_methods／bad punch_methods", pg.includes('sections={["opsTax"]}') && pg.includes('sections={["opsPay"]}') && pg.includes('sections={["opsReg"]}') && pg.includes('sections={["opsShift"]}') /* ★2026-11-16（■8）: 店舗設定の 6 タブで節の鍵を細かく */ && ft.includes('msg.includes("bad pay_day")') && ft.includes('msg.includes("bad payment_methods")') && ft.includes('msg.includes("bad punch_methods")'));
 }
 // sw(1)(2)
 {

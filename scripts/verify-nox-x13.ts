@@ -90,7 +90,7 @@ const src = (p: string) => fs.readFileSync(p, "utf8");
 // store-settings
 {
   const s = src("app/(manage)/master/store-profile/page.tsx");
-  check("x13(store-settings-1) 利用機能の説明文＝owner は「機能の公開」あり・店長はなし（FeatureFlagsPanel は owner だけ）", s.includes("desc: isOwner\n") && s.includes("報酬制度（ノルマを使うかを含む）・売掛・勤務時間の計算基準・キャスト画面の設定。金額や計算条件は各マスタで管理します。\" }") && s.includes("{isOwner && <FeatureFlagsPanel stores={stores} />}"));
+  check("x13(store-settings-1) 利用機能の説明文＝owner は「機能の公開」あり・店長はなし（FeatureFlagsPanel は owner だけ）", s.includes('pay: { eyebrow: "PAYROLL", title: "店舗設定 › 給与"') /* ★2026-11-16（■8）: 店舗設定の 6 タブで節の鍵を細かく */ && s.includes("報酬制度（ノルマを使うかを含む）・精算方式・途中払い・支払日・送りの基本額・勤務時間の計算基準・指名の区分ごとの割合・体験入店の条件。金額や計算条件は各マスタで管理します。") && s.includes('{tab === "shift" && isOwner && <FeatureFlagsPanel stores={stores} />}'));
 }
 // payroll-empty / payroll-periods（X-13-12／X-13-14・便 X-13a 追加分）
 {

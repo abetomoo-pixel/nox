@@ -70,7 +70,7 @@ const LATIN = /[A-Za-z]/;
     && cb.includes(".select(CAST_RELOAD_COLS + trialCastColsOf())") && src("app/(manage)/casts/page.tsx").includes(".select(CAST_LOGIN_COLS + trialCastColsOf())") && trialCastColsOf() === ", trial_wage, trial_days, trial_started_on");
   const tp = src("app/(manage)/master/trial-terms-panel.tsx"), sp = src("app/(manage)/master/store-profile/page.tsx");
   check("b6(2-6) 店舗設定 › 店舗情報「体験入店の条件」＝set_store_profile（オーナーだけ保存）・info タブにフラグ配下で置く",
-    tp.includes('createClient().rpc("set_store_profile", { p_store_id: storeSel, p_patch: p.patch })') && tp.includes("{isOwner && (") && sp.includes('{tab === "info" && mig0201cOn() && <TrialTermsPanel stores={stores} isOwner={isOwner} />}'));
+    tp.includes('createClient().rpc("set_store_profile", { p_store_id: storeSel, p_patch: p.patch })') && tp.includes("{isOwner && (") && sp.includes('{tab === "pay" && mig0201cOn() && <TrialTermsPanel stores={stores} isOwner={isOwner} />}') /* ★2026-11-16（■8）: 店舗設定の 6 タブで節の鍵を細かく */);
   const d1 = productDefaultsOfCategory({ default_back_rate: 30, default_track_stock: true }), d0 = productDefaultsOfCategory({ default_back_rate: null, default_track_stock: null });
   const c1 = categoryDefaultsArgsOf("k1", { backRate: "", trackStock: false }), c2 = categoryDefaultsArgsOf("k1", { backRate: "101", trackStock: true });
   check("b6(2-7) カテゴリの既定＝バック率（0〜100・空欄なし）・在庫（null は管理しない）・表示・set_product_category_defaults の引数",

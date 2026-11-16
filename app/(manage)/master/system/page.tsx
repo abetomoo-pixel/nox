@@ -147,7 +147,7 @@ export default async function MasterSystemPage() {
         desc="店舗端末、操作権限、印刷、機密情報を管理します。"
       />
       {/* ★裁定330（便 MC2）: 機能の公開（feature_flags）は「店舗設定 ＞ 利用機能」へ移した＝旧 URL（#features）で来た人への案内行 */}
-      <p style={{ fontSize: 12, color: "var(--sub)", margin: "-6px 0 12px" }}>機能の公開（スタッフシフト・締め解除フロー）は <Link href="/master/store-profile?tab=features" style={{ color: "var(--primary)", fontWeight: 700 }}>店舗設定 › 利用機能</Link> へ移りました。</p>
+      <p style={{ fontSize: 12, color: "var(--sub)", margin: "-6px 0 12px" }}>機能の公開（スタッフシフト・締め解除フロー）は <Link href="/master/store-profile?tab=shift" style={{ color: "var(--primary)", fontWeight: 700 }}>店舗設定 › シフトと打刻</Link> へ移りました。</p>
       <div className="nox-kpirow">
         <div className="nox-kpi2">
           <div className="nox-kpi2-l">登録端末</div>

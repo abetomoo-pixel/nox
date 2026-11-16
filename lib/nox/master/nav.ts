@@ -38,13 +38,18 @@ export const MASTER_NAV: MasterNavGroup[] = [
   {
     key: "store",
     label: "店舗・運用",
-    desc: "利用機能と店舗の営業設定",
+    desc: "店舗設定と店舗の営業設定",
     pages: [
-      { label: "店舗設定", href: "/master/store-profile", desc: "利用機能・店舗情報",
+      { label: "店舗設定", href: "/master/store-profile", desc: "店舗情報・レジ・シフトと打刻・給与・キャスト画面・税と請求",
         tabs: [
-          // ★MC2: 利用機能＝報酬制度（sys_* 9・ノルマを使う＝sys_norms）・売掛・機能の公開・勤務時間の計算基準（0159）・キャスト画面の設定（M1）。旧 href（報酬制度ページ・system#features）は alias
-          { label: "利用機能", href: "/master/store-profile?tab=features", aliases: ["/master/cast-comp/systems", "/master/system#features"] },
+          // ★2026-11-16（■8・裁定499-10）: 6 タブ＝店舗情報／レジ／シフトと打刻／給与／キャスト画面／税と請求（＋LINE 連携は従来の入口のまま）。旧「利用機能」（?tab=features）の中身は給与（報酬制度・勤務時間の計算基準）・レジ（売掛）・シフトと打刻（機能の公開・打刻の設定）・キャスト画面（M1）へ配った＝旧 URL は給与へ
           { label: "店舗情報", href: "/master/store-profile?tab=info" },
+          { label: "レジ", href: "/master/store-profile?tab=register" },
+          { label: "シフトと打刻", href: "/master/store-profile?tab=shift" },
+          { label: "給与", href: "/master/store-profile?tab=pay", aliases: ["/master/store-profile?tab=features", "/master/cast-comp/systems", "/master/system#features"] },
+          { label: "キャスト画面", href: "/master/store-profile?tab=mine" },
+          { label: "税と請求", href: "/master/store-profile?tab=tax" },
+          // ★MC2（旧）: 利用機能＝報酬制度（sys_* 9・ノルマを使う＝sys_norms）・売掛・機能の公開・勤務時間の計算基準（0159）・キャスト画面の設定（M1）。旧 href（報酬制度ページ・system#features）は alias
           { label: "LINE 連携", href: "/master/store-profile?tab=line" }, // ★便 ON-3（0176 ★1 401）
         ] },
       { label: "席・卓", href: "/master/seats", desc: "卓・カウンター・VIPの登録" },
@@ -128,8 +133,10 @@ export function masterSearchHit(page: MasterNavPage, q: string): boolean {
   return page.label.toLowerCase().includes(s) || page.desc.toLowerCase().includes(s) || (page.tabs ?? []).some((t) => t.label.toLowerCase().includes(s));
 }
 
-/** 店舗設定ページのタブ（?tab=）＝利用機能（既定）／店舗情報／データ管理（権限・情報管理の入口から） */
-export type StoreProfileTab = "features" | "info" | "data" | "line"; // ★便 ON-3: LINE 連携
+/** 店舗設定ページのタブ（?tab=）＝★2026-11-16（■8）: 店舗情報（既定）／レジ／シフトと打刻／給与／キャスト画面／税と請求＋データ管理（権限・情報管理の入口から）・LINE 連携。旧 features（利用機能）は給与へ */
+export type StoreProfileTab = "info" | "register" | "shift" | "pay" | "mine" | "tax" | "data" | "line"; // ★便 ON-3: LINE 連携
+export const STORE_PROFILE_TABS6 = ["info", "register", "shift", "pay", "mine", "tax"] as const;
 export function storeProfileTabOf(raw: string | null | undefined): StoreProfileTab {
-  return raw === "info" || raw === "data" || raw === "line" ? raw : "features";
+  if (raw === "features") return "pay"; // 旧 URL（利用機能）＝報酬制度と勤務時間の計算基準のある給与へ
+  return raw === "register" || raw === "shift" || raw === "pay" || raw === "mine" || raw === "tax" || raw === "data" || raw === "line" ? raw : "info";
 }
