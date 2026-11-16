@@ -98,7 +98,7 @@ export default function PaymentTaxPanel({ hasUnpaidFinalized }: { hasUnpaidFinal
         <button onClick={() => void load()} disabled={busy} style={{ ...t.btnGhost, ...t.btnSm, marginLeft: "auto" }}>再読込</button>
       </div>
       <p style={{ ...t.sub, margin: "4px 0 0" }}>
-        支払済み（paid）の給与から源泉徴収税額を月次で合算します（会社全体・店舗を合算）。納付期限は支払month の翌月10日です。
+        支払済みの給与から源泉徴収税額を月次で合算します（会社全体・店舗を合算）。納付期限は支払った月の翌月10日です。{/* ★2026-11-16 夜（N2 で発見）: 英語（paid・month）が混ざっていた */}
         報酬・料金（委託）と給与（雇用）は納付書の様式が別のため、区分ごとに記録します。
       </p>
       {msg && <Toast msg={msg} style={{ margin: "6px 0 0" }} />}

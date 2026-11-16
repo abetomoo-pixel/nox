@@ -709,7 +709,7 @@ export default function ReportBoard({
           <div style={{ display: "grid", gap: 8 }}>
             {okuriRows.map((r) => (
               <label key={r.punch_id} style={{ display: "grid", gridTemplateColumns: "1fr 140px", gap: 8, alignItems: "center", fontSize: 13 }}>
-                <span>{r.cast_name}<span style={{ marginLeft: 8, fontSize: 11.5, color: "var(--sub)" }}>{new Date(r.punched_at).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })} 退勤</span></span>
+                <span>{r.cast_name}<span style={{ marginLeft: 8, fontSize: 11.5, color: "var(--sub)" }}>{new Date(r.punched_at).toLocaleTimeString("ja-JP", { timeZone: "Asia/Tokyo", hour: "2-digit", minute: "2-digit" })} 退勤</span></span>
                 <MoneyInput value={okuriAmt[r.punch_id] ?? ""} disabled={okuriBusy} width="100%"
                   onChange={(v) => setOkuriAmt((m) => ({ ...m, [r.punch_id]: v }))} placeholder={r.base_amount == null ? "金額（必須）" : "金額"} ariaLabel={`${r.cast_name} の送り金額`} />
               </label>
@@ -997,7 +997,7 @@ export default function ReportBoard({
           )}
           {/* ★B2-a（D8）: 「現在 HH:MM → 営業日」＝bizDateOf（純関数・cutoff は settings_json の値）の表示のみ */}
           <span className="num" style={{ fontSize: 11.5, color: "var(--v2-muted)" }}>
-            現在 {new Date(nowIso).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}
+            現在 {new Date(nowIso).toLocaleTimeString("ja-JP", { timeZone: "Asia/Tokyo", hour: "2-digit", minute: "2-digit" })}
             {" → "}{bizDateOf(nowIso, cutoff).slice(5).replace("-", "/")} 営業日
           </span>
           {!closedReport && (preview?.open ?? 0) > 0 && (
@@ -1581,7 +1581,7 @@ export default function ReportBoard({
                       <span style={{ fontSize: 11, color: "var(--v2-muted)", marginLeft: 6 }}>
                         承認済み「{r.diff_reason ?? "—"}」
                         {r.diff_approved_by ? ` ${memberNames[r.diff_approved_by] ?? "—"}` : ""}
-                        ・{new Date(r.diff_approved_at).toLocaleString("ja-JP", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                        ・{new Date(r.diff_approved_at).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}
                       </span>
                     ) : (
                       canApproveDiff && <button style={{ ...btnLight, marginLeft: 6 }} data-diff-approve="1" onClick={() => { setReasonVal(""); setApprovePick(r); }}>差異を承認</button>

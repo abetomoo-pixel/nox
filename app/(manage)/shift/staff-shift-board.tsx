@@ -178,7 +178,7 @@ export default function StaffShiftBoard({ storeId, role, cutoff }: { storeId: st
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 10 }}>
             <span className="num" style={{ fontSize: 12.5, fontWeight: 700 }}>{selDay}</span>
             <span style={{ fontSize: 11, color: "var(--sub)" }}>
-              締切 {new Date(deadlineMsOf(selDay, deadlines)).toLocaleString("ja-JP", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+              締切 {new Date(deadlineMsOf(selDay, deadlines)).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}
               {locked(selDay) ? "（締切後）" : ""}
             </span>
             <input value={noteOf[selDay] ?? wishes.find((w) => w.staff_id === myMid && w.biz_date === selDay)?.note ?? ""}

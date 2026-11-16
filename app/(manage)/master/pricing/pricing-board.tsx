@@ -790,7 +790,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
       Array.isArray(r.data) && r.data.length ? r.data[0] as { amount: number; duration_min: number | null; rule_id: string | null } : null;
     const s = row(rs), e = row(re), d = row(rd);
     setLiveNow({
-      at: new Date().toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" }),
+      at: new Date().toLocaleTimeString("ja-JP", { timeZone: "Asia/Tokyo", hour: "2-digit", minute: "2-digit" }),
       // ★R9: rule_id は保持だけして名前はレンダ時に手元 rules から解決（stale closure を作らない）
       set: { amount: s?.amount ?? store.set_fee, min: s?.duration_min ?? store.set_min, src: s ? "rule" : "base", ruleId: s?.rule_id ?? null },
       ext: { amount: e?.amount ?? store.ext_fee, min: e?.duration_min ?? store.ext_min, src: e ? "rule" : "base" },

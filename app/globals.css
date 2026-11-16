@@ -3364,3 +3364,5 @@ tr.nox-rowflash, .nox-rowflash { animation: nox-rowflash 1.6s ease-out; }
 .nox-linebind .qr { background: #fff; padding: 6px; border-radius: 8px; box-sizing: border-box; }
 .nox-linebind .qr svg { display: block; width: 100%; height: 100%; }
 .nox-linebind .tx { display: grid; gap: 4px; min-width: 0; }
+/* ★2026-11-16 夜（N2 で発見・375）: 今日のカードで名前のセルに長い札（本指名 22:00 M様）が付くと名前の列が広がり、状態の札（採用・確定）が時刻に重なっていた＝名前の列は残りの幅・中で折り返す */
+@media (max-width: 1279px) { .nox-todaywrap .nox-table.cardrows tr { grid-template-columns: minmax(0, 1fr) auto auto; } .nox-todaywrap .nox-table.cardrows td.c-name { overflow-wrap: anywhere; } }

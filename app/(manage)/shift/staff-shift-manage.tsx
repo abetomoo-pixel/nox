@@ -242,7 +242,7 @@ export default function StaffShiftManage({ storeId, month, bizToday, patterns, d
           <b className="num" style={{ fontSize: 13.5 }}>{mdDowOf(selDay)}</b>{/* ★N6 S-3: 「M/D(曜)」表記 */}
           <button style={btnLight} disabled={busy} onClick={() => { setMsg(null); setPlaceDay(selDay); }}>この日に配置</button>
           <span style={{ fontSize: 11, color: "var(--sub)" }}>
-            希望締切 {new Date(deadlineMsOf(selDay, deadlines)).toLocaleString("ja-JP", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+            希望締切 {new Date(deadlineMsOf(selDay, deadlines)).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}
           </span>
         </div>
         {list.some((s) => s.status === "proposed") && (

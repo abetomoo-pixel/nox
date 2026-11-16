@@ -1186,7 +1186,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
         if (alive) { setDisputed(disputedOf(crows)); setPending(pendingOf(crows)); }
       }
       for (const p of rows) {
-        if (p.type === "in") m.set(p.cast_id, new Date(p.punched_at).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" }));
+        if (p.type === "in") m.set(p.cast_id, new Date(p.punched_at).toLocaleTimeString("ja-JP", { timeZone: "Asia/Tokyo", hour: "2-digit", minute: "2-digit" }));
         else m.delete(p.cast_id); // 'out' が後なら「打刻中」ではない＝表示しない
       }
       if (alive) { setPunchIn(m); setPunchRows(rows); setPunchMarks(punchMarksOf(rows as PunchMarkRow[])); }
@@ -2700,7 +2700,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                   const who = sh ? castName(sh.cast_id) : (typeof a.after_json?.cast_id === "string" ? castName(a.after_json.cast_id as string) : null);
                   return (
                     <span key={a.id} style={{ fontSize: 11.5, display: "flex", gap: 8, flexWrap: "wrap" }}>
-                      <span className="num" style={{ color: "var(--v2-muted)" }}>{new Date(a.at).toLocaleString("ja-JP", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+                      <span className="num" style={{ color: "var(--v2-muted)" }}>{new Date(a.at).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
                       <span>{SHIFT_ACTION_LABEL[a.action] ?? a.action}</span>
                       {who && <span>{who}{sh ? ` ${sh.date.slice(5).replace("-", "/")} ${fmtWin(sh.start_hm, sh.end_hm)}` : ""}</span>}
                       <span style={{ color: "var(--v2-muted)" }}>{a.actor_user_id ? userNames.get(a.actor_user_id) ?? "—" : "—"}</span>

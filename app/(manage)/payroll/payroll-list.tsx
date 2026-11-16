@@ -33,7 +33,7 @@ const ACTION_LABEL: Record<string, string> = { payroll_finalize: "確定", payro
 // 総支給＝CSV と同じ定義（pay.gross＋Σextras.amount・欠落キーは 0）。凍結値を読むだけ＝再計算しない。
 const grossOf = (bj: BreakdownJson | null): number =>
   (bj?.pay?.gross ?? 0) + (bj?.extras ?? []).reduce((a, e) => a + (e.amount ?? 0), 0);
-const fmtAt = (iso: string | null) => (iso ? new Date(iso).toLocaleString("ja-JP", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "—");
+const fmtAt = (iso: string | null) => (iso ? new Date(iso).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "—");
 
 export default function PayrollList({ stores, isOwner }: { stores: Store[]; isOwner: boolean }) {
   const supabase = createClient();

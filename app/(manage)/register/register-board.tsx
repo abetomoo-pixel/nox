@@ -2927,7 +2927,7 @@ export default function RegisterBoard({
               保持済み）。凍結スナップ＋nowMs tick のクライアント計算＝表示専用・権威はサーバ。超過は --bad。 */}
           {check.status === "open" && (() => {
             const ts = timeStatusOf(new Date(check.started_at).getTime(), nowMs, check.set_min, check.ext_min);
-            const next = new Date(ts.nextAtMs).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" });
+            const next = new Date(ts.nextAtMs).toLocaleTimeString("ja-JP", { timeZone: "Asia/Tokyo", hour: "2-digit", minute: "2-digit" });
             return ts.inSet ? (
               <span className="stay">セット中 残り <span className="num">{ts.remainMin}</span> 分</span>
             ) : (
@@ -3498,7 +3498,7 @@ export default function RegisterBoard({
               <h3 style={{ ...t.cardTitle, margin: 0 }}>時間料金（自動）</h3>
               <span style={{ fontSize: 12, color: "var(--sub)" }}>
                 経過 <span style={t.num}>{Math.max(0, Math.floor((nowMs - new Date(check.started_at).getTime()) / 60000))}</span> 分
-                （着席 {new Date(check.started_at).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}）
+                （着席 {new Date(check.started_at).toLocaleTimeString("ja-JP", { timeZone: "Asia/Tokyo", hour: "2-digit", minute: "2-digit" })}）
               </span>
             </div>
             <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "8px 0", lineHeight: 1.7 }}>
@@ -3536,7 +3536,7 @@ export default function RegisterBoard({
               <h3 style={{ ...t.cardTitle, margin: 0 }}>時間料金（手動）</h3>
               <span style={{ fontSize: 12, color: "var(--sub)" }}>
                 経過 <span style={t.num}>{Math.max(0, Math.floor((nowMs - new Date(check.started_at).getTime()) / 60000))}</span> 分
-                （着席 {new Date(check.started_at).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}）
+                （着席 {new Date(check.started_at).toLocaleTimeString("ja-JP", { timeZone: "Asia/Tokyo", hour: "2-digit", minute: "2-digit" })}）
               </span>
             </div>
             <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "8px 0", lineHeight: 1.7 }}>
@@ -3792,7 +3792,7 @@ export default function RegisterBoard({
               時間帯を出さず金額のみ（嘘の帯を描かない）。 */}
           {timeMode === "auto" && check && (() => {
             const t0 = new Date(check.started_at).getTime();
-            const fmtHM = (ms: number) => new Date(ms).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" });
+            const fmtHM = (ms: number) => new Date(ms).toLocaleTimeString("ja-JP", { timeZone: "Asia/Tokyo", hour: "2-digit", minute: "2-digit" });
             const setLines = lines.filter((l) => l.time_auto && l.fee_kind === "set");
             const extLines = lines.filter((l) => l.time_auto && l.fee_kind === "extension")
               .slice().sort((a, b) => (a.block_no ?? 1e9) - (b.block_no ?? 1e9));
