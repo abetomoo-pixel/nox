@@ -55,7 +55,11 @@ export function dayAddStateOf(wishesOfDay: readonly { start_hm: string; end_hm: 
 //   判定は希望＞基本の働き方。(a) 割当ピッカー（day-add-panel）と (b) まとめて追加（shift-add-form）の 1 本の関数。avail は lib/nox/rules-0175/availability の Avail（ok／ng／ask）・無ければ null。
 export type DayCastState = "wish" | "unavailable" | "consult" | "none";
 export const DAY_CAST_STATE_LABEL: Record<DayCastState, string> = { wish: "希望あり", unavailable: "不可", consult: "相談", none: "シフトなし" };
-export type DayCastJudge = { state: DayCastState; wish: { start_hm: string; end_hm: string } | null; /** 不可の理由＝休み希望／基本の働き方の曜日が不可 */ why: "wish_off" | "avail_ng" | null };
+export type DayCastJudge = { state: DayCastState; wish: { start_hm: string; end_hm: string } | null; /** 不可の理由＝休み希望／基本の働き方の曜日が不可／★裁定501-6: 出勤不可の登録（cast_unavailable_days） */ why: "wish_off" | "avail_ng" | "unavail_day" | null };
+/** ★裁定501-6（2026-11-16 Agoora 確定）: 日のセルの割当の一覧も、キャストから組む側と同じ「不可」＝出勤不可の登録（cast_unavailable_list）がある日は不可（休み希望・基本の働き方より先）。理由つきで選べる */
+export function dayCastStateWithUnavailOf(base: DayCastJudge, unavailReason: string | null | undefined): DayCastJudge {
+  return unavailReason === undefined ? base : { state: "unavailable", wish: null, why: "unavail_day" };
+}
 export function dayCastStateOf(wishesOfDay: readonly { start_hm: string; end_hm: string; kind?: string }[], avail: "ok" | "ng" | "ask" | null | undefined): DayCastJudge {
   if (wishesOfDay.some((w) => (w.kind ?? "work") === "off")) return { state: "unavailable", wish: null, why: "wish_off" };
   const w = wishesOfDay.find((x) => (x.kind ?? "work") !== "off");

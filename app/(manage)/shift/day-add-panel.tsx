@@ -18,7 +18,7 @@ import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import CastAvatar from "@/components/ui/cast-avatar";
 import { type BusinessHourRow } from "@/lib/nox/business-hours";
-import { dayCastStateOf, DAY_CAST_STATE_LABEL, availTimeBadgeOf, initialSpanOf, type DayCastState } from "@/lib/nox/shift/half-hour"; // ★M-91: 時刻の制限・初期時間（availNgConfirmOf は理由必須に置き換え） // ★便 A M-65: 4 段の判定（希望＞基本の働き方）＝(b) まとめて追加と同じ 1 本
+import { dayCastStateOf, dayCastStateWithUnavailOf, DAY_CAST_STATE_LABEL, availTimeBadgeOf, initialSpanOf, type DayCastState } from "@/lib/nox/shift/half-hour"; // ★M-91: 時刻の制限・初期時間（availNgConfirmOf は理由必須に置き換え） // ★便 A M-65: 4 段の判定（希望＞基本の働き方）＝(b) まとめて追加と同じ 1 本
 import type { Avail } from "@/lib/nox/rules-0175/availability";
 import TimeInput from "@/components/ui/time-input"; // ★便 M5b M-51
 
@@ -92,6 +92,22 @@ export default function DayAddPanel({
   const [msg, setMsg] = useState<string | null>(null);
   const [allStart, setAllStart] = useState("");
   const [allEnd, setAllEnd] = useState("");
+  // ★裁定501-6（2026-11-16 Agoora 確定）: 出勤不可の登録（cast_unavailable_list＝キャストから組む側と同じ「不可」の元）を、一覧を開いたときにこの日の分だけ読む（cast_id → 理由・表は直に読めない＝RPC をキャストごと）
+  const [unavail, setUnavail] = useState<Map<string, string | null>>(new Map());
+  useEffect(() => {
+    if (!listOpen || closed) return;
+    let alive = true;
+    void (async () => {
+      const m = new Map<string, string | null>();
+      await Promise.all(casts.map(async (c) => {
+        const { data } = await supabase.rpc("cast_unavailable_list", { p_cast_id: c.id, p_from: date, p_to: date });
+        const r = ((data ?? []) as { date: string; reason: string | null }[]).find((x) => String(x.date).slice(0, 10) === date);
+        if (r) m.set(c.id, r.reason ?? null);
+      }));
+      if (alive) setUnavail(m);
+    })();
+    return () => { alive = false; };
+  }, [listOpen, closed, date, casts, supabase]);
 
   // バッファ有無を親へ（アンマウント時は必ず false＝モーダルが閉じたら破棄確認の対象から外れる）
   useEffect(() => { onDirtyChange(rows.length > 0); }, [rows.length, onDirtyChange]);
@@ -105,7 +121,7 @@ export default function DayAddPanel({
   const nameOf = (id: string) => casts.find((c) => c.id === id)?.name ?? "?";
   const dayWishes = wishes.filter((w) => w.date === date && w.status !== "withdrawn");
   const dow = new Date(`${date}T00:00:00Z`).getUTCDay();
-  const stateOf = (id: string) => dayCastStateOf(dayWishes.filter((w) => w.cast_id === id), availByCast[id]?.[dow] ?? null); // ★便 A M-65 (c): 1 本の判定
+  const stateOf = (id: string) => dayCastStateWithUnavailOf(dayCastStateOf(dayWishes.filter((w) => w.cast_id === id), availByCast[id]?.[dow] ?? null), unavail.has(id) ? unavail.get(id) ?? null : undefined); // ★便 A M-65 (c): 1 本の判定・★裁定501-6: 出勤不可の登録も不可
 
   const toggle = (c: Cast) => {
     if (busy || assigned.has(c.id)) return;
@@ -115,7 +131,7 @@ export default function DayAddPanel({
     const span = initialSpanOf(st.wish, availTimeByCast[c.id]?.[dow] ?? null, preset ?? null, [FALLBACK_START, FALLBACK_END]);
     setRows((prev) => prev.some((r) => r.castId === c.id)
       ? prev.filter((r) => r.castId !== c.id)
-      : [...prev, { castId: c.id, start: span.start, end: span.end, err: null, needReason: st.why === "wish_off" || st.why === "avail_ng", reason: "" }]);
+      : [...prev, { castId: c.id, start: span.start, end: span.end, err: null, needReason: st.why === "wish_off" || st.why === "avail_ng" || st.why === "unavail_day", reason: "" }]); /* ★裁定501-6: 出勤不可の登録も理由必須（保存の前に） */
   };
   const setRow = (id: string, patch: Partial<Row>) =>
     setRows((prev) => prev.map((r) => (r.castId === id ? { ...r, ...patch, err: null } : r)));
@@ -186,7 +202,7 @@ export default function DayAddPanel({
                   <CastAvatar name={c.name} url={photoUrls.get(c.id)} variant="flat" />
                   <span style={{ flex: 1, minWidth: 0 }}>{c.name}</span>
                   <span style={{ ...t.tag, fontSize: 10.5, padding: "1px 7px", ...STATE_STYLE[st.state] }}>
-                    {st.state === "wish" && st.wish ? `${DAY_CAST_STATE_LABEL.wish} ${st.wish.start_hm.slice(0, 5)}〜` : DAY_CAST_STATE_LABEL[st.state]}
+                    {st.state === "wish" && st.wish ? `${DAY_CAST_STATE_LABEL.wish} ${st.wish.start_hm.slice(0, 5)}〜` : DAY_CAST_STATE_LABEL[st.state]}{st.why === "unavail_day" && unavail.get(c.id) ? `（${unavail.get(c.id)}）` : ""}
                   </span>
                   {st.state !== "wish" && st.state !== "unavailable" && availTimeBadgeOf(availTimeByCast[c.id]?.[dow] ?? null) && <span className="nox-stpill num" data-day-add-avail-time={String(dow)}>{availTimeBadgeOf(availTimeByCast[c.id]?.[dow] ?? null)}</span>}{/* ★M-91: その曜日の時刻の制限＝「23:00〜翌01:00」 */}
                   {on && <span className="nox-stpill ok">選択中</span>}
