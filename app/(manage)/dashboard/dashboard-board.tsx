@@ -93,7 +93,7 @@ export default function DashboardBoard({ storeId, storeName, cutoff, casts, shor
   const [reportDays, setReportDays] = useState(0);
   const [ranking, setRanking] = useState<RankRow[]>([]);
   const [rankLoaded, setRankLoaded] = useState(false); // ★M-173（2026-11-11 夜）: 取得の前に「データがありません」を出さない
-  const [rankAxis, setRankAxis] = useState<RankAxis>("sales"); // ★裁定363: 既定＝売上（按分）・切替で本指名件数
+  const [rankAxis, setRankAxis] = useState<RankAxis>(isManagerUp ? "sales" : "nom"); // ★裁定363: 既定＝売上（按分）・切替で本指名件数。★2026-11-16 夜: スタッフは キャスト別の売上を見られない（D6a＝get_cast_sales は staff 拒否）＝本指名件数だけ
   const [salesRanking, setSalesRanking] = useState<CastSalesRank[]>([]);
   // 段H2 追加取得（いずれも既存テーブルの素の SELECT・RLS はそのまま）
   const [todayShifts, setTodayShifts] = useState<Shift[]>([]);
@@ -117,7 +117,7 @@ export default function DashboardBoard({ storeId, storeName, cutoff, casts, shor
       : { data: null };
     // ★裁定363（GV-11）: 売上ランキング＝get_cast_sales（当月）→ castSalesRankingOf（analytics・collect と同じ純関数）・上位 5
     const mEnd = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)).toISOString().slice(0, 10);
-    const { data: sr } = sid
+    const { data: sr } = sid && isManagerUp /* ★2026-11-16 夜: スタッフは呼ばない（D6a で拒否＝400 が出ていた） */
       ? await supabase.rpc("get_cast_sales", { p_store_id: sid, p_from: `${month}-01`, p_to: mEnd })
       : { data: null };
     // 段H2: 当日シフト＋必要人数（曜日別）＝S-1 と同じ列・同じ導出。日別の必要人数は現スキーマに無い。
@@ -356,7 +356,7 @@ export default function DashboardBoard({ storeId, storeName, cutoff, casts, shor
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 9 }}>
           {/* ★裁定363（GV-11・便 GV-A）: 既定軸＝売上（按分）。本指名件数は切替で。★裁定156（v2.1 M27）: 見出しをモック「本指名ランキング（今月）」へ。上位 5 名・場内／同伴の併記は据え置き（情報を減らさない） */}
           <h2 style={{ ...secTitle, margin: 0 }}>{rankAxis === "sales" ? `売上ランキング（今月 ${month}・按分）` : `本指名ランキング（今月 ${month}・件数）`}</h2>
-          <SegSelect value={rankAxis} onChange={(v) => setRankAxis(v as RankAxis)} options={[["sales", RANK_AXIS_LABEL.sales], ["nom", "本指名件数"]] as const} ariaLabel="ランキングの軸" />
+          {isManagerUp && <SegSelect value={rankAxis} onChange={(v) => setRankAxis(v as RankAxis)} options={[["sales", RANK_AXIS_LABEL.sales], ["nom", "本指名件数"]] as const} ariaLabel="ランキングの軸" />}{/* ★2026-11-16 夜: スタッフは本指名件数だけ＝切替を出さない */}
           {isManagerUp && <Link href="/analytics" className="nox-link" style={{ marginLeft: "auto", fontSize: 11, whiteSpace: "nowrap" }}>分析へ ›</Link>/* ★M-169: 分析は店長以上だけ＝見られない役割にはリンクを出さない */}
         </div>
         {!rankLoaded && <div data-rank-loading="1"><Loading /></div>}
