@@ -29,13 +29,12 @@ export function missingOutSummaryOf(rows: readonly { castName: string; missingOu
 /** ★便 M-10（Agoora 確定 10/26 ⑧）: シフト無し出勤＝「シフト無し出勤 n 日（時給なし）」＋行（名前・日付・当日追加配置へのリンク） */
 export function noShiftSummaryOf(rows: readonly { castId: string; castName: string; noShiftDates?: readonly string[]; taxMode?: string | null }[]): { count: number; text: string; items: { castId: string; castName: string; date: string; md: string; href: string; paid: boolean }[] } | null {
   const items: { castId: string; castName: string; date: string; md: string; href: string; paid: boolean }[] = [];
-  for (const r of rows) for (const d of r.noShiftDates ?? []) items.push({ castId: r.castId, castName: r.castName, date: d, md: fmtMD(d), href: noShiftAddHrefOf(d, r.castId), paid: r.taxMode === "雇用" });
+  for (const r of rows) for (const d of r.noShiftDates ?? []) items.push({ castId: r.castId, castName: r.castName, date: d, md: fmtMD(d), href: noShiftAddHrefOf(d, r.castId), paid: true }); // ★裁定501-8: 委託も時給を付ける
   if (items.length === 0) return null;
   items.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.castName.localeCompare(b.castName, "ja")));
   // ★裁定431 ⑥（Agoora 確定 10/26）: 雇用＝打刻の時間で時給を付ける（確認のみ）／委託＝時給なし・当日追加配置で後追い
-  const emp = items.filter((i) => i.paid).length, con = items.length - emp;
-  const parts = [con > 0 ? `委託 ${con} 日＝時給なし・当日追加配置で時給が付きます` : "", emp > 0 ? `雇用 ${emp} 日＝打刻の時間で時給を付けています` : ""].filter(Boolean);
-  return { count: items.length, text: `シフト無し出勤 ${items.length} 日（${parts.join("／")}）`, items };
+  // ★裁定501-8（2026-11-16）: 委託も雇用も、確定シフトが無い日は打刻の出勤〜退勤の時間で時給を付ける（退勤の打刻が無い日は時間なし）
+  return { count: items.length, text: `シフト無し出勤 ${items.length} 日（打刻の出勤〜退勤の時間で時給を付けています・退勤の打刻が無い日は時間なし）`, items };
 }
 /** 当日追加配置へ＝シフト板の今日タブをその日で開き、追加モーダルをそのキャストで開く */
 export const noShiftAddHrefOf = (date: string, castId: string): string => `/shift?tab=today&date=${date}&add=1&cast=${castId}`;

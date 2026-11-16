@@ -31,7 +31,8 @@ import { anomalyFlagsOf, punchCountsUpToOf, shiftHoursUpToOf } from "./anomaly";
 
 import { castPts } from "../pay"; // ★N3b: 前月 pts＝当月と同じ式
 import { trialRangeOf, trialRawOf, trialTouchesOf, trialWageOf, inTrialRange, type TrialRange } from "./trial"; // ★裁定490（0201l の後の結線）: 体入の期間・体入の時給・バック「なし」の除外
-import { trialStoreTermsOf } from "../cast/trial-terms"; // ★裁定490: 店の体入の条件（trial_wage・trial_back）
+import { trialStoreTermsOf } from "../cast/trial-terms";
+import { noShiftHoursOf } from "./no-shift"; // ★裁定501-8 // ★裁定490: 店の体入の条件（trial_wage・trial_back）
 import { monthsInRange, prevMonthOf, lastDayOf, periodKeysInRange, periodRangeOfKey, prevPeriodKeyOf, slidePeriodOf, slideBasisOf, slideBasisValueOf, slideRankIncludedOf, type SlideBasis, type SlidePeriod, type SlideTotals } from "./slide"; // ★N3b（裁定288）・★裁定338（0168・便 P168）
 import type { PayrollWindow as _PW } from "./window";
 const addDaysYmd = (ymd: string, n: number) => { const [y, mo, d] = ymd.split("-").map(Number); return new Date(Date.UTC(y, mo - 1, d + n)).toISOString().slice(0, 10); }; // ★N3b
@@ -444,13 +445,7 @@ export async function loadPunch(admin: SupabaseClient, storeId: string, win: Pay
     const shiftDates = new Set(raw.shifts.map((s) => s.date));
     const noShiftDates = [...new Set(raw.punches.filter((p) => p.type === "in").map((p) => bizDateOf(p.punched_at, win.cutoffHm)))].filter((d) => !shiftDates.has(d) && d <= todayBiz).sort();
     // ★裁定431 ⑥（Agoora 確定 10/26）: シフト無し出勤の日の打刻時間（その営業日の最初の in〜最後の out）＝雇用だけ時給に入れる（委託は従来どおり時給なし）
-    const noShiftHours = new Map<string, number>();
-    for (const d of noShiftDates) {
-      const ps = raw.punches.filter((p) => bizDateOf(p.punched_at, win.cutoffHm) === d).map((p) => ({ t: new Date(p.punched_at).getTime(), type: p.type })).sort((a, b) => a.t - b.t);
-      const firstIn = ps.find((p) => p.type === "in");
-      const lastOut = [...ps].reverse().find((p) => p.type === "out" && firstIn && p.t > firstIn.t);
-      if (firstIn && lastOut) noShiftHours.set(d, (lastOut.t - firstIn.t) / 3600_000);
-    }
+    const noShiftHours = noShiftHoursOf(raw.punches, noShiftDates, win.cutoffHm); // ★裁定501-8: 純関数に切り出した（式は同じ）
     // ★便 E（0197 用＝裁定455 の 2）: 打刻しない店（punch_mode='store'）＝打刻が無い日は確定シフトの時間を実働・日数／遅刻／当欠は勤怠（attendance）で決める（今日まで）。フラグ false／'punch' は従来と 1 バイト同値
     if (punchModeOf((stR.data?.settings_json ?? null) as Record<string, unknown> | null) === "store") {
       const attBy = new Map(raw.att.map((a) => [a.date, a.status]));
@@ -868,7 +863,8 @@ export async function collectPeriod(
     const plan = cp ? plansById.get(cp.planId) ?? null : null;
     // 日次 = sales 日 ∪ punch 日（hours>0 or sales>0）
     // ★裁定431 ⑥: 雇用はシフト無し出勤の日も打刻の時間で時給（委託は従来どおり 0＝当日追加配置で後追い）
-    const empNoShift = employmentById.get(cid) === "雇用" ? p?.noShiftHours ?? new Map<string, number>() : new Map<string, number>();
+    // ★裁定501-8（2026-11-16 Agoora 確定・M-10 の「委託は時給なし」を改める）: 委託も雇用と同じく、確定シフトが無い日は打刻の最初の出勤〜最後の退勤の実働で時間給（確定シフトのある日は不変・退勤が無い日は付けない）
+    const empNoShift = p?.noShiftHours ?? new Map<string, number>();
     const dateSet = new Set<string>([...(s?.daily.keys() ?? []), ...(p?.hoursByDate.keys() ?? []), ...empNoShift.keys()]);
     const daily = [...dateSet].sort().map((bizDate) => ({
       bizDate,

@@ -98,7 +98,7 @@ export async function buildKintaiSheet(admin: SupabaseClient, managerClient: Sup
       punchMode: punchModeOf((storeR.data?.settings_json ?? null) as Record<string, unknown> | null), // ★便 E（0197 用＝裁定455 の 2）: 打刻しない店＝確定シフトの時間
     });
     // ★裁定431 ⑥（Agoora 確定 10/26）: 雇用はシフト無し出勤の日も打刻の時間（出〜退）を実働に＝給与（collect）と同じ。委託は従来どおり 0
-    if ((c as { employment?: string | null }).employment === "雇用") for (const r of rows) if (!r.shift && r.inHm && r.outHm && r.hours === 0 && !r.cancelled) { const mins = hm2minK(r.outHm) - hm2minK(r.inHm); if (mins > 0) r.hours = Math.round((mins / 60) * 10) / 10; }
+    /* ★裁定501-8（2026-11-16）: 委託も雇用も同じ＝シフト無し出勤の日は打刻の時間（給与の collect と同じ） */ for (const r of rows) if (!r.shift && r.inHm && r.outHm && r.hours === 0 && !r.cancelled) { const mins = hm2minK(r.outHm) - hm2minK(r.inHm); if (mins > 0) r.hours = Math.round((mins / 60) * 10) / 10; }
     const summary = attendanceSummaryOf(rows, todayBiz);
     const d = draftByCast.get(c.id);
     const frozen = frozenByCast.get(c.id) ?? null;
