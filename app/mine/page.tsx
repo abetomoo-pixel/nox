@@ -81,7 +81,9 @@ export default async function MinePage({ searchParams }: { searchParams?: Promis
   // ★■7（2026-11-13 夜・相談役）: 読取は入力が揃った時点で先に投げ、使う所で待つ（同じクエリ・同じ RLS＝式と見える範囲は変えない）。supabase の builder は await まで送らない＝go() で送る
   const go = <T,>(q: PromiseLike<T>): Promise<T> => Promise.resolve(q);
   const MINE_CAST_COLS: string = okuriTiersOn() ? "id, name, employment, okuri_tier" : "id, name, employment"; // ★M-183: 明細の「本人の名前 様」とファイル名に name // ★便 M5 M-33: okuri_tier（0180）は同じ 1 行読取に列を足すだけ（新規 fetch 0）
-  const pMeCast = go(supabase.from("casts").select(MINE_CAST_COLS).limit(1).maybeSingle());
+  // ★2026-11-16 夜（N2 で発見・①）: 自分の cast 行は auth_cast_id で絞る（layout.tsx と同じ引き方＝裁定337）。旧 limit(1) は レジの許可がある cast（casts の RLS＝同じ店の全員が読める）で
+  //   別の人の行を拾い、明細の宛名・勤怠の表（admin で読む）・保証・基本の働き方・修正申請・お知らせの絞り込みがその人の値になっていた（ACE ひなの→「体入 見送り 1117」）。権限・RLS・RPC は不変
+  const pMeCast: Promise<{ data: unknown }> = (async () => { const { data: myCastId } = await supabase.rpc("auth_cast_id"); if (!myCastId) return { data: null }; const { data } = await supabase.from("casts").select(MINE_CAST_COLS).eq("id", myCastId as string).maybeSingle(); return { data }; })();
   const pMeUser = go(supabase.from("users").select("contact_email, phone").limit(1).maybeSingle());
   const pMyStores = go(supabase.from("stores").select("id, name, legal_name, settings_json, punch_methods").limit(1));
   const pCorr = go(supabase.from("punch_corrections").select("id, cast_id, punch_id, biz_date, kind, before_at, after_at, reason, decision, decide_reason, ack, ack_at, requested_at, decided_at").order("requested_at", { ascending: false }).limit(20));
