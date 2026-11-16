@@ -254,6 +254,9 @@ export function useCompData(storeId: string, onError?: (m: string) => void) {
 // ── プラン（owner のみ編集・D3a）──
 // ★N2（報酬プラン v3.1・規約 §6）: 段は固定列の表（段／判定基準／時給）・単位常時表示（basis=yen: `¥ … 以上`／pt: `… pt以上`・時給 `¥ … 円`）。
 //   値・保存形（at/wage の3段・at=0 除外は送信時）は不変＝表示だけ。basis 省略時は従来呼び出し（PlanTab）と互換。
+/** ★2026-11-16（Agoora 17:50）: 件数の段にこれ以上の値＝売上の額のまま残っている疑い */
+export const SLIDE_COUNT_SUSPECT_AT = 1000;
+export const SLIDE_COUNT_SUSPECT_NOTE = "段の値が件数としては大きすぎます。判定基準を売上から件数に変えたときは、段の値を件数で入れ直してください。";
 export function SlideInput({ label, slide, setSlide, basis = "yen", desc, monthly = false, period }: {
   label: string; slide: Slide[]; setSlide: (s: Slide[]) => void; basis?: "yen" | "pt" | "count"; desc?: string; // ★裁定343: "count"＝件数基準（本指名／同伴の件数・単位は件）
   /** ★N3b（裁定288-7）: 店の slide_apply='next' なら閾値は「月間」（前月合計）・それ以外は「1 日」（period 未指定のとき） */
@@ -293,6 +296,8 @@ export function SlideInput({ label, slide, setSlide, basis = "yen", desc, monthl
       </div>
       {err && <Message kind="error" style={{ marginTop: 6 }}>{err}</Message>}
       {warn && <Message kind="warn" style={{ marginTop: 6 }}>{warn}</Message>}
+      {/* ★2026-11-16（Agoora 17:50）: 判定基準を件数に変えても段の値は売上の額のまま残る＝件数としては大きすぎる値に気づける注意だけ（値は変えない・保存の形も不変） */}
+      {basis === "count" && rows.some((r) => r.at >= SLIDE_COUNT_SUSPECT_AT) && <div data-slide-count-suspect="1"><Message kind="warn" style={{ marginTop: 6 }}>{SLIDE_COUNT_SUSPECT_NOTE}</Message></div>}
     </div>
   );
 }

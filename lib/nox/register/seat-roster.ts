@@ -72,3 +72,8 @@ export function servingSeatMapOf(openNoms: Record<string, readonly string[]>, pr
   }
   return m;
 }
+// ★2026-11-17（N1）: 「この卓のキャスト」の一覧のフリーの行＝分配率の欄なし・この印と時刻（着卓中＝「着卓 20:05〜」・離席済み＝「18:50〜19:00（離席）」）
+export const SEAT_FREE_NOTE = "分配に入りません";
+export const SEAT_FREE_INFO = "フリーは指名料が無いため分配に入らず、着卓と離席の時刻だけ残します（本／場内に変えると分配に入ります）。";
+export const seatTimeTextOf = (r: SeatRow): string =>
+  r.active ? `着卓${r.from ? ` ${r.from}〜` : "中"}` : `${r.from}〜${r.to ?? ""}（離席）`;

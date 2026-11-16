@@ -29,7 +29,7 @@ import { useTapBatch } from "@/lib/nox/ui/use-tap-batch";
 import { groupProducts } from "@/lib/nox/ui/product-groups";
 import * as t from "@/lib/nox/ui/theme";
 import { defaultWeights, redistribute, renormalizeKeepZeros, weightsAfterRemovalOf, removeShareConfirmTextOf, NOM_X_CLOSED_REASON, NOM_X_DAY_CLOSED_REASON } from "@/lib/nox/nom-shares"; // ★裁定462（M-121）
-import { activeIdsOf, endedPayloadOf, moveConfirmTextOf, seatRowsOf, seatRowTextOf, servingMarkOf, servingSeatMapOf, shareCardIdsOf } from "@/lib/nox/register/seat-roster";
+import { activeIdsOf, endedPayloadOf, moveConfirmTextOf, SEAT_FREE_INFO, SEAT_FREE_NOTE, seatRowsOf, seatTimeTextOf, servingMarkOf, servingSeatMapOf, shareCardIdsOf } from "@/lib/nox/register/seat-roster";
 import NomConflictDialog from "@/components/nox/nom-conflict-dialog"; // ★裁定415（S-7）: 指名かぶり＝指名は必ず入れ、席だけ聞く // ★便 S（S-6）: 一覧常時表示・フリーの席の節・他卓からの付け回し
 import CastAvatar from "@/components/ui/cast-avatar";
 import { resolveOrgId, signCastPhotos } from "@/lib/nox/cast-photo";
@@ -1948,6 +1948,7 @@ export default function RegisterBoard({
   const shareIds = new Set(shareCardIdsOf(Object.keys(nomWeights), nomKinds, seatedIds));
   const nomSelected = casts.filter((ca) => shareIds.has(ca.id)); // ★裁定110: w=0 も名簿
   const nomTotalW = nomSelected.reduce((a, ca) => a + (nomWeights[ca.id] ?? 0), 0);
+  const seatRowsNow = seatRowsOf(noms, nomKinds, castName); // ★2026-11-17（N1）: フリーの行（「この卓のキャスト」の一覧の中・分配率の欄なし）
 
   // タブセグメント（E5a: inline 再発明 segBtn を共通部品 .nox-seg へ。POS のタップ標的維持で
   // flex:1 / fontSize 13 / padding 9px 10px のみローカル上書き＝旧リテラル #1F1B12/#14120C を廃止）
@@ -3143,55 +3144,33 @@ export default function RegisterBoard({
           )}
         </div>
 
-        {/* ★便 S（S-6 ②）: 席＝フリーの着席ログ（分配率の上・分配率の対象外）。「離席」＝ended_at・本／場内に変えると分配率の節へ移る（逆も） */}
-        {(() => { const rows = seatRowsOf(noms, nomKinds, castName); if (rows.length === 0) return null; const lockDerive = feeBusy || check.status !== "open" || payments.length > 0; return (
-          <div className="nox-cardtop" style={card} data-seat-rows="1">
-            <h3 style={{ ...t.cardTitle, margin: "0 0 4px" }}>席</h3>
-            <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "0 0 6px" }}>フリーは指名料が無いため分配率に入れず、着席の記録だけ残します（本／場内に変えると分配率へ移ります）。</p>
-            {rows.map((r) => (
-              <div key={r.castId} className="nox-seatrow" data-active={r.active ? "1" : undefined}>
-                <span className="tx">{seatRowTextOf(r)}</span>
-                {r.active && (
-                  <span className="nox-seg gold" style={{ display: "inline-flex" }}>
-                    {([["hon", "本"], ["jonai", "場内"], ["free", "フリー"]] as const).map(([v, l]) => (
-                      <button key={v} type="button" className={v === "free" ? "on" : ""} disabled={lockDerive || v === "free"} style={{ fontWeight: 700, fontSize: 11, padding: "5px 9px" }}
-                        onClick={() => { const kinds = { ...nomKinds, [r.castId]: v }; const weights = defaultWeights(Object.keys(nomWeights), kinds); setNomKinds(kinds); setNomWeights(weights); void autoSaveNoms(weights, kinds, nomDohan, nomDohanN); }}>
-                        {l}
-                      </button>
-                    ))}
-                  </span>
-                )}
-                {r.active
-                  ? <button type="button" style={{ ...btnLight, padding: "4px 10px" }} disabled={feeBusy || check.status !== "open"} data-seat-leave="1" onClick={() => void setSeatEnded(r.castId, true)}>離席</button>
-                  : <button type="button" style={{ ...btnLight, padding: "4px 10px" }} disabled={feeBusy || check.status !== "open"} data-seat-reseat="1" onClick={() => void setSeatEnded(r.castId, false)}>再着席</button>}
-              </div>
-            ))}
-          </div>
-        ); })()}
         {/* ★X-13-1（便 X-13a）: 並び＝指名 → 席（フリー） → 指名の分配率 → 顧客 → 紹介 → 席 */}
         {/* R-2a-2（モック nox-register-pos `assignmentView` / renderShares）: 指名の分配率カード。
             旧 <details>「按分の重みを微調整」を独立カードへ。入力は **%**（1〜100 の整数）＝
             ratio_weight は integer の相対重みで分母は Σ なので、合計100 の % はそのまま重みとして
             check_set_nominations に渡せる（RPC・スキーマ非改変）。
             ★0121（裁定107）: 旧「free は weight=1 固定」は撤去＝全行に％入力。 */}
-        {nomSelected.length > 0 && (
-          <div className="nox-cardtop" style={card} data-nom-cards="1">{/* ★裁定359（GV-7・便 GV-A）: キャスト 1 人＝1 カード（写真・名前・ランク 左／区分の切替 右）・選択中は金塗り・左帯＝区分色（本＝金／場内＝青／フリー＝灰）・常時表示は合計バーと「均等に分配」だけ・3 注記は ⓘ に畳む・自動加算は区分ボタン下に「¥3,000」のみ・341 の切替確認は行内のまま見出し「<名前> → 本指名」・同伴チップと % は右端・行の高さは従来の半分以下 */}
+        {/* ★2026-11-17（N1・見せ方だけ）: 「席」と「指名の分配率」の 2 つの枠をやめ「この卓のキャスト」の 1 つの一覧に。本指名・場内・フリーを同じ形の行で出す。
+            フリーの行＝分配率の欄なし・「分配に入りません」・着卓の時刻と「離席」をその行に。合計と「均等に分配」は一覧の下。計算・保存する値・RPC は不変（分配の対象＝nomSelected のまま）。 */}
+        {(nomSelected.length > 0 || seatRowsNow.length > 0) && (
+          <div className="nox-cardtop" style={card} data-nom-cards="1" data-table-casts="1">{/* ★裁定359（GV-7・便 GV-A）: キャスト 1 人＝1 カード（写真・名前・ランク 左／区分の切替 右）・選択中は金塗り・左帯＝区分色（本＝金／場内＝青／フリー＝灰）・常時表示は合計バーと「均等に分配」だけ・3 注記は ⓘ に畳む・自動加算は区分ボタン下に「¥3,000」のみ・341 の切替確認は行内のまま見出し「<名前> → 本指名」・同伴チップと % は右端・行の高さは従来の半分以下 */}
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-              <h3 style={{ ...t.cardTitle, margin: 0 }}>指名の分配率</h3>
+              <h3 style={{ ...t.cardTitle, margin: 0 }}>この卓のキャスト</h3>
               <details className="nox-infofold" data-nom-info="1" style={{ fontSize: 11, color: "var(--sub)" }}>
                 <summary aria-label="分配率の注記" title="料金と実績を分離・件数換算は目安・変更時点で明細を同期" style={{ cursor: "pointer", listStyle: "none", display: "inline-flex", alignItems: "center", justifyContent: "center", width: 20, height: 20, borderRadius: 999, border: "1px solid var(--line2)", fontWeight: 800 }}>ⓘ</summary>
                 <div className="nox-inset" style={{ padding: "9px 12px", margin: "6px 0 0", lineHeight: 1.7, position: "absolute", zIndex: 5, maxWidth: 360 }}>
+                  <p style={{ margin: "0 0 4px" }}>{SEAT_FREE_INFO}</p>
                   <p style={{ margin: 0 }}><b>料金と実績を分離</b>＝指名本数は種別ごとに1人1件で計上します。％は売上とバック金額の取り分にのみ効きます。</p>
                   <p style={{ margin: "4px 0 0" }}>「本／場内／同伴」を変更した時点で実績と料金明細を同期します。料金をサービスしたい場合は、会計タブの明細から当該行の「取消」または値引きを行ってください（取り消した料金行は種別を変えても復活しません）。</p>
                   <p style={{ margin: "4px 0 0" }}>※件数換算は表示上の目安です（バック金額は比率で分配・指名本数の集計は在席キャストに計上）。※延長しても指名本数は増えません（延長指名料を設定している店舗のみ、延長時に料金だけ自動追加します）。</p>
                 </div>
               </details>
-              {/* モック seatbadge 相当＝合計バッジ（total===100 ? ok : bad） */}
-              <span style={{ ...t.tag, whiteSpace: "nowrap", marginLeft: "auto",
+              {/* モック seatbadge 相当＝合計バッジ（total===100 ? ok : bad）・分配の人が居るときだけ */}
+              {nomSelected.length > 0 && <span style={{ ...t.tag, whiteSpace: "nowrap", marginLeft: "auto",
                 color: nomTotalW === 100 ? "var(--ok)" : "var(--bad)",
                 borderColor: "var(--line2)" }}>
                 合計{nomTotalW}%
-              </span>
+              </span>}
             </div>
             {nomSelected.length === 1 && <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "0 0 8px" }}>1 名のため 100% で固定です（指名本数には影響しません）。</p>}
             {/* ★0121（裁定107）: 旧「free は weight=1 固定」は RPC ごと撤去＝全行に％入力（種別と％は独立）。 */}
@@ -3349,6 +3328,38 @@ export default function RegisterBoard({
               </div>
               );
             })}
+            {/* ★2026-11-17（N1）: フリーの行＝同じ形の行（左帯は灰）。分配率の欄は無く「分配に入りません」・着卓の時刻と「離席」／「再着席」をその行に（旧「席」の枠の中身＝ハンドラは不変） */}
+            {seatRowsNow.length > 0 && (() => { const lockSeat = feeBusy || check.status !== "open" || payments.length > 0; return (
+            <div data-seat-rows="1">
+            {seatRowsNow.map((r) => (
+              <div key={r.castId} className="nox-nomcard" data-kind="free" data-seat-free={r.castId} data-active={r.active ? "1" : undefined}>
+                <CastAvatar name={r.name} url={photoUrls.get(r.castId)} variant="flat" size={36} />
+                <div className="nm">
+                  <b>{r.name}</b>
+                  <span className="rk" data-seat-free-note="1">{SEAT_FREE_NOTE}</span>
+                </div>
+                <div className="kind">
+                  {r.active && (
+                  <span className="nox-seg gold" style={{ display: "inline-flex" }}>
+                    {([["hon", "本"], ["jonai", "場内"], ["free", "フリー"]] as const).map(([v, l]) => (
+                      <button key={v} type="button" className={v === "free" ? "on" : ""} disabled={lockSeat || v === "free"} style={{ fontWeight: 700, fontSize: 11, padding: "5px 9px" }}
+                        onClick={() => { const kinds = { ...nomKinds, [r.castId]: v }; const weights = defaultWeights(Object.keys(nomWeights), kinds); setNomKinds(kinds); setNomWeights(weights); void autoSaveNoms(weights, kinds, nomDohan, nomDohanN); }}>
+                        {l}
+                      </button>
+                    ))}
+                  </span>
+                  )}
+                </div>
+                <div className="right">
+                  <span className="num" data-seat-time="1" style={{ fontSize: 12, color: r.active ? "var(--ink)" : "var(--sub)", whiteSpace: "nowrap" }}>{seatTimeTextOf(r)}</span>
+                  {r.active
+                    ? <button type="button" style={{ ...btnLight, minHeight: 44, padding: "0 12px" }} disabled={feeBusy || check.status !== "open"} data-seat-leave="1" onClick={() => void setSeatEnded(r.castId, true)}>離席</button>
+                    : <button type="button" style={{ ...btnLight, minHeight: 44, padding: "0 12px" }} disabled={feeBusy || check.status !== "open"} data-seat-reseat="1" onClick={() => void setSeatEnded(r.castId, false)}>再着席</button>}
+                </div>
+              </div>
+            ))}
+            </div>
+            ); })()}
             {/* ★X-13-1（便 X-13a）: キャスト 1 人のときは分配率を 1 行（名前・100%）に畳む＝合計バー・均等は出さない */}
             {nomSelected.length > 1 && (<>
             <div style={{ marginTop: 8 }}>

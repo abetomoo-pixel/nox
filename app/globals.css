@@ -3342,3 +3342,20 @@ tr.nox-rowflash, .nox-rowflash { animation: nox-rowflash 1.6s ease-out; }
 .nox-settings-fold > summary { cursor: pointer; font-size: 12.5px; font-weight: 700; color: var(--sub); }
 .nox-settings-save { position: sticky; bottom: calc(var(--nox-bnav-h, 0px) + env(safe-area-inset-bottom, 0px)); z-index: 5; background: var(--card); border-top: 1px solid var(--line); padding: 10px 0; margin-bottom: -4px; }
 @media (min-width: 900px) { .nox-settings-save { bottom: 0; } }
+/* ★2026-11-16（Agoora 17:20）: マスタの共通のタブ（リンク）もスマホは 2 列＝横にすべらせない。奇数のときは最後の 1 つを横いっぱい。900 以上は従来の 1 段（横スクロール） */
+@media (min-width: 900px) { .nox-subnav-tabs { overflow-x: auto; } }
+@media (max-width: 899px) {
+  .nox-segtabs.nox-segtabs--grid2 > a { display: flex; align-items: center; justify-content: center; text-align: center; min-height: 44px; border-right: 1px solid var(--line2); border-bottom: 1px solid var(--line2); white-space: nowrap; font-size: 13px; padding: 6px 4px; }
+  .nox-segtabs.nox-segtabs--grid2 > a:nth-child(2n) { border-right: 0; }
+  .nox-segtabs.nox-segtabs--grid2 > a:last-child:nth-child(odd) { grid-column: 1 / -1; border-right: 0; }
+  .nox-segtabs.nox-segtabs--grid2 > a:last-child, .nox-segtabs.nox-segtabs--grid2 > a:nth-last-child(2):nth-child(odd) { border-bottom: 0; }
+}
+/* ★2026-11-17（N1）: 「この卓のキャスト」＝フリーの行は分配率の欄なし・印「分配に入りません」は灰の小さな札・離席済みの行は薄く */
+.nox-nomcard[data-kind="free"] .nm .rk[data-seat-free-note] { border: 1px solid var(--line2); border-radius: 999px; padding: 0 7px; }
+.nox-nomcard[data-seat-free]:not([data-active]) { opacity: .62; }
+/* ★2026-11-16（Agoora 17:50・スマホの待遇プランのスライド）: 375 では 1 行に入らず金額が読めなかった＝1 段を 2 行に（1 行目「n段 [判定] 以上（…）」・2 行目「→ 時給 [時給] [−]」）・入力欄は残りの幅いっぱい */
+@media (max-width: 641px) {
+  .nox-sliderow { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; column-gap: 8px; row-gap: 4px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+  .nox-sliderow > .nox-unit, .nox-sliderow .nox-money { width: 100% !important; min-width: 0; }
+  .nox-sliderow .u { font-size: 11.5px; white-space: normal; }
+}
