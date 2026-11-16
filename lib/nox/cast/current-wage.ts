@@ -16,10 +16,13 @@ export type PreviewPayLike = {
   wage?: number; wHours?: number; wdays?: WageDayLike[];
   guarantee?: { spans?: { from: string; to: string | null; base: number }[] } | null;
   slideBasis?: { apply?: string; months?: { month: string; sales: number; pts: number }[] } | null;
-  eplan?: { salesSlide?: SlideStep[]; pointSlide?: SlideStep[] } | null;
+  eplan?: { base?: number; salesSlide?: SlideStep[]; pointSlide?: SlideStep[] } | null;
+  trial?: unknown; // ★裁定490: 体入の日がある cast だけ（段を使わない人＝見込みを出さない）
   plan?: { name?: string } | null;
 };
-export type CurrentWage = { hourly: number; basis: string; periodLabel: string; basisLine: string | null; /* ★便 X13-H H-8: 根拠 1 行 */ guarantee: boolean; trial: boolean; hours: number; now?: WageNow; next?: { label: string; label2: string } | null /* ★便 ON-4（C2-22）: 来期の時給見込み（/mine） */ };
+/** ★裁定501-7（2026-11-16 Agoora 確定・式は変えない）: 時給の見込み＝段の時給の額を主に（「pt 170 → 時給 ¥3,000（2 段）」）・次の段まで（「あと 30 pt で ¥3,500」・いちばん上は null）・前の月で決める店＝来月／当月で決める店＝今月 */
+export type WageForecast = { label: string; main: string; next: string | null };
+export type CurrentWage = { forecast?: WageForecast | null; hourly: number; basis: string; periodLabel: string; basisLine: string | null; /* ★便 X13-H H-8: 根拠 1 行 */ guarantee: boolean; trial: boolean; hours: number; now?: WageNow; next?: { label: string; label2: string } | null /* ★便 ON-4（C2-22）: 来期の時給見込み（/mine） */ };
 
 export const WAGE_BASIS_LABEL: Record<string, string> = { "保証": "保証", "売上": "売上段", "pt": "pt 段", "基本": "基本", "固定": "固定" };
 
@@ -53,6 +56,29 @@ export function wageBasisLineOf(pay: PreviewPayLike | null | undefined, period: 
   return `${text}${axis === "pts" ? " " : ""}→ ${tier > 0 ? `${tier} 段` : "段なし（基本時給）"}`; // 「（按分後）→ 2 段」＝括弧の後は詰める
 }
 
+/** ★裁定501-7: 時給の見込み（wageBasisLineOf と同じ値と段）。段を使わない人（体入・保証の間）・段の無いプラン・日ごとに段を決めるプラン（daily）は null＝今の表示のまま */
+export function wageForecastOf(pay: PreviewPayLike | null | undefined, period: SlidePeriod, apply: SlideTiming, opts: { skip: boolean }): WageForecast | null {
+  if (opts.skip || period === "daily") return null;
+  const sales = (pay?.eplan?.salesSlide ?? []).filter((s) => s.at > 0), pts = (pay?.eplan?.pointSlide ?? []).filter((s) => s.at > 0);
+  const wdays = pay?.wdays ?? [];
+  const last = wdays.length > 0 ? wdays[wdays.length - 1] : null;
+  const axis: "sales" | "pts" | null = last?.basis === "ポイント" && pts.length > 0 ? "pts" : sales.length > 0 ? "sales" : pts.length > 0 ? "pts" : null;
+  if (!axis) return null;
+  const months = pay?.slideBasis?.months ?? [];
+  const m = months.length > 0 ? months[months.length - 1] : null;
+  const value = Math.max(0, Math.round(m ? (axis === "pts" ? m.pts : m.sales) : last ? Number((axis === "pts" ? last.pts : last.sales) ?? 0) : 0));
+  const tiers = [...(axis === "pts" ? pts : sales)].sort((a, b) => a.at - b.at);
+  const n = tiers.filter((s) => value >= s.at).length;
+  const yen = (v: number) => `¥${v.toLocaleString("ja-JP")}`;
+  const valText = axis === "pts" ? `pt ${value.toLocaleString("ja-JP")}` : `売上 ${yen(value)}`;
+  const base = typeof pay?.eplan?.base === "number" ? pay.eplan.base : null;
+  const wageText = n > 0 ? `時給 ${yen(tiers[n - 1].wage)}（${n} 段）` : base !== null ? `時給 ${yen(base)}（基本）` : "基本時給";
+  const nx = n < tiers.length ? tiers[n] : null;
+  const next = nx ? `あと ${axis === "pts" ? `${(nx.at - value).toLocaleString("ja-JP")} pt` : yen(nx.at - value)} で ${yen(nx.wage)}` : null;
+  const label = apply === "next" ? (period === "half" ? "次の半月の時給の見込み" : "来月の時給の見込み") : (period === "half" ? "この半月の時給の見込み" : "今月の時給の見込み");
+  return { label, main: `${valText} → ${wageText}`, next };
+}
+
 export function currentWageOf(pay: PreviewPayLike | null | undefined, opts: { planName?: string | null; slidePeriod?: unknown; slideApply?: unknown; today: string; planBase?: number | null; rows?: readonly PlanRowLike[] }): CurrentWage {
   const wdays = pay?.wdays ?? [];
   const last = wdays.length > 0 ? wdays[wdays.length - 1] : null;
@@ -65,12 +91,12 @@ export function currentWageOf(pay: PreviewPayLike | null | undefined, opts: { pl
   const basisLine = wageBasisLineOf(pay, period, timing);
   const spans = pay?.guarantee?.spans ?? [];
   const guarantee = spans.some((s) => s.from <= opts.today && (s.to === null || s.to >= opts.today));
-  const trial = (opts.planName ?? "") === "体験入店";
+  const trial = (opts.planName ?? "") === "体験入店" || !!pay?.trial || last?.basis === "体入"; // ★裁定490: 体入の間は店の既定のプラン＝プラン名で分からない
   if (opts.rows) {
     const now = wageNowOf({ planBase: opts.planBase ?? null, rows: opts.rows, today: opts.today, lastDay: last });
-    return { hourly: now.hourly, basis: now.suffixLabel, periodLabel, basisLine, guarantee: now.guarantee !== null, trial, hours: Number(pay?.wHours ?? 0), now };
+    return { hourly: now.hourly, basis: now.suffixLabel, periodLabel, basisLine, guarantee: now.guarantee !== null, trial, hours: Number(pay?.wHours ?? 0), now, forecast: wageForecastOf(pay, period, timing, { skip: trial || now.guarantee !== null }) };
   }
-  return { hourly, basis, periodLabel, basisLine, guarantee, trial, hours: Number(pay?.wHours ?? 0) };
+  return { hourly, basis, periodLabel, basisLine, guarantee, trial, hours: Number(pay?.wHours ?? 0), forecast: wageForecastOf(pay, period, timing, { skip: trial || guarantee }) };
 }
 
 export type NormStatus = "none" | "done" | "progress" | "behind";

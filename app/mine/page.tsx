@@ -406,7 +406,9 @@ export default async function MinePage({ searchParams }: { searchParams?: Promis
       {mineWage && ms.payslip_visibility !== "off" && (/* ★便 X13-H H-8: 今期の時給＝キャスト一覧・詳細と同じ（判定期間とタイミング・根拠 1 行） */
         <p style={{ fontSize: 12.5, margin: "0 0 10px", lineHeight: 1.7 }} data-mine-wage="1">
           <b>今期の時給</b> <b className="num">¥{mineWage.hourly.toLocaleString()}</b> <span style={{ color: "var(--sub)" }}>{mineWage.basis}・{mineWage.periodLabel}</span>
-          {mineWage.basisLine && <span data-wage-basis="1" style={{ display: "block", color: "var(--sub)", fontSize: 11.5 }}>{mineWage.basisLine}</span>}
+          {mineWage.forecast ? (/* ★裁定501-7（2026-11-16）: 本人にも同じ見込み（給与を本人に見せている店だけ＝この節が payslip_visibility 'off' で出ない） */
+            <span data-wage-forecast="1" style={{ display: "block", color: "var(--sub)", fontSize: 11.5 }}>{mineWage.forecast.label}：<b style={{ color: "var(--ink)" }}>{mineWage.forecast.main}</b>{mineWage.forecast.next && <span style={{ display: "block" }} data-wage-forecast-next="1">{mineWage.forecast.next}</span>}</span>
+          ) : mineWage.basisLine && <span data-wage-basis="1" style={{ display: "block", color: "var(--sub)", fontSize: 11.5 }}>{mineWage.basisLine}</span>}
           {mineWage.next && (/* ★便 ON-4（C2-22・Agoora 確定 10/26 ⑨）: 来期の時給見込み＝給与右パネルと同じ文（見込み＝確定値ではない旨は小さく） */
             <span data-mine-next-wage="1" style={{ display: "block", marginTop: 2 }}>{mineWage.next.label}<span style={{ display: "block", color: "var(--sub)", fontSize: 11 }}>{mineWage.next.label2}</span></span>
           )}

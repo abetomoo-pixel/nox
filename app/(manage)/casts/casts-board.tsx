@@ -1088,7 +1088,8 @@ export default function CastsBoard({
                 {(() => { const w = wageOf(c); return w ? (/* ★裁定374（GV-B W-4）: 今期の時給＝給与プレビューと同じ純関数・判定期間併記・保証中／体験入店の印 */
                   <div className="cstat" data-w4-wage={w.hourly}><div className="l">今期の時給</div><div className="v num">¥{w.hourly.toLocaleString()}<small style={{ fontWeight: 400, fontSize: 9.5, marginLeft: 3 }}>{w.basis}</small></div>
                     <div style={{ fontSize: 9.5, color: "var(--v2-muted)" }}>{w.periodLabel}{w.guarantee && !w.now ? <span className="nox-stpill warn" style={{ marginLeft: 4 }}>保証中</span> : null}{w.trial ? <span className="nox-stpill" style={{ marginLeft: 4 }}>体験入店</span> : null}</div>
-                    {w.basisLine && <div data-wage-basis="1" style={{ fontSize: 9.5, color: "var(--v2-muted)" }}>{w.basisLine}</div>}{/* ★便 X13-H H-8: 根拠 1 行 */}</div>
+                    {w.forecast ? <div data-wage-forecast="1" style={{ fontSize: 9.5, color: "var(--v2-muted)" }}>{w.forecast.label}：<b style={{ color: "var(--v2-text)" }}>{w.forecast.main}</b>{w.forecast.next && <span style={{ display: "block" }} data-wage-forecast-next="1">{w.forecast.next}</span>}</div>
+                      : w.basisLine && <div data-wage-basis="1" style={{ fontSize: 9.5, color: "var(--v2-muted)" }}>{w.basisLine}</div>}{/* ★便 X13-H H-8: 根拠 1 行・★裁定501-7: 見込みがあれば額を主に */}</div>
                 ) : null; })()}
               </div>
               {(() => { const axes = normAxesOfCast(c); return axes.length > 0 ? (/* ★裁定374: ノルマ達成状況＝採用軸ごとの 実績／目標＋進捗バー（/mine と同値） */
@@ -1248,7 +1249,8 @@ export default function CastsBoard({
                   <div className="nox-frow" data-w4-detail="wage">
                     <span className="k">今期の時給</span>
                     <span className="v"><b className="num">¥{w.hourly.toLocaleString()}</b> <span style={{ fontSize: 11, color: "var(--v2-muted)" }}>{w.basis}・{w.periodLabel}</span>{w.guarantee && !w.now ? <span className="nox-stpill warn" style={{ marginLeft: 6 }}>保証中</span> : null}{w.trial ? <span className="nox-stpill" style={{ marginLeft: 6 }}>体験入店</span> : null}
-                      {w.basisLine && <span data-wage-basis="1" style={{ display: "block", fontSize: 11, color: "var(--v2-muted)" }}>{w.basisLine}</span>}{/* ★便 X13-H H-8: 根拠 1 行 */}</span>
+                      {w.forecast ? <span data-wage-forecast="1" style={{ display: "block", fontSize: 11, color: "var(--v2-muted)" }}>{w.forecast.label}：<b style={{ color: "var(--v2-text)" }}>{w.forecast.main}</b>{w.forecast.next && <span style={{ display: "block" }} data-wage-forecast-next="1">{w.forecast.next}</span>}</span>
+                        : w.basisLine && <span data-wage-basis="1" style={{ display: "block", fontSize: 11, color: "var(--v2-muted)" }}>{w.basisLine}</span>}{/* ★裁定501-7 */}{/* ★便 X13-H H-8: 根拠 1 行 */}</span>
                   </div>
                 )}
                 {w?.now && (/* ★便 P174 T-5（GV-56）: 「基本時給 ¥2,200／保証中 ¥3,200（10/18 まで）」＝基本は非保証行の値・保証は今日を含む保証行 */
