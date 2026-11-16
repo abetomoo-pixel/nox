@@ -1,6 +1,6 @@
 // ★0201c（裁定480・484・2026-11-12）: 体験入店の条件＝店の既定（settings_json の trial_wage・trial_back・既存の trial_guarantee_days）と
 //   キャストごとの上書き（casts.trial_wage・trial_days・trial_started_on＝null は店の既定）・本採用／見送り（cast_trial_decide）。純関数（DB を知らない）。
-//   ここは条件の記録と表示だけ＝体入の時給を給与に当てる式は入れない（お金の式は変えない）。
+//   ここは条件の記録と表示だけ。体入の時給を給与に当てる式は lib/nox/payroll/trial.ts（集める側）と pay.ts（裁定490・0201l の後に結線）。
 import { TRIAL_GUARANTEE_DAYS_DEFAULT } from "./trial-flow";
 import { mig0201cOn } from "@/lib/nox/rules-0175/flag";
 
@@ -60,5 +60,7 @@ export function trialCastColsOf(): string {
   return mig0201cOn() ? ", trial_wage, trial_days, trial_started_on" : "";
 }
 
-/** ★2026-11-13（相談役【3】c）: 体入の時給は記録できるが、まだ給与の計算（payOf）に入らない＝欄に出す注記。体入の式（裁定490）が入った便で外す */
-export const TRIAL_WAGE_NOT_IN_PAY_NOTE = "体入の時給は、まだ給与の計算に反映されません";
+/** ★裁定490（12 点の 9）: 月の途中の本採用でも、その月のプランは月初のもの（裁定97）＝本採用の画面の 1 行（体入の時給の欄の注記「まだ給与の計算に反映されません」は式の結線で外した） */
+export const TRIAL_HIRE_NEXT_PERIOD_NOTE = "新しいプランは次の給与期から";
+/** ★裁定490（12 点の 12）: 既定のプランが無く、選べるプランも 1 つも無い店の本採用 */
+export const TRIAL_HIRE_NO_PLAN_NOTE = "先にプランを作ってください";

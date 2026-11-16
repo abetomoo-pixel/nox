@@ -6,10 +6,11 @@
 import { roundPt1, roundYen } from "@/lib/nox/money";
 
 export type WageDayLike = { d: number; hours: number; hourly: number; basis: string; gua?: boolean };
-export type WageSpan = { fromD: number; toD: number; hourly: number; hours: number; pay: number; kind: "保証" | "売上段" | "pt 段" | "基本" };
+export type WageSpan = { fromD: number; toD: number; hourly: number; hours: number; pay: number; kind: "保証" | "売上段" | "pt 段" | "基本" | "体入" };
 
 /** 1 日の区分＝保証（保証行が効いた日）／売上段／pt 段／基本（段も保証も無い日） */
 export function wageDayKindOf(w: Pick<WageDayLike, "basis" | "gua">): WageSpan["kind"] {
+  if (w.basis === "体入") return "体入"; // ★裁定490: 体入の時給の日（保証より体入の時給が高い日も含む・保証が勝った日は basis「保証」＝下の保証）
   if (w.gua) return "保証";
   if (w.basis === "売上") return "売上段";
   if (w.basis === "ポイント") return "pt 段";

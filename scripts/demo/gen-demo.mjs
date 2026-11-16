@@ -223,6 +223,8 @@ for (const st of STORES) {
     sales_slide: SL.sales ?? [], point_slide: SL.points ?? [], is_active: true, hon_back_mode: "per_count", hon_back_rate: null, jonai_back_mode: "per_count", jonai_back_rate: null, dohan_back_mode: "per_count", dohan_back_rate: null, product_back_mode: PF.sys.sales_rate ? "plan_rate" : "product_rule", product_back_rate: PF.sys.sales_rate ? 10 : null, product_back_fixed: null, product_back_fixed_hon: null, product_back_fixed_jonai: null, product_back_fixed_free: null, slide_period: SL.period ?? "daily", slide_basis: SL.basis ?? "sales", slide_rank_ids: ranks.filter((r) => (SL.ranks ?? []).includes(r.rank_name)).map((r) => uid(`rank:${r.rank_id}`)), ...normDefaultsOf(x.name) /* ★裁定347（0171）: 優遇プランは高め */ }); // ★裁定338: 追加プランにも同じ段 // ★0168（裁定338・便 P168）: 判定期間
   // ★裁定348 追補1（便 DM-1 D-2b）: 体験入店＝スライド・バックなし（product_back は plan_fixed 0）・基本時給は店ごと（TRIAL.base）・slide_period は daily 固定
   const TR = TRIAL[code]; const trialPlanId = uid(`plan:trial:${code}`);
+  // ★裁定490 (a)（12 点の 1・10・2026-11-16）: 体入の間は店の既定のプランを持つ＝体入のキャストの cast_plan（3 行）は店の既定のプラン（下の W-18 ④ と同じ＝体験入店以外の最初のプラン）。体験入店プランの行は残す（割り当て 0）
+  const trialHoldPlanId = plans.length ? uid(`plan:${plans[0].plan_id}`) : (extraPlans[0]?.id ?? trialPlanId);
   push("comp_plans", { id: trialPlanId, store_id: storeId, name: "体験入店", base: TR.base, slide_apply: null, ...PLAN_0175_KEYS, /* ★便 ON-2: CANON 店はキー集合を揃える */ /* ★便 P173: 体験入店はスライドなし＝店設定 */ hon_back: 0, jonai_back: 0, dohan_back: 0,
     sales_slide: [], point_slide: [], is_active: true, hon_back_mode: "per_count", hon_back_rate: null, jonai_back_mode: "per_count", jonai_back_rate: null, dohan_back_mode: "per_count", dohan_back_rate: null, product_back_mode: "plan_fixed", product_back_rate: null, product_back_fixed: 0, product_back_fixed_hon: null, product_back_fixed_jonai: null, product_back_fixed_free: null, slide_period: "daily", slide_basis: "sales", slide_rank_ids: [] });
   let castSeq = 0;
@@ -246,9 +248,9 @@ for (const st of STORES) {
       const gTo = TR.guaToRel !== undefined ? { $rel: TR.guaToRel } : { $rel: TR.to };
       const prevTo = TR.guaFromMonthStart ? { $m: -1, d: 31 } : { $rel: TR.from - 1 };
       const backFrom = TR.guaToRel !== undefined ? { $rel: TR.guaToRel + 1 } : { $rel: TR.to + 1 };
-      push("cast_plan", { id: uid(`castplan:${c.person_id}`), cast_id: id, store_id: storeId, plan_id: trialPlanId, overrides_json: {}, valid_from: { $rel: -400 }, valid_to: prevTo });
-      push("cast_plan", { id: uid(`castplan:${c.person_id}:gua`), cast_id: id, store_id: storeId, plan_id: trialPlanId, overrides_json: { base: TR.gua, guarantee: true }, valid_from: gFrom, valid_to: gTo });
-      push("cast_plan", { id: uid(`castplan:${c.person_id}:back`), cast_id: id, store_id: storeId, plan_id: trialPlanId, overrides_json: {}, valid_from: backFrom, valid_to: null });
+      push("cast_plan", { id: uid(`castplan:${c.person_id}`), cast_id: id, store_id: storeId, plan_id: trialHoldPlanId, overrides_json: {}, valid_from: { $rel: -400 }, valid_to: prevTo });
+      push("cast_plan", { id: uid(`castplan:${c.person_id}:gua`), cast_id: id, store_id: storeId, plan_id: trialHoldPlanId, overrides_json: { base: TR.gua, guarantee: true }, valid_from: gFrom, valid_to: gTo });
+      push("cast_plan", { id: uid(`castplan:${c.person_id}:back`), cast_id: id, store_id: storeId, plan_id: trialHoldPlanId, overrides_json: {}, valid_from: backFrom, valid_to: null });
       // ★348 追補2（便 N1014 B-3）: 10 月の出勤＝保証期間内 2 日（NEST は期限切れ前 2 日）＋期間外 1 日（基本時給の行が並ぶ）。過去日は in/out 両方・R 当日は in のみ（当日は on_duty と同じ扱い）
       for (const d of (TR.from < 0 ? [TR.from, TR.from + 1, TR.to + 1] : [TR.from - 1, TR.from, TR.from + 1]).filter((x) => x <= 0)) {
         const inT = "20:00:00", outT = "26:00:00";
@@ -664,7 +666,8 @@ for (const st of STORES) {
     }
   }
   // ★便 X13-G W-18 ④: 店の既定プラン（本採用の切替先）＝体験入店以外の最初のプラン
-  { const st = T.stores?.[0]; const plan = (T.comp_plans ?? []).find((pl) => pl.name !== "体験入店" && pl.is_active !== false); if (st && plan) st.settings_json = { ...st.settings_json, default_plan_id: plan.id, trial_guarantee_days: 3 }; }
+  { const st = T.stores?.[0]; const plan = (T.comp_plans ?? []).find((pl) => pl.name !== "体験入店" && pl.is_active !== false); if (st && plan) st.settings_json = { ...st.settings_json, default_plan_id: plan.id, trial_guarantee_days: 3, trial_wage: TRIAL[code]?.base /* ★裁定490 (a): 店の体入の時給＝今までの体験入店プランの基本（体入の式は時給がある期だけ当たる＝12 点の 5）・trial_back は持たない＝本採用と同じ */ };
+    if (plan && plan.id !== trialHoldPlanId) throw new Error(`gen-demo: 店の既定のプラン（${plan.id}）と体入のキャストのプラン（${trialHoldPlanId}）が違う（${code}）`); }
   // ★便 X13-G W-18 ⑤: 発行済みの領収書（先月の会計済み伝票の最初の 1 件・残額全額・番号 1）＝台帳の行操作（再発行の 2 段）を live で試せるように
   { const ck = (T.checks ?? []).find((c) => c.status === "closed" && !c.merged_into && c.started_at && c.started_at.$m === -1 && Number(c.total) > 0);
     if (ck) push("receipt_issues", { id: uid(`rcpt:${code}:1`), store_id: storeId, check_id: ck.id, serial: 1, amount: ck.total, recipient: "デモ商事", proviso: "ご飲食代として", store_name_snap: T.stores[0].name,

@@ -18,6 +18,8 @@ import { guaranteeEndNoteOf, guaranteeStateOf } from "../cast/guarantee"; // ★
 import { bizDateOf } from "../biz-date";
 import { effectiveAdjustmentsOf, frozenAdjustmentsOf, type FrozenAdjustment } from "./adjust"; // 裁定264-10: 凍結形（show_detail=true の行だけ理由を持つ）
 import { buildPayInput, applyDeductionOverrides, type Extra, type DeductionOverride } from "./assemble";
+/** ★裁定490（12 点の 2・0201l の後の結線）: 体入の期間が期に掛かるのに体入の時給が店にも本人にも無い＝プランの時給で計算（確定は止めない） */
+export const TRIAL_WAGE_UNSET_DETAIL = "体入の時給が店にも本人にも入っていないため、プランの時給で計算しています（店舗設定の「体験入店の条件」かキャストの詳細で入れてください）";
 
 // 天引きの消し込み計画（finalize に同梱＝receivable/advance/transport 遷移の指示）
 export type ArDeducted = { receivable_id: string; amount: number };
@@ -66,7 +68,7 @@ export type Blocker = { castId: string; castName: string; reason: "no_plan" | "n
 export type PayrollWarning = {
   castId: string;
   castName: string;
-  kind: "sanction_capped" | "sanction_contractor" | "avg_wage_provisional" | "daily_withholding_exceeds" | "guarantee_ending"; // ★0156: 日払いの既徴収源泉が当期源泉を超えた（源泉は 0 で止める・起票）
+  kind: "sanction_capped" | "sanction_contractor" | "avg_wage_provisional" | "daily_withholding_exceeds" | "guarantee_ending" | "trial_wage_unset"; // ★裁定490（12 点の 2）: 体入の時給が未設定 // ★0156: 日払いの既徴収源泉が当期源泉を超えた（源泉は 0 で止める・起票）
   detail: string;
 };
 // 可視化: incentive ごとの総配分額・受給者数（受給者0の pooled は警告・ブロックしない）
@@ -276,6 +278,7 @@ export async function computePayrollDraft(
       const note = guaranteeEndNoteOf(gst, c.plan?.base ?? null, { periodEnd: win.periodEnd });
       if (note) warnings.push({ castId: c.castId, castName: c.castName, kind: "guarantee_ending", detail: note });
     }
+    if (c.trialWageUnset) warnings.push({ castId: c.castId, castName: c.castName, kind: "trial_wage_unset", detail: TRIAL_WAGE_UNSET_DETAIL }); // ★裁定490（12 点の 2）
     // ★324-3／324-4（便 L-2-4）: 'shift' の店＝営業日ごとの不足分（遅刻＝猶予あり・早上がり＝猶予なし）×その日の時給（pay.wdays の hourly＝保証時給込み）
     if (masters.payTimeBasis === "shift" && c.shortfallDays?.length) {
       const hourlyByDate: Record<string, number> = {};

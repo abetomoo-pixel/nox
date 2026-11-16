@@ -195,3 +195,10 @@ export const MIG_0201I_APPLIED = true;
 let override0201i: boolean | null = null;
 export function mig0201iOn(): boolean { return override0201i ?? MIG_0201I_APPLIED; }
 export function __set0201iForTest(v: boolean | null): void { override0201i = v; }
+
+/** ★0201l（裁定490-7＝キャストの「体入の条件が終わる日」casts.trial_ends_on）: 2026-11-16 Agoora 手貼り＝検証 8 行が全行一致（関数 450・表 122・casts 21 列）→ true。
+ *  true＝給与の集める側（collect）が体入の期間（開始〜trial_ends_on）を読み、体入の式（payOf の trialWageByDay・trialBackExclude＝裁定490）を当てる。false＝casts の体入の列を読まない＝従来と 1 バイト同値。 */
+export const MIG_0201L_APPLIED = true;
+let override0201l: boolean | null = null;
+export function mig0201lOn(): boolean { return override0201l ?? MIG_0201L_APPLIED; }
+export function __set0201lForTest(v: boolean | null): void { override0201l = v; }

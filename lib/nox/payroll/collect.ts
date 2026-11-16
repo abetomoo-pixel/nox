@@ -17,7 +17,7 @@ import { calcPeriodOf } from "./assemble"; // ★0154 D6
 import { baseOverrideOf } from "./base-override"; // ★便 P174 T-5（R-11 (d)）
 import { attendanceWithDohanOf } from "@/lib/nox/shift/dohan-mark"; // ★便 PR-1 R-4（裁定417）: 同伴の正本＝伝票
 import { payTimeBasisOf } from "./time-basis"; // ★裁定324（便 L-2-3）
-import { mig0183On, mig0197On, rules0175On } from "@/lib/nox/rules-0175/flag"; // ★便 P175-prep: 0175 v2 の列・表を読むのはフラグ true のときだけ（false＝従来と 1 バイト同値）
+import { mig0183On, mig0197On, mig0201lOn, rules0175On } from "@/lib/nox/rules-0175/flag"; // ★便 P175-prep: 0175 v2 の列・表を読むのはフラグ true のときだけ（false＝従来と 1 バイト同値）
 import { loadCanonCtx, loadCastMeta0175, loadRateHistory, loadRules0175Store } from "./rules-0175-collect"; // ★便 P175-prep P-1／P-5
 import type { ShortfallDay } from "./shortfall"; // ★裁定324-3（便 L-2-4）: 不就労控除の入力（営業日ごとの確定シフト×打刻）: 勤務時間の計算基準（store 設定・期の初日で解決）
 /** ★0154 D2: 'HH:MM'（0-47 域）→ 分（shift-time.hm2min と同式・collect 内で閉じる） */
@@ -30,6 +30,8 @@ import { bizDateOf } from "../biz-date";
 import { anomalyFlagsOf, punchCountsUpToOf, shiftHoursUpToOf } from "./anomaly"; // ★X-13-27（便 X-13d-2a）: 未来日の確定シフトは不整合に数えない・★裁定342（便 P169）: 日数・当欠・シフト時間も今日まで
 
 import { castPts } from "../pay"; // ★N3b: 前月 pts＝当月と同じ式
+import { trialRangeOf, trialRawOf, trialTouchesOf, trialWageOf, inTrialRange, type TrialRange } from "./trial"; // ★裁定490（0201l の後の結線）: 体入の期間・体入の時給・バック「なし」の除外
+import { trialStoreTermsOf } from "../cast/trial-terms"; // ★裁定490: 店の体入の条件（trial_wage・trial_back）
 import { monthsInRange, prevMonthOf, lastDayOf, periodKeysInRange, periodRangeOfKey, prevPeriodKeyOf, slidePeriodOf, slideBasisOf, slideBasisValueOf, slideRankIncludedOf, type SlideBasis, type SlidePeriod, type SlideTotals } from "./slide"; // ★N3b（裁定288）・★裁定338（0168・便 P168）
 import type { PayrollWindow as _PW } from "./window";
 const addDaysYmd = (ymd: string, n: number) => { const [y, mo, d] = ymd.split("-").map(Number); return new Date(Date.UTC(y, mo - 1, d + n)).toISOString().slice(0, 10); }; // ★N3b
@@ -243,7 +245,8 @@ async function loadMasters(admin: SupabaseClient, storeId: string, period: strin
   masters.lateGraceMin = lateGrace; // ★324-3（便 L-2-4）: shortfall の遅刻猶予（裁定268＝punch-match と同じ値）
   const earlyGrace = (pen?.early_grace_min as number) ?? undefined;
   const overGrace = (pen?.over_grace_min as number) ?? undefined;
-  return { plansById, slidePeriodByPlan, slideBasisByPlan, slideRankIdsByPlan, slideApplyByPlan, planNormById, normAxes, castPlanByCast, guaranteesByCast, masters, normByCast, taxByCast, depByCast, grace: { lateGrace, earlyGrace, overGrace } }; // ★N3: guaranteesByCast・★裁定338: slidePeriodByPlan・★裁定343: slideBasisByPlan／slideRankIdsByPlan
+  const tst = trialStoreTermsOf((stR.data?.settings_json ?? null) as Record<string, unknown> | null); // ★裁定490: 店の体入の時給（未設定＝null）・バック（欠損＝same）
+  return { plansById, slidePeriodByPlan, slideBasisByPlan, slideRankIdsByPlan, slideApplyByPlan, planNormById, normAxes, castPlanByCast, guaranteesByCast, masters, normByCast, taxByCast, depByCast, grace: { lateGrace, earlyGrace, overGrace }, trialTerms: { trialWage: tst.wage, trialBack: tst.back } }; // ★N3: guaranteesByCast・★裁定338: slidePeriodByPlan・★裁定343: slideBasisByPlan／slideRankIdsByPlan
 }
 
 // 窓内 closed 非 void の会計から cast 別のバック・pt・champ/bottle 本数を集計。
@@ -259,6 +262,12 @@ async function loadAccounting(admin: SupabaseClient, storeId: string, win: Payro
   // ★裁定113: calc＝Σ calculated_back_amount（plan_rate の凍結値・null=0＝旧行/他 mode フォールバック）
   const backByCast = new Map<string, { drink: number; champ: number; bottle: number; pt: number; calc: number }>();
   const champBottleByCast = new Map<string, { champCnt: number; bottleCnt: number }>();
+  // ★裁定490（0201l の後の結線）: 体入の日の分を引くための日ごとの集計（cast → 営業日 → 値）。期の合計（上の 2 つ）は従来のまま＝値は同じ
+  const backByCastDate = new Map<string, Map<string, { drink: number; champ: number; bottle: number; pt: number; calc: number }>>();
+  const champBottleByCastDate = new Map<string, Map<string, { champCnt: number; bottleCnt: number }>>();
+  const dayBack = (cid: string, d: string) => { const m = backByCastDate.get(cid) ?? backByCastDate.set(cid, new Map()).get(cid)!; return m.get(d) ?? m.set(d, { drink: 0, champ: 0, bottle: 0, pt: 0, calc: 0 }).get(d)!; };
+  const dayCb = (cid: string, d: string) => { const m = champBottleByCastDate.get(cid) ?? champBottleByCastDate.set(cid, new Map()).get(cid)!; return m.get(d) ?? m.set(d, { champCnt: 0, bottleCnt: 0 }).get(d)!; };
+  const bizOf = (ck: unknown): string | null => { const c = (Array.isArray(ck) ? ck[0] : ck) as { started_at?: string } | null; return c?.started_at ? bizDateOf(c.started_at, win.cutoffHm) : null; };
 
   // ★F3f: 承認済 drink_claims の back_amount を cast 別に drink バックへ合流（対象 check の営業日で期間フィルタ）
   const { data: claims, error: eDc } = await admin
@@ -272,14 +281,16 @@ async function loadAccounting(admin: SupabaseClient, storeId: string, win: Payro
     const cur = backByCast.get(cid) ?? { drink: 0, champ: 0, bottle: 0, pt: 0, calc: 0 };
     cur.drink += c.back_amount as number;
     backByCast.set(cid, cur);
+    const bd = bizOf(c.checks); if (bd) dayBack(cid, bd).drink += c.back_amount as number; // ★裁定490
   }
 
   const { data: checks, error: eC } = await admin
-    .from("checks").select("id").eq("store_id", storeId).eq("status", "closed")
+    .from("checks").select("id, started_at").eq("store_id", storeId).eq("status", "closed") // ★裁定490: started_at＝体入の日の分を営業日で分ける
     .gte("started_at", win.startTs).lt("started_at", win.endTs);
   if (eC) throw new Error(`checks: ${eC.message}`);
   const checkIds = ((checks ?? []) as { id: string }[]).map((c) => c.id);
-  if (checkIds.length === 0) return { backByCast, champBottleByCast };  // ★drink_claims は既に合流済み
+  const bizByCheck = new Map(((checks ?? []) as { id: string; started_at: string }[]).map((c) => [c.id, bizDateOf(c.started_at, win.cutoffHm)])); // ★裁定490
+  if (checkIds.length === 0) return { backByCast, champBottleByCast, backByCastDate, champBottleByCastDate };  // ★drink_claims は既に合流済み
 
   // ★便 X-13b（2026-10-08・起票候補）: .in("check_id", 全件) は閉じ伝票 ~400 件超で URL が 16 KB を超え fetch が HeadersOverflow（UND_ERR_HEADERS_OVERFLOW）で落ちる
   //   （月 458 伝票の CLUB LUNA で再現＝「会計明細: TypeError: fetch failed」）。150 件ずつに分けて読み連結する（意味・順序は不変＝Σ と cast 別の集計だけ）。
@@ -292,7 +303,7 @@ async function loadAccounting(admin: SupabaseClient, storeId: string, win: Payro
     inChunks((ids) => admin.from("check_nominations").select("check_id, cast_id").in("check_id", ids)),
     inChunks((ids) => admin.from("check_lines").select("check_id, kind, qty").in("check_id", ids)), // ★0152（裁定298-10）: 紹介料は給与に載せない＝紹介料用の併読を撤去
     // ★裁定113: 新3列を読む（source_mode は Σ には不要だが読み手フォールバックの検証用に取得・calc は null=0）
-    inChunks((ids) => admin.from("check_cast_backs").select("cast_id, drink_back, champ_back, bottle_back, hon_pt_alloc, source_mode, product_sales_base, calculated_back_amount").in("check_id", ids)),
+    inChunks((ids) => admin.from("check_cast_backs").select("check_id, cast_id, drink_back, champ_back, bottle_back, hon_pt_alloc, source_mode, product_sales_base, calculated_back_amount").in("check_id", ids)),
   ]);
   for (const r of [nomsR, linesR, backsR]) if (r.error) throw new Error(`会計明細: ${r.error.message}`);
 
@@ -305,6 +316,8 @@ async function loadAccounting(admin: SupabaseClient, storeId: string, win: Payro
     cur.pt += b.hon_pt_alloc as number;
     cur.calc += (b.calculated_back_amount as number | null) ?? 0; // ★裁定113: 凍結値の単純Σ（再計算しない）
     backByCast.set(cid, cur);
+    const bd = bizByCheck.get(b.check_id as string); // ★裁定490: 同じ値を営業日ごとにも積む
+    if (bd) { const x = dayBack(cid, bd); x.drink += b.drink_back as number; x.champ += b.champ_back as number; x.bottle += b.bottle_back as number; x.pt += b.hon_pt_alloc as number; x.calc += (b.calculated_back_amount as number | null) ?? 0; }
   }
   // check_id → {champ,bottle} qty
   const qtyByCheck = new Map<string, { champ: number; bottle: number }>();
@@ -324,8 +337,9 @@ async function loadAccounting(admin: SupabaseClient, storeId: string, win: Payro
     cur.champCnt += q.champ;
     cur.bottleCnt += q.bottle;
     champBottleByCast.set(cid, cur);
+    const bd = bizByCheck.get(n.check_id as string); if (bd) { const x = dayCb(cid, bd); x.champCnt += q.champ; x.bottleCnt += q.bottle; } // ★裁定490
   }
-  return { backByCast, champBottleByCast };
+  return { backByCast, champBottleByCast, backByCastDate, champBottleByCastDate };
 }
 
 // mig0086: 率バックの母数＝窓内の指名料行（check_lines）を cast 別に集計（率バック設計 v1 裁定iii/vi）。
@@ -345,13 +359,16 @@ async function loadShimeiAmounts(admin: SupabaseClient, storeId: string, win: Pa
     .lt("checks.started_at", win.endTs);
   if (error) throw new Error(`指名料行: ${error.message}`);
   const byCast = new Map<string, { hon: number; jonai: number }>();
-  for (const r of (data ?? []) as { cast_id: string; fee_kind: string; line_total: number }[]) {
+  const byCastDate = new Map<string, Map<string, { hon: number; jonai: number }>>(); // ★裁定490: 体入の日の指名料（率バックの母数）を引くための営業日ごとの値
+  for (const r of (data ?? []) as { cast_id: string; fee_kind: string; line_total: number; checks?: { started_at?: string } | { started_at?: string }[] | null }[]) {
     const cur = byCast.get(r.cast_id) ?? { hon: 0, jonai: 0 };
     if (r.fee_kind === "hon_shimei") cur.hon += r.line_total;
     else cur.jonai += r.line_total;
     byCast.set(r.cast_id, cur);
+    const ck = Array.isArray(r.checks) ? r.checks[0] : r.checks;
+    if (ck?.started_at) { const d = bizDateOf(ck.started_at, win.cutoffHm); const m = byCastDate.get(r.cast_id) ?? byCastDate.set(r.cast_id, new Map()).get(r.cast_id)!; const x = m.get(d) ?? m.set(d, { hon: 0, jonai: 0 }).get(d)!; if (r.fee_kind === "hon_shimei") x.hon += r.line_total; else x.jonai += r.line_total; }
   }
-  return byCast;
+  return Object.assign(byCast, { byDate: byCastDate });
 }
 
 // 窓内の shifts（確定）/attendance/punches を cast 別に読み、punch-io→matchPunches で days/lateN/absentN/日次hours を得る。
@@ -712,7 +729,7 @@ export async function collectPeriod(
   if (eS) throw new Error(`get_cast_sales: ${eS.message}`);
   const salesRows = (salesData ?? []) as SalesRow[];
 
-  const [{ plansById, slidePeriodByPlan, slideBasisByPlan, slideRankIdsByPlan, slideApplyByPlan, planNormById, normAxes, castPlanByCast, guaranteesByCast, masters, normByCast, taxByCast, depByCast, grace }, acct, incentives, receivablesByCast, advancesByCast, transportByCast, shimeiAmtByCast, avgWageByCast] = await Promise.all([
+  const [{ plansById, slidePeriodByPlan, slideBasisByPlan, slideRankIdsByPlan, slideApplyByPlan, planNormById, normAxes, castPlanByCast, guaranteesByCast, masters, normByCast, taxByCast, depByCast, grace, trialTerms }, acct, incentives, receivablesByCast, advancesByCast, transportByCast, shimeiAmtByCast, avgWageByCast] = await Promise.all([
     loadMasters(admin, storeId, win.period, win.periodEnd, win.periodStart), // ★324（便 L-2-3）
     loadAccounting(admin, storeId, win),
     loadIncentives(admin, storeId, win),
@@ -823,13 +840,18 @@ export async function collectPeriod(
   if (targetIds.size === 0) return { casts: [], masters, incentives, recipientsByDate, receivablesByCast, advancesByCast, transportByCast };
 
   // cast 名＋employment（is_active 不問＝退職者含む。employment は裁定98 の二層分岐キー）
-  const { data: castRows, error: eN } = await admin.from("casts").select("id, name, employment, joined_on, left_on, rank_id").in("id", [...targetIds]); // ★0154 D6: 計算期間（入店日／退店日）・★裁定343: rank_id（対象ランク）
+  // ★裁定490（0201l の後の結線）: フラグ 0201l のときだけ体入の列（区分・在籍・作成日・本人の体入の時給・開始日・終わる日）を読む（false＝従来の select）
+  const trialCols = mig0201lOn() ? ", kind, is_active, created_at, trial_wage, trial_started_on, trial_ends_on" : "";
+  const { data: castRows, error: eN } = await admin.from("casts").select("id, name, employment, joined_on, left_on, rank_id" + trialCols).in("id", [...targetIds]); // ★0154 D6: 計算期間（入店日／退店日）・★裁定343: rank_id（対象ランク）
   if (eN) throw new Error(`casts: ${eN.message}`);
   const nameById = new Map<string, string>();
   const employmentById = new Map<string, "委託" | "雇用" | null>();
   const calcPeriodById = new Map<string, { start: string; end: string }>(); // ★0154 D6
   const rankIdById = new Map<string, string | null>(); // ★裁定343
-  for (const c of (castRows ?? []) as { id: string; name: string; employment: "委託" | "雇用" | null; joined_on: string | null; left_on: string | null; rank_id: string | null }[]) {
+  const trialById = new Map<string, { range: TrialRange | null; wage: number | null }>(); // ★裁定490: 体入の期間（無ければ null）と体入の時給（本人＞店・無ければ null）
+  const masters0201l = trialTerms; // ★裁定490: 店の trial_wage／trial_back
+  for (const c of (castRows ?? []) as unknown as { id: string; name: string; employment: "委託" | "雇用" | null; joined_on: string | null; left_on: string | null; rank_id: string | null; kind?: string | null; is_active?: boolean; created_at?: string; trial_wage?: number | null; trial_started_on?: string | null; trial_ends_on?: string | null }[]) {
+    if (mig0201lOn()) { const tr = c; const range = trialRangeOf(tr); if (range) trialById.set(c.id, { range, wage: trialWageOf(tr.trial_wage, masters0201l.trialWage) }); }
     nameById.set(c.id, c.name);
     rankIdById.set(c.id, c.rank_id ?? null);
     employmentById.set(c.id, c.employment ?? null);
@@ -859,6 +881,15 @@ export async function collectPeriod(
     const castRankId = rankIdById.get(cid) ?? null;
     const excluded = rankIds.length > 0 && !slideRankIncludedOf(rankIds, castRankId);
     const planEff = plan && excluded ? { ...plan, salesSlide: [], pointSlide: [] } : plan;
+    // ★裁定490（12 点・0201l の後）: 体入の材料＝体入の時給の日（期間の中で出勤した日）とバック「なし」の除外（期間の営業日の分）。体入の時給が無い＝式を当てない（12 点の 5）＋注意（12 点の 2）
+    const tr = trialById.get(cid);
+    const range = tr?.range ?? null;
+    const wage = tr?.wage ?? null;
+    const trialRaw = range ? trialRawOf(range, wage, masters0201l.trialBack, daily, {
+      sales: salesRows.filter((x) => x.cast_id === cid).map((x) => ({ bizDate: x.biz_date, sales: x.sales, hon: x.hon, jonai: x.jonai, dohan: x.dohan })),
+      shimeiAmt: shimeiAmtByCast.byDate.get(cid) ?? new Map(), backs: acct.backByCastDate.get(cid) ?? new Map(), champBottle: acct.champBottleByCastDate.get(cid) ?? new Map(),
+    }) : null;
+    const trialWageUnset = !!range && wage === null && trialTouchesOf(range, daily);
     casts.push({
       castId: cid,
       castName: nameById.get(cid) ?? "(不明)",
@@ -906,6 +937,8 @@ export async function collectPeriod(
       dependentsForm: depByCast.get(cid) ?? null, // ★0172（裁定349）: 雇用の甲／乙の入力（assemble が employeeTaxClassOf で区分に）
       employment: employmentById.get(cid) ?? null, // ★裁定98: 二層ガードの分岐キー
       avgDailyWage: avgWageByCast.get(cid) ?? null, // ★裁定98-C: null=暫定式（pay.ts 側）
+      ...(trialRaw ? { trial: trialRaw } : {}), // ★裁定490: 体入の期間が期に掛かり体入の時給がある cast だけ（無い cast はキーを持たない＝従来と 1 バイト同値）
+      ...(trialWageUnset ? { trialWageUnset: true } : {}), // ★裁定490（12 点の 2）
     });
   }
   // ★便 P175-prep P-1／P-5（裁定416／418・0175 v2）: フラグ true のときだけ cast_rate_history（時給の履歴）と CANON 文脈（comp_plans 拡張列・plan_norm_tiers・slide_decisions・availability_terms）を読んで各 cast に付ける。
@@ -915,9 +948,11 @@ export async function collectPeriod(
     const st0175 = await loadRules0175Store(admin, storeId);
     const ids = casts.map((c) => c.castId);
     const [hist, meta] = await Promise.all([loadRateHistory(admin, storeId, win.periodStart, win.periodEnd), loadCastMeta0175(admin, storeId, ids)]);
+    // ★裁定490 (b): 同伴の時間帯のバックは日で割れない＝集める側で体入の日の同伴を除いた額を渡す（バック「なし」で除外を持つ cast だけ・同伴伝票の開始時刻の営業日で判定）
+    const excludeDohan = (castId: string, startedAt: string): boolean => { const c = casts.find((x) => x.castId === castId); const r = trialById.get(castId)?.range; return !!(c?.trial?.exclude && r && inTrialRange(r, bizDateOf(startedAt, win.cutoffHm))); };
     const ctx = await loadCanonCtx(admin, storeId, { period: win.period, periodStart: win.periodStart, periodEnd: win.periodEnd, periodDays: periodCalendarDays(win.period) }, st0175,
       casts.map((c) => { const p = punchByCast.get(c.castId); const hours = p ? [...p.hoursByDate.values()].reduce((a, b) => a + b, 0) : 0;
-        return { castId: c.castId, planId: castPlanByCast.get(c.castId)?.planId ?? null, membershipId: meta.get(c.castId)?.membershipId ?? null, joinedOn: meta.get(c.castId)?.joinedOn ?? null, days: c.days, hours, salesSubtotal: c.sales }; }));
+        return { castId: c.castId, planId: castPlanByCast.get(c.castId)?.planId ?? null, membershipId: meta.get(c.castId)?.membershipId ?? null, joinedOn: meta.get(c.castId)?.joinedOn ?? null, days: c.days, hours, salesSubtotal: c.sales }; }), { excludeDohan });
     for (const c of casts) {
       const h = hist.get(c.castId); if (h && h.length) c.rateHistory = h;
       const x = ctx.get(c.castId); if (x) c.rules0175 = x;

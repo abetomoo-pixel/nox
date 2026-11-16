@@ -94,6 +94,11 @@ export type CastRaw = {
   ruleCastOverrides?: DeductionOverride[];
   /** ★0195（裁定447 差し替え版）: その期の cast_day_deductions（既定と違う日だけ行）。無ければキーなし＝従来と同値 */
   dayDeductions?: DayDeductionRow[];
+  /** ★裁定490（0201l の後の結線・2026-11-16）: 体入の材料（collect が格納＝体入の期間が期に掛かり体入の時給がある cast だけ・fixture は無し＝従来と同値）。
+   *  dates＝体入の時給を当てる日（体入の期間の中で出勤した日）・exclude＝バック「なし」の店だけ（体入の期間の営業日の分） */
+  trial?: import("./trial").TrialRaw;
+  /** ★裁定490（12 点の 2）: 体入の期間が期に掛かるのに体入の時給が店にも本人にも無い＝プランの時給のまま（core が注意を出す・確定は止めない） */
+  trialWageUnset?: boolean;
 };
 /** ★0195: 日ごとの控除の on／off の行（cast_day_deductions） */
 export type DayDeductionRow = { deductionId: string; bizDate: string; enabled: boolean };
@@ -265,6 +270,9 @@ export function buildPayInput(
     ...(raw.rules0175 ? { rules0175: raw.rules0175 } : {}), // ★P175-prep P-5
     ...(masters.payTimeBasis === "shift" ? { payTimeBasis: "shift" as const } : {}), // ★324（便 L-2-3）: 'shift' のときだけキーを足す（'punch'／未指定＝従来と 1 バイト同値）
     ...slideInputOf(raw), // ★N3b: 'next' でなければ何も足さない
+    // ★裁定490（0201l の後の結線）: 体入の日（日番号→体入の時給）とバック「なし」の除外。trial が無ければキーを足さない＝従来と 1 バイト同値（golden 不変）
+    ...(raw.trial && raw.trial.dates.length ? { trialWageByDay: Object.fromEntries(raw.trial.dates.map((d) => [dayNum(d), raw.trial!.wage])) } : {}),
+    ...(raw.trial?.exclude ? { trialBackExclude: raw.trial.exclude } : {}),
     productBack: raw.productBack,
     calculatedBack: raw.calculatedBack, // ★裁定113
     pointProducts: raw.pointProducts,

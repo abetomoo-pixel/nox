@@ -5,7 +5,6 @@
 // 真の防御は trials RLS（owner/manager 限定）＋各 RPC ゲート（UI は操作面）。
 import { mig0201fOn } from "@/lib/nox/rules-0175/flag"; // ★0201f
 import { MYNUMBER_DISCARD_NOTE_0201F, MYNUMBER_IN_SERVICE_LABEL, MYNUMBER_LAST_PAY_YEAR_LABEL } from "@/lib/nox/mynumber/discard-text";
-import { TRIAL_WAGE_NOT_IN_PAY_NOTE } from "@/lib/nox/cast/trial-terms"; // ★2026-11-13（相談役【3】c）
 import { LoadMoreBar, useLoadMore } from "@/components/ui/load-more"; // ★便 M5b M-60
 import { PIN_DIGITS_LABEL, PIN_MAX, PIN_SHAPE_RE } from "@/components/nox/pin-pad"; // ★M-179: 桁数は 1 か所の定数から
 import Loading from "@/components/ui/loading"; // ★M-135: 読み込み中の表示の共通部品
@@ -43,7 +42,7 @@ import { issueDateDefaultOf } from "@/lib/nox/payroll/advance-okuri";
 import { okuriModeOf, okuriFlatTiersOf, okuriTierLabelOf } from "@/lib/nox/shift/okuri-mode"; // ★裁定414（S-4）・追補（0180）: 送り区分
 import { okuriTiersOn } from "@/lib/nox/rules-0175/flag"; // ★裁定414 追補（0180）
 import { mig0201cOn } from "@/lib/nox/rules-0175/flag"; // ★0201c（裁定480・484）: 体入の条件・本採用／見送り
-import { SET_CAST_TRIAL_RPC, TRIAL_DECIDE_RPC, trialCastArgsOf, trialCastColsOf, trialDecideArgsOf, trialStoreTermsOf } from "@/lib/nox/cast/trial-terms";
+import { SET_CAST_TRIAL_RPC, TRIAL_DECIDE_RPC, TRIAL_HIRE_NEXT_PERIOD_NOTE, TRIAL_HIRE_NO_PLAN_NOTE, trialCastArgsOf, trialCastColsOf, trialDecideArgsOf, trialStoreTermsOf } from "@/lib/nox/cast/trial-terms";
 const CAST_RELOAD_COLS: string = okuriTiersOn() ? "id, name, user_id, photo_updated_at, is_active, store_id, left_on, rank_id, joined_on, kind, employment, employment_valid_from, shift_request_mode, okuri_tier" : "id, name, user_id, photo_updated_at, is_active, store_id, left_on, rank_id, joined_on, kind, employment, employment_valid_from, shift_request_mode";
 import { rules0175On } from "@/lib/nox/rules-0175/flag"; // ★便 P175-prep P-4
 import AvailabilityEditor from "@/components/nox/availability-editor"; // ★便 P175-prep P-4（裁定397＋413）: 基本の働き方
@@ -1116,6 +1115,8 @@ export default function CastsBoard({
                   <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginTop: 6 }} data-trial-hire="1">
                     {dpOk ? (
                       <button type="button" style={btnGold} disabled={busy} onClick={() => void hireTrialCast(selCast, dp!)}>本採用（{activePlans.find((p) => p.id === dp)?.name}）</button>
+                    ) : cands.length === 0 ? (
+                      <span style={{ fontSize: 12, color: "var(--warning)" }} data-trial-hire-no-plan="1">{TRIAL_HIRE_NO_PLAN_NOTE}</span>
                     ) : (
                       <>
                         <select value={hirePick ?? ""} onChange={(e) => setHirePick(e.target.value || null)} disabled={busy} style={{ ...input, width: "auto" }} aria-label="本採用後のプラン">
@@ -1127,6 +1128,7 @@ export default function CastsBoard({
                       </>
                     )}
                     {mig0201cOn() && <button type="button" style={btnGhost} disabled={busy} data-trial-decline="1" onClick={() => void declineTrialCast(selCast)}>見送り</button>}{/* ★0201c（裁定480）: 在籍を外す・記録は残る */}
+                    {(dpOk || cands.length > 0) && <span style={{ flexBasis: "100%", fontSize: 11, color: "var(--v2-muted)" }} data-trial-hire-next="1">{TRIAL_HIRE_NEXT_PERIOD_NOTE}</span>}{/* ★裁定490（12 点の 9）: 月の途中の本採用でも、その月のプランは月初のもの（裁定97） */}
                   </div>
                 );
               })()}
@@ -1145,7 +1147,6 @@ export default function CastsBoard({
                     </div>
                     {f && (
                       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end", marginTop: 6 }}>
-                        <span data-trial-wage-note="1" style={{ flexBasis: "100%", fontSize: 12, color: "var(--warning)" }}>{TRIAL_WAGE_NOT_IN_PAY_NOTE}</span>{/* ★2026-11-13（相談役【3】c）: 式が入った便で外す */}
                         <label style={{ display: "grid", gap: 2 }}>時給（空欄＝店の既定）
                           <UnitBox pre="¥" width={140}><input type="number" inputMode="numeric" min={0} max={100000} value={f.wage} disabled={busy} onChange={(e) => setTrialForm({ ...f, wage: e.target.value })} style={input} aria-label="体入の時給" placeholder={st.wage !== null ? String(st.wage) : ""} /></UnitBox>
                         </label>

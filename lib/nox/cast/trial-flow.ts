@@ -4,6 +4,7 @@
 //   ★在籍区分（casts.kind）を書く RPC が無い（cast_create のみ）＝本採用で kind は「体入」のまま＝0175 待ち。
 //     そのため体入タブは「在籍区分 体入 かつ 今のプランが体験入店（またはプランなし）」で絞る（仮決め・本採用したキャストは体入タブから外れる）。
 import { addDays } from "@/lib/nox/cast/guarantee";
+import { mig0201cOn } from "@/lib/nox/rules-0175/flag"; // ★裁定490（12 点の 1）
 
 export const TRIAL_KIND = "体入";
 export const TRIAL_PLAN_NAME = "体験入店";
@@ -17,8 +18,10 @@ export function trialSettingsOf(sj: Record<string, unknown> | null | undefined):
   return { days, defaultPlanId: typeof p === "string" && p ? p : null };
 }
 
-/** 体入タブに出すか（在籍・区分 体入・今のプランが体験入店またはプランなし） */
+/** 体入タブに出すか（在籍・区分 体入・今のプランが体験入店またはプランなし）。
+ *  ★裁定490（12 点の 1・2026-11-16）: フラグ 0201c のときは区分だけで見る＝本採用は cast_trial_decide が区分をキャストに変える（0201c）・体入の間は店の既定のプランを持つ（プラン名で絞ると外れる） */
 export function isTrialCastOf(c: { is_active: boolean; kind?: string | null }, planName: string | null): boolean {
+  if (mig0201cOn()) return c.is_active && c.kind === TRIAL_KIND;
   return c.is_active && c.kind === TRIAL_KIND && (planName === null || planName === TRIAL_PLAN_NAME);
 }
 

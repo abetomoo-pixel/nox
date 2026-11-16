@@ -34,7 +34,8 @@ export async function loadRateHistory(admin: SupabaseClient, storeId: string, pe
 
 /** P-5: CANON 文脈（cast 別）＝プランの段・連続 N・規定・週の目安・免除・前期のログ・店の決定。reward_axis が pay_rate のプランだけ返す（他は undefined＝従来） */
 export async function loadCanonCtx(admin: SupabaseClient, storeId: string, win: { period: string; periodStart: string; periodEnd: string; periodDays: number }, store: Rules0175Store,
-  casts: { castId: string; planId: string | null; membershipId: string | null; joinedOn: string | null; days: number; hours: number; salesSubtotal: number }[]): Promise<Map<string, CanonCtx>> {
+  casts: { castId: string; planId: string | null; membershipId: string | null; joinedOn: string | null; days: number; hours: number; salesSubtotal: number }[],
+  opts?: { excludeDohan?: (castId: string, startedAt: string) => boolean }): Promise<Map<string, CanonCtx>> { // ★裁定490 (b): 体入の日の同伴を除く（無ければ従来）
   const out = new Map<string, CanonCtx>();
   const planIds = [...new Set(casts.map((c) => c.planId).filter((x): x is string => !!x && store.plans.get(x)?.reward_axis === "pay_rate"))];
   if (planIds.length === 0) return out;
@@ -54,13 +55,13 @@ export async function loadCanonCtx(admin: SupabaseClient, storeId: string, win: 
   const noms = (dn.data ?? []) as unknown as Nom[];
   const wSum = new Map<string, number>();
   for (const n of noms) wSum.set(n.check_id, (wSum.get(n.check_id) ?? 0) + Math.max(0, n.ratio_weight ?? 0));
-  const dohanItemsByCast = new Map<string, { startMin: number; share: number }[]>();
+  const dohanItemsByCast = new Map<string, { startMin: number; share: number; startedAt: string }[]>(); // ★裁定490 (b): startedAt＝体入の日の判定
   for (const n of noms) {
     if (!n.is_dohan) continue;
     const tot = wSum.get(n.check_id) ?? 0; const w = Math.max(0, n.ratio_weight ?? 0);
     const share = tot > 0 ? Math.round((n.checks.total ?? 0) * w / tot) : 0;
     const d = new Date(n.checks.started_at); const jst = new Date(d.getTime() + 9 * 3600_000); const startMin = jst.getUTCHours() * 60 + jst.getUTCMinutes();
-    (dohanItemsByCast.get(n.cast_id) ?? dohanItemsByCast.set(n.cast_id, []).get(n.cast_id)!).push({ startMin, share });
+    (dohanItemsByCast.get(n.cast_id) ?? dohanItemsByCast.set(n.cast_id, []).get(n.cast_id)!).push({ startMin, share, startedAt: n.checks.started_at });
   }
   const tiersByPlan = new Map<string, NormTier[]>();
   for (const t of (nt.data ?? []) as (NormTier & { plan_id: string })[]) (tiersByPlan.get(t.plan_id) ?? tiersByPlan.set(t.plan_id, []).get(t.plan_id)!).push({ week_days_min: t.week_days_min, week_days_max: t.week_days_max, days_required: t.days_required, hours_required: Number(t.hours_required) });
@@ -78,7 +79,7 @@ export async function loadCanonCtx(admin: SupabaseClient, storeId: string, win: 
       salesSubtotal: c.salesSubtotal, normTiers: tiersByPlan.get(c.planId) ?? [], weekTarget: c.membershipId ? weekByMem.get(c.membershipId) ?? null : null,
       periodDays: win.periodDays, actual: { days: c.days, hours: c.hours }, joinedOn: c.joinedOn, graceMonths: plan.assess_grace_months, periodEnd: win.periodEnd,
       decided: cur?.applied_at ? "apply" : cur?.excluded_at ? "exclude" : null,
-      dohanBandBack: (bandsByPlan.get(c.planId)?.length ?? 0) > 0 ? dohanBandBackOf(bandsByPlan.get(c.planId)!, dohanItemsByCast.get(c.castId) ?? []) : undefined, // ★便 ON-2（CANON ④）
+      dohanBandBack: (bandsByPlan.get(c.planId)?.length ?? 0) > 0 ? dohanBandBackOf(bandsByPlan.get(c.planId)!, (dohanItemsByCast.get(c.castId) ?? []).filter((it) => !opts?.excludeDohan?.(c.castId, it.startedAt))) : undefined, // ★便 ON-2（CANON ④）
     });
   }
   return out;

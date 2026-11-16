@@ -25,7 +25,7 @@ let pass = 0; const fails: string[] = [];
 const check = (label: string, ok: boolean, detail?: unknown) => { if (ok) pass++; else fails.push(`${label}${detail !== undefined ? `: ${JSON.stringify(detail).slice(0, 400)}` : ""}`); };
 import { PUNCH_PENDING_TEXT, punchStateAfterOf, punchStateShownOf } from "../lib/nox/shift/punch-pending";
 import { hoursMinutesJaOf } from "../lib/nox/mine/attendance-month";
-import { TRIAL_WAGE_NOT_IN_PAY_NOTE } from "../lib/nox/cast/trial-terms";
+import { TRIAL_HIRE_NEXT_PERIOD_NOTE } from "../lib/nox/cast/trial-terms"; // ★裁定490（2026-11-16）: 注記の定数は外した
 import { PRIVACY_PUBLISHED_ON, privacyBlocksOf, privacyPublishedOf } from "../lib/nox/legal/privacy";
 import { pinSelfErrJa } from "../components/nox/pin-self-card";
 import { unlockNextOf } from "../lib/nox/rules-0175/kiosk";
@@ -83,7 +83,8 @@ const LATIN = /[A-Za-z]/;
     && pb.includes('if (d.backRate !== null) { setPBackMode("rate"); setPBackValue(d.backRate); }') && pb.includes('supabase.rpc("set_product_track_stock", { p_product_id: data, p_track: true })')
     && q.includes('"id, name, sort_order, is_active, default_back_rate, default_track_stock"'));
   const pay = src("lib/nox/pay.ts"), asm = src("lib/nox/payroll/assemble.ts"), col = src("lib/nox/payroll/collect.ts");
-  check("b6(2-9) 体入の時給を給与に当てる式は入れない（pay.ts・payroll の組み立てと読取に trial_wage／trial_back が無い）", ![pay, asm, col].some((s) => /trial_wage|trial_back/.test(s)));
+  // ★裁定490 の結線（2026-11-16・0201l の後）で反転＝式は入った。pay.ts と assemble は trial_wage／trial_back を知らない（純関数のキー trialWageByDay・trialBackExclude だけ）・読むのは collect（フラグ 0201l の下）と店の条件（trialStoreTermsOf）
+  check("b6(2-9) 体入の時給を給与に当てる式＝★裁定490 で結線（collect がフラグ 0201l の下で trial_wage を読む・pay.ts と assemble は列名を知らない）", ![pay, asm].some((s) => /trial_wage|trial_back/.test(s)) && col.includes("trial_wage, trial_started_on, trial_ends_on") && col.includes("trialStoreTermsOf("));
 }
 // (3) 0201h
 {
@@ -208,8 +209,8 @@ const LATIN = /[A-Za-z]/;
     PUNCH_PENDING_TEXT === "反映中…" && pend.includes("PUNCH_PENDING_EVENT") && pa.includes("startRefresh(() => router.refresh())") && pa.includes("punchStateShownOf(state, optimistic)") && pg2.includes('<PunchPending attr="register-note">') && pg2.includes('<PunchPending attr="today-shift">'));
   check("b6(c7-3) /mine の勤怠の行の時間＝「◯ 時間 ◯ 分」（0.9666…h＝0 時間 58 分・額は変えない）",
     hoursMinutesJaOf(0.9666666666666667) === "0 時間 58 分" && hoursMinutesJaOf(7.5) === "7 時間 30 分" && hoursMinutesJaOf(2) === "2 時間 0 分" && src("components/nox/kintai-row.tsx").includes("× ${hoursMinutesJaOf(p.hours)}）") && !src("components/nox/kintai-row.tsx").includes("× ${p.hours}h"));
-  check("b6(c7-4) 体入の時給の欄の注記（店舗設定・キャスト・初期設定の 3 か所）",
-    TRIAL_WAGE_NOT_IN_PAY_NOTE === "体入の時給は、まだ給与の計算に反映されません" && ["app/(manage)/master/trial-terms-panel.tsx", "app/(manage)/casts/casts-board.tsx", "app/(manage)/setup/setup-wizard.tsx"].every((f) => src(f).includes("{TRIAL_WAGE_NOT_IN_PAY_NOTE}")));
+  check("b6(c7-4) 体入の時給の欄の注記（店舗設定・キャスト・初期設定の 3 か所）＝★裁定490 の結線（2026-11-16）で外した（式が給与に入った）",
+    TRIAL_HIRE_NEXT_PERIOD_NOTE === "新しいプランは次の給与期から" && ["app/(manage)/master/trial-terms-panel.tsx", "app/(manage)/casts/casts-board.tsx", "app/(manage)/setup/setup-wizard.tsx"].every((f) => !src(f).includes("TRIAL_WAGE_NOT_IN_PAY_NOTE") && !src(f).includes("まだ給与の計算に反映されません")));
   const md = src("docs/legal/privacy_v0.5.md"); const bl = privacyBlocksOf(md, "2026-11-20");
   check("b6(c7-5) /privacy＝★2026-11-13 夜 公開（相談役■2 e・制定日 2026-11-13）・リンクは LP・ログイン・規約（公開の日が無ければ 404 とリンクなし）／本文は docs/legal/privacy_v0.5.md・表 5 つ・制定日に公開の日・デモの記録は 30 日",
     PRIVACY_PUBLISHED_ON === "2026-11-13" && privacyPublishedOf() && !privacyPublishedOf(null) && md.includes("| デモのご利用 | IP アドレスをハッシュ化した値（30 日で消去します） |") && md.includes("| デモの入場の記録 | 30 日で消去 |") && !md.includes("毎日消去") && src("app/privacy/page.tsx").includes("if (!privacyPublishedOf()) notFound();")

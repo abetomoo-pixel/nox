@@ -16,6 +16,7 @@ import { onOffStateTextOf } from "../components/ui/on-off";
 import { DAY_STATE_ORDER, dayStateLabelOf, dayStateOf } from "../lib/nox/mine/day-state";
 import { TRIAL_KIND, TRIAL_PLAN_NAME, isTrialCastOf, trialDaysLeftChipOf, trialGuaranteeRangeOf, trialPlanWarnOf, trialSettingsOf } from "../lib/nox/cast/trial-flow";
 import { receiptReissueErrJa } from "../lib/nox/register/receipt-ledger";
+import { __set0201cForTest } from "../lib/nox/rules-0175/flag"; // ★裁定490（2026-11-16）: 体入タブの判定はフラグ 0201c のとき区分だけ
 import { buildSetupPlan } from "../lib/nox/setup/template-plan";
 import { breakdownLinesOf } from "../lib/nox/payroll/breakdown-lines";
 
@@ -107,9 +108,14 @@ const bl = src("lib/nox/payroll/breakdown-lines.ts"), col = src("lib/nox/payroll
   check("gvc(5-3) C-14e 今日タブ（≥1280）: 5 択は潰さない（flex 0 0 auto・overflow visible）・出勤記録の列に最小幅・送り／退勤は右寄せで折り返す",
     /@media \(min-width: 1280px\) \{\s*\.nox-todaywrap td\.wide \{ min-width: 470px; \}/.test(css) && css.includes(".nox-todaywrap .nox-attrow > .nox-seg { flex: 0 0 auto; overflow: visible; }") && css.includes(".nox-todaywrap .nox-attrow { flex-wrap: wrap; row-gap: 6px; }"));
   const ts = trialSettingsOf({ trial_guarantee_days: 5, default_plan_id: "pid" });
+  __set0201cForTest(false); // ★裁定490: 下のプラン名の絞りはフラグ false の枝（従来）
+  const tabOld = isTrialCastOf({ is_active: true, kind: TRIAL_KIND }, TRIAL_PLAN_NAME) && isTrialCastOf({ is_active: true, kind: TRIAL_KIND }, null) && !isTrialCastOf({ is_active: true, kind: TRIAL_KIND }, "レギュラー") && !isTrialCastOf({ is_active: true, kind: "キャスト" }, TRIAL_PLAN_NAME);
+  __set0201cForTest(null);
+  // ★裁定490（12 点の 1・2026-11-16）: フラグ 0201c（true）＝区分だけで見る（体入の間は店の既定のプランを持つ）
+  const tabNew = isTrialCastOf({ is_active: true, kind: TRIAL_KIND }, "レギュラー") && isTrialCastOf({ is_active: true, kind: TRIAL_KIND }, null) && !isTrialCastOf({ is_active: false, kind: TRIAL_KIND }, null) && !isTrialCastOf({ is_active: true, kind: "キャスト" }, TRIAL_PLAN_NAME);
   check("gvc(5-4) C-14f 体入: 店設定（日数 1〜90・既定 3）・体入タブ＝区分 体入 ∧ プランが体験入店／なし・保証期間・警告・残日数チップ",
     ts.days === 5 && ts.defaultPlanId === "pid" && trialSettingsOf({ trial_guarantee_days: 0 }).days === 3 && trialSettingsOf(null).defaultPlanId === null
-    && isTrialCastOf({ is_active: true, kind: TRIAL_KIND }, TRIAL_PLAN_NAME) && isTrialCastOf({ is_active: true, kind: TRIAL_KIND }, null) && !isTrialCastOf({ is_active: true, kind: TRIAL_KIND }, "レギュラー") && !isTrialCastOf({ is_active: true, kind: "キャスト" }, TRIAL_PLAN_NAME)
+    && tabOld && tabNew
     && JSON.stringify(trialGuaranteeRangeOf("2026-10-19", 3)) === JSON.stringify({ start: "2026-10-19", end: "2026-10-21" })
     && trialPlanWarnOf("キャスト", TRIAL_PLAN_NAME) !== null && trialPlanWarnOf(TRIAL_KIND, TRIAL_PLAN_NAME) === null && trialPlanWarnOf("キャスト", "レギュラー") === null
     && trialDaysLeftChipOf(2) === "保証 あと2日" && trialDaysLeftChipOf(0) === "保証 今日まで" && trialDaysLeftChipOf(null) === null);
