@@ -615,6 +615,10 @@ staff_deactivate / kiosk_deactivate
 - 構造除外（B(a) と同列＝内部専用・4 ロール revoke）: store_day_has_checks（その営業日に卓があるか）
 （除外 237→**238**・全数 447→**449**（0201d ＋2＝A +1（A24 register_special_open）・B +1・作り直し 4 本 biz_minutes_of／check_open／set_store_special_day（署名変更＝drop＋create・名前不変）／remove_store_special_day は名前不変））
 
+### B(ae). 0201m 新設の除外（1本・2026-11-16・0201m の本番適用の後の検査の張り替えで収載）
+- 読取（B(f) と同列＝ゲート不要・書込なし）: kiosk_unlock_people（店の端末のロック中に名前を選んで入る一覧）
+（除外 238→**239**・全数 449→**450**（0201m ＋1＝B +1）。0201l は cast_trial_decide の作り直しだけ＝名前不変）
+
 ## C. kiosk 腕を持つ対象（実装注意・18本）
 A1 の check_open / check_add_line / check_remove_line / check_add_seat / check_remove_seat /
 check_move_seat / check_set_nominations / check_time_charge_apply / check_shimei_add / check_dohan_add /
