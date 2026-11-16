@@ -8,11 +8,11 @@ import { useCallback, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import Toast from "@/components/ui/toast";
-import { mig0185On, mig0190On } from "@/lib/nox/rules-0175/flag";
+import { mig0185On, mig0190On, mig0201mOn } from "@/lib/nox/rules-0175/flag";
 import { browserDeviceFp } from "@/lib/nox/kiosk/device-fp"; // ★M-110（2026-11-06・0196 フラグ便）: 束縛済み端末の印
 import KioskQrDisplay from "@/components/nox/kiosk-qr-display";
 import PinPad from "@/components/nox/pin-pad"; // ★M-154
-import { unlockNextOf, type UnlockResult } from "@/lib/nox/rules-0175/kiosk";
+import { unlockNextOf, unlockRoleLabelOf, UNLOCK_PEOPLE_EMPTY, type UnlockResult } from "@/lib/nox/rules-0175/kiosk";
 
 type Cand = { membership_id: string; name: string; role: string };
 
@@ -30,10 +30,13 @@ export default function KioskUnlockPad({ onUnlocked }: { onUnlocked: (r: { membe
   const qrOk = mig0185On();
   async function openPeople() {
     setBusy(true); setMsg(null);
-    const { data, error } = await supabase.rpc("kiosk_staff_list");
+    // ★0201m（2026-11-16）: フラグ true＝kiosk_unlock_people（kiosk_login が通す人と同じ＝オーナー・管理者・店長・スタッフ・レジに入れるキャスト・PIN を設定した人だけ）。false＝従来の kiosk_staff_list（店長とスタッフ・has_pin で絞る）
+    const { data, error } = mig0201mOn() ? await supabase.rpc("kiosk_unlock_people") : await supabase.rpc("kiosk_staff_list");
     setBusy(false);
     if (error) { setMsg("名前の一覧を読めませんでした（店にご確認ください）"); return; }
-    setPeople(((data ?? []) as { membership_id: string; user_name: string; role: string; has_pin: boolean }[]).filter((x) => x.has_pin).map((x) => ({ membership_id: x.membership_id, name: x.user_name, role: x.role })));
+    setPeople(mig0201mOn()
+      ? ((data ?? []) as { membership_id: string; user_name: string; role: string }[]).map((x) => ({ membership_id: x.membership_id, name: x.user_name, role: x.role }))
+      : ((data ?? []) as { membership_id: string; user_name: string; role: string; has_pin: boolean }[]).filter((x) => x.has_pin).map((x) => ({ membership_id: x.membership_id, name: x.user_name, role: x.role })));
   }
 
   const handle = useCallback(async (r: UnlockResult) => {
@@ -80,9 +83,9 @@ export default function KioskUnlockPad({ onUnlocked }: { onUnlocked: (r: { membe
       {tab === "pin" && people && (
         <>
           <p style={{ textAlign: "center", fontSize: 14, fontWeight: 800, margin: "0 0 10px" }}>名前を選んでください</p>
-          {people.length === 0 ? <p style={{ textAlign: "center", ...t.sub }}>名前で入れる人がいません（PIN を設定した店長・スタッフだけが出ます）</p> : (
+          {people.length === 0 ? <p style={{ textAlign: "center", ...t.sub }} data-kiosk-unlock-empty="1">{mig0201mOn() ? UNLOCK_PEOPLE_EMPTY : "名前で入れる人がいません（PIN を設定した店長・スタッフだけが出ます）"}</p> : (
           <div style={{ display: "grid", gap: 8 }} data-kiosk-unlock-people="1">
-            {people.map((c) => <button key={c.membership_id} style={{ ...t.btnGhost, padding: "12px 0", fontSize: 16, fontWeight: 800 }} disabled={busy} onClick={() => { setNamed(c); setPeople(null); setPin(""); setMsg(null); }}>{c.name}<span style={{ fontSize: 11, color: "var(--sub)", marginLeft: 8 }}>{c.role === "staff" ? "スタッフ" : c.role === "manager" ? "店長" : "管理者"}</span></button>)}
+            {people.map((c) => <button key={c.membership_id} style={{ ...t.btnGhost, padding: "12px 0", fontSize: 16, fontWeight: 800 }} disabled={busy} onClick={() => { setNamed(c); setPeople(null); setPin(""); setMsg(null); }}>{c.name}<span style={{ fontSize: 11, color: "var(--sub)", marginLeft: 8 }}>{unlockRoleLabelOf(c.role)}</span></button>)}
           </div>)}
           <button style={{ ...t.btnGhost, ...t.btnSm, width: "100%", marginTop: 10 }} onClick={() => setPeople(null)}>もどる</button>
         </>
@@ -91,7 +94,7 @@ export default function KioskUnlockPad({ onUnlocked }: { onUnlocked: (r: { membe
         <>
           <p style={{ textAlign: "center", fontSize: 14, fontWeight: 800, margin: "0 0 10px" }}>名前を選んでください</p>
           <div style={{ display: "grid", gap: 8 }}>
-            {cands.map((c) => <button key={c.membership_id} style={{ ...t.btnGhost, padding: "12px 0", fontSize: 16, fontWeight: 800 }} disabled={busy} onClick={() => void unlockPin(c.membership_id)}>{c.name}<span style={{ fontSize: 11, color: "var(--sub)", marginLeft: 8 }}>{c.role === "cast" ? "キャスト" : c.role === "staff" ? "スタッフ" : c.role === "manager" ? "店長" : "管理者"}</span></button>)}
+            {cands.map((c) => <button key={c.membership_id} style={{ ...t.btnGhost, padding: "12px 0", fontSize: 16, fontWeight: 800 }} disabled={busy} onClick={() => void unlockPin(c.membership_id)}>{c.name}<span style={{ fontSize: 11, color: "var(--sub)", marginLeft: 8 }}>{unlockRoleLabelOf(c.role)}</span></button>)}
           </div>
           <button style={{ ...t.btnGhost, ...t.btnSm, width: "100%", marginTop: 10 }} onClick={() => { setCands(null); setPin(""); }}>もどる</button>
         </>

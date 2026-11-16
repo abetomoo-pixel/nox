@@ -33,6 +33,11 @@ export function kioskIdleSecOf(settings: Record<string, unknown> | null | undefi
   const v = settings?.kiosk_idle_sec;
   return typeof v === "number" && v >= 60 && v <= 900 ? Math.trunc(v) : fallback;
 }
+/** ★0201m（2026-11-16）: 「名前を選んで入る」一覧の役割の表示（オーナー・管理者・店長・スタッフ・キャスト） */
+export const UNLOCK_ROLE_LABEL: Record<string, string> = { owner: "オーナー", admin: "管理者", manager: "店長", staff: "スタッフ", cast: "キャスト" };
+export const unlockRoleLabelOf = (role: string): string => UNLOCK_ROLE_LABEL[role] ?? "スタッフ";
+/** ★0201m: 名前で入れる人がいないとき（一覧＝PIN を設定した、レジに入れる人） */
+export const UNLOCK_PEOPLE_EMPTY = "名前で入れる人がいません（PIN を設定した、この端末のレジに入れる人だけが出ます）";
 /** 上部バーの文言「操作中: 林（スタッフ）・残り 2:40」 */
 export function operatorBarTextOf(name: string, role: string, remainSec: number): string {
   const r = role === "owner" ? "管理者" : role === "manager" ? "店長" : role === "cast" ? "キャスト" : "スタッフ";

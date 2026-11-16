@@ -551,7 +551,8 @@ async function mainBody() {
     ["check_customer_remove", { p_check_id: null, p_customer_id: null }],
     ["check_line_set_customer", { p_line_id: null, p_customer_id: null }],
     ["check_set_ext_rule", { p_check_id: null, p_rule_id: null }],            // ★mig0173（裁定385 追補・便 P173）: 延長パターンの切替（kiosk 腕）
-    ["kiosk_staff_list", {}],                                                  // ★mig0174（P172 Q-4・便 P173）: 打刻端末のスタッフ一覧（purpose punch）
+    ["kiosk_staff_list", {}],
+    ["kiosk_unlock_people", {}],                                               // ★0201m（2026-11-16）: 端末のロック中に名前を選んで入る一覧（anon は BLOCKED）                                                  // ★mig0174（P172 Q-4・便 P173）: 打刻端末のスタッフ一覧（purpose punch）
     ["staff_punch", { p_membership_id: null, p_pin: null, p_kind: null }],     // ★mig0174: スタッフ打刻（staff_pin の crypt 照合）
     ["check_customer_names", { p_check_id: null }],
     ["bottle_keep_out", { p_keep_id: null, p_check_id: null, p_idem_key: null }],

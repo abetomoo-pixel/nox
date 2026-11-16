@@ -202,3 +202,10 @@ export const MIG_0201L_APPLIED = true;
 let override0201l: boolean | null = null;
 export function mig0201lOn(): boolean { return override0201l ?? MIG_0201L_APPLIED; }
 export function __set0201lForTest(v: boolean | null): void { override0201l = v; }
+
+/** ★0201m（裁定489・相談役■6＝端末のロック中に「名前を選んで入る」一覧 kiosk_unlock_people）: 2026-11-16 Agoora 手貼り＝検証 7 行が全行一致（関数 450・表 122）→ true。
+ *  true＝一覧を kiosk_unlock_people（kiosk_login が通す人と同じ＝オーナー・管理者・店長・スタッフ・レジに入れるキャスト・PIN を設定した人）で読む。false＝従来の kiosk_staff_list（店長とスタッフ・has_pin で絞る）。 */
+export const MIG_0201M_APPLIED = true;
+let override0201m: boolean | null = null;
+export function mig0201mOn(): boolean { return override0201m ?? MIG_0201M_APPLIED; }
+export function __set0201mForTest(v: boolean | null): void { override0201m = v; }

@@ -1095,7 +1095,7 @@ async function main() {
     //   index 差し替え（旧不在/新逐語）＋kiosk_sessions 部分ユニーク逐語＋provision 4引数一意。
     //   auth_kiosk_register_store_id/auth_kiosk_operator の属性/ACL は HELPERS 追加で G4/G4b が自動回帰。
     //   staff_pin/kiosk_sessions の RLS 有効・grant 0 は TABLES 追加で G1/G2/G5 が自動回帰＝ここは policy 0本を能動 assert。
-    for (const fn of ["kiosk_login", "kiosk_logout", "kiosk_operator_list", "set_staff_pin", "kiosk_unlock" /* ★0196（2026-11-06・裁定457）: PIN の入口の 2 本目＝kiosk_login と同じ ACL */]) {
+    for (const fn of ["kiosk_login", "kiosk_logout", "kiosk_operator_list", "set_staff_pin", "kiosk_unlock" /* ★0196（2026-11-06・裁定457）: PIN の入口の 2 本目＝kiosk_login と同じ ACL */, "kiosk_unlock_people" /* ★0201m（2026-11-16）: 端末のロック中に名前を選んで入る一覧＝authenticated だけ */]) {
       const roles = await roleOf(fn);
       check(`G30 ${fn} EXECUTE = authenticated（anon/public 不在）`,
         roles.includes("authenticated") && !roles.includes("anon") && !roles.includes("public"),
