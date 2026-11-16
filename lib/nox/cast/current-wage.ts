@@ -19,6 +19,7 @@ export type PreviewPayLike = {
   eplan?: { base?: number; salesSlide?: SlideStep[]; pointSlide?: SlideStep[] } | null;
   trial?: unknown; // ★裁定490: 体入の日がある cast だけ（段を使わない人＝見込みを出さない）
   plan?: { name?: string } | null;
+  canon?: { forecast?: { axis?: string; wage?: number; judge?: string; toNext?: number | null; note?: string | null } | null } | null; // ★2026-11-16 夜（相談役）: 報酬率の人の見込み＝給与と同じ canon の見込み
 };
 /** ★裁定501-7（2026-11-16 Agoora 確定・式は変えない）: 時給の見込み＝段の時給の額を主に（「pt 170 → 時給 ¥3,000（2 段）」）・次の段まで（「あと 30 pt で ¥3,500」・いちばん上は null）・前の月で決める店＝来月／当月で決める店＝今月 */
 export type WageForecast = { label: string; main: string; next: string | null };
@@ -59,6 +60,14 @@ export function wageBasisLineOf(pay: PreviewPayLike | null | undefined, period: 
 /** ★裁定501-7: 時給の見込み（wageBasisLineOf と同じ値と段）。段を使わない人（体入・保証の間）・段の無いプラン・日ごとに段を決めるプラン（daily）は null＝今の表示のまま */
 export function wageForecastOf(pay: PreviewPayLike | null | undefined, period: SlidePeriod, apply: SlideTiming, opts: { skip: boolean }): WageForecast | null {
   if (opts.skip || period === "daily") return null;
+  // ★2026-11-16 夜（相談役・報酬スライドの戻し）: 報酬の軸が報酬率のプラン＝給与と同じ canon の見込み（報酬率 → 時給・次の段まで・据え置きの注記）。売上／pt の段で作らない
+  const cf = pay?.canon?.forecast;
+  if (cf && cf.axis === "pay_rate" && typeof cf.wage === "number") {
+    const yen0 = (v: number) => `¥${Math.round(v).toLocaleString("ja-JP")}`;
+    const label0 = period === "half" ? "次の半月の時給の見込み" : "来月の時給の見込み"; // 報酬率の見込み＝来期の決定時給（判定のタイミングに関係なく次の期）
+    const tail = [cf.toNext != null ? `あと ${yen0(cf.toNext)} で次の段` : null, cf.note ?? null].filter(Boolean).join("・");
+    return { label: label0, main: `${cf.judge ?? "報酬率"} → 時給 ${yen0(cf.wage)}`, next: tail || null };
+  }
   const sales = (pay?.eplan?.salesSlide ?? []).filter((s) => s.at > 0), pts = (pay?.eplan?.pointSlide ?? []).filter((s) => s.at > 0);
   const wdays = pay?.wdays ?? [];
   const last = wdays.length > 0 ? wdays[wdays.length - 1] : null;
