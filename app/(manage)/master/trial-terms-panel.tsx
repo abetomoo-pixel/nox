@@ -10,6 +10,7 @@ import SegSelect from "@/components/ui/seg-select";
 import { UnitBox } from "@/components/ui/unit-input";
 import { rpcErrJa } from "@/lib/nox/ui/rpc-err";
 import { TRIAL_BACK_OPTIONS, trialStorePatchOf, trialStoreTermsOf, type TrialBack } from "@/lib/nox/cast/trial-terms";
+import InfoTip from "@/components/ui/info-tip"; // ★2026-11-16（B6）: 補足は項目の横の ⓘ
 
 const input: React.CSSProperties = { ...t.input, width: "100%", padding: "8px 10px", fontSize: 13 };
 const label: React.CSSProperties = { ...t.fieldLabel, display: "block", marginBottom: 4 };
@@ -57,11 +58,11 @@ export default function TrialTermsPanel({ stores, isOwner }: { stores: { id: str
       )}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10 }}>
         <label style={{ display: "block", minWidth: 0 }}>
-          <span style={label}>体入の時給<span style={{ fontWeight: 400, marginLeft: 6 }}>0〜100,000 円</span></span>
+          <span style={label}>体入の時給<InfoTip>0〜100,000 円</InfoTip></span>
           <UnitBox pre="¥" width="100%"><input type="number" inputMode="numeric" min={0} max={100000} value={form.wage} disabled={ro} onChange={(e) => setForm((f) => ({ ...f, wage: e.target.value.replace(/[^0-9]/g, "").slice(0, 6) }))} style={input} aria-label="体入の時給" data-trial-wage="1" /></UnitBox>
         </label>
         <label style={{ display: "block", minWidth: 0 }}>
-          <span style={label}>体入の日数<span style={{ fontWeight: 400, marginLeft: 6 }}>出勤日数・1〜90</span></span>
+          <span style={label}>体入の日数<InfoTip>出勤日数・1〜90</InfoTip></span>
           <UnitBox post="日" width="100%"><input type="number" inputMode="numeric" min={1} max={90} value={form.days} disabled={ro} onChange={(e) => setForm((f) => ({ ...f, days: e.target.value.replace(/[^0-9]/g, "").slice(0, 2) }))} style={input} aria-label="体入の日数" /></UnitBox>
         </label>
         <div style={{ minWidth: 0 }}>

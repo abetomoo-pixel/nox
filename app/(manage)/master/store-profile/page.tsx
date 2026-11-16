@@ -76,7 +76,7 @@ export default async function MasterStoreProfilePage({ searchParams }: { searchP
   const head = HEADS[tab] ?? HEADS.info;
 
   return (
-    <div className="nox-mv1">
+    <div className="nox-mv1 nox-settings">{/* ★2026-11-16（B6）: 店舗設定の文字と欄の大きさを初期設定に揃える範囲 */}
       <MasterPageHead eyebrow={head.eyebrow} title={head.title} desc={head.desc} />
       {/* ★2026-11-16（相談役・Agoora 14:41 の確認）: タブの並びは 1 つだけ＝ページの上のマスタの共通のタブ（MASTER_NAV の店舗設定の tabs）。見出しの下に足していた同じ 7 つの並びは外した */}
       {/* ★2026-11-16（■8）: 各パネルは中身を変えていない（StoreProfilePanel は節の鍵を細かくしただけ）＝保存する値と RPC は不変。対応表＝docs/tmp/settings_map_1116.md */}
