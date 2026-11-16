@@ -14,7 +14,6 @@ import { mig0201On, mig0201cOn } from "@/lib/nox/rules-0175/flag";
 import TrialTermsPanel from "../trial-terms-panel"; // ★0201c（裁定480）: 体験入店の条件（店の既定）
 import { managePageGate } from "@/lib/nox/nav/page-gate";
 import ManagerPunchPanel from "../manager-punch-panel"; // ★2026-11-16（■8）: 店長の打刻の許可（set_store_manager_punch）＝シフトと打刻
-import StoreSettingsTabs from "../store-settings-tabs"; // ★2026-11-16（■8）: 6 タブの並び
 
 export const dynamic = "force-dynamic";
 
@@ -79,7 +78,7 @@ export default async function MasterStoreProfilePage({ searchParams }: { searchP
   return (
     <div className="nox-mv1">
       <MasterPageHead eyebrow={head.eyebrow} title={head.title} desc={head.desc} />
-      {tab !== "data" && <StoreSettingsTabs current={tab} />}
+      {/* ★2026-11-16（相談役・Agoora 14:41 の確認）: タブの並びは 1 つだけ＝ページの上のマスタの共通のタブ（MASTER_NAV の店舗設定の tabs）。見出しの下に足していた同じ 7 つの並びは外した */}
       {/* ★2026-11-16（■8）: 各パネルは中身を変えていない（StoreProfilePanel は節の鍵を細かくしただけ）＝保存する値と RPC は不変。対応表＝docs/tmp/settings_map_1116.md */}
       {tab === "info" && <StoreProfilePanel stores={stores} isOwner={isOwner} sections={["profile"]} />}
       {tab === "register" && <StoreProfilePanel stores={stores} isOwner={isOwner} sections={["opsReg"]} />}

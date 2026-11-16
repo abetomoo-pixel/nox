@@ -7,8 +7,7 @@
  *  st(4) 保存する値と RPC は不変（set_store_profile の呼び口 1 つ・patchOf は節を見ない）。
  */
 import fs from "node:fs";
-import { storeProfileTabOf, STORE_PROFILE_TABS6 } from "../lib/nox/master/nav";
-import { STORE_SETTINGS_TAB_LABELS } from "../app/(manage)/master/store-settings-tabs";
+import { storeProfileTabOf, STORE_PROFILE_TABS6, MASTER_NAV } from "../lib/nox/master/nav";
 
 let pass = 0;
 const fails: string[] = [];
@@ -16,7 +15,9 @@ function check(label: string, ok: boolean, detail?: unknown) { if (ok) pass++; e
 const src = (p: string) => fs.readFileSync(p, "utf8");
 const pg = src("app/(manage)/master/store-profile/page.tsx"), sp = src("app/(manage)/master/store-profile-panel.tsx"), mp = src("app/(manage)/master/manager-punch-panel.tsx");
 
-check("st(1-1) 6 タブ（＋LINE）の並びと名前", JSON.stringify(STORE_SETTINGS_TAB_LABELS.map(([k, l]) => `${k}:${l}`)) === JSON.stringify(["info:店舗情報", "register:レジ", "shift:シフトと打刻", "pay:給与", "mine:キャスト画面", "tax:税と請求", "line:LINE 連携"]) && JSON.stringify(STORE_PROFILE_TABS6) === JSON.stringify(["info", "register", "shift", "pay", "mine", "tax"]));
+const spTabs = MASTER_NAV.flatMap((g) => g.pages).find((p) => p.href === "/master/store-profile")?.tabs ?? [];
+check("st(1-1) 6 タブ（＋LINE）の並びと名前（マスタの共通のタブ）", JSON.stringify(spTabs.map((x) => `${x.href.split("tab=")[1]}:${x.label}`)) === JSON.stringify(["info:店舗情報", "register:レジ", "shift:シフトと打刻", "pay:給与", "mine:キャスト画面", "tax:税と請求", "line:LINE 連携"]) && JSON.stringify(STORE_PROFILE_TABS6) === JSON.stringify(["info", "register", "shift", "pay", "mine", "tax"]));
+check("st(1-3) ★タブの並びは 1 つだけ（2026-11-16 相談役）＝ページは自前の並び（StoreSettingsTabs・nox-segtabs）を描かない・上のマスタの共通のタブだけ", !pg.includes("StoreSettingsTabs") && !pg.includes("nox-segtabs") && !fs.existsSync("app/(manage)/master/store-settings-tabs.tsx"));
 check("st(1-2) 既定＝店舗情報・旧 features＝給与", storeProfileTabOf(undefined) === "info" && storeProfileTabOf("features") === "pay" && storeProfileTabOf("zzz") === "info");
 const KEYS = ["profile", "payprof", "regprof", "data", "timeBasis", "shift", "ar", "opsTax", "opsPay", "opsReg", "opsShift"];
 const used = new Set([...pg.matchAll(/sections=\{\["([a-zA-Z]+)"\]\}/g)].map((m) => m[1]));
