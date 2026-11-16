@@ -91,6 +91,7 @@
     "verify:nox-plan1116": "tsx scripts/verify-nox-plan1116.ts",
     "verify:nox-settings1116": "tsx scripts/verify-nox-settings1116.ts",
     "verify:nox-noshift1116": "tsx scripts/verify-nox-noshift1116.ts",
+    "verify:nox-demo-frozen": "tsx scripts/verify-nox-demo-frozen.ts",
     "verify:nox-billing-app": "tsx scripts/verify-nox-billing-app.ts",
     "verify:nox-product-back-modes": "tsx scripts/verify-nox-product-back-modes.ts",
     "verify:nox-r2b": "tsx scripts/verify-nox-r2b.ts",

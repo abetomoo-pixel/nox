@@ -262,7 +262,7 @@ export async function afterResetHooks(admin: SupabaseClient, orgId: string, _biz
   //   payload には入れない（payroll_runs は正規経路＝payroll_run_create で当月の draft run を作り payroll_adjustment_add）。他の 5 店は無し。失敗しても reset は成功扱い（fine.status に理由）。
   out.fine = await demoLateFineForAce(admin, orgId, _bizDate).catch((e) => ({ status: "failed" as const, reason: e instanceof Error ? e.message : String(e), ms: 0 }));
   // ★便 NR-1 B⑤（裁定428 候補・2026-10-26）: 定休日の曜日に入った shifts／shift_wishes を落とす（payload の日付は {$rel}＝曜日は reset 日で決まるため生成器では落とせない）。全デモ店・admin・失敗しても reset は成功扱い
-  out.closedDays = await demoDropClosedDayShifts(admin, orgId).catch((e) => ({ stores: 0, shifts: 0, wishes: 0, reason: e instanceof Error ? e.message : String(e) }));
+  out.closedDays = await demoDropClosedDayShifts(admin, orgId, _bizDate).catch((e) => ({ stores: 0, shifts: 0, wishes: 0, reason: e instanceof Error ? e.message : String(e) }));
   // ★便 ON-2（裁定418 CANON 型・2026-10-26）: reward_axis='pay_rate' のプラン（デモ MUSE）に同伴バックの時間帯（plan_rate_bands）と W 別規定（plan_norm_tiers）を入れる＝c_load に無い表（0175 v2 の新表）
   out.canon = await demoCanonBandsFor(admin, orgId).catch((e) => ({ plans: 0, bands: 0, tiers: 0, reason: e instanceof Error ? e.message : String(e) }));
   return out;
@@ -288,20 +288,25 @@ export async function demoCanonBandsFor(admin: SupabaseClient, orgId: string): P
 }
 
 /** ★便 NR-1 B⑤: 店の定休日（store_business_hours.is_closed）の曜日に入っている shifts／shift_wishes を削除（デモ reset の後処理・自動削除は demo だけ＝本番の店は店長が消す／残すを選ぶ） */
-export async function demoDropClosedDayShifts(admin: SupabaseClient, orgId: string): Promise<NonNullable<AfterResetResult["closedDays"]>> {
+// ★B3（2026-11-16 相談役・CC の推奨 1）: 消すのは**今日（営業日）以降**の日の行だけ＝過去の定休日の確定シフト（先月の確定＝凍結の明細の元）は残す（「定休日の実出勤」と同じ扱い）。
+//   旧＝日付を問わず全部消していた＝確定の後に消すので、凍結の明細（日曜の時間給を含む）と DB（日曜のシフトなし）が食い違った（2026-11-16 るなの再現で発覚）。
+export function closedDayRowsToDropOf(rows: readonly { id: string; date: string }[], closedDows: ReadonlySet<number>, todayBiz: string): string[] {
+  const dowOf = (ymd: string) => { const [y, m, d] = ymd.split("-").map(Number); return new Date(Date.UTC(y, m - 1, d)).getUTCDay(); };
+  return rows.filter((r) => r.date >= todayBiz && closedDows.has(dowOf(r.date))).map((r) => r.id);
+}
+export async function demoDropClosedDayShifts(admin: SupabaseClient, orgId: string, todayBiz: string): Promise<NonNullable<AfterResetResult["closedDays"]>> {
   const out = { stores: 0, shifts: 0, wishes: 0 };
   const { data: bh, error: eBh } = await admin.from("store_business_hours").select("store_id, dow").eq("org_id", orgId).eq("is_closed", true);
   if (eBh) throw new Error(`store_business_hours: ${eBh.message}`);
   const closedByStore = new Map<string, Set<number>>();
   for (const r of (bh ?? []) as { store_id: string; dow: number }[]) (closedByStore.get(r.store_id) ?? closedByStore.set(r.store_id, new Set()).get(r.store_id)!).add(r.dow);
-  const dowOf = (ymd: string) => { const [y, m, d] = ymd.split("-").map(Number); return new Date(Date.UTC(y, m - 1, d)).getUTCDay(); };
   for (const [storeId, dows] of closedByStore) {
     if (dows.size === 0) continue;
     out.stores++;
     for (const t of ["shifts", "shift_wishes"] as const) {
       const { data: rows, error } = await admin.from(t).select("id, date").eq("store_id", storeId);
       if (error) throw new Error(`${t}: ${error.message}`);
-      const ids = ((rows ?? []) as { id: string; date: string }[]).filter((r) => dows.has(dowOf(r.date))).map((r) => r.id);
+      const ids = closedDayRowsToDropOf((rows ?? []) as { id: string; date: string }[], dows, todayBiz); // ★B3: 今日以降だけ
       if (ids.length === 0) continue;
       const { error: eDel } = await admin.from(t).delete().in("id", ids);
       if (eDel) throw new Error(`${t} delete: ${eDel.message}`);
