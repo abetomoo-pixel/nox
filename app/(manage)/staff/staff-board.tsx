@@ -33,7 +33,8 @@ import { photoActionLabelOf, removeUserPhoto, signUserPhotos, uploadUserPhoto } 
 import { mig0183On, mig0190On, rules0175On } from "@/lib/nox/rules-0175/flag"; // ★追補 3 R-8 // ★便 M-9（0183） // ★0190（裁定436 ①c）: 在籍解除の失効（route）
 import { ownerOnlyNoteOf, roleChangeTargetsOf, roleChangeTextOf, roleLabelOf, rolePillKindOf, staffListRolesOf } from "@/lib/nox/rules-0175/roles";
 import { INVITE_STATE_LABEL, LOGIN_METHOD_NOTE, LOGIN_METHOD_OPTIONS, inviteErrJa, inviteExpiryTextOf, inviteFormErrorOf, inviteStateOf, type LoginMethod } from "@/lib/nox/people/invite"; // ★便 ON-3（0176 ★2 I-1）: 登録→招待の 2 段
-import { LINE_BIND_NOTE, liffBindUrlOf, siteOriginOf } from "@/lib/nox/line/liff-endpoint";
+import { liffBindUrlOf, siteOriginOf } from "@/lib/nox/line/liff-endpoint";
+import LineBindLink from "@/components/nox/line-bind-link"; // ★2026-11-16 夜（N6）: 招待リンクの QR
 import ContractChip from "@/components/nox/contract-chip"; // ★便 D M-99 // ★便 ON-3（0176 ★1 401）: LINE 連携のリンク
 import ContactChangesPanel from "@/components/nox/contact-changes-panel"; // ★便 ON-3（0176 ★4 400）: 連絡先の変更（未確認） // ★追補 3 R-8（裁定425 候補）: 役割「管理者」
 import { errJa } from "@/lib/nox/errors"; // ★裁定467（M-126）: 利用者向けの文言は辞書 1 本
@@ -497,11 +498,10 @@ export default function StaffBoard({
                 <span style={{ fontSize: 12.5, color: lineLinked.has(sel.id) ? "var(--ok)" : "var(--sub)" }}>{lineLinked.has(sel.id) ? "連携済み（LINE に通知が届きます）" : "未連携"}</span>
                 {!isDemo && <button id="staff-edit-line-bind" type="button" style={btnGhost} disabled={busy} onClick={() => void issueBind(sel)}>{lineLinked.has(sel.id) ? "別の LINE に付け替えるリンク" : "連携のリンクを発行"}</button>}
               </div>
-              {bindUrl && (
-                <div style={{ display: "grid", gap: 4, marginTop: 6 }} data-staff-line-bind-url="1">
-                  <span style={{ fontSize: 12, wordBreak: "break-all" }}>{bindUrl}</span>
-                  <span style={{ display: "flex", gap: 8 }}><button type="button" style={btnGhost} onClick={() => { void navigator.clipboard?.writeText(bindUrl).then(() => setBindCopied(true)).catch(() => undefined); }}>{bindCopied ? "コピーしました ✓" : "リンクをコピー"}</button></span>
-                  <span style={{ ...t.sub }}>{LINE_BIND_NOTE}</span>
+              {bindUrl && (/* ★2026-11-16 夜（N6）: リンクの横に QR（左に QR・右にリンクとコピー）・閉じたら消える */
+                <div style={{ marginTop: 6 }}>
+                  <LineBindLink url={bindUrl} copied={bindCopied} buttonStyle={btnGhost} dataAttr="data-staff-line-bind-url"
+                    onCopy={() => { void navigator.clipboard?.writeText(bindUrl).then(() => setBindCopied(true)).catch(() => undefined); }} />
                 </div>
               )}
             </FieldStack>

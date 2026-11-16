@@ -47,7 +47,8 @@ const CAST_RELOAD_COLS: string = okuriTiersOn() ? "id, name, user_id, photo_upda
 import { rules0175On } from "@/lib/nox/rules-0175/flag"; // ★便 P175-prep P-4
 import AvailabilityEditor from "@/components/nox/availability-editor"; // ★便 P175-prep P-4（裁定397＋413）: 基本の働き方
 import ContactChangesPanel from "@/components/nox/contact-changes-panel"; // ★便 ON-3（0176 ★4 400）: 連絡先の変更（未確認）
-import { LINE_BIND_NOTE, liffBindUrlOf, siteOriginOf } from "@/lib/nox/line/liff-endpoint";
+import { liffBindUrlOf, siteOriginOf } from "@/lib/nox/line/liff-endpoint";
+import LineBindLink from "@/components/nox/line-bind-link"; // ★2026-11-16 夜（N6）: 招待リンクの QR
 import ContractChip from "@/components/nox/contract-chip"; // ★便 D M-99 // ★便 ON-3（0176 ★1 401）: LINE 連携のリンク
 import Picker from "@/components/nox/picker"; // ★裁定306-13: 待遇プランの候補（件数可変＝picker）
 import { isSystemOn } from "@/lib/nox/store-systems";
@@ -1622,12 +1623,9 @@ export default function CastsBoard({
                     {isDemo ? <span style={{ fontSize: 11, color: "var(--v2-muted)" }}>デモでは連携できません</span>
                       : <button style={btnGhost} disabled={busy} onClick={() => void issueBind(selCast)}>{lineLinked.has(selCast.id) ? "付け替えのリンク" : "連携のリンクを発行"}</button>}
                   </span>
-                  {bindUrl && (
-                    <span style={{ display: "grid", gap: 4 }} data-cast-line-bind-url="1">
-                      <span style={{ fontSize: 12, wordBreak: "break-all" }}>{bindUrl}</span>
-                      <span><button type="button" style={btnGhost} onClick={() => { void navigator.clipboard?.writeText(bindUrl).then(() => setBindCopied(true)).catch(() => undefined); }}>{bindCopied ? "コピーしました ✓" : "リンクをコピー"}</button></span>
-                      <span style={{ fontSize: 11.5, color: "var(--sub)" }}>{LINE_BIND_NOTE}</span>
-                    </span>
+                  {bindUrl && (/* ★2026-11-16 夜（N6）: リンクの横に QR（左に QR・右にリンクとコピー）・閉じたら消える */
+                    <LineBindLink url={bindUrl} copied={bindCopied} buttonStyle={btnGhost} dataAttr="data-cast-line-bind-url"
+                      onCopy={() => { void navigator.clipboard?.writeText(bindUrl).then(() => setBindCopied(true)).catch(() => undefined); }} />
                   )}
                 </span>
               </div>
