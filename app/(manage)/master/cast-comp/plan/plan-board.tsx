@@ -60,12 +60,14 @@ export default function PlanBoard({ storeId, isManagerUp, isOwner, sim, settings
   const [dirtyCounts, setDirtyCounts] = useState({ base: 0, backs: 0, slides: 0 });
   const sel = data.plans.find((p) => p.id === selId) ?? null;
   const headOf = (planId: string) => data.castPlans.filter((cp) => cp.plan_id === planId).length;
-  // ★U-2 是正1: 初回ロード時のみ先頭の有効プランを自動選択（「新規」で外した選択を上書きしない）。
+  // ★U-2 是正1: 初回ロード時のみ自動選択（「＋報酬プランを追加」で外した選択を上書きしない）。
+  //   ★2026-11-16（Agoora 確定 ■7）: 開いたときは店の既定のプラン（settings_json.default_plan_id）を選んだ状態。既定が無い・見つからない店は先頭の有効プラン（従来）
+  const defaultPlanId = typeof (settings as Record<string, unknown> | undefined)?.default_plan_id === "string" ? ((settings as Record<string, unknown>).default_plan_id as string) : null;
   const didInitSel = useRef(false);
   useEffect(() => {
     if (didInitSel.current || data.plans.length === 0) return;
     didInitSel.current = true;
-    const first = data.plans.find((p) => p.is_active);
+    const first = (defaultPlanId ? data.plans.find((p) => p.id === defaultPlanId) : undefined) ?? data.plans.find((p) => p.is_active);
     if (first && !selId) setSelId(first.id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data.plans]);
@@ -133,16 +135,18 @@ export default function PlanBoard({ storeId, isManagerUp, isOwner, sim, settings
       <div ref={stickyRef} style={{ position: "sticky", top: 0, zIndex: 20, background: "var(--bg)", paddingBottom: 8, marginBottom: 12, borderBottom: "1px solid var(--line)" }}>
         <section className="nox-cardtop" style={{ ...card, marginBottom: 8 }}>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-            {/* ★裁定253 R3: select 自体を見出し（.nox-plan-select）にし、右のプラン名テキストは出さない（二重表示の解消・バッジは残す） */}
-            <label style={{ fontSize: 12, color: "var(--sub)" }}>編集中プラン{" "}
-              <select value={selId ?? ""} onChange={(e) => setSelId(e.target.value === "" ? null : e.target.value)}
-                className="nox-plan-select" aria-label="編集中プラン">
-                <option value="">新規プラン…</option>
+            {/* ★2026-11-16（Agoora 確定 ■7）: プランはボタンの並びで選ぶ（select をやめた）・新しく作る入口は右の「＋報酬プランを追加」だけ・375 でも編集中のプラン名を 1 行で出す */}
+            <div style={{ flexBasis: "100%", minWidth: 0 }}>
+              <div style={{ fontSize: 12, color: "var(--sub)", marginBottom: 6 }} data-plan-editing="1">編集中：<b style={{ fontSize: 16, color: "var(--champ)", fontWeight: 900, overflowWrap: "anywhere" }}>{sel ? sel.name : "新しいプラン"}</b>{sel && sel.id === defaultPlanId && <span style={{ marginLeft: 6 }}>（店の既定）</span>}</div>
+              <div role="radiogroup" aria-label="編集するプラン" style={{ display: "flex", flexWrap: "wrap", gap: 6 }} data-plan-chips="1">
                 {data.plans.map((p) => (
-                  <option key={p.id} value={p.id}>{p.name}{!p.is_active ? "（無効）" : ""}</option>
+                  <button key={p.id} type="button" role="radio" aria-checked={p.id === selId} onClick={() => setSelId(p.id)} data-plan-chip={p.id}
+                    style={{ ...t.btnGhost, ...t.btnSm, minHeight: 36, ...(p.id === selId ? { borderColor: "var(--champ)", color: "var(--champ)", background: "rgba(201, 162, 74, .12)", fontWeight: 900 } : {}), ...(p.is_active ? {} : { opacity: 0.6 }) }}>
+                    {p.name}{p.id === defaultPlanId ? "（既定）" : ""}{!p.is_active ? "（無効）" : ""}
+                  </button>
                 ))}
-              </select>
-            </label>
+              </div>
+            </div>
             {sel ? (
               <>
                 {/* 状態バッジ＝読み取り専用（切替は右の 無効化/有効化 ボタン）。★裁定253 R3: プラン名の見出しテキストは削除（select が見出し） */}
@@ -158,7 +162,7 @@ export default function PlanBoard({ storeId, isManagerUp, isOwner, sim, settings
                 )}
               </>
             ) : (
-              <span style={{ fontSize: 13, fontWeight: 800, color: "var(--champ)" }}>新規プラン（基本・保証の保存で作成）</span>
+              <span style={{ fontSize: 13, fontWeight: 800, color: "var(--champ)" }}>新しいプラン（基本・保証の保存で作成）</span>
             )}
             {isOwner && (
               <span style={{ display: "inline-flex", gap: 8, marginLeft: "auto" }}>
