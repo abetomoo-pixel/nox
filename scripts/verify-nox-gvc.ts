@@ -120,7 +120,7 @@ const bl = src("lib/nox/payroll/breakdown-lines.ts"), col = src("lib/nox/payroll
     && trialPlanWarnOf("キャスト", TRIAL_PLAN_NAME) !== null && trialPlanWarnOf(TRIAL_KIND, TRIAL_PLAN_NAME) === null && trialPlanWarnOf("キャスト", "レギュラー") === null
     && trialDaysLeftChipOf(2) === "保証 あと2日" && trialDaysLeftChipOf(0) === "保証 今日まで" && trialDaysLeftChipOf(null) === null);
   check("gvc(5-5) C-14f 画面: 体入を追加＝cast_create（区分 体入）→set_cast_plan（体験入店）→set_cast_guarantee・本採用＝set_cast_plan（既定プラン）・プラン切替の警告・直接登録の既定はレギュラー",
-    cb.includes('supabase.rpc("cast_create", { ...args, p_kind: TRIAL_KIND })') && cb.includes('supabase.rpc("set_cast_plan", { p_cast_id: castId, p_plan_id: plan.id') && cb.includes('supabase.rpc("set_cast_guarantee", { p_cast_id: castId')
+    cb.includes('supabase.rpc("cast_create", { ...args, p_kind: TRIAL_KIND })') && cb.includes('supabase.rpc("set_cast_plan", { p_cast_id: castId, p_plan_id: planId') /* ★B2-1（2026-11-16）: 店の既定のプラン（体験入店は割り当てない） */ && !cb.slice(cb.indexOf("async function addTrialCast("), cb.indexOf("async function hireTrialCast(")).includes("set_cast_guarantee") /* ★B2-1: 保証の行は自動で作らない（詳細の保証時給の設定は残る） */
     && cb.includes("async function hireTrialCast(") && cb.includes('data-trial-hire="1"') && cb.includes("trialPlanWarnOf(selCast.kind,") && cb.includes('data-trial-days="1"') && cb.includes('useState<string>(fixedKind ?? "レギュラー")')
     && src("app/(manage)/casts/page.tsx").includes("joined_on, kind, employment"));
   const plan = buildSetupPlan as unknown;

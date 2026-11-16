@@ -733,7 +733,12 @@ export function payOf(input: PayInput): PayResult {
     ...stripUndefined(input.metrics),
   };
   // ★裁定490-4: 自由設計バックは体入の日の指標を引いた値で計算（metrics そのもの＝スライド・表示は減らさない）
-  const cbacks = customBacks(input.customBackDefs, tx?.metrics ? lessMetrics(metrics, tx.metrics) : metrics);
+  const cbacks0 = customBacks(input.customBackDefs, tx?.metrics ? lessMetrics(metrics, tx.metrics) : metrics);
+  // ★裁定490（B2-3・2026-11-16 相談役）: 自由設計の定額のバック（basis flat）は指標を引いても残る＝バック「なし」（tx あり）で、その期の出勤した日（実働 > 0）が全部体入の日（trialWageByDay にある日）なら 0。
+  //   体入の日と本採用の日が混ざる期は残す。tx が無い・出勤した日が 0 日＝従来のまま（1 バイト同値）
+  const attendedDs = tx ? dailyBase.filter((r) => r.hours > 0).map((r) => r.d) : [];
+  const allTrialFlat0 = !!tx && attendedDs.length > 0 && attendedDs.every((d) => input.trialWageByDay?.[d] !== undefined);
+  const cbacks = allTrialFlat0 ? cbacks0.map((c) => (c.basis === "flat" ? { ...c, amount: 0 } : c)) : cbacks0;
   const customTotal = cbacks.reduce((sum, c) => sum + c.amount, 0);
 
   // ── ★C1/C2 挙動段（裁定96 ①②③・mig0114/0115）: 行型コンポーネントの結線 ──

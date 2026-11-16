@@ -173,6 +173,8 @@ export default function CastsBoard({
   // ★X-13-6（便 X-13a）: 別キャストを開いたとき前回の編集 draft（源氏名・入店日）が残らないように＝sel が変わったら編集を閉じ draft を空に
   useEffect(() => { setProfEdit(false); setProfName(""); setProfJoined(""); }, [sel]);
   const [showAdd, setShowAdd] = useState(false);
+  // ★裁定490（12 点の 1・6・8＝B2-1・2026-11-16）: 「体入を追加」の開始日（既定＝今日・必須）と、店の既定のプランが無い店で選ぶプラン
+  const [trialAdd, setTrialAdd] = useState<{ start: string; planId: string | null }>({ start: new Date().toISOString().slice(0, 10), planId: null });
   // 月次2数値（相談役メモ②）＝現物確認の結果★どちらも新規 RPC なしで取れる:
   //   今月指名＝既存 get_cast_ranking（cast_id 付きで hon/jonai/dohan を返す・dashboard と同じ呼び方）
   //   今月出勤＝attendance を月範囲で引いて cast_id 別に数える（(cast_id,date) UNIQUE ゆえ行数＝日数）
@@ -515,30 +517,28 @@ export default function CastsBoard({
     return !error;
   }
 
-  // ★便 GV-C C-14f（GV-65・裁定396）: 「体入を追加」＝cast_create（区分 体入）→ set_cast_plan（体験入店・今日から）→ set_cast_guarantee（店設定の日数・体験入店の基本時給）。
+  // ★裁定490（12 点の 1・6・8＝B2-1・2026-11-16 相談役）: 「体入を追加」＝cast_create（区分 体入）→ set_cast_plan（**店の既定のプラン**・開始日から）→ set_cast_trial（開始日＝必ず入れる）。
+  //   体験入店プランは割り当てない（体入の間は店の既定のプランを持つ＝体入の時給で置き換え）・保証の行は自動で作らない（既にある行は残す）。既定のプランが無い店はプランを選ばせる（選べるプランが無い店は「先にプランを作ってください」）。
   //   新 RPC なし・非原子＝途中で失敗したら、どこまで済んだかを出して止める（キャストは登録済み＝詳細から続きを設定できる）。
-  const trialPlanOf = () => activePlans.find((p) => p.name === TRIAL_PLAN_NAME) ?? null;
+  const trialPlanOf = (sid: string) => { const dp = trialSettingsOf(stores.find((st) => st.id === sid)?.settings_json ?? null).defaultPlanId; return dp && activePlans.some((p) => p.id === dp) ? dp : null; };
   async function addTrialCast(args: Record<string, unknown>): Promise<boolean> {
-    const plan = trialPlanOf();
-    if (!plan) { setMsg(`「${TRIAL_PLAN_NAME}」プランが見つかりません（マスタ ▸ 待遇プランで作成してください）`); return false; }
     const sid = (args.p_store_id as string) || myStoreId || stores[0]?.id || "";
-    const ts = trialSettingsOf(stores.find((st) => st.id === sid)?.settings_json ?? null);
+    const planId = trialPlanOf(sid) ?? trialAdd.planId;
+    if (!planId) { setMsg(activePlans.some((p) => p.name !== TRIAL_PLAN_NAME) ? "体入の間のプランを選んでください（店の既定のプランが未設定です）" : TRIAL_HIRE_NO_PLAN_NOTE); return false; }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(trialAdd.start)) { setMsg("体入の開始日を入れてください"); return false; }
+    const planName = activePlans.find((p) => p.id === planId)?.name ?? "";
     setBusy(true); setMsg(null);
     const done: string[] = [];
     const stop = async (step: string, m: string) => { setMsg(`体入の追加を途中で止めました（${done.length ? `済み: ${done.join("・")}／` : ""}失敗: ${step}＝${rpcErrJa(m)}）`); setBusy(false); await reloadLoginCasts(); await loadPlans(); return false; };
     const c = await supabase.rpc("cast_create", { ...args, p_kind: TRIAL_KIND });
     if (c.error || !c.data) return stop("キャスト登録", c.error?.message ?? "no id");
     const castId = c.data as string; done.push("キャスト登録（在籍区分 体入）");
-    const p = await supabase.rpc("set_cast_plan", { p_cast_id: castId, p_plan_id: plan.id, p_overrides: {}, p_valid_from: today });
-    if (p.error) return stop(`プラン「${TRIAL_PLAN_NAME}」`, p.error.message);
-    done.push(`プラン「${TRIAL_PLAN_NAME}」`);
-    const r = trialGuaranteeRangeOf(today, ts.days);
-    const amount = plansById[plan.id]?.base ?? 0;
-    if (amount > 0) {
-      const g = await supabase.rpc("set_cast_guarantee", { p_cast_id: castId, p_amount: amount, p_start: r.start, p_end: r.end });
-      if (g.error) return stop("期限付き保証", g.error.message);
-      done.push(`保証 ¥${amount.toLocaleString()}（${mdOf(r.start)}〜${mdOf(r.end)}）`);
-    }
+    const p = await supabase.rpc("set_cast_plan", { p_cast_id: castId, p_plan_id: planId, p_overrides: {}, p_valid_from: trialAdd.start });
+    if (p.error) return stop(`プラン「${planName}」`, p.error.message);
+    done.push(`プラン「${planName}」（${mdOf(trialAdd.start)}から）`);
+    const tr = await supabase.rpc(SET_CAST_TRIAL_RPC, { p_cast_id: castId, p_wage: null, p_days: null, p_started_on: trialAdd.start });
+    if (tr.error) return stop("体入の開始日", tr.error.message);
+    done.push(`体入の開始日 ${mdOf(trialAdd.start)}`);
     setMsg(`体入を追加しました（${done.join("・")}）`);
     setBusy(false);
     await reloadLoginCasts(); await loadPlans();
@@ -965,9 +965,29 @@ export default function CastsBoard({
           <div className="nox-modalbody">
             <p style={{ ...t.sub, margin: "0 0 14px", lineHeight: 1.7 }}>
               {filter === "trial"
-                ? "在籍区分「体入」で登録し、待遇プラン「体験入店」と期限付き保証（店設定の日数）を一度に設定します。本採用は詳細から（店の既定プランへ切り替わります）。"
+                ? "在籍区分「体入」で登録し、店の既定のプランと体入の開始日を一度に設定します（体入の間は体入の時給で計算します）。保証時給は自動では付けません（要るときは詳細から）。本採用・見送りは詳細から。"
                 : "体入を経ずに直接登録します（実績はゼロから）。"}
             </p>
+            {filter === "trial" && (() => { /* ★裁定490（B2-1）: 開始日（必須・既定は今日）と、既定のプランが無い店のプランの選択 */
+              const sid = myStoreId || stores[0]?.id || "";
+              const dp = trialPlanOf(sid);
+              const cands = activePlans.filter((p) => p.name !== TRIAL_PLAN_NAME);
+              return (
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end", margin: "0 0 12px" }} data-trial-add-terms="1">
+                  <label style={{ display: "grid", gap: 2, fontSize: 12 }}>体入の開始日（必須）
+                    <DatePicker value={trialAdd.start} disabled={busy} onChange={(v) => setTrialAdd((x) => ({ ...x, start: v }))} width={150} ariaLabel="体入の開始日" />
+                  </label>
+                  {dp ? <span style={{ fontSize: 12, color: "var(--v2-muted)" }} data-trial-add-plan="default">体入の間のプラン：{activePlans.find((p) => p.id === dp)?.name}（店の既定）</span>
+                    : cands.length === 0 ? <span style={{ fontSize: 12, color: "var(--warning)" }} data-trial-add-plan="none">{TRIAL_HIRE_NO_PLAN_NOTE}</span>
+                    : <label style={{ display: "grid", gap: 2, fontSize: 12 }}>体入の間のプラン（店の既定が未設定）
+                        <select value={trialAdd.planId ?? ""} onChange={(e) => setTrialAdd((x) => ({ ...x, planId: e.target.value || null }))} disabled={busy} style={{ ...input, width: "auto" }} aria-label="体入の間のプラン" data-trial-add-plan="pick">
+                          <option value="">選んでください…</option>
+                          {cands.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                        </select>
+                      </label>}
+                </div>
+              );
+            })()}
             <RegisterForm
               key={filter} stores={stores} isOwner={isOwner} myStoreId={myStoreId} busy={busy}
               fixedKind={filter === "trial" ? TRIAL_KIND : undefined}

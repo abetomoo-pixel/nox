@@ -525,6 +525,17 @@ eq("補足 castPts（玲奈=308pt）", castPts(REINA, 110), 308);
   const sb = { month: "2026-10", sales: 3600000, pts: 0 };
   const r12 = payOf({ ...base15, slideByDay: { 3: sb, 4: sb }, trialWageByDay: { 1: 2200, 2: 2200 } });
   eq("T15-12（裁定490-11）体入の間の売上は本採用のあとのスライドの段に入る＝体入の日はスライドなし 2,200・3〜4 日は前の月の合計で 3,000", r12.wdays.map((w) => w.hourly).join(","), "2200,2200,3000,3000");
+  // ★B2-3（2026-11-16 相談役）: 自由設計の定額のバック（basis flat）＝バックなしで出勤した日が全部体入の日なら 0・混ざる期は残す・バックなしでなければ残す
+  //   逆テスト（手動・1 回）＝pay.ts の allTrialFlat0 の every を some にする→T15-13b 赤・戻して緑
+  const FLAT = [{ id: "f1", name: "定額", basis: "flat" as const, value: 5000 }, { id: "s1", name: "売上", basis: "sales" as const, value: 1 }];
+  const r13 = payOf({ ...base15, customBackDefs: FLAT, trialWageByDay: allDays(2000), trialBackExclude: { ...exNone, metrics: { sales: 3600000 } } });
+  eq("T15-13 全日体入・バックなし＝定額 0・売上 1% も母数 0 で 0", `${r13.cbacks.map((c) => c.amount).join(",")}/${r13.customTotal}`, "0,0/0");
+  const r13b = payOf({ ...base15, customBackDefs: FLAT, trialWageByDay: { 1: 2000, 2: 2000 }, trialBackExclude: { ...exNone, hon: 4, jonai: 2, dohan: 1, drink: 1000, sales: 1800000, metrics: { sales: 1800000 } } });
+  eq("T15-13b 体入の日と本採用の日が混ざる期＝定額 5,000 は残す・売上 1% は本採用の日の分（1,800,000×1%＝18,000）", r13b.cbacks.map((c) => c.amount).join(","), "5000,18000");
+  const r13c = payOf({ ...base15, customBackDefs: FLAT, trialWageByDay: allDays(2000) });
+  eq("T15-13c 全日体入でもバック「同じ」（除外なし）＝定額 5,000 は残す", r13c.cbacks[0].amount, 5000);
+  const r13d = payOf({ ...base15, customBackDefs: FLAT });
+  eq("T15-13d 体入なし＝定額 5,000（従来）", r13d.cbacks[0].amount, 5000);
 }
 
 

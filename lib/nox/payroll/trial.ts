@@ -7,7 +7,7 @@ import type { Metrics, TrialBackExclude } from "../pay";
 export type TrialCastRow = {
   kind?: string | null; is_active?: boolean | null;
   trial_started_on?: string | null; joined_on?: string | null; created_at?: string | null;
-  trial_ends_on?: string | null; trial_wage?: number | null;
+  trial_ends_on?: string | null; trial_wage?: number | null; left_on?: string | null;
 };
 /** 体入の期間（end null＝まだ続いている） */
 export type TrialRange = { start: string; end: string | null };
@@ -26,13 +26,18 @@ export function trialStartOf(c: TrialCastRow): string | null {
  * 体入の期間（無ければ null）。
  * - 終わる日＝casts.trial_ends_on（0201l）。null で区分が体入かつ在籍中＝まだ続いている（end null）。null で区分が体入でない＝体入の日は無い。
  * - 終わる日が開始日より前＝体入の日は無い。
- * - ★12 点に無い場面＝終わる日が null・区分が体入・在籍でない（0201l の前に退店した体入など）＝体入の日は無いに倒す（従来の式と同値・報告に並べた）。
+ * - ★B2-2（2026-11-16 相談役）: 終わる日が null・区分が体入・在籍でない（「見送り」でなく「退店」で外した体入＝cast_leave は trial_ends_on を書かない）＝退店日があれば開始日〜退店日を体入の期間。退店日も無ければ体入の日は無い（従来の式）。
  */
 export function trialRangeOf(c: TrialCastRow): TrialRange | null {
   const start = trialStartOf(c);
   if (!start) return null;
   const end = c.trial_ends_on ?? null;
-  if (end === null) return c.kind === TRIAL_KIND && c.is_active === true ? { start, end: null } : null;
+  if (end === null) {
+    if (c.kind !== TRIAL_KIND) return null;
+    if (c.is_active === true) return { start, end: null };
+    const left = c.left_on ?? null;   // ★B2-2: 退店で外した体入＝退店日まで
+    return left !== null && left >= start ? { start, end: left } : null;
+  }
   return end < start ? null : { start, end };
 }
 

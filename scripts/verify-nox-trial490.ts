@@ -28,7 +28,9 @@ check("t(1-3) 終わる日 null・区分 体入でない＝無い", trialRangeOf
 check("t(1-4) 本採用（区分 キャスト・終わる日あり）＝開始〜終わる日", JSON.stringify(trialRangeOf({ kind: "キャスト", is_active: true, trial_started_on: "2026-10-01", trial_ends_on: "2026-10-10" })) === JSON.stringify({ start: "2026-10-01", end: "2026-10-10" }));
 check("t(1-5) 見送り（体入・在籍でない・終わる日＝判断の日）＝開始〜判断の日", JSON.stringify(trialRangeOf({ kind: "体入", is_active: false, trial_started_on: "2026-10-01", trial_ends_on: "2026-10-03" })) === JSON.stringify({ start: "2026-10-01", end: "2026-10-03" }));
 check("t(1-6) 終わる日が開始日より前＝無い（今日から本採用で前日＝開始の前日）", trialRangeOf({ kind: "キャスト", is_active: true, trial_started_on: "2026-10-05", trial_ends_on: "2026-10-04" }) === null);
-check("t(1-7) ★12 点に無い場面＝終わる日 null・体入・在籍でない＝無い（従来の式）", trialRangeOf({ kind: "体入", is_active: false, trial_started_on: "2026-10-01", trial_ends_on: null }) === null);
+check("t(1-7) 終わる日 null・体入・在籍でない・退店日も無い＝無い（従来の式）", trialRangeOf({ kind: "体入", is_active: false, trial_started_on: "2026-10-01", trial_ends_on: null }) === null);
+check("t(1-8) ★B2-2（2026-11-16）: 「退店」で外した体入（終わる日 null・在籍でない・退店日あり）＝開始日〜退店日・退店日が開始日より前は無い", JSON.stringify(trialRangeOf({ kind: "体入", is_active: false, trial_started_on: "2026-10-01", trial_ends_on: null, left_on: "2026-10-12" })) === JSON.stringify({ start: "2026-10-01", end: "2026-10-12" })
+  && trialRangeOf({ kind: "体入", is_active: false, trial_started_on: "2026-10-05", left_on: "2026-10-01" }) === null && trialRangeOf({ kind: "キャスト", is_active: false, trial_started_on: "2026-10-01", left_on: "2026-10-12" }) === null);
 
 // t(2)
 check("t(2-1) 本人＞店", trialWageOf(2400, 2000) === 2400 && trialWageOf(null, 2000) === 2000 && trialWageOf(undefined, undefined) === null && trialWageOf(0, 2000) === 0);
@@ -98,6 +100,9 @@ check("t(6-8) 本採用の画面＝「新しいプランは次の給与期から
 check("t(6-9) 既定のプランが無く候補も無い店＝「先にプランを作ってください」（12 点の 12・本採用のボタンを出さない）", cb.includes("cands.length === 0 ? (") && cb.includes("{TRIAL_HIRE_NO_PLAN_NOTE}") && tt.includes('export const TRIAL_HIRE_NO_PLAN_NOTE = "先にプランを作ってください";'));
 const tf = src("lib/nox/cast/trial-flow.ts");
 check("t(6-10) 体入タブ＝フラグ 0201c のときは区分で見る（体入の間は店の既定のプランを持つ＝12 点の 1）", tf.includes("if (mig0201cOn()) return c.is_active && c.kind === TRIAL_KIND;"));
+check("t(6-12) ★B2-1（12 点の 1・6・8）: 「体入を追加」＝店の既定のプラン（体験入店は割り当てない）・開始日を set_cast_trial で必ず記録・保証の行は作らない・既定が無い店はプランを選ばせる",
+  cb.includes("const planId = trialPlanOf(sid) ?? trialAdd.planId;") && cb.includes('const tr = await supabase.rpc(SET_CAST_TRIAL_RPC, { p_cast_id: castId, p_wage: null, p_days: null, p_started_on: trialAdd.start });')
+  && cb.includes('p_plan_id: planId, p_overrides: {}, p_valid_from: trialAdd.start });') && !cb.slice(cb.indexOf("async function addTrialCast("), cb.indexOf("async function addTrialCast(") + 3000).includes("set_cast_guarantee") && cb.includes('data-trial-add-plan="pick"') && cb.includes('data-trial-add-plan="none">{TRIAL_HIRE_NO_PLAN_NOTE}'));
 const gd = src("scripts/demo/gen-demo.mjs");
 check("t(6-11) (a) デモの体入のキャストの待遇プラン＝店の既定のプラン（3 行とも）・店の体入の時給＝今までの体験入店の基本", (gd.match(/plan_id: trialHoldPlanId,/g) ?? []).length === 3 && gd.includes("trial_wage: TRIAL[code]?.base"));
 
