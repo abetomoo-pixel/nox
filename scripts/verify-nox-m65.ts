@@ -31,7 +31,7 @@ check("m65(1-3) (b) まとめて追加＝同じ判定（judgeOf）・日セル�
   saf.includes("const judgeOf = (ymd: string) => { const w = wishOf(ymd); return dayCastStateOf(") && saf.includes('data-day-avail-mark="ng"') && saf.includes('data-day-avail-mark="ask"') && saf.includes('data-day-avail-mark="ng-has"')
   && saf.split("if (availNgOf(ymd)").length === 3 && saf.includes('className="nox-bulkadd-btns nox-actions"') && !saf.includes('style={{ marginLeft: "auto", display: "inline-flex", gap: 9 }}'));
 check("m65(1-4) 配線＝shift-board が availability（membership か cast_id）を cast_id に写して DayAddPanel（日タブ）と ShiftAddForm に渡す",
-  sb.includes('supabase.from("availability").select("membership_id, cast_id, dow, avail, from_min, to_min").eq("store_id", storeId)') /* ★M-91: +時刻 */ && sb.includes("availByCast={availByCast}") && sb.split("availByCast={availByCast}").length === 3);
+  sb.includes('supabase.from("availability").select("membership_id, cast_id, dow, avail, from_min, to_min").eq("store_id", storeId)') /* ★M-91: +時刻 */ && sb.includes("availByCast={availByCast}") && sb.split("<DayAddPanel ").length - 1 === 4 && sb.split(/\r?\n/).filter((l) => l.includes("<DayAddPanel ")).every((l) => l.includes("availByCast={availByCast} availTimeByCast={availTimeByCast}")) && sb.includes("<ShiftAddForm") /* ★2026-11-16（A-6）: 日のセルの 3 つの DayAddPanel にも渡す＝4 か所すべて */);
 // ── M-66
 check("m66(2-1) 基本の働き方の キャンセル／保存＝中央（.nox-actions の既定・flex-end なし）", src("components/nox/availability-editor.tsx").includes('<div className="nox-actions" data-avail-actions="1">') && !src("components/nox/availability-editor.tsx").includes('justifyContent: "flex-end"'));
 // ── M-67
