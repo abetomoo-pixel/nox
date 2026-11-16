@@ -5882,6 +5882,12 @@ CC の処置＝M-130（下の節）。
 - 仮置き 3（cast_trial_decide の 1 関数）＝承認・保証の期間中は裁定484（案 2）。
 - 判断 1（体入の時給を給与に当てる式）＝まだ決めない＝裁定480 の 3 の本文と式の案 2 つ（体入の時給で置き換え／保証と同じ max）の試算（デモの体入のキャスト 1 人・1 か月）を報告。実装しない。
 
+## 0201l 本番適用（2026-11-16・Agoora 手貼り・相談役の合図）体入の条件が終わる日（裁定490-7）
+- sha256 d0c54569c3254b807d5363801bd4b2f667fa4e2026e9635ecfa8cb9591a54c9e・64 行（相談役の照合＝SQL の直しなし・本文 5・8 行目のコメント「関数 449」は直さず）。事前確認＝0201l_precheck.sql（d3cd6667…＝450 の版）。試走＝try_0201l.mjs 12/12（11/16 11:06 JST・tx 1,518 ms・前後 450／122・DB 変更 0）。
+- 検証 8 行（dfe3e8af…）＝Agoora の返りが全行一致・CC の読取（11/16 11:13 JST・begin read only）でも全行一致（関数 450・表 122・casts.trial_ends_on date・値の入った行 0・cast_trial_decide の md5 c79390c8・本採用／見送りで trial_ends_on を書く yes・anon/authenticated＝false/true）。casts は 21 列。
+- 収蔵＝supabase/migrations/0201l_trial_ends.sql（sha 一致）。体入の式の結線（collect・assemble・裁定500-2）はこの後の便。
+- 本番＝関数 450・表 122。
+
 ## 0201m 本番適用（2026-11-16・Agoora 手貼り・相談役の合図）
 - sha256 e9dd91a66b8ffb96dd5fb3edafad784860958af40ec4aa78596b856625dc192b・36 行（相談役の照合＝SQL の直しなし）。事前確認＝0201m_precheck.sql（cf6edbb1…）。検証 7 行＝Agoora の返りが全行一致・CC の読取（11/16）でも全行一致（関数 450・表 122・kiosk_unlock_people の anon/authenticated＝false/true・security definer＋stable・kiosk_login と同じ範囲・返りの型 TABLE(membership_id uuid, user_name text, role text)）。
 - 収蔵＝supabase/migrations/0201m_kiosk_unlock_people.sql（sha 一致）。画面（端末のロック中の「名前を選んで入る」の一覧を kiosk_staff_list から kiosk_unlock_people へ・キャスト／オーナーの役割の表示・空のときの文・関数数の pin 449→450・grants の名簿・anon-guard・課金ゲート対象の文書）は**画面の便（未）**。
