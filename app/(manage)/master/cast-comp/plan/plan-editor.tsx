@@ -562,8 +562,14 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
         </details>
         {/* ★裁定343（0170・便 W5-2b）: 判定基準（売上／本指名の件数／同伴の件数）と対象ランク（空＝全員）＝プランの属性（set_comp_plan 25 引数）。338 の判定期間とは直交。対象外のキャストは基本率のまま */}
         <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 8px", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          <span>判定基準:</span>
-          <SegSelect value={draft.slideBasis} disabled={!isOwner} ariaLabel="売上スライドの判定基準" onChange={(v) => d({ slideBasis: v as SlideBasis })} options={[["sales", "売上（既定）"], ["hon_count", "本指名の件数"], ["dohan_count", "同伴の件数"]] as const} />{/* ★M-82 */}
+          {/* ★2026-11-16 夜（Agoora 承認「外して良い」）: 売上スライドは売上だけ＝判定基準（本指名の件数／同伴の件数）の選択を外した。件数で評価したい店はポイント（本指名・同伴に pt）で。
+              すでに件数で決めているプラン（デモの NOIR 3 プラン）は保存しても今の決め方のまま（勝手に変えない）＝下の 1 行と「売上で決める形にする」で本人が切り替える。式・RPC・DB は不変 */}
+          {draft.slideBasis !== "sales" && (
+            <span data-slide-basis-legacy={draft.slideBasis} style={{ flexBasis: "100%", color: "var(--warn, var(--bad))" }}>
+              このプランは「{SLIDE_BASIS_LABEL[draft.slideBasis]}」で段を決めています（件数で決める形は新しく選べません・保存しても今のまま）。{" "}
+              {isOwner && <button type="button" className="nox-link" style={{ background: "none", border: 0, padding: 0, color: "var(--gold)", fontWeight: 700, cursor: "pointer" }} onClick={() => d({ slideBasis: "sales" })}>売上で決める形にする</button>}
+            </span>
+          )}{/* ★M-82 */}
           <span>対象ランク:</span>
           {ranks.length === 0 ? <span style={{ color: "var(--sub)" }}>ランク未登録＝全員</span> : ranks.map((r) => (
             <label key={r.id} style={{ display: "inline-flex", gap: 4, alignItems: "center" }}>
