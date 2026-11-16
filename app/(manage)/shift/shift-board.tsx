@@ -2808,7 +2808,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                 ShiftAddForm へ送る旧導線（裁定44-4）は撤去＝キャスト起点はウィザード「＋ キャスト別にまとめて追加」へ。
                 ★status は planned（仮シフトの面＝これから組む段）＝今日タブの confirmed とは意図が違う。 */}
             {isManagerUp && (
-              <DayAddPanel date={selDate} casts={casts} photoUrls={photoUrls} bhRows={bhRows} wishes={wishAll} closed={isClosedDay(selDate)}
+              <DayAddPanel date={selDate} casts={casts} photoUrls={photoUrls} bhRows={bhRows} wishes={wishAll} closed={isClosedDay(selDate)} availByCast={availByCast} availTimeByCast={availTimeByCast} /* ★2026-11-16（A-6）: 日のセルの割当にも基本の働き方（相談・不可・時刻）＝今日の追加配置と同じ */
                 assignedCastIds={shiftsOn(selDate).map((s) => s.cast_id)}
                 onSaved={async () => { setMsg("配置を保存しました"); await load(); }}
                 onDirtyChange={setDayDirty} />
@@ -2891,7 +2891,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                   {isClosedDay(selDate) ? (
                     <button type="button" className="nox-addc" disabled style={{ opacity: 0.45 }} title="この日は定休日です">＋ キャストを追加（定休日）</button>
                   ) : (
-                    <DayAddPanel date={selDate} casts={casts} photoUrls={photoUrls} bhRows={bhRows} wishes={wishAll} closed={isClosedDay(selDate)}
+                    <DayAddPanel date={selDate} casts={casts} photoUrls={photoUrls} bhRows={bhRows} wishes={wishAll} closed={isClosedDay(selDate)} availByCast={availByCast} availTimeByCast={availTimeByCast} /* ★2026-11-16（A-6）: 日のセルの割当にも基本の働き方（相談・不可・時刻）＝今日の追加配置と同じ */
                       assignedCastIds={shiftsOn(selDate).map((s) => s.cast_id)}
                       onSaved={async () => { setMsg("確定シフトに追加しました"); await load(); }}
                       onDirtyChange={setDayDirty} />
@@ -2930,7 +2930,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                 裁定42 の confirmed は「当日その場で足すのは もう入る人」が根拠＝今日タブ限定なので
                 ここには当たらない。★裁定121: 追加はこの面で完結（DayAddPanel＝割当面と共通・ShiftAddForm へ送らない）。 */}
             {isManagerUp && (
-              <DayAddPanel date={selDate} casts={casts} photoUrls={photoUrls} bhRows={bhRows} wishes={wishAll} closed={isClosedDay(selDate)}
+              <DayAddPanel date={selDate} casts={casts} photoUrls={photoUrls} bhRows={bhRows} wishes={wishAll} closed={isClosedDay(selDate)} availByCast={availByCast} availTimeByCast={availTimeByCast} /* ★2026-11-16（A-6）: 日のセルの割当にも基本の働き方（相談・不可・時刻）＝今日の追加配置と同じ */
                 assignedCastIds={shiftsOn(selDate).map((s) => s.cast_id)}
                 onSaved={async () => { setMsg("配置を保存しました"); await load(); }}
                 onDirtyChange={setDayDirty} />

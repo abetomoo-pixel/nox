@@ -17,6 +17,8 @@ check("s(1-1) 出勤不可の登録がある日＝不可（why unavail_day）・
 check("s(1-2) 出勤不可の登録は希望より先（希望ありの人でも不可）", dayCastStateWithUnavailOf(dayCastStateOf([{ start_hm: "20:00", end_hm: "26:00" }], "ok"), "家の用事").state === "unavailable");
 check("s(1-3) 相談＝基本の働き方の曜日が相談（印だけ）", dayCastStateOf([], "ask").state === "consult" && dayCastStateOf([], "ask").why === null);
 check("s(1-4) 一覧を開いたとき、この日の出勤不可の登録をキャストごとに読む（cast_unavailable_list）", dp.includes('await supabase.rpc("cast_unavailable_list", { p_cast_id: c.id, p_from: date, p_to: date });') && dp.includes("dayCastStateWithUnavailOf(dayCastStateOf("));
+const sb = fs.readFileSync("app/(manage)/shift/shift-board.tsx", "utf8");
+check("s(1-5) ★A-6（2026-11-16 本番で発見）: 日のセルから開く割当（シフト配置・確定シフトの日）も基本の働き方を渡す＝DayAddPanel の 4 か所とも availByCast／availTimeByCast", (sb.match(/<DayAddPanel [^>]*availByCast={availByCast} availTimeByCast={availTimeByCast}/g) ?? []).length === 4 && (sb.match(/<DayAddPanel /g) ?? []).length === 4);
 check("s(2-1) 並び＝希望あり→シフトなし→相談→不可", dp.includes("const ORDER: Record<DayCastState, number> = { wish: 0, none: 1, consult: 2, unavailable: 3 };"));
 check("s(3-1) 不可（休み希望・曜日が不可・出勤不可の登録）は理由が必須＝保存を止める・相談は理由なし", dp.includes('needReason: st.why === "wish_off" || st.why === "avail_ng" || st.why === "unavail_day", reason: "" }]);') && dp.includes('const blocked = rows.some((r) => r.needReason && r.reason.trim() === "");') && dp.includes("if (busy || rows.length === 0 || blocked) return;"));
 check("s(3-2) 印＝不可（出勤不可の登録は理由も）・相談", dp.includes('{st.why === "unavail_day" && unavail.get(c.id) ? `（${unavail.get(c.id)}）` : ""}') && dp.includes('consult: { color: "var(--gold2)"'));
