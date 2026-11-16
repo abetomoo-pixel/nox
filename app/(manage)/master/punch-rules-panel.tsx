@@ -14,6 +14,7 @@ import SegSelect from "@/components/ui/seg-select";
 import { PUNCH_MODE_LABEL, SHIFT_GATE_LABEL, punchHardMissingOf, punchRulesFormErrOf, punchRulesPatchOf, type PunchRulesForm } from "@/lib/nox/punch/rules-form";
 import type { RestrictMode } from "@/lib/nox/punch/geofence";
 import { currentPositionOf } from "@/lib/nox/punch/self-client";
+import InfoTip from "@/components/ui/info-tip"; // ★2026-11-16（C）: 補足は項目の横の ⓘ（店舗情報のパネルと同じ形）
 
 type Store = { id: string; name: string };
 const EMPTY: PunchRulesForm = { enforce: false, mode: "gps", lat: "", lng: "", radius: "", ipCount: 0, requireShift: "off" };
@@ -104,16 +105,16 @@ export default function PunchRulesPanel({ stores, isOwner = false }: { stores: S
         )}
       </div>
       <div style={row}>
-        <div style={{ minWidth: 0, flex: "1 1 240px" }}><div style={rowLabel}>判定</div><p style={rowDesc}>ソフト＝条件に合わなくても記録を残して通す（勤怠に印）。ハード＝条件に合わないと打刻できない（理由を書けば通し、記録に残す）</p></div>
+        <div style={{ minWidth: 0, flex: "1 1 240px" }}><div style={rowLabel}>判定<InfoTip>ソフト＝条件に合わなくても記録を残して通す（勤怠に印）。ハード＝条件に合わないと打刻できない（理由を書けば通し、記録に残す）</InfoTip></div></div>
         <SegSelect value={form.enforce ? "hard" : "soft"} onChange={(v) => setForm((x) => ({ ...x, enforce: v === "hard" }))} options={[["soft", "ソフト"], ["hard", "ハード"]]} disabled={!canEdit} ariaLabel="判定" />
       </div>
       <div style={row}>
-        <div style={{ minWidth: 0, flex: "1 1 240px" }}><div style={rowLabel}>判定方法</div><p style={rowDesc}>位置か Wi-Fi＝どちらかが合えば打刻できる・位置と Wi-Fi＝両方が合わないと打刻できない。位置は端末の申告のため抑止と記録の意味が強い方法です。厳しくしたい店は Wi-Fi を含む方法を選んでください</p></div>
+        <div style={{ minWidth: 0, flex: "1 1 240px" }}><div style={rowLabel}>判定方法<InfoTip>位置か Wi-Fi＝どちらかが合えば打刻できる・位置と Wi-Fi＝両方が合わないと打刻できない。位置は端末の申告のため抑止と記録の意味が強い方法です。厳しくしたい店は Wi-Fi を含む方法を選んでください</InfoTip></div></div>
         <SegSelect value={form.mode} onChange={(v) => setForm((x) => ({ ...x, mode: v as RestrictMode }))} options={(["gps", "ip", "either", "both", "tablet"] as const).map((v) => [v, PUNCH_MODE_LABEL[v]] as const)} disabled={!canEdit} ariaLabel="判定方法" wrap style={{ flex: "1 1 100%", maxWidth: "100%", minWidth: 0 }} />
       </div>
       {needPos && (
         <div style={row} data-punch-pos="1">
-          <div style={{ minWidth: 0, flex: "1 1 240px" }}><div style={rowLabel}>店の位置と半径</div><p style={rowDesc}>店の中で「いまいる場所を使う」を押すと緯度・経度が入ります。半径は 10〜100000 m</p></div>
+          <div style={{ minWidth: 0, flex: "1 1 240px" }}><div style={rowLabel}>店の位置と半径<InfoTip>店の中で「いまいる場所を使う」を押すと緯度・経度が入ります。半径は 10〜100000 m</InfoTip></div></div>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
             <input aria-label="緯度" placeholder="緯度" inputMode="decimal" value={form.lat} onChange={(e) => setForm((x) => ({ ...x, lat: e.target.value }))} style={inp} disabled={!canEdit} />
             <input aria-label="経度" placeholder="経度" inputMode="decimal" value={form.lng} onChange={(e) => setForm((x) => ({ ...x, lng: e.target.value }))} style={inp} disabled={!canEdit} />
@@ -124,7 +125,7 @@ export default function PunchRulesPanel({ stores, isOwner = false }: { stores: S
       )}
       {needIp && (
         <div style={row} data-punch-wifi={String(ips.length)}>
-          <div style={{ minWidth: 0, flex: "1 1 240px" }}><div style={rowLabel}>店の Wi-Fi</div><p style={rowDesc}>店の Wi-Fi につないだ端末で「いまの Wi-Fi を登録」を押します（IP はサーバーで読み取ります）。いまの IP：<span className="num">{myIp ?? "—"}</span></p></div>
+          <div style={{ minWidth: 0, flex: "1 1 240px" }}><div style={rowLabel}>店の Wi-Fi<InfoTip>店の Wi-Fi につないだ端末で「いまの Wi-Fi を登録」を押します（IP はサーバーで読み取ります）。いまの IP：<span className="num">{myIp ?? "—"}</span></InfoTip></div></div>
           <div style={{ display: "grid", gap: 6, justifyItems: "end" }}>
             {ips.map((ip) => (
               <span key={ip} className="num" style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>{ip}
@@ -136,12 +137,12 @@ export default function PunchRulesPanel({ stores, isOwner = false }: { stores: S
         </div>
       )}
       <div style={row}>
-        <div style={{ minWidth: 0, flex: "1 1 240px" }}><div style={rowLabel}>予定外の打刻（出勤）</div><p style={rowDesc}>今日の確定シフトが無いキャストの出勤を、許可（記録しない）／記録して通す（勤怠に印）／禁止（確定シフトが無い日は出勤できない）のどれにするか</p></div>
+        <div style={{ minWidth: 0, flex: "1 1 240px" }}><div style={rowLabel}>予定外の打刻（出勤）<InfoTip>今日の確定シフトが無いキャストの出勤を、許可（記録しない）／記録して通す（勤怠に印）／禁止（確定シフトが無い日は出勤できない）のどれにするか</InfoTip></div></div>
         <SegSelect value={form.requireShift} onChange={(v) => setForm((x) => ({ ...x, requireShift: v as PunchRulesForm["requireShift"] }))} options={(["off", "warn", "block"] as const).map((v) => [v, SHIFT_GATE_LABEL[v]] as const)} disabled={!canEdit} ariaLabel="予定外の打刻" wrap style={{ flex: "1 1 100%", maxWidth: "100%", minWidth: 0 }} />
       </div>
       {msg && <Toast msg={msg} style={{ margin: "10px 0 0" }} />}
       {isOwner && (
-        <div className="nox-actions" style={{ marginTop: 12, alignItems: "center" }}>
+        <div className="nox-actions nox-settings-save" data-settings-save="1" style={{ marginTop: 12, alignItems: "center" }}>
           {(formErr || missing) && <span data-punch-save-block="1" style={{ fontSize: 12.5, color: "var(--bad)" }}>{formErr ?? missing}</span>}
           <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} disabled={busy || !dirty} onClick={() => { setForm(cur); setMsg(null); }}>元に戻す</button>
           <button type="button" style={{ ...t.btnGold, ...t.btnSm }} disabled={!canEdit || !dirty || !!formErr || !!missing} onClick={() => void save()}>打刻の設定を保存</button>

@@ -11,6 +11,7 @@ import * as t from "@/lib/nox/ui/theme";
 import Toast from "@/components/ui/toast";
 import SegSelect from "@/components/ui/seg-select";
 import { MINE_SETTINGS_DEFAULT, MINE_SETTING_LABEL, PAYSLIP_VISIBILITY_LABEL, SHIFT_REQUEST_MODE_LABEL, mineSettingsErrJa, mineSettingsOf, mineSettingsPatchOf, type MineSettings, type PayslipVisibility, type ShiftRequestMode } from "@/lib/nox/store/mine-settings";
+import InfoTip from "@/components/ui/info-tip"; // ★2026-11-16（C）: 補足は項目の横の ⓘ（店舗情報のパネルと同じ形）
 
 type Store = { id: string; name: string };
 type OnOffKey = "drink_claim" | "punch_correction_request" | "ranking" | "ranking_show_others" | "reservation_request";
@@ -63,8 +64,7 @@ export default function MineSettingsPanel({ stores, isOwner = false }: { stores:
   const onOffRow = (k: OnOffKey, disabled = false) => (
     <div key={k} data-onoff-row="1" data-off={form[k] ? "0" : "1"} style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap", borderTop: "1px solid var(--line2)", padding: "8px 0" }}>
       <div style={{ minWidth: 0, flex: "1 1 240px" }}>
-        <div className="nox-onoff-head" style={rowLabel}>{MINE_SETTING_LABEL[k]}</div>
-        <p className="nox-onoff-body" style={rowDesc}>{DESC[k]}</p>
+        <div className="nox-onoff-head" style={rowLabel}>{MINE_SETTING_LABEL[k]}<InfoTip>{DESC[k]}</InfoTip></div>
       </div>
       <OnOffSeg value={!!form[k]} onChange={(v) => setForm((f) => ({ ...f, [k]: v === true }))} disabled={busy || !loaded || disabled} ariaLabel={MINE_SETTING_LABEL[k]} />{/* ★便 GV-C C-9（GV-52） */}
     </div>
@@ -85,8 +85,7 @@ export default function MineSettingsPanel({ stores, isOwner = false }: { stores:
       </div>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap", padding: "8px 0" }}>
         <div style={{ minWidth: 0, flex: "1 1 240px" }}>
-          <div style={rowLabel}>{MINE_SETTING_LABEL.payslip_visibility}</div>
-          <p style={rowDesc}>キャスト本人に確定給与明細をどこまで出すか。「手取りと期のみ」は金額の内訳を出しません</p>
+          <div style={rowLabel}>{MINE_SETTING_LABEL.payslip_visibility}<InfoTip>キャスト本人に確定給与明細をどこまで出すか。「手取りと期のみ」は金額の内訳を出しません</InfoTip></div>
         </div>
         <SegSelect value={form.payslip_visibility} onChange={(v) => setForm((f) => ({ ...f, payslip_visibility: v as PayslipVisibility }))}
           options={(["off", "net_only", "detail"] as const).map((v) => [v, PAYSLIP_VISIBILITY_LABEL[v]] as const)} disabled={busy || !loaded} ariaLabel={MINE_SETTING_LABEL.payslip_visibility} />
@@ -103,14 +102,13 @@ export default function MineSettingsPanel({ stores, isOwner = false }: { stores:
       </div>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap", borderTop: "1px solid var(--line2)", padding: "8px 0" }}>
         <div style={{ minWidth: 0, flex: "1 1 240px" }}>
-          <div style={rowLabel}>{MINE_SETTING_LABEL.shift_request_mode}</div>
-          <p style={rowDesc}>「シフト希望」は出たい日と時間を提出。「休み希望のみ」は休みたい日だけ提出し、提出のない日は出勤できる日として扱います。「店が決める」は希望を集めず、店が配置して本人に通知します（シフト作成は 配置→公開 の 2 段）</p>
+          <div style={rowLabel}>{MINE_SETTING_LABEL.shift_request_mode}<InfoTip>「シフト希望」は出たい日と時間を提出。「休み希望のみ」は休みたい日だけ提出し、提出のない日は出勤できる日として扱います。「店が決める」は希望を集めず、店が配置して本人に通知します（シフト作成は 配置→公開 の 2 段）</InfoTip></div>
         </div>
         <SegSelect value={form.shift_request_mode} onChange={(v) => setForm((f) => ({ ...f, shift_request_mode: v as ShiftRequestMode }))}
           options={(["shift", "off_only", "store"] as const).map((v) => [v, SHIFT_REQUEST_MODE_LABEL[v]] as const)} disabled={busy || !loaded} ariaLabel={MINE_SETTING_LABEL.shift_request_mode} />{/* ★便 D M-96: 'store'＝店が決めて本人に通知（0191 ★4 で受理済み）＝シフト作成は 2 段・/mine は希望の提出なし */}
       </div>
       {msg && <Toast msg={msg} style={{ margin: "10px 0 0" }} />}
-      <div className="nox-actions" style={{ marginTop: 12 }}>
+      <div className="nox-actions nox-settings-save" data-settings-save="1" style={{ marginTop: 12 }}>
         <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} disabled={busy || !dirty} onClick={() => { setForm(cur); setMsg(null); }}>元に戻す</button>
         <button type="button" style={{ ...t.btnGold, ...t.btnSm }} disabled={busy || !dirty || !loaded} onClick={() => void save()}>キャスト画面の設定を保存</button>
       </div>

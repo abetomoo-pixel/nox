@@ -35,6 +35,11 @@ const tp = src("app/(manage)/master/trial-terms-panel.tsx"), css = src("app/glob
 check("st(5-1) ★B6: 補足は項目の横の ⓘ（InfoTip）＝店舗情報のパネルと体入の条件に、ラベルの後ろの補足の文（細字の span）が残っていない", !sp.includes("<span style={{ fontWeight: 400, marginLeft: 6 }}>") && !tp.includes("<span style={{ fontWeight: 400, marginLeft: 6 }}>") && (sp.match(/<InfoTip>/g) ?? []).length === 16 && (tp.match(/<InfoTip>/g) ?? []).length === 2 && src("components/ui/info-tip.tsx").includes("aria-expanded={open}"));
 check("st(5-2) ★B6: 特殊な設定は「詳しい設定」に畳む（略称・店舗コード・表示名／店の端末で本人がログインしたとき）", sp.includes('data-settings-fold="profile"') && sp.includes('data-settings-fold="kiosk-idle"') && css.includes(".nox-settings-fold > summary {"));
 check("st(5-3) ★B6: 保存はカードの下に固定（2 枚のカード）・文字と欄の大きさは初期設定（13px・最小 40px）に揃える範囲＝nox-settings", (sp.match(/className="nox-actions nox-settings-save"/g) ?? []).length === 2 && css.includes(".nox-settings-save { position: sticky;") && pg.includes('<div className="nox-mv1 nox-settings">') && css.includes(".nox-settings input:not([type=checkbox]):not([type=radio]), .nox-settings select, .nox-settings textarea { font-size: 13px; min-height: 40px; }"));
+{ const pr = src("app/(manage)/master/punch-rules-panel.tsx"), ms = src("app/(manage)/master/mine-settings-panel.tsx"), lc = src("app/(manage)/master/line-config-panel.tsx");
+  check("st(5-4) ★C（2026-11-16）: 打刻の設定・キャスト画面・LINE 連携も同じ形＝説明は ⓘ（リンクの説明は残す）・保存の帯・LINE の URL は詳しい設定に畳む・主ボタンは金の小（大きな主ボタンは無い）",
+    (pr.match(/<InfoTip>/g) ?? []).length === 5 && !pr.includes("<p style={rowDesc}>") && (ms.match(/<InfoTip>/g) ?? []).length === 3 && (ms.match(/style={rowDesc}/g) ?? []).length === 1 /* リンクの 1 つだけ */
+    && lc.includes('data-settings-fold="line-urls"') && lc.includes("<InfoTip>{LINE_NOTIFY_COUNT_NOTE}</InfoTip>") && !lc.includes("t.btnPrimary56")
+    && [pr, ms].every((x) => (x.match(/className="nox-actions nox-settings-save"/g) ?? []).length === 1) && (lc.match(/className="nox-actions nox-settings-save"/g) ?? []).length === 2); }
 check("st(4-1) RPC と保存の式は不変（set_store_profile の呼び口 1 つ・patchOf は節を見ない）", (sp.match(/rpc\("set_store_profile"/g) ?? []).length === 1 && !/const patchOf = \(\): Record<string, unknown> => \{[\s\S]*?on\("/.test(sp.slice(sp.indexOf("const patchOf"), sp.indexOf("const dirty"))));
 
 if (fails.length) {

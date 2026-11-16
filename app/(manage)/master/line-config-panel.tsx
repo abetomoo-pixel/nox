@@ -15,6 +15,7 @@ import { jstMonthOf, lineForecastOf, lineMonthLineOf, lineStatusOf, lineStatusTe
 import { LINE_NOTIFY_COUNT_NOTE, LINE_NOTIFY_DEFAULT, LINE_NOTIFY_KINDS, LINE_NOTIFY_LABEL, LINE_NOTIFY_OWNER_NOTE, LINE_NOTIFY_SAVE_PENDING_NOTE, LINE_NOTIFY_SAVED_MSG, lineNotifyOf, lineNotifyPatchOf, type LineNotifyKind } from "@/lib/nox/line/notify-kinds"; // ★M-114（裁定459）★0199（種類ごとの保存）
 import { mig0199On } from "@/lib/nox/rules-0175/flag"; // ★0199（M-114）: 保存は白名単 line_notify の後
 import { errJa } from "@/lib/nox/errors"; // ★裁定467（M-126）
+import InfoTip from "@/components/ui/info-tip"; // ★2026-11-16（C）: 補足は項目の横の ⓘ（店舗情報のパネルと同じ形）
 
 type Store = { id: string; name: string };
 
@@ -93,7 +94,8 @@ export default function LineConfigPanel({ stores, isOwner }: { stores: Store[]; 
           <select value={storeId} onChange={(e) => setStoreId(e.target.value)} style={t.input}>{stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
         </label>
       )}
-      <div className="nox-inset" style={{ padding: "10px 12px", marginBottom: 12, display: "grid", gap: 6 }} data-line-urls="1">
+      <details className="nox-settings-fold" style={{ marginBottom: 12 }} data-settings-fold="line-urls"><summary>詳しい設定（LINE Developers に貼る URL）</summary>{/* ★2026-11-16（C）: 特殊な設定は畳む */}
+      <div className="nox-inset" style={{ padding: "10px 12px", marginTop: 8, display: "grid", gap: 6 }} data-line-urls="1">
         <p style={{ margin: 0, fontSize: 12, fontWeight: 800, color: "var(--champ)" }}>LINE Developers に貼る URL（店ごとにチャネルを 2 つ＝Messaging API と LINE ログイン）</p>
         {([["LIFF エンドポイント URL（LINE ログインチャネル ＞ LIFF・サイズ Full・Scope openid）", liffEntryUrlOf(origin, storeId), "liff"], ["Webhook URL（Messaging API チャネル ＞ Webhook の利用 ON・応答メッセージ OFF）", webhookUrlOf(origin, storeId), "webhook"]] as const).map(([l, v, k]) => (
           <div key={k} style={{ display: "grid", gap: 2, fontSize: 12 }}>
@@ -103,6 +105,7 @@ export default function LineConfigPanel({ stores, isOwner }: { stores: Store[]; 
         ))}
         <p style={{ margin: 0, fontSize: 11.5, color: "var(--sub)" }}>状態: {lineLoginReadyOf(cfg) ? "ログイン可（チャネル ID・LIFF ID あり）" : "ログイン未設定"}・{lineConfiguredOf(cfg) ? "通知可（アクセストークンあり）" : "通知未設定（アクセストークンなし）"}</p>
       </div>
+      </details>
       <div style={{ display: "grid", gap: 10, maxWidth: 560 }} data-line-form="1">
         {LINE_CONFIG_KEYS.map((k) => (
           <label key={k} style={row}><span style={t.fieldLabel}>{LINE_CONFIG_LABEL[k]}</span>
@@ -117,11 +120,11 @@ export default function LineConfigPanel({ stores, isOwner }: { stores: Store[]; 
       </div>
       <div style={{ marginTop: 10 }}>{/* ★便 BTN: 保存はフォームの列（最大 560px）の外＝カードの中央 */}
         {isDemo ? <p style={{ ...t.sub, margin: 0 }}>デモ環境では LINE の設定を変更できません。</p>
-          : <div className="nox-actions">{/* ★便 BTN（裁定242）: 主ボタンは行の中央 */}<button type="button" style={{ ...t.btnPrimary56, width: "auto", padding: "0 28px" }} disabled={busy || !storeId} onClick={() => void saveConfig()} data-line-save="1">{busy ? "保存中…" : "LINE の設定を保存"}</button></div>}
+          : <div className="nox-actions nox-settings-save" data-settings-save="1">{/* ★便 BTN（裁定242）: 主ボタンは行の中央 */}<button type="button" style={{ ...t.btnGold, ...t.btnSm }} disabled={busy || !storeId} onClick={() => void saveConfig()} data-line-save="1">{busy ? "保存中…" : "LINE の設定を保存"}</button></div>}
       </div>
       {/* ★M-114（裁定459・2026-11-06）: 通知の種類ごと ON／OFF＝既定はお知らせだけ ON・シフト系は OFF。★0199（2026-11-10）: 保存＝settings_json.line_notify（白名単）＝管理者だけ・4 鍵を常に明示 */}
       <div style={{ marginTop: 16, display: "grid", gap: 6 }} data-line-notify-kinds="1" data-line-notify-editable={notifyEditable ? "1" : "0"}>
-        <span style={t.fieldLabel}>LINE で送る通知の種類</span>
+        <span style={t.fieldLabel}>LINE で送る通知の種類<InfoTip>{LINE_NOTIFY_COUNT_NOTE}</InfoTip></span>
         <div style={{ display: "grid", gap: 4 }}>
           {LINE_NOTIFY_KINDS.map((k) => (
             <label key={k} style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 12.5, minHeight: 32 }} data-line-notify-kind={k} data-line-notify-on={notify[k] ? "1" : "0"}>
@@ -129,13 +132,12 @@ export default function LineConfigPanel({ stores, isOwner }: { stores: Store[]; 
             </label>
           ))}
         </div>
-        <p style={{ ...t.sub, margin: 0 }}>{LINE_NOTIFY_COUNT_NOTE}</p>
         {notifyEditable
-          ? <div className="nox-actions">{/* ★便 BTN（裁定242）: 主ボタンは行の中央 */}<button type="button" style={{ ...t.btnPrimary56, width: "auto", padding: "0 28px" }} disabled={busy || !storeId} onClick={() => void saveNotify()} data-line-notify-save="1">{busy ? "保存中…" : "通知の種類を保存"}</button></div>
+          ? <div className="nox-actions nox-settings-save" data-settings-save="1">{/* ★便 BTN（裁定242）: 主ボタンは行の中央 */}<button type="button" style={{ ...t.btnGold, ...t.btnSm }} disabled={busy || !storeId} onClick={() => void saveNotify()} data-line-notify-save="1">{busy ? "保存中…" : "通知の種類を保存"}</button></div>
           : <p style={{ ...t.sub, margin: 0, color: "var(--v2-muted)" }}>{isDemo ? "デモ環境では LINE の設定を変更できません。" : !mig0199On() ? LINE_NOTIFY_SAVE_PENDING_NOTE : LINE_NOTIFY_OWNER_NOTE}</p>}
       </div>
       <div style={{ marginTop: 16, display: "grid", gap: 6 }} data-line-limit={limit}>
-        <span style={t.fieldLabel}>月の送信上限（表示のための設定）</span>
+        <span style={t.fieldLabel}>月の送信上限（表示のための設定）<InfoTip>{LINE_PLAN_TIERS.map(lineLimitLabelOf).join("・")}。{LINE_LIMIT_NOTE}</InfoTip></span>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} disabled={busy || isDemo} onClick={() => void saveLimit(lineLimitStepOf(limit, -1))} aria-label="1 段下げる">−</button>
           <b className="num">{lineLimitLabelOf(limit)}</b>
@@ -144,7 +146,6 @@ export default function LineConfigPanel({ stores, isOwner }: { stores: Store[]; 
           {isDemo && <span style={{ fontSize: 11.5, color: "var(--sub)" }} data-demo-reason="line-limit">デモでは上限を変えられません（本番の店で使えます）</span>}{/* ★M-139: デモで使えない操作は近くに理由 */}
           {!isDemo && <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} disabled={busy} onClick={() => void saveLimit(Number(limitInput))}>この数にする</button>}
         </div>
-        <p style={{ ...t.sub, margin: 0 }}>{LINE_PLAN_TIERS.map(lineLimitLabelOf).join("・")}。{LINE_LIMIT_NOTE}</p>
       </div>
       <div style={{ marginTop: 16 }} data-line-month={month ? st ?? "normal" : "none"}>
         <span style={t.fieldLabel}>今月の送信数（JST の暦月・sent の宛先数の合計）</span>
