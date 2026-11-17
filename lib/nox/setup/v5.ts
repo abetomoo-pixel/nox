@@ -25,6 +25,8 @@ export const okuriBaseOf = (S: { payroll: { okuriMode: string; okuri: number; ok
 export const okuriFlatBaseMissingOf = (S: { payroll: { okuriMode: string; okuriFlatBase?: number | null } }): boolean => S.payroll.okuriMode === "fixed" && S.payroll.okuriFlatBase == null;
 /** ★2026-11-17（相談役 2）: 初期設定の報酬率スライド＝軸だけ保存・段はあとで */
 export const RATE_SLIDE_TIERS_LATER = "段はあとで待遇プランで設定します";
+/** ★2026-11-17 夜（相談役 Y3b）: 段を入れる場所＝待遇プランのスライド・ポイントの「報酬率の段」（pay-rate-tiers-editor の id） */
+export const PAY_RATE_TIERS_HREF = "/master/cast-comp/plan#pay-rate-tiers";
 export const RATE_SLIDE_BASE_UNTIL_TIERS = "段を入れるまでは基本の時給で計算されます";
 export const OKURI_FLAT_BASE_LABEL = "本人の退勤と店の端末から送りを記録するときの額（1 回）";
 /** ★2026-11-16（■6-3）: 初期設定の「キャストのレジ使用」の説明＝実際の最初の値（会計できる卓＝全卓 cast_register_scope 'all'・操作端末＝店の端末だけ・使えるのは本人ごとにレジ使用を許可したキャスト＝can_register） */

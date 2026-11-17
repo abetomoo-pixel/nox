@@ -19,6 +19,8 @@ import { SLIDE_APPLY_LABEL, SLIDE_BASIS_LABEL, slideBasisOf, slideBasisPillOf, s
 import { isSectionOn, isSystemOn, pointSlideOn, salesSlideOn, slidesTabOn, type StoreSettings } from "@/lib/nox/store-systems"; // ★裁定269: 使う制度の出し分け
 import { BONUS_TIER_MAX, bonusParamsOf, bonusTiersErrOf, bonusTiersLabel, bonusTiersOf, type BonusTier } from "@/lib/nox/bonus-tiers"; // ★便 P173 T-2（起票110）: 達成ボーナスの多段
 import { slideErrOf, slideToSave } from "@/lib/nox/comp/slide-rows"; // ★便 P174 T-1（裁定390）
+import PayRateTiersEditor from "./pay-rate-tiers-editor"; // ★2026-11-17 夜（相談役 Y3b）: 報酬率の段
+import type { PayRateTier } from "@/lib/nox/rules-0175/canon";
 import { rules0175On } from "@/lib/nox/rules-0175/flag"; // ★便 P175-prep P-3
 import { PLAN_REWARD_AXIS_LABEL, planRewardAxisOf, planRewardAxisPatchOf, type PlanRewardAxis } from "@/lib/nox/rules-0175/settings"; // ★便 P175-prep P-3（裁定412 追補）→★便 M5 M-36: 表示だけ（planRewardAxisPatchOf は使わない）
 import {
@@ -549,6 +551,11 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
               )); })()}
           </p>
         )}
+        {/* ★2026-11-17 夜（相談役 Y3b）: 報酬率の段＝owner だけ・保存済みプランで報酬の軸が報酬率のときだけ（最大 10 段・RPC と同じ検査・保存は comp_plan_ext_set）。式は不変 */}
+        {rules0175On() && draft.id && isOwner && planRewardAxisOf(plans.find((x) => x.id === draft.id) as { reward_axis?: string | null } | undefined, settings) === "pay_rate" && (() => {
+          const pl = plans.find((x) => x.id === draft.id) as { pay_rate_tiers?: PayRateTier[] | null; slide_streak_n?: number | null } | undefined;
+          return <PayRateTiersEditor planId={draft.id} tiers={pl?.pay_rate_tiers} streak={pl?.slide_streak_n} onErr={(m) => setSecErr((e) => ({ ...e, スライド: m }))} onSaved={async (m) => { setSecErr((e) => ({ ...e, スライド: "" })); setMsg(m); await reload(); }} />;
+        })()}
         {/* ★便 P174 T-4（裁定395・395 追補2）: 判定のタイミング＝詳細設定の奥（主表示は上の判定期間）。null＝店設定に従う・前期の実績（既定）・当期の累計（稀） */}
         <details data-slide-apply="1" style={{ margin: "0 0 8px", fontSize: 12, color: "var(--sub)" }}>
           <summary style={{ cursor: "pointer" }}>詳細設定（判定のタイミング: {SLIDE_APPLY_LABEL[effApply]}）</summary>

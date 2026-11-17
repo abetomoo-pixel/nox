@@ -47,6 +47,9 @@ export const wageCutRuleOf = (settings: Record<string, unknown> | null | undefin
 //   sys_sales_rate は表示で読まない（残すだけ・計算は collect の R-5c のまま）＝使用中の人数は各種バックに合算。
 export type RewardAxis = "sales" | "pts";
 export const REWARD_AXIS_LABEL: Record<RewardAxis, string> = { sales: "売上（円）", pts: "ポイント（pt）" };
+/** ★2026-11-17 夜（相談役 Y3a）: 店の報酬の軸の 3 択目＝報酬率。店に軸のキーを保存する口が無い（set_store_profile の白名単に reward_axis が無い＝mig 0201o 起草のみ）＝選べる形にせず案内だけ（待遇プランごとに選ぶ） */
+export const STORE_PAY_RATE_GUIDE = "報酬率（待遇プランで選びます）";
+export const STORE_PAY_RATE_HREF = "/master/cast-comp/plan#pay-rate-tiers";
 export const rewardAxisOf = (s: StoreSettings): RewardAxis => (isSystemOn(s, "sys_points") || isSystemOn(s, "sys_point_slide") ? "pts" : "sales");
 /** 軸のスライド（売上軸＝売上スライド／pt 軸＝ポイントスライド） */
 export const axisSlideKeyOf = (axis: RewardAxis): SystemKey => (axis === "pts" ? "sys_point_slide" : "sys_sales_slide");

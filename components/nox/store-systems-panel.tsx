@@ -4,7 +4,7 @@
 //   props は settings（現値）・onChange（切替の依頼）・usage（制度ごとの使用中 cast 数）の 3 つだけ＝データ取得を中に持たない。
 //   269-3: 使用中 n>0 の制度は OFF 不可（OFF ボタン disabled＋理由 1 行）。ON への切替は常に可。
 //   切替 UI は store-flag-toggle（.nox-seg OFF／ON）の写経＝裁定244 の例外（中央化しない）。新トークン 0。
-import { SYSTEM_DESCS, SYSTEM_KEYS, SYSTEM_LABELS, isSystemOn, REWARD_AXIS_KEYS, REWARD_AXIS_LABEL, rewardAxisOf, axisSlideKeyOf, rewardAxisPatchOf, axisSwitchLockOf, backsUsageOf, type RewardAxis, type StoreSettings, type SystemKey } from "@/lib/nox/store-systems";
+import { SYSTEM_DESCS, SYSTEM_KEYS, SYSTEM_LABELS, isSystemOn, REWARD_AXIS_KEYS, REWARD_AXIS_LABEL, STORE_PAY_RATE_GUIDE, STORE_PAY_RATE_HREF, rewardAxisOf, axisSlideKeyOf, rewardAxisPatchOf, axisSwitchLockOf, backsUsageOf, type RewardAxis, type StoreSettings, type SystemKey } from "@/lib/nox/store-systems";
 import OnOffSeg from "@/components/ui/on-off"; // ★便 GV-C C-9（GV-52）
 
 export default function StoreSystemsPanel({
@@ -47,6 +47,11 @@ export default function StoreSystemsPanel({
             </label>
           );
         })}
+        {/* ★2026-11-17 夜（相談役 Y3a）: 3 択目＝報酬率は案内だけ（店に保存する口が無い＝mig 0201o 起草のみ）。待遇プランの報酬の軸で選ぶ */}
+        <span data-reward-axis-opt="pay_rate" data-reward-axis-guide="1" style={{ display: "inline-flex", alignItems: "center", gap: 6, minHeight: 44, fontSize: 13.5, color: "var(--sub)" }}>
+          <input type="radio" name="reward-axis-guide" disabled aria-label={STORE_PAY_RATE_GUIDE} />
+          <a href={STORE_PAY_RATE_HREF} className="nox-link">{STORE_PAY_RATE_GUIDE}</a>
+        </span>
       </div>
       {axisSwitchLockOf(axis === "sales" ? "pts" : "sales", usage) > 0 && (
         <p className="nox-onoff-body" style={{ fontSize: 11.5, margin: 0, color: "var(--champ)" }}>（キャスト個別の設定があるため {REWARD_AXIS_LABEL[axis === "sales" ? "pts" : "sales"]} に切り替えられません）</p>

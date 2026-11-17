@@ -21,7 +21,7 @@ import SegSelect from "@/components/ui/seg-select";
 import { Message } from "@/components/ui/toast";
 import {
   CSV_HEADER, PIN_RE, V5_STEPS, V5_TYPES, WD, applyType, buildV5Plan, castPlanOf, clone, genPin, kindVal, menuCount, normRule, parseCsv, rebuildBack, seatNames, slideTiersFor, v5CheckSelectorOf, v5Checks, v5DefaultState, v5TypeName, v5ZeroPriceItems,
-  type V5Cast, type V5Ctx, type V5Rule, type V5State, type V5Step, type V5Type, ROUND_MODE_LABEL, TIME_MODE_LABEL, cardFeePctOf, payDayOf, trialDaysOf, cashRateOf, cashFloatOf, autoConfirmHoursOf, svcVipOf, okuriBaseOf, okuriFlatBaseMissingOf, RATE_SLIDE_TIERS_LATER, RATE_SLIDE_BASE_UNTIL_TIERS, OKURI_FLAT_BASE_LABEL, OKURI_FLAT_BASE_REQUIRED, CAST_REGISTER_SETUP_NOTE } from "@/lib/nox/setup/v5";
+  type V5Cast, type V5Ctx, type V5Rule, type V5State, type V5Step, type V5Type, ROUND_MODE_LABEL, TIME_MODE_LABEL, cardFeePctOf, payDayOf, trialDaysOf, cashRateOf, cashFloatOf, autoConfirmHoursOf, svcVipOf, okuriBaseOf, okuriFlatBaseMissingOf, RATE_SLIDE_TIERS_LATER, PAY_RATE_TIERS_HREF, RATE_SLIDE_BASE_UNTIL_TIERS, OKURI_FLAT_BASE_LABEL, OKURI_FLAT_BASE_REQUIRED, CAST_REGISTER_SETUP_NOTE } from "@/lib/nox/setup/v5";
 import { mig0190On, mig0191On, mig0197On } from "@/lib/nox/rules-0175/flag"; // ★0190／0191 のフラグ true 便: 器が入った項目は「後で（マスタから）」を出さない
 import type { ProductRow } from "@/lib/nox/setup/template-plan";
 
@@ -482,7 +482,7 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
           <p style={lead}>時給を決めるスライドは 1 つだけ選びます。</p>
           <SegSelect value={p.slide} onChange={(v) => up((s) => { s.pay.slide = v as V5State["pay"]["slide"]; s.slideTiers = slideTiersFor(s.pay.slide); })} options={[["sales", "売上スライド"], ["point", "ポイントスライド"], ["rate", "報酬率スライド"], ["none", "使用しない"]] as const} ariaLabel="時給スライド" wrap />
           {p.slide === "rate" && <p style={note}>報酬率＝決定した報酬（時給分）÷売上小計（税・サービス料前・割引前）。率が低いほど店の取り分が多いので、低い率の段ほど時給を上げる形で入れます。{later("段の写像は待遇プランで")}</p>}
-          {p.slide === "rate" && <p style={{ ...note, color: "var(--champ)", fontWeight: 700 }} data-setup-rate-later="1">{RATE_SLIDE_TIERS_LATER}（初期設定では報酬の軸だけを保存します）</p>}{/* ★2026-11-17（相談役 2） */}
+          {p.slide === "rate" && <p style={{ ...note, color: "var(--champ)", fontWeight: 700 }} data-setup-rate-later="1">{RATE_SLIDE_TIERS_LATER}（初期設定では報酬の軸だけを保存します）。段を入れる場所：<a href={PAY_RATE_TIERS_HREF} target="_blank" rel="noreferrer" className="nox-link">待遇プラン → スライド・ポイント → 報酬率の段</a></p>}{/* ★2026-11-17（相談役 2）→★夜（Y3b）: 行き先 */}
           {p.slide !== "none" && (<>
             <div style={{ marginTop: 8 }}><span style={t.fieldLabel}>判定の単位</span><SegSelect value={S.slidePeriod} onChange={(v) => up((s) => { s.slidePeriod = v as "month" | "half"; })} options={[["month", "月単位（前月の実績で今月の時給）"], ["half", "半月単位（前の半月の実績で次の半月）"]] as const} ariaLabel="判定の単位" wrap /></div>
             <p style={note}>判定は「期」ごと。段の変更は自動では確定せず、給与の「要対応」に提案として出て店が適用／除外します。</p>
