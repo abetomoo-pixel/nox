@@ -5,7 +5,7 @@
 //   接尾＝保証が効いている＝「保証（M/D まで）」／売上段／pt 段／それ以外＝「基本」（GV-55＝保証行が無いのに「保証」と出ていた）。
 import { guaranteeStateOf, mdOf, type PlanRowLike } from "./guarantee";
 
-export type WageSuffix = "guarantee" | "sales" | "pt" | "base";
+export type WageSuffix = "guarantee" | "sales" | "pt" | "base" | "trial";
 export type WageNow = {
   base: number;                                                   // 基本時給（プラン→非保証の個別上書き）
   guarantee: { amount: number; to: string | null; daysLeft: number | null } | null; // 今日を含む保証
@@ -34,6 +34,11 @@ export function wageNowOf(input: { planBase: number | null | undefined; rows: re
   const st = guaranteeStateOf(input.rows, input.today);
   const guarantee = st.current ? { amount: st.current.base, to: st.current.to, daysLeft: st.daysLeft } : null;
   const lb = input.lastDay?.basis;
+  // ★2026-11-17（相談役 ①-2）: 体入の日＝給与で実際に当たる体入の時給（pay.ts の体入の日＝体入の時給で置き換え・保証の日は max(保証, 体入)＝根拠「保証」）を出す（表示だけ・式は不変）
+  if (lb === "体入") {
+    const tw = Math.max(0, Math.round(Number(input.lastDay?.hourly ?? 0)));
+    return { base, guarantee, hourly: tw, suffix: "trial", suffixLabel: "体入", overridden };
+  }
   const slide = lb === "売上" || lb === "pt" ? Math.max(0, Math.round(Number(input.lastDay?.hourly ?? 0))) : 0;
   const hourly = Math.max(slide, guarantee?.amount ?? 0, base);
   const suffix: WageSuffix = guarantee && guarantee.amount >= slide && guarantee.amount >= base ? "guarantee"

@@ -67,13 +67,15 @@ export function shiftDateDow(date: string): number {
 // outside＝一部でもはみ出す（早入り・居残り含む＝警告のみで登録可・RPC は定休日のみ拒否＝非対称）。
 // 形式不正の date は unset（判定なし・RPC 側の bad date に委譲）。
 export function shiftHoursStatus(
-  date: string, startHm: string, endHm: string, rows: BusinessHourRow[],
+  date: string, startHm: string | null | undefined, endHm: string | null | undefined, rows: BusinessHourRow[],
 ): { status: HoursStatus; row: BusinessHourRow | null; dow: number } {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { status: "unset", row: null, dow: -1 };
   const dow = shiftDateDow(date);
   const row = rows.find((r) => r.dow === dow) ?? null;
   if (!row) return { status: "unset", row: null, dow };
   if (row.is_closed) return { status: "closed", row, dow };
+  // ★2026-11-17（通しの確かめ 13 で発見・A）: 休み希望（kind off）は時刻が null＝時刻を見ずに定休日かどうかだけ（旧＝null の split でシフト作成の画面ごと落ちた）。時刻があるときは不変
+  if (!startHm || !endHm) return { status: "inside", row, dow };
   const start = hm2min(startHm);
   const end = start + spanMinutes(startHm, endHm); // 跨ぎ表記（end<start）も 24h超表記も同一正規化
   const open = hm2min(row.open_hm ?? "00:00");

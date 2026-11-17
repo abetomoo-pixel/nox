@@ -67,3 +67,15 @@ export function rsvRowNameOf(r: { customers: RsvRequestRow["customers"]; guest_n
   return { name: "お客様", isNew: false };
 }
 export const RSV_NEW_BADGE = "新規";
+
+/** ★2026-11-17（相談役・通しの確かめ 15）: 既定の来店日時＝営業日の 20:00。それが今から 30 分より前なら、今から 30 分以上先の 30 分刻み（JST の暦の日付と時刻）。
+ *  旧＝営業日の 20:00 固定＝20 時過ぎや営業日をまたいだ深夜は必ず「来店日時は今より後にしてください」で止まった。送る値の形（rsvRequestArgsOf）は不変 */
+export function rsvDefaultWhenOf(bizToday: string, nowMs: number): { date: string; time: string } {
+  const base = Date.parse(`${bizToday}T20:00:00+09:00`);
+  if (!Number.isNaN(base) && base > nowMs + 30 * 60_000) return { date: bizToday, time: "20:00" };
+  const step = 30 * 60_000;
+  const t = Math.ceil((nowMs + 30 * 60_000) / step) * step;
+  const j = new Date(t + 9 * 3600_000);
+  const p2 = (n: number) => String(n).padStart(2, "0");
+  return { date: `${j.getUTCFullYear()}-${p2(j.getUTCMonth() + 1)}-${p2(j.getUTCDate())}`, time: `${p2(j.getUTCHours())}:${p2(j.getUTCMinutes())}` };
+}

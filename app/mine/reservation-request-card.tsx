@@ -16,7 +16,7 @@ import SegSelect from "@/components/ui/seg-select";
 import { rpcErrJa } from "@/lib/nox/ui/rpc-err";
 import { mig0183On } from "@/lib/nox/rules-0175/flag"; // ★便 M-4（0183）
 import { RSV_WITHDRAW_CONFIRM, RSV_WITHDRAW_DONE, RSV_WITHDRAW_RPC, WITHDRAW_LABEL, canWithdrawOf, rsvCancelNoteOf } from "@/lib/nox/mine/withdraw"; // ★0201e: 承認前の申請の取り下げ
-import { RSV_KIND_OPTIONS, RSV_REQ_EMPTY, RSV_REQ_SENT, RSV_REQ_STATUS_COLOR, RSV_REQ_STATUS_LABEL, rsvCustomerNameOf, rsvRequestArgsOf, rsvRequestRowsOf, rsvWhenLabelOf, RSV_CUSTOMER_MODE_OPTIONS, RSV_NEW_BADGE, rsvGuestArgsOf, rsvRowNameOf, type RsvCustomerMode, type RsvRequestRow } from "@/lib/nox/mine/reservation-request";
+import { RSV_KIND_OPTIONS, RSV_REQ_EMPTY, RSV_REQ_SENT, RSV_REQ_STATUS_COLOR, RSV_REQ_STATUS_LABEL, rsvCustomerNameOf, rsvRequestArgsOf, rsvDefaultWhenOf, rsvRequestRowsOf, rsvWhenLabelOf, RSV_CUSTOMER_MODE_OPTIONS, RSV_NEW_BADGE, rsvGuestArgsOf, rsvRowNameOf, type RsvCustomerMode, type RsvRequestRow } from "@/lib/nox/mine/reservation-request";
 
 type Customer = { id: string; name: string; tel: string | null };
 const NOM_LABEL: Record<string, string> = { hon: "本指名", jonai: "場内", dohan: "同伴", free: "フリー" };
@@ -28,6 +28,8 @@ export default function ReservationRequestCard({ storeId, bizToday }: { storeId:
   const [customerId, setCustomerId] = useState("");
   const [date, setDate] = useState(bizToday);
   const [time, setTime] = useState("20:00");
+  // ★2026-11-17（相談役・通しの確かめ 15）: 開いた後に既定の日時を今より先へ寄せる（描画の前に今の時刻を読まない＝サーバーとブラウザで文字を揃える）
+  useEffect(() => { const d = rsvDefaultWhenOf(bizToday, Date.now()); setDate(d.date); setTime(d.time); }, [bizToday]);
   const [kind, setKind] = useState("hon");
   // ★便 M-4（Agoora 確定 ⑤）: 新規のお客様（フリー入力＝呼び名＋人数）／既存客から（担当客）
   const [mode, setMode] = useState<RsvCustomerMode>("existing");

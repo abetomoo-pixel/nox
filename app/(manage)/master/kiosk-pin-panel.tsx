@@ -12,7 +12,7 @@
 //   ★RPC・引数・エラー文言・対象条件は逐語で不変。set_staff_pin の送信は従来と同じ1本。
 //   ★モーダルの検証は 4桁・確認一致のみ（サーバに繰り返し禁止規則は無い＝逆転を作らない）。
 import { useCallback, useEffect, useState } from "react";
-import { PIN_DIGITS_LABEL, PIN_SHAPE_RE } from "@/components/nox/pin-pad"; // ★M-179: 桁数は 1 か所の定数から
+import { PIN_DIGITS_LABEL, PIN_MAX, PIN_MIN, PIN_SHAPE_RE } from "@/components/nox/pin-pad"; // ★M-179: 桁数は 1 か所の定数から
 import SegSelect from "@/components/ui/seg-select"; // ★M-82（裁定452・教訓133）: 固定の選択肢はボタン群
 import { createClient } from "@/lib/supabase/client";
 import { mig0191On, mig0192On } from "@/lib/nox/rules-0175/flag"; // ★0191 ★3: PIN 4〜6 桁・★便 M5 M-45: 0192 cast_pin_status
@@ -319,17 +319,18 @@ export default function KioskPinPanel({ stores, isOwner }: { stores: Store[]; is
           <h3 style={h3}>{pinTarget.user_name} のPINを設定</h3>
           <p style={sub}>{storeName(pinTarget.store_id)}・{ROLE_LABEL[pinTarget.role] ?? pinTarget.role}</p>
           <div style={{ display: "grid", gap: 8 }}>
+            {/* ★2026-11-17（相談役 6・11/11 の決定）: スタッフの PIN も 4〜6 桁＝入力欄が 4 文字で切っていた */}
             <label style={{ display: "grid", gap: 3 }}><span style={t.fieldLabel}>新しいPIN（数字 {PIN_DIGITS_LABEL}）</span>
-              <input value={newPin} inputMode="numeric" maxLength={4} placeholder="0000" autoFocus
-                onChange={(e) => setNewPin(e.target.value.replace(/[^0-9]/g, "").slice(0, 4))}
+              <input value={newPin} inputMode="numeric" maxLength={PIN_MAX} placeholder="0000" autoFocus
+                onChange={(e) => setNewPin(e.target.value.replace(/[^0-9]/g, "").slice(0, PIN_MAX))}
                 style={{ ...inp, width: 110, fontVariantNumeric: "tabular-nums", letterSpacing: 4 }} />
             </label>
             <label style={{ display: "grid", gap: 3 }}><span style={t.fieldLabel}>確認のためもう一度</span>
-              <input value={confirmPin} inputMode="numeric" maxLength={4} placeholder="0000"
-                onChange={(e) => setConfirmPin(e.target.value.replace(/[^0-9]/g, "").slice(0, 4))}
+              <input value={confirmPin} inputMode="numeric" maxLength={PIN_MAX} placeholder="0000"
+                onChange={(e) => setConfirmPin(e.target.value.replace(/[^0-9]/g, "").slice(0, PIN_MAX))}
                 style={{ ...inp, width: 110, fontVariantNumeric: "tabular-nums", letterSpacing: 4 }} />
             </label>
-            {newPin.length === 4 && confirmPin.length === 4 && newPin !== confirmPin && (
+            {newPin.length >= PIN_MIN && confirmPin.length >= PIN_MIN && newPin !== confirmPin && (
               <p style={{ fontSize: 12, color: "var(--bad)", margin: 0 }}>確認用の PIN が一致しません</p>
             )}
             {modalErr && <Message kind="error" style={{ margin: 0 }}>{modalErr}</Message>}
