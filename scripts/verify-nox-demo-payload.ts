@@ -14,7 +14,7 @@
  */
 import fs from "node:fs";
 import crypto from "node:crypto";
-import { groupDueFull } from "../lib/nox/check-calc";
+import { groupDueFull, roundAmount } from "../lib/nox/check-calc";
 import { DEMO_KIOSK_KEY, DEMO_ROLES, DEMO_STORES, PAYLOAD_MAX_BYTES, demoDestOf, demoOrgName, isDemoRole, isDemoStore, payloadBytes, splitPayload, storeOfOrgName } from "../lib/nox/demo/seed";
 
 let pass = 0;
@@ -68,13 +68,18 @@ for (const store of DEMO_STORES) {
   const storeRow = D("stores").find((s) => String(s.store_code).toLowerCase() === store)!;
   for (const o of D("orders").filter((o) => o.store_id === storeRow.store_id)) {
     const ex = D("expected_results").find((e) => e.order_id === o.order_id)!;
-    const hit = (p.tables.checks ?? []).find((c) => Number(c.total) === Number(ex.expected_total_yen) && Number(c.people) === Number(o.guest_count));
-    check(`dp(2-2) ${store}: 代表伝票 ${o.order_id} total ${ex.expected_total_yen} が 1 件ある`, !!hit);
+    // ★Y2d（2026-11-17 夜・相談役）: 会計の丸め（クラブ系 1,000 円・スナック／ガールズバー 100 円・切り上げ）＝源泉の期待値（1 円単位）を店の丸めで丸めた額で探す
+    const st0 = (p.tables.stores ?? [])[0] as Record<string, unknown>;
+    const exp = roundAmount(Number(ex.expected_total_yen), Number(st0.round_unit), String(st0.round_mode));
+    const hit = (p.tables.checks ?? []).find((c) => Number(c.total) === exp && Number(c.people) === Number(o.guest_count));
+    check(`dp(2-2) ${store}: 代表伝票 ${o.order_id} total ${ex.expected_total_yen}（丸め ${String(st0.round_unit)} 円 ${String(st0.round_mode)} → ${exp}）が 1 件ある`, !!hit);
   }
   const mt = D("monthly_sales_targets").find((m) => m.store_id === storeRow.store_id)!;
   const month = (p.tables.daily_reports ?? []).filter((r) => !(r as Record<string, unknown>).$onlyBefore /* ★便 X13-G W-18 ③: 今月の写しは先月の golden に入れない */).reduce((a, r) => a + Number(r.cash) + Number(r.card_gross) + Number(r.uri) + Number(r.other), 0);
   const pct = ((month - Number(mt.stated_monthly_gross_yen)) / Number(mt.stated_monthly_gross_yen)) * 100;
-  check(`dp(2-3) ${store}: Σdaily_reports ${month.toLocaleString()}＝月次目標 ${Number(mt.stated_monthly_gross_yen).toLocaleString()} ±1%`, Math.abs(pct) <= 1, `${pct.toFixed(2)}%`);
+  // ★Y2d: 1,000 円単位の切り上げの店は伝票ごとに最大 999 円上がる＝日の目標を先に超える日がある（ACE＝+2.87%）＝その店だけ ±3%（6 店の合計の golden は ±1% のまま＝dp(2-4)）
+  const tolPct = Number(((p.tables.stores ?? [])[0] as Record<string, unknown>).round_unit) >= 1000 ? 3 : 1;
+  check(`dp(2-3) ${store}: Σdaily_reports ${month.toLocaleString()}＝月次目標 ${Number(mt.stated_monthly_gross_yen).toLocaleString()} ±${tolPct}%`, Math.abs(pct) <= tolPct, `${pct.toFixed(2)}%`);
   // (3b) 分割
   const chunks = splitPayload(p.tables);
   const bytes = payloadBytes(p.tables);

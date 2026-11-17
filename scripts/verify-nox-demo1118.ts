@@ -4,9 +4,10 @@
  *  d(2) Y2b LUNA：キャスト 15（源泉 7＋写し 8・名前は店の中で重ならない・写し元に体入と代表を使わない）・PIN は全員分・写真の写し元は profiles と seed で同じ。
  *  d(3) Y2b LUNA：体験入店以外のプランは報酬の軸＝報酬率・段は器の検査（comp_plan_pay_rate_check と同じ条件）を通る・連続 2 期・相談役の表の行の対応。
  *  d(4) Y2b：CANON の帯と規定（reset の後の hook）は MUSE の会社だけ。
+ *  d(5) Y2d：会計の丸め＝業態で（クラブ系＝キャバクラ・ラウンジ 1,000 円／スナック・ガールズバー 100 円・切り上げ）・伝票はみな店の丸め・締めた伝票は入金の和＝請求（売掛を含む）。
  */
 import fs from "node:fs";
-import { PROFILES, SLIDES, EXTRA_CASTS, PAY_RATE_DEMO, TRIAL } from "./demo/profiles.mjs";
+import { PROFILES, SLIDES, EXTRA_CASTS, PAY_RATE_DEMO, TRIAL, BIZ_TYPE_OF, billRoundOf } from "./demo/profiles.mjs";
 import { payRateTierOf, directionOf } from "../lib/nox/rules-0175/canon";
 let pass = 0;
 const fails: string[] = [];
@@ -57,6 +58,19 @@ for (const c of ["muse", "luna", "noir", "ace", "lily", "nest"]) {
 
 // d(4) CANON の帯は MUSE だけ
 check("d(4-1) demoCanonBandsFor は NOX-DEMO-MUSE 以外は何もしない", seed.includes('if ((org as { name?: string } | null)?.name !== "NOX-DEMO-MUSE") return out;'));
+
+// d(5) 丸め
+const want: Record<string, number> = { muse: 1000, luna: 1000, noir: 1000, ace: 1000, lily: 100, nest: 100 };
+for (const c of Object.keys(want)) {
+  const T = pay(c); const st = T.stores[0];
+  const sj = st.settings_json as Record<string, unknown>;
+  check(`d(5-1) ${c}: 業態 ${String(sj.biz_type)}＝丸め ${want[c]} 円・切り上げ（店と BIZ_TYPE_OF が一致）`, st.round_unit === want[c] && st.round_mode === "up" && BIZ_TYPE_OF[c] === sj.biz_type && J(billRoundOf(c)) === J({ round_unit: want[c], round_mode: "up" }));
+  const bad = T.checks.filter((k) => k.round_unit !== want[c] || k.round_mode !== "up").length;
+  const payBy = new Map<string, number>(); for (const p of T.payments ?? []) payBy.set(String(p.check_id), (payBy.get(String(p.check_id)) ?? 0) + Number(p.amount));
+  const closed = T.checks.filter((k) => k.status === "closed" && !k.merged_into && payBy.has(String(k.id)));
+  const gap = closed.filter((k) => payBy.get(String(k.id)) !== Number(k.total)).length;
+  check(`d(5-2) ${c}: 伝票はみな店の丸め（違い ${bad}）・入金のある締めた伝票 ${closed.length} 件は入金の和＝請求（違い ${gap}）`, bad === 0 && closed.length > 0 && gap === 0);
+}
 
 if (fails.length) { console.error(`✗ verify:nox-demo1118 失敗 ${fails.length}（成功 ${pass}）`); for (const f of fails) console.error(" - " + f); process.exit(1); }
 console.log(`verify:nox-demo1118 OK (${pass} checks)`);

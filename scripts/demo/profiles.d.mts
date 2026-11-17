@@ -27,3 +27,6 @@ export function canonOf(code: string): unknown;
 /** ★Y2b（2026-11-17 夜）: 源泉のキャストを写して人数を足す（LUNA 7→15）・報酬率スライドの段（LUNA） */
 export declare const EXTRA_CASTS: Record<string, { id: string; name: string; from: string; scale: number }[]>;
 export declare const PAY_RATE_DEMO: Record<string, { streak: number; tiers: { at_pct: number; up_amount?: number; pay_pct?: number; back_mult?: number }[] }>;
+/** ★Y2d（2026-11-17 夜）: 会計の丸め＝業態で（クラブ系 1,000 円・スナック／ガールズバー／バー 100 円・切り上げ） */
+export declare const BIZ_TYPE_OF: Record<string, string>;
+export function billRoundOf(code: string): { round_unit: number; round_mode: "up" };

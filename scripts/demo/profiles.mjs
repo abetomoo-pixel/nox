@@ -102,6 +102,10 @@ export const PAY_RATE_DEMO = {
     { at_pct: 250.1, pay_pct: 75, back_mult: 0 },   // 251% 以上 → 75%（301% 以上の 70% は境の上限で表せない）
   ] },
 };
+/** ★2026-11-17 夜（相談役 Y2d）: 会計の丸め＝業態で決める（クラブ系＝キャバクラ・ラウンジ・クラブ・ホストは 1,000 円／スナック・ガールズバー・バーは 100 円・どちらも切り上げ）。
+ *  業態は payload の stores.settings_json.biz_type（MUSE は店名 SNACK だが業態はキャバクラ＝裁定 N1014 B-4）。器は既存（stores.round_unit／round_mode を伝票に写す・check-calc roundAmount）＝計算の式は不変 */
+export const BIZ_TYPE_OF = { muse: "cabaret", luna: "cabaret", noir: "lounge", ace: "cabaret", lily: "girlsbar", nest: "snack" };
+export function billRoundOf(code) { const b = BIZ_TYPE_OF[code]; return { round_unit: b === "girlsbar" || b === "snack" || b === "bar" ? 100 : 1000, round_mode: "up" }; }
 export const ADVANCES = { muse: 50000, luna: 30000, noir: 30000, ace: 30000, lily: 30000, nest: 30000 };
 export const EXTRA_PLANS = {
   muse: [{ key: "senior", name: "MUSE Senior", base: 2000, hon: 500, jonai: 300, dohan: 300 }],
