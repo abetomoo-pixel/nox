@@ -56,7 +56,7 @@ export function okuriModeOf(code) {
  *  9 月分は reset の finalize hook で凍結明細に反映される（再確定不要）。 */
 export const SLIDES = {
   ace: { period: "monthly", sales: [{ at: 800000, wage: 3000 }, { at: 1200000, wage: 3500 }, { at: 1600000, wage: 4500 }] },
-  noir: { period: "monthly", points: [{ at: 60, wage: 4000 }, { at: 120, wage: 4500 }, { at: 200, wage: 5000 }], basis: "hon_count", sales: [{ at: 3, wage: 4000 }, { at: 6, wage: 4500 }, { at: 10, wage: 5000 }], ranks: ["S", "A"] }, // ★裁定343（0170・便 W5-2b）: 判定基準＝本指名の件数（月次 3／6／10 件）・対象ランク S／A（default の 3 名は対象外＝base）
+  noir: { period: "monthly", points: [{ at: 60, wage: 4000 }, { at: 120, wage: 4500 }, { at: 200, wage: 5000 }], ranks: ["S", "A"] }, // ★2026-11-17 夜（相談役 Y2a）: 件数の段（basis hon_count・本指名 3／6／10 件）を外し判定基準を売上に戻す（＝待遇プランの「売上で決める形にする」と同じ形・11/16 Agoora「外して良い」）。NOIR は店の軸がポイント＝売上スライドは使わない（sys.sales_slide false＝段は空）。pt の段と対象ランク S／A は不変 // ★裁定343（0170・便 W5-2b）: 判定基準＝本指名の件数（月次 3／6／10 件）・対象ランク S／A（default の 3 名は対象外＝base）
   luna: { period: "half", sales: [{ at: 400000, wage: 3300 }, { at: 700000, wage: 3600 }, { at: 1000000, wage: 4000 }] },
   muse: { period: "monthly", sales: [{ at: 300000, wage: 2200 }, { at: 500000, wage: 2500 }, { at: 800000, wage: 3000 }], points: [{ at: 10, wage: 2300 }, { at: 20, wage: 2600 }, { at: 40, wage: 3000 }] }, // ★348 追補2（B-1）: pt 段は注入した指名（本 3／場内 1／同伴 2 pt）で届く値へ // ★裁定348: 併用＝同一プランに売上段と pt 段（pay.ts は max＝高い方）
 };

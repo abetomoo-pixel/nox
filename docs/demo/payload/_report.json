@@ -280,7 +280,7 @@
    "sha256": "2f77bf9448a4f531d8cff56fc5599280edbe54e7e8378b8267e143fab6eb8f28"
   },
   "noir": {
-   "bytes": 4198157,
+   "bytes": 4198145,
    "rows": 6947,
    "tables": 46,
    "checks": 1007,
@@ -500,7 +500,7 @@
      ]
     }
    ],
-   "sha256": "e5328578abdbc811e1713b713931cf050156929e2a92d928d046825afb17c3d5"
+   "sha256": "95fb0efff58d8dbde681812f8750ecb8e2650bf8cbe390dc8d4dd96850716987"
   },
   "ace": {
    "bytes": 3916825,
