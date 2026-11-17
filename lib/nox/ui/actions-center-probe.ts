@@ -36,6 +36,7 @@ export function actionsCenterProbe(tol: number): ActionsCenterHit[] {
     else if (b.closest("[data-tools], .nox-phead-tools, .nox-tb, header")) reason = "ヘッダーのツール";
     else if (b.closest("nav, aside, [role=navigation]")) reason = "ナビゲーション";
     else if (fixedAncestor(b)) reason = "固定バー";
+    else if (b.closest(".nox-settings .nox-actions") && innerWidth >= 900) reason = "店舗設定の保存（PC は枠の右下＝相談役 4・Y1 2026-11-17）"; // ★スマホ（899px 以下）は従来どおり中央を判定
     const row = b.parentElement!;
     if (seen.has(row)) continue;
     seen.add(row);

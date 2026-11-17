@@ -57,6 +57,13 @@ check("st(4-1) RPC と保存の式は不変（set_store_profile の呼び口 1 �
   check("st(6-4) 375＝3 択以上の選択は縦に横いっぱい・チェックの行は折り返す", cssL.includes(".nox-settings .nox-seg:has(> :nth-child(3)) { display: grid !important; grid-template-columns: minmax(0, 1fr) !important; width: 100%; }") && cssL.includes(".nox-settings div:has(> label > input[type=checkbox]) { flex-wrap: wrap !important; row-gap: 8px; }"));
   const btns = ["app/(manage)/master/store-profile-panel.tsx", "app/(manage)/master/punch-rules-panel.tsx", "app/(manage)/master/mine-settings-panel.tsx"].every((p) => /data-settings-save="1"[sS]{0,400}disabled={busy || !dirty}/.test(fs.readFileSync(p, "utf8")));
   check("st(6-5) 固定の判定の元＝保存の帯の「元に戻す」は変更があるときだけ押せる（店舗情報・打刻・キャスト画面）", btns); }
+{ const cssY = fs.readFileSync("app/globals.css", "utf8");
+  check("st(6-6) ★Y1: PC の 2 列を残りのタブにも（打刻のカード＝data-punch-choice の親・シフト運用＝自動確定時間・LINE の欄）・保存は右下（.nox-actions）",
+    cssY.includes("  .nox-settings .nox-actions { justify-content: flex-end; }") && cssY.includes(".nox-settings div:has(> [data-punch-choice]) { display: grid;") && cssY.includes(".nox-settings label:has(> [data-shift-auto-confirm]), .nox-settings [data-line-form] > label { display: grid !important;") && cssY.includes(".nox-settings [data-line-form] { max-width: none !important; }")); }
+{ const cssY = fs.readFileSync("app/globals.css", "utf8");
+  check("st(6-7) ★Y1: キャスト画面の行（data-cast-register-link と 1 1 240px の左の欄を持つ行）も 2 列", cssY.includes(":is(.nox-settings div:has(> div[style*=\"1 1 240px\"]:first-child), .nox-settings [data-cast-register-link]) { display: grid !important;")); }
+{ const pr = fs.readFileSync("lib/nox/ui/actions-center-probe.ts", "utf8");
+  check("st(6-8) ★Y1: 中央寄せの検査の例外は店舗設定の保存の PC だけ（.nox-settings .nox-actions かつ 900px 以上）", pr.includes('else if (b.closest(".nox-settings .nox-actions") && innerWidth >= 900) reason = "店舗設定の保存（PC は枠の右下＝相談役 4・Y1 2026-11-17）";')); }
 if (fails.length) {
   console.error(`verify:nox-settings1116 FAIL ${fails.length} / pass ${pass}`);
   for (const f of fails) console.error(" - " + f);

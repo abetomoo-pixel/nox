@@ -3389,3 +3389,23 @@ tr.nox-rowflash, .nox-rowflash { animation: nox-rowflash 1.6s ease-out; }
   .nox-settings label:has(> input[type=checkbox]) { white-space: normal; max-width: 100%; }
   .nox-settings div:has(> label > input[type=checkbox]) { flex-wrap: wrap !important; row-gap: 8px; }
 }
+/* ★2026-11-17 夜（相談役 Y1）: 店舗設定の PC の 2 列を残りのタブにも（シフトと打刻の「打刻」「シフト運用」・LINE 連携の欄）＋保存は右下に揃える（見せ方だけ） */
+@media (min-width: 900px) {
+  .nox-settings .nox-actions { justify-content: flex-end; }
+  .nox-settings div:has(> [data-punch-choice]) { display: grid; grid-template-columns: minmax(200px, 300px) minmax(0, 1fr); column-gap: 28px; row-gap: 12px; align-items: start; }
+  .nox-settings div:has(> [data-punch-choice]) > span { grid-column: 1; }
+  .nox-settings div:has(> [data-punch-choice]) > :not(span) { grid-column: 2; }
+  .nox-settings div:has(> [data-punch-choice]) > [data-punch-choice] { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(200px, 300px) minmax(0, 1fr); column-gap: 28px; margin: 0 !important; }
+  .nox-settings div:has(> [data-punch-choice]) > [data-punch-choice] > :first-child { grid-column: 1; }
+  .nox-settings div:has(> [data-punch-choice]) > [data-punch-choice] > :not(:first-child) { grid-column: 2; max-width: 46em; }
+  .nox-settings label:has(> [data-shift-auto-confirm]), .nox-settings [data-line-form] > label { display: grid !important; grid-template-columns: minmax(200px, 300px) minmax(0, 1fr); column-gap: 28px; align-items: center; max-width: none !important; }
+  .nox-settings label:has(> [data-shift-auto-confirm]) > :not(:first-child), .nox-settings [data-line-form] > label > :not(:first-child) { grid-column: 2; }
+  .nox-settings [data-line-form] { max-width: none !important; }
+  .nox-settings [data-line-form] input { max-width: 420px; }
+}
+/* ★Y1: キャスト画面の行（左＝項目名・右＝部品を左寄せ）も同じ 2 列に */
+@media (min-width: 900px) {
+  :is(.nox-settings div:has(> div[style*="1 1 240px"]:first-child), .nox-settings [data-cast-register-link]) { display: grid !important; grid-template-columns: minmax(200px, 300px) minmax(0, 1fr); column-gap: 28px; align-items: start; }
+  :is(.nox-settings div:has(> div[style*="1 1 240px"]:first-child), .nox-settings [data-cast-register-link]) > :first-child { grid-column: 1; }
+  :is(.nox-settings div:has(> div[style*="1 1 240px"]:first-child), .nox-settings [data-cast-register-link]) > :not(:first-child) { grid-column: 2; justify-self: start; max-width: 46em; margin-top: 0 !important; }
+}
