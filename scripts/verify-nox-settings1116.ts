@@ -48,7 +48,7 @@ check("st(4-1) RPC と保存の式は不変（set_store_profile の呼び口 1 �
   check("st(6-1) PC＝1 項目 1 行の 2 列（左 200〜300px に項目名と説明・右に部品）・説明は 46em まで・金額と単位の欄は 320px まで・保存は右下",
     cssL.includes('.nox-settings .nox-cardtop [style*="repeat(auto-fit, minmax(2"] { grid-template-columns: minmax(0, 1fr) !important; row-gap: 0 !important; }')
     && cssL.includes("grid-template-columns: minmax(200px, 300px) minmax(0, 1fr); column-gap: 28px;") && cssL.includes("> :not(:first-child) { grid-column: 2; max-width: 46em; }")
-    && cssL.includes(".nox-settings .nox-cardtop :is(.nox-money, .nox-unit) { max-width: 320px; }") && cssL.includes(".nox-settings .nox-settings-save { display: flex; justify-content: flex-end; gap: 8px; }"));
+    && cssL.includes(".nox-settings .nox-cardtop :is(.nox-money, .nox-unit) { max-width: 320px !important; }") && cssL.includes(".nox-settings .nox-settings-save { display: flex; justify-content: flex-end; gap: 8px; }"));
   check("st(6-2) PC＝ON／OFF と状態の文字は 1 行（カウンターが 2 行に折れない・状態の位置が揃う）", cssL.includes(".nox-settings .nox-onoffwrap { flex-wrap: nowrap; }") && cssL.includes('.nox-settings [style*="inline-flex"]:has(> .nox-onoffwrap) { white-space: nowrap; }'));
   check("st(6-3) 375＝保存の帯と下のメニューが中身に重ならない（変更の無い帯は流れの中・変更のある帯だけ下のメニューのすぐ上に固定＋その分の余白 76px）",
     cssL.includes(".nox-settings .nox-settings-save:not(:has(button:not(:disabled))) { position: static; margin-bottom: 0; }")

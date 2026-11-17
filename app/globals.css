@@ -3374,7 +3374,7 @@ tr.nox-rowflash, .nox-rowflash { animation: nox-rowflash 1.6s ease-out; }
   .nox-settings .nox-cardtop [style*="repeat(auto-fit, minmax(2"] > :is(label, div):has(> span:first-child):not(.nox-settings-fold) { display: grid !important; grid-template-columns: minmax(200px, 300px) minmax(0, 1fr); column-gap: 28px; align-items: start; padding: 12px 0; border-bottom: 1px solid var(--line); }
   .nox-settings .nox-cardtop [style*="repeat(auto-fit, minmax(2"] > :is(label, div):has(> span:first-child):not(.nox-settings-fold) > :first-child { grid-column: 1; }
   .nox-settings .nox-cardtop [style*="repeat(auto-fit, minmax(2"] > :is(label, div):has(> span:first-child):not(.nox-settings-fold) > :not(:first-child) { grid-column: 2; max-width: 46em; }
-  .nox-settings .nox-cardtop :is(.nox-money, .nox-unit) { max-width: 320px; }
+  .nox-settings .nox-cardtop :is(.nox-money, .nox-unit) { max-width: 320px !important; } /* ★2026-11-17: 右の列の 46em の指定より強く（釣銭準備金が横いっぱいのままだった） */
   .nox-settings .nox-onoffwrap { flex-wrap: nowrap; }
   .nox-settings [style*="inline-flex"]:has(> .nox-onoffwrap) { white-space: nowrap; }
   .nox-settings .nox-settings-save { display: flex; justify-content: flex-end; gap: 8px; }
