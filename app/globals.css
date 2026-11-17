@@ -3366,3 +3366,26 @@ tr.nox-rowflash, .nox-rowflash { animation: nox-rowflash 1.6s ease-out; }
 .nox-linebind .tx { display: grid; gap: 4px; min-width: 0; }
 /* ★2026-11-16 夜（N2 で発見・375）: 今日のカードで名前のセルに長い札（本指名 22:00 M様）が付くと名前の列が広がり、状態の札（採用・確定）が時刻に重なっていた＝名前の列は残りの幅・中で折り返す */
 @media (max-width: 1279px) { .nox-todaywrap .nox-table.cardrows tr { grid-template-columns: minmax(0, 1fr) auto auto; } .nox-todaywrap .nox-table.cardrows td.c-name { overflow-wrap: anywhere; } }
+/* ★2026-11-17（相談役 4・Agoora 確定）: 店舗設定のレイアウト（見せ方だけ・保存する値・RPC・項目は不変）
+   PC（900px 以上）＝給与のタブと同じ形：1 項目 1 行・左に項目名と短い説明・右に部品の 2 列（格子の欄を 1 列に並べ直す）・説明は 1 行 40〜60 字・保存は枠の右下。
+   スマホ（899px 以下）＝変更があるカードの保存の帯だけ下のメニューのすぐ上に固定（会計の「会計を完了」と同じ）＋その分の余白・3 択以上の選択は縦に横いっぱい・チェックの行は折り返す。 */
+@media (min-width: 900px) {
+  .nox-settings .nox-cardtop [style*="repeat(auto-fit, minmax(2"] { grid-template-columns: minmax(0, 1fr) !important; row-gap: 0 !important; }
+  .nox-settings .nox-cardtop [style*="repeat(auto-fit, minmax(2"] > :is(label, div):has(> span:first-child):not(.nox-settings-fold) { display: grid !important; grid-template-columns: minmax(200px, 300px) minmax(0, 1fr); column-gap: 28px; align-items: start; padding: 12px 0; border-bottom: 1px solid var(--line); }
+  .nox-settings .nox-cardtop [style*="repeat(auto-fit, minmax(2"] > :is(label, div):has(> span:first-child):not(.nox-settings-fold) > :first-child { grid-column: 1; }
+  .nox-settings .nox-cardtop [style*="repeat(auto-fit, minmax(2"] > :is(label, div):has(> span:first-child):not(.nox-settings-fold) > :not(:first-child) { grid-column: 2; max-width: 46em; }
+  .nox-settings .nox-cardtop :is(.nox-money, .nox-unit) { max-width: 320px; }
+  .nox-settings .nox-onoffwrap { flex-wrap: nowrap; }
+  .nox-settings [style*="inline-flex"]:has(> .nox-onoffwrap) { white-space: nowrap; }
+  .nox-settings .nox-settings-save { display: flex; justify-content: flex-end; gap: 8px; }
+}
+@media (max-width: 899px) {
+  .nox-settings .nox-settings-save:not(:has(button:not(:disabled))) { position: static; margin-bottom: 0; }
+  .nox-settings .nox-settings-save:has(button:not(:disabled)) { position: fixed; left: 0; right: 0; bottom: calc(var(--nox-bnav-h, 66px) + env(safe-area-inset-bottom, 0px)); z-index: 30; margin: 0; padding: 8px 16px; border-top: 1px solid var(--line2); box-shadow: 0 -6px 16px rgba(0, 0, 0, .35); }
+  .nox-settings:has(.nox-settings-save button:not(:disabled)) { padding-bottom: 76px; }
+  .nox-settings { padding-bottom: 16px; }
+  .nox-settings .nox-seg:has(> :nth-child(3)) { display: grid !important; grid-template-columns: minmax(0, 1fr) !important; width: 100%; }
+  .nox-settings .nox-seg:has(> :nth-child(3)) > * { width: 100%; min-height: 44px; white-space: normal !important; text-align: left; justify-content: flex-start; }
+  .nox-settings label:has(> input[type=checkbox]) { white-space: normal; max-width: 100%; }
+  .nox-settings div:has(> label > input[type=checkbox]) { flex-wrap: wrap !important; row-gap: 8px; }
+}

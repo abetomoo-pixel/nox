@@ -43,6 +43,20 @@ check("st(5-3) ★B6: 保存はカードの下に固定（2 枚のカード）�
     && [pr, ms].every((x) => (x.match(/className="nox-actions nox-settings-save"/g) ?? []).length === 1) && (lc.match(/className="nox-actions nox-settings-save"/g) ?? []).length === 2); }
 check("st(4-1) RPC と保存の式は不変（set_store_profile の呼び口 1 つ・patchOf は節を見ない）", (sp.match(/rpc\("set_store_profile"/g) ?? []).length === 1 && !/const patchOf = \(\): Record<string, unknown> => \{[\s\S]*?on\("/.test(sp.slice(sp.indexOf("const patchOf"), sp.indexOf("const dirty"))));
 
+// ★2026-11-17（相談役 4・Agoora 確定）: 店舗設定のレイアウト（見せ方だけ）
+{ const cssL = fs.readFileSync("app/globals.css", "utf8");
+  check("st(6-1) PC＝1 項目 1 行の 2 列（左 200〜300px に項目名と説明・右に部品）・説明は 46em まで・金額と単位の欄は 320px まで・保存は右下",
+    cssL.includes('.nox-settings .nox-cardtop [style*="repeat(auto-fit, minmax(2"] { grid-template-columns: minmax(0, 1fr) !important; row-gap: 0 !important; }')
+    && cssL.includes("grid-template-columns: minmax(200px, 300px) minmax(0, 1fr); column-gap: 28px;") && cssL.includes("> :not(:first-child) { grid-column: 2; max-width: 46em; }")
+    && cssL.includes(".nox-settings .nox-cardtop :is(.nox-money, .nox-unit) { max-width: 320px; }") && cssL.includes(".nox-settings .nox-settings-save { display: flex; justify-content: flex-end; gap: 8px; }"));
+  check("st(6-2) PC＝ON／OFF と状態の文字は 1 行（カウンターが 2 行に折れない・状態の位置が揃う）", cssL.includes(".nox-settings .nox-onoffwrap { flex-wrap: nowrap; }") && cssL.includes('.nox-settings [style*="inline-flex"]:has(> .nox-onoffwrap) { white-space: nowrap; }'));
+  check("st(6-3) 375＝保存の帯と下のメニューが中身に重ならない（変更の無い帯は流れの中・変更のある帯だけ下のメニューのすぐ上に固定＋その分の余白 76px）",
+    cssL.includes(".nox-settings .nox-settings-save:not(:has(button:not(:disabled))) { position: static; margin-bottom: 0; }")
+    && cssL.includes(".nox-settings .nox-settings-save:has(button:not(:disabled)) { position: fixed; left: 0; right: 0; bottom: calc(var(--nox-bnav-h, 66px) + env(safe-area-inset-bottom, 0px));")
+    && cssL.includes(".nox-settings:has(.nox-settings-save button:not(:disabled)) { padding-bottom: 76px; }"));
+  check("st(6-4) 375＝3 択以上の選択は縦に横いっぱい・チェックの行は折り返す", cssL.includes(".nox-settings .nox-seg:has(> :nth-child(3)) { display: grid !important; grid-template-columns: minmax(0, 1fr) !important; width: 100%; }") && cssL.includes(".nox-settings div:has(> label > input[type=checkbox]) { flex-wrap: wrap !important; row-gap: 8px; }"));
+  const btns = ["app/(manage)/master/store-profile-panel.tsx", "app/(manage)/master/punch-rules-panel.tsx", "app/(manage)/master/mine-settings-panel.tsx"].every((p) => /data-settings-save="1"[sS]{0,400}disabled={busy || !dirty}/.test(fs.readFileSync(p, "utf8")));
+  check("st(6-5) 固定の判定の元＝保存の帯の「元に戻す」は変更があるときだけ押せる（店舗情報・打刻・キャスト画面）", btns); }
 if (fails.length) {
   console.error(`verify:nox-settings1116 FAIL ${fails.length} / pass ${pass}`);
   for (const f of fails) console.error(" - " + f);
