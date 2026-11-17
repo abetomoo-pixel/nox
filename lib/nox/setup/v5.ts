@@ -23,6 +23,9 @@ export const itemYenOf = (n: number): number => intIn(n, 0, 99_999_999);
 export const okuriBaseOf = (S: { payroll: { okuriMode: string; okuri: number; okuriFlatBase?: number | null } }): number | null =>
   S.payroll.okuriMode === "fixed" ? (S.payroll.okuriFlatBase == null ? null : intIn(S.payroll.okuriFlatBase, 0, 99_999)) : Math.max(0, Math.min(99999, Math.round(S.payroll.okuri || 0)));
 export const okuriFlatBaseMissingOf = (S: { payroll: { okuriMode: string; okuriFlatBase?: number | null } }): boolean => S.payroll.okuriMode === "fixed" && S.payroll.okuriFlatBase == null;
+/** ★2026-11-17（相談役 2）: 初期設定の報酬率スライド＝軸だけ保存・段はあとで */
+export const RATE_SLIDE_TIERS_LATER = "段はあとで待遇プランで設定します";
+export const RATE_SLIDE_BASE_UNTIL_TIERS = "段を入れるまでは基本の時給で計算されます";
 export const OKURI_FLAT_BASE_LABEL = "本人の退勤と店の端末から送りを記録するときの額（1 回）";
 /** ★2026-11-16（■6-3）: 初期設定の「キャストのレジ使用」の説明＝実際の最初の値（会計できる卓＝全卓 cast_register_scope 'all'・操作端末＝店の端末だけ・使えるのは本人ごとにレジ使用を許可したキャスト＝can_register） */
 export const CAST_REGISTER_SETUP_NOTE = "最初は全卓・店の端末だけで使えます。使えるのは、キャストの詳細で「レジ使用」を許可した人だけです。伝票の取消・割引・手数料カットは店長以上のまま（卓と端末はあとで権限・情報管理で変えられます）。";
@@ -372,7 +375,9 @@ export function buildV5Plan(S: V5State, ctx: V5Ctx): { steps: V5Step[]; deferred
     p_slide_apply: "next", p_slide_method: null, p_pt_rules: S.pay.slide === "point" ? { hon: S.pt.hon, jonai: S.pt.jo, dohan: S.pt.dohan, sales_yen_per_pt: S.pt.salesPer } : null });
   push({ key: "comp_0", group: "comp", label: `待遇プラン「基本プラン」時給 ¥${S.pay.base}`, rpc: "set_comp_plan", guard: "plans_empty", args: planArgs("基本プラン", S.pay.base, true) });
   push({ key: "comp_1", group: "comp", label: `待遇プラン「体験入店」時給 ¥${S.pay.trial}（${S.pay.trialDays} 日）`, rpc: "set_comp_plan", guard: "plans_empty", args: planArgs("体験入店", S.pay.trial, false) });
-  if (S.pay.slide === "rate") deferred.push({ item: "報酬率スライドの段", note: "段は待遇プランの画面で設定します" });
+  // ★2026-11-17（相談役 2・Agoora「初期設定からいる」）: 報酬率スライドを選んだら、基本プランに報酬の軸（pay_rate）だけ保存する（comp_plan_ext_set・owner）。段は保存しない＝段を入れるまで計算は基本の時給
+  if (S.pay.slide === "rate") push({ key: "comp_0_axis", group: "comp", label: "基本プランの報酬の軸＝報酬率（段はあとで待遇プランで）", rpc: "comp_plan_ext_set", useResult: { from: "comp_0", as: "p_plan_id" }, args: { p_patch: { reward_axis: "pay_rate" } } });
+  if (S.pay.slide === "rate") deferred.push({ item: "報酬率スライドの段", note: RATE_SLIDE_TIERS_LATER });
   // 7) ノルマの減額（提案型＝set_penalty_config）
   if (S.pay.norma) { const P = S.normaPen; const flat = (k: keyof typeof P) => (P[k].m === "flat" ? P[k].a : 0), per = (k: keyof typeof P) => (P[k].m === "per" ? P[k].a : 0);
     push({ key: "penalty", group: "comp", label: "ノルマ未達の減額（提案型）", rpc: "set_penalty_config", args: { p_store_id: s, p_fine_absent: 10000, p_fine_late: 3000, p_hours_per_shift: 5, p_norm_on: true, p_norm_days_flat: S.normaAxes.days ? flat("days") : 0, p_norm_days_per: S.normaAxes.days ? per("days") : 0, p_norm_dohan_flat: S.normaAxes.dohan ? flat("dohan") : 0, p_norm_dohan_per: S.normaAxes.dohan ? per("dohan") : 0,
