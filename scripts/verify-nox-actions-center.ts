@@ -1,13 +1,13 @@
 /*
  * verify:nox-actions-center — 便 BTN（2026-10-26・Agoora）: 主ボタン中央の機械判定（教訓122）。
- *  dev サーバ（NOX_UI_BASE・既定 http://localhost:3200＝無ければこの suite が next dev を起動して終わりに止める）に Edge（playwright-core・channel msedge）で入り、
+ *  dev サーバ（★2026-11-17 相談役 0: いつも自前の一時の dev＝NOX_UI_PORT・既定 3290・出力先 .next-ac・終わりに子のプロセスまで止め tsconfig／next-env.d.ts を戻し出力先を消す＝3200 には頼らない。NOX_UI_BASE を渡したときだけその dev を使う）に Edge（playwright-core・channel msedge）で入り、
  *  verify の fixture（NOX-VERIFY-A1 のオーナー／キャスト＝パスワードは .env.local の SEED_PASSWORD・localhost の dev だけ）でログインし、主要画面を 1,280 と 390 で開き、lib/nox/ui/actions-center-probe の判定を走らせる。
  *  画面＝マスタ全タブ（各ページのセグメントの ?tab= も辿る）・給与・勤怠・シフト各タブ・レジ・日報・/mine・キオスク（打刻／レジ＝端末ログイン前の画面＝fixture に端末が無い）。外れ（例外以外で |dx| > 8px）が 1 つでもあれば赤。
  *  fixture の org（NOX-VERIFY）は規約の同意（terms_acceptances）が無い＝管理画面が同意ページへ飛ぶ＝走査の間だけ同意の行を足し、終わりに必ず消す（DB 残留 0・教訓49＝teardown は失敗を投げる）。
  *  使い方: npm run verify:nox-actions-center（--list で全件・--report で違反の一覧だけ出して終了コード 0）
  */
 import fs from "node:fs";
-import { spawn, type ChildProcess } from "node:child_process";
+import { spawn, execSync, type ChildProcess } from "node:child_process";
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright-core";
 import { actionsCenterProbe, type ActionsCenterHit } from "../lib/nox/ui/actions-center-probe";
 import { FIXTURE_USERS } from "./fixtures-f0";
@@ -15,7 +15,9 @@ import pg from "pg";
 import { pgTx } from "./fixtures-pgtx"; // ★便 M5 M-48: owner の JWT を emulate して check_open／check_set_nominations
 process.loadEnvFile(".env.local");
 
-const BASE = process.env.NOX_UI_BASE ?? "http://localhost:3200";
+const OWN_PORT = process.env.NOX_UI_PORT ?? "3290";
+const BASE = process.env.NOX_UI_BASE ?? `http://localhost:${OWN_PORT}`; // ★2026-11-17: 既定は自前の一時の dev（3200 には頼らない＝11/16 13:30 に 3200 が止まって f0 が止まった）
+const OWN_DIST = ".next-ac";
 const TOL = 8;
 const LIST = process.argv.includes("--list");
 const REPORT = process.argv.includes("--report");
@@ -34,12 +36,23 @@ const KIOSK_PAGES = ["/kiosk"]; // ★裁定469（M-128・2026-11-09）: /kiosk-
 
 const bounded = <T,>(p: Promise<T>, ms: number): Promise<T | undefined> => Promise.race([p, new Promise<undefined>((r) => setTimeout(() => r(undefined), ms))]); // Edge の close が戻らないことがある＝上限つき
 async function up(): Promise<boolean> { try { const r = await fetch(`${BASE}/login`, { redirect: "manual" }); return r.status > 0; } catch { return false; } }
+// ★2026-11-17（相談役 0）: 自前の一時の dev＝別の番号・別の出力先（.next-ac）。next dev は tsconfig.json／next-env.d.ts を書き換えることがある＝起動前の中身を控えて終わりに戻す
+const restoreFiles: { path: string; body: string | null }[] = [];
+function stopOwnServer(p: ChildProcess | null) {
+  if (!p) return;
+  try { if (process.platform === "win32" && p.pid) execSync(`taskkill /PID ${p.pid} /T /F`, { stdio: "ignore" }); else p.kill(); } catch { /* もう止まっている */ }
+  for (const r of restoreFiles) { try { if (r.body === null) fs.rmSync(r.path, { force: true }); else if (fs.readFileSync(r.path, "utf8") !== r.body) fs.writeFileSync(r.path, r.body); } catch { /* 戻せないときは下で知らせる */ } }
+  try { fs.rmSync(OWN_DIST, { recursive: true, force: true }); } catch { /* Dropbox が掴んでいることがある */ }
+}
 async function ensureServer(): Promise<ChildProcess | null> {
-  if (await up()) return null;
-  const port = new URL(BASE).port || "3200";
-  const p = spawn(process.platform === "win32" ? "npx.cmd" : "npx", ["next", "dev", "-p", port], { stdio: "ignore", shell: process.platform === "win32" });
-  for (let i = 0; i < 120; i++) { await new Promise((r) => setTimeout(r, 1000)); if (await up()) return p; }
-  p.kill(); throw new Error("dev サーバが起動しませんでした");
+  if (process.env.NOX_UI_BASE) { if (await up()) return null; throw new Error(`NOX_UI_BASE（${BASE}）が応答しません`); }
+  if (await up()) throw new Error(`${BASE} はすでに使われています（自前の dev の番号を NOX_UI_PORT で変えてください）`);
+  for (const path of ["tsconfig.json", "next-env.d.ts"]) restoreFiles.push({ path, body: fs.existsSync(path) ? fs.readFileSync(path, "utf8") : null });
+  fs.mkdirSync(OWN_DIST, { recursive: true });
+  if (process.platform === "win32") { try { execSync(`powershell -NoProfile -Command "Set-Content -Path '${OWN_DIST}' -Stream com.dropbox.ignored -Value 1"`, { stdio: "ignore" }); } catch { /* Dropbox の外なら不要 */ } }
+  const p = spawn(process.platform === "win32" ? "npx.cmd" : "npx", ["next", "dev", "-p", OWN_PORT], { stdio: "ignore", shell: process.platform === "win32", env: { ...process.env, NEXT_DIST_DIR: OWN_DIST } });
+  for (let i = 0; i < 240; i++) { await new Promise((r) => setTimeout(r, 1000)); if (await up()) return p; }
+  stopOwnServer(p); throw new Error("自前の dev サーバが起動しませんでした");
 }
 async function enter(page: Page, key: keyof typeof FIXTURE_USERS | null): Promise<void> {
   if (!key) return; // キオスク＝端末ログイン前の画面
@@ -174,7 +187,7 @@ try {
     if (ids.length || seatIds.length) process.stderr.write(`  M-48 cleanup checks ${ids.length} seats ${seatIds.length}\n`);
   } catch (e) { console.error("M-48 cleanup failed:", (e as Error).message); process.exitCode = 1; }
   if (browser) await bounded(browser.close().catch(() => undefined), 15_000);
-  if (server) server.kill();
+  stopOwnServer(server); // ★2026-11-17: 子のプロセスまで止め、tsconfig／next-env.d.ts を戻し、出力先を消す
   if (termsRow) { const d = await db.query("delete from public.terms_acceptances where id = $1", [termsRow]); if (d.rowCount !== 1) throw new Error("teardown: 規約の同意の行を消せませんでした"); }
   await db.end().catch(() => undefined);
 }

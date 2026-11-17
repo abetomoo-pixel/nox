@@ -42,9 +42,11 @@ async function main() {
     const prod = await one<{ id: string; name: string }>("select id, name from public.products where store_id=$1 and is_active order by name limit 1", [A1.id]);
     check("cp(0-1) fixture: A1／owner／manager（membership）／cast a1a・a1b／顧客 3／CRM 卓／商品", !!A1 && !!owner && !!mgr && !!mgrMid && !!castA && !!castB && Object.keys(custs).length === 3 && !!seat && !!prod);
     if (!seat || !castA || !castB || !mgrMid || !prod || Object.keys(custs).length !== 3) throw new Error("fixture 解決失敗");
-    const snapSql = `select (select count(*)::int from public.audit_logs) au, (select count(*)::int from public.customers) cu, (select count(*)::int from public.customer_notes) cn, (select count(*)::int from public.cast_sensitive) cs,
-      (select count(*)::int from public.kiosk_devices) kd, (select count(*)::int from public.kiosk_sessions) ks, (select count(*)::int from public.checks) ch, (select count(*)::int from public.check_customers) cc,
-      (select count(*)::int from public.bottle_keeps) bk, (select count(left_on)::int from public.casts) lo, (select count(*)::int from public.customers where anonymized_at is not null) an`;
+    // ★2026-11-17（相談役 5）: 数えるのは NOX-VERIFY の会社の行だけ（旧＝DB 全体＝f0 の走行中にデモ・実際の店で書くと赤）。見なくなるもの＝検査の ROLLBACK が NOX-VERIFY 以外の会社の行を残した・消した場合（audit_purge は cp(2-1) が「orgs 1」で別に見る）
+    const V = "org_id in (select id from public.orgs where name like 'NOX-VERIFY%')";
+    const snapSql = `select (select count(*)::int from public.audit_logs where ${V}) au, (select count(*)::int from public.customers where ${V}) cu, (select count(*)::int from public.customer_notes where ${V}) cn, (select count(*)::int from public.cast_sensitive where ${V}) cs,
+      (select count(*)::int from public.kiosk_devices where ${V}) kd, (select count(*)::int from public.kiosk_sessions where ${V}) ks, (select count(*)::int from public.checks where ${V}) ch, (select count(*)::int from public.check_customers where ${V}) cc,
+      (select count(*)::int from public.bottle_keeps where ${V}) bk, (select count(left_on)::int from public.casts where ${V}) lo, (select count(*)::int from public.customers where anonymized_at is not null and ${V}) an`;
     const before = JSON.stringify(await one(snapSql));
 
     // (1) 静的
@@ -137,7 +139,7 @@ async function main() {
       await db.query("rollback");
     }
     const after = JSON.stringify(await one(snapSql));
-    check("cp(0-2) ROLLBACK 後の snapshot 一致（audit_logs／customers／notes／cast_sensitive／kiosk／checks／check_customers／keeps／left_on／anonymized）", after === before, `${before} → ${after}`);
+    check("cp(0-2) ROLLBACK 後の snapshot 一致（NOX-VERIFY の会社だけ＝audit_logs／customers／notes／cast_sensitive／kiosk／checks／check_customers／keeps／left_on／anonymized）", after === before, `${before} → ${after}`);
   } finally {
     await db.end().catch(() => undefined);
   }
