@@ -28,7 +28,7 @@ export const DEMO_BIZ_TYPES = DEMO_STORES;
 export type DemoBiz = DemoStore;
 export const DEMO_STORE_LABEL: Record<DemoStore, { name: string; biz: string; desc: string }> = {
   muse: { name: "SNACK MUSE", biz: "キャバクラ", desc: "セット・ボトルキープ・つまみ・指名（併用スライド）" }, // ★348 追補2（便 N1014 B-4）: 業態キャバクラ（店名は不変）
-  luna: { name: "CLUB LUNA", biz: "キャバクラ・標準", desc: "指名・同伴・セット・延長" },
+  luna: { name: "CLUB LUNA", biz: "キャバクラ・標準", desc: "指名・同伴・セット・延長・報酬率スライド" }, // ★Y2b（2026-11-17 夜）
   noir: { name: "CLUB NOIR", biz: "キャバクラ・VIP 専用料金", desc: "VIP 席の料金表・ランク別指名料・売掛" },
   ace: { name: "CLUB ACE", biz: "キャバクラ・売上スライド", desc: "VIP 加算・売上スライド時給・売掛" },
   lily: { name: "Girls Bar LILY", biz: "ガールズバー", desc: "カウンター・チャージ・キャストショット" },
@@ -231,6 +231,8 @@ export type AfterResetResult = { lane?: { availability: number; terms: number; v
  *     admin（service）で casts／users を直接 update＝RPC set_*_photo_updated_at は本人／自店の authz（デモの cron にはセッションが無い）。
  *   給与の正規経路（payroll_run_create→payroll_finalize）＝D2-c（報酬参考 13,648,300 の突合）。
  */
+/** ★Y2b: 追加したキャスト（scripts/demo/profiles.mjs EXTRA_CASTS）の写真の写し元＝[追加の名前, 写し元の名前]（LUNA）。名前は店の中で重ならない */
+export const DEMO_PHOTO_CLONES: readonly (readonly [string, string])[] = [["ひまり", "なな"], ["つばさ", "かれん"], ["ゆず", "りお"], ["しずく", "あかり"], ["あいり", "れいな"], ["るり", "かれん"], ["ここな", "りお"], ["みゆ", "あかり"]];
 export async function afterResetHooks(admin: SupabaseClient, orgId: string, _bizDate: string): Promise<AfterResetResult> {
   const out: AfterResetResult = { photos: { casts: 0, users: 0 }, payroll: { period: prevPeriodOf(_bizDate.slice(0, 7)), stores: [], ms: 0 } };
   try {
@@ -241,6 +243,14 @@ export async function afterResetHooks(admin: SupabaseClient, orgId: string, _biz
       const m = /^(u_)?([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.jpg$/i.exec(o.name);
       if (!m) continue;
       (m[1] ? userIds : castIds).push(m[2]);
+    }
+    // ★Y2b（2026-11-17 夜）: 追加したキャストに写真が無ければ写し元（同じ会社の同じ店のキャスト）の写真を複写する（reset の中の書込・1 回複写すれば以後は wipe で消えない）
+    for (const [to, from] of DEMO_PHOTO_CLONES) {
+      const { data: cs } = await admin.from("casts").select("id, name").eq("org_id", orgId).in("name", [to, from]);
+      const toId = (cs ?? []).find((c) => c.name === to)?.id as string | undefined, fromId = (cs ?? []).find((c) => c.name === from)?.id as string | undefined;
+      if (!toId || !fromId || castIds.includes(toId) || !castIds.includes(fromId)) continue;
+      const { error: eCp } = await admin.storage.from(CAST_PHOTO_BUCKET).copy(`${orgId}/${fromId}.jpg`, `${orgId}/${toId}.jpg`);
+      if (!eCp) castIds.push(toId);
     }
     const now = new Date().toISOString();
     if (castIds.length) {
@@ -274,6 +284,9 @@ export const CANON_DOHAN_BANDS: readonly { from_min: number; to_min: number; val
 export const CANON_NORM_TIERS: readonly { week_days_min: number; week_days_max: number; days_required: number; hours_required: number }[] = [{ week_days_min: 1, week_days_max: 2, days_required: 6, hours_required: 30 }, { week_days_min: 3, week_days_max: 4, days_required: 12, hours_required: 60 }, { week_days_min: 5, week_days_max: 7, days_required: 18, hours_required: 90 }];
 export async function demoCanonBandsFor(admin: SupabaseClient, orgId: string): Promise<NonNullable<AfterResetResult["canon"]>> {
   const out = { plans: 0, bands: 0, tiers: 0 };
+  // ★Y2b（2026-11-17 夜）: CANON の帯と規定は MUSE の型＝MUSE の会社だけ（LUNA も報酬率のプランを持つ＝旧は全部の報酬率のプランに入れていた）
+  const { data: org } = await admin.from("orgs").select("name").eq("id", orgId).maybeSingle();
+  if ((org as { name?: string } | null)?.name !== "NOX-DEMO-MUSE") return out;
   const { data: plans, error } = await admin.from("comp_plans").select("id, store_id").eq("org_id", orgId).eq("reward_axis", "pay_rate");
   if (error) throw new Error(`comp_plans: ${error.message}`);
   const ids = ((plans ?? []) as { id: string; store_id: string }[]);

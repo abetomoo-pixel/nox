@@ -14,7 +14,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import { groupDueFull } from "../../lib/nox/check-calc.ts";
-import { ADVANCES, SLIDES, EXTRA_PLANS, PROFILES, TRIAL, STAFF_DEMO, BONUS_TIERS, EXT_PATTERNS, sysSettingsOf, backOf as profileBackOf, canonOf, okuriModeOf as profileOkuriModeOf } from "./profiles.mjs"; // ★X-13c: 6 店の差別化（表＝docs/demo/store_profiles_20261009.md）
+import { ADVANCES, SLIDES, EXTRA_PLANS, PROFILES, TRIAL, STAFF_DEMO, BONUS_TIERS, EXT_PATTERNS, sysSettingsOf, backOf as profileBackOf, canonOf, okuriModeOf as profileOkuriModeOf, EXTRA_CASTS, PAY_RATE_DEMO } from "./profiles.mjs"; // ★X-13c: 6 店の差別化（表＝docs/demo/store_profiles_20261009.md）
 import { RULES_0175_APPLIED, MIG_0200_APPLIED } from "./rules-0175-flag.mjs";
 import { demoPinOf } from "../../lib/nox/demo/pin.ts"; // ★夜便レーン 1（2026-11-11）: デモの人ごとの PIN（全員 1234 をやめる）
 // ★デモの PIN のハッシュ＝scripts/demo/demo-pin-hashes.json（id → bcrypt・本番 DB の crypt を固定の salt で読み取りだけで呼んで作る＝gen-demo-pin-hashes.mjs）。足りない id は一覧に書いて止める
@@ -26,6 +26,14 @@ const pinHashOf = (name, storeKey) => { const pin = demoPinOf(name); const set =
 
 const SRC = JSON.parse(fs.readFileSync("docs/demo/source/20261001/nox_demo_all.json", "utf8"));
 const D = (k) => SRC.datasets[k].records;
+// ★Y2b（相談役 11/17 夜）: 源泉のキャストを写して人数を足す（people・プランの割当・月の目標＝倍率）。他の表（代表伝票・予約・ランキングの参照）は写さない
+for (const list of Object.values(EXTRA_CASTS)) for (const x of list) {
+  const p0 = D("people").find((p) => p.person_id === x.from); if (!p0) throw new Error(`EXTRA_CASTS: 写し元が無い ${x.from}`);
+  D("people").push({ ...p0, person_id: x.id, display_name: x.name });
+  const a0 = D("person_plan_assignments").find((a) => a.person_id === x.from); if (a0) D("person_plan_assignments").push({ ...a0, assignment_id: `${x.id}-ASSIGN`, person_id: x.id });
+  const sc = (v, r = 1) => (typeof v === "number" ? Math.round((v * x.scale) / r) * r : v);
+  for (const m of D("cast_monthly_targets").filter((r) => r.person_id === x.from)) D("cast_monthly_targets").push({ ...m, person_id: x.id, display_name: x.name, hours_target: sc(m.hours_target), sales_target_yen: sc(m.sales_target_yen, 1000), main_count_target: sc(m.main_count_target), inhouse_count_target: sc(m.inhouse_count_target), accompanied_count_target: sc(m.accompanied_count_target), product_reward_target_yen: sc(m.product_reward_target_yen, 100), stated_bonus_yen: null, stated_total_yen: null });
+}
 const OUT_DIR = "docs/demo/payload";
 fs.mkdirSync(OUT_DIR, { recursive: true });
 
@@ -105,6 +113,8 @@ for (const st of STORES) {
   const closeMin = 1500; // 翌 01:00（30 時間制）
   // ★X-13-9（便 X-13a・2026-10-08）: 機能の公開＝会社の既定（store_id null）で「スタッフシフト」「締め解除フロー」を ON（flag_enabled は店舗行→org 行→false）
   const PF = PROFILES[code]; // ★X-13c: 店のプロファイル
+  const RATE = PAY_RATE_DEMO[code] ?? null; // ★Y2b: 報酬率スライドの段（LUNA）
+  const RATE_KEYS = RATE ? { reward_axis: "pay_rate", pay_rate_tiers: RATE.tiers, slide_streak_n: RATE.streak, assess_grace_months: 0 } : {};
   const CANON = canonOf(code); // ★便 P175-prep P-6: MUSE の CANON 型（RULES_0175_APPLIED=true でだけ非 null＝false は payload 不変）
   const OKURI_MODE = profileOkuriModeOf(code); // ★裁定414 追補（0177 後）: LILY 'store'／NOIR 'none' は OKURI_4WAY_APPLIED=true で書く（他 4 店は PROFILES の値）
   for (const key of ["staff_shift", "reopen_flow"]) push("feature_flags", { id: uid(`flag:${code}:${key}`), store_id: null, key, enabled: key === "reopen_flow" ? !!PF.reopen : true, updated_by: null }); // ★X-13c: 締め解除フローは店で差
@@ -214,12 +224,12 @@ for (const st of STORES) {
     norm_days_target: on("days") ? (hi ? 16 : 12) : null, norm_dohan_target: on("dohan") ? (hi ? 6 : 4) : null,
     norm_sales_target: on("sales") ? (hi ? 800000 : 500000) : null, norm_shimei_target: on("shimei") ? (hi ? 30 : 20) : null }; };
   const slide = D("sales_slide_tiers").filter((t) => t.store_id === S && t.tier > 0).map((t) => ({ at: t.daily_sales_threshold_yen, wage: t.hourly_yen }));
-  for (const p of plans) push("comp_plans", { id: uid(`plan:${p.plan_id}`), store_id: storeId, name: p.plan_name, base: p.base_hourly_yen, slide_apply: PF.slideApply ?? null, ...(CANON ? { reward_axis: "pay_rate", pay_rate_tiers: CANON.pay_rate_tiers, slide_streak_n: CANON.slide_streak_n, assess_grace_months: CANON.assess_grace_months, hon_back_rate: CANON.hon_back_rate, hon_back_mode: "rate" } : {}), /* ★便 P175-prep P-6: CANON 型（フラグ true でだけ・0175 v2 の列） */ /* ★便 P173（裁定395 追補1・0174） */ hon_back: p.main_reward_yen, jonai_back: p.inhouse_reward_yen, dohan_back: p.accompanied_reward_yen,
+  for (const p of plans) push("comp_plans", { id: uid(`plan:${p.plan_id}`), store_id: storeId, name: p.plan_name, base: p.base_hourly_yen, slide_apply: PF.slideApply ?? null, ...RATE_KEYS, /* ★Y2b */ ...(CANON ? { reward_axis: "pay_rate", pay_rate_tiers: CANON.pay_rate_tiers, slide_streak_n: CANON.slide_streak_n, assess_grace_months: CANON.assess_grace_months, hon_back_rate: CANON.hon_back_rate, hon_back_mode: "rate" } : {}), /* ★便 P175-prep P-6: CANON 型（フラグ true でだけ・0175 v2 の列） */ /* ★便 P173（裁定395 追補1・0174） */ hon_back: p.main_reward_yen, jonai_back: p.inhouse_reward_yen, dohan_back: p.accompanied_reward_yen,
     sales_slide: SL.sales ?? (p.sales_slide ? slide : []), point_slide: SL.points ?? [], is_active: true, hon_back_mode: "per_count", hon_back_rate: null, jonai_back_mode: "per_count", jonai_back_rate: null, dohan_back_mode: "per_count", dohan_back_rate: null, product_back_mode: PF.sys.sales_rate ? "plan_rate" : "product_rule", product_back_rate: PF.sys.sales_rate ? 10 : null, /* ★裁定348: MUSE 売上歩合＝商品売上の 10% */ product_back_fixed: null, product_back_fixed_hon: null, product_back_fixed_jonai: null, product_back_fixed_free: null, slide_period: SL.period ?? "daily", slide_basis: SL.basis ?? "sales", slide_rank_ids: ranks.filter((r) => (SL.ranks ?? []).includes(r.rank_name)).map((r) => uid(`rank:${r.rank_id}`)), ...normDefaultsOf(p.plan_name) /* ★裁定347（0171）: プラン既定の目標 */, ...(CANON ? { hon_back_mode: "rate", hon_back_rate: CANON.hon_back_rate, jonai_back: CANON.jonai_back, dohan_back_mode: "per_count" } : {}) /* ★便 ON-2: CANON の本指名 率 10%・場内 500 は末尾で上書き（前の spread が per_count で潰していた） */ }); // ★0168（裁定338・便 P168）: 判定期間
   // ★X-13-21（便 X-13d-1）: 1 本だけの店に 2〜3 本目（EXTRA_PLANS）＝キャストは [源泉のプラン, 追加…] を順番に割り振る（overrides は従来どおり {}）
   const extraPlans = (EXTRA_PLANS[code] ?? []).map((x) => ({ ...x, id: uid(`plan:x:${code}:${x.key}`) }));
   const PLAN_0175_KEYS = CANON ? { reward_axis: null, pay_rate_tiers: [], slide_streak_n: 1, assess_grace_months: 0, hon_back_rate: null } : {}; // ★便 ON-2: CANON 店は comp_plans の全行でキー集合を揃える（主プランが pay_rate_tiers を持つと、無い行は null で NOT NULL に落ちる＝13:45 MUSE reset 失敗）
-  for (const x of extraPlans) push("comp_plans", { id: x.id, store_id: storeId, name: x.name, base: x.base, slide_apply: PF.slideApply ?? null, ...PLAN_0175_KEYS, /* ★便 P173 */ hon_back: x.hon, jonai_back: x.jonai, dohan_back: x.dohan,
+  for (const x of extraPlans) push("comp_plans", { id: x.id, store_id: storeId, name: x.name, base: x.base, slide_apply: PF.slideApply ?? null, ...PLAN_0175_KEYS, ...RATE_KEYS, /* ★Y2b */ /* ★便 P173 */ hon_back: x.hon, jonai_back: x.jonai, dohan_back: x.dohan,
     sales_slide: SL.sales ?? [], point_slide: SL.points ?? [], is_active: true, hon_back_mode: "per_count", hon_back_rate: null, jonai_back_mode: "per_count", jonai_back_rate: null, dohan_back_mode: "per_count", dohan_back_rate: null, product_back_mode: PF.sys.sales_rate ? "plan_rate" : "product_rule", product_back_rate: PF.sys.sales_rate ? 10 : null, product_back_fixed: null, product_back_fixed_hon: null, product_back_fixed_jonai: null, product_back_fixed_free: null, slide_period: SL.period ?? "daily", slide_basis: SL.basis ?? "sales", slide_rank_ids: ranks.filter((r) => (SL.ranks ?? []).includes(r.rank_name)).map((r) => uid(`rank:${r.rank_id}`)), ...normDefaultsOf(x.name) /* ★裁定347（0171）: 優遇プランは高め */ }); // ★裁定338: 追加プランにも同じ段 // ★0168（裁定338・便 P168）: 判定期間
   // ★裁定348 追補1（便 DM-1 D-2b）: 体験入店＝スライド・バックなし（product_back は plan_fixed 0）・基本時給は店ごと（TRIAL.base）・slide_period は daily 固定
   const TR = TRIAL[code]; const trialPlanId = uid(`plan:trial:${code}`);

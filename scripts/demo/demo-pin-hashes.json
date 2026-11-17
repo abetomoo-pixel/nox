@@ -67,6 +67,10 @@
   "pin": "5207",
   "hash": "$2a$06$1FOxkI7l5Pi9.710WCLU.uApAOjenH66YQUTuPlQXmCD6FEQQRRJW"
  },
+ "luna:あいり": {
+  "pin": "8619",
+  "hash": "$2a$06$JlDouxDY/6/GHpCYiss5UeBBE4nbAQKfQAbkKaeA/n0VohhLO2Gle"
+ },
  "luna:あかり": {
   "pin": "5440",
   "hash": "$2a$06$RLLQ/frtRR4ReBaDubnwc.zrYAq3C99BGBh2bQTUzGBSbZ0oSX6yu"
@@ -75,9 +79,25 @@
   "pin": "4547",
   "hash": "$2a$06$8Dz7lNYXTuoeP2qvZC/6Z.8xCbxDP0Mza.0grjQVCmPmD00EL9Xoa"
  },
+ "luna:ここな": {
+  "pin": "7403",
+  "hash": "$2a$06$0R0qrQZBTuzH51kZc2y9G.yItx7Gj80xq4sZT0cojphFLE6oA86Oi"
+ },
+ "luna:しずく": {
+  "pin": "3089",
+  "hash": "$2a$06$wqTjRyNbqbd.diT4z//9FOhgubj72Jicd00wlFZIFDB3NIXLbPsg2"
+ },
+ "luna:つばさ": {
+  "pin": "5284",
+  "hash": "$2a$06$WBnsmDuez1wSY9EJWAEzi.JSOeFAklE/RNOGlLP1WWdN2Y3rEknOq"
+ },
  "luna:なな": {
   "pin": "7829",
   "hash": "$2a$06$R0XX2f31.W64dEh7rdtINehRMkitbDTVetNj3MLuCAxePyhXBy0JO"
+ },
+ "luna:ひまり": {
+  "pin": "9825",
+  "hash": "$2a$06$igwKO9uA2Jmd09poOniIV.xsQiKV8MDahLFlbjdpbLOgsEGhQFI8u"
  },
  "luna:まい": {
   "pin": "1263",
@@ -87,9 +107,21 @@
   "pin": "1684",
   "hash": "$2a$06$Nyk26iT5b0rXXE.X4oSSReO1FPyvRLiWeYX3QmDJ3LEXm.37UT/qG"
  },
+ "luna:みゆ": {
+  "pin": "0840",
+  "hash": "$2a$06$OeCYGYmDD1w/zm.2iSLZ6OAzRPVd6Q.TFcwhawSpOnDQRlI.zNMAO"
+ },
+ "luna:ゆず": {
+  "pin": "4585",
+  "hash": "$2a$06$yTJLXflEbHdd6bB6WXuBZOFfEPAncRNjrYKRs4XHdyq.NJn6.FkqW"
+ },
  "luna:りお": {
   "pin": "9925",
   "hash": "$2a$06$.HRBPXLc7IrDxVTi4MtHTu.yP.uCnfSv2Vl3DsNAV7m3f7FkImeqC"
+ },
+ "luna:るり": {
+  "pin": "5216",
+  "hash": "$2a$06$6kV2e06P14MpHyVviDAAOOvHK7GcBzq0miKNNbnf/VRp/lYiEKl0m"
  },
  "luna:れいな": {
   "pin": "6213",

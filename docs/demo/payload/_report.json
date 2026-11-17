@@ -123,24 +123,24 @@
    "sha256": "560e9c563091cf330e654559335f343c9c713bd5d0a5bd26656d88f82c49d7b5"
   },
   "luna": {
-   "bytes": 3831153,
-   "rows": 6256,
+   "bytes": 4424404,
+   "rows": 7537,
    "tables": 45,
    "checks": 919,
-   "lines": 2590,
-   "monthGross": 7845799,
+   "lines": 2827,
+   "monthGross": 7865263,
    "monthTarget": 7860000,
-   "monthDiffPct": -0.18,
-   "worstDayPct": 0.92,
+   "monthDiffPct": 0.07,
+   "worstDayPct": 0.57,
    "headerDiffYen": 1,
    "leftover": {
     "noms": 0,
     "bottles": 6,
     "drinks": 0,
     "champ": 0,
-    "ext": 0,
+    "ext": 20,
     "custVisits": 0,
-    "guestsShort": 186
+    "guestsShort": 246
    },
    "inv": [
     {
@@ -275,9 +275,129 @@
       1,
       1
      ]
+    },
+    {
+     "cast": "ひまり",
+     "hon": [
+      14,
+      14
+     ],
+     "jonai": [
+      10,
+      10
+     ],
+     "dohan": [
+      3,
+      3
+     ]
+    },
+    {
+     "cast": "つばさ",
+     "hon": [
+      13,
+      13
+     ],
+     "jonai": [
+      10,
+      10
+     ],
+     "dohan": [
+      2,
+      2
+     ]
+    },
+    {
+     "cast": "ゆず",
+     "hon": [
+      7,
+      7
+     ],
+     "jonai": [
+      8,
+      8
+     ],
+     "dohan": [
+      2,
+      2
+     ]
+    },
+    {
+     "cast": "しずく",
+     "hon": [
+      3,
+      3
+     ],
+     "jonai": [
+      7,
+      7
+     ],
+     "dohan": [
+      1,
+      1
+     ]
+    },
+    {
+     "cast": "あいり",
+     "hon": [
+      16,
+      16
+     ],
+     "jonai": [
+      11,
+      11
+     ],
+     "dohan": [
+      3,
+      3
+     ]
+    },
+    {
+     "cast": "るり",
+     "hon": [
+      10,
+      10
+     ],
+     "jonai": [
+      8,
+      8
+     ],
+     "dohan": [
+      2,
+      2
+     ]
+    },
+    {
+     "cast": "ここな",
+     "hon": [
+      6,
+      6
+     ],
+     "jonai": [
+      6,
+      6
+     ],
+     "dohan": [
+      1,
+      1
+     ]
+    },
+    {
+     "cast": "みゆ",
+     "hon": [
+      2,
+      2
+     ],
+     "jonai": [
+      6,
+      6
+     ],
+     "dohan": [
+      1,
+      1
+     ]
     }
    ],
-   "sha256": "2f77bf9448a4f531d8cff56fc5599280edbe54e7e8378b8267e143fab6eb8f28"
+   "sha256": "9269edf47fe6016083e2347bfbf772feb908ded9aee57713f49d689e2293dd1b"
   },
   "noir": {
    "bytes": 4198145,
@@ -927,7 +1047,7 @@
  "ids": 0,
  "curMirror": {
   "muse": 2117,
-  "luna": 2936,
+  "luna": 3547,
   "noir": 3262,
   "ace": 3007,
   "lily": 4733,

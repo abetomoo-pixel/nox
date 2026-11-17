@@ -10,7 +10,7 @@ export const PROFILES = {
     basis: "punch", okuri: 1000, okuriMode: "actual", receivable: "disabled", reopen: false, confirm: false, normAxes: ["days", "dohan", "sales", "shimei"], employment: "委託", dailyPay: false, wishMode: "shift",
     showcase: "併用＝売上段と pt 段の高い方（pay.ts max）・売上歩合＝商品バック 10%・ノルマ 4 軸・送り実費",
     shift: { base: 3, fri_sat: 4, fill: "full", pattern: [3, 3, 4, 3, 4, 4, 3] } },
-  luna: { template: "cabaret", scale: "中（キャスト 7・月 462 伝票・客単価 1.7 万）", sys: { hourly: true, backs: true, norms: true, bonus: false, points: false, sales_slide: true, point_slide: false }, // ★裁定348: 売上半月＋ドリンク区分別＋日数・同伴ノルマ＋送り定額（達成ボーナスは LILY へ）
+  luna: { template: "cabaret", scale: "中（キャスト 15・月 462 伝票・客単価 1.7 万）" /* ★Y2b: 7→15 */, sys: { hourly: true, backs: true, norms: true, bonus: false, points: false, sales_slide: true, point_slide: false }, // ★裁定348: 売上半月＋ドリンク区分別＋日数・同伴ノルマ＋送り定額（達成ボーナスは LILY へ）
     back: "unit4", u4: { hon: 0.10, jonai: 0.08, dohan: 0.08, free: 0.05 }, u4cast: { hon: 500, jonai: 400, dohan: 400, free: 300 }, food: false, price: "中（セット 4,500〜6,500・指名 3,000・シャンパン 11,000〜66,000）",
     basis: "punch", okuri: 1000, okuriMode: "flat", receivable: "customer_only", reopen: true, confirm: false, normAxes: ["days", "dohan"], employment: "委託", dailyPay: false, wishMode: "shift",
     showcase: "半月スライド（前半／後半の 2 行）・ドリンク区分別（本／場内／同伴／フリーの円）・日数・同伴ノルマ・送り定額 1,000",
@@ -73,6 +73,35 @@ export const TRIAL = {
 /** ★便 P173（ex_plan M173-2）: スタッフの器（0172）を live で見せる店＝staff 2 名（雇用＝staff の membership・委託＝manager の membership。users は 4 固定＝memberships の 1 ユーザー 1 アクティブ）＋7 日の打刻。他 4 店は無し */
 export const STAFF_DEMO = { muse: { employee: 1300, contractor: 2000 }, luna: { employee: 1400, contractor: 2200 },
   /* ★便 X13-H H-12 ④: 他 4 店＝店長は月給（雇用・時給 0＋月額）・スタッフは時給（アルバイト） */ noir: { parttime: 1500, monthly: 320000 }, ace: { parttime: 1400, monthly: 300000 }, lily: { parttime: 1200, monthly: 260000 }, nest: { parttime: 1200, monthly: 250000 } };
+/** ★2026-11-17 夜（相談役 Y2b）: CLUB LUNA＝報酬率スライドのデモ。キャストを 7→15 に（源泉の LUNA のキャストを写す＝勤務時間・売上・指名の目標に倍率・写真は写し元と同じ＝reset の後の hook で複写）。
+ *  写し元に体入（まい）と代表（みさき）は使わない。名前は他の LUNA のキャストと重ならない */
+export const EXTRA_CASTS = {
+  luna: [
+    { id: "LUNA-CAST-101", name: "ひまり", from: "LUNA-CAST-003", scale: 0.7 },
+    { id: "LUNA-CAST-102", name: "つばさ", from: "LUNA-CAST-004", scale: 0.8 },
+    { id: "LUNA-CAST-103", name: "ゆず", from: "LUNA-CAST-006", scale: 0.9 },
+    { id: "LUNA-CAST-104", name: "しずく", from: "LUNA-CAST-007", scale: 1.0 },
+    { id: "LUNA-CAST-105", name: "あいり", from: "LUNA-CAST-002", scale: 0.6 },
+    { id: "LUNA-CAST-106", name: "るり", from: "LUNA-CAST-004", scale: 0.6 },
+    { id: "LUNA-CAST-107", name: "ここな", from: "LUNA-CAST-006", scale: 0.7 },
+    { id: "LUNA-CAST-108", name: "みゆ", from: "LUNA-CAST-007", scale: 0.8 },
+  ],
+};
+/** ★Y2b: 報酬率スライドの段（comp_plans.pay_rate_tiers・reward_axis 'pay_rate'・slide_streak_n＝連続 2 期）。相談役 11/17 の表のうち、今の器で表せる行だけ。
+ *  表せない行（入れていない）: 70〜89%＝バック 70%・90〜100%＝バック 50%（据え置きの段ではバックの倍率が効かない＝査定にしないと効かない）／301% 以上＝総報酬 70%（境の上限 300%）。
+ *  外した範囲は 1 つ下の段に入る（70〜100%＝据え置き・300% 超＝総報酬 75%）。境は「以上」で当たる＝「x% 以下」は次の段を x.1 から */
+export const PAY_RATE_DEMO = {
+  luna: { streak: 2, tiers: [
+    { at_pct: 0, up_amount: 1000 },          // 40% 以下 → +1,000 円（次の期から）
+    { at_pct: 40.1, up_amount: 500 },        // 41〜50% → +500 円
+    { at_pct: 50.1, up_amount: 300 },        // 51〜60% → +300 円
+    { at_pct: 60.1 },                        // 61〜100% → 据え置き（バック 100%）
+    { at_pct: 100.1, pay_pct: 90, back_mult: 0 },   // 101〜130% → 総報酬 90%・バックなし
+    { at_pct: 130.1, pay_pct: 85, back_mult: 0 },   // 131〜200% → 85%
+    { at_pct: 200.1, pay_pct: 80, back_mult: 0 },   // 201〜250% → 80%
+    { at_pct: 250.1, pay_pct: 75, back_mult: 0 },   // 251% 以上 → 75%（301% 以上の 70% は境の上限で表せない）
+  ] },
+};
 export const ADVANCES = { muse: 50000, luna: 30000, noir: 30000, ace: 30000, lily: 30000, nest: 30000 };
 export const EXTRA_PLANS = {
   muse: [{ key: "senior", name: "MUSE Senior", base: 2000, hon: 500, jonai: 300, dohan: 300 }],
