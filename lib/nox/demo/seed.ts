@@ -257,14 +257,15 @@ export async function afterResetHooks(admin: SupabaseClient, orgId: string, _biz
   // ★X-13-13（便 X-13b・2026-10-08）: 先月分を正規経路で確定（payroll_run_create → computePayrollDraft（owner 文脈）→ payroll_finalize（service））。
   //   冪等＝その店×先月に finalized／paid の run があれば skip（reset は payroll_runs を wipe するため毎回作り直す）。失敗 org は audit 'demo.finalize.failed' に理由・写真 hook も reset も止めない。
   //   owner 文脈＝demo owner の magiclink をサーバ内で消費（入場 route と同じ・メールは送らない）。報酬参考との差は 328 追補6 の仕様差。
+  // ★2026-11-17（相談役 5・demo-frozen）: 帯と W 別規定は前月の締めの前に入れる（旧＝締めの後＝MUSE の凍結に同伴の帯のバックが入らず、計算し直した値と 2,087／4,574／8,567 円ずれた）
+  // ★便 ON-2（裁定418 CANON 型・2026-10-26）: reward_axis='pay_rate' のプラン（デモ MUSE）に同伴バックの時間帯（plan_rate_bands）と W 別規定（plan_norm_tiers）を入れる＝c_load に無い表（0175 v2 の新表）
+  out.canon = await demoCanonBandsFor(admin, orgId).catch((e) => ({ plans: 0, bands: 0, tiers: 0, reason: e instanceof Error ? e.message : String(e) }));
   out.payroll = await finalizePrevMonthForDemo(admin, orgId, _bizDate).catch((e) => ({ period: prevPeriodOf(_bizDate.slice(0, 7)), stores: [], ms: 0, reason: e instanceof Error ? e.message : String(e) }));
   // ★便 SH-UI-c2 C2-5（2026-10-23）: デモ ACE のひなの＝当月の遅刻の日に罰金 1 件（遅刻 ¥2,000＝店設定の精算プリセット「遅刻」と同額・source settlement・target_shift_id＝その日の確定シフト）
   //   payload には入れない（payroll_runs は正規経路＝payroll_run_create で当月の draft run を作り payroll_adjustment_add）。他の 5 店は無し。失敗しても reset は成功扱い（fine.status に理由）。
   out.fine = await demoLateFineForAce(admin, orgId, _bizDate).catch((e) => ({ status: "failed" as const, reason: e instanceof Error ? e.message : String(e), ms: 0 }));
   // ★便 NR-1 B⑤（裁定428 候補・2026-10-26）: 定休日の曜日に入った shifts／shift_wishes を落とす（payload の日付は {$rel}＝曜日は reset 日で決まるため生成器では落とせない）。全デモ店・admin・失敗しても reset は成功扱い
   out.closedDays = await demoDropClosedDayShifts(admin, orgId, _bizDate).catch((e) => ({ stores: 0, shifts: 0, wishes: 0, reason: e instanceof Error ? e.message : String(e) }));
-  // ★便 ON-2（裁定418 CANON 型・2026-10-26）: reward_axis='pay_rate' のプラン（デモ MUSE）に同伴バックの時間帯（plan_rate_bands）と W 別規定（plan_norm_tiers）を入れる＝c_load に無い表（0175 v2 の新表）
-  out.canon = await demoCanonBandsFor(admin, orgId).catch((e) => ({ plans: 0, bands: 0, tiers: 0, reason: e instanceof Error ? e.message : String(e) }));
   return out;
 }
 

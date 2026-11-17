@@ -22,6 +22,7 @@ check("df(1-1) 日曜（0）が定休日・今日 2026-11-16（月）＝今日�
 check("df(1-2) 今日が定休日なら今日も消す", JSON.stringify(closedDayRowsToDropOf(rows, new Set([0]), "2026-11-15")) === JSON.stringify(["b", "d"]));
 const seedSrc = fs.readFileSync("lib/nox/demo/seed.ts", "utf8");
 check("df(1-3) hook は bizDate（今日の営業日）を渡し、消す行は closedDayRowsToDropOf だけで決める", seedSrc.includes("out.closedDays = await demoDropClosedDayShifts(admin, orgId, _bizDate)") && seedSrc.includes("const ids = closedDayRowsToDropOf((rows ?? []) as { id: string; date: string }[], dows, todayBiz);"));
+check("df(1-4) ★2026-11-17: 帯と W 別規定（demoCanonBandsFor）は前月の締め（finalizePrevMonthForDemo）の前＝凍結に同伴の帯のバックが入る", seedSrc.indexOf("out.canon = await demoCanonBandsFor(admin, orgId)") > 0 && seedSrc.indexOf("out.canon = await demoCanonBandsFor(admin, orgId)") < seedSrc.indexOf("out.payroll = await finalizePrevMonthForDemo(admin, orgId, _bizDate)"));
 
 // df(2)
 async function main() {
