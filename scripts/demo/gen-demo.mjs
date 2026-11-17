@@ -115,6 +115,9 @@ for (const st of STORES) {
   const PF = PROFILES[code]; // ★X-13c: 店のプロファイル
   const RATE = PAY_RATE_DEMO[code] ?? null; // ★Y2b: 報酬率スライドの段（LUNA）
   const RATE_KEYS = RATE ? { reward_axis: "pay_rate", pay_rate_tiers: RATE.tiers, slide_streak_n: RATE.streak, assess_grace_months: 0 } : {};
+  // ★Y2b 直し（2026-11-17 21:10 LUNA の reset が 'null value in column "pay_rate_tiers"' で失敗）: demo_org_reset の load は表の行の鍵をそろえて読む＝鍵が無い行は null が入る＝
+  //   報酬率の店は体験入店のプランにも同じ鍵を持たせる（軸なし・段なし・連続 1・猶予 0＝列の既定と同じ値）。MUSE（CANON）の PLAN_0175_KEYS と同じ理由（便 ON-2）
+  const RATE_NULL_KEYS = RATE ? { reward_axis: null, pay_rate_tiers: [], slide_streak_n: 1, assess_grace_months: 0 } : {};
   const CANON = canonOf(code); // ★便 P175-prep P-6: MUSE の CANON 型（RULES_0175_APPLIED=true でだけ非 null＝false は payload 不変）
   const OKURI_MODE = profileOkuriModeOf(code); // ★裁定414 追補（0177 後）: LILY 'store'／NOIR 'none' は OKURI_4WAY_APPLIED=true で書く（他 4 店は PROFILES の値）
   for (const key of ["staff_shift", "reopen_flow"]) push("feature_flags", { id: uid(`flag:${code}:${key}`), store_id: null, key, enabled: key === "reopen_flow" ? !!PF.reopen : true, updated_by: null }); // ★X-13c: 締め解除フローは店で差
@@ -235,7 +238,7 @@ for (const st of STORES) {
   const TR = TRIAL[code]; const trialPlanId = uid(`plan:trial:${code}`);
   // ★裁定490 (a)（12 点の 1・10・2026-11-16）: 体入の間は店の既定のプランを持つ＝体入のキャストの cast_plan（3 行）は店の既定のプラン（下の W-18 ④ と同じ＝体験入店以外の最初のプラン）。体験入店プランの行は残す（割り当て 0）
   const trialHoldPlanId = plans.length ? uid(`plan:${plans[0].plan_id}`) : (extraPlans[0]?.id ?? trialPlanId);
-  push("comp_plans", { id: trialPlanId, store_id: storeId, name: "体験入店", base: TR.base, slide_apply: null, ...PLAN_0175_KEYS, /* ★便 ON-2: CANON 店はキー集合を揃える */ /* ★便 P173: 体験入店はスライドなし＝店設定 */ hon_back: 0, jonai_back: 0, dohan_back: 0,
+  push("comp_plans", { id: trialPlanId, store_id: storeId, name: "体験入店", base: TR.base, slide_apply: null, ...PLAN_0175_KEYS, ...RATE_NULL_KEYS, /* ★Y2b 直し */ /* ★便 ON-2: CANON 店はキー集合を揃える */ /* ★便 P173: 体験入店はスライドなし＝店設定 */ hon_back: 0, jonai_back: 0, dohan_back: 0,
     sales_slide: [], point_slide: [], is_active: true, hon_back_mode: "per_count", hon_back_rate: null, jonai_back_mode: "per_count", jonai_back_rate: null, dohan_back_mode: "per_count", dohan_back_rate: null, product_back_mode: "plan_fixed", product_back_rate: null, product_back_fixed: 0, product_back_fixed_hon: null, product_back_fixed_jonai: null, product_back_fixed_free: null, slide_period: "daily", slide_basis: "sales", slide_rank_ids: [] });
   let castSeq = 0;
   const people = D("people").filter((p) => p.store_id === S);

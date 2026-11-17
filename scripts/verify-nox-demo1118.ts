@@ -49,6 +49,12 @@ check("d(3-3) 表の行：40%→+1,000・40.1〜50→+500・50.1〜60→+300（U
 check("d(3-4) 61〜100%＝据え置き（バック 100%）・表せない 70〜89%（バック 70%）と 90〜100%（バック 50%）は据え置きに入る", at(65)?.d === "hold" && at(80)?.d === "hold" && at(95)?.d === "hold" && at(100)?.d === "hold");
 check("d(3-5) 101〜130%→90%・131〜200%→85%・201〜250%→80%・251% 以上→75%（バックなし＝査定）", at(101)?.t.pay_pct === 90 && at(130)?.t.pay_pct === 90 && at(131)?.t.pay_pct === 85 && at(200)?.t.pay_pct === 85 && at(201)?.t.pay_pct === 80 && at(251)?.t.pay_pct === 75 && at(400)?.t.pay_pct === 75 && [101, 131, 201, 251].every((p) => at(p)?.d === "assess" && at(p)?.t.back_mult === 0));
 
+// d(3-6) ★Y2b 直し（2026-11-17 21:10 LUNA の reset が pay_rate_tiers の null で失敗）: comp_plans は店の中で全行の鍵がそろう（load は鍵の無い行に null を入れる＝NOT NULL の列で落ちる）
+for (const c of ["muse", "luna", "noir", "ace", "lily", "nest"]) {
+  const rows = pay(c).comp_plans; const keys = (r: Row) => Object.keys(r).filter((k) => !k.startsWith("$")).sort().join(",");
+  check(`d(3-6) ${c}: comp_plans ${rows.length} 行の鍵がそろう（体験入店も pay_rate_tiers などを持つ）`, rows.length > 0 && rows.every((r) => keys(r) === keys(rows[0])), rows.map((r) => [r.name, Object.keys(r).length]));
+}
+
 // d(4) CANON の帯は MUSE だけ
 check("d(4-1) demoCanonBandsFor は NOX-DEMO-MUSE 以外は何もしない", seed.includes('if ((org as { name?: string } | null)?.name !== "NOX-DEMO-MUSE") return out;'));
 

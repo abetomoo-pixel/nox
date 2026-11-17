@@ -123,7 +123,7 @@
    "sha256": "560e9c563091cf330e654559335f343c9c713bd5d0a5bd26656d88f82c49d7b5"
   },
   "luna": {
-   "bytes": 4424404,
+   "bytes": 4424486,
    "rows": 7537,
    "tables": 45,
    "checks": 919,
@@ -397,7 +397,7 @@
      ]
     }
    ],
-   "sha256": "9269edf47fe6016083e2347bfbf772feb908ded9aee57713f49d689e2293dd1b"
+   "sha256": "e073267a51df2e7f1f2f60e79e2c5f34c9bd6a61dd640f52e682055114033d93"
   },
   "noir": {
    "bytes": 4198145,
