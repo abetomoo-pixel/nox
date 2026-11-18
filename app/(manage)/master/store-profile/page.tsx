@@ -20,7 +20,7 @@ export const dynamic = "force-dynamic";
 // 店舗設定（★起票86・便 V-7 → ★裁定330／330 追補1・便 MC2・2026-10-01）: 1 ページ・?tab= の 3 面。
 //   利用機能（既定）＝報酬制度（SystemsBoard・sys_* 9＝ノルマを使う を含む）／売掛（StoreProfilePanel ar 節）／機能の公開（FeatureFlagsPanel・owner）／
 //                   勤務時間の計算基準（0159・StoreProfilePanel timeBasis 節）／キャスト画面の設定（M1・MineSettingsPanel）
-//   店舗情報＝店舗名・略称・店舗コード・表示名・送りの基本額（StoreProfilePanel profile 節）＋キャスト確認（shift 節）。住所・電話・インボイス登録番号は端末・印刷 ＞ レシート・プリンタ（二重編集を作らない）
+//   店舗情報＝店舗名・送りの基本額（★2026-11-18 Agoora の決定: 略称・店舗コード・表示名は画面から外した）（StoreProfilePanel profile 節）＋キャスト確認（shift 節）。住所・電話・インボイス登録番号は端末・印刷 ＞ レシート・プリンタ（二重編集を作らない）
 //   データ管理（権限・情報管理の入口のタブ）＝顧客情報の利用目的・保持年数・操作ログの保持（StoreProfilePanel data 節＝店舗情報から分離）
 //   ★各パネルは 1 文字も変えていない（StoreProfilePanel に「どの節を描くか」の sections を足しただけ）。ページレベルでも isManagerUp を要求（master/layout.tsx の入口ガードと二重）。
 //   真の防御＝set_store_profile の owner 判定・set_store_mine_settings の owner／manager 自店・flag_set の owner・stores の RLS。
@@ -64,7 +64,7 @@ export default async function MasterStoreProfilePage({ searchParams }: { searchP
 
   // ★2026-11-16（■8・裁定499-10）: 6 タブ＝店舗情報／レジ／シフトと打刻／給与／キャスト画面／税と請求（＋データ管理は権限・情報管理の入口・LINE 連携は従来の入口）
   const HEADS: Record<string, { eyebrow: string; title: string; desc: string }> = {
-    info: { eyebrow: "STORE PROFILE", title: "店舗設定 › 店舗情報", desc: "店舗名・略称・店舗コード・表示名。営業時間と定休日は「営業時間・定休日」で。住所・電話・インボイス登録番号は「端末・印刷 › レシート・プリンタ」で編集します（二重に編集する場所を作りません）。" },
+    info: { eyebrow: "STORE PROFILE", title: "店舗設定 › 店舗情報", desc: "店舗名。営業時間と定休日は「営業時間・定休日」で。住所・電話・インボイス登録番号は「端末・印刷 › レシート・プリンタ」で編集します（二重に編集する場所を作りません）。" },
     register: { eyebrow: "REGISTER", title: "店舗設定 › レジ", desc: "お客様の支払い方法・支払方法の調整と手数料・フロアの席種・途中合流・釣銭準備金。" },
     shift: { eyebrow: "SHIFT & PUNCH", title: "店舗設定 › シフトと打刻", desc: "打刻の方法と判定・店長の打刻・送り返しの自動確定・店の端末で本人がログインしたとき・機能の公開。" },
     pay: { eyebrow: "PAYROLL", title: "店舗設定 › 給与", desc: "報酬制度（ノルマを使うかを含む）・精算方式・途中払い・支払日・送りの基本額・勤務時間の計算基準・指名の区分ごとの割合・体験入店の条件。金額や計算条件は各マスタで管理します。" },

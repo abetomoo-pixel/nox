@@ -64,6 +64,8 @@ check("st(4-1) RPC と保存の式は不変（set_store_profile の呼び口 1 �
   check("st(6-7) ★Y1: キャスト画面の行（data-cast-register-link と 1 1 240px の左の欄を持つ行）も 2 列", cssY.includes(":is(.nox-settings div:has(> div[style*=\"1 1 240px\"]:first-child), .nox-settings [data-cast-register-link]) { display: grid !important;")); }
 { const pr = fs.readFileSync("lib/nox/ui/actions-center-probe.ts", "utf8");
   check("st(6-8) ★Y1: 中央寄せの検査の例外は店舗設定の保存の PC だけ（.nox-settings .nox-actions かつ 900px 以上）", pr.includes('else if (b.closest(".nox-settings .nox-actions") && innerWidth >= 900) reason = "店舗設定の保存（PC は枠の右下＝相談役 4・Y1 2026-11-17）";')); }
+{ const pgI = fs.readFileSync("app/(manage)/master/store-profile/page.tsx", "utf8");
+  check("st(7-1) ★2026-11-18（Agoora の決定）: 店舗情報のタブの説明に略称・店舗コード・表示名が無い", pgI.includes('desc: "店舗名。営業時間と定休日は') && !/desc: "[^"]*略称/.test(pgI)); }
 if (fails.length) {
   console.error(`verify:nox-settings1116 FAIL ${fails.length} / pass ${pass}`);
   for (const f of fails) console.error(" - " + f);
