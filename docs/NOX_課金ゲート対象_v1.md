@@ -386,6 +386,10 @@ kiosk_provision（新規 kiosk の追加＝拡大操作）
 ### A24. 0201d（1 本・2026-11-13 本番適用（Agoora 手貼り・検証 18 行一致）・規則A形でゲート内蔵）
 - 0201d 当日の臨時営業の登録（裁定478）: register_special_open（owner／自店の manager／店の端末の操作者が店長以上・set_store_special_day と同じ 'billing locked'）
 （対象 210→**211**・live 実測＝billing locked の関数 **211**）
+
+### A25. 0201q（1 本・2026-11-18 16:53 本番適用（Agoora 手貼り・検証 11 行一致）・規則A形でゲート内蔵）
+- 0201q LINE の公開してよい値の追加（相談役 ②）: set_store_line_extra（owner／自店 manager・set_store_line_config と同じ 'billing locked'）
+（対象 211→**212**・live 実測＝billing locked の関数 **212**）
 ## B. 除外（99本）
 
 ### B(a) 構造除外＝authenticated 実行不可（service/内部・28本）→ ゲート不要（B7 回避型(1)）
@@ -622,6 +626,11 @@ staff_deactivate / kiosk_deactivate
 ### B(af). 0201n 新設の除外（1本・2026-11-18・0201n の本番適用の後の検査の張り替えで収載）
 - 読取（B(f) と同列＝ゲート不要・書込なし）: register_cast_roster（レジ・日報のキャストの一覧＝キャストの立場で 5 列だけ）
 （除外 239→**240**・全数 450→**451**（0201n ＋1＝B +1）。0201o は set_store_profile の作り直しだけ＝名前不変・ゲートの中のまま）
+
+### B(ag). 0201q 新設の除外（2本・2026-11-18・0201q の本番適用の後の検査の張り替えで収載）
+- 読取（B(f) と同列＝ゲート不要・書込なし）: get_cast_sales_subtotal（小計で按分したキャストの売上＝get_cast_sales の写し）
+- 構造除外（B(a) と同列＝内部専用・4 ロール revoke）: cast_sales_aggregate_subtotal
+（除外 240→**242**・全数 451→**454**（0201q ＋3＝A +1（A25）・B +2）。set_store_profile は作り直しだけ＝名前不変）
 
 ## C. kiosk 腕を持つ対象（実装注意・18本）
 A1 の check_open / check_add_line / check_remove_line / check_add_seat / check_remove_seat /

@@ -780,8 +780,8 @@
    "sha256": "a15b6ab44da6109ea341e466e3caa570e3be868821ba66c849218aa203f1994a"
   },
   "lily": {
-   "bytes": 5776570,
-   "rows": 9797,
+   "bytes": 5776964,
+   "rows": 9798,
    "tables": 47,
    "checks": 1181,
    "lines": 3771,
@@ -914,7 +914,7 @@
      ]
     }
    ],
-   "sha256": "4c8ac1e44ff3033b90c41698829aae18522a3e96362dda690bc1fe3659c3647b"
+   "sha256": "f1b413e9314233561f6bf66ccd9224ef540e4b078c8e3a14f99ae3f6118358b9"
   },
   "nest": {
    "bytes": 5791757,
