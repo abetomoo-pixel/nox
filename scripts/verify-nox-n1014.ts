@@ -51,7 +51,7 @@ const src = (p: string) => fs.readFileSync(p, "utf8");
   const lily = (JSON.parse(src("docs/demo/payload/lily.json")) as { tables: Record<string, Array<Record<string, any>>> }).tables;
   const prev = (lily.cast_norms ?? []).filter((n) => n.period?.$m === -1);
   check("nd(4-3) LILY: 先月の cast_norms 2 名＝300,000（達成）／9,000,000（未達）・days は 0", prev.length === 2 && prev.some((n) => n.sales_target === 300000) && prev.some((n) => n.sales_target === 9000000) && prev.every((n) => n.days_target == null || n.days_target === 0));
-  check("nd(4-4) 業態ラベル（seed.ts）＝MUSE キャバクラ・NEST スナック・profiles の template と一致（cabaret／snack）", DEMO_STORE_LABEL.muse.biz === "キャバクラ" && DEMO_STORE_LABEL.nest.biz === "スナック" && PROFILES.muse.template === "cabaret" && PROFILES.nest.template === "snack" && PROFILES.noir.template === "lounge" && PROFILES.lily.template === "girlsbar");
+  check("nd(4-4) 業態ラベル（seed.ts）＝★2026-11-18（相談役 B）店名に合わせて MUSE スナック・NEST バー（業態の値も snack／bar）・profiles の template は不変（cabaret／snack）", DEMO_STORE_LABEL.muse.biz === "スナック" && DEMO_STORE_LABEL.nest.biz === "バー" && PROFILES.muse.template === "cabaret" && PROFILES.nest.template === "snack" && PROFILES.noir.template === "lounge" && PROFILES.lily.template === "girlsbar");
 }
 
 if (fails.length) { console.error(`✗ verify:nox-n1014 失敗 ${fails.length}（成功 ${pass}）`); for (const f of fails) console.error(" - " + f); process.exit(1); }

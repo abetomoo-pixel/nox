@@ -15,6 +15,7 @@
 import fs from "node:fs";
 import crypto from "node:crypto";
 import { groupDueFull, roundAmount } from "../lib/nox/check-calc";
+import { MONTH_GROSS_TARGET } from "./demo/profiles.mjs";
 import { DEMO_KIOSK_KEY, DEMO_ROLES, DEMO_STORES, PAYLOAD_MAX_BYTES, demoDestOf, demoOrgName, isDemoRole, isDemoStore, payloadBytes, splitPayload, storeOfOrgName } from "../lib/nox/demo/seed";
 
 let pass = 0;
@@ -76,10 +77,10 @@ for (const store of DEMO_STORES) {
   }
   const mt = D("monthly_sales_targets").find((m) => m.store_id === storeRow.store_id)!;
   const month = (p.tables.daily_reports ?? []).filter((r) => !(r as Record<string, unknown>).$onlyBefore /* ★便 X13-G W-18 ③: 今月の写しは先月の golden に入れない */).reduce((a, r) => a + Number(r.cash) + Number(r.card_gross) + Number(r.uri) + Number(r.other), 0);
-  const pct = ((month - Number(mt.stated_monthly_gross_yen)) / Number(mt.stated_monthly_gross_yen)) * 100;
-  // ★Y2d: 1,000 円単位の切り上げの店は伝票ごとに最大 999 円上がる＝日の目標を先に超える日がある（ACE＝+2.87%）＝その店だけ ±3%（6 店の合計の golden は ±1% のまま＝dp(2-4)）
-  const tolPct = Number(((p.tables.stores ?? [])[0] as Record<string, unknown>).round_unit) >= 1000 ? 3 : 1;
-  check(`dp(2-3) ${store}: Σdaily_reports ${month.toLocaleString()}＝月次目標 ${Number(mt.stated_monthly_gross_yen).toLocaleString()} ±${tolPct}%`, Math.abs(pct) <= tolPct, `${pct.toFixed(2)}%`);
+  // ★2026-11-18（相談役 B）: 幅は ±1% のまま・目標は丸めを入れた後の実績に合わせた値（profiles MONTH_GROSS_TARGET・源泉の値は SRC_MONTH_GROSS）
+  const tgt = (MONTH_GROSS_TARGET as Record<string, number>)[store] ?? Number(mt.stated_monthly_gross_yen);
+  const pct2 = ((month - tgt) / tgt) * 100;
+  check(`dp(2-3) ${store}: Σdaily_reports ${month.toLocaleString()}＝月次目標（丸めた後）${tgt.toLocaleString()} ±1%`, Math.abs(pct2) <= 1, `${pct2.toFixed(2)}%`);
   // (3b) 分割
   const chunks = splitPayload(p.tables);
   const bytes = payloadBytes(p.tables);

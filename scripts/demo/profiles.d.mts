@@ -30,3 +30,7 @@ export declare const PAY_RATE_DEMO: Record<string, { streak: number; tiers: { at
 /** ★Y2d（2026-11-17 夜）: 会計の丸め＝業態で（クラブ系 1,000 円・スナック／ガールズバー／バー 100 円・切り上げ） */
 export declare const BIZ_TYPE_OF: Record<string, string>;
 export function billRoundOf(code: string): { round_unit: number; round_mode: "up" };
+/** ★2026-11-18（相談役 B）: 丸めの単位（店ごとの種）・月の売上の目標（源泉／丸めた後の実績） */
+export declare const ROUND_UNIT_OF: Record<string, number>;
+export declare const SRC_MONTH_GROSS: Record<string, number>;
+export declare const MONTH_GROSS_TARGET: Record<string, number>;

@@ -14,7 +14,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import { groupDueFull } from "../../lib/nox/check-calc.ts";
-import { ADVANCES, SLIDES, EXTRA_PLANS, PROFILES, TRIAL, STAFF_DEMO, BONUS_TIERS, EXT_PATTERNS, sysSettingsOf, backOf as profileBackOf, canonOf, okuriModeOf as profileOkuriModeOf, EXTRA_CASTS, PAY_RATE_DEMO, billRoundOf } from "./profiles.mjs"; // ★X-13c: 6 店の差別化（表＝docs/demo/store_profiles_20261009.md）
+import { ADVANCES, SLIDES, EXTRA_PLANS, PROFILES, TRIAL, STAFF_DEMO, BONUS_TIERS, EXT_PATTERNS, sysSettingsOf, backOf as profileBackOf, canonOf, okuriModeOf as profileOkuriModeOf, EXTRA_CASTS, PAY_RATE_DEMO, billRoundOf, MONTH_GROSS_TARGET } from "./profiles.mjs"; // ★X-13c: 6 店の差別化（表＝docs/demo/store_profiles_20261009.md）
 import { RULES_0175_APPLIED, MIG_0200_APPLIED } from "./rules-0175-flag.mjs";
 import { demoPinOf } from "../../lib/nox/demo/pin.ts"; // ★夜便レーン 1（2026-11-11）: デモの人ごとの PIN（全員 1234 をやめる）
 // ★デモの PIN のハッシュ＝scripts/demo/demo-pin-hashes.json（id → bcrypt・本番 DB の crypt を固定の salt で読み取りだけで呼んで作る＝gen-demo-pin-hashes.mjs）。足りない id は一覧に書いて止める
@@ -124,7 +124,7 @@ for (const st of STORES) {
   for (const key of ["staff_shift", "reopen_flow"]) push("feature_flags", { id: uid(`flag:${code}:${key}`), store_id: null, key, enabled: key === "reopen_flow" ? !!PF.reopen : true, updated_by: null }); // ★X-13c: 締め解除フローは店で差
   push("stores", {
     id: storeId, name: st.store_name, short: st.store_code, open_time: openHm,
-    settings_json: { biz_type: ({ MUSE: "cabaret", LUNA: "cabaret", NOIR: "lounge", ACE: "cabaret", LILY: "girlsbar", NEST: "snack" })[st.store_code] /* ★便 N1014 B-4: 業態＝store_profiles §3c（MUSE キャバクラ・NOIR ラウンジ・NEST スナック） */, norm_axes: { days: PF.normAxes.includes("days"), dohan: PF.normAxes.includes("dohan"), sales: PF.normAxes.includes("sales"), shimei: PF.normAxes.includes("shimei") } /* ★便 N1014 live 修正: 採用軸（0171 set_store_norm_axes の形）＝P171 の D-3 が payload に落ちていなかった（live は null＝全 ON） */, biz_cutoff_hm: "06:00", setup_done: true, billing_mode: "table", duty_gate: false, /* ★0190（2026-10-30）: デモ 6 店は打刻ゲート OFF（キオスク端末が無い・06:05 の reset で ON に戻らないように payload に持たせる） */
+    settings_json: { biz_type: ({ MUSE: "snack", LUNA: "cabaret", NOIR: "lounge", ACE: "cabaret", LILY: "girlsbar", NEST: "bar" })[st.store_code] /* ★2026-11-18（相談役 B）: 業態を店名に（profiles BIZ_TYPE_OF と同じ） */ /* ★便 N1014 B-4: 業態＝store_profiles §3c（MUSE キャバクラ・NOIR ラウンジ・NEST スナック） */, norm_axes: { days: PF.normAxes.includes("days"), dohan: PF.normAxes.includes("dohan"), sales: PF.normAxes.includes("sales"), shimei: PF.normAxes.includes("shimei") } /* ★便 N1014 live 修正: 採用軸（0171 set_store_norm_axes の形）＝P171 の D-3 が payload に落ちていなかった（live は null＝全 ON） */, biz_cutoff_hm: "06:00", setup_done: true, billing_mode: "table", duty_gate: false, /* ★0190（2026-10-30）: デモ 6 店は打刻ゲート OFF（キオスク端末が無い・06:05 の reset で ON に戻らないように payload に持たせる） */
       ...sysSettingsOf(code), pay_time_basis: PF.basis, shift_cast_confirm: PF.confirm, // ★X-13c: 報酬制度の ON/OFF・勤務時間の計算基準・キャスト確認＝プロファイル
       ar_enabled: PF.receivable !== "disabled", /* ★0201b ★1（2026-11-10 夜便）: 売掛の正本＝ar_enabled＝列（receivable_policy）と揃える（旧＝列だけ＝ACE／LUNA／NOIR はレジに売掛が出なかった） */
       slide_apply: "current", receipt_address: "東京都新宿区歌舞伎町 1-1-1（デモ）", receipt_tel: "03-0000-0000", receipt_footer: "飲食代", okuri_base_amount: PF.okuri, ...(CANON ? { sys_drink_count_back: false, sales_subtotal_mode: CANON.sales_subtotal_mode, pay_discount_rates: CANON.pay_discount_rates } : {}), /* ★便 ON-2: service_rate_by_seat は settings_json ではなく stores の列（0175 ★11・set_store_profile が書く先）へ */ /* ★便 P175-prep P-6: CANON 型の店設定（フラグ true でだけ） */ /* ★X-13c: 送り（0＝なし） */ ...(OKURI_MODE ? { okuri_mode: OKURI_MODE } : {}), /* ★裁定348: 送りの方式（0158）・★裁定414 追補: 4 方式＝ACE 定額／MUSE 実費／LILY 店負担／NOIR なし */ ...(PF.okuriTiers ? { okuri_flat_tiers: PF.okuriTiers } : {}), /* ★裁定414 追補（0180）: ACE の距離区分 3 段 */
@@ -285,8 +285,8 @@ for (const st of STORES) {
   // 営業時間（曜日）: closedDows は isodow → NOX dow（0 日…6 土）
   for (let dow = 0; dow <= 6; dow++) { const iso = dow === 0 ? 7 : dow; const closed = closedDows.includes(iso); push("store_business_hours", { id: uid(`bh:${code}:${dow}`), store_id: storeId, dow, is_closed: closed, open_hm: closed ? null : openHm, close_hm: closed ? null : closeHm24(openHm, closeMin) }); } // ★M-147（2026-11-10）: 日をまたぐ終了は 24 時超（25:00）＝RPC の規約（旧＝hms の % 24 で 01:00 になり 1 日・週の合計が 0 時間）
   const monthly = D("monthly_sales_targets").find((m) => m.store_id === S);
-  push("store_sales_targets", { id: uid(`sst:${code}:prev`), store_id: storeId, period: { $m: -1, d: 1, fmt: "ym" }, sales_target: monthly.stated_monthly_gross_yen });
-  push("store_sales_targets", { id: uid(`sst:${code}:cur`), store_id: storeId, period: { $m: 0, d: 1, fmt: "ym" }, sales_target: monthly.stated_monthly_gross_yen });
+  push("store_sales_targets", { id: uid(`sst:${code}:prev`), store_id: storeId, period: { $m: -1, d: 1, fmt: "ym" }, sales_target: MONTH_GROSS_TARGET[code] ?? monthly.stated_monthly_gross_yen /* ★2026-11-18（相談役 B）: 丸めた後の実績に合わせた目標 */ });
+  push("store_sales_targets", { id: uid(`sst:${code}:cur`), store_id: storeId, period: { $m: 0, d: 1, fmt: "ym" }, sales_target: MONTH_GROSS_TARGET[code] ?? monthly.stated_monthly_gross_yen /* ★2026-11-18（相談役 B）: 丸めた後の実績に合わせた目標 */ });
   const cmt = D("cast_monthly_targets").filter((r) => r.store_id === S).map((r, i) => (PF.nominations && !(r.main_count_target > 0) ? { ...r, main_count_target: 6 - (i % 3), inhouse_count_target: 3, accompanied_count_target: 2 } : r)); // ★348 追補2（B-1）: 指名 ON の店で源泉の指名回数が 0 なら注入（本 4〜6／場内 3／同伴 2＝pt 約 20〜25）
   // ★X-13c: キャスト別ノルマ目標（cast_norms・当月）＝ノルマを使う店だけ（日数＝hours÷6・同伴・売上・指名＝本＋場内）
   // ★348 追補2（便 N1014 B-2）: LILY＝先月（9 月）の cast_norms を 2 名（代表＝売上目標 300,000＝達成→達成ボーナス行／体験入店＝9,000,000＝未達）

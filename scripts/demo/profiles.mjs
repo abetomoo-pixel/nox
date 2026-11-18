@@ -10,7 +10,7 @@ export const PROFILES = {
     basis: "punch", okuri: 1000, okuriMode: "actual", receivable: "disabled", reopen: false, confirm: false, normAxes: ["days", "dohan", "sales", "shimei"], employment: "委託", dailyPay: false, wishMode: "shift",
     showcase: "併用＝売上段と pt 段の高い方（pay.ts max）・売上歩合＝商品バック 10%・ノルマ 4 軸・送り実費",
     shift: { base: 3, fri_sat: 4, fill: "full", pattern: [3, 3, 4, 3, 4, 4, 3] } },
-  luna: { template: "cabaret", scale: "中（キャスト 15・月 462 伝票・客単価 1.7 万）" /* ★Y2b: 7→15 */, sys: { hourly: true, backs: true, norms: true, bonus: false, points: false, sales_slide: true, point_slide: false }, // ★裁定348: 売上半月＋ドリンク区分別＋日数・同伴ノルマ＋送り定額（達成ボーナスは LILY へ）
+  luna: { template: "cabaret", scale: "中（キャスト 15・月 462 伝票・客単価 1.7 万）" /* ★Y2b: 7→15 */, sys: { hourly: true, backs: true, norms: true, bonus: false, points: false, sales_slide: false /* ★2026-11-18（相談役 B）: 報酬率スライドだけ */, point_slide: false }, // ★裁定348: 売上半月＋ドリンク区分別＋日数・同伴ノルマ＋送り定額（達成ボーナスは LILY へ）
     back: "unit4", u4: { hon: 0.10, jonai: 0.08, dohan: 0.08, free: 0.05 }, u4cast: { hon: 500, jonai: 400, dohan: 400, free: 300 }, food: false, price: "中（セット 4,500〜6,500・指名 3,000・シャンパン 11,000〜66,000）",
     basis: "punch", okuri: 1000, okuriMode: "flat", receivable: "customer_only", reopen: true, confirm: false, normAxes: ["days", "dohan"], employment: "委託", dailyPay: false, wishMode: "shift",
     showcase: "半月スライド（前半／後半の 2 行）・ドリンク区分別（本／場内／同伴／フリーの円）・日数・同伴ノルマ・送り定額 1,000",
@@ -57,7 +57,7 @@ export function okuriModeOf(code) {
 export const SLIDES = {
   ace: { period: "monthly", sales: [{ at: 800000, wage: 3000 }, { at: 1200000, wage: 3500 }, { at: 1600000, wage: 4500 }] },
   noir: { period: "monthly", points: [{ at: 60, wage: 4000 }, { at: 120, wage: 4500 }, { at: 200, wage: 5000 }], ranks: ["S", "A"] }, // ★2026-11-17 夜（相談役 Y2a）: 件数の段（basis hon_count・本指名 3／6／10 件）を外し判定基準を売上に戻す（＝待遇プランの「売上で決める形にする」と同じ形・11/16 Agoora「外して良い」）。NOIR は店の軸がポイント＝売上スライドは使わない（sys.sales_slide false＝段は空）。pt の段と対象ランク S／A は不変 // ★裁定343（0170・便 W5-2b）: 判定基準＝本指名の件数（月次 3／6／10 件）・対象ランク S／A（default の 3 名は対象外＝base）
-  luna: { period: "half", sales: [{ at: 400000, wage: 3300 }, { at: 700000, wage: 3600 }, { at: 1000000, wage: 4000 }] },
+  luna: { period: "half" }, // ★2026-11-18（相談役 B）: LUNA は報酬率スライドだけ＝売上の段（40 万／70 万／100 万）を外した（sys.sales_slide も false）
   muse: { period: "monthly", sales: [{ at: 300000, wage: 2200 }, { at: 500000, wage: 2500 }, { at: 800000, wage: 3000 }], points: [{ at: 10, wage: 2300 }, { at: 20, wage: 2600 }, { at: 40, wage: 3000 }] }, // ★348 追補2（B-1）: pt 段は注入した指名（本 3／場内 1／同伴 2 pt）で届く値へ // ★裁定348: 併用＝同一プランに売上段と pt 段（pay.ts は max＝高い方）
 };
 /** ★裁定348 追補1（便 DM-1 D-2b）: 体験入店プラン（スライド・バックなし・基本時給は店ごと）＋各店 1 名を割当＋期限付き保証時給（set_cast_guarantee の 3 行形＝直前行 valid_to／保証行 {base, guarantee:true}／戻し行）。
@@ -104,8 +104,13 @@ export const PAY_RATE_DEMO = {
 };
 /** ★2026-11-17 夜（相談役 Y2d）: 会計の丸め＝業態で決める（クラブ系＝キャバクラ・ラウンジ・クラブ・ホストは 1,000 円／スナック・ガールズバー・バーは 100 円・どちらも切り上げ）。
  *  業態は payload の stores.settings_json.biz_type（MUSE は店名 SNACK だが業態はキャバクラ＝裁定 N1014 B-4）。器は既存（stores.round_unit／round_mode を伝票に写す・check-calc roundAmount）＝計算の式は不変 */
-export const BIZ_TYPE_OF = { muse: "cabaret", luna: "cabaret", noir: "lounge", ace: "cabaret", lily: "girlsbar", nest: "snack" };
-export function billRoundOf(code) { const b = BIZ_TYPE_OF[code]; return { round_unit: b === "girlsbar" || b === "snack" || b === "bar" ? 100 : 1000, round_mode: "up" }; }
+export const BIZ_TYPE_OF = { muse: "snack", luna: "cabaret", noir: "lounge", ace: "cabaret", lily: "girlsbar", nest: "bar" }; // ★2026-11-18（相談役 B）: デモの業態を店名に合わせる（MUSE＝スナック・NEST＝バー）。業態を読むのは初期設定の最初の選択と保存の検査だけ（デモの店は setup_done＝true＝影響なし）
+/** ★2026-11-18（相談役 B）: 丸めの単位は店ごとに種で決める（業態から導かない）＝MUSE・LILY・NEST 100 円／LUNA・NOIR・ACE 1,000 円・どれも切り上げ */
+export const ROUND_UNIT_OF = { muse: 100, luna: 1000, noir: 1000, ace: 1000, lily: 100, nest: 100 };
+export function billRoundOf(code) { return { round_unit: ROUND_UNIT_OF[code] ?? 1, round_mode: "up" }; }
+/** ★2026-11-18（相談役 B）: 月の売上の目標＝丸めを入れた後の実績に合わせ直した値（payload の store_sales_targets と検査 dp(2-3) ±1% の基準）。源泉の値は SRC_MONTH_GROSS に控える */
+export const SRC_MONTH_GROSS = { muse: 3180000, luna: 7860000, noir: 13680000, ace: 9240000, lily: 5720000, nest: 4060000 };
+export const MONTH_GROSS_TARGET = { muse: 3175700, luna: 7857000, noir: 13678000, ace: 9505000, lily: 5711200, nest: 4053500 }; // 丸めた後の月の実績（2026-11-18 の生成・_report.json monthGross）
 export const ADVANCES = { muse: 50000, luna: 30000, noir: 30000, ace: 30000, lily: 30000, nest: 30000 };
 export const EXTRA_PLANS = {
   muse: [{ key: "senior", name: "MUSE Senior", base: 2000, hon: 500, jonai: 300, dohan: 300 }],

@@ -7,7 +7,7 @@
  *  d(5) Y2d：会計の丸め＝業態で（クラブ系＝キャバクラ・ラウンジ 1,000 円／スナック・ガールズバー 100 円・切り上げ）・伝票はみな店の丸め・締めた伝票は入金の和＝請求（売掛を含む）。
  */
 import fs from "node:fs";
-import { PROFILES, SLIDES, EXTRA_CASTS, PAY_RATE_DEMO, TRIAL, BIZ_TYPE_OF, billRoundOf } from "./demo/profiles.mjs";
+import { PROFILES, SLIDES, EXTRA_CASTS, PAY_RATE_DEMO, TRIAL, BIZ_TYPE_OF, billRoundOf, ROUND_UNIT_OF, MONTH_GROSS_TARGET } from "./demo/profiles.mjs";
 import { payRateTierOf, directionOf } from "../lib/nox/rules-0175/canon";
 let pass = 0;
 const fails: string[] = [];
@@ -60,16 +60,25 @@ for (const c of ["muse", "luna", "noir", "ace", "lily", "nest"]) {
 check("d(4-1) demoCanonBandsFor は NOX-DEMO-MUSE 以外は何もしない", seed.includes('if ((org as { name?: string } | null)?.name !== "NOX-DEMO-MUSE") return out;'));
 
 // d(5) 丸め
-const want: Record<string, number> = { muse: 1000, luna: 1000, noir: 1000, ace: 1000, lily: 100, nest: 100 };
+const want: Record<string, number> = { muse: 100, luna: 1000, noir: 1000, ace: 1000, lily: 100, nest: 100 }; // ★2026-11-18（相談役 B）: MUSE は 100 円（丸めの単位は店ごとの種・ROUND_UNIT_OF）
 for (const c of Object.keys(want)) {
   const T = pay(c); const st = T.stores[0];
   const sj = st.settings_json as Record<string, unknown>;
-  check(`d(5-1) ${c}: 業態 ${String(sj.biz_type)}＝丸め ${want[c]} 円・切り上げ（店と BIZ_TYPE_OF が一致）`, st.round_unit === want[c] && st.round_mode === "up" && BIZ_TYPE_OF[c] === sj.biz_type && J(billRoundOf(c)) === J({ round_unit: want[c], round_mode: "up" }));
+  check(`d(5-1) ${c}: 業態 ${String(sj.biz_type)}＝丸め ${want[c]} 円・切り上げ（店と BIZ_TYPE_OF が一致）`, st.round_unit === want[c] && st.round_mode === "up" && BIZ_TYPE_OF[c] === sj.biz_type && ROUND_UNIT_OF[c] === want[c] && J(billRoundOf(c)) === J({ round_unit: want[c], round_mode: "up" }));
   const bad = T.checks.filter((k) => k.round_unit !== want[c] || k.round_mode !== "up").length;
   const payBy = new Map<string, number>(); for (const p of T.payments ?? []) payBy.set(String(p.check_id), (payBy.get(String(p.check_id)) ?? 0) + Number(p.amount));
   const closed = T.checks.filter((k) => k.status === "closed" && !k.merged_into && payBy.has(String(k.id)));
   const gap = closed.filter((k) => payBy.get(String(k.id)) !== Number(k.total)).length;
   check(`d(5-2) ${c}: 伝票はみな店の丸め（違い ${bad}）・入金のある締めた伝票 ${closed.length} 件は入金の和＝請求（違い ${gap}）`, bad === 0 && closed.length > 0 && gap === 0);
+}
+
+// d(7) ★2026-11-18（相談役 B）: LUNA は報酬率スライドだけ（売上の段は空・店の売上スライド OFF）・業態は店名に（MUSE snack・NEST bar）・目標は丸めた後の実績
+{
+  const L = pay("luna"); const sjL = L.stores[0].settings_json as Record<string, unknown>;
+  check("d(7-1) LUNA：売上スライド OFF・プランの売上の段は空・報酬率のプランは 3 本のまま", sjL.sys_sales_slide === false && L.comp_plans.every((p) => J(p.sales_slide) === "[]") && L.comp_plans.filter((p) => p.reward_axis === "pay_rate").length === 3);
+  check("d(7-2) 業態＝MUSE snack・NEST bar（ほかは不変）", (pay("muse").stores[0].settings_json as Record<string, unknown>).biz_type === "snack" && (pay("nest").stores[0].settings_json as Record<string, unknown>).biz_type === "bar" && (pay("noir").stores[0].settings_json as Record<string, unknown>).biz_type === "lounge");
+  const bad = ["muse", "luna", "noir", "ace", "lily", "nest"].filter((c) => !(pay(c).store_sales_targets ?? []).every((r) => r.sales_target === (MONTH_GROSS_TARGET as Record<string, number>)[c]));
+  check("d(7-3) 店の売上の目標（store_sales_targets）＝丸めた後の実績（MONTH_GROSS_TARGET）", bad.length === 0, bad);
 }
 
 if (fails.length) { console.error(`✗ verify:nox-demo1118 失敗 ${fails.length}（成功 ${pass}）`); for (const f of fails) console.error(" - " + f); process.exit(1); }
