@@ -68,7 +68,7 @@ const src = (p: string) => fs.readFileSync(p, "utf8");
     SHIFT_MODE_NOTE.includes(WISH_STATE_LABEL.pending) && SHIFT_MODE_NOTE.includes(WISH_STATE_LABEL.accepted_wait) && SHIFT_MODE_NOTE.includes(WISH_STATE_LABEL.accepted_fixed) && !SHIFT_MODE_NOTE.includes("採用された日が確定シフトになります")
     && wishPageTextOf("shift").markNote.includes("提出済みの日は押すと詳細") && wishPageTextOf("off_only").markNote.includes("提出済みの日は押すと詳細") && !wishPageTextOf("shift").markNote.includes("提出済みの日は選べません"));
   check("b2(6-4) M-168 売上の順位は売上の軸だけ・ドリンク申告の「上の今月のバック」をやめる",
-    src("app/mine/ranking/page.tsx").includes('{axis === "sales" && mySales && (') && !src("app/mine/drink-claim-form.tsx").includes("上の「今月のバック」"));
+    src("app/mine/ranking/page.tsx").includes('{axis === "sales" && (\n      <section className="nox-cardtop" style={t.card} data-rank-sales="1">') /* ★2026-11-18 夜（相談役 ⑥ C-3）: 売上は表の形に＝表ごと売上の軸だけ（旧 {axis === "sales" && mySales && (） */ && !src("app/mine/drink-claim-form.tsx").includes("上の「今月のバック」"));
 }
 // (6-5) 裁定483 マイナンバーの廃棄の候補＝「法定保存期間満了」「7 年を過ぎ」の言い切りを画面から外す
 {

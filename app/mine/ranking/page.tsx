@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { bizDateOf } from "@/lib/nox/biz-date";
@@ -45,7 +46,7 @@ export default async function RankingPage({ searchParams }: { searchParams?: Pro
   const rows = rankMode === "self" ? allRows.filter((r) => r.is_self) : allRows;
   // ★裁定346 追補1（0171・便 P171）: 売上軸の自分の順位＝get_cast_sales_rank（cast は自分の 1 行だけ＝他人の金額・順位は返らない・売上は給与と同じ按分）
   const { data: salesRank } = store ? await supabase.rpc("get_cast_sales_rank", { p_store_id: store.id, p_period: period }) : { data: null };
-  const mySales = ((salesRank ?? []) as { rank: number; sales: number; is_self: boolean }[]).find((r) => r.is_self) ?? null;
+  const mySales = ((salesRank ?? []) as { rank: number; cast_name?: string | null; sales: number; is_self: boolean }[]).find((r) => r.is_self) ?? null;
 
   const thNum: React.CSSProperties = { ...t.th, textAlign: "right" };
   const tdNum: React.CSSProperties = { ...t.td, textAlign: "right", fontFamily: t.font.num };
@@ -54,14 +55,46 @@ export default async function RankingPage({ searchParams }: { searchParams?: Pro
     <div>
       <div style={{ margin: "2px 0 14px" }}>
         <h1 style={t.pheadH1}>ランキング（{period}）</h1>
-        <p style={t.pheadP}>{axis === "sales" ? "売上（按分）によるランキングです。" : "指名件数によるランキングです。"}{rankMode === "self" ? `（自分の順位のみ・${allRows.length}人中）` : ""}</p>{/* ★裁定363: 既定＝売上 */}
-        <p style={{ fontSize: 12, margin: "6px 0 0" }} data-rank-axis={axis}>{axis === "sales" ? <a href="/mine/ranking?axis=nom" className="nox-link">本指名件数で見る ›</a> : <a href="/mine/ranking" className="nox-link">売上で見る ›</a>}</p>{/* ★裁定346: self は他人の名前を出さない */}
-        {axis === "sales" && mySales && (/* ★M-168（2026-11-11 夜）: 本指名件数に切り替えたら売上の順位は出さない（選んだ指標を主表示に）・★裁定346 追補1（0171）: 売上軸の自分の順位（self・top とも自分の行だけ・他人の金額は出ない） */
-          <p style={{ fontSize: 13, margin: "6px 0 0" }} data-sales-rank={mySales.rank}>
-            売上の順位: <b className="num">{mySales.rank}位</b> / {allRows.length}人中 <span style={{ color: "var(--sub)" }}>（自分の按分売上 ¥{mySales.sales.toLocaleString()}・他の人の額は出ません）</span>
-          </p>
-        )}
+        <p style={t.pheadP}>{axis === "sales" ? "売上（按分）によるランキングです。" : "指名件数によるランキングです。"}{axis === "sales" ? "表は自分の 1 行だけです（ほかの人の額は出ません）。" : rankMode === "self" ? `（自分の順位のみ・${allRows.length}人中）` : ""}</p>{/* ★裁定363: 既定＝売上 */}{/* ★裁定346: self は他人の名前を出さない */}
+        {/* ★2026-11-18 夜（相談役 ⑥ C-3）: 切り替えは小さいリンクをやめ「売上｜指名」のタブ（.nox-segtabs・URL の ?axis=nom は今までどおり） */}
+        <div className="nox-segtabs" role="tablist" aria-label="ランキングの指標" data-rank-axis={axis} style={{ marginTop: 10 }}>
+          <Link href="/mine/ranking" role="tab" aria-selected={axis === "sales"} className={axis === "sales" ? "on" : undefined} data-rank-tab="sales">売上</Link>
+          <Link href="/mine/ranking?axis=nom" role="tab" aria-selected={axis === "nom"} className={axis === "nom" ? "on" : undefined} data-rank-tab="nom">指名</Link>
+        </div>
       </div>
+
+      {/* ★2026-11-18 夜（相談役 ⑥ C-3）: 売上も指名と同じ表の形（順位・名前・売上（按分））。get_cast_sales_rank は cast に自分の 1 行だけを返す＝表は自分の 1 行
+          （ほかの人の額・順位は出ない＝認可設計のキャストのプライバシー）。★M-168: 本指名件数に切り替えたら売上の順位は出さない（選んだ指標を主表示に） */}
+      {axis === "sales" && (
+      <section className="nox-cardtop" style={t.card} data-rank-sales="1">
+        <div className="nox-tablewrap plain">
+        <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 13 }}>
+          <thead>
+            <tr>
+              <th style={t.th}>順位</th>
+              <th style={t.th}>名前</th>
+              <th style={thNum}>売上（按分）</th>
+            </tr>
+          </thead>
+          <tbody>
+            {mySales && (
+              <tr style={{ background: "var(--goldface2)" }} data-sales-rank={mySales.rank}>
+                <td style={t.td}><span className={`nox-medal ${mySales.rank === 1 ? "g1" : mySales.rank === 2 ? "g2" : mySales.rank === 3 ? "g3" : "gx"}`}>{mySales.rank}</span></td>
+                <td style={{ ...t.td, color: "var(--champ)", fontWeight: 700 }}>{mySales.cast_name ?? allRows.find((r) => r.is_self)?.cast_name ?? ""}（自分）</td>
+                <td style={tdNum}>¥{mySales.sales.toLocaleString()}</td>
+              </tr>
+            )}
+            {!mySales && (
+              <tr>
+                <td style={{ ...t.td, color: "var(--sub)" }} colSpan={3}>データなし</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+        </div>
+        {mySales && <p style={{ fontSize: 12, color: "var(--sub)", margin: "8px 0 0" }}>売上の順位: <b className="num">{mySales.rank}位</b> / {allRows.length}人中</p>}
+      </section>
+      )}
 
       {axis === "nom" && (
       <section className="nox-cardtop" style={t.card}>
