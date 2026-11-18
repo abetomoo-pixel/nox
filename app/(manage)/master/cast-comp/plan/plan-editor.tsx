@@ -16,7 +16,7 @@ import SegSelect from "@/components/ui/seg-select";
 import { prepItemOf } from "@/lib/nox/comp-methods";
 import { NORM_AXES, NORM_AXIS_LABEL, NORM_AXIS_UNIT, normAxesOf } from "@/lib/nox/store/norm-axes"; // ★裁定347（0171・便 P171）: プラン既定の目標 4 軸（採用 OFF の軸は入力口を出さない）
 import { SLIDE_APPLY_LABEL, SLIDE_BASIS_LABEL, slideBasisOf, slideBasisPillOf, slideDescOf, slidePeriodOf, slidePillOf, type SlideBasis, type SlidePeriod } from "@/lib/nox/payroll/slide"; // ★N3b（裁定288-7）・★裁定338（0168）: 判定期間
-import { isSectionOn, isSystemOn, pointSlideOn, salesSlideOn, slidesTabOn, type StoreSettings } from "@/lib/nox/store-systems"; // ★裁定269: 使う制度の出し分け
+import { isSectionOn, isSystemOn, pointSlideOn, salesSlideOn, slidesTabOnWithPayRate, type StoreSettings } from "@/lib/nox/store-systems"; // ★裁定269: 使う制度の出し分け
 import { BONUS_TIER_MAX, bonusParamsOf, bonusTiersErrOf, bonusTiersLabel, bonusTiersOf, type BonusTier } from "@/lib/nox/bonus-tiers"; // ★便 P173 T-2（起票110）: 達成ボーナスの多段
 import { slideErrOf, slideToSave } from "@/lib/nox/comp/slide-rows"; // ★便 P174 T-1（裁定390）
 import PayRateTiersEditor from "./pay-rate-tiers-editor"; // ★2026-11-17 夜（相談役 Y3b）: 報酬率の段
@@ -235,7 +235,7 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
   // ★裁定106 B1: タブごと未保存件数を親へ（achievement/自由バックは行単位保存＝対象外）
   const vis = show ?? { base: true, backs: true, slides: true, achieve: true };
   // ★裁定269-4: 節ごとに isSectionOn 1 条件（4 節＋自由バック表）
-  const on = { base: isSectionOn(settings, "planEditorBase"), backs: isSectionOn(settings, "planEditorBacks"), slides: slidesTabOn(settings) /* ★便 GV-C C-5（R-5）: OR をやめ節ごと */, achieve: isSectionOn(settings, "planEditorAchieve"), backTab: isSectionOn(settings, "compBackTab") };
+  const on = { base: isSectionOn(settings, "planEditorBase"), backs: isSectionOn(settings, "planEditorBacks"), slides: slidesTabOnWithPayRate(settings, plans as { reward_axis?: string | null }[], rules0175On()) /* ★便 GV-C C-5（R-5）: OR をやめ節ごと★2026-11-18: 報酬率のプランがあれば出す */, achieve: isSectionOn(settings, "planEditorAchieve"), backTab: isSectionOn(settings, "compBackTab") };
   useEffect(() => {
     onDirtyCounts?.({
       base: dirty(["name", "base", "active"]) ? 1 : 0,

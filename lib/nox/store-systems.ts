@@ -49,7 +49,7 @@ export type RewardAxis = "sales" | "pts";
 export const REWARD_AXIS_LABEL: Record<RewardAxis, string> = { sales: "売上（円）", pts: "ポイント（pt）" };
 /** ★2026-11-17 夜（相談役 Y3a）: 店の報酬の軸の 3 択目＝報酬率。店に軸のキーを保存する口が無い（set_store_profile の白名単に reward_axis が無い＝mig 0201o 起草のみ）＝選べる形にせず案内だけ（待遇プランごとに選ぶ） */
 export const STORE_PAY_RATE_GUIDE = "報酬率（待遇プランで選びます）";
-export const STORE_PAY_RATE_HREF = "/master/cast-comp/plan#pay-rate-tiers";
+export const STORE_PAY_RATE_HREF = "/master/cast-comp/plan?tab=slides#pay-rate-tiers";
 export const rewardAxisOf = (s: StoreSettings): RewardAxis => (isSystemOn(s, "sys_points") || isSystemOn(s, "sys_point_slide") ? "pts" : "sales");
 /** 軸のスライド（売上軸＝売上スライド／pt 軸＝ポイントスライド） */
 export const axisSlideKeyOf = (axis: RewardAxis): SystemKey => (axis === "pts" ? "sys_point_slide" : "sys_sales_slide");
@@ -170,3 +170,5 @@ export function systemUsageOf(rows: { castPlans: CastPlanRow[]; castNorms: CastN
 export const salesSlideOn = (s: StoreSettings): boolean => isSystemOn(s, "sys_sales_slide");
 export const pointSlideOn = (s: StoreSettings): boolean => isSystemOn(s, "sys_point_slide") && isSystemOn(s, "sys_points");
 export const slidesTabOn = (s: StoreSettings): boolean => salesSlideOn(s) || pointSlideOn(s);
+/** ★2026-11-18（相談役 1・Y3 の続き）: 報酬率の段は「スライド・ポイント」の中＝報酬の軸が報酬率のプランがある店は、売上／pt のスライドが OFF でもタブと節を出す（見せ方だけ） */
+export const slidesTabOnWithPayRate = (s: StoreSettings, plans: readonly { reward_axis?: string | null }[], rules0175: boolean): boolean => slidesTabOn(s) || (rules0175 && plans.some((p) => p.reward_axis === "pay_rate"));

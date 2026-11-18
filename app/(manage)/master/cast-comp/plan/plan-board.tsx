@@ -19,7 +19,8 @@ import { AssignTab, useCompData, secTitle, productBackArgsOf, type Plan } from "
 import PlanEditor from "./plan-editor";
 import { slideBasisOf, slideBasisPillOf } from "@/lib/nox/payroll/slide"; // ★N3b・★裁定343（0170）: 判定基準・対象ランクの印
 import { rpcErrJa as rpcErrJaCommon } from "@/lib/nox/ui/rpc-err"; // ★N2-2（2026-09-18）: 生の RPC 語の日本語化（写像に無い語は「処理できませんでした（コード: …）」）
-import { isSectionOn, slidesTabOn, type StoreSettings } from "@/lib/nox/store-systems"; // ★裁定269: 使う制度の出し分け
+import { isSectionOn, slidesTabOnWithPayRate, type StoreSettings } from "@/lib/nox/store-systems";
+import { rules0175On } from "@/lib/nox/rules-0175/flag"; // ★2026-11-18: 報酬率のプランがある店はスライドのタブを出す // ★裁定269: 使う制度の出し分け
 
 const card: React.CSSProperties = t.card;
 
@@ -123,9 +124,9 @@ export default function PlanBoard({ storeId, isManagerUp, isOwner, sim, settings
   // ★裁定269-4: タブの出し分け＝isSectionOn 1 条件（4 タブ）。sim／assign は制度に依らない。OFF のタブは描画しない。
   const tabOn = (k: TabKey) => k === "base" ? isSectionOn(settings, "planTabBase")
     : k === "backs" ? isSectionOn(settings, "planTabBacks")
-    : k === "slides" ? slidesTabOn(settings) /* ★便 GV-C C-5（R-5）: 売上／pt の節ごとの単独判定（両方 OFF でタブ非表示） */
+    : k === "slides" ? slidesTabOnWithPayRate(settings, data.plans as { reward_axis?: string | null }[], rules0175On()) /* ★便 GV-C C-5（R-5）: 売上／pt の節ごとの単独判定（両方 OFF でタブ非表示）★2026-11-18: 報酬率のプランがあれば出す */
     : k === "quota" ? isSectionOn(settings, "planTabQuota") : true;
-  useEffect(() => { if (!tabOn(tab)) setTab(TABS.map(([k]) => k).find(tabOn) ?? "assign"); }, [tab, settings]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (data.plans.length === 0) return; /* ★2026-11-18: プランを読む前に ?tab=slides を落とさない */ if (!tabOn(tab)) setTab(TABS.map(([k]) => k).find(tabOn) ?? "assign"); }, [tab, settings, data.plans]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div>

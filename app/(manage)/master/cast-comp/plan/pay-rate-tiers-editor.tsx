@@ -18,6 +18,8 @@ export default function PayRateTiersEditor({ planId, tiers, streak, onSaved, onE
   const [n, setN] = useState<number>(Number(streak ?? 2) || 2);
   const [busy, setBusy] = useState(false);
   useEffect(() => { setRows(payRateRowsOf(tiers)); setN(Number(streak ?? 2) || 2); }, [planId, tiers, streak]);
+  // ★2026-11-18: 初期設定・店舗設定のリンク（?tab=slides#pay-rate-tiers）で来たら、描画の後にこの位置まで送る（読み込みの前は要素が無く、ブラウザの自動の位置合わせが効かない）
+  useEffect(() => { if (typeof window !== "undefined" && window.location.hash === "#pay-rate-tiers") document.getElementById("pay-rate-tiers")?.scrollIntoView({ block: "start" }); }, []);
   const err = payRateRowsErrOf(rows) ?? payRateStreakErrOf(n);
   const set = (i: number, k: keyof Omit<PayRateTierRow, "rest">, v: string) => setRows((rs) => rs.map((r, j) => (j === i ? { ...r, [k]: v } : r)));
   const cell = (i: number, k: keyof Omit<PayRateTierRow, "rest">, label: string, post: string) => (

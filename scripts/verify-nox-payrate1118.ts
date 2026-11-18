@@ -13,6 +13,7 @@ import { loadEnvOrExit } from "./fixtures-f0";
 import { pgTx } from "./fixtures-pgtx";
 import { PAY_RATE_TIER_MAX, emptyPayRateRow, payRatePatchOf, payRateRowsErrOf, payRateRowsOf, payRateStreakErrOf, payRateTiersOf, type PayRateTierRow } from "../lib/nox/comp/pay-rate-tiers";
 import { canonApplyOf, canonOutcomeOf, type CanonCtx, type PayRateTier } from "../lib/nox/rules-0175/canon";
+import { slidesTabOnWithPayRate } from "../lib/nox/store-systems";
 let pass = 0;
 const fails: string[] = [];
 function check(label: string, ok: boolean, d?: unknown) { if (ok) pass++; else fails.push(`${label}${d !== undefined ? `: ${JSON.stringify(d)}` : ""}`); }
@@ -58,9 +59,17 @@ check("pr(4-1) 保存＝comp_plan_ext_set（p_plan_id・p_patch＝payRatePatchOf
 check("pr(4-2) 行き先の印 id=pay-rate-tiers・式の説明「時給分 ÷ 売上小計」", ed.includes('id="pay-rate-tiers"') && ed.includes("報酬率＝時給分 ÷ 売上小計"));
 check("pr(4-3) plan-editor：owner かつ保存済みプランかつ軸が報酬率のときだけ出す", pe.includes('{rules0175On() && draft.id && isOwner && planRewardAxisOf(plans.find((x) => x.id === draft.id) as { reward_axis?: string | null } | undefined, settings) === "pay_rate" && ('));
 const sw = fs.readFileSync("app/(manage)/setup/setup-wizard.tsx", "utf8");
-check("pr(4-4) 初期設定の案内の行き先＝待遇プランの報酬率の段", sw.includes('href={PAY_RATE_TIERS_HREF}') && fs.readFileSync("lib/nox/setup/v5.ts", "utf8").includes('export const PAY_RATE_TIERS_HREF = "/master/cast-comp/plan#pay-rate-tiers";'));
+check("pr(4-4) 初期設定の案内の行き先＝待遇プランの報酬率の段", sw.includes('href={PAY_RATE_TIERS_HREF}') && fs.readFileSync("lib/nox/setup/v5.ts", "utf8").includes('export const PAY_RATE_TIERS_HREF = "/master/cast-comp/plan?tab=slides#pay-rate-tiers";'));
 const sp = fs.readFileSync("lib/nox/store-systems.ts", "utf8");
 check("pr(4-5) 店舗設定の報酬の軸＝3 択目は案内（「報酬率（待遇プランで選びます）」・保存しない）", sp.includes('export const STORE_PAY_RATE_GUIDE = "報酬率（待遇プランで選びます）";'));
+
+// pr(6) ★2026-11-18（相談役 1）: 行き先はタブを開いて着く・報酬率のプランがある店はスライドのタブを出す（売上／pt のスライドが OFF でも）
+{
+  const off = { sys_sales_slide: false, sys_point_slide: false, sys_points: false };
+  check("pr(6-1) スライド OFF の店でも報酬率のプランがあればタブを出す・無ければ出さない・フラグ false は従来", slidesTabOnWithPayRate(off, [{ reward_axis: "pay_rate" }], true) && !slidesTabOnWithPayRate(off, [{ reward_axis: null }], true) && !slidesTabOnWithPayRate(off, [{ reward_axis: "pay_rate" }], false));
+  const pb = fs.readFileSync("app/(manage)/master/cast-comp/plan/plan-board.tsx", "utf8");
+  check("pr(6-2) タブ（plan-board）と節（plan-editor）が同じ判定・リンクで来たら位置まで送る", pb.includes('k === "slides" ? slidesTabOnWithPayRate(settings, data.plans') && pe.includes("slides: slidesTabOnWithPayRate(settings, plans") && ed.includes('window.location.hash === "#pay-rate-tiers"') && sp.includes('export const STORE_PAY_RATE_HREF = "/master/cast-comp/plan?tab=slides#pay-rate-tiers";'));
+}
 
 async function main() {
   const env = loadEnvOrExit(["SUPABASE_DB_URL"]);
