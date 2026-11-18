@@ -77,7 +77,7 @@ check("mt(5-1) master-subnav: resolveMasterNav(pathname, search, hash)・hashcha
 // (6) 在庫画面・料金画面
 const sb = src("app/(manage)/master/stock/stock-board.tsx"), pb = src("app/(manage)/master/pricing/pricing-board.tsx"), pbC = codeOf(pb);
 check("mt(6-1) stock-board: 発注推奨の警告（.nox-alert danger・reorder_point 判定）／pricing-board: ?tab= を読み初期タブ・内側ピル（.nox-pillbar）は無い（MC2）・「ルールで設定」は router.push(?tab=rules)・内容の 3 分岐（tab === ）は不変",
-  sb.includes('className="nox-alert danger"') && sb.includes("p.reorder_point != null && (stock[p.id] ?? 0) <= (p.reorder_point ?? 0)")
+  sb.includes('className="nox-alert danger"') && sb.includes("const lowItems = useMemo(() => lowStockOf(managedProducts, stock), [managedProducts, stock]);") && src("lib/nox/stock/stocktake.ts").includes("export const isLowStock = (current: number, reorderPoint: number | null | undefined): boolean => reorderPoint != null && current <= reorderPoint;") /* ★2026-11-18 夜（相談役 ⑥ C-2）: 判定は lowStockOf（式は同じ＝在庫 ≤ reorder_point）へ */
   && pb.includes("useSearchParams()") && pb.includes('sp?.get("tab")') && pb.includes('useState<"master" | "rules" | "checkout">(initTab)') && !pbC.includes("nox-pillbar") && !pbC.includes('["master", "料金マスタ"], ["rules", "料金適用ルール"]')
   && pb.includes('router.push("/master/pricing?tab=rules")') && pb.includes('{tab === "rules" && (') && pb.includes('{tab === "master" && (') && pb.includes('{tab === "checkout" && ('));
 

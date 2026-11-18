@@ -26,7 +26,7 @@ import * as t from "@/lib/nox/ui/theme";
 import Toast from "@/components/ui/toast";
 import MasterPageHead from "../master-page-head";
 import { fetchProductCategories, fetchProducts, fetchStockTotals, type MasterCategory, type MasterProduct as Product } from "@/lib/nox/master/queries";
-import { stocktakeRowsOf, stocktakePlanOf, stocktakeGroupsOf, actualValueOf, deltaOf, stepActualOf } from "@/lib/nox/stock/stocktake"; // ★便 SH-UI-c2 C2-8
+import { stocktakeRowsOf, stocktakePlanOf, stocktakeGroupsOf, actualValueOf, deltaOf, stepActualOf, lowStockOf, lowStockSummaryOf } from "@/lib/nox/stock/stocktake"; // ★便 SH-UI-c2 C2-8 ★2026-11-18 夜（相談役 ⑥ C-2）: 発注基準の帯・印・絞り込み
 import { STOCK_REASON_STOCKTAKE, stockReasonLabel } from "@/lib/nox/stock/reasons";
 import { stockUnitOf } from "@/lib/nox/inventory/unit";
 
@@ -63,13 +63,17 @@ export default function StockBoard({ isManagerUp, initial, users }: {
   const [stock, setStock] = useState<Record<string, number>>(initial.stock);
   // ★裁定330（便 MC1）: 発注推奨＝在庫が発注基準（reorder_point）以下の商品数（旧マスタトップの KPI・警告と同じ式）
   const managedProducts = useMemo(() => products.filter((p) => p.track_stock !== false), [products]); // ★X-13-8（0166）: 在庫を管理しない商品は在庫画面の対象外
-  const lowStock = managedProducts.filter((p) => p.reorder_point != null && (stock[p.id] ?? 0) <= (p.reorder_point ?? 0)).length;
+  // ★2026-11-18 夜（相談役 ⑥ C-2）: 件数だけでなく商品名と「現在庫／基準」を帯に（判定は lowStockOf＝今までと同じ式・在庫 ≤ reorder_point）
+  const lowItems = useMemo(() => lowStockOf(managedProducts, stock), [managedProducts, stock]);
+  const lowStock = lowItems.length;
+  const lowSummary = lowStockSummaryOf(lowItems, 3);
   const [msg, setMsg] = useState<string | null>(null);
 
   // ★裁定323: 棚卸し＝一覧型（商品 id → 実数の入力文字列）。delta は UI 計算
   const [actuals, setActuals] = useState<Record<string, string>>({});
   const [tq, setTq] = useState("");
   const [showInactive, setShowInactive] = useState(false);
+  const [lowOnly, setLowOnly] = useState(false); // ★2026-11-18 夜（相談役 ⑥ C-2）: 「基準を下回っている商品だけ」
   const [categories, setCategories] = useState<MasterCategory[]>([]);
   const [busy, setBusy] = useState(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -108,7 +112,8 @@ export default function StockBoard({ isManagerUp, initial, users }: {
   }
 
   // ★裁定323: 行（在庫管理ありだけ・カテゴリ順）と、記録する行（実数が整数で差分 ≠ 0）
-  const tRows = useMemo(() => stocktakeRowsOf(managedProducts, stock, categories, { q: tq, showInactive }), [managedProducts, stock, categories, tq, showInactive]);
+  const tRows = useMemo(() => stocktakeRowsOf(managedProducts, stock, categories, { q: tq, showInactive, lowOnly }), [managedProducts, stock, categories, tq, showInactive, lowOnly]);
+  const lowRowCount = useMemo(() => stocktakeRowsOf(managedProducts, stock, categories, { showInactive, lowOnly: true }).length, [managedProducts, stock, categories, showInactive]); // ★C-2: 絞り込みの「（n 件）」＝表に出る行のうち基準を下回る行
   const tPlan = useMemo(() => stocktakePlanOf(managedProducts, stock, actuals), [managedProducts, stock, actuals]);
   const inactiveCount = useMemo(() => managedProducts.filter((p) => !p.is_active && stock[p.id] !== undefined).length, [managedProducts, stock]); // ★便 SH-UI-c2 C2-8 ④: 「無効の商品も表示（n 件）」
   const unmanaged = products.filter((p) => p.is_active && (p.track_stock === false || stock[p.id] === undefined)).length; // ★X-13-8: track_stock=false も「管理なし」に数える
@@ -144,9 +149,13 @@ export default function StockBoard({ isManagerUp, initial, users }: {
         desc="棚卸しは実数を入力すると差分を自動計算して記録します。入荷は商品ページの行から、売上による減算は会計から自動で入ります。"
       />
       {/* ★裁定330（便 MC1）: 発注推奨の警告はマスタトップから在庫画面へ（判定＝reorder_point・0 件なら出さない・文言は旧トップと同じ） */}
+      {/* ★2026-11-18 夜（相談役 ⑥ C-2）: 件数に加えて、足りない順に先頭 3 件の「商品名 現在庫／基準」・残りは「ほか n 件」 */}
       {lowStock > 0 && (
-        <div className="nox-alert danger">
-          在庫が発注基準を下回っている商品が {lowStock} 件あります。商品マスターから補充基準を確認してください。
+        <div className="nox-alert danger" data-low-stock={lowStock}>
+          <div>在庫が発注基準を下回っている商品が <span className="num">{lowStock}</span> 件あります。商品マスターから補充基準を確認してください。</div>
+          <div className="num" style={{ marginTop: 4, fontWeight: 700, overflowWrap: "anywhere" }} data-low-stock-list="1">
+            {lowSummary.shown.join("・")}{lowSummary.rest > 0 && <span style={{ fontWeight: 400 }}>　ほか {lowSummary.rest} 件</span>}
+          </div>
         </div>
       )}
 
@@ -169,10 +178,15 @@ export default function StockBoard({ isManagerUp, initial, users }: {
             <label style={{ fontSize: 12, display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
               <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} data-stocktake-inactive="1" /> 無効の商品も表示（{inactiveCount} 件）
             </label>
+            {(lowRowCount > 0 || lowOnly) && (/* ★2026-11-18 夜（相談役 ⑥ C-2）: 基準を下回っている商品だけ（基準を下回る行が無く、オフのときは出さない） */
+              <label style={{ fontSize: 12, display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", color: "var(--bad)" }}>
+                <input type="checkbox" checked={lowOnly} onChange={(e) => setLowOnly(e.target.checked)} data-stocktake-low-only="1" /> 基準を下回っている商品だけ（{lowRowCount} 件）
+              </label>
+            )}
             <span style={{ fontSize: 11.5, color: "var(--sub)" }}><span className="num">{tRows.length}</span> 件</span>
           </div>
           {tRows.length === 0 ? (
-            <p style={{ fontSize: 13, color: "var(--sub)", margin: 0 }}>{tq.trim() ? "該当する商品がありません。" : "在庫を持つ商品がありません（商品ページの「入荷」で在庫を登録すると、ここに出ます）。"}</p>
+            <p style={{ fontSize: 13, color: "var(--sub)", margin: 0 }}>{tq.trim() || lowOnly ? "該当する商品がありません。" : "在庫を持つ商品がありません（商品ページの「入荷」で在庫を登録すると、ここに出ます）。"}</p>
           ) : (
             <div className="nox-ptwrap">
               <table className="nox-ptable nox-sttable">
@@ -196,10 +210,11 @@ export default function StockBoard({ isManagerUp, initial, users }: {
                       return (
                         <tr key={r.id} style={r.isActive ? undefined : { opacity: 0.75 } /* ★M-139 */} data-stocktake-row={r.id} data-stocktake-delta={d ?? ""}>
                           <td data-label="商品" className="col-name">
-                            <span className="nox-st-name">{r.name}{!r.isActive && <span style={{ ...t.tag, fontSize: 10, marginLeft: 6, color: "var(--sub)", borderColor: "var(--line2)" }}>無効</span>}</span>
-                            <span className="nox-st-cur num" style={{ color: "var(--sub)" }}>現在庫 {r.current}{r.unit}</span>
+                            <span className="nox-st-name">{r.name}{!r.isActive && <span style={{ ...t.tag, fontSize: 10, marginLeft: 6, color: "var(--sub)", borderColor: "var(--line2)" }}>無効</span>}
+                              {r.low && <span style={{ ...t.tag, fontSize: 10, marginLeft: 6, color: "var(--bad)", borderColor: "var(--bad)" }} data-stocktake-low={r.id}>● 基準 {r.reorderPoint}{r.unit}</span>/* ★2026-11-18 夜（相談役 ⑥ C-2）: 基準を下回る行に赤い印と基準の本数 */}</span>
+                            <span className="nox-st-cur num" style={{ color: r.low ? "var(--bad)" : "var(--sub)" }}>現在庫 {r.current}{r.unit}</span>
                           </td>
-                          <td data-label="現在庫" className="col-cur" style={{ textAlign: "right" }}><span style={t.num}>{r.current}{r.unit}</span></td>
+                          <td data-label="現在庫" className="col-cur" style={{ textAlign: "right" }}><span style={{ ...t.num, ...(r.low ? { color: "var(--bad)", fontWeight: 700 } : {}) }}>{r.current}{r.unit}</span></td>
                           <td data-label="実数" className="col-actual" style={{ textAlign: "right" }}>
                             <span className="nox-st-step">
                               <StepBtn label="−" onStep={() => step(-1)} disabled={busy} testId={`${r.id}:-`} />

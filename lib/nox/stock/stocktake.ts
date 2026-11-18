@@ -4,9 +4,10 @@
 //   記録する行＝実数が整数で、現在庫との差分が 0 でない行だけ。
 import { stockUnitOf } from "../inventory/unit";
 
-export type StocktakeProduct = { id: string; name: string; type: string; is_active: boolean; category_id: string | null; sort_order: number };
+// ★2026-11-18 夜（相談役 ⑥ C-2）: reorder_point（発注基準）を行に持たせる＝表の該当行に赤い印と基準の本数・「基準を下回っている商品だけ」の絞り込み（判定は下の isLowStock＝今までの警告と同じ式）
+export type StocktakeProduct = { id: string; name: string; type: string; is_active: boolean; category_id: string | null; sort_order: number; reorder_point?: number | null };
 export type StocktakeCategory = { id: string; name: string; sort_order: number };
-export type StocktakeRow = { id: string; name: string; unit: string; current: number; isActive: boolean; categoryName: string; head: boolean };
+export type StocktakeRow = { id: string; name: string; unit: string; current: number; isActive: boolean; categoryName: string; head: boolean; reorderPoint: number | null; low: boolean };
 export type StocktakePlanRow = { id: string; name: string; current: number; actual: number; delta: number };
 
 export const UNCATEGORIZED = "未分類";
@@ -14,9 +15,29 @@ export const UNCATEGORIZED = "未分類";
 /** 在庫管理あり＝現在庫の集計に行がある */
 export const isStockManaged = (stock: Readonly<Record<string, number>>, productId: string): boolean => stock[productId] !== undefined;
 
+/** 発注基準を下回っている＝基準があり、現在庫が基準以下（★裁定330 の警告と同じ式＝在庫 ≤ reorder_point） */
+export const isLowStock = (current: number, reorderPoint: number | null | undefined): boolean => reorderPoint != null && current <= reorderPoint;
+
+export type LowStockItem = { id: string; name: string; unit: string; current: number; reorderPoint: number };
+/** ★2026-11-18 夜（相談役 ⑥ C-2）: 上の帯に出す商品＝在庫を管理する商品（track_stock≠false）で基準を下回っているもの（在庫の行が無い商品は 0 本＝今までの件数と同じ）。
+ *  並び＝足りない数（現在庫 − 基準）の小さい順 → 名前 */
+export function lowStockOf(
+  products: readonly { id: string; name: string; type: string; reorder_point?: number | null; track_stock?: boolean }[], stock: Readonly<Record<string, number>>,
+): LowStockItem[] {
+  return products
+    .filter((p) => p.track_stock !== false && isLowStock(stock[p.id] ?? 0, p.reorder_point))
+    .map((p) => ({ id: p.id, name: p.name, unit: stockUnitOf(p.type), current: stock[p.id] ?? 0, reorderPoint: p.reorder_point as number }))
+    .sort((a, b) => (a.current - a.reorderPoint) - (b.current - b.reorderPoint) || a.name.localeCompare(b.name, "ja"));
+}
+/** 帯の 1 行＝先頭の max 件を「商品名 現在庫／基準単位」で・残りは「ほか n 件」 */
+export function lowStockSummaryOf(items: readonly LowStockItem[], max = 3): { shown: string[]; rest: number } {
+  const shown = items.slice(0, Math.max(0, max)).map((i) => `${i.name} ${i.current}／${i.reorderPoint}${i.unit}`);
+  return { shown, rest: Math.max(0, items.length - shown.length) };
+}
+
 export function stocktakeRowsOf(
   products: readonly StocktakeProduct[], stock: Readonly<Record<string, number>>, categories: readonly StocktakeCategory[],
-  opt: { q?: string; showInactive?: boolean } = {},
+  opt: { q?: string; showInactive?: boolean; lowOnly?: boolean } = {},
 ): StocktakeRow[] {
   const needle = (opt.q ?? "").trim().toLowerCase();
   const catOf = new Map(categories.map((c) => [c.id, c]));
@@ -25,11 +46,13 @@ export function stocktakeRowsOf(
     .filter((p) => isStockManaged(stock, p.id))
     .filter((p) => opt.showInactive || p.is_active)
     .filter((p) => needle === "" || p.name.toLowerCase().includes(needle))
+    .filter((p) => !opt.lowOnly || isLowStock(stock[p.id] ?? 0, p.reorder_point))
     .map((p) => ({ p, k: keyOf(p) }))
     .sort((a, b) => a.k.order - b.k.order || a.k.name.localeCompare(b.k.name, "ja") || a.p.sort_order - b.p.sort_order || a.p.name.localeCompare(b.p.name, "ja"));
   return rows.map(({ p, k }, i) => ({
     id: p.id, name: p.name, unit: stockUnitOf(p.type), current: stock[p.id] ?? 0, isActive: p.is_active,
     categoryName: k.name, head: i === 0 || rows[i - 1].k.name !== k.name,
+    reorderPoint: p.reorder_point ?? null, low: isLowStock(stock[p.id] ?? 0, p.reorder_point),
   }));
 }
 
