@@ -21,6 +21,7 @@ import { roundYen } from "@/lib/nox/money";
 import * as t from "@/lib/nox/ui/theme";
 import Toast from "@/components/ui/toast";
 import Modal from "@/components/ui/modal";
+import { closeBlockedLineOf, closeGuardReasonsOf, closeGuardTitleOf } from "@/lib/nox/report/close-guard"; // ★2026-11-18 夜 2（相談役 ①）: 締められない理由の窓
 import MonthReport from "./month-report";
 
 import { rpcErrJa as rpcErrJaCommon } from "@/lib/nox/ui/rpc-err"; // ★N2-2（2026-09-18）: 生の RPC 語の日本語化（写像に無い語は「処理できませんでした（コード: …）」）
@@ -163,6 +164,8 @@ export default function ReportBoard({
   const [counted, setCounted] = useState("");
   const [note, setNote] = useState("");
   const [force, setForce] = useState(false);
+  // ★2026-11-18 夜 2（相談役 ①）: 締められない理由の窓（未会計・実査の未入力）。「未会計があっても強行」のチェックは外し、窓の「未会計のまま締める」（店長・オーナー）へ
+  const [closeGuard, setCloseGuard] = useState<{ openN: number; countedMissing: boolean; mode: "close" | "reclose"; reportId?: string } | null>(null);
   const [recvs, setRecvs] = useState<Recv[]>([]);                        // B6 未回収売掛（open）
   const [consent, setConsent] = useState<Record<string, boolean>>({});   // B6 本人同意チェック（行単位）
   // E8-2 #5: 金種カウンタ（9金種・合計→実査へ反映。DB は counted_cash 1列のまま＝モーダルは入力補助）
@@ -537,9 +540,21 @@ export default function ReportBoard({
   const [okuriMsg, setOkuriMsg] = useState<string | null>(null);
   // ★裁定317（便 X-9-3）: 発行済みの送り（当日営業日の transport・cancelled 除外）＝締め前モーダルで「発行済み n 件・合計 ¥m」を確認
   const [okuriIssued, setOkuriIssued] = useState<{ n: number; sum: number }>({ n: 0, sum: 0 });
-  async function closeDay() {
-    setMsg(null);
+  /** ★2026-11-18 夜 2（相談役 ①）: 押した時点の未会計の件数（RPC の判定と同じ open の伝票） */
+  async function openCheckCountNow(): Promise<number> {
+    const { count } = await supabase.from("checks").select("id", { count: "exact", head: true }).eq("store_id", storeId).eq("status", "open");
+    return count ?? 0;
+  }
+  async function closeDay(opts?: { forced?: boolean; countedOk?: boolean }) {
+    setMsg(null); setCloseErr(null);
     if (otherPayoutMemoMissing(otherPay, otherMemo)) { setMsg("「その他の現金支払」のメモを入れてください（何に払ったか）"); return; } // ★便 X13-G W-24 ①
+    // ★2026-11-18 夜 2（相談役 ①）: 未会計か実査の未入力があれば、締めずに中央の窓で理由を出す（強行は窓の中の「未会計のまま締める」だけ）
+    if (!opts?.forced || !opts?.countedOk) {
+      const openN = opts?.forced ? 0 : await openCheckCountNow();
+      const countedMissing = !opts?.countedOk && counted === "";
+      if (openN > 0 || countedMissing) { setCloseGuard({ openN, countedMissing, mode: "close" }); return; }
+    }
+    setForce(!!opts?.forced);
     // 送り方式が actual なら未発行の送りを確認してから締める（stores 読取 +1・0 件なら即締め）
     const { data: st } = await supabase.from("stores").select("settings_json").eq("id", storeId).maybeSingle();
     if (okuriAsks(okuriModeOf((st?.settings_json ?? {}) as Record<string, unknown>))) { // ★裁定414: 'none' 以外
@@ -556,7 +571,7 @@ export default function ReportBoard({
         return; // モーダルで確認→issueOkuriAndClose へ
       }
     }
-    await closeDayNow();
+    await closeDayNow(!!opts?.forced);
   }
   async function issueOkuriAndClose() {
     if (!okuriRows) return;
@@ -570,15 +585,16 @@ export default function ReportBoard({
     }
     setOkuriBusy(false);
     setOkuriRows(null);
-    await closeDayNow();
+    await closeDayNow(force);
   }
-  async function closeDayNow() {
+  async function closeDayNow(forced: boolean = force) {
     const { error } = await supabase.rpc("daily_report_close", {
       p_store_id: storeId, p_biz_date: bizDate,
       p_expense: expense, p_cash_payout: payout, p_cash_float: cashFloat,
       p_counted_cash: counted === "" ? null : Number(counted),
-      p_note: noteWithOtherPayoutOf(note, otherPay, otherMemo), p_force: force, p_idem_key: crypto.randomUUID(), // ★便 X13-G W-24: その他の現金支払はメモの先頭 1 行に残す
+      p_note: noteWithOtherPayoutOf(note, otherPay, otherMemo), p_force: forced, p_idem_key: crypto.randomUUID(), // ★便 X13-G W-24: その他の現金支払はメモの先頭 1 行に残す／★夜 2: 強行は窓から
     });
+    setForce(false);
     if (error && error.message.includes("open checks remain")) {
       const { count } = await supabase.from("checks").select("id", { count: "exact", head: true }).eq("store_id", storeId).eq("status", "open");
       setCloseErr({ text: `未会計の伝票が ${count ?? "いくつか"}件あるため締められません`, openN: count ?? null });
@@ -591,14 +607,15 @@ export default function ReportBoard({
   // ★#70: 再締め＝締め欄の値（諸経費／現金支払／釣銭／実査／メモ／強行）を daily_report_reclose へ送る。
   //   mig0138（C③-3）: p_idem_key を必ず送る（再送の冪等リプレイ・原則 9）。flag on の店は解除中のみ通る（not_reopened）。
   //   RPC 側は coalesce(p_x, 既存値)＝ここでは常に明示値を送る（規約 7 と同じ流儀・実査は空欄＝null＝既存値のまま）。
-  async function recloseFromForm(reportId: string) {
+  async function recloseFromForm(reportId: string, forced: boolean = false) {
     setMsg(null);
     if (otherPayoutMemoMissing(otherPay, otherMemo)) { setMsg("「その他の現金支払」のメモを入れてください（何に払ったか）"); return; } // ★便 X13-G W-24 ①
+    if (!forced) { const openN = await openCheckCountNow(); if (openN > 0) { setCloseGuard({ openN, countedMissing: false, mode: "reclose", reportId }); return; } } // ★夜 2（相談役 ①）: 再締めも未会計は同じ窓（実査の空欄＝前の値のまま＝聞かない）
     const { error } = await supabase.rpc("daily_report_reclose", {
       p_report_id: reportId,
       p_expense: expense, p_cash_payout: payout, p_cash_float: cashFloat,
       p_counted_cash: counted === "" ? null : Number(counted),
-      p_note: noteWithOtherPayoutOf(note, otherPay, otherMemo), p_force: force, p_idem_key: crypto.randomUUID(),
+      p_note: noteWithOtherPayoutOf(note, otherPay, otherMemo), p_force: forced, p_idem_key: crypto.randomUUID(),
     });
     setMsg(error ? reopenErrJa(error.message) : "再締めしました（締め欄の値で再集計しました）");
     await loadReports();
@@ -1015,7 +1032,7 @@ export default function ReportBoard({
             見出し（営業日・状態バッジ・現在時刻・open 伝票警告）は不変・closeDay の経路も不変。 */}
         {isManagerUp && !closedReport && (
           <div className="nox-actions" style={{ marginTop: 8, marginBottom: 12 }}>
-            <button style={btnDark} onClick={closeDay}>日報を締める</button>
+            <button style={btnDark} onClick={() => void closeDay()}>日報を締める</button>
             {closeErr && <div className="nox-alert" role="alert" style={{ marginTop: 8, width: "100%" }} data-close-err={closeErr.openN ?? "x"}>{closeErr.text}{closeErr.openN !== null && <>{"　"}<a href="/register" className="nox-link" style={{ fontWeight: 700 }}>未会計の伝票を見る</a></>}</div>}
           </div>
         )}
@@ -1325,9 +1342,9 @@ export default function ReportBoard({
                   </span>
                 ))}
                 {/* ★裁定196（D49）: 不可メッセージ＝未会計が残り「強行」オフのときだけ（判定は close RPC 側と同じ open 件数） */}
-                {preview.open > 0 && !force && !closedReport && (
+                {preview.open > 0 && !closedReport && (
                   <span style={{ fontSize: 12, color: "var(--bad)" }}>
-                    未会計が残っているため締められません（「未会計があっても強行」をオンにすると締められます）
+                    未会計が残っているため締められません{isManagerUp ? "（店長・オーナーは「締め確定」の窓から未会計のまま締められます）" : ""}
                   </span>
                 )}
               </div>
@@ -1386,9 +1403,6 @@ export default function ReportBoard({
             {/* E8-2 #5: 金種カウンタ（合計を実査へ反映＝入力補助・DB は counted_cash 1列のまま） */}
             <button type="button" style={btnLight} onClick={() => setDenomOpen(true)}>金種で数える</button>
             <input placeholder="メモ" value={note} onChange={(e) => setNote(e.target.value)} style={{ ...input, width: 180 }} />
-            <label style={{ ...t.fieldLabel, fontSize: 13 }}>
-              <input type="checkbox" checked={force} onChange={(e) => setForce(e.target.checked)} /> 未会計があっても強行
-            </label>
           </div>
           {/* ★裁定414（S-4 ②）: 諸経費の内訳＝「送迎費（店負担）」（mode='store' の当日分・W-24 と同じ型・値が無ければ行を出さない）。諸経費の欄が内訳より小さければ 1 行で知らせる（締めは止めない） */}
           {okuriStoreSum > 0 && (
@@ -1441,16 +1455,39 @@ export default function ReportBoard({
             );
           })()}
           {/* ★裁定252（244 追補）: 締め確定／再締め＝入力行から外して独立した .nox-actions の行で中央（入力欄・強行チェックの位置は不変） */}
+          {preview && preview.open > 0 && !(closedReport && !recloseTarget) && (/* ★2026-11-18 夜 2（相談役 ①）: 押す前から理由を 1 行 */
+            <p data-close-reason="open" style={{ margin: "10px 0 0", textAlign: "center", fontSize: 12.5, fontWeight: 700, color: "var(--bad)" }}>{closeBlockedLineOf(preview.open)}</p>
+          )}
           <div className="nox-actions" style={{ marginTop: 10 }}>
             {recloseTarget
               ? <button style={btnDark} onClick={() => void recloseFromForm(recloseTarget.id)}>再締め</button>
-              : <button style={t.btnPrimary56} data-close-submit="1" onClick={closeDay} disabled={!!closedReport && reopenFlag} /* ★便 GV-C C-11（GV-54）: 375 の主ボタン規格 */
+              : <button style={t.btnPrimary56} data-close-submit="1" onClick={() => void closeDay()} disabled={!!closedReport && reopenFlag} /* ★便 GV-C C-11（GV-54）: 375 の主ボタン規格 */
                   title={closedReport && reopenFlag ? "締め済み（表の「解除」で解除すると再締めできます）" : undefined}>締め確定</button>}
           </div>
         </section>
         </>
       )}
 
+      {closeGuard && (/* ★2026-11-18 夜 2（相談役 ①）: 締められない理由の窓（中央）＝未会計の件数・実査の未入力。強行は店長・オーナーだけ */
+        <Modal onClose={() => setCloseGuard(null)} maxWidth={440}>
+          <div className="nox-modalhead"><h3 style={{ margin: 0, fontSize: 16 }} data-close-guard-title="1">{closeGuardTitleOf(closeGuard)}</h3></div>
+          <div className="nox-modalbody" data-close-guard={closeGuard.openN > 0 ? "open" : "counted"}>
+            <ul style={{ margin: 0, paddingLeft: 18, display: "grid", gap: 6, fontSize: 13.5 }}>
+              {closeGuardReasonsOf(closeGuard).map((r) => <li key={r} data-close-guard-reason="1">{r}</li>)}
+            </ul>
+          </div>
+          <div className="nox-modalfoot nox-actions" style={{ flexWrap: "wrap" }}>
+            {closeGuard.openN > 0 && <a href="/register" style={{ ...btnLight, textDecoration: "none", display: "inline-flex", alignItems: "center" }} data-close-guard-see="1">未会計の伝票を見る</a>}
+            {closeGuard.openN > 0 && isManagerUp && (
+              <button style={btnDark} data-close-guard-force="1" onClick={() => { const g = closeGuard; setCloseGuard(null); if (g.mode === "reclose" && g.reportId) void recloseFromForm(g.reportId, true); else void closeDay({ forced: true, countedOk: true }); }}>未会計のまま締める</button>
+            )}
+            {closeGuard.openN === 0 && closeGuard.countedMissing && (
+              <button style={btnDark} data-close-guard-counted="1" onClick={() => { setCloseGuard(null); void closeDay({ forced: false, countedOk: true }); }}>このまま締める</button>
+            )}
+            <button style={btnLight} onClick={() => setCloseGuard(null)} data-close-guard-close="1">閉じる</button>
+          </div>
+        </Modal>
+      )}
       {/* ★便 X13-G W-24 ②: 内訳の ＋発行（発行の後に内訳を読み直す＝合計と予定額が同時に変わる） */}
       {issueKind && storeId && (
         <CashPayoutIssue kind={issueKind} storeId={storeId} bizDate={bizDate} casts={payoutCasts} okuriBase={okuriBaseAmt} okuriMode={okuriMode} /* ★裁定414 */

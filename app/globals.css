@@ -2746,7 +2746,9 @@ body {
   .nox-stocktake .nox-st-bar { position: fixed; left: 0; right: 0; bottom: calc(var(--nox-bnav-h, 64px) + env(safe-area-inset-bottom)); z-index: 29; margin: 0; padding: 8px 12px; background: rgba(13, 13, 18, .94); border-top: 1px solid var(--line); justify-content: center; }
   .nox-stocktake { padding-bottom: 56px; }
 }
-@media (max-width: 430px) { .nox-bd-l2 { display: block; margin-left: 0; white-space: nowrap; overflow-x: auto; } }
+/* ★2026-11-18 夜 2（相談役 ②）: 実機（iOS・375）でスライドの行だけ文字が大きく右で切れた＝折り返さない塊を iOS が自動で拡大していた → 2 行目は折り返す・行に文字の自動拡大の止め・大きさはほかの行と同じ */
+@media (max-width: 430px) { .nox-bd-l2 { display: block; margin-left: 0; white-space: normal; overflow-wrap: anywhere; font-size: inherit; } }
+.nox-bd-row, .nox-bd-l2 { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 @media (max-width: 430px) { .nox-kintai .nox-kintai-sum .opt { display: none; } .nox-kintai .nox-kintai-sum-more { display: inline; } .nox-kintai .nox-kintai-sum { font-size: 12px; } }
 @media print { .nox-kintai .nox-kintai-table { font-size: 10.5px; } .nox-kintai .nox-kintai-more { display: none !important; } .nox-kintai .nox-print { page-break-after: always; } }
 /* ★便 S（S-6 ②）: 席の節＝フリーの着席ログの行（着卓中は太字・離席済みは薄く） */
