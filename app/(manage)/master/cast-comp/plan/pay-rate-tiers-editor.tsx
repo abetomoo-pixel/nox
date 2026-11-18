@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import { Message } from "@/components/ui/toast"; // ★裁定281: メッセージ表示の共通部品
 import type { PayRateTier } from "@/lib/nox/rules-0175/canon";
-import { PAY_RATE_BACK_HOLD_NOTE, PAY_RATE_TIER_MAX, PAY_RATE_STREAK_MAX, PAY_RATE_STREAK_MIN, emptyPayRateRow, payRatePatchOf, payRateRowBackEnabledOf, payRateRowsErrOf, payRateRowsOf, payRateStreakErrOf, type PayRateTierRow } from "@/lib/nox/comp/pay-rate-tiers";
+import { PAY_RATE_BACK_HOLD_NOTE, PAY_RATE_DOWN_NOTE, payRateRowDownSetOf, PAY_RATE_TIER_MAX, PAY_RATE_STREAK_MAX, PAY_RATE_STREAK_MIN, emptyPayRateRow, payRatePatchOf, payRateRowBackEnabledOf, payRateRowsErrOf, payRateRowsOf, payRateStreakErrOf, type PayRateTierRow } from "@/lib/nox/comp/pay-rate-tiers";
 
 export default function PayRateTiersEditor({ planId, tiers, streak, onSaved, onErr }: {
   planId: string; tiers: readonly PayRateTier[] | null | undefined; streak: number | null | undefined;
@@ -45,6 +45,7 @@ export default function PayRateTiersEditor({ planId, tiers, streak, onSaved, onE
         報酬率＝時給分 ÷ 売上小計。期の報酬率が「境」以上の段のうちいちばん上の段が当たります（境は小さい順・最大 {PAY_RATE_TIER_MAX} 段・0〜300%）。
         UP 額は次の期から決定時給に足します。総報酬の率（100 未満）を入れた段は、その期の総報酬にその率を掛けます（査定）。バック率はその段のバックの倍率です（UP か査定の段で効きます）。
         同じ方向が「連続の期の数」続いたときだけ成立し、店が「適用」すると金額に効きます。
+        {PAY_RATE_DOWN_NOTE}。{/* ★2026-11-18 夜（相談役 ⑥ C-5） */}
       </p>
       {rows.length === 0 && <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 8px" }} data-pay-rate-empty="1">段がありません＝判定しません（時給は基本のまま）。</p>}
       {rows.map((r, i) => (
@@ -57,6 +58,7 @@ export default function PayRateTiersEditor({ planId, tiers, streak, onSaved, onE
           {cell(i, "pay", "総報酬の率", "%")}
           <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} onClick={() => setRows((rs) => rs.filter((_, j) => j !== i))} aria-label={`${i + 1} 段目を消す`} disabled={busy}>消す</button>
           {!payRateRowBackEnabledOf(r) && <span style={{ flexBasis: "100%", fontSize: 11, color: "var(--sub)" }} data-pay-rate-back-hold={i}>{PAY_RATE_BACK_HOLD_NOTE}</span>}
+          {payRateRowDownSetOf(r) && <span style={{ flexBasis: "100%", fontSize: 11, color: "var(--sub)" }} data-pay-rate-down-note={i}>{PAY_RATE_DOWN_NOTE}</span>}{/* ★2026-11-18 夜（相談役 ⑥ C-5）: 下げる額を入れた段に注記 */}
         </div>
       ))}
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center", marginTop: 8 }}>

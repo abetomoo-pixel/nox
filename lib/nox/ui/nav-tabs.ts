@@ -2,7 +2,7 @@
 //   1 下タブは 5 本「ホーム／レジ／日報／シフト／メニュー」（その他→メニュー・歯車は下タブから外す）。メニューにお知らせを置く。
 //   2 歯車はヘッダー右（マスタ・監査・ご契約）。
 //   ★ルート／URL／ページ実体／権限ゲートは非改変＝ここは並びと振り分けだけ（項目集合は (manage)/layout が role で組む）。
-export type NavItem = { href: string; label: string };
+export type NavItem = { href: string; label: string; /** ★2026-11-18 夜（相談役 ⑥ C-1）: 赤い丸の件数（0・無し＝出さない） */ badge?: number };
 export type NavGroup = { label: string | null; items: NavItem[]; gear?: boolean };
 
 /** ≤899 の下タブに出す優先 4 本（裁定275 M13 の並び） */

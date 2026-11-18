@@ -43,7 +43,7 @@ check("c(3-1) --nox-bnav-h: 66px（実のタブの高さ）", /--nox-bnav-h:\s*6
 // c(4) Agoora 11/14 の実機（375）の 2 点
 const nr = src("components/nox/notice-respond.tsx"), mp = src("app/mine/page.tsx");
 check("c(4-1) お知らせの「確認しました」・参加／不参加の行は中央寄せ", nr.includes('<div style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "center", flexWrap: "wrap" }} data-notice-actions="1">'));
-check("c(4-2) キャストのホームの「お知らせ：未確認・未回答 N 件」は金の文字（既定のリンクの紫で見えなかった）", mp.includes('style={{ display: "block", fontWeight: 700, textDecoration: "none", color: "var(--gold)" }} data-mine-notice-pending={noticePending}'));
+check("c(4-2) キャストのホームの「お知らせ：未確認・未回答 N 件」は金の文字（既定のリンクの紫で見えなかった）", mp.includes('style={{ display: "block", fontWeight: 800, textDecoration: "none", color: "var(--bad)", border: "2px solid var(--bad)" }} data-mine-notice-pending={noticePending}') /* ★2026-11-18 夜（相談役 ⑥ C-1）: 金 → 赤い枠と赤い文字・いちばん上 */);
 
 if (fails.length) {
   console.error(`verify:nox-c1114 FAIL ${fails.length} / pass ${pass}`);

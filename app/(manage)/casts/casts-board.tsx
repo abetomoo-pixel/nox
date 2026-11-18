@@ -1601,11 +1601,11 @@ export default function CastsBoard({
           )}
 
           {dtab === "account" && (
-            <>
+            <div className="nox-acct" data-cast-account-rows="1">{/* ★2026-11-18 夜（相談役 ⑥ C-6）: 見出しの列の幅を固定・中身は左寄せ・ログインと LINE を別の行に（「招待済み」が縦に折れる・説明が右寄せ・QR とボタンがばらばら） */}
               <div className="nox-frow">
                 <span className="k">ログイン（マイページ）</span>
-                <span className="v" style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                  <span style={{ color: selCast.user_id ? "var(--ok)" : "var(--v2-muted)" }}>
+                <span className="v" style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                  <span style={{ color: selCast.user_id ? "var(--ok)" : "var(--v2-muted)", whiteSpace: "nowrap" }}>
                     {selCast.user_id ? "招待済み" : "未招待"}
                   </span>
                   {isDemo ? <span style={{ fontSize: 11, color: "var(--v2-muted)" }}>デモでは招待できません</span>
@@ -1613,6 +1613,8 @@ export default function CastsBoard({
                     ? <button style={btnGhost} disabled={busy} onClick={() => openInvite(selCast, "reset")}>PW再発行</button>
                     : <button style={btnGold} disabled={busy} onClick={() => openInvite(selCast, "invite")}>招待</button>}{/* ★N7-2 ③ */}
                 </span>
+              </div>
+              <div className="nox-frow">
                 {/* ★便 ON-3（0176 ★1 401）: LINE 連携＝紐付けのリンク（line_bind_token_create 'cast'・7 日・1 回だけ）。ログイン未招待（user_id なし）でも紐付けは可＝LINE ログインは招待後 */}
                 <span className="k">LINE 連携</span>
                 <span className="v" style={{ display: "grid", gap: 4 }} data-cast-line-bind={lineLinked.has(selCast.id) ? "linked" : "none"}>
@@ -1653,7 +1655,7 @@ export default function CastsBoard({
                 <strong style={{ color: "var(--v2-text)" }}>NOXログインアカウント</strong>（本人がマイページで出勤・報酬を確認するためのログイン）は別管理です。
                 ログインは必要な人だけ発行します。招待するとマイページが使えます。PIN はキオスク端末での打刻に使い、画面にも記録にも残りません。
               </p>
-            </>
+            </div>
           )}
         </Modal>
       )}

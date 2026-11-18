@@ -23,6 +23,9 @@ export type PreviewPayLike = {
 };
 /** ★裁定501-7（2026-11-16 Agoora 確定・式は変えない）: 時給の見込み＝段の時給の額を主に（「pt 170 → 時給 ¥3,000（2 段）」）・次の段まで（「あと 30 pt で ¥3,500」・いちばん上は null）・前の月で決める店＝来月／当月で決める店＝今月 */
 export type WageForecast = { label: string; main: string; next: string | null };
+/** ★2026-11-18 夜（相談役 ⑥ C-6）: ホームの時給のカードの 2 つの見込みの違い（文だけ・式は変えない） */
+export const MINE_WAGE_FORECAST_NOTE = "今の売上で数えた、この期の時給です（期の途中で変わります）";
+export const MINE_NEXT_WAGE_NOTE = "この期の結果で決まる、次の期の時給です（期の締めで確定します）";
 export type CurrentWage = { forecast?: WageForecast | null; hourly: number; basis: string; periodLabel: string; basisLine: string | null; /* ★便 X13-H H-8: 根拠 1 行 */ guarantee: boolean; trial: boolean; hours: number; now?: WageNow; next?: { label: string; label2: string } | null /* ★便 ON-4（C2-22）: 来期の時給見込み（/mine） */ };
 
 export const WAGE_BASIS_LABEL: Record<string, string> = { "保証": "保証", "売上": "売上段", "pt": "pt 段", "基本": "基本", "固定": "固定" };

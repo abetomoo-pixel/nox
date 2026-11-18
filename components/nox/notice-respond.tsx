@@ -11,7 +11,17 @@ import { errJa } from "@/lib/nox/errors";
 import { Message } from "@/components/ui/toast"; // ★裁定281: メッセージは共通部品
 import { NOTICE_ACK_BTN, NOTICE_ACKED, RSVP_CLOSED, RSVP_NO, RSVP_YES, noticeRespErrJa, rsvpClosedOf, rsvpLinesOf, type MyResponse, type NoticeRsvpCols, type RsvpAnswer } from "@/lib/nox/notices/response";
 
-export default function NoticeRespond({ noticeId, n, mine, nowMs, onDone }: { noticeId: string; n: NoticeRsvpCols; mine: MyResponse; nowMs: number; /** client で読み直す画面（スタッフのお知らせ）＝router.refresh の代わり */ onDone?: () => void | Promise<void> }) {
+/** ★2026-11-18 夜（相談役 ⑥ C-1）: 出欠の日時・場所（太字）＝件名の次・本文の前に置く（キャストのお知らせ・店の一覧・掲載確認・LINE プレビューで同じ並び） */
+export function NoticeRsvpInfo({ n }: { n: NoticeRsvpCols }) {
+  if (!n.rsvp) return null;
+  return (
+    <div style={{ fontSize: 12.5, color: "var(--ink)", fontWeight: 700, display: "grid", gap: 2, margin: "4px 0 0" }} data-notice-rsvp-info="1">
+      {rsvpLinesOf(n).map((l) => <span key={l} className="num">{l}</span>)}
+    </div>
+  );
+}
+
+export default function NoticeRespond({ noticeId, n, mine, nowMs, onDone, hideInfo = false }: { noticeId: string; n: NoticeRsvpCols; mine: MyResponse; nowMs: number; /** ★C-1: 日時・場所を上（NoticeRsvpInfo）で出した画面は true */ hideInfo?: boolean; /** client で読み直す画面（スタッフのお知らせ）＝router.refresh の代わり */ onDone?: () => void | Promise<void> }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -30,11 +40,7 @@ export default function NoticeRespond({ noticeId, n, mine, nowMs, onDone }: { no
   const pill = (on: boolean): React.CSSProperties => ({ ...(on ? t.btnGold : t.btnGhost), ...t.btnSm, minWidth: 72 });
   return (
     <div style={{ marginTop: 6, display: "grid", gap: 6 }} data-notice-respond={noticeId}>
-      {n.rsvp && (
-        <div style={{ fontSize: 12.5, color: "var(--ink)", display: "grid", gap: 2 }} data-notice-rsvp-info="1">
-          {rsvpLinesOf(n).map((l) => <span key={l} className="num">{l}</span>)}
-        </div>
-      )}
+      {!hideInfo && <NoticeRsvpInfo n={n} />}
       <div style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "center", flexWrap: "wrap" }} data-notice-actions="1">{/* ★2026-11-14 Agoora: ボタンはセンター */}
         {n.rsvp ? (closed ? (
           <span style={{ fontSize: 12.5, fontWeight: 700, color: "var(--sub)" }} data-notice-rsvp-closed="1">{RSVP_CLOSED}{local?.rsvp ? `（${local.rsvp === "yes" ? RSVP_YES : RSVP_NO}）` : ""}</span>
@@ -44,7 +50,9 @@ export default function NoticeRespond({ noticeId, n, mine, nowMs, onDone }: { no
             <button type="button" style={pill(local?.rsvp === "no")} disabled={busy} onClick={() => void call("notice_rsvp", "no")} data-notice-rsvp="no" aria-pressed={local?.rsvp === "no"}>{RSVP_NO}</button>
           </>
         )) : null}
-        {local?.acked_at ? (
+        {n.rsvp ? (/* ★2026-11-18 夜（相談役 ⑥ C-1）: 出欠つきは「確認しました」を出さない＝参加か不参加を押した時点で確認済み（notice_rsvp が acked_at も付ける） */
+          local?.rsvp ? <span style={{ fontSize: 12, fontWeight: 700, color: "var(--ok)" }} data-notice-acked="1">{NOTICE_ACKED}</span> : null
+        ) : local?.acked_at ? (
           <span style={{ fontSize: 12, fontWeight: 700, color: "var(--ok)" }} data-notice-acked="1">{NOTICE_ACKED}</span>
         ) : (
           <button type="button" style={{ ...t.btnGold, ...t.btnSm }} disabled={busy} onClick={() => void call("notice_ack")} data-notice-ack="1">{NOTICE_ACK_BTN}</button>

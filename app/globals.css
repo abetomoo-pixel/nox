@@ -236,6 +236,10 @@ body {
 .nox-tab.on {
   color: var(--primary-hover); /* ★夜間レーン: アクティブナビ=青（モック nav.active） */
 }
+/* ★2026-11-18 夜（相談役 ⑥ C-1）: ナビの赤い丸の件数（キャストのお知らせの未確認・未回答） */
+.nox-tab-badge { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; margin-left: 4px; border-radius: 9px; background: var(--bad, #d93025); color: #fff; font-size: 11px; font-weight: 800; line-height: 1; vertical-align: middle; }
+.nox-nav-bottom .nox-tab { position: relative; }
+.nox-nav-bottom .nox-tab-badge { position: absolute; top: 2px; left: calc(50% + 8px); margin-left: 0; }
 
 /* ── レスポンシブ断点（R-1 2026-07-17 → R-2 で再設計）──────────────────────
    ★断点の正＝641 / 900 / 1180（裁定5）。DESIGN_MASTER v1.2.0 の 768 は非拘束＝採用しない
@@ -3409,3 +3413,9 @@ tr.nox-rowflash, .nox-rowflash { animation: nox-rowflash 1.6s ease-out; }
   :is(.nox-settings div:has(> div[style*="1 1 240px"]:first-child), .nox-settings [data-cast-register-link]) > :first-child { grid-column: 1; }
   :is(.nox-settings div:has(> div[style*="1 1 240px"]:first-child), .nox-settings [data-cast-register-link]) > :not(:first-child) { grid-column: 2; justify-self: start; max-width: 46em; margin-top: 0 !important; }
 }
+
+/* ★2026-11-18 夜（相談役 ⑥ C-6）: キャストを開く ›「アカウント」のタブ＝見出しの列 112px・中身は左寄せ（ボタン・QR・リンクも左から）・狭い画面は 1 列 */
+.nox-acct .nox-frow { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 4px 12px; align-items: start; text-align: left; }
+.nox-acct .nox-frow .k { white-space: nowrap; }
+.nox-acct .nox-frow .v { justify-self: stretch; text-align: left; justify-content: flex-start; }
+@media (max-width: 480px) { .nox-acct .nox-frow { grid-template-columns: minmax(0, 1fr); } }

@@ -15,7 +15,8 @@ import PinSelfCard from "@/components/nox/pin-self-card"; // ★0201（M-133）:
 import { dayDedAppliedTextOf } from "@/lib/nox/payroll/day-ded-pick"; // ★裁定468 追補（M-127）: ボタンを出さない店でも「店が付けました」は残す // ★便 P175-prep P-4 ★QR 便: mig0185On
 import AvailabilityEditor from "@/components/nox/availability-editor"; // ★便 P175-prep P-4（裁定397＋413）
 import { wageNowOf } from "@/lib/nox/cast/wage-now"; // ★便 P174 T-5（GV-55／56）
-import { mineCurrentWageOf } from "@/lib/nox/mine/wage-server"; // ★便 X13-H H-8: 今期の時給（一覧・詳細と同じ値・文言・根拠）
+import { mineCurrentWageOf } from "@/lib/nox/mine/wage-server";
+import { MINE_NEXT_WAGE_NOTE, MINE_WAGE_FORECAST_NOTE } from "@/lib/nox/cast/current-wage"; // ★2026-11-18 夜（相談役 ⑥ C-6）: 2 つの見込みの違い // ★便 X13-H H-8: 今期の時給（一覧・詳細と同じ値・文言・根拠）
 import { ATTENDANCE_MONTH_NOTE, ATTENDANCE_MONTH_NOTE_STORE, closeHmOf, hoursLabelOf, monthAttendanceRowsOf, monthAttendanceRowsStoreOf, todayInOutLabelOf } from "@/lib/nox/mine/attendance-month"; // ★0197 フラグ便（裁定456 の 17） // ★裁定326-5（便 M2-1）: 勤怠時刻＋当月一覧（実働は dayWorkedHours）
 import { nextPeriodOf } from "@/lib/nox/payroll/attention";
 import { mdLabelOf } from "@/lib/nox/payroll/finalize-guard";
@@ -52,7 +53,7 @@ import { mineSettingsOf } from "@/lib/nox/store/mine-settings";
 import { mineVisibilityOf, slipFootNoteOf, stripKintaiPay } from "@/lib/nox/mine/visibility"; // ★裁定491・492 // ★裁定326-8（便 M1-3）: mine_settings の出し分け（既存の自店読取に相乗り＝新規 fetch 0）
 import { punchHeadOf, punchStateOf, todayShiftLineOf } from "@/lib/nox/shift/punch-state";
 import { mig0201iOn } from "@/lib/nox/rules-0175/flag"; // ★0201i（裁定486）: ホームの件数（未確認・未回答）と出欠の予定
-import { noticePendingCountOf, rsvpEventsOf, type MyResponse, type RsvpAnswer } from "@/lib/nox/notices/response";
+import { noticeHomePendingTextOf, noticePendingCountOf, rsvpEventsOf, type MyResponse, type RsvpAnswer } from "@/lib/nox/notices/response";
 import { noticeVisibleToCastOf as noticeVisOf0201i } from "@/lib/nox/people/notify-text";
 import { castPunchOffOf, opsProfileOf } from "@/lib/nox/store/ops-profile"; // ★0164（便 W5-2b）: punch_methods.self の出し分け // ★裁定326 追補3（便 M1-4）: 打刻カードの 3 状態（todayPunches から＝新規 fetch 0）
 
@@ -302,6 +303,9 @@ export default async function MinePage({ searchParams }: { searchParams?: Promis
        印刷時は既存の .nox-main > * { max-width none } が幅を戻すため payslip の A4 印刷に影響しない。
        ページ見出しはモックどおり撤去＝.me ヘッダ（写真＋名前＋店）が先頭。 */
     <div className="nox-printpage nox-minewrap nox-mv1 nox-mv1-m">
+      {noticePending > 0 && (/* ★0201i: ホームの件数＝未確認・未回答／★2026-11-18 夜（相談役 ⑥ C-1）: 赤い枠と赤い文字・いちばん上（打刻の上） */
+        <Link href="/mine/notices" className="nox-panel" style={{ display: "block", fontWeight: 800, textDecoration: "none", color: "var(--bad)", border: "2px solid var(--bad)" }} data-mine-notice-pending={noticePending}>{noticeHomePendingTextOf(noticePending)}</Link>
+      )}
       {/* 段P: プロフィール写真（本人スコープのみ・client 自己完結＝他カードの取得に影響しない）
           段M2: モックの .me ヘッダ（写真＋名前＋店）へ。店名は上で引いた自店を渡すだけ。 */}
       {deniedText && <div data-mine-denied="register" style={{ marginBottom: 12 }}><Message kind="warn" style={{ margin: 0 }}>{deniedText}</Message></div>}
@@ -363,9 +367,6 @@ export default async function MinePage({ searchParams }: { searchParams?: Promis
       </section>
 
       {/* ★便 X13-G W-22 ②⑤: 出勤予定（今月／来月・確定と確認待ち・募集中は出さない）＋出勤ノルマの不足（旧・直近の節は廃止） */}
-      {noticePending > 0 && (/* ★0201i: ホームの件数＝未確認・未回答 */
-        <Link href="/mine/notices" className="nox-panel" style={{ display: "block", fontWeight: 700, textDecoration: "none", color: "var(--gold)" }} data-mine-notice-pending={noticePending}>{/* ★2026-11-14 Agoora「見えない」: 既定のリンク色（紫）→ 金 */}お知らせ：未確認・未回答 {noticePending} 件 ›</Link>
-      )}
       <ScheduleCard tabs={scheduleTabs} />
 
       {/* ★M-163（2026-11-11 夜・Agoora 確定＝ローンチ前は並び替えだけ）: 今日の予定・打刻 → ドリンク申告 → 指名予約 → ノルマ・時給の見込み → 明細・勤怠（折りたたみ／別画面は案の報告の後） */}
@@ -406,15 +407,18 @@ export default async function MinePage({ searchParams }: { searchParams?: Promis
       {/* 印刷隔離の対象マーカーは維持（器だけ差し替え・明細スリップ部品は非改変）
           ★裁定326-1（便 M2-1／M2-4）: payslip_visibility 'off'＝カードごと出さない（PDF ボタンも無し）／'net_only'＝期ヘッダー＋手取り 1 行（compact・PDF は同じ DOM）／'detail'＝現状 */}
       {mineWage && ms.payslip_visibility !== "off" && (/* ★便 X13-H H-8: 今期の時給＝キャスト一覧・詳細と同じ（判定期間とタイミング・根拠 1 行） */
-        <p style={{ fontSize: 12.5, margin: "0 0 10px", lineHeight: 1.7 }} data-mine-wage="1">
+        <section className="nox-panel" data-mine-wage-card="1">{/* ★2026-11-18 夜（相談役 ⑥ C-6）: 枠の外に出ていた＝カードに入れる・2 つの見込みの違いを 1 行ずつ（式は変えない） */}
+        <h3>時給</h3>
+        <p style={{ fontSize: 12.5, margin: 0, lineHeight: 1.7 }} data-mine-wage="1">
           <b>今期の時給</b> <b className="num">¥{mineWage.hourly.toLocaleString()}</b> <span style={{ color: "var(--sub)" }}>{mineWage.basis}・{mineWage.periodLabel}</span>
           {mineWage.forecast ? (/* ★裁定501-7（2026-11-16）: 本人にも同じ見込み（給与を本人に見せている店だけ＝この節が payslip_visibility 'off' で出ない） */
-            <span data-wage-forecast="1" style={{ display: "block", color: "var(--sub)", fontSize: 11.5 }}>{mineWage.forecast.label}：<b style={{ color: "var(--ink)" }}>{mineWage.forecast.main}</b>{mineWage.forecast.next && <span style={{ display: "block" }} data-wage-forecast-next="1">{mineWage.forecast.next}</span>}</span>
+            <span data-wage-forecast="1" style={{ display: "block", color: "var(--sub)", fontSize: 11.5 }}>{mineWage.forecast.label}：<b style={{ color: "var(--ink)" }}>{mineWage.forecast.main}</b><span style={{ display: "block", fontSize: 11 }} data-wage-forecast-note="1">{MINE_WAGE_FORECAST_NOTE}</span>{mineWage.forecast.next && <span style={{ display: "block" }} data-wage-forecast-next="1">{mineWage.forecast.next}</span>}</span>
           ) : mineWage.basisLine && <span data-wage-basis="1" style={{ display: "block", color: "var(--sub)", fontSize: 11.5 }}>{mineWage.basisLine}</span>}
           {mineWage.next && (/* ★便 ON-4（C2-22・Agoora 確定 10/26 ⑨）: 来期の時給見込み＝給与右パネルと同じ文（見込み＝確定値ではない旨は小さく） */
-            <span data-mine-next-wage="1" style={{ display: "block", marginTop: 2 }}>{mineWage.next.label}<span style={{ display: "block", color: "var(--sub)", fontSize: 11 }}>{mineWage.next.label2}</span></span>
+            <span data-mine-next-wage="1" style={{ display: "block", marginTop: 6 }}>{mineWage.next.label}<span style={{ display: "block", color: "var(--sub)", fontSize: 11 }}>{mineWage.next.label2}</span><span style={{ display: "block", color: "var(--sub)", fontSize: 11 }} data-mine-next-wage-note="1">{MINE_NEXT_WAGE_NOTE}</span></span>
           )}
         </p>
+        </section>
       )}
       {guaLabel && !vis.payHidden && (/* ★裁定348 追補1: 期限付き保証時給の印（期間中だけ） */
         <p style={{ fontSize: 12.5, margin: "0 0 10px" }} data-guarantee="1">

@@ -5,7 +5,8 @@ import { NOTICE_NEW_BADGE, unreadIdsOf } from "@/lib/nox/mine/notice-unread";
 import { CAST_NOTIF_KIND_LABEL, NOTIF_EMPTY, NOTIF_NEW_BADGE, NOTIF_SECTION_TITLE, noticeVisibleToCastOf, notifWhenOf, type CastNotifKind, type CastNotifRow } from "@/lib/nox/people/notify-text"; // ★便 ON-3（0176 ★5 (d)(e)）: 通知・宛先つきお知らせ // ★裁定326-6（便 M2-3）: 開いたら既読（notice_mark_read）・開いた時点の未読に「新着」
 
 import { mig0201iOn } from "@/lib/nox/rules-0175/flag"; // ★0201i（裁定486）: 「確認しました」と出欠・自動の既読をやめる
-import NoticeRespond from "@/components/nox/notice-respond";
+import NoticeRespond, { NoticeRsvpInfo } from "@/components/nox/notice-respond";
+import { noticeUntilLabelOf } from "@/lib/nox/notices/response"; // ★2026-11-18 夜（相談役 ⑥ C-1）: 掲載期限の日付の書き方
 import type { MyResponse, RsvpAnswer } from "@/lib/nox/notices/response";
 
 export const dynamic = "force-dynamic";
@@ -89,9 +90,10 @@ export default async function MineNoticesPage() {
                 {expired && <span style={{ fontSize: 11.5, fontWeight: 700, color: "var(--bad)" }}>期限切れ</span>}
                 <span style={{ marginLeft: "auto", ...t.num, fontSize: 11.5, color: "var(--sub)" }}>{when(n.created_at as string)}</span>
               </div>
+              {mig0201iOn() && <NoticeRsvpInfo n={n} />}{/* ★2026-11-18 夜（相談役 ⑥ C-1）: 件名 → 日時・場所（太字）→ 本文 → 参加／不参加 */}
               <p style={{ fontSize: 13, color: "var(--sub)", margin: "4px 0 0", whiteSpace: "pre-wrap" }}>{n.body as string}</p>
-              {n.until != null && <p style={{ ...t.num, fontSize: 11, color: "var(--sub)", margin: "3px 0 0" }}>掲載期限 {n.until as string}</p>}
-              {mig0201iOn() && <NoticeRespond noticeId={n.id} n={n} mine={myResp.get(n.id) ?? null} nowMs={nowMs} />}
+              {n.until != null && <p style={{ ...t.num, fontSize: 11, color: "var(--sub)", margin: "3px 0 0" }}>{noticeUntilLabelOf(n.until as string)}</p>}
+              {mig0201iOn() && <NoticeRespond noticeId={n.id} n={n} mine={myResp.get(n.id) ?? null} nowMs={nowMs} hideInfo />}
             </div>
           );
         })}

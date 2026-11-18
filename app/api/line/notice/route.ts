@@ -8,7 +8,8 @@ import { pushAndLog } from "@/lib/nox/line/server";
 import { demoGuardErr } from "@/lib/nox/demo/guard";
 import { noticeLineTextOf, noticeLineSubjectKindsOf } from "@/lib/nox/line/notice-line";
 import { noticeLineLinksOf } from "@/lib/nox/notices/targets"; // ★M-129（裁定470）
-import { mig0200On } from "@/lib/nox/rules-0175/flag"; // ★0200: staff_ids の列
+import { mig0200On, mig0201iOn } from "@/lib/nox/rules-0175/flag"; // ★0200: staff_ids の列／★0201i: 出欠の列
+import { rsvpLinesOf, type NoticeRsvpCols } from "@/lib/nox/notices/response"; // ★2026-11-18 夜（相談役 ⑥ C-1）
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,7 +24,7 @@ export async function POST(req: Request) {
   const { data: role } = await supabase.rpc("auth_role");
   if (!["owner", "manager"].includes(String(role))) return NextResponse.json({ error: "forbidden" }, { status: 403 });
   // ★M-129（裁定470・0200）: 宛先つき（cast_ids／staff_ids）は配列で絞る＝LINE も宛先だけ（0200 の前は staff_ids の列が無い＝cast_ids だけ読む）
-  const { data: n } = await supabase.from("notices").select(mig0200On() ? "id, store_id, title, body, audience, cast_ids, staff_ids" : "id, store_id, title, body, audience, cast_ids").eq("id", noticeId).maybeSingle() as unknown as { data: { id: string; store_id: string; title: string; body: string; audience: string; cast_ids?: string[] | null; staff_ids?: string[] | null } | null };
+  const { data: n } = await supabase.from("notices").select((mig0200On() ? "id, store_id, title, body, audience, cast_ids, staff_ids" : "id, store_id, title, body, audience, cast_ids") + (mig0201iOn() ? ", rsvp, rsvp_at, rsvp_place, rsvp_due" : "") /* ★2026-11-18 夜（相談役 ⑥ C-1）: 出欠の日時・場所を本文の前に */).eq("id", noticeId).maybeSingle() as unknown as { data: { id: string; store_id: string; title: string; body: string; audience: string; cast_ids?: string[] | null; staff_ids?: string[] | null } | null };
   if (!n) return NextResponse.json({ error: "not found" }, { status: 404 });
   const admin = createAdminClient();
   const { data: st } = await admin.from("stores").select("org_id, name").eq("id", n.store_id as string).maybeSingle();
@@ -32,7 +33,7 @@ export async function POST(req: Request) {
   const kinds = noticeLineSubjectKindsOf(String(n.audience ?? "all"));
   const { data: links0 } = await admin.from("line_links").select("line_user_id, subject_kind, subject_id").eq("store_id", n.store_id as string).in("subject_kind", kinds).is("blocked_at", null);
   const links = noticeLineLinksOf((links0 ?? []) as { line_user_id: string; subject_kind: string; subject_id: string }[], n, kinds); // ★M-129: 宛先だけ
-  const text = noticeLineTextOf({ storeName: (st as { name?: string } | null)?.name ?? "", title: String(n.title ?? ""), body: String(n.body ?? "") });
+  const text = noticeLineTextOf({ storeName: (st as { name?: string } | null)?.name ?? "", title: String(n.title ?? ""), body: String(n.body ?? ""), rsvpLines: rsvpLinesOf(n as unknown as NoticeRsvpCols) }); // ★C-1: 出欠つきは日時・場所を本文の前に（出欠なしは今までと同じ）
   let sent = 0, failed = 0, skipped = 0;
   for (const l of (links ?? []) as { line_user_id: string }[]) {
     const r = await pushAndLog(admin, { storeId: n.store_id as string, isDemo, lineUserId: l.line_user_id, text, kind: "notice" });

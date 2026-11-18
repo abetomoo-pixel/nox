@@ -78,3 +78,6 @@ export function payRateRowDirectionOf(r: PayRateTierRow): SlideDirection {
 /** バック率を入れられる段＝UP か査定の段だけ（据え置きの段では計算で効かない＝canonOutcomeOf の backMult は UP／査定でだけ当たる） */
 export const payRateRowBackEnabledOf = (r: PayRateTierRow): boolean => payRateRowDirectionOf(r) !== "hold";
 export const PAY_RATE_BACK_HOLD_NOTE = "据え置きの段ではバック率は効きません（UP 額・総報酬の率・下げる額のどれかを入れた段で使えます）";
+/** ★2026-11-18 夜（相談役 ⑥ C-5）: 下げる額は金額に効かない（計算は directionOf で「査定」の印にだけ使う＝canonOutcomeOf は額を引かない）＝欄の横と入れた段に注記 */
+export const PAY_RATE_DOWN_NOTE = "下げる額は金額には効きません（入れた段を査定の扱いにする印です）";
+export const payRateRowDownSetOf = (r: PayRateTierRow): boolean => String(r.down ?? "").trim() !== "";

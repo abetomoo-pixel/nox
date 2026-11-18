@@ -89,7 +89,7 @@ export function TabBar({ groups, spPriority, hideSide = false }: { groups: NavGr
             {g.label && <div className="nox-navgroup-h">{g.label}</div>}
             {g.items.map((it) => (
               <Link key={it.href} href={it.href} className={it.href === active ? "nox-tab on" : "nox-tab"}>
-                {it.label}
+                {it.label}{it.badge ? <span className="nox-tab-badge num" data-nav-badge={it.badge}>{it.badge}</span> : null}{/* ★2026-11-18 夜（相談役 ⑥ C-1）: 赤い丸の件数 */}
               </Link>
             ))}
           </div>
@@ -102,7 +102,7 @@ export function TabBar({ groups, spPriority, hideSide = false }: { groups: NavGr
         {primary.map((it) => (
           <Link key={it.href} href={it.href} className={it.href === active ? "nox-tab on" : "nox-tab"} aria-current={it.href === active ? "page" : undefined}>
             <NavIcon href={it.href} />
-            {it.label}
+            {it.label}{it.badge ? <span className="nox-tab-badge num" data-nav-badge={it.badge}>{it.badge}</span> : null}
           </Link>
         ))}
         {menuItems.length > 0 && (

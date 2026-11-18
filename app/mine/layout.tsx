@@ -12,7 +12,7 @@ import DemoBanner from "@/components/ui/demo-banner";
 import { UserChip } from "@/components/ui/header-chips"; // ★便 GV-C C-14h（X-13-2）
 import { DemoProvider } from "@/lib/nox/demo/context";
 import { mineSettingsOf } from "@/lib/nox/store/mine-settings"; // ★裁定326-8（便 M1-3）: ranking OFF の店はナビ項目を出さない
-import { noticeNavLabelOf, unreadCountOf } from "@/lib/nox/mine/notice-unread";
+import { unreadCountOf } from "@/lib/nox/mine/notice-unread"; // ★2026-11-18 夜（相談役 ⑥ C-1）: ナビの件数は赤い丸（noticeNavLabelOf は使わない）
 import { mig0201iOn } from "@/lib/nox/rules-0175/flag"; // ★0201i: ナビの件数＝未確認・未回答
 import { noticePendingCountOf, type MyResponse, type RsvpAnswer } from "@/lib/nox/notices/response";
 import { mineNavUnreadOf, noticeVisibleToCastOf, unreadNotifCountOf } from "@/lib/nox/people/notify-text"; // ★便 ON-3（0176 ★5 (d)(e)）: 通知の未読・宛先つき // ★裁定326-6（便 M2-3）: お知らせ未読数「お知らせ（N）」
@@ -60,7 +60,7 @@ export default async function MineLayout({ children }: { children: React.ReactNo
       { href: "/mine", label: "ホーム" }, // ★M-187（2026-11-12 Agoora）: 「マイ」→「ホーム」（スタッフ側の「ホーム」と揃える）
       { href: "/mine/wishes", label: wishNavLabelOf(wishMode) }, // ★裁定337: 解決値
       { href: "/mine/ranking", label: "ランキング" },
-      { href: "/mine/notices", label: noticeNavLabelOf(unread) },
+      { href: "/mine/notices", label: "お知らせ", badge: unread }, // ★2026-11-18 夜（相談役 ⑥ C-1）: 件数は赤い丸の数字（0 は出さない＝旧「お知らせ（n）」）
       ...(regNav.show ? [{ href: "/register", label: "レジ" }] : []), // ★便 P173（裁定389）: 店端末のみの店（登録済み端末あり）は出さない・★便 M5 M-44: 出勤前も出さない（理由は /mine の 1 行）
     ].filter((i) => i.href !== "/mine/ranking" || ms.ranking),
   }];

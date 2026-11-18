@@ -53,6 +53,15 @@ export function rsvpWhenOf(iso: string): string {
   const d = jst(iso);
   return `${d.getUTCMonth() + 1}/${d.getUTCDate()}（${"日月火水木金土"[d.getUTCDay()]}）${two(d.getUTCHours())}:${two(d.getUTCMinutes())}`;
 }
+/** ★2026-11-18 夜（相談役 ⑥ C-1）: 「掲載期限 11/19（木）」＝日付の書き方をほか（11/19（木））にそろえる。値は 'YYYY-MM-DD' */
+export function noticeUntilLabelOf(ymd: string): string {
+  const d = new Date(`${ymd.slice(0, 10)}T00:00:00Z`);
+  return Number.isNaN(d.getTime()) ? `掲載期限 ${ymd}` : `掲載期限 ${d.getUTCMonth() + 1}/${d.getUTCDate()}（${"日月火水木金土"[d.getUTCDay()]}）`;
+}
+/** ★C-1: 出欠を取るときの定型文＝空の「日時：」「場所：」の行を外す（日時と場所は出欠の欄から出す・「議題：」は残す・値を入れた行は残す） */
+export const rsvpTemplateBodyOf = (body: string): string => body.split("\n").filter((l) => !/^(日時|場所)：\s*$/.test(l)).join("\n");
+/** ★C-1: キャストのホームの件数の 1 行（赤い枠・いちばん上） */
+export const noticeHomePendingTextOf = (n: number): string => `お知らせ：未確認・未回答 ${n} 件`;
 /** 出欠の行＝日時・場所・回答の締切 */
 export function rsvpLinesOf(n: NoticeRsvpCols): string[] {
   if (!n.rsvp || !n.rsvp_at) return [];
