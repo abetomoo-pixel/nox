@@ -6,6 +6,7 @@ import RegisterBoard from "./register-board";
 import { managePageGate } from "@/lib/nox/nav/page-gate";
 import { seatsVisibleOf } from "@/lib/nox/floor-kinds"; // ★0164（便 W5-2a）
 import { castRegisterLevelOf } from "@/lib/nox/rules-0175/cast-register"; // ★裁定473
+import { mig0201nOn } from "@/lib/nox/rules-0175/flag"; // ★0201n（相談役 C）: キャストの立場は register_cast_roster
 
 export const dynamic = "force-dynamic";
 
@@ -46,7 +47,11 @@ export default async function RegisterPage() {
     .eq("is_active", true)
     .order("sort_order")
     .order("name");
-  const { data: casts } = await supabase
+  // ★0201n（相談役 C）: キャストの立場＝register_cast_roster（5 列・自店・レジか締めの許可がある人だけ）から有効な人を 4 列で（貼った後は casts の RLS が自分の行だけ）。フラグ false＝従来
+  const { data: casts } = role === "cast" && mig0201nOn()
+    ? await (async () => { const { data: sid } = await supabase.rpc("auth_store_id"); const { data, error } = await supabase.rpc("register_cast_roster", { p_store_id: sid as string });
+        return { data: error ? [] : ((data ?? []) as { id: string; name: string; photo_updated_at: string | null; rank_id: string | null; is_active: boolean }[]).filter((c) => c.is_active).map(({ id, name, photo_updated_at, rank_id }) => ({ id, name, photo_updated_at, rank_id })) }; })()
+    : await supabase
     .from("casts")
     // 段P/R2: photo_updated_at＝指名チップと席タイルの着卓キャスト顔を写真にする（null=頭文字）。
     // ★B3 裁定210（#64）: rank_id＝ランク名の結線（cast_ranks は別 1 クエリ・読めたロールだけ描画）

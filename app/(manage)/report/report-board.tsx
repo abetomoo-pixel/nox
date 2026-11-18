@@ -14,7 +14,7 @@ import CashPayoutIssue, { type PayoutIssueKind } from "@/components/nox/cash-pay
 import { OKURI_ROW_LABEL, okuriAsks, okuriCashOf, okuriExpenseOf, okuriModeOf, type OkuriMode } from "@/lib/nox/shift/okuri-mode"; // ★裁定414（S-4）: 送りの 4 方式＝現金支払／諸経費の読み分け // ★便 X13-G W-24 ②: 内訳の ＋発行 // ★裁定311-②／④（便 Y-4）: 現金支払のプレフィル集計と内訳
 import { mig0191On, rules0175On } from "@/lib/nox/rules-0175/flag"; // ★便 P175-prep P-2
 import { canMarkDeductOf, castCloseOf } from "@/lib/nox/report/gates"; // ★0201h（裁定485）: 給与天引きは cast_liability_allowed の店だけ・★0201e（裁定481）: キャストの締め
-import { mig0201eOn } from "@/lib/nox/rules-0175/flag";
+import { mig0201eOn, mig0201nOn } from "@/lib/nox/rules-0175/flag"; // ★0201n（相談役 C）
 import { staffDirectDiscountOf } from "@/lib/nox/rules-0175/staff-discount"; // ★追補 2（裁定421 候補）
 import { castPaymentsOf } from "@/lib/nox/rules-0175/cast-register"; // ★追補 2（裁定420）
 import { roundYen } from "@/lib/nox/money";
@@ -479,7 +479,9 @@ export default function ReportBoard({
         supabase.from("advances").select("cast_id, amount").eq("store_id", storeId).eq("advanced_on", bizDate).neq("status", "cancelled"),
         (() => { const q = supabase.from("daily_pays").select("cast_id, net").eq("store_id", storeId).eq("biz_date", bizDate); return rules0175On() ? q.is("cancelled_at", null) : q; })(), // ★便 P175-prep P-2（裁定413 I-3）: 取消済みの日払いは現金支払に数えない（フラグ false＝列を触らない）
         supabase.from("payment_records").select("cast_id, paid_amount").eq("store_id", storeId).eq("paid_at", bizDate).eq("method", "cash"),
-        supabase.from("casts").select("id, name, is_active").eq("store_id", storeId).order("name"),
+        isCast && mig0201nOn() /* ★0201n（相談役 C）: キャストの立場（締めの許可）＝register_cast_roster の 3 列（貼った後は casts の RLS が自分の行だけ） */
+          ? supabase.rpc("register_cast_roster", { p_store_id: storeId }).then((r) => ({ ...r, data: ((r.data ?? []) as { id: string; name: string; is_active: boolean }[]).map(({ id, name, is_active }) => ({ id, name, is_active })) }))
+          : supabase.from("casts").select("id, name, is_active").eq("store_id", storeId).order("name"),
       ]);
       if (!alive) return;
       const rowsOf = (rows: unknown, k: string): PayoutRow[] => ((rows ?? []) as Record<string, unknown>[]).map((r) => ({ cast_id: (r.cast_id as string | null) ?? null, amount: Number(r[k] ?? 0) }));
