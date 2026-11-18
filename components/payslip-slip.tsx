@@ -78,7 +78,7 @@ export default function PayslipSlip({ slip, castName, compact = false, systems =
     );
   }
   const earn = (label: string, v: number, key: string, muted = false, extra?: { label2?: string; amountText?: string }) => (
-    <div key={key} className={extra?.label2 ? "nox-bd-row has-l2" : undefined} style={{ ...t.slipRow, opacity: muted ? 0.75 : 1 }}><span>{label}{extra?.label2 && <span className="nox-bd-l2" data-bd-l2="1">{extra.label2}</span>}</span><span style={t.num}>{extra?.amountText ?? yen(v)}</span></div>
+    <div key={key} className={extra?.label2 ? "nox-bd-row has-l2" : undefined} data-sales-basis={key === "sales-basis" ? "subtotal" : undefined} style={{ ...t.slipRow, opacity: muted ? 0.75 : 1, ...(key === "sales-basis" ? { fontSize: 11, color: "var(--sub)", paddingTop: 0 } : {}) }}><span>{label}{extra?.label2 && <span className="nox-bd-l2" data-bd-l2="1">{extra.label2}</span>}</span><span style={t.num}>{extra?.amountText ?? yen(v)}</span></div>
   ); // ★便 SH-UI-c2 C2-9: スライド行＝見出し＋結果（390px は 2 行）・段なしは「—」
   const ded = (label: string, v: number, key: string) =>
     <div key={key} style={t.slipRow}><span>{label}</span><span style={{ ...t.num, color: "var(--bad)" }}>−{yen(v)}</span></div>;

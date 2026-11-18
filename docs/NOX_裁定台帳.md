@@ -5980,6 +5980,12 @@ CC の処置＝M-130（下の節）。
 - 関数の md5（貼った後）＝試走で取った値と同じ（kiosk_punch b439f2cd など 9 本）。収蔵＝supabase/migrations/0201r_kiosk_cast_pin_lock5.sql（sha 一致）。
 - フラグ MIG_0201R_APPLIED を true・検査の張り替え（0201r-client・0158・0198・0190 ⑧・anon-guard 段37・kiosk-lock1118 kl(3-2)／(3-3)・0201q q(5)・c200 (7-2)）・デモの種からみく・ひなのの staff_pin を外す（打刻の PIN で店の端末に入る道をデモで通す）。
 
+## 0201s 本番適用（2026-11-19 06:41:35・**Agoora の承認で CC が適用＝手貼りの例外**・0201r と同じ手順・相談役が指紋を照合済みのファイル）
+- 例外の範囲＝0201s の 1 回だけ（ほかの mig には及ばない）。06:40 の後（朝の reset の cron 10 本が 06:35 までに succeeded・本番の動いている接続 0 を読んでから）・ほかに本番へ繋ぐ CC の処理 0。
+- 指紋＝本体 c7582522…28a1・事前確認 e8bb50fa…e1d8・検証 0011d930…205a（3 つとも一致）。繋ぎ先 ref hiqbfagmkrdpmlqhkmsu・ロール postgres（試走と同じ）。事前確認＝貼り先証明の 1 行だけ・本体をファイルのまま 1 回（BEGIN・SET・CREATE 2・REVOKE・COMMIT）・検証 9 行とも期待値（関数 455・表 122・check_group_subtotal は内部専用・集計が新しい関数を使う・集計の権限そのまま・窓口 get_cast_sales_subtotal の本文そのまま・締めた全伝票の突き合わせ 2 行とも食い違い 0）。全文＝docs/tmp/apply_0201s_1119.log。
+- 手順書（handpaste_0201s_1119.md）は検証を「8 行」と書いていたが、ファイルは貼り先証明＋8＝9 行（相談役の指示の 9 行が正）。
+- 貼った後の本文＝check_group_subtotal（0f9d5594）・cast_sales_aggregate_subtotal（d6bcec88）とも本体ファイルの中の本文と 1 文字も同じ。check_group_due・get_cast_sales_subtotal は前と同じ md5。収蔵＝supabase/migrations/0201s_subtotal_like_due.sql（sha 一致）。
+
 ## 次の番号（2026-11-18 夜・裁定505／506・教訓157〜159 を収載した時点＝実測）
 - **次の裁定＝507**・**次の M＝M-195**・**次の起票＝136**・**次の教訓＝160**。
 

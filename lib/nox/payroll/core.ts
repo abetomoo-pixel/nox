@@ -257,6 +257,7 @@ export async function computePayrollDraft(
     }
     // ★裁定347 追補2（便 N1014 A-4）: 達成ボーナスの目標の出所（個別／プラン既定）を凍結形へ。プラン既定から継承したときだけ足す（既存 21 プランは既定 null＝従来の breakdown と 1 バイト同値）
     if (c.norm.salesTargetSource === "plan" && (c.norm.salesTarget ?? 0) > 0) (pay as { normTarget?: unknown }).normTarget = { sales: c.norm.salesTarget, source: "plan" };
+    if (masters.salesBasis === "subtotal") (pay as { salesBasis?: unknown }).salesBasis = "subtotal"; // ★2026-11-19（相談役 ②）: 小計の店だけ凍結形に売上の基準（請求額の店はキーを足さない＝1 バイトも変えない）
     const net = pay.net; // = available − (okuri+adv+ar)（pay.net が3天引き込み・extras は gross 側で計上済み）
     // net 恒等（B・必須ステップ）: 凍結する net は必ず payOf の結果そのものを通す（クライアント値を使わない）。
     if (net !== pay.net) {

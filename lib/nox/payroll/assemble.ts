@@ -164,6 +164,7 @@ export function dailyDeductionsOf(deductions: readonly Deduction[], rows: readon
 // 店共通マスタ（loadStoreMasters が組む）。
 export type StoreMasters = {
   payTimeBasis?: "punch" | "shift"; // ★裁定324（便 L-2-3）
+  salesBasis?: "subtotal"; // ★2026-11-19（相談役 ②）: 店の売上の基準が小計のときだけ（請求額の店はキーなし＝従来と 1 バイト同値）＝明細の凍結形へ写す
   lateGraceMin?: number; // ★裁定324-3（便 L-2-4）: 遅刻の猶予（penalty_config.late_grace_min・未設定＝punch-match の既定 10）: 店の勤務時間の計算基準（run の期の初日で解決済み・未指定＝'punch'）
   penalty: PenaltyConfig;
   normConfig: NormPenaltyConfig;

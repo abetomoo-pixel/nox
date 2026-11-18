@@ -809,6 +809,7 @@ async function mainBody() {
     ["demo_org_reset", { p_org_id: null, p_payload: null, p_mode: null }], // mig0149（裁定273／276〜279・service_role 専用＝anon／authenticated とも BLOCKED）
     ["punch_correction_apply", { p_id: null, p_reason: null }], // mig0154（裁定295-5・内部ヘルパー＝4 ロール revoke・anon／authenticated とも BLOCKED）
     ["referral_recalc", { p_check_id: null }], // mig0152（裁定286／298-1・内部ヘルパー＝4 ロール revoke・anon／authenticated とも BLOCKED）
+    ["check_group_subtotal", { p_check_id: null, p_pay_group: "A" }], // ★0201s（2026-11-19 06:41 CC 適用・小計＝請求額の側と同じ数え方の内部ヘルパー＝4 ロール revoke・anon／authenticated とも BLOCKED）
     ["punch_seq_check", { p_store_id: null, p_cast_id: null, p_type: null, p_at: null }], // mig0161（裁定327＋追補1・打刻の順序検査＝内部ヘルパー・4 ロール revoke・anon／authenticated とも BLOCKED）
   ];
   for (const [fn, args] of INTERNAL_PROBES) {

@@ -28,6 +28,8 @@ import { buildMatchInput, dayWorkedHours, type PunchRow, type ShiftRow, type Att
 import { matchPunches } from "../punch-match";
 import { bizDateOf } from "../biz-date";
 import { anomalyFlagsOf, punchCountsUpToOf, shiftHoursUpToOf } from "./anomaly"; // ★X-13-27（便 X-13d-2a）: 未来日の確定シフトは不整合に数えない・★裁定342（便 P169）: 日数・当欠・シフト時間も今日まで
+import { salesBasisOf, salesRpcOf, salesBackDefaultOffOf } from "./sales-basis"; // ★2026-11-18 夜（相談役 ③）
+import { mig0201qOn } from "../rules-0175/flag"; // ★0201q
 
 import { castPts } from "../pay"; // ★N3b: 前月 pts＝当月と同じ式
 import { trialRangeOf, trialRawOf, trialTouchesOf, trialWageOf, inTrialRange, type TrialRange } from "./trial"; // ★裁定490（0201l の後の結線）: 体入の期間・体入の時給・バック「なし」の除外
@@ -197,7 +199,8 @@ async function loadMasters(admin: SupabaseClient, storeId: string, period: strin
   const pen = penR.data as Record<string, unknown> | null;
   const basis = payTimeBasisOf(((stR.data?.settings_json ?? null) as Record<string, unknown> | null), runPeriodStart ?? `${period}-01`); // ★324-2: run の期の初日 ≥ next_from なら next
   const masters: StoreMasters = {
-    ...(isSystemOn((stR.data?.settings_json ?? null) as Record<string, unknown> | null, "sys_backs") ? {} : { salesBackTable: [] }), /* ★便 SH-UI-c2 C2-10（裁定412 の残り）: 売上歩合＝各種バックに統合（sys_sales_rate は読まない） */ // ★便 GV-C C-10（R-5c）: 売上歩合 OFF の店は売上率テーブルを効かせない（ON／欠損＝従来の既定＝golden 不変）
+    ...(isSystemOn((stR.data?.settings_json ?? null) as Record<string, unknown> | null, "sys_backs") && !salesBackDefaultOffOf((stR.data?.settings_json ?? null) as Record<string, unknown> | null, mig0201qOn()) ? {} : { salesBackTable: [] }), /* ★2026-11-18 夜（③）: sales_back_default_off＝true の店は既定の売上歩合だけを止める（各種バックの行は隠さない） */ /* ★便 SH-UI-c2 C2-10（裁定412 の残り）: 売上歩合＝各種バックに統合（sys_sales_rate は読まない） */ // ★便 GV-C C-10（R-5c）: 売上歩合 OFF の店は売上率テーブルを効かせない（ON／欠損＝従来の既定＝golden 不変）
+    ...(salesBasisOf((stR.data?.settings_json ?? null) as Record<string, unknown> | null, mig0201qOn()) === "subtotal" ? { salesBasis: "subtotal" as const } : {}), /* ★2026-11-19（相談役 ②）: 小計の店だけ（明細に基準を出す・凍結形に salesBasis） */
     ...(basis === "shift" ? { payTimeBasis: "shift" as const } : {}), // ★324（便 L-2-3）: 'punch'／未設定はキーを足さない（従来と 1 バイト同値）
     penalty: {
       fineAbsent: (pen?.fine_absent as number) ?? 0,
@@ -718,10 +721,13 @@ export async function collectPeriod(
   win: PayrollWindow,
 ): Promise<CollectResult> {
   // 按分 DB 権威: get_cast_sales は manager クライアントで（D7a）。
-  const { data: salesData, error: eS } = await managerClient.rpc("get_cast_sales", {
+  // ★2026-11-18 夜（相談役 ③）: 店の売上の基準（sales_basis）＝'subtotal' の店だけ get_cast_sales_subtotal（0201q）。鍵の無い店は今までどおり get_cast_sales
+  const { data: stSB } = await admin.from("stores").select("settings_json").eq("id", storeId).maybeSingle();
+  const salesRpc = salesRpcOf(salesBasisOf((stSB?.settings_json ?? null) as Record<string, unknown> | null, mig0201qOn()));
+  const { data: salesData, error: eS } = await managerClient.rpc(salesRpc, {
     p_store_id: storeId, p_from: win.periodStart, p_to: win.periodEnd,
   });
-  if (eS) throw new Error(`get_cast_sales: ${eS.message}`);
+  if (eS) throw new Error(`${salesRpc}: ${eS.message}`);
   const salesRows = (salesData ?? []) as SalesRow[];
 
   const [{ plansById, slidePeriodByPlan, slideBasisByPlan, slideRankIdsByPlan, slideApplyByPlan, planNormById, normAxes, castPlanByCast, guaranteesByCast, masters, normByCast, taxByCast, depByCast, grace, trialTerms }, acct, incentives, receivablesByCast, advancesByCast, transportByCast, shimeiAmtByCast, avgWageByCast] = await Promise.all([
@@ -765,7 +771,7 @@ export async function collectPeriod(
       const prevWin: PayrollWindow = { ...win, period: prev, periodStart: prevStart, periodEnd: prevEnd,
         startTs: `${prevStart}T${win.cutoffHm}:00+09:00`, endTs: `${addDaysYmd(prevEnd, 1)}T${win.cutoffHm}:00+09:00` };
       const [{ data: prevSales, error: ePs }, prevAcct] = await Promise.all([
-        managerClient.rpc("get_cast_sales", { p_store_id: storeId, p_from: prevStart, p_to: prevEnd }),
+        managerClient.rpc(salesRpc, { p_store_id: storeId, p_from: prevStart, p_to: prevEnd }), /* ★2026-11-18 夜（③）: 前の期も同じ基準 */
         loadAccounting(admin, storeId, prevWin),
       ]);
       if (ePs) throw new Error(`get_cast_sales(prev ${prev}): ${ePs.message}`);
@@ -810,7 +816,7 @@ export async function collectPeriod(
       const inWin = r.start >= win.periodStart && r.end <= win.periodEnd;
       let rows: SalesRow[];
       if (inWin) rows = salesRows.filter((x) => x.biz_date >= r.start && x.biz_date <= r.end);
-      else { const { data, error } = await managerClient.rpc("get_cast_sales", { p_store_id: storeId, p_from: r.start, p_to: r.end }); if (error) throw new Error(`get_cast_sales(${key}): ${error.message}`); rows = (data ?? []) as SalesRow[]; }
+      else { const { data, error } = await managerClient.rpc(salesRpc, { p_store_id: storeId, p_from: r.start, p_to: r.end }); if (error) throw new Error(`${salesRpc}(${key}): ${error.message}`); rows = (data ?? []) as SalesRow[]; } /* ★2026-11-18 夜（③）: 期の外・半月の窓も同じ基準 */
       const whole = inWin && r.start === win.periodStart && r.end === win.periodEnd;
       const wk: PayrollWindow = { ...win, period: key.slice(0, 7), periodStart: r.start, periodEnd: r.end, startTs: `${r.start}T${win.cutoffHm}:00+09:00`, endTs: `${addDaysYmd(r.end, 1)}T${win.cutoffHm}:00+09:00` };
       const a2 = whole ? acct : await loadAccounting(admin, storeId, wk);

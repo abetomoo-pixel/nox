@@ -632,6 +632,10 @@ staff_deactivate / kiosk_deactivate
 - 構造除外（B(a) と同列＝内部専用・4 ロール revoke）: cast_sales_aggregate_subtotal
 （除外 240→**242**・全数 451→**454**（0201q ＋3＝A +1（A25）・B +2）。set_store_profile は作り直しだけ＝名前不変）
 
+### B(ah). 0201s 新設の除外（1本・2026-11-19・0201s の本番適用＝CC が適用の後の検査の張り替えで収載）
+- 構造除外（B(a) と同列＝内部専用・4 ロール revoke）: check_group_subtotal（伝票×pay_group の小計＝請求額の側と同じ数え方の税・サ料・丸めの前）
+（除外 242→**243**・全数 454→**455**（0201s ＋1＝B +1）。cast_sales_aggregate_subtotal は作り直しだけ＝名前不変）
+
 ## C. kiosk 腕を持つ対象（実装注意・18本）
 A1 の check_open / check_add_line / check_remove_line / check_add_seat / check_remove_seat /
 check_move_seat / check_set_nominations / check_time_charge_apply / check_shimei_add / check_dohan_add /

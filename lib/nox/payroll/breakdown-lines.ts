@@ -29,6 +29,7 @@ export type BreakdownPayLike = {
   drinkBack?: number; champBack?: number; bottleBack?: number; calculatedBack?: number; salesBack?: number;
   customTotal?: number; cbacks?: { name?: string; amount?: number }[];
   achievementBonus?: number; guaranteeAdd?: number;
+  salesBasis?: "subtotal"; // ★2026-11-19（相談役 ②）: 売上の基準が小計の店だけ（凍結 pay にも入る）
   normTarget?: { sales: number; source: "override" | "plan" | null }; // ★裁定347 追補2（便 N1014 A-4）: 達成ボーナスの目標の出所（プラン既定から継承したときだけ凍結）
   gross?: number;
   fixedDed?: number; sanction?: { original?: number; applied?: number } | null; fine?: number; withholding?: number; normPenalty?: number;
@@ -37,6 +38,8 @@ export type BreakdownPayLike = {
   dailyPaidGross?: number; dailyWithheld?: number; dailyWithholdingShort?: number; // ★0156（裁定309-6）: 日払い済み（無ければ 0）
   taxMode?: string; net?: number;
 };
+/** ★2026-11-19（相談役 ②）: 売上の基準が小計の店の明細に出す 1 行（請求額の店には出さない） */
+export const SALES_BASIS_LINE = "　売上の基準：小計（税・サ料の前）";
 export type BreakdownExtra = { kind: string; amount: number; label?: string };
 export type BreakdownLine = {
   key: string; label: string; amount: number;
@@ -226,6 +229,7 @@ export function breakdownLinesOf(input: BreakdownInput): Breakdown {
   }
   // ★便 ON-4（C2-22・Agoora 確定 10/26 ⑨）: 来期の時給見込み＝スライド行の下に 1 行（確定済みの明細には出さない・金額 0）
   if (!input.frozen) { const nw = nextWageLineOf(nextWageOfPay(p as NextWagePayLike, { salesOn: sysOn(sysK, "sys_sales_slide"), ptOn: sysOn(sysK, "sys_point_slide") && sysOn(sysK, "sys_points") })); if (nw) earn.push({ key: "next-wage", label: nw.label, label2: nw.label2, amount: 0, info: true, amountText: "—" }); }
+  if (p.salesBasis === "subtotal") earn.push({ key: "sales-basis", label: SALES_BASIS_LINE, amount: 0, info: true, amountText: "" }); // ★2026-11-19（相談役 ②）: 小計の店だけ・売上（スライド）の行の下に小さく
   push("honBack", "本指名バック", z(p.honBack));
   push("jonaiBack", "場内指名バック", z(p.jonaiBack));
   push("dohanBack", "同伴バック", z(p.dohanBack));

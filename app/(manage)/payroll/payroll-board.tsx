@@ -1036,7 +1036,7 @@ ${md.message}（入れずに確定すると控除 0 のまま確定します）`
                 const earnTotal = bd.earnTotal; // ★裁定303-1: 行の Σ＝gross（extras 内在・裁定26）
                 const dedTotal = bd.dedTotal;   // 裁定264-3: 集約関数と同値（bd.ded の Σ）
                 const line = (l: React.ReactNode, v: number, neg = false, key = typeof l === "string" ? l : "node", muted = false, extra?: { label2?: string; amountText?: string }) => ( // ★便 SH-UI-c C-2 ③: 時給行の「× 74.9h」を勤怠表への link に
-                  <div key={key} className={extra?.label2 ? "nox-bd-row has-l2" : undefined} style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: 12.5, padding: "2px 0", opacity: muted ? 0.75 : 1 }}>
+                  <div key={key} className={extra?.label2 ? "nox-bd-row has-l2" : undefined} data-sales-basis={key === "sales-basis" ? "subtotal" : undefined} style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: key === "sales-basis" ? 11 : 12.5, padding: key === "sales-basis" ? "0 0 2px" : "2px 0", opacity: muted ? 0.75 : 1 }}>{/* ★2026-11-19（相談役 ②）: 売上の基準の行は小さく */}
                     <span style={{ color: "var(--sub)" }}>{l}{extra?.label2 && <span className="nox-bd-l2" data-bd-l2="1">{extra.label2}</span>}</span>{/* ★便 SH-UI-c2 C2-9 ⑤: 結果の行＝390px で 2 行目に */}
                     <span className="num" style={neg ? { color: "var(--bad)" } : undefined}>{extra?.amountText ?? `${neg ? "−" : ""}¥${v.toLocaleString()}`}</span>
                   </div>
