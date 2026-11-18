@@ -6,7 +6,7 @@ import * as t from "@/lib/nox/ui/theme";
 import { Suspense } from "react";
 import DemoEntry, { type DemoBiz, type DemoRole } from "@/components/ui/demo-terms"; // ★夜間便 N5（裁定293-7）: 入場前の規約＋同意チェック（未同意は入場不可）
 import DemoExpiredNote from "@/components/ui/demo-expired-note"; // ★D2-b（328 追補4）: ?expired=1 の 1 行（client で query を読む＝page は force-static のまま）
-import { DEMO_SESSION_JA } from "@/lib/nox/demo/session";
+import { DEMO_SESSION_JA, demoStoresShownOf, parseDemoUsers } from "@/lib/nox/demo/session"; // ★2026-11-18 夜（相談役 ④）: env に鍵のある店だけ
 import { DEMO_KIOSK_KEY, DEMO_RESET_TIME_JA, DEMO_ROLES, DEMO_ROLE_LABEL, DEMO_STORES, DEMO_STORE_LABEL } from "@/lib/nox/demo/seed";
 
 // ★夜間便 N7-3（裁定273／277・2026-09-18）→ ★裁定328 追補1 ②③⑤（便 D1・2026-10-02）: 公開デモの入口＝店 6 × 役割 4 のボタン＋店ごとの端末（kiosk）（noindex）。
@@ -18,7 +18,7 @@ export const metadata: Metadata = {
 };
 export const dynamic = "force-static";
 
-const STORES: DemoBiz[] = DEMO_STORES.map((s) => ({ key: s, label: DEMO_STORE_LABEL[s].name, sub: DEMO_STORE_LABEL[s].biz, desc: DEMO_STORE_LABEL[s].desc }));
+const STORES: DemoBiz[] = demoStoresShownOf(DEMO_STORES, parseDemoUsers(process.env.DEMO_USERS)).map((s) => ({ key: s, label: DEMO_STORE_LABEL[s].name, sub: DEMO_STORE_LABEL[s].biz, desc: DEMO_STORE_LABEL[s].desc }));
 const ROLES: DemoRole[] = DEMO_ROLES.map((r) => ({ key: r, label: DEMO_ROLE_LABEL[r].label, desc: DEMO_ROLE_LABEL[r].desc }));
 const KIOSK: DemoRole = { key: DEMO_KIOSK_KEY, label: "端末（キオスク）", desc: "店に置く打刻端末の画面（固定の端末ユーザー）" };
 

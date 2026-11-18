@@ -66,8 +66,9 @@ for (const store of DEMO_STORES) {
     if (due !== Number(c.total)) mis++;
   }
   check(`dp(2-1) ★${store}: closed 伝票 ${closed} 件すべて checks.total＝groupDueFull（check_group_due の鏡像）`, closed > 0 && mis === 0, `不一致 ${mis}`);
-  const storeRow = D("stores").find((s) => String(s.store_code).toLowerCase() === store)!;
-  for (const o of D("orders").filter((o) => o.store_id === storeRow.store_id)) {
+  // ★Y2c（2026-11-17 夜）: ホスト（host）の源泉は LUNA の写し（代表伝票・期待値は写していない）＝月の目標は LUNA の源泉で見る・代表伝票は無い
+  const storeRow = D("stores").find((s) => String(s.store_code).toLowerCase() === (store === "host" ? "luna" : store))!;
+  for (const o of D("orders").filter((o) => store !== "host" && o.store_id === storeRow.store_id)) {
     const ex = D("expected_results").find((e) => e.order_id === o.order_id)!;
     // ★Y2d（2026-11-17 夜・相談役）: 会計の丸め（クラブ系 1,000 円・スナック／ガールズバー 100 円・切り上げ）＝源泉の期待値（1 円単位）を店の丸めで丸めた額で探す
     const st0 = (p.tables.stores ?? [])[0] as Record<string, unknown>;
@@ -87,12 +88,13 @@ for (const store of DEMO_STORES) {
   const chunkRows = chunks.reduce((a, c) => a + Object.values(c).reduce((x, r) => x + r.length, 0), 0);
   check(`dp(3-3) ${store}: payload ${bytes.toLocaleString()} B → chunk ${chunks.length}（1 MB 超なら 2 以上・先頭 chunk に stores／memberships・各 chunk ≤ 1 MB か 1 日分・行数不変）`, (bytes > PAYLOAD_MAX_BYTES ? chunks.length >= 2 : chunks.length === 1) && !!chunks[0].stores && !!chunks[0].memberships && chunkRows === rows && chunks.slice(1).every((c) => !c.stores && !c.products), `rows ${chunkRows}/${rows}`);
 }
-const total = DEMO_STORES.reduce((a, s) => a + ((JSON.parse(fs.readFileSync(`docs/demo/payload/${s}.json`, "utf8")) as Payload).tables.daily_reports ?? []).filter((r) => !(r as Record<string, unknown>).$onlyBefore).reduce((x, r) => x + Number(r.cash) + Number(r.card_gross) + Number(r.uri) + Number(r.other), 0), 0);
+const SIX_STORES = DEMO_STORES.filter((s) => s !== "host"); // ★Y2c: golden 43,740,000 は 6 店の合計（ホストは LUNA の写し＝合計に入れない）
+const total = SIX_STORES.reduce((a, s) => a + ((JSON.parse(fs.readFileSync(`docs/demo/payload/${s}.json`, "utf8")) as Payload).tables.daily_reports ?? []).filter((r) => !(r as Record<string, unknown>).$onlyBefore).reduce((x, r) => x + Number(r.cash) + Number(r.card_gross) + Number(r.uri) + Number(r.other), 0), 0);
 check(`dp(2-4) ★6 店の月次 Σ ${total.toLocaleString()}＝golden 43,740,000 ±1%`, Math.abs(total - 43_740_000) / 43_740_000 <= 0.01, String(total));
 
 // (3) seed
 check("dp(3-1) ★seed: 店 6（muse／luna／noir／ace／lily／nest）・役割 4（owner／manager／staff／cast）＋kiosk・org 名の往復・dest（staff→/register・cast→/mine・kiosk→/kiosk・他→/dashboard）",
-  DEMO_STORES.join() === "muse,luna,noir,ace,lily,nest" && DEMO_ROLES.join() === "owner,manager,staff,cast" && DEMO_KIOSK_KEY === "kiosk" && DEMO_STORES.every((s) => storeOfOrgName(demoOrgName(s)) === s && demoOrgName(s) === `NOX-DEMO-${s.toUpperCase()}`)
+  DEMO_STORES.join() === "muse,luna,noir,ace,lily,nest,host" /* ★Y2c: 7 店 */ && DEMO_ROLES.join() === "owner,manager,staff,cast" && DEMO_KIOSK_KEY === "kiosk" && DEMO_STORES.every((s) => storeOfOrgName(demoOrgName(s)) === s && demoOrgName(s) === `NOX-DEMO-${s.toUpperCase()}`)
   && storeOfOrgName("NOX-DEMO") === null && storeOfOrgName("NOX-DEMO-CABARET") === null && isDemoStore("noir") && !isDemoStore("cabaret") && isDemoRole("staff") && !isDemoRole("kiosk")
   && demoDestOf("staff") === "/register" && demoDestOf("cast") === "/mine" && demoDestOf("kiosk") === "/kiosk" && demoDestOf("owner") === "/dashboard" && demoDestOf("manager") === "/dashboard");
 {
@@ -110,7 +112,7 @@ check("dp(4-2) 入場 route: magiclink はサーバ内で消費（generateLink�
 // (5) /demo
 const page = fs.readFileSync("app/demo/page.tsx", "utf8"), terms = fs.readFileSync("components/ui/demo-terms.tsx", "utf8"), banner = fs.readFileSync("components/ui/demo-banner.tsx", "utf8");
 check("dp(5-1) ★/demo: 店 6 × 役割 4 ＋ 端末（DEMO_STORES／DEMO_ROLES／KIOSK を seed から）・form POST {store, role}・06:05 の文言（入口・規約・帯）",
-  page.includes("DEMO_STORES.map((s) =>") && page.includes("DEMO_ROLES.map((r) =>") && page.includes("kiosk={KIOSK}") && terms.includes('<input type="hidden" name="store" value={store} />') && terms.includes('<input type="hidden" name="role" value={r.key} />')
+  page.includes("demoStoresShownOf(DEMO_STORES, parseDemoUsers(process.env.DEMO_USERS)).map((s) =>") && page.includes("DEMO_ROLES.map((r) =>") && page.includes("kiosk={KIOSK}") && terms.includes('<input type="hidden" name="store" value={store} />') && terms.includes('<input type="hidden" name="role" value={r.key} />')
   && fs.readFileSync("lib/nox/demo/terms.ts", "utf8").includes("毎日 06:05 に初期化") /* ★裁定344: 規約 5 項の正本は lib/nox/demo/terms.ts（demo-terms.tsx は再 export） */ && banner.includes("毎日 06:05 に初期化") && page.includes("DEMO_RESET_TIME_JA") && !page.includes("毎朝 5 時") && !terms.includes("毎朝 5 時") && !banner.includes("毎朝 5 時"));
 // (6) cron route・create-demo-orgs・upload-photos
 const cron = fs.readFileSync("app/api/cron/demo-reset/route.ts", "utf8"), cdo = fs.readFileSync("scripts/demo/create-demo-orgs.mjs", "utf8"), up = fs.readFileSync("scripts/demo/upload-photos.mjs", "utf8");
@@ -126,7 +128,7 @@ if (fs.existsSync("docs/tmp/demo_photos/casts") && fs.existsSync("docs/tmp/demo_
   const casts = fs.readdirSync("docs/tmp/demo_photos/casts").filter((f) => f.endsWith(".jpg")).map((f) => f.replace(/.jpg$/, "")).filter((c) => UUID.test(ids.people[c] ?? ""));
   const staff = fs.readdirSync("docs/tmp/demo_photos/staff").filter((f) => f.endsWith(".jpg")).length;
   const n = casts.length + staff;
-  check(`dp(6-4) 写真 dry-run: 結線のある casts 38＋staff 9＝47・staff は代表 6 名に結線（残り 3 は users 無し）`, n === 47 && Object.keys(ids.staff_users).length === 6, `n ${n}`);
+  check(`dp(6-4) 写真 dry-run: 結線のある casts 50（6 店 38＋ホスト 12＝NEST の男性の写し）＋staff 9＝59・staff は代表 7 名に結線（残り 3 は users 無し・★Y2c でホストの代表 1 名）`, n === 59 && casts.filter((c) => c.startsWith("HOST-")).length === 12 && Object.keys(ids.staff_users).length === 7, `n ${n}`);
 } else check("dp(6-4) 写真 dry-run: docs/tmp/demo_photos が無い環境＝対象外（CI）", true);
 
 if (fails.length) {

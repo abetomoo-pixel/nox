@@ -10,6 +10,11 @@ export const DEMO_EXPIRED_JA = "24 時間が経過したためデモを終了し
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** env DEMO_USERS（JSON: {"muse:owner":"<auth user id>", …}）。無い・壊れている＝null */
+/** ★2026-11-18 夜（相談役 ④）: 入口（/demo・LP）に出す店＝env DEMO_USERS にその店の owner の鍵がある店だけ（7 店目のホストは Agoora が env を入れて deploy し直すまで出さない）。
+ *  env が無い・壊れている＝全部（入場の route が 503「デモは準備中です」を返す＝今までどおり）。 */
+export function demoStoresShownOf<T extends string>(stores: readonly T[], env: Record<string, string> | null): T[] {
+  return env ? stores.filter((s) => !!env[`${s}:owner`]) : [...stores];
+}
 export function parseDemoUsers(raw: string | undefined): Record<string, string> | null {
   if (!raw) return null;
   try {

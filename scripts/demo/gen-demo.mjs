@@ -14,18 +14,42 @@ import fs from "node:fs";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import { groupDueFull } from "../../lib/nox/check-calc.ts";
-import { ADVANCES, SLIDES, EXTRA_PLANS, PROFILES, TRIAL, STAFF_DEMO, BONUS_TIERS, EXT_PATTERNS, sysSettingsOf, backOf as profileBackOf, canonOf, okuriModeOf as profileOkuriModeOf, EXTRA_CASTS, PAY_RATE_DEMO, billRoundOf, MONTH_GROSS_TARGET } from "./profiles.mjs"; // ★X-13c: 6 店の差別化（表＝docs/demo/store_profiles_20261009.md）
+import { ADVANCES, SLIDES, EXTRA_PLANS, PROFILES, TRIAL, STAFF_DEMO, BONUS_TIERS, EXT_PATTERNS, sysSettingsOf, backOf as profileBackOf, canonOf, okuriModeOf as profileOkuriModeOf, EXTRA_CASTS, PAY_RATE_DEMO, billRoundOf, MONTH_GROSS_TARGET, HOST_SOURCE, HOST_PLAN, hostCommissionDefsOf, hostStoreSettingsOf, HOST_ALLOWANCE } from "./profiles.mjs"; // ★X-13c: 6 店の差別化（表＝docs/demo/store_profiles_20261009.md）
 import { RULES_0175_APPLIED, MIG_0200_APPLIED } from "./rules-0175-flag.mjs";
 import { demoPinOf } from "../../lib/nox/demo/pin.ts"; // ★夜便レーン 1（2026-11-11）: デモの人ごとの PIN（全員 1234 をやめる）
 // ★デモの PIN のハッシュ＝scripts/demo/demo-pin-hashes.json（id → bcrypt・本番 DB の crypt を固定の salt で読み取りだけで呼んで作る＝gen-demo-pin-hashes.mjs）。足りない id は一覧に書いて止める
 const PIN_HASHES = fs.existsSync("scripts/demo/demo-pin-hashes.json") ? JSON.parse(fs.readFileSync("scripts/demo/demo-pin-hashes.json", "utf8")) : {};
 const PIN_MISSING = new Set(); const PIN_BY_STORE = new Map();
 // 鍵＝表示名（本番はデモの id を org ごとに付け替える＝キオスクから見える名前で揃える・同じ人＝同じ PIN）。店の中の名前と PIN の重複は止める
-const DEMO_STAFF_NAME = { MUSE: "田中", LUNA: "山本", NOIR: "鈴木", ACE: "小林", LILY: "松本", NEST: "中村" }; const DEMO_MANAGER_NAME = "デモ 店長";
+const DEMO_STAFF_NAME = { MUSE: "田中", LUNA: "山本", NOIR: "鈴木", ACE: "小林", LILY: "松本", NEST: "中村", HOST: "加藤" /* ★Y2c */ }; const DEMO_MANAGER_NAME = "デモ 店長";
 const pinHashOf = (name, storeKey) => { const pin = demoPinOf(name); const set = PIN_BY_STORE.get(storeKey) ?? new Map(); if (set.has(pin) && set.get(pin) !== name) throw new Error(`デモの PIN が店の中で重複: ${storeKey} ${pin}（${set.get(pin)} と ${name}）`); set.set(pin, name); PIN_BY_STORE.set(storeKey, set); const key = `${storeKey}:${name}`; const h = PIN_HASHES[key]; if (!h || h.pin !== pin) { PIN_MISSING.add(`${key}|${pin}`); return "MISSING"; } return h.hash; }; // ★追補 3 R-8: デモ ACE の管理者はフラグ true のときだけ
 
 const SRC = JSON.parse(fs.readFileSync("docs/demo/source/20261001/nox_demo_all.json", "utf8"));
 const D = (k) => SRC.datasets[k].records;
+// ★Y2c（相談役 11/17 夜）: 7 店目＝ホスト（架空 CLUB VESPER）の源泉＝LUNA の源泉の行を写して id を付け替える（代表伝票・期待値・入金の例は写さない＝照合の対象外）
+{
+  const H = HOST_SOURCE; const SKIP = new Set(["orders", "order_items", "order_reward_calculations", "payment_examples", "expected_results", "standalone_slide_test", "review_issues"]);
+  const idOf = (v) => (typeof v !== "string" ? v : v === H.from ? H.storeId : v.replace(/LUNA/g, "HOST").replace(/^LU-/, "HS-").replace(/^L(d{4}-)/, "H$1").replace(/^TEST-L/, "TEST-H").replace(/^RES-/, "RES-H-"));
+  for (const [k, ds] of Object.entries(SRC.datasets)) {
+    if (SKIP.has(k) || !Array.isArray(ds.records)) continue;
+    const add = ds.records.filter((r) => r.store_id === H.from).map((r) => { const o = {}; for (const [f, v] of Object.entries(r)) o[f] = /(^|_)ids?$/.test(f) ? (Array.isArray(v) ? v.map(idOf) : idOf(v)) : v; return o; });
+    ds.records.push(...add);
+  }
+  const st = D("stores").find((x) => x.store_id === H.storeId); Object.assign(st, { store_code: H.code, store_name: H.name, business_type: "ホストクラブ（デモ）", service_bps: H.service_bps, receivables_enabled_demo: true });
+  for (const p of D("people").filter((x) => x.store_id === H.storeId)) p.display_name = H.castNames[p.person_id] ?? H.staffNames[p.person_id] ?? p.display_name;
+  for (const k of ["cast_monthly_targets", "payroll_reference_calculation"]) for (const r of D(k).filter((x) => x.store_id === H.storeId && H.castNames[x.person_id])) r.display_name = H.castNames[r.person_id];
+  for (const r of D("pricing_rules").filter((x) => x.store_id === H.storeId)) Object.assign(r, { set_minutes: H.set.minutes, set_price_yen: H.set.regular, extension_minutes: H.set.extMinutes, extension_price_yen: H.set.ext, service_bps: H.service_bps });
+  for (const r of D("nomination_ranks").filter((x) => x.store_id === H.storeId)) Object.assign(r, { main_charge_yen: H.nomination.hon, inhouse_charge_yen: H.nomination.jonai, accompanied_charge_yen: H.nomination.dohan });
+  for (const r of D("compensation_plans").filter((x) => x.store_id === H.storeId)) Object.assign(r, { plan_name: H.plan.name, base_hourly_yen: H.plan.base, main_reward_yen: H.plan.hon, inhouse_reward_yen: H.plan.jonai, accompanied_reward_yen: H.plan.dohan });
+  // ★2026-11-18 夜（相談役 ④）: 売上の目標（日・月・ヘッダ・固定来店）を grossScale 倍＝本指名の伝票で人ごとの段をまかなう。固定来店の指名はレオ（No.1）へ
+  const gs = (v) => (typeof v === "number" ? Math.round((v * H.grossScale) / 1000) * 1000 : v);
+  for (const r of D("daily_sales_targets").filter((x) => x.store_id === H.storeId)) r.target_gross_sales_yen = gs(r.target_gross_sales_yen);
+  for (const r of D("monthly_sales_targets").filter((x) => x.store_id === H.storeId)) { r.stated_monthly_gross_yen = D("daily_sales_targets").filter((x) => x.store_id === H.storeId && x.is_open).reduce((a, x) => a + x.target_gross_sales_yen, 0); r.daily_target_sum_yen = r.stated_monthly_gross_yen; }
+  { const B = D("baseline_day_header_targets"); for (let k = B.length - 1; k >= 0; k--) if (B[k].store_id === H.storeId) B.splice(k, 1); } // ヘッダだけの伝票（指名なし）は写さない＝その日の予算は生成する伝票（指名つき）に回る
+  for (const r of D("customer_visit_targets").filter((x) => x.store_id === H.storeId)) { r.gross_amount_target_yen = gs(r.gross_amount_target_yen); if (r.nomination_person_id) r.nomination_person_id = "HOST-CAST-006"; }
+  for (const r of D("customers").filter((x) => x.store_id === H.storeId && x.relationship_person_id)) r.relationship_person_id = "HOST-CAST-006";
+  for (const r of D("products").filter((x) => x.store_id === H.storeId && x.display_category_name === "キャスト")) Object.assign(r, { back_mode: "by_nomination", back_main_yen: 200, back_inhouse_yen: 200, back_accompanied_yen: 200, back_free_yen: 200 });
+}
 // ★Y2b（相談役 11/17 夜）: 源泉のキャストを写して人数を足す（people・プランの割当・月の目標＝倍率）。他の表（代表伝票・予約・ランキングの参照）は写さない
 for (const list of Object.values(EXTRA_CASTS)) for (const x of list) {
   const p0 = D("people").find((p) => p.person_id === x.from); if (!p0) throw new Error(`EXTRA_CASTS: 写し元が無い ${x.from}`);
@@ -124,8 +148,8 @@ for (const st of STORES) {
   for (const key of ["staff_shift", "reopen_flow"]) push("feature_flags", { id: uid(`flag:${code}:${key}`), store_id: null, key, enabled: key === "reopen_flow" ? !!PF.reopen : true, updated_by: null }); // ★X-13c: 締め解除フローは店で差
   push("stores", {
     id: storeId, name: st.store_name, short: st.store_code, open_time: openHm,
-    settings_json: { biz_type: ({ MUSE: "snack", LUNA: "cabaret", NOIR: "lounge", ACE: "cabaret", LILY: "girlsbar", NEST: "bar" })[st.store_code] /* ★2026-11-18（相談役 B）: 業態を店名に（profiles BIZ_TYPE_OF と同じ） */ /* ★便 N1014 B-4: 業態＝store_profiles §3c（MUSE キャバクラ・NOIR ラウンジ・NEST スナック） */, norm_axes: { days: PF.normAxes.includes("days"), dohan: PF.normAxes.includes("dohan"), sales: PF.normAxes.includes("sales"), shimei: PF.normAxes.includes("shimei") } /* ★便 N1014 live 修正: 採用軸（0171 set_store_norm_axes の形）＝P171 の D-3 が payload に落ちていなかった（live は null＝全 ON） */, biz_cutoff_hm: "06:00", setup_done: true, billing_mode: "table", duty_gate: false, /* ★0190（2026-10-30）: デモ 6 店は打刻ゲート OFF（キオスク端末が無い・06:05 の reset で ON に戻らないように payload に持たせる） */
-      ...sysSettingsOf(code), pay_time_basis: PF.basis, shift_cast_confirm: PF.confirm, // ★X-13c: 報酬制度の ON/OFF・勤務時間の計算基準・キャスト確認＝プロファイル
+    settings_json: { biz_type: ({ MUSE: "snack", LUNA: "cabaret", NOIR: "lounge", ACE: "cabaret", LILY: "girlsbar", NEST: "bar", HOST: "host" /* ★Y2c／★2026-11-18 夜（相談役 ④）: 0201o で業態 'host' */ })[st.store_code] /* ★2026-11-18（相談役 B）: 業態を店名に（profiles BIZ_TYPE_OF と同じ） */ /* ★便 N1014 B-4: 業態＝store_profiles §3c（MUSE キャバクラ・NOIR ラウンジ・NEST スナック） */, norm_axes: { days: PF.normAxes.includes("days"), dohan: PF.normAxes.includes("dohan"), sales: PF.normAxes.includes("sales"), shimei: PF.normAxes.includes("shimei") } /* ★便 N1014 live 修正: 採用軸（0171 set_store_norm_axes の形）＝P171 の D-3 が payload に落ちていなかった（live は null＝全 ON） */, biz_cutoff_hm: "06:00", setup_done: true, billing_mode: "table", duty_gate: false, /* ★0190（2026-10-30）: デモ 6 店は打刻ゲート OFF（キオスク端末が無い・06:05 の reset で ON に戻らないように payload に持たせる） */
+      ...sysSettingsOf(code), ...(code === "host" ? hostStoreSettingsOf() : {}) /* ★2026-11-18 夜（相談役 ④）: 小計の基準に切り替えたときだけ鍵（今は空） */, pay_time_basis: PF.basis, shift_cast_confirm: PF.confirm, // ★X-13c: 報酬制度の ON/OFF・勤務時間の計算基準・キャスト確認＝プロファイル
       ar_enabled: PF.receivable !== "disabled", /* ★0201b ★1（2026-11-10 夜便）: 売掛の正本＝ar_enabled＝列（receivable_policy）と揃える（旧＝列だけ＝ACE／LUNA／NOIR はレジに売掛が出なかった） */
       slide_apply: "current", receipt_address: "東京都新宿区歌舞伎町 1-1-1（デモ）", receipt_tel: "03-0000-0000", receipt_footer: "飲食代", okuri_base_amount: PF.okuri, ...(CANON ? { sys_drink_count_back: false, sales_subtotal_mode: CANON.sales_subtotal_mode, pay_discount_rates: CANON.pay_discount_rates } : {}), /* ★便 ON-2: service_rate_by_seat は settings_json ではなく stores の列（0175 ★11・set_store_profile が書く先）へ */ /* ★便 P175-prep P-6: CANON 型の店設定（フラグ true でだけ） */ /* ★X-13c: 送り（0＝なし） */ ...(OKURI_MODE ? { okuri_mode: OKURI_MODE } : {}), /* ★裁定348: 送りの方式（0158）・★裁定414 追補: 4 方式＝ACE 定額／MUSE 実費／LILY 店負担／NOIR なし */ ...(PF.okuriTiers ? { okuri_flat_tiers: PF.okuriTiers } : {}), /* ★裁定414 追補（0180）: ACE の距離区分 3 段 */
       payslip_visibility: "detail", reservation_request: "on", drink_claim: "on", ranking: "on", shift_request_mode: PF.wishMode ?? "shift" /* ★裁定348: NEST＝休み希望のみ */,
@@ -246,8 +270,8 @@ for (const st of STORES) {
   let castSeq = 0;
   const people = D("people").filter((p) => p.store_id === S);
   const castsSrc = people.filter((p) => p.system_role_candidate === "cast" || p.system_role_candidate === "needs_confirmation");
-  { const repStaff = people.find((p) => p.system_role_candidate === "staff" && p.display_name === ({ MUSE: "田中", LUNA: "山本", NOIR: "鈴木", ACE: "小林", LILY: "松本", NEST: "中村" })[st.store_code]) ?? people.find((p) => p.system_role_candidate === "staff"); if (repStaff) staffUsers[repStaff.person_id] = users.staff; }
-  const repCast = castsSrc.find((c) => c.display_name === ({ MUSE: "さおり", LUNA: "みさき", NOIR: "あべ", ACE: "ひなの", LILY: "みく", NEST: "ケン" })[st.store_code]) ?? castsSrc[0];
+  { const repStaff = people.find((p) => p.system_role_candidate === "staff" && p.display_name === ({ MUSE: "田中", LUNA: "山本", NOIR: "鈴木", ACE: "小林", LILY: "松本", NEST: "中村", HOST: "加藤" })[st.store_code]) ?? people.find((p) => p.system_role_candidate === "staff"); if (repStaff) staffUsers[repStaff.person_id] = users.staff; }
+  const repCast = castsSrc.find((c) => c.display_name === ({ MUSE: "さおり", LUNA: "みさき", NOIR: "あべ", ACE: "ひなの", LILY: "みく", NEST: "ケン", HOST: "レオ" })[st.store_code]) ?? castsSrc[0];
   const CAST = {};
   let castIdx = 0; // ★裁定337（便 X-13d-2b）: 3 方式が混ざる（idx%4＝1→'off_only'・2→'shift'（明示）・他→null＝店の既定）
   for (const c of castsSrc) {
@@ -257,7 +281,8 @@ for (const st of STORES) {
     const pa = D("person_plan_assignments").filter((a) => a.person_id === c.person_id && !a.valid_to).pop() ?? D("person_plan_assignments").find((a) => a.person_id === c.person_id);
     const srcPlanId = uid(`plan:${pa?.plan_id ?? c.plan_id ?? plans[0].plan_id}`);
     const slot = extraPlans.length ? castSeq++ % (extraPlans.length + 1) : 0; // ★X-13-21: 0＝源泉のプラン・1〜＝追加プラン
-    const planId = slot === 0 ? srcPlanId : extraPlans[slot - 1].id;
+    const named = extraPlans.find((x) => (x.casts ?? []).includes(c.display_name)); // ★2026-11-18（相談役 F）: 名前で割り当てる追加プラン（ホストの新人）
+    const planId = named ? named.id : extraPlans.some((x) => x.casts) ? srcPlanId : slot === 0 ? srcPlanId : extraPlans[slot - 1].id;
     if (c.display_name === TR.cast) { // ★裁定348 追補1: 体験入店＋期限付き保証時給（set_cast_guarantee の 3 行形・R からの相対日）
       // ★便 PR-1 R-3（裁定416）: guaFromMonthStart＝保証の開始を当月 1 日（$m:0 d:1）・終了を R+guaToRel（既定＝従来の TR.from／TR.to）。前の行の終了＝前月末（$m:-1 d:31＝末日に畳む）
       const gFrom = TR.guaFromMonthStart ? { $m: 0, d: 1 } : { $rel: TR.from };
@@ -290,12 +315,17 @@ for (const st of STORES) {
   push("store_sales_targets", { id: uid(`sst:${code}:prev`), store_id: storeId, period: { $m: -1, d: 1, fmt: "ym" }, sales_target: MONTH_GROSS_TARGET[code] ?? monthly.stated_monthly_gross_yen /* ★2026-11-18（相談役 B）: 丸めた後の実績に合わせた目標 */ });
   push("store_sales_targets", { id: uid(`sst:${code}:cur`), store_id: storeId, period: { $m: 0, d: 1, fmt: "ym" }, sales_target: MONTH_GROSS_TARGET[code] ?? monthly.stated_monthly_gross_yen /* ★2026-11-18（相談役 B）: 丸めた後の実績に合わせた目標 */ });
   const cmt = D("cast_monthly_targets").filter((r) => r.store_id === S).map((r, i) => (PF.nominations && !(r.main_count_target > 0) ? { ...r, main_count_target: 6 - (i % 3), inhouse_count_target: 3, accompanied_count_target: 2 } : r)); // ★348 追補2（B-1）: 指名 ON の店で源泉の指名回数が 0 なら注入（本 4〜6／場内 3／同伴 2＝pt 約 20〜25）
+  // ★2026-11-18 夜（相談役 ④）: ホスト＝人ごとの本指名・同伴・場内・ドリンク（ヘルプ）の数を HOST_PLAN で置く（売上は後で本指名の伝票を人ごとの目標へ割り振る）
+  if (code === "host") for (const r of cmt) { const hp = HOST_PLAN.casts[CAST[r.person_id]?.display_name]; if (!hp) continue; Object.assign(r, { main_count_target: hp.hon ?? 0, accompanied_count_target: hp.dohan ?? 0, inhouse_count_target: hp.jonai ?? 0, cast_drink_count_target: hp.drinks, shot_count_target: 0, champagne_count_target: 0 }); }
+  // ★2026-11-18 夜（相談役 ④）: ホストの売上歩合の段＝自由設計のバック 6 行（基本＋5 つの加算・HOST_COMMISSION_BASIS で請求額の基準／小計の基準を切り替え）
+  if (code === "host") for (const d of hostCommissionDefsOf()) push("custom_back_defs", { id: uid(`cbd:${code}:${d.key}`), store_id: storeId, name: d.name, basis: d.basis, value: d.value, cond_json: d.cond, is_active: true, created_at: { $m: -1, d: 1, t: "12:00:00" }, updated_at: { $m: -1, d: 1, t: "12:00:00" } });
   // ★X-13c: キャスト別ノルマ目標（cast_norms・当月）＝ノルマを使う店だけ（日数＝hours÷6・同伴・売上・指名＝本＋場内）
   // ★348 追補2（便 N1014 B-2）: LILY＝先月（9 月）の cast_norms を 2 名（代表＝売上目標 300,000＝達成→達成ボーナス行／体験入店＝9,000,000＝未達）
   if (PF.dailyPay) for (const c of castsSrc.filter((x) => x === repCast || x.display_name === TR.cast)) push("cast_norms", { id: uid(`norm:${c.person_id}:prev`), store_id: storeId, cast_id: CAST[c.person_id].id, period: { $m: -1, d: 1, fmt: "ym" }, days_target: 0, dohan_target: 0, sales_target: c === repCast ? 300000 : 9000000, shimei_target: 0 });
   // ★裁定347（0171・便 P171 Q-5）: キャスト別の目標（上書き）は各店 1 名（代表キャスト）だけ＝他はプラン既定を継承（cast_norms／cast_quotas とも）
   if (PF.sys.norms) for (const r of cmt) if (CAST[r.person_id] && r.person_id === repCast.person_id) push("cast_norms", { id: uid(`norm:${r.person_id}:cur`), store_id: storeId, cast_id: CAST[r.person_id].id, period: { $m: 0, d: 1, fmt: "ym" }, days_target: PF.normAxes.includes("days") ? Math.max(1, Math.round((r.hours_target ?? 0) / 6)) : 0, dohan_target: PF.normAxes.includes("dohan") ? (r.accompanied_count_target || 0) : 0, sales_target: PF.normAxes.includes("sales") ? (r.sales_target_yen || 0) : 0, shimei_target: PF.normAxes.includes("shimei") ? (r.main_count_target || 0) + (r.inhouse_count_target || 0) : 0 }); // ★裁定348: 採用軸だけ（他は 0＝目標なし）
   // ★X-13c: 達成ボーナス（1 段・金額）＝達成ボーナスを使う店の全プラン（目標＝cast_norms.sales_target・無ければ不適用）
+  for (const x of extraPlans) if (x.guaranteeMin) push("comp_plan_components", { id: uid(`comp:x:${code}:${x.key}:guarantee`), store_id: storeId, plan_id: x.id, kind: "guarantee_min", mode: "amount", amount: x.guaranteeMin, rate: null, params: {}, priority: 100, is_active: true }); // ★2026-11-18（相談役 F）: 最低保証（月の総支給の床）
   if (PF.sys.bonus) for (const x of extraPlans) push("comp_plan_components", { id: uid(`comp:x:${code}:${x.key}:bonus`), store_id: storeId, plan_id: x.id, kind: "achievement_bonus", mode: "amount", amount: BONUS_TIERS[0].amount, rate: null, params: { thresholds: BONUS_TIERS.map((t) => ({ ...t })) } /* ★便 P173 T-2 */, priority: 100, is_active: true }); // ★X-13-21: 追加プランにも達成ボーナス
   if (PF.sys.bonus) for (const p of plans) push("comp_plan_components", { id: uid(`comp:${p.plan_id}:bonus`), store_id: storeId, plan_id: uid(`plan:${p.plan_id}`), kind: "achievement_bonus", mode: "amount", amount: BONUS_TIERS[0].amount, rate: null, params: { thresholds: BONUS_TIERS.map((t) => ({ ...t })) } /* ★便 P173 T-2 */, priority: 100, is_active: true });
   for (const r of cmt) if (CAST[r.person_id] && r.person_id === repCast.person_id) for (const [k, m] of [["prev", -1], ["cur", 0]]) push("cast_quotas", { id: uid(`quota:${r.person_id}:${k}`), store_id: storeId, cast_id: CAST[r.person_id].id, month: { $m: m, d: 1 }, hon: PF.normAxes.includes("shimei") ? (r.main_count_target || null) : null, jonai: PF.normAxes.includes("shimei") ? (r.inhouse_count_target || null) : null, dohan: PF.normAxes.includes("dohan") ? (r.accompanied_count_target || null) : null, sales: PF.normAxes.includes("sales") ? (r.sales_target_yen || null) : null }); // ★裁定348: 採用軸だけ（/mine のカードは目標のある軸だけ出る）
@@ -472,7 +502,7 @@ for (const st of STORES) {
   // 固定来店の本指名
   for (const c of allChecks) if (c.fv && CAST[c.fv.nomination_person_id]) { const qi = nomQueue.findIndex((n) => n.pid === c.fv.nomination_person_id && n.kind === "hon" && !n.dohan); const n = qi >= 0 ? nomQueue.splice(qi, 1)[0] : { cast: CAST[c.fv.nomination_person_id].id, kind: "hon", dohan: false, pid: c.fv.nomination_person_id }; addNom(c, n); }
   const left = { noms: 0, bottles: 0, drinks: 0, champ: 0, ext: 0 };
-  for (const n of nomQueue) { if (!tryAdd((c) => (c.noms.some((x) => x.cast_id === n.cast) ? false : addNom(c, n)), (c) => c.noms.length < 2 && (c.noms.length === 0 || (c.noms[0].kind === n.kind && c.noms[0].dohan === n.dohan)))) left.noms++; }
+  for (const n of nomQueue) { if (!tryAdd((c) => (c.noms.some((x) => x.cast_id === n.cast) ? false : addNom(c, n)), (c) => c.noms.length < (code === "host" ? 1 : 2) /* ★2026-11-18 夜（相談役 ④）: ホストは 1 伝票 1 指名（担当）＝割り振り直しの対象にする */ && (c.noms.length === 0 || (c.noms[0].kind === n.kind && c.noms[0].dohan === n.dohan)))) left.noms++; }
   for (const pid of bottleList) { const p = PRODUCT[pid]; if (!tryAdd((c) => { const cid = c.noms[0]?.cast_id ?? c.serving; if (p.accounting_class === "champagne") { const qi = champQueue.indexOf(cid); if (qi >= 0) champQueue.splice(qi, 1); } addProd(c, p, cid, 1); return true; })) left.bottles++; }
   for (const cid of drinkQueue) { const p = castDrinks[Math.floor(rand() * castDrinks.length)]; if (!p) { left.drinks++; continue; } if (!tryAdd((c) => { addProd(c, PRODUCT[p.product_id], cid, 1); return true; }, (c) => c.noms.length === 0 || c.noms.some((x) => x.cast_id === cid) || rand() < 0.3)) left.drinks++; }
   left.champ = champQueue.length;
@@ -486,7 +516,7 @@ for (const st of STORES) {
   // 固定来店は自分の gross へ・最後に汎用商品で日次 ±0.5% へ
   for (const day of days) {
     const free = day.checks.filter((c) => !c.fixedGross); let g = 0;
-    while (remain(day) > day.target * 0.004 && free.length && g++ < 3000) { const need = remain(day); const cand = generics.filter((p) => p.selling_price_yen * 1.5 <= need); const p = PRODUCT[(cand.length ? cand[Math.floor(rand() * cand.length)] : generics[0]).product_id]; const c = free[g % free.length]; const qty = Math.max(1, Math.min(c.people, Math.floor(need / (p.selling_price_yen * 1.5) / 3))); addProd(c, p, null, qty); if (foods.length && rand() < 0.15) addProd(c, PRODUCT[foods[Math.floor(rand() * foods.length)].product_id], null, 1); }
+    while (remain(day) > day.target * 0.004 && free.length && g++ < 3000) { const need = remain(day); const cand = generics.filter((p) => p.selling_price_yen * 1.5 <= need); const p = PRODUCT[(cand.length ? cand[Math.floor(rand() * cand.length)] : generics[0]).product_id]; const c = free[g % free.length]; const qty = Math.max(1, Math.min(code === "host" ? c.people * 4 : c.people /* ★2026-11-18 夜（相談役 ④）: ホストは売上の目標が大きい＝行を増やしすぎない（数量で寄せる） */, Math.floor(need / (p.selling_price_yen * 1.5) / 3))); addProd(c, p, null, qty); if (foods.length && rand() < 0.15) addProd(c, PRODUCT[foods[Math.floor(rand() * foods.length)].product_id], null, 1); }
     g = 0; while (remain(day) < -day.target * 0.006 && g++ < 3000) { const c = free.find((x) => x.lines.some((l) => l.product_id && !l.back)); if (!c) break; const idx = c.lines.findIndex((l) => l.product_id && !l.back); c.lines.splice(idx, 1); }
   }
   // ランキング（指名のない店）＝Σバックの順を参考（product_reward_target_yen）に揃える: 高い側のドリンク行を低い側へ移す
@@ -512,6 +542,40 @@ for (const st of STORES) {
       if (!moved) break;
     }
     if (process.env.GEN_DEBUG) console.log(code, "rank-fix after", movesTotal, JSON.stringify(Object.fromEntries(Object.entries(sumBack()).map(([k, v]) => [Object.values(CAST).find((c) => c.id === k)?.display_name, v]))));
+  }
+  // ★2026-11-18 夜（相談役 ④）: ホスト＝本指名（場内）が 1 人だけの伝票を、人ごとの目標（小計 × 1.43＝請求額の目安）へ割り振り直す（大きい伝票から・足りない人へ）。
+  //   シンは場内の伝票だけ（ヘルプ中心）。指名料の行・シャンパン等の担当の行は新しい担当へ・キャストのドリンクの行はそのまま（元の人のヘルプのドリンク）。
+  //   お客様の付いた固定来店（fv）と 2 人指名の伝票は動かさない（数えるだけ）。目標を超えた分はレオ（No.1・段の上限なし）へ。
+  if (code === "host") {
+    const nameOf = Object.fromEntries(Object.values(CAST).map((c) => [c.id, c.display_name]));
+    const idOfName = Object.fromEntries(Object.values(CAST).map((c) => [c.display_name, c.id]));
+    const want = new Map(Object.entries(HOST_PLAN.casts).map(([n, v]) => [idOfName[n], Math.round(v.sub * HOST_PLAN.ratio)]));
+    const got = new Map([...want.keys()].map((k) => [k, 0]));
+    const shin = idOfName["シン"], leo = idOfName["レオ"];
+    const pool = [];
+    for (const c of allChecks) {
+      const g = grossOf(c);
+      if (c.noms.length === 1 && !c.fv) pool.push(c);
+      else for (const n of c.noms) if (n.kind !== "free") got.set(n.cast_id, (got.get(n.cast_id) ?? 0) + g / c.noms.filter((x) => x.kind !== "free").length);
+    }
+    const moveTo = (c, to) => {
+      const from = c.noms[0].cast_id; if (from === to) return;
+      c.noms[0] = { ...c.noms[0], cast_id: to };
+      for (const l of c.lines) if (l.cast_id === from && !(l.kind === "drink" && l.back)) l.cast_id = to;
+      const b = c.backs[from]; if (b && (b.champ || b.bottle)) { const nb = (c.backs[to] ??= { drink: 0, champ: 0, bottle: 0, base: 0, pt: 0 }); nb.champ += b.champ; nb.bottle += b.bottle; nb.pt += b.pt; b.champ = 0; b.bottle = 0; b.pt = 0; if (!b.drink) delete c.backs[from]; }
+    };
+    const deficit = (id) => (want.get(id) ?? 0) - (got.get(id) ?? 0);
+    pool.sort((x, y) => grossOf(y) - grossOf(x));
+    // 先に場内の伝票でシンの目標を埋める（小さい伝票から＝境から離す）
+    for (const c of pool.filter((x) => x.noms[0].kind === "jonai").sort((x, y) => grossOf(x) - grossOf(y))) { if (deficit(shin) < grossOf(c) * 0.5) break; moveTo(c, shin); c.$hostDone = true; got.set(shin, got.get(shin) + grossOf(c)); }
+    for (const c of pool) {
+      if (c.$hostDone) continue;
+      const cands = [...want.keys()].filter((id) => id !== shin);
+      const best = cands.reduce((a, b) => (deficit(b) > deficit(a) ? b : a));
+      const to = deficit(best) >= grossOf(c) * 0.5 ? best : leo; // 半分も入らない伝票はレオへ（小さい人を境の上へ押し上げない）
+      moveTo(c, to); got.set(to, got.get(to) + grossOf(c));
+    }
+    report.hostSales = Object.fromEntries([...want.keys()].map((id) => [nameOf[id], { wantDue: want.get(id), gotDue: Math.round(got.get(id)), estSub: Math.round(got.get(id) / HOST_PLAN.ratio) }]));
   }
   const perDayResult = [];
   for (const day of days) {
@@ -548,6 +612,9 @@ for (const st of STORES) {
       push("punches", { id: uid(`punch:${r.person_id}:${dNum}:in`), store_id: storeId, cast_id: c.id, punched_at: M(dNum, hms(sIn)), type: "in", lat: null, lng: null, ip: null, within_geofence: null, source: "self", note: null, created_at: M(dNum, hms(sIn)), okuri: null });
       push("punches", { id: uid(`punch:${r.person_id}:${dNum}:out`), store_id: storeId, cast_id: c.id, punched_at: M(dNum, hms(sOut)), type: "out", lat: null, lng: null, ip: null, within_geofence: null, source: "self", note: null, created_at: M(dNum, hms(sOut)), okuri: null });
     } }
+  // ★2026-11-18 夜（相談役 ④）: レオの幹部手当＝出勤ボーナスの表（宛先レオだけ・理由「幹部手当」）に先月 1 件＝レオが出勤した先月の最初の日（精算調整は控除だけ＝加算の口が無い）
+  if (code === "host") { const leo = Object.values(CAST).find((c) => c.display_name === HOST_ALLOWANCE.cast); const d0 = (T.attendance ?? []).filter((r) => r.cast_id === leo.id && r.date?.$m === -1).map((r) => r.date.d).sort((x, y) => x - y)[0] ?? 1;
+    push("attendance_incentives", { id: uid(`inc:${code}:allowance`), store_id: storeId, biz_date: M(d0), kind: "bonus", amount_mode: "per_head", amount: HOST_ALLOWANCE.amount, status: "published", created_by: users.owner, created_at: M(d0, "12:00:00"), cancelled_by: null, cancelled_at: null, reason: HOST_ALLOWANCE.reason, target_cast_ids: [leo.id] }); }
   // 在庫（開始＝先月 1 日の前日・入荷＝15 日）
   for (const r of invT) { push("stock_logs", { id: uid(`stock:${r.product_id}:open`), store_id: storeId, product_id: uid(`prod:${r.product_id}`), delta: r.opening_units, reason: "入荷", by_user_id: users.manager, at: { $m: -1, d: 1, t: "12:00:00" } });
     if (r.received_units_target) push("stock_logs", { id: uid(`stock:${r.product_id}:recv`), store_id: storeId, product_id: uid(`prod:${r.product_id}`), delta: r.received_units_target, reason: "入荷", by_user_id: users.manager, at: { $m: -1, d: 15, t: "12:00:00" } }); }

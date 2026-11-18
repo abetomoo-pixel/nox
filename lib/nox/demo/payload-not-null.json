@@ -1,6 +1,6 @@
 {
  "note": "本番の information_schema.columns（is_nullable='NO'）から生成＝docs/tmp/gen_notnull_1118.mjs。reset の前の確かめ（payload-check.ts）が使う。表や列が増えたら作り直す",
- "at": "2026-11-18 13:22:30.580505",
+ "at": "2026-11-18 18:35:10.993062",
  "tables": {
   "advances": [
    "id",
@@ -38,6 +38,18 @@
    "source",
    "created_at",
    "updated_at"
+  ],
+  "attendance_incentives": [
+   "id",
+   "org_id",
+   "store_id",
+   "biz_date",
+   "kind",
+   "amount_mode",
+   "amount",
+   "status",
+   "created_by",
+   "created_at"
   ],
   "bottle_keeps": [
    "id",
@@ -230,6 +242,17 @@
    "reservation_back_tiers",
    "back_rate_tiers",
    "advance_loan_agreed"
+  ],
+  "custom_back_defs": [
+   "id",
+   "org_id",
+   "store_id",
+   "name",
+   "basis",
+   "value",
+   "is_active",
+   "created_at",
+   "updated_at"
   ],
   "customers": [
    "id",

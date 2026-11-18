@@ -35,6 +35,62 @@
   "pin": "0283",
   "hash": "$2a$06$5odf7/vqUJTxJ0fq/SYfn.tHhkHUpOvgCk179A32bMjyD8LfH9Crm"
  },
+ "host:アキラ": {
+  "pin": "6147",
+  "hash": "$2a$06$yA9W79nsYRyEwNskjpR6yOWxYjsOiQMsrcuci7g/5trLh.L2JpqYG"
+ },
+ "host:カイト": {
+  "pin": "1734",
+  "hash": "$2a$06$uZ4VD8xdJ4LPEI1tGtxY2u1IhYb2w6rfBKlDdA3x3wV2LQjFLht6e"
+ },
+ "host:シン": {
+  "pin": "4031",
+  "hash": "$2a$06$ZwRTJo7WCPC9Ehg3X04pzumxe.XbTB3k7z1vvpapTXMBKbM68pRSO"
+ },
+ "host:ジン": {
+  "pin": "3868",
+  "hash": "$2a$06$dNfAo0SFRrTu3mDjYNamruLC8BnNr0VrLMkjueD8WGiA9aUUdRioG"
+ },
+ "host:ソウマ": {
+  "pin": "9516",
+  "hash": "$2a$06$w9QkGyL78SI/ePgcM7UYEOjdWxy7eBVFZ0sN1JWrBU/TWcO7I9INi"
+ },
+ "host:デモ 店長": {
+  "pin": "9050",
+  "hash": "$2a$06$iYwG.9aIYrlccrt8uIoN8O6x4xuCg6eZRZzA8.iBE5z4GNTszbH3m"
+ },
+ "host:ハヤト": {
+  "pin": "4834",
+  "hash": "$2a$06$x1YIn0vmf0GsUgnMvIZzBOCM89dH0DtrVGwkpfnGo49N0zemFszCK"
+ },
+ "host:ハル": {
+  "pin": "8271",
+  "hash": "$2a$06$AtjRQXHo0oDqmZwCosqEqePBBefHaHzQBuK69bZxlG5xph2BOLuoy"
+ },
+ "host:ミナト": {
+  "pin": "9436",
+  "hash": "$2a$06$nhXqH1buuYLm/JlGPv9JMOdWT2RDpoHLYBeFFexuoj2GCwPF/Yuau"
+ },
+ "host:ユウキ": {
+  "pin": "5904",
+  "hash": "$2a$06$LuWTAOSLa4S2A1qU6Tq/reL8btCKaUsfHtYD69Zl5zctyWY4YTcyu"
+ },
+ "host:リョウ": {
+  "pin": "5752",
+  "hash": "$2a$06$h033Z0XKC68NhFKNZus82eU5xPtpMTsD7IbGh2zyoVB19Eo/T../y"
+ },
+ "host:ルイ": {
+  "pin": "5978",
+  "hash": "$2a$06$vyVTT7f94IIbu/pQwfb.HO07It4DZTzmp6XjfBDfLBNgAbkP4RFjW"
+ },
+ "host:レオ": {
+  "pin": "7971",
+  "hash": "$2a$06$8.wPZpGI2dKMh4dziEvY7.q3/IQk2qdFT5.lRmJcmEM4PiceEW.yi"
+ },
+ "host:加藤": {
+  "pin": "2065",
+  "hash": "$2a$06$WjRxDBEh4UuFBAyHjsCsxe9KNGz28WKctXF5aY1c0iW4Pko/HT0pe"
+ },
  "lily:こはる": {
   "pin": "8836",
   "hash": "$2a$06$WWoYyeaKKV4QXJtX2yGhy.cStfeBCkuF2RyOx48C4yztt3Oz1ZPhW"

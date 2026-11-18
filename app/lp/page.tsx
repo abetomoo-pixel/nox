@@ -5,6 +5,7 @@ import Link from "next/link";
 import { COMPANY_NAME, SUPPORT_EMAIL, TOKUSHOHO_HREF, TOKUSHOHO_TITLE } from "@/lib/nox/legal/tokushoho"; // ★2026-11-10: 事業者＝株式会社レクソル・特定商取引法の表示
 import { DEMO_TERMS } from "@/lib/nox/demo/terms"; // ★正本（"use client" の demo-terms.tsx から値は読めない）
 import { DEMO_RESET_TIME_JA, DEMO_STORES, DEMO_STORE_LABEL, type DemoStore } from "@/lib/nox/demo/seed";
+import { demoStoresShownOf, parseDemoUsers } from "@/lib/nox/demo/session"; // ★2026-11-18 夜（相談役 ④）: env DEMO_USERS に鍵のある店だけ（ホストは env が入るまで出さない）
 import { InquiryForm, ScreenZoom } from "@/components/nox/lp-v4-client";
 import "./lp-v4.css";
 
@@ -22,7 +23,7 @@ export const metadata: Metadata = {
 };
 export const dynamic = "force-static";
 
-const LP_ORDER: readonly DemoStore[] = ["ace", "luna", "noir", "muse", "nest", "lily"];
+const LP_ORDER: readonly DemoStore[] = ["ace", "luna", "noir", "muse", "nest", "lily", "host"]; // ★Y2c: 7 店目＝ホスト
 type StoreCopy = { kind: string; catch: string; sub: string; tag: string; detail: string };
 const LP_STORE_COPY: Record<DemoStore, StoreCopy> = {
   ace:  { kind: "高単価のキャバクラ", catch: "売上に合わせて、時給も上がる。", sub: "月の売上で3段階の時給スライド。", tag: "売上スライド／月ごと", detail: "本指名・場内・同伴、商品別バック。売上・指名のノルマ。送りは実費。" },
@@ -30,9 +31,10 @@ const LP_STORE_COPY: Record<DemoStore, StoreCopy> = {
   noir: { kind: "ランク制のラウンジ", catch: "ポイントを、時給につなげる。", sub: "S・Aランクを対象に、月のポイントの段で判定。", tag: "ポイント制／月ごと" /* ★2026-11-18（Agoora の決定＝NOIR はポイントスライドの店）: 旧「本指名件数で判定」は今の NOIR（pt の段 60／120／200）と合っていなかった */, detail: "商品ポイント・指名バック。指名のノルマ。送りなし。" },
   muse: { kind: "スナック" /* ★2026-11-18（相談役 B）: 業態を店名に */, catch: "指名の切り替えにも、柔軟に。", sub: "場内から本指名へ。ドリンクの扱いも選択。", tag: "売上＋ポイント／月ごと", detail: "売上歩合。出勤日数・同伴・売上・指名のノルマ。送りは実費。" },
   nest: { kind: "バー" /* ★2026-11-18（相談役 B） */, catch: "休み希望から、シフトを組む。", sub: "キャストが希望を提出し、店長が配置。", tag: "固定時給／休み希望", detail: "期限付きの保証時給。ノルマなし。送りは定額。" },
+  host: { kind: "ホストクラブ", catch: "指名もヘルプも、一枚の伝票で。", sub: "本指名・場内・同伴のバックとヘルプのドリンク。", tag: "歩合とバック／月ごと", detail: "お客様の売掛だけを管理。計上は締めた伝票。" }, // ★Y2c（2026-11-17 夜）
   lily: { kind: "ガールズバー", catch: "確定シフトで、給与を確認。", sub: "雇用キャストの時給と日払いを管理。", tag: "固定時給／日払い", detail: "達成ボーナス。出勤日数のノルマ。送りは店負担。" },
 };
-const STORES = LP_ORDER.map((s, i) => ({ key: s, no: String(i + 1).padStart(2, "0"), label: DEMO_STORE_LABEL[s].name, ...LP_STORE_COPY[s] }));
+const STORES = demoStoresShownOf(LP_ORDER, parseDemoUsers(process.env.DEMO_USERS)).map((s, i) => ({ key: s, no: String(i + 1).padStart(2, "0"), label: DEMO_STORE_LABEL[s].name, ...LP_STORE_COPY[s] }));
 
 const WORKFLOW = [
   { no: "01 — Operation", h: "日々の営業を、スムーズに。", p: ["シフトと出退勤、レジ、顧客台帳。", "現場で使う情報をまとめて管理。"], small: "指名・同伴 / ドリンクバック / ボトルキープ" },

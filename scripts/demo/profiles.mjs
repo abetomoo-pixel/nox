@@ -5,6 +5,12 @@ import { RULES_0175_APPLIED, OKURI_4WAY_APPLIED } from "./rules-0175-flag.mjs"; 
 //   軸: template（331 の 5 種・キャバクラは LUNA／ACE の 2 店で規模違い）／sys（報酬制度の ON/OFF）／back（率％型 3 店・4 段階型 3 店）／price（価格帯の札）／
 //       basis（勤務時間の計算基準）／okuri（送りの基本額 0＝なし）／receivable（売掛）／reopen（締め解除フロー）／confirm（キャスト確認）／shift（必要人数と充足・不足の型）。
 export const PROFILES = {
+  // ★2026-11-17 夜（相談役 Y2c・host_gap_1117.md ② の A と B）: 7 店目＝ホストクラブ（架空 CLUB VESPER）。夜 1 部・12 名・業態は今の選択肢のキャバクラ（ホストの業態は mig が要る＝set_store_profile の biz_type）
+  host: { template: "cabaret", nominations: true, scale: "中（キャスト 12・夜 1 部・初回 60 分 1,500 円）", sys: { hourly: true, backs: true, norms: false, bonus: false, points: false, sales_slide: false, point_slide: false },
+    back: "unit4", u4: { hon: 0, jonai: 0, dohan: 0, free: 0 }, u4cast: { hon: 200, jonai: 200, dohan: 200, free: 200 }, price: "初回 60 分 1,500 円・セット 7,000・延長 3,000・本指名 3,000・場内 2,000・TC 4,000・サ 30%",
+    basis: "punch", okuri: 0, okuriMode: null, receivable: "customer_only" /* ★2026-11-18 夜: Y2c の "customer" は stores の CHECK に無い（初回の reset の load で発覚） */, reopen: false, confirm: false, normAxes: [], employment: "委託", dailyPay: false, wishMode: "shift",
+    showcase: "ホスト＝本指名 1,000・場内 500・同伴 2,000・ドリンク 200（ヘルプにも）・売掛はお客様の売掛だけ・計上は締めた伝票",
+    shift: { base: 8, fri_sat: 10, fill: "full", pattern: [8, 8, 8, 8, 10, 10, 8] } },
   muse: { template: "cabaret", attributeServing: true, nominations: true, scale: "小（キャスト 5・月 281 伝票・客単価 1.1 万）", sys: { hourly: true, backs: true, norms: true, bonus: false, points: false, sales_slide: true, point_slide: false, /* ★便 X13-H H-7（裁定412・348 追補）: MUSE は売上軸（pt のデモは NOIR） */ sales_rate: true }, // ★348 追補2（便 N1014 B-1／B-4）: 業態キャバクラ・指名 ON（源泉が指名なしのため gen-demo が本指名／場内／同伴を注入＝併用と売上歩合が 9 月で発火） // ★裁定348: 併用（売上段＋pt 段）＋売上歩合（商品バック plan_rate 10%）＋ノルマ 4 軸＋送り実費
     back: "rate", rate: { cast: 30, champ: 20, bottle: 15, glass: 15, soft: 10, food: 10 }, price: "低（セット 5,500・指名なし・シャンパン 8,800〜16,500）",
     basis: "punch", okuri: 1000, okuriMode: "actual", receivable: "disabled", reopen: false, confirm: false, normAxes: ["days", "dohan", "sales", "shimei"], employment: "委託", dailyPay: false, wishMode: "shift",
@@ -69,13 +75,23 @@ export const TRIAL = {
   ace: { base: 2200, gua: 3200, from: 0, to: 2, cast: "るな", guaFromMonthStart: true, guaToRel: -2 }, // ★便 PR-1 R-3（裁定416）: 保証＝当月 1 日〜R−2（開始日を明示）・R−1 以降は基本 2,200＝10 月の支給が 2 行（保証／基本）
   lily: { base: 1300, gua: 1800, from: 0, to: 2, cast: "ゆな" },
   nest: { base: 1200, gua: 1800, from: -5, to: -3, cast: "レン" },
+  host: { base: 0, gua: 1500, from: 0, to: 2, cast: null }, // ★Y2c: ホストの体験入店のプランだけ置く／★2026-11-18 夜（相談役 ④）: 体入のキャストは置かない（12 名の役割が決まっている＝ハルは 50 万台の段）
 };
 /** ★便 P173（ex_plan M173-2）: スタッフの器（0172）を live で見せる店＝staff 2 名（雇用＝staff の membership・委託＝manager の membership。users は 4 固定＝memberships の 1 ユーザー 1 アクティブ）＋7 日の打刻。他 4 店は無し */
 export const STAFF_DEMO = { muse: { employee: 1300, contractor: 2000 }, luna: { employee: 1400, contractor: 2200 },
-  /* ★便 X13-H H-12 ④: 他 4 店＝店長は月給（雇用・時給 0＋月額）・スタッフは時給（アルバイト） */ noir: { parttime: 1500, monthly: 320000 }, ace: { parttime: 1400, monthly: 300000 }, lily: { parttime: 1200, monthly: 260000 }, nest: { parttime: 1200, monthly: 250000 } };
+  /* ★便 X13-H H-12 ④: 他 4 店＝店長は月給（雇用・時給 0＋月額）・スタッフは時給（アルバイト） */ noir: { parttime: 1500, monthly: 320000 }, ace: { parttime: 1400, monthly: 300000 }, lily: { parttime: 1200, monthly: 260000 }, nest: { parttime: 1200, monthly: 250000 }, host: { parttime: 1300, monthly: 300000 } /* ★Y2c */ };
 /** ★2026-11-17 夜（相談役 Y2b）: CLUB LUNA＝報酬率スライドのデモ。キャストを 7→15 に（源泉の LUNA のキャストを写す＝勤務時間・売上・指名の目標に倍率・写真は写し元と同じ＝reset の後の hook で複写）。
  *  写し元に体入（まい）と代表（みさき）は使わない。名前は他の LUNA のキャストと重ならない */
 export const EXTRA_CASTS = {
+  // ★Y2c: ホスト 12 名＝源泉（LUNA の写し）7 名＋5 名（名前は HOST_CAST_NAMES で付け替え）
+  //   ★2026-11-18 夜（相談役 ④）: id を HOST-CAST-001〜012 にそろえる（写真＝NEST-CAST-001〜012 の写し・006〜012 がレオ〜ジン）。売上は HOST_PLAN で決める（scale は目標の写しにだけ効く）
+  host: [
+    { id: "HOST-CAST-008", name: "ミナト", from: "HOST-CAST-006", scale: 1 },
+    { id: "HOST-CAST-009", name: "ソウマ", from: "HOST-CAST-006", scale: 1 },
+    { id: "HOST-CAST-010", name: "ハル", from: "HOST-CAST-007", scale: 1 },
+    { id: "HOST-CAST-011", name: "ルイ", from: "HOST-CAST-007", scale: 1 },
+    { id: "HOST-CAST-012", name: "ジン", from: "HOST-CAST-007", scale: 1 },
+  ],
   luna: [
     { id: "LUNA-CAST-101", name: "ひまり", from: "LUNA-CAST-003", scale: 0.7 },
     { id: "LUNA-CAST-102", name: "つばさ", from: "LUNA-CAST-004", scale: 0.8 },
@@ -104,20 +120,60 @@ export const PAY_RATE_DEMO = {
 };
 /** ★2026-11-17 夜（相談役 Y2d）: 会計の丸め＝業態で決める（クラブ系＝キャバクラ・ラウンジ・クラブ・ホストは 1,000 円／スナック・ガールズバー・バーは 100 円・どちらも切り上げ）。
  *  業態は payload の stores.settings_json.biz_type（MUSE は店名 SNACK だが業態はキャバクラ＝裁定 N1014 B-4）。器は既存（stores.round_unit／round_mode を伝票に写す・check-calc roundAmount）＝計算の式は不変 */
-export const BIZ_TYPE_OF = { muse: "snack", luna: "cabaret", noir: "lounge", ace: "cabaret", lily: "girlsbar", nest: "bar" }; // ★2026-11-18（相談役 B）: デモの業態を店名に合わせる（MUSE＝スナック・NEST＝バー）。業態を読むのは初期設定の最初の選択と保存の検査だけ（デモの店は setup_done＝true＝影響なし）
+export const BIZ_TYPE_OF = { muse: "snack", luna: "cabaret", noir: "lounge", ace: "cabaret", lily: "girlsbar", nest: "bar", host: "host" /* ★2026-11-18 夜（相談役 ④）: 0201o（11/18 手貼り）で業態 'host' が入った */ }; // ★2026-11-18（相談役 B）: デモの業態を店名に合わせる（MUSE＝スナック・NEST＝バー）。業態を読むのは初期設定の最初の選択と保存の検査だけ（デモの店は setup_done＝true＝影響なし）
 /** ★2026-11-18（相談役 B）: 丸めの単位は店ごとに種で決める（業態から導かない）＝MUSE・LILY・NEST 100 円／LUNA・NOIR・ACE 1,000 円・どれも切り上げ */
-export const ROUND_UNIT_OF = { muse: 100, luna: 1000, noir: 1000, ace: 1000, lily: 100, nest: 100 };
+export const ROUND_UNIT_OF = { muse: 100, luna: 1000, noir: 1000, ace: 1000, lily: 100, nest: 100, host: 1000 /* ★Y2c */ };
 export function billRoundOf(code) { return { round_unit: ROUND_UNIT_OF[code] ?? 1, round_mode: "up" }; }
 /** ★2026-11-18（相談役 B）: 月の売上の目標＝丸めを入れた後の実績に合わせ直した値（payload の store_sales_targets と検査 dp(2-3) ±1% の基準）。源泉の値は SRC_MONTH_GROSS に控える */
 export const SRC_MONTH_GROSS = { muse: 3180000, luna: 7860000, noir: 13680000, ace: 9240000, lily: 5720000, nest: 4060000 };
-export const MONTH_GROSS_TARGET = { muse: 3175700, luna: 7857000, noir: 13678000, ace: 9505000, lily: 5711200, nest: 4053500 }; // 丸めた後の月の実績（2026-11-18 の生成・_report.json monthGross）
-export const ADVANCES = { muse: 50000, luna: 30000, noir: 30000, ace: 30000, lily: 30000, nest: 30000 };
+export const MONTH_GROSS_TARGET = { muse: 3175700, luna: 7857000, noir: 13678000, ace: 9505000, lily: 5711200, nest: 4053500, host: 22339000 /* ★2026-11-18 夜（相談役 ④）: ホスト＝LUNA の写し × 2.85 の丸めた後の実績 */ }; // 丸めた後の月の実績（2026-11-18 の生成・_report.json monthGross）
+/** ★Y2c: ホストの源泉＝LUNA の源泉を写す（店・人・料金・プラン・伝票の目標など）。名前と料金とバックはここで上書き */
+export const HOST_SOURCE = { from: "DEMO-CAB-01", storeId: "DEMO-HOST", code: "HOST", name: "CLUB VESPER", service_bps: 3000,
+  // ★2026-11-18 夜（相談役 ④）: 写真の番号（HOST-CAST-NNN.jpg＝NEST-CAST-NNN.jpg の写し）に合わせる＝001〜005＝ユウキ・カイト・ハヤト・リョウ・シン（NEST の元の写真）／006〜012＝レオ〜ジン（11/18 に Agoora が足した写真）
+  castNames: { "HOST-CAST-001": "ユウキ", "HOST-CAST-002": "カイト", "HOST-CAST-003": "ハヤト", "HOST-CAST-004": "リョウ", "HOST-CAST-005": "シン", "HOST-CAST-006": "レオ", "HOST-CAST-007": "アキラ" },
+  staffNames: { "HOST-STAFF-001": "加藤", "HOST-STAFF-002": "佐々木" },
+  // 料金（host_gap ②）：初回 60 分 1,500 円＝セットのカテゴリ「初回」1,049 円（＋サ 30%・税 10%＝1,500）／通常 セット 7,000・延長 3,000（30 分）・本指名 3,000・場内 2,000・テーブルチャージ 4,000
+  set: { regular: 7000, minutes: 60, ext: 3000, extMinutes: 30, first: 1049 }, nomination: { hon: 3000, jonai: 2000, dohan: 0 }, tableCharge: 4000,
+  plan: { name: "VESPER Standard", base: 0, hon: 1000, jonai: 500, dohan: 2000 },
+  grossScale: 2.85 /* ★2026-11-18 夜（相談役 ④）: LUNA の写しの売上の目標（日・月・ヘッダ）を 2.85 倍＝本指名の伝票で人ごとの段（小計 30〜380 万）をまかなう */ };
+/** ★2026-11-18 夜（相談役 ④）: ホストの人ごとの先月の売上（小計＝税・サ料の前）の目標と、指名・ヘルプの数。生成器が本指名（場内）の伝票を人ごとの目標へ割り振る（段の境から離す）。
+ *  レオ＝No.1・幹部（最上位の段＋幹部手当）／アキラ 300 万以上 65%／ミナト 200 万台 60%／ソウマ 100 万台 55%／ハル 50 万台 50%／ルイ 30 万台 45%／ジン・ユウキ 30 万未満 40%／
+ *  カイト・ハヤト・リョウ＝新人（最低保証 16 万）／シン＝ヘルプ中心（場内の小計 20 万 × 40%＝8 万＋ドリンク 200 円 × 50＝1 万）。ほかの人もヘルプのドリンクを少し。 */
+export const HOST_PLAN = {
+  ratio: 1.43, // 小計 → 請求額（サ 30%・税 10%）の目安
+  casts: {
+    レオ: { sub: 3800000, hon: 105, dohan: 8, drinks: 10 }, アキラ: { sub: 3300000, hon: 92, dohan: 7, drinks: 10 }, ミナト: { sub: 2500000, hon: 70, dohan: 5, drinks: 12 },
+    ソウマ: { sub: 1500000, hon: 45, dohan: 3, drinks: 12 }, ハル: { sub: 750000, hon: 25, dohan: 2, drinks: 14 }, ルイ: { sub: 400000, hon: 15, dohan: 1, drinks: 14 },
+    ジン: { sub: 220000, hon: 10, dohan: 0, drinks: 12 }, ユウキ: { sub: 180000, hon: 9, dohan: 0, drinks: 12 }, カイト: { sub: 100000, hon: 6, dohan: 0, drinks: 8 },
+    ハヤト: { sub: 80000, hon: 5, dohan: 0, drinks: 8 }, リョウ: { sub: 60000, hon: 4, dohan: 0, drinks: 8 }, シン: { sub: 200000, jonai: 14, drinks: 50, jonaiOnly: true },
+  },
+};
+/** ★2026-11-18 夜（相談役 ④）: 売上歩合の段（小計の 40〜65%・境 30／50／100／200／300 万）。
+ *  basis＝'due'（今）：判定は請求額＝境 × 1.43・率 ÷ 1.43（custom_back_defs.value は integer＝小数の率は入らない→累積の率を整数に寄せる＝小計で 40.0／44.3／50.1／54.3／60.1／64.4% 相当）。
+ *  basis＝'subtotal'（③＝collect が sales_basis を読む便が出た後）：判定と率を小計のまま（境 30〜300 万・率 40〜65%）＋店の鍵 sales_basis＝'subtotal'・sales_back_default_off＝true。★切り替えはこの 1 か所（HOST_COMMISSION_BASIS）。 */
+export const HOST_COMMISSION_BASIS = "due";
+export const HOST_TIERS = [{ at: 0, pct: 40 }, { at: 300000, pct: 45 }, { at: 500000, pct: 50 }, { at: 1000000, pct: 55 }, { at: 2000000, pct: 60 }, { at: 3000000, pct: 65 }];
+export function hostCommissionDefsOf(basis = HOST_COMMISSION_BASIS, ratio = HOST_PLAN.ratio) {
+  const cum = HOST_TIERS.map((t) => (basis === "subtotal" ? t.pct : Math.round(t.pct / ratio)));
+  const man = (y) => `${y / 10000} 万円`;
+  return HOST_TIERS.map((t, i) => ({
+    key: `tier${i}`,
+    name: i === 0 ? `売上歩合（小計の ${t.pct}% 相当）` : `売上歩合の加算（小計 ${man(t.at)}〜・小計の ${t.pct - HOST_TIERS[i - 1].pct}% 相当）`,
+    basis: "sales", value: i === 0 ? cum[0] : cum[i] - cum[i - 1],
+    cond: i === 0 ? null : { metric: "sales", min: basis === "subtotal" ? t.at : Math.round(t.at * ratio) },
+  }));
+}
+export const hostStoreSettingsOf = (basis = HOST_COMMISSION_BASIS) => (basis === "subtotal" ? { sales_basis: "subtotal", sales_back_default_off: true } : {});
+/** ★2026-11-18 夜（相談役 ④）: レオの幹部手当＝精算調整は控除だけ（加算の口が無い）→ 出勤ボーナスの表（attendance_incentives・宛先をレオだけ・理由「幹部手当」）で先月に 1 件 */
+export const HOST_ALLOWANCE = { cast: "レオ", amount: 50000, reason: "幹部手当（役職手当・月額）" };
+export const ADVANCES = { host: 0, muse: 50000, luna: 30000, noir: 30000, ace: 30000, lily: 30000, nest: 30000 };
 export const EXTRA_PLANS = {
   muse: [{ key: "senior", name: "MUSE Senior", base: 2000, hon: 500, jonai: 300, dohan: 300 }],
   luna: [{ key: "premium", name: "LUNA Premium", base: 3500, hon: 1000, jonai: 500, dohan: 500 }, { key: "rookie", name: "LUNA 新人", base: 2500, hon: 500, jonai: 300, dohan: 300 }],
   noir: [], ace: [],
   lily: [{ key: "senior", name: "LILY Senior", base: 2200, hon: 300, jonai: 200, dohan: 200 }],
   nest: [{ key: "senior", name: "NEST Senior", base: 1800, hon: 300, jonai: 200, dohan: 200 }],
+  host: [{ key: "rookie", name: "VESPER 新人", base: 0, hon: 1000, jonai: 500, dohan: 2000, guaranteeMin: 160000, casts: ["カイト", "ハヤト", "リョウ"] }], // ★2026-11-18（相談役 F）: 新人 3 人＝最低保証 160,000 円（8,000 円 × 20 日・月の総支給の床＝バック込みで比べる）／★夜（相談役 ④）: 新人＝カイト・ハヤト・リョウ（シンはヘルプ中心）
 };
 /** sys_* 9 キー（stores.settings_json）＝PROFILES.sys から。penalties は全店 false（裁定348: sales_rate は MUSE・point_slide は NOIR／MUSE） */
 export function sysSettingsOf(code) {

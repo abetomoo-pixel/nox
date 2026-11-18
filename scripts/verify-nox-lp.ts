@@ -28,8 +28,8 @@ const src = (p: string) => fs.readFileSync(p, "utf8");
     lp.includes('{ dev: "PC / iPad", name: "管理者", body: "待遇・設定から給与、分析、月報まで。店全体を把握。" }') && !/オーナー/.test(lp) && (lp.match(/name: "/g) ?? []).length === 4
     && lp.includes("伝票の1杯から、<br />月末の給与まで。") && lp.includes("営業から締めまで、<br />つながる店舗管理。") && (lp.match(/no: "0[1-4] \//g) ?? []).length === 4 && (lp.match(/\["[^"]+？", \[/g) ?? []).length === 5
     && lp.includes("const LP_PRICE_MONTHLY = 29800;") && lp.includes("<b>円／月（税込）</b>") && lp.includes("年払いの割引もあります"));
-  check("lp(1-v4-3) 6 店カード＝LP_ORDER（ace,luna,noir,muse,nest,lily＝DEMO_STORES と同じ集合）・「店長でログイン」「キャストでログイン」＝/demo?store=<key>&role=manager|cast・帯＝DEMO_RESET_TIME_JA・条文＝DEMO_TERMS（二重化しない）",
-    (() => { const m = /const LP_ORDER: readonly DemoStore\[\] = \[([^\]]+)\];/.exec(lp); const order = m ? m[1].split(",").map((x) => x.trim().replace(/"/g, "")) : []; return order.join(",") === "ace,luna,noir,muse,nest,lily" && [...order].sort().join(",") === [...DEMO_STORES].sort().join(","); })()
+  check("lp(1-v4-3) 7 店カード（★Y2c 2026-11-17 夜: ホストを足した）＝LP_ORDER（ace,luna,noir,muse,nest,lily,host＝DEMO_STORES と同じ集合）・「店長でログイン」「キャストでログイン」＝/demo?store=<key>&role=manager|cast・帯＝DEMO_RESET_TIME_JA・条文＝DEMO_TERMS（二重化しない）",
+    (() => { const m = /const LP_ORDER: readonly DemoStore\[\] = \[([^\]]+)\];/.exec(lp); const order = m ? m[1].split(",").map((x) => x.trim().replace(/"/g, "")) : []; return order.join(",") === "ace,luna,noir,muse,nest,lily,host" && [...order].sort().join(",") === [...DEMO_STORES].sort().join(","); })()
     && lp.includes("href={`/demo?store=${s.key}&role=manager`}>店長でログイン") && lp.includes("href={`/demo?store=${s.key}&role=cast`}>キャストでログイン") && lp.includes("デモは{DEMO_RESET_TIME_JA}に初期化。") && !/毎日 06:05/.test(lp)
     && lp.includes("{DEMO_TERMS.map((s) => <li key={s}>{s}</li>)}") && lp.includes('import { DEMO_TERMS } from "@/lib/nox/demo/terms";'));
   check("lp(1-v4-4) 画面 4 枚＝public/lp/v4（register／shift／cast／payroll）＋hero.jpg・拡大＝dialog（client）・問い合わせ＝プレビュー（送信しない＝fetch／mailto なし・確認→完了の 2 画面）・page は force-static・noindex・use client なし（page）",
@@ -82,7 +82,7 @@ if (false) {
   check("lp(2-1) demoInitialSelectionOf: 店＋役割", JSON.stringify(demoInitialSelectionOf(biz, roles, "noir", "owner")) === JSON.stringify({ store: "noir", role: "owner" }));
   check("lp(2-2) 未知の店は無視（役割も null）・未知の役割は null・null は null", JSON.stringify(demoInitialSelectionOf(biz, roles, "xxx", "owner")) === JSON.stringify({ store: null, role: null })
     && JSON.stringify(demoInitialSelectionOf(biz, roles, "ace", "boss")) === JSON.stringify({ store: "ace", role: null }) && JSON.stringify(demoInitialSelectionOf(biz, roles, null, null)) === JSON.stringify({ store: null, role: null }));
-  check("lp(2-3) demoBizOrderOf: 初期選択の店を先頭・他は元の並び・なしは元の並び", demoBizOrderOf(biz, "lily").map((b) => b.key).join(",") === "lily,muse,luna,noir,ace,nest" && demoBizOrderOf(biz, null).map((b) => b.key).join(",") === DEMO_STORES.join(","));
+  check("lp(2-3) demoBizOrderOf: 初期選択の店を先頭・他は元の並び・なしは元の並び", demoBizOrderOf(biz, "lily").map((b) => b.key).join(",") === "lily,muse,luna,noir,ace,nest,host" /* ★Y2c: 7 店 */ && demoBizOrderOf(biz, null).map((b) => b.key).join(",") === DEMO_STORES.join(","));
   const dt = src("components/ui/demo-terms.tsx");
   check("lp(2-4) DemoEntry: useSearchParams で ?store=&role=・初期選択の店は data-initial・役割ボタンは data-picked（入場は form POST のまま・同意必須のまま）",
     dt.includes('useEffect(() => { const u = new URLSearchParams(window.location.search); setQ({ store: u.get("store"), role: u.get("role") }); }, []);') && dt.includes("demoInitialSelectionOf(biz, roles, q.store, q.role)") && !dt.includes("useSearchParams()") && dt.includes('data-initial={init.store === b.key ? "1" : undefined}') && dt.includes('data-picked={picked ? "1" : undefined}')

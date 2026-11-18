@@ -22,7 +22,7 @@ import { computePayrollDraft } from "../payroll/core";
 import { payslipsOfDraft } from "../payroll/finalize-payslips";
 import { prevPeriodOf } from "../payroll/list-periods";
 
-export const DEMO_STORES = ["muse", "luna", "noir", "ace", "lily", "nest"] as const;
+export const DEMO_STORES = ["muse", "luna", "noir", "ace", "lily", "nest", "host"] as const; // ★Y2c（2026-11-17 夜）: 7 店目＝ホスト（架空 CLUB VESPER）
 export type DemoStore = (typeof DEMO_STORES)[number];
 /** 互換名（旧 route／suite が業態キーで参照していた定数＝店コード 6 に置換） */
 export const DEMO_BIZ_TYPES = DEMO_STORES;
@@ -34,6 +34,7 @@ export const DEMO_STORE_LABEL: Record<DemoStore, { name: string; biz: string; de
   ace: { name: "CLUB ACE", biz: "キャバクラ・売上スライド", desc: "VIP 加算・売上スライド時給・売掛" },
   lily: { name: "Girls Bar LILY", biz: "ガールズバー", desc: "カウンター・チャージ・キャストショット" },
   nest: { name: "BAR NEST", biz: "バー" /* ★2026-11-18（相談役 B） */, desc: "テーブルチャージ・商品会計・スタッフバック" }, // ★348 追補2（B-4）: 業態スナック（店名は不変）
+  host: { name: "CLUB VESPER", biz: "ホストクラブ", desc: "本指名・場内・同伴・ヘルプのドリンクバック・お客様の売掛" }, // ★Y2c（2026-11-17 夜）: 業態の設定はキャバクラ（ホストの業態は mig が要る） // ★348 追補2（B-4）: 業態スナック（店名は不変）
 };
 export const DEMO_ROLES = ["owner", "manager", "staff", "cast"] as const;
 export type DemoRole = (typeof DEMO_ROLES)[number];

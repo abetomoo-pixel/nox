@@ -4,10 +4,11 @@
  *  d(2) Y2b LUNA：キャスト 15（源泉 7＋写し 8・名前は店の中で重ならない・写し元に体入と代表を使わない）・PIN は全員分・写真の写し元は profiles と seed で同じ。
  *  d(3) Y2b LUNA：体験入店以外のプランは報酬の軸＝報酬率・段は器の検査（comp_plan_pay_rate_check と同じ条件）を通る・連続 2 期・相談役の表の行の対応。
  *  d(4) Y2b：CANON の帯と規定（reset の後の hook）は MUSE の会社だけ。
+ *  d(6) Y2c：7 店目＝ホスト（CLUB VESPER）の payload（12 名・サ 30%・1,000 円切り上げ・料金・報酬・お客様の売掛）。
  *  d(5) Y2d：会計の丸め＝業態で（クラブ系＝キャバクラ・ラウンジ 1,000 円／スナック・ガールズバー 100 円・切り上げ）・伝票はみな店の丸め・締めた伝票は入金の和＝請求（売掛を含む）。
  */
 import fs from "node:fs";
-import { PROFILES, SLIDES, EXTRA_CASTS, PAY_RATE_DEMO, TRIAL, BIZ_TYPE_OF, billRoundOf, ROUND_UNIT_OF, MONTH_GROSS_TARGET } from "./demo/profiles.mjs";
+import { PROFILES, SLIDES, EXTRA_CASTS, PAY_RATE_DEMO, TRIAL, BIZ_TYPE_OF, billRoundOf, ROUND_UNIT_OF, MONTH_GROSS_TARGET, HOST_PLAN, HOST_TIERS, HOST_ALLOWANCE, HOST_COMMISSION_BASIS, hostCommissionDefsOf, hostStoreSettingsOf } from "./demo/profiles.mjs";
 import { payRateTierOf, directionOf } from "../lib/nox/rules-0175/canon";
 let pass = 0;
 const fails: string[] = [];
@@ -79,6 +80,61 @@ for (const c of Object.keys(want)) {
   check("d(7-2) 業態＝MUSE snack・NEST bar（ほかは不変）", (pay("muse").stores[0].settings_json as Record<string, unknown>).biz_type === "snack" && (pay("nest").stores[0].settings_json as Record<string, unknown>).biz_type === "bar" && (pay("noir").stores[0].settings_json as Record<string, unknown>).biz_type === "lounge");
   const bad = ["muse", "luna", "noir", "ace", "lily", "nest"].filter((c) => !(pay(c).store_sales_targets ?? []).every((r) => r.sales_target === (MONTH_GROSS_TARGET as Record<string, number>)[c]));
   check("d(7-3) 店の売上の目標（store_sales_targets）＝丸めた後の実績（MONTH_GROSS_TARGET）", bad.length === 0, bad);
+}
+
+// d(6) ホスト
+{
+  const T = pay("host"); const st = T.stores[0]; const sj = st.settings_json as Record<string, unknown>;
+  check("d(6-1) ホスト：店名 CLUB VESPER・業態ホスト（★2026-11-18 夜＝0201o で 'host'）・サ 30%・1,000 円切り上げ", st.name === "CLUB VESPER" && sj.biz_type === "host" && st.service_rate === 30 && st.round_unit === 1000 && st.round_mode === "up", [st.name, sj.biz_type, st.service_rate, st.round_unit]);
+  check("d(6-2) キャスト 12 名・名前は重ならない", T.casts.length === 12 && new Set(T.casts.map((c) => c.name)).size === 12, T.casts.map((c) => c.name));
+  const sets = T.pricing_rules.filter((r) => r.fee_kind === "set" && r.is_active), exts = T.pricing_rules.filter((r) => r.fee_kind === "extension" && r.is_active);
+  const hon = T.pricing_rules.find((r) => r.fee_kind === "hon_shimei"), jon = T.pricing_rules.find((r) => r.fee_kind === "jonai_shimei");
+  check("d(6-3) 料金：セット 7,000・延長 3,000・本指名 3,000・場内 2,000", sets.length > 0 && sets.every((r) => r.amount === 7000) && exts.every((r) => r.amount === 3000) && hon?.amount === 3000 && jon?.amount === 2000);
+  const pl = T.comp_plans.find((p) => p.name === "VESPER Standard");
+  check("d(6-4) 報酬：VESPER Standard＝時給 0・本指名 1,000・場内 500・同伴 2,000", !!pl && pl.base === 0 && pl.hon_back === 1000 && pl.jonai_back === 500 && pl.dohan_back === 2000, pl && [pl.base, pl.hon_back, pl.jonai_back, pl.dohan_back]);
+  // ★2026-11-18（相談役 F）: 新人 3 人＝プラン「VESPER 新人」・最低保証 160,000 円（8,000 円 × 20 日）
+  const rk = T.comp_plans.find((p) => p.name === "VESPER 新人"); const names = Object.fromEntries(T.casts.map((c) => [c.id, c.name]));
+  const rkCasts = rk ? T.cast_plan.filter((x) => x.plan_id === rk.id).map((x) => names[String(x.cast_id)]).sort() : [];
+  const gm = rk ? (T.comp_plan_components ?? []).filter((c) => c.plan_id === rk.id && c.kind === "guarantee_min") : [];
+  check("d(6-6) 新人 3 人（★2026-11-18 夜＝カイト・ハヤト・リョウ・シンはヘルプ中心）＝VESPER 新人・最低保証 160,000 円の部品 1 つ", !!rk && J(rkCasts) === J(["カイト", "ハヤト", "リョウ"]) && gm.length === 1 && gm[0].amount === 160000 && gm[0].mode === "amount", { rkCasts, gm: gm.map((c) => c.amount) });
+  check("d(6-5) 代表伝票は無い（LUNA の代表伝票を写していない）・6 店の payload は host を含まない", !JSON.stringify(T.checks).includes("LIVE-LUNA") && ["muse", "luna", "noir", "ace", "lily", "nest"].every((c) => pay(c).stores[0].name !== "CLUB VESPER"));
+}
+
+// d(7) ★2026-11-18 夜（相談役 ④）: ホストの中身（人ごとの段・売上歩合の段・幹部手当・シン・写真の対応・小計への切り替え）
+{
+  const T = pay("host"); const ids = JSON.parse(fs.readFileSync("docs/demo/ids.json", "utf8")) as { people: Record<string, string> };
+  const nameById = Object.fromEntries(T.casts.map((c) => [String(c.id), String(c.name)]));
+  const ORDER = ["ユウキ", "カイト", "ハヤト", "リョウ", "シン", "レオ", "アキラ", "ミナト", "ソウマ", "ハル", "ルイ", "ジン"];
+  // payload の casts.id は ids.json の uuid（org ごとの付け替えは reset の時）
+  const byPerson = ORDER.map((n, i) => { const pid = `HOST-CAST-${String(i + 1).padStart(3, "0")}`; return nameById[ids.people[pid]] ?? null; });
+  check("d(7-1) 写真の番号＝HOST-CAST-001〜005 がユウキ・カイト・ハヤト・リョウ・シン・006〜012 がレオ〜ジン（NEST-CAST-NNN の写し）", J(byPerson) === J(ORDER), byPerson);
+  const defs = (T.custom_back_defs ?? []).map((d) => ({ name: d.name, basis: d.basis, value: d.value, cond: d.cond_json }));
+  const want = hostCommissionDefsOf().map((d) => ({ name: d.name, basis: d.basis, value: d.value, cond: d.cond }));
+  check("d(7-2) 売上歩合の段＝自由設計のバック 6 行（基本 28＋3／4／3／4／3＝請求額の基準・境 × 1.43）・今は請求額の基準（店の鍵なし）", HOST_COMMISSION_BASIS === "due" && J(defs) === J(want) && J(want.map((d) => d.value)) === J([28, 3, 4, 3, 4, 3]) && J(want.slice(1).map((d) => d.cond?.min)) === J([429000, 715000, 1430000, 2860000, 4290000]) && !("sales_basis" in (T.stores[0].settings_json as Record<string, unknown>)), defs.map((d) => d.value));
+  const sub = hostCommissionDefsOf("subtotal");
+  check("d(7-3) 小計の基準への切り替え（③の後・1 か所）＝率 40／5×5・境 30〜300 万・店の鍵 sales_basis＝'subtotal'・sales_back_default_off＝true", J(sub.map((d) => d.value)) === J([40, 5, 5, 5, 5, 5]) && J(sub.slice(1).map((d) => d.cond?.min)) === J(HOST_TIERS.slice(1).map((t) => t.at)) && J(hostStoreSettingsOf("subtotal")) === J({ sales_basis: "subtotal", sales_back_default_off: true }) && J(hostStoreSettingsOf("due")) === J({}));
+  const inc = T.attendance_incentives ?? [];
+  const leo = T.casts.find((c) => c.name === "レオ");
+  check("d(7-4) レオの幹部手当＝出勤ボーナスの表に先月 1 件（宛先レオだけ・50,000 円・理由「幹部手当」）", inc.length === 1 && J(inc[0].target_cast_ids) === J([leo?.id]) && inc[0].amount === HOST_ALLOWANCE.amount && inc[0].reason === HOST_ALLOWANCE.reason && inc[0].kind === "bonus" && inc[0].amount_mode === "per_head" && (inc[0].biz_date as { $m?: number }).$m === -1, inc.map((x) => [x.amount, x.reason]));
+  // 先月の締めた伝票の請求額を指名（フリー以外）で等分＝人ごとの売上（請求額）→ 小計の目安（÷1.43）が段の真ん中（境から 5% 以上離れる）
+  const prev = T.checks.filter((c) => (c.started_at as { $m?: number }).$m === -1 && c.status === "closed");
+  const prevIds = new Set(prev.map((c) => c.id));
+  const nomsBy = new Map<string, Row[]>(); for (const n of T.check_nominations) if (prevIds.has(n.check_id) && n.nom_kind !== "free") (nomsBy.get(String(n.check_id)) ?? nomsBy.set(String(n.check_id), []).get(String(n.check_id))!).push(n);
+  const due = new Map<string, number>(); for (const c of prev) { const ns = nomsBy.get(String(c.id)) ?? []; for (const n of ns) due.set(nameById[String(n.cast_id)], (due.get(nameById[String(n.cast_id)]) ?? 0) + Number(c.total) / ns.length); }
+  const bandOf = (y: number) => [...HOST_TIERS].reverse().find((t) => y >= t.at)!;
+  const bad: string[] = [];
+  for (const [n, v] of Object.entries(HOST_PLAN.casts)) {
+    const est = (due.get(n) ?? 0) / HOST_PLAN.ratio; const b = bandOf(est); const wantB = bandOf(v.sub);
+    const next = HOST_TIERS.find((t) => t.at > est); const margin = Math.min(b.at ? (est - b.at) / b.at : 1, next ? (next.at - est) / next.at : 1);
+    if (b.pct !== wantB.pct || margin < 0.05) bad.push(`${n} 小計の目安 ${Math.round(est)}（${b.pct}%・境まで ${(margin * 100).toFixed(1)}%）`);
+  }
+  check("d(7-5) 人ごとの先月の売上（小計の目安＝請求額 ÷ 1.43）が狙いの段に入り、境から 5% 以上離れる（12 名）", bad.length === 0 && due.size >= 12, bad);
+  const shin = T.casts.find((c) => c.name === "シン"); const shinNoms = T.check_nominations.filter((n) => prevIds.has(n.check_id) && n.cast_id === shin?.id);
+  const shinDrinks = T.check_lines.filter((l) => prevIds.has(l.check_id) && l.cast_id === shin?.id && l.kind === "drink" && Number(l.back_snapshot) === 200).reduce((a, l) => a + Number(l.qty), 0);
+  check("d(7-6) シン＝場内だけ（本指名なし）・先月のキャストドリンク 50 杯（バック 200 円）", shinNoms.length > 0 && shinNoms.every((n) => n.nom_kind === "jonai") && shinDrinks === 50, { noms: shinNoms.map((n) => n.nom_kind), shinDrinks });
+  const dir = "docs/tmp/demo_photos/casts";
+  const photosOk = !fs.existsSync(dir) || Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(3, "0")).every((n) => fs.existsSync(`${dir}/HOST-CAST-${n}.jpg`) && fs.readFileSync(`${dir}/HOST-CAST-${n}.jpg`).equals(fs.readFileSync(`${dir}/NEST-CAST-${n}.jpg`)));
+  check("d(7-7) 写真 HOST-CAST-001〜012＝NEST-CAST-001〜012 の写し（元はそのまま）", photosOk);
 }
 
 if (fails.length) { console.error(`✗ verify:nox-demo1118 失敗 ${fails.length}（成功 ${pass}）`); for (const f of fails) console.error(" - " + f); process.exit(1); }

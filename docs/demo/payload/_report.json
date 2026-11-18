@@ -1042,6 +1042,238 @@
     }
    ],
    "sha256": "7d8223eb17ad2e984f65773d130d084c30176cdc29d849ffd230633af52df40d"
+  },
+  "host": {
+   "bytes": 6578076,
+   "rows": 11056,
+   "tables": 47,
+   "checks": 941,
+   "lines": 6166,
+   "monthGross": 22339000,
+   "monthTarget": 22401000,
+   "monthDiffPct": -0.28,
+   "worstDayPct": 0.4,
+   "headerDiffYen": 0,
+   "leftover": {
+    "noms": 0,
+    "bottles": 0,
+    "drinks": 0,
+    "champ": 0,
+    "ext": 0,
+    "custVisits": 0,
+    "guestsShort": 0
+   },
+   "inv": [
+    {
+     "product": "吉四六",
+     "target": 16,
+     "sold": 16
+    },
+    {
+     "product": "モエ",
+     "target": 25,
+     "sold": 25
+    },
+    {
+     "product": "ヴーヴ・クリコ",
+     "target": 13,
+     "sold": 13
+    },
+    {
+     "product": "ドン・ペリニヨン",
+     "target": 6,
+     "sold": 6
+    },
+    {
+     "product": "山崎",
+     "target": 9,
+     "sold": 9
+    }
+   ],
+   "champ": [],
+   "noms": [
+    {
+     "cast": "ユウキ",
+     "hon": [
+      8,
+      9
+     ],
+     "jonai": [
+      0,
+      0
+     ],
+     "dohan": [
+      0,
+      0
+     ]
+    },
+    {
+     "cast": "カイト",
+     "hon": [
+      5,
+      6
+     ],
+     "jonai": [
+      0,
+      0
+     ],
+     "dohan": [
+      0,
+      0
+     ]
+    },
+    {
+     "cast": "ハヤト",
+     "hon": [
+      4,
+      5
+     ],
+     "jonai": [
+      0,
+      0
+     ],
+     "dohan": [
+      0,
+      0
+     ]
+    },
+    {
+     "cast": "リョウ",
+     "hon": [
+      3,
+      4
+     ],
+     "jonai": [
+      0,
+      0
+     ],
+     "dohan": [
+      0,
+      0
+     ]
+    },
+    {
+     "cast": "シン",
+     "hon": [
+      0,
+      0
+     ],
+     "jonai": [
+      8,
+      14
+     ],
+     "dohan": [
+      0,
+      0
+     ]
+    },
+    {
+     "cast": "レオ",
+     "hon": [
+      139,
+      105
+     ],
+     "jonai": [
+      1,
+      0
+     ],
+     "dohan": [
+      12,
+      8
+     ]
+    },
+    {
+     "cast": "アキラ",
+     "hon": [
+      76,
+      92
+     ],
+     "jonai": [
+      1,
+      0
+     ],
+     "dohan": [
+      4,
+      7
+     ]
+    },
+    {
+     "cast": "ミナト",
+     "hon": [
+      61,
+      70
+     ],
+     "jonai": [
+      2,
+      0
+     ],
+     "dohan": [
+      5,
+      5
+     ]
+    },
+    {
+     "cast": "ソウマ",
+     "hon": [
+      42,
+      45
+     ],
+     "jonai": [
+      2,
+      0
+     ],
+     "dohan": [
+      2,
+      3
+     ]
+    },
+    {
+     "cast": "ハル",
+     "hon": [
+      24,
+      25
+     ],
+     "jonai": [
+      0,
+      0
+     ],
+     "dohan": [
+      2,
+      2
+     ]
+    },
+    {
+     "cast": "ルイ",
+     "hon": [
+      15,
+      15
+     ],
+     "jonai": [
+      0,
+      0
+     ],
+     "dohan": [
+      1,
+      1
+     ]
+    },
+    {
+     "cast": "ジン",
+     "hon": [
+      9,
+      10
+     ],
+     "jonai": [
+      0,
+      0
+     ],
+     "dohan": [
+      0,
+      0
+     ]
+    }
+   ],
+   "sha256": "bcf93afb81cb486318973546a170253b5c9bffce2852a34c60bdf33ff6c4984c"
   }
  },
  "ids": 0,
@@ -1051,7 +1283,8 @@
   "noir": 3224,
   "ace": 2912,
   "lily": 4708,
-  "nest": 4483
+  "nest": 4483,
+  "host": 5316
  },
  "trialDedup": {
   "muse.shifts": 1,
@@ -1069,6 +1302,68 @@
     "d": 12,
     "t": "20:16:00"
    }
+  }
+ },
+ "hostSales": {
+  "レオ": {
+   "wantDue": 5434000,
+   "gotDue": 7078000,
+   "estSub": 4949650
+  },
+  "アキラ": {
+   "wantDue": 4719000,
+   "gotDue": 4731000,
+   "estSub": 3308392
+  },
+  "ミナト": {
+   "wantDue": 3575000,
+   "gotDue": 3570000,
+   "estSub": 2496503
+  },
+  "ソウマ": {
+   "wantDue": 2145000,
+   "gotDue": 2140000,
+   "estSub": 1496503
+  },
+  "ハル": {
+   "wantDue": 1072500,
+   "gotDue": 1067000,
+   "estSub": 746154
+  },
+  "ルイ": {
+   "wantDue": 572000,
+   "gotDue": 585000,
+   "estSub": 409091
+  },
+  "ジン": {
+   "wantDue": 314600,
+   "gotDue": 309000,
+   "estSub": 216084
+  },
+  "ユウキ": {
+   "wantDue": 257400,
+   "gotDue": 269000,
+   "estSub": 188112
+  },
+  "カイト": {
+   "wantDue": 143000,
+   "gotDue": 156000,
+   "estSub": 109091
+  },
+  "ハヤト": {
+   "wantDue": 114400,
+   "gotDue": 127000,
+   "estSub": 88811
+  },
+  "リョウ": {
+   "wantDue": 85800,
+   "gotDue": 94000,
+   "estSub": 65734
+  },
+  "シン": {
+   "wantDue": 286000,
+   "gotDue": 277000,
+   "estSub": 193706
   }
  }
 }

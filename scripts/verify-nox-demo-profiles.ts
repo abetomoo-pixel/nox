@@ -18,7 +18,8 @@ function check(label: string, ok: boolean, detail?: string) { if (ok) pass++; el
 type Row = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 type Prof = Row;
 const P = PROFILES as Record<string, Prof>;
-const codes = PROFILE_CODES as string[];
+const codes = (PROFILE_CODES as string[]).filter((c) => c !== "host"); // ★Y2c（2026-11-17 夜）: 6 店の差別化の pin は 6 店のまま（7 店目のホストは dpf(9) で別に）
+check("dpf(9-1) ★Y2c 7 店目＝ホスト（キャバクラの型・指名 ON・4 段階型のキャストドリンク 200 円・ノルマなし・売掛＝お客様）", (PROFILE_CODES as string[]).length === 7 && P.host?.template === "cabaret" && P.host?.nominations === true && P.host?.back === "unit4" && P.host?.u4cast?.hon === 200 && P.host?.u4cast?.free === 200 && P.host?.sys?.norms === false && P.host?.receivable === "customer_only" /* ★2026-11-18 夜: 'customer' は stores の CHECK に無い（初回の reset で発覚） */);
 
 // (1) 表の整合
 const count = (f: (p: Prof) => boolean) => codes.filter((c) => f(P[c])).length;

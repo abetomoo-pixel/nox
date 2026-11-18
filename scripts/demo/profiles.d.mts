@@ -34,3 +34,12 @@ export function billRoundOf(code: string): { round_unit: number; round_mode: "up
 export declare const ROUND_UNIT_OF: Record<string, number>;
 export declare const SRC_MONTH_GROSS: Record<string, number>;
 export declare const MONTH_GROSS_TARGET: Record<string, number>;
+/** ★Y2c（2026-11-17 夜）: 7 店目＝ホストの源泉（LUNA の源泉を写して上書き） */
+export declare const HOST_SOURCE: { from: string; storeId: string; code: string; name: string; service_bps: number; castNames: Record<string, string>; staffNames: Record<string, string>; set: { regular: number; minutes: number; ext: number; extMinutes: number; first: number }; nomination: { hon: number; jonai: number; dohan: number }; tableCharge: number; plan: { name: string; base: number; hon: number; jonai: number; dohan: number }; grossScale: number };
+/** ★2026-11-18 夜（相談役 ④）: ホストの人ごとの目標・売上歩合の段・幹部手当 */
+export declare const HOST_PLAN: { ratio: number; casts: Record<string, { sub: number; hon?: number; dohan?: number; jonai?: number; drinks: number; jonaiOnly?: boolean }> };
+export declare const HOST_COMMISSION_BASIS: "due" | "subtotal";
+export declare const HOST_TIERS: { at: number; pct: number }[];
+export function hostCommissionDefsOf(basis?: "due" | "subtotal", ratio?: number): { key: string; name: string; basis: "sales"; value: number; cond: { metric: "sales"; min: number } | null }[];
+export function hostStoreSettingsOf(basis?: "due" | "subtotal"): Record<string, unknown>;
+export declare const HOST_ALLOWANCE: { cast: string; amount: number; reason: string };

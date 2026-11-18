@@ -21,6 +21,7 @@ export const STORES = [
   { key: "ace", org: "NOX-DEMO-ACE", label: "CLUB ACE", cast: "ひなの", staff: "小林" },
   { key: "lily", org: "NOX-DEMO-LILY", label: "Girls Bar LILY", cast: "みく", staff: "松本" },
   { key: "nest", org: "NOX-DEMO-NEST", label: "BAR NEST", cast: "ケン", staff: "中村" },
+  { key: "host", org: "NOX-DEMO-HOST", label: "CLUB VESPER", cast: "レオ", staff: "加藤" }, // ★Y2c（2026-11-17 夜）: 7 店目＝ホスト（--only=host で 1 店だけ作る）
 ];
 export const ROLES = [
   { key: "owner", name: () => "デモ オーナー" },
@@ -35,8 +36,9 @@ if (!url || !secret) { console.error("env NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SE
 const ref = (url.match(/https?:\/\/([a-z0-9]+)\./) ?? [])[1] ?? "?";
 console.log(`mode=${MODE} ref=${ref}`);
 
+const ONLY = process.argv.find((a) => a.startsWith("--only="))?.slice(7) ?? null; // ★Y2c: 店を絞る（既にある 6 社を触らない）
 const plan = [];
-for (const s of STORES) {
+for (const s of STORES.filter((x) => !ONLY || x.key === ONLY)) {
   plan.push({ table: "orgs", row: { name: s.org, is_demo: true } });
   plan.push({ table: "org_billing", row: { org_id: `<${s.org}.id>`, status: "active" }, note: "upsert onConflict org_id ignoreDuplicates（課金ゲート外）" });
   for (const r of ROLES) {
@@ -69,7 +71,7 @@ async function ensureAuthUser(email) {
   die(`auth ユーザー作成も検索も失敗: ${email}`, error);
 }
 const demoUsers = {};
-for (const s of STORES) {
+for (const s of STORES.filter((x) => !ONLY || x.key === ONLY)) { // ★Y2c: --only
   const { data: existing } = await admin.from("orgs").select("id, is_demo").eq("name", s.org).maybeSingle();
   let orgId = existing?.id;
   if (existing && existing.is_demo !== true) die(`${s.org} は既に存在し is_demo=false＝本番 org の可能性。中止`);

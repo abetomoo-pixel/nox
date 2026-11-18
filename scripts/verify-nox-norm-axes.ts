@@ -66,7 +66,7 @@ const J = (v: unknown) => JSON.stringify(v);
     const rep = (T.casts ?? []).find((c) => c.user_id);
     check(`na(4-2) ${code}: cast_quotas は代表キャストだけ（prev／cur の 2 行）・cast_norms は ${p.sys.norms ? "代表 1 行" : "なし"}`, (T.cast_quotas ?? []).length === 2 && (T.cast_quotas ?? []).every((q) => q.cast_id === rep?.id) && (p.sys.norms ? (T.cast_norms ?? []).filter((n) => n.period?.$m === 0).length === 1 && (T.cast_norms ?? []).find((n) => n.period?.$m === 0)?.cast_id === rep?.id : (T.cast_norms ?? []).length === 0) /* ★348 追補2 B-2: LILY は先月 2 行が加わる＝当月 1 行だけ見る */, `quotas=${(T.cast_quotas ?? []).length}`);
   }
-  check("na(4-3) TRIAL 6 店（体験入店の割当・保証）は不変", Object.keys(TRIAL).length === 6);
+  check("na(4-3) TRIAL 7 店（体験入店の割当・保証・★Y2c でホストを足した）", Object.keys(TRIAL).length === 7 && !!TRIAL.host);
 }
 
 if (fails.length) { console.error(`✗ verify:nox-norm-axes 失敗 ${fails.length}（成功 ${pass}）`); for (const f of fails) console.error(" - " + f); process.exit(1); }
