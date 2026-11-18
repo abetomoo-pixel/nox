@@ -12,6 +12,7 @@ import path from "node:path";
 import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { prewipeDemoOrg } from "@/lib/nox/demo/prewipe"; // ★M-122
+import { payloadIssuesOf, payloadIssuesLabelOf } from "./payload-check"; // ★2026-11-18（相談役 B）
 import { shiftPayload } from "./dateshift";
 import { parseDemoUsers } from "./session";
 import { CAST_PHOTO_BUCKET } from "../cast-photo";
@@ -197,6 +198,9 @@ export type ResetResult = { ok: true; mode: "all" | "wipe+load"; chunks: number;
 
 /** demo_org_reset: payload が 1 MB 以下なら 'all' 1 回（RESET_TIMEOUT_MS 超は 'wipe'→'load'）。超えるなら 'wipe' → 分割した 'load' を順に */
 export async function runDemoReset(admin: SupabaseClient, orgId: string, payload: Record<string, Record<string, unknown>[]>): Promise<ResetResult> {
+  // ★2026-11-18（相談役 B）: 消す前に payload の形を確かめる（全行の鍵・NOT NULL の null・id の重なり）＝合わなければ消さずに失敗で返す（11/17 の LUNA＝wipe の後の load で落ちて店が空のまま）
+  const issues = payloadIssuesOf(payload);
+  if (issues.length) return { ok: false, error: `payload check: ${payloadIssuesLabelOf(issues)}` };
   // ★M-122（2026-11-09）: wipe の前に c_wipe に無い表を子から親へ消す（availability_terms.updated_by → memberships の no-action FK で 11/09 ACE が 500）。DDL なし＝route 側
   const pre = await prewipeDemoOrg(admin, orgId);
   if (!pre.ok) return { ok: false, error: `prewipe ${pre.table}: ${pre.error}` };
