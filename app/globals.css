@@ -2724,6 +2724,9 @@ body {
 .nox-kintai .nox-kintai-sum-more { display: none; }
 /* ★便 SH-UI-c2 C2-9 ⑤: スライド行＝見出し（label）＋結果（.nox-bd-l2）。広い幅は 1 行（間に空白）・≤430px は結果を 2 行目に（途中で折り返さない） */
 .nox-bd-l2 { display: inline; margin-left: 6px; }
+/* ★2026-11-18 夜（相談役 ⑥ C-6）: 狭い幅で結果の行（nowrap）が右端の「（内数）」に重なる＝見出しの側を縮められるように・金額の側は折り返さず間を空ける */
+.nox-bd-row > span:first-child { min-width: 0; flex: 1 1 auto; }
+.nox-bd-row > span:last-child { flex: 0 0 auto; margin-left: 8px; white-space: nowrap; }
 /* ★便 SH-UI-c2 C2-8（2026-10-23）: 棚卸し＝分類の見出し行（広い幅も同じ）・≤900 はカード 2 行（1 行目 商品名…現在庫／2 行目 [−][n][＋] 本 差分）・画面下の固定バー */
 .nox-stocktake .nox-st-group th { text-align: left; font-size: 11px; font-weight: 800; color: var(--champ); background: var(--card2); padding: 6px 10px; letter-spacing: .04em; }
 .nox-stocktake .nox-st-step { display: inline-flex; align-items: center; gap: 4px; }

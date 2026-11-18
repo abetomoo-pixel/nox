@@ -40,5 +40,6 @@ check("n(6-1) ホームの時給：カード（h3 時給）の中・2 つの見�
 const cb = src("app/(manage)/casts/casts-board.tsx");
 check("n(6-2) アカウントのタブ：見出しの列を固定・左寄せ・ログインと LINE は別の行・狭い画面は 1 列", cb.includes('<div className="nox-acct" data-cast-account-rows="1">') && css.includes(".nox-acct .nox-frow { display: grid; grid-template-columns: 112px minmax(0, 1fr);") && css.includes("@media (max-width: 480px) { .nox-acct .nox-frow { grid-template-columns: minmax(0, 1fr); } }") && cb.indexOf('<span className="k">LINE 連携</span>') > cb.indexOf('<span className="k">ログイン（マイページ）</span>') && cb.slice(cb.indexOf('<span className="k">ログイン（マイページ）</span>'), cb.indexOf('<span className="k">LINE 連携</span>')).includes('<div className="nox-frow">'));
 
+check("n(6-3) 明細のスライドの行：見出しの側を縮められる（min-width 0）・金額の側は折り返さず間を空ける（「（内数）」に重ならない）", css.includes(".nox-bd-row > span:first-child { min-width: 0; flex: 1 1 auto; }") && css.includes(".nox-bd-row > span:last-child { flex: 0 0 auto; margin-left: 8px; white-space: nowrap; }"));
 if (fails.length) { console.error(`✗ verify:nox-notice1118 失敗 ${fails.length}（成功 ${pass}）`); for (const f of fails) console.error(" - " + f); process.exit(1); }
 console.log(`verify:nox-notice1118 OK (${pass} checks)`);
