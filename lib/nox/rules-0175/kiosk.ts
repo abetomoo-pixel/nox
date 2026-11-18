@@ -2,7 +2,7 @@
 //   RULES_0175_APPLIED=false の間は従来（/kiosk＝打刻だけ・/kiosk-register＝操作担当を選んで PIN・15 分）。
 // ★0190 フラグ true 便（裁定435・2026-10-30）: キオスク＝日常業務の端末＝出退勤／レジ／シフト／在庫／日報の 5 タイル（給与・マスタ・顧客・分析・監査は出さない）。
 //   在庫・日報は mig0190On() のときだけタイルに出る（店設定 kiosk_features の無いキーは true）。
-import { mig0190On } from "./flag"; // ★0194: 在庫タイル（kiosk_stock_levels）
+import { mig0190On, mig0201rOn } from "./flag"; // ★0194: 在庫タイル（kiosk_stock_levels）／★0201r: ロックの残り
 export type KioskFeature = "punch" | "register" | "shift" | "inventory" | "report";
 export const KIOSK_FEATURES_ALL: readonly KioskFeature[] = ["punch", "register", "shift", "inventory", "report"];
 export const KIOSK_FEATURE_LABEL: Record<KioskFeature, string> = { punch: "出退勤", register: "レジ", shift: "シフト", inventory: "在庫", report: "日報" };
@@ -45,13 +45,22 @@ export function operatorBarTextOf(name: string, role: string, remainSec: number)
   return `操作中: ${name}（${r}）・残り ${m}:${String(s).padStart(2, "0")}`;
 }
 export type UnlockResult = { ok: true; membership_id: string; name: string; role: string; idle_sec?: number } | { ok: false; reason: "bad_pin" | "wrong_pin" | "locked" | "ambiguous" | string; candidates?: { membership_id: string; name: string; role: string }[]; locked_until?: string | null };
+/** ★0201r（相談役 ②・2026-11-18 夜）: ロックの残り＝「あと N 分で解除」（切り上げ・過ぎていれば null）。locked_until は kiosk_unlock／kiosk_login の返り */
+export function lockRemainOf(lockedUntil: string | null | undefined, now: number = Date.now()): string | null {
+  if (!lockedUntil) return null;
+  const ms = Date.parse(lockedUntil) - now;
+  return Number.isFinite(ms) && ms > 0 ? `あと ${Math.ceil(ms / 60000)} 分で解除` : null;
+}
+/** ロックの既定の分（店の pin_lock_minutes が無いとき）＝0201r の後 5 分・前 10 分（kiosk_login の既定＝0190） */
+export const pinLockDefaultMinutesOf = (on: boolean = mig0201rOn()): number => (on ? 5 : 10);
 /** 解除の結果→画面の分岐（候補が 2 人以上なら名前を選ぶ） */
-export function unlockNextOf(r: UnlockResult): { phase: "unlocked" | "choose" | "pin"; message: string | null; candidates?: { membership_id: string; name: string; role: string }[] } {
+export function unlockNextOf(r: UnlockResult, now: number = Date.now()): { phase: "unlocked" | "choose" | "pin"; message: string | null; candidates?: { membership_id: string; name: string; role: string }[] } {
   if (r.ok) return { phase: "unlocked", message: null };
   if (r.reason === "ambiguous") return { phase: "choose", message: "同じ PIN の人が複数います。名前を選んでください", candidates: r.candidates ?? [] };
-  if (r.reason === "locked") return { phase: "pin", message: "失敗が続いたためロック中です（しばらくしてから）" };
+  const remain = mig0201rOn() ? lockRemainOf((r as { locked_until?: string }).locked_until, now) : null; // ★0201r（相談役 ②）: ロックの残り
+  if (r.reason === "locked") return { phase: "pin", message: remain ? `失敗が続いたためロック中です（${remain}）` : "失敗が続いたためロック中です（しばらくしてから）" };
   if (r.reason === "bad_pin") return { phase: "pin", message: "PIN は 4〜6 桁の数字です" };
-  if (r.reason === "device_locked") return { phase: "pin", message: "この端末はしばらく使えません（PIN の失敗が続きました）" }; // ★0201g（M-156）: 端末ごとのロック（貼る前の DB は返さない）
+  if (r.reason === "device_locked") return { phase: "pin", message: remain ? `この端末はしばらく使えません（PIN の失敗が続きました・${remain}）` : "この端末はしばらく使えません（PIN の失敗が続きました）" }; // ★0201g（M-156）: 端末ごとのロック（貼る前の DB は返さない）
   return { phase: "pin", message: "PIN が違います" };
 }
 /** キオスクで出さない機能（裁定423 候補 (f)）＝ログアウト・店設定・給与（店設定で解禁可・既定 OFF）・顧客の個人情報 */

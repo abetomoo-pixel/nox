@@ -17,6 +17,7 @@ import SegSelect from "@/components/ui/seg-select"; // ★M-82（裁定452・教
 import { createClient } from "@/lib/supabase/client";
 import { mig0191On, mig0192On } from "@/lib/nox/rules-0175/flag"; // ★0191 ★3: PIN 4〜6 桁・★便 M5 M-45: 0192 cast_pin_status
 import Link from "next/link"; // ★便 M5 M-45: キャストの行→キャスト詳細
+import { pinLockDefaultMinutesOf } from "@/lib/nox/rules-0175/kiosk"; // ★0201r（相談役 ②）: ロック時間の既定
 import * as t from "@/lib/nox/ui/theme";
 import Modal from "@/components/ui/modal";
 
@@ -59,7 +60,7 @@ export default function KioskPinPanel({ stores, isOwner }: { stores: Store[]; is
   // ★M-11b: PIN ポリシー（店単位・settings_json の pin_lock_max_fail / pin_lock_minutes）
   const [polStoreId, setPolStoreId] = useState<string>(stores[0]?.id ?? "");
   const [maxFail, setMaxFail] = useState(5);
-  const [lockMin, setLockMin] = useState(10); // ★便 M5 M-46（裁定437）: 既定 10 分（kiosk_login＝0190 は 10 分・staff_punch＝0191 は 15 分→0192 で 10 分に）
+  const [lockMin, setLockMin] = useState(pinLockDefaultMinutesOf()); // ★便 M5 M-46（裁定437）: 既定 10 分（kiosk_login＝0190 は 10 分・staff_punch＝0191 は 15 分→0192 で 10 分に）／★0201r（相談役 ②）: 貼った後は 5 分（関数 7 本の既定）
   const [castRows, setCastRows] = useState<CastPinRow[] | null>(null); // ★便 M5 M-45: null＝未読（0192 未適用は読まない）
   const [polMsg, setPolMsg] = useState("");
   const [polBusy, setPolBusy] = useState(false);
@@ -122,7 +123,7 @@ export default function KioskPinPanel({ stores, isOwner }: { stores: Store[]; is
       return Number.isFinite(n) ? n : d;
     };
     setMaxFail(asInt(sj.pin_lock_max_fail, 5));
-    setLockMin(asInt(sj.pin_lock_minutes, 10)); // ★便 M5 M-46（裁定437）: 既定 10 分
+    setLockMin(asInt(sj.pin_lock_minutes, pinLockDefaultMinutesOf())); // ★便 M5 M-46（裁定437）: 既定 10 分／★0201r: 5 分
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

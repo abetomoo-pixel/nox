@@ -217,3 +217,18 @@ export const MIG_0201N_APPLIED = true;
 let override0201n: boolean | null = null;
 export function mig0201nOn(): boolean { return override0201n ?? MIG_0201N_APPLIED; }
 export function __set0201nForTest(v: boolean | null): void { override0201n = v; }
+
+/** ★0201q（2026-11-18 16:53 Agoora 手貼り・検証 11 行一致）: set_store_profile の sales_basis・sales_back_default_off／get_cast_sales_subtotal／set_store_line_extra。
+ *  true＝LINE の設定の画面がリッチメニューの ID と公式アカウントの ID を set_store_line_extra で保存する（相談役 夜便 ⑤）。
+ *  給与の集める側（collect）が sales_basis・sales_back_default_off を読むのは別の便（相談役 夜便 ③＝commit まで・push しない）。 */
+export const MIG_0201Q_APPLIED = true;
+let override0201q: boolean | null = null;
+export function mig0201qOn(): boolean { return override0201q ?? MIG_0201Q_APPLIED; }
+export function __set0201qForTest(v: boolean | null): void { override0201q = v; }
+
+/** ★0201r（2026-11-18 夜 起草・相談役 ②＝手貼り前＝false）: 店の端末の入口でキャストが cast_pin で入れる・ロックの既定 5 分（関数 7 本）・テーブルチャージ・連携のリンクの発行し直し。
+ *  true＝PIN の設定の画面のロック時間の既定を 5 分に（false＝10 分）・端末のロック中の案内に「あと◯分で解除」を出す（false＝今の文言のまま）。 */
+export const MIG_0201R_APPLIED = false;
+let override0201r: boolean | null = null;
+export function mig0201rOn(): boolean { return override0201r ?? MIG_0201R_APPLIED; }
+export function __set0201rForTest(v: boolean | null): void { override0201r = v; }
