@@ -619,6 +619,10 @@ staff_deactivate / kiosk_deactivate
 - 読取（B(f) と同列＝ゲート不要・書込なし）: kiosk_unlock_people（店の端末のロック中に名前を選んで入る一覧）
 （除外 238→**239**・全数 449→**450**（0201m ＋1＝B +1）。0201l は cast_trial_decide の作り直しだけ＝名前不変）
 
+### B(af). 0201n 新設の除外（1本・2026-11-18・0201n の本番適用の後の検査の張り替えで収載）
+- 読取（B(f) と同列＝ゲート不要・書込なし）: register_cast_roster（レジ・日報のキャストの一覧＝キャストの立場で 5 列だけ）
+（除外 239→**240**・全数 450→**451**（0201n ＋1＝B +1）。0201o は set_store_profile の作り直しだけ＝名前不変・ゲートの中のまま）
+
 ## C. kiosk 腕を持つ対象（実装注意・18本）
 A1 の check_open / check_add_line / check_remove_line / check_add_seat / check_remove_seat /
 check_move_seat / check_set_nominations / check_time_charge_apply / check_shimei_add / check_dohan_add /

@@ -213,7 +213,7 @@ export function __set0201mForTest(v: boolean | null): void { override0201m = v; 
 /** ★0201n（2026-11-18 相談役 C・起票135 の続き＝レジの許可があるキャストが読める列を絞る）: 手貼り前＝false。
  *  true＝キャストの立場のときだけ、レジ（register/page.tsx）と日報（report-board.tsx）のキャストの一覧を register_cast_roster（5 列）で読む
  *  （貼った後は casts の RLS がキャストに自分の行しか返さない）。false＝従来どおり casts を直接読む（0201n の前の RLS＝同じ店の全員）。店長以上・スタッフは常に casts。 */
-export const MIG_0201N_APPLIED = false;
+export const MIG_0201N_APPLIED = true;
 let override0201n: boolean | null = null;
 export function mig0201nOn(): boolean { return override0201n ?? MIG_0201N_APPLIED; }
 export function __set0201nForTest(v: boolean | null): void { override0201n = v; }

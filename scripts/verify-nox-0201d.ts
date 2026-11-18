@@ -82,7 +82,7 @@ check("0201d(3-5) errJa＝6 語（'day closed' の締め済みとは別）",
   try {
     const cnt = async () => (await c.query("select (select count(*) from pg_proc where pronamespace='public'::regnamespace)::int f, (select count(*) from pg_tables where schemaname='public')::int t")).rows[0] as { f: number; t: number };
     const before = await cnt();
-    check("0201d(5-0) live＝関数 450・表 122（★0201m（2026-11-16 手貼り）: 449→450）", before.f === 450 && before.t === 122, before);
+    check("0201d(5-0) live＝関数 451・表 122（★0201n（2026-11-18 手貼り）: 450→451・★0201m（2026-11-16 手貼り）: 449→450）", before.f === 451 && before.t === 122, before);
     await c.query("begin");
     try {
       await c.query("set local lock_timeout = '5s'"); await c.query("set local statement_timeout = '30s'");

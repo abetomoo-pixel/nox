@@ -4666,7 +4666,11 @@ async function mainBody() {
         const { data: seatsC } = await castTmp.from("seats").select("id");
         check("段31-c seats 可視（≥1）", (seatsC ?? []).length >= 1, `got ${(seatsC ?? []).length}`);
         const { data: castsC } = await castTmp.from("casts").select("id");
-        check("段31-c casts 全同僚可視（castA1a/castA1b/自己 ≥3＝指名の前提）", (castsC ?? []).length >= 3, `got ${(castsC ?? []).length}`);
+        // ★0201n（2026-11-18 手貼り・起票135 の続き）: キャストは casts を直接読むと自分の 1 行だけ＝同僚（指名の前提）は register_cast_roster（5 列）で読む
+        check("段31-c casts は自分の 1 行だけ（★0201n）", (castsC ?? []).length === 1, `got ${(castsC ?? []).length}`);
+        const { data: rosterC, error: eRosterC } = await castTmp.rpc("register_cast_roster", { p_store_id: s31Store.id });
+        const rosterCols = Object.keys(((rosterC ?? []) as Record<string, unknown>[])[0] ?? {}).sort().join(",");
+        check("段31-c register_cast_roster＝同僚を含む ≥3 人・5 列だけ（id・is_active・name・photo_updated_at・rank_id＝指名の前提・★0201n）", !eRosterC && (rosterC ?? []).length >= 3 && rosterCols === "id,is_active,name,photo_updated_at,rank_id", eRosterC?.message ?? `got ${(rosterC ?? []).length} ${rosterCols}`);
 
         // ★会計フロー実走（castTmp を自己指名→drink→pay→close＝uuid 返却+NOT NULL 充填=23502 回帰）
         const { data: openId, error: eOpen } = await castTmp.rpc("check_open", { p_seat_id: seatId, p_people: 1, p_nom_type: "hon" });

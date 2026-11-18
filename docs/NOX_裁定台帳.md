@@ -5940,6 +5940,13 @@ CC の処置＝M-130（下の節）。
 ## 教訓156（2026-11-18 収載）f0 の走行中にデモへ書かない
 - f0 の走行中は、デモの reset・本番のデモでの確かめ（入場も demo_entries への書込）・本番の試走を流さない。f0 の前か後に。
 
+## 0201o・0201n 本番適用（2026-11-18・Agoora 手貼り・相談役の合図）
+- 順＝0201o（15:19）→ 0201n（15:20）。事前確認はどちらも貼り先証明の 1 行だけ。検証＝0201o 8 行・0201n 10 行とも期待どおり（0201o の後 関数 450・表 122／0201n の後 関数 451・表 122）。CC の読取（11/18）でも一致＝register_cast_roster あり（SECURITY DEFINER・anon なし）・set_store_profile に reward_axis・biz_type host・kiosk_features の inventory／report・casts_select と daily_reports_select は 0201n の形。
+- 0201o＝sha256 89244f971a8f2f6069735f963e68df307f8a9ce17b60a14fab441def58e134fd・999 行（生成器 docs/tmp/gen_0201o.mjs・底本の prosrc md5 536b7ac5…）。0201n＝sha256 031ba07c3e802eacea0bb8591846ecc5f7d579b3f9929a6019359cd4b6be1514・54 行。試走（11/18 11:14）＝0201o 10/10・0201n 12/12・DB 変更 0。
+- 収蔵＝supabase/migrations/0201o_store_reward_axis.sql・0201n_cast_roster.sql（sha 一致）。0201n の画面の便＝フラグ MIG_0201N_APPLIED を true（キャストの立場のときだけ、レジと日報のキャストの一覧を register_cast_roster で読む）。
+- 検査の張り替え＝関数の数の pin 450→451（0201d・0188・p172・0158・0190・0197・0199・0200・0201）・set_store_profile の本文の md5 4b4135d4→3c9f035a（p172・0158・0199）・白名単 82→83（store-systems）・anon-guard 段31-c（キャストの casts は自分の 1 行・同僚は register_cast_roster）・mine1117 m(4-2)・0201n-client・課金ゲート対象 B(af)（除外 239→240・全数 450→451）。
+- 本番＝関数 451・表 122。0201o の画面（店の軸の 3 つ目を選べる形・初期設定の業態にホストクラブ・端末の在庫と日報のタイルの切り替え）は未。
+
 ## 次の番号（2026-11-18 午後・裁定503／504・教訓152〜156 を収載した時点＝実測）
 - **次の裁定＝505**・**次の M＝M-195**・**次の起票＝136**・**次の教訓＝157**。
 

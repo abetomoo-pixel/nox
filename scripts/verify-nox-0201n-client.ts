@@ -1,5 +1,5 @@
 /*
- * verify:nox-0201n-client — 0201n の画面の便（2026-11-18 相談役 C・フラグ MIG_0201N_APPLIED＝false のまま・手貼りの後に true にする便で張り替え）。DB 不触・env 不要。
+ * verify:nox-0201n-client — 0201n の画面の便（2026-11-18 相談役 C）。★2026-11-18 15:20 0201n 手貼り→フラグ true（相談役 A）。DB 不触・env 不要。
  *  nc(1) フラグ＝false・override で切り替えられる。
  *  nc(2) レジ（register/page.tsx）：キャストの立場かつフラグ true のときだけ register_cast_roster（自店＝auth_store_id）・有効な人だけ・4 列。ほかは従来どおり casts。
  *  nc(3) 日報（report-board.tsx）：キャストの立場（isCast）かつフラグ true のときだけ register_cast_roster の 3 列。ほかは従来どおり casts。
@@ -10,7 +10,7 @@ import { MIG_0201N_APPLIED, mig0201nOn, __set0201nForTest } from "../lib/nox/rul
 let pass = 0;
 const fails: string[] = [];
 function check(label: string, ok: boolean, d?: unknown) { if (ok) pass++; else fails.push(`${label}${d !== undefined ? `: ${JSON.stringify(d)}` : ""}`); }
-check("nc(1) MIG_0201N_APPLIED＝false（手貼り前）・override で true／false", MIG_0201N_APPLIED === false && !mig0201nOn() && (__set0201nForTest(true), mig0201nOn()) && (__set0201nForTest(false), !mig0201nOn()));
+check("nc(1) MIG_0201N_APPLIED＝true（★0201n 2026-11-18 Agoora 手貼り・検証 10 行一致）・override で true／false", MIG_0201N_APPLIED === true && mig0201nOn() && (__set0201nForTest(false), !mig0201nOn()) && (__set0201nForTest(true), mig0201nOn()));
 __set0201nForTest(null);
 const rg = fs.readFileSync("app/(manage)/register/page.tsx", "utf8");
 check("nc(2) レジ：role cast かつフラグ true＝register_cast_roster（auth_store_id）・is_active で絞る・従来の casts の読取は残す", rg.includes('role === "cast" && mig0201nOn()') && rg.includes('supabase.rpc("register_cast_roster", { p_store_id: sid as string })') && rg.includes(".filter((c) => c.is_active)") && rg.includes('.select("id, name, photo_updated_at, rank_id")'));

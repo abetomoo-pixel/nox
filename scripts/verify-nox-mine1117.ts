@@ -46,7 +46,7 @@ try {
     const can = await t.as(who, `select public.auth_cast_can_register() v`);
     check("m(4-1) レジの許可がある状態（auth_cast_can_register＝true）", can.ok && can.rows[0]?.v === true, t.errOf(can));
     const all = await t.as(who, `select count(*)::int n from public.casts`);
-    check("m(4-2) その cast には casts が 2 行以上見える＝limit(1) は別人を拾いうる（直す前の型の危うさ）", all.ok && Number(all.rows[0]?.n) >= 2, all.ok ? all.rows[0] : t.errOf(all));
+    check("m(4-2) ★0201n（2026-11-18 手貼り）の後＝その cast にも casts は自分の 1 行だけ（旧＝2 行以上見えて limit(1) が別人を拾いえた）", all.ok && Number(all.rows[0]?.n) === 1, all.ok ? all.rows[0] : t.errOf(all));
     const mine = await t.as(who, `select public.auth_cast_id() id, (select name from public.casts where id = public.auth_cast_id()) name`);
     check("m(4-3) auth_cast_id と id＝auth_cast_id の行＝本人（宛名＝本人の名前）", mine.ok && mine.rows[0]?.id === me.cast_id && mine.rows[0]?.name === me.name, mine.ok ? mine.rows[0] : t.errOf(mine));
     const cp = await t.as(who, `select count(*)::int n, count(*) filter (where cast_id <> public.auth_cast_id())::int other from public.cast_plan`);

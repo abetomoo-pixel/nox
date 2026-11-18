@@ -121,10 +121,12 @@ check("dp(6-3) upload-photos: --casts／--staff 別引数・{org_id}/{cast_id}.j
 const seedSrc = fs.readFileSync("lib/nox/demo/seed.ts", "utf8");
 check("dp(6-5) ★D2-b afterResetHooks: reset 後に Storage（cast-photos/{org_id}/）の実体から casts／users の photo_updated_at を再打刻（payload の null を上書き・admin で org 限定・失敗しても reset は止めない）", seedSrc.includes("admin.storage.from(CAST_PHOTO_BUCKET).list(orgId, { limit: 1000 })") && seedSrc.includes('admin.from("casts").update({ photo_updated_at: now }).eq("org_id", orgId).in("id", castIds)') && seedSrc.includes('admin.from("users").update({ photo_updated_at: now }).eq("org_id", orgId).in("id", userIds)') && seedSrc.includes("} catch (e) { console.error(`afterResetHooks:") && cron.includes("await afterResetHooks(admin, orgId, bizDate);"));
 if (fs.existsSync("docs/tmp/demo_photos/casts") && fs.existsSync("docs/tmp/demo_photos/staff")) {
-  const n = fs.readdirSync("docs/tmp/demo_photos/casts").filter((f) => f.endsWith(".jpg")).length + fs.readdirSync("docs/tmp/demo_photos/staff").filter((f) => f.endsWith(".jpg")).length;
+  // ★2026-11-18（相談役 ①）: ids.json に結線のあるファイルだけを数える（結線の無いファイル＝例 Agoora が置いたホスト用の NEST-CAST-006〜012 がフォルダにあっても赤にしない）
   const ids = JSON.parse(fs.readFileSync("docs/demo/ids.json", "utf8")) as { people: Record<string, string>; staff_users: Record<string, string> };
-  const casts = fs.readdirSync("docs/tmp/demo_photos/casts").filter((f) => f.endsWith(".jpg")).map((f) => f.replace(/\.jpg$/, ""));
-  check(`dp(6-4) 写真 dry-run: casts 38＋staff 9＝47・casts は全員 ids.json に結線先・staff は代表 6 名に結線（残り 3 は users 無し）`, n === 47 && casts.every((c) => UUID.test(ids.people[c] ?? "")) && Object.keys(ids.staff_users).length === 6, `n ${n}`);
+  const casts = fs.readdirSync("docs/tmp/demo_photos/casts").filter((f) => f.endsWith(".jpg")).map((f) => f.replace(/.jpg$/, "")).filter((c) => UUID.test(ids.people[c] ?? ""));
+  const staff = fs.readdirSync("docs/tmp/demo_photos/staff").filter((f) => f.endsWith(".jpg")).length;
+  const n = casts.length + staff;
+  check(`dp(6-4) 写真 dry-run: 結線のある casts 38＋staff 9＝47・staff は代表 6 名に結線（残り 3 は users 無し）`, n === 47 && Object.keys(ids.staff_users).length === 6, `n ${n}`);
 } else check("dp(6-4) 写真 dry-run: docs/tmp/demo_photos が無い環境＝対象外（CI）", true);
 
 if (fails.length) {
