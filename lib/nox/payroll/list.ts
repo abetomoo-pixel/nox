@@ -85,3 +85,10 @@ export function slipPdfTitleOf(castName: string, period: string, storeName?: str
   const safe = (s: string, max: number) => s.replace(/[\\/:*?"<>|\r\n\t]+/g, "_").replace(/\s+/g, " ").trim().slice(0, max);
   return ["給与明細", period, safe(storeName ?? "", 40), safe(castName || "キャスト", 40)].filter(Boolean).join("_");
 }
+
+/** ★2026-11-18 夜（相談役 ⑥ C-4）: 本人の明細の期の選択肢の文字＝「2026年10月」（直近は「（直近）」を足す）。YYYY-MM でない期は文字列をそのまま */
+export function slipPeriodOptionLabelOf(period: string, latest = false): string {
+  const m = /^(\d{4})-(\d{2})$/.exec(period);
+  const base = m ? `${m[1]}年${Number(m[2])}月` : period;
+  return latest ? `${base}（直近）` : base;
+}

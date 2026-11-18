@@ -42,7 +42,7 @@ const ctx: V5Ctx = { storeId: "11111111-1111-4111-8111-111111111111", current: {
 {
   check("b4(3-1) M-183 ファイル名＝給与明細_年月_店名_本人の名前・使えない文字は _", slipPdfTitleOf("ひなの", "2026-10", "CLUB ACE") === "給与明細_2026-10_CLUB ACE_ひなの" && slipPdfTitleOf("a/b", "2026-10", "X:Y") === "給与明細_2026-10_X_Y_a_b");
   const mp = src("app/mine/page.tsx"), pb = src("app/mine/print-payslip-button.tsx");
-  check("b4(3-2) M-183 /mine の明細＝店名・本人の名前（store と castName を渡す）・印刷のファイル名＝document.title を印刷中だけ変える", mp.includes("castName={meCast?.name ?? undefined}") && mp.includes("store={myStore ? { name: myStore.name as string") && mp.includes("<PrintPayslipButton fileTitle={slipPdfTitleOf(") && pb.includes("document.title = fileTitle;") && pb.includes('window.addEventListener("afterprint", done);'));
+  check("b4(3-2) M-183 /mine の明細＝店名・本人の名前（store と castName を渡す）・印刷のファイル名＝document.title を印刷中だけ変える", mp.includes("castName={meCast?.name ?? undefined}") && mp.includes("store={myStore ? { name: myStore.name as string") && mp.includes("fileTitles={(slips ?? []).map((s) => slipPdfTitleOf(") && src("app/mine/payslip-picker.tsx").includes("<PrintPayslipButton fileTitle={fileTitles[cur] ?? null} />") /* ★2026-11-18 夜（相談役 ⑥ C-4）: 印刷ボタンは期の選択の中へ＝ファイル名は選んでいる期 */ && pb.includes("document.title = fileTitle;") && pb.includes('window.addEventListener("afterprint", done);'));
 }
 // (4) 裁定334
 {

@@ -46,7 +46,7 @@ import { mineReportStateOf } from "@/lib/nox/shift/cast-report"; // ★便 X13-H
 import ContactForm from "./contact-form"; // ★便 ON-3（0176 ★4＝400）: 本人の連絡先
 import NormCard from "./norm-card";
 import DrinkClaimForm from "./drink-claim-form";
-import PrintPayslipButton from "./print-payslip-button";
+import MinePayslipPicker from "./payslip-picker"; // ★2026-11-18 夜（相談役 ⑥ C-4）: 期の選択＋印刷は選んでいる期だけ（印刷ボタンはこの中）
 import { slipPdfTitleOf } from "@/lib/nox/payroll/list"; // ★M-183
 import { isSectionOn, type StoreSettings } from "@/lib/nox/store-systems"; // ★裁定269: 使う制度の出し分け
 import { mineSettingsOf } from "@/lib/nox/store/mine-settings";
@@ -89,7 +89,7 @@ export default async function MinePage({ searchParams }: { searchParams?: Promis
   const pMyStores = go(supabase.from("stores").select("id, name, legal_name, settings_json, punch_methods").limit(1));
   const pCorr = go(supabase.from("punch_corrections").select("id, cast_id, punch_id, biz_date, kind, before_at, after_at, reason, decision, decide_reason, ack, ack_at, requested_at, decided_at").order("requested_at", { ascending: false }).limit(20));
   const pLast = go(supabase.from("punches").select("type, punched_at").order("punched_at", { ascending: false }).limit(1));
-  const pSlips = go(supabase.from("payslips").select("period, net, breakdown_json").order("period", { ascending: false }).limit(6));
+  const pSlips = go(supabase.from("payslips").select("period, net, breakdown_json").order("period", { ascending: false }).limit(12)); // ★2026-11-18 夜（相談役 ⑥ C-4）: 期の選択で過去の期を見る＝直近 12 期（旧 6・RLS は本人の行だけ＝payslips_select）
   const pRegNav = castMineRegisterNavEntryOf(supabase);
   const [regNav, cutoffA] = await Promise.all([pRegNav, loadCutoff(supabase)]); // ★便 M5 M-44（2026-10-30）: レジがナビに無いとき＝理由 1 行（店が許可していない／本人の許可がない／店の端末からだけ／出勤してから）
   const cutoff = cutoffA;
@@ -429,10 +429,13 @@ export default async function MinePage({ searchParams }: { searchParams?: Promis
       <section className="nox-panel nox-print">
         <h3>
           確定給与明細
-          <span style={{ marginLeft: "auto" }}>{(slips ?? []).length > 0 && <PrintPayslipButton fileTitle={slipPdfTitleOf(meCast?.name ?? "", String((slips ?? [])[0]?.period ?? ""), (myStore?.name as string | undefined) ?? null)} />}{/* ★M-183: ファイル名＝給与明細_年月（最新の明細）_店名_本人の名前 */}</span>
         </h3>
         {(slips ?? []).length === 0 && <p style={{ ...noneP, marginTop: 11 }}>確定分なし</p>}
-        <div style={{ marginTop: 11 }}>
+        {/* ★2026-11-18 夜（相談役 ⑥ C-4）: 期の選択（確定・支払済みの期＝payslips の行だけ・開いたときは直近）・「印刷 / PDFで保存」は選んでいる期だけ
+            ★M-183: ファイル名＝給与明細_年月（選んでいる期）_店名_本人の名前 */}
+        {(slips ?? []).length > 0 && (
+        <MinePayslipPicker periods={(slips ?? []).map((s) => String(s.period))}
+          fileTitles={(slips ?? []).map((s) => slipPdfTitleOf(meCast?.name ?? "", String(s.period), (myStore?.name as string | undefined) ?? null))}>
           {(slips ?? []).map((s, i) => (
             <PayslipSlip systems={(myStore?.settings_json ?? null) as Record<string, unknown> | null} /* ★便 GV-C C-10（GV-53） */ okuriModes={okuriModes} /* ★裁定414（S-4 ④） */
               key={i}
@@ -442,7 +445,8 @@ export default async function MinePage({ searchParams }: { searchParams?: Promis
               slip={{ period: s.period as string, net: s.net as number, breakdown_json: s.breakdown_json }}
             />
           ))}
-        </div>
+        </MinePayslipPicker>
+        )}
         <p style={{ ...noteP, marginTop: 6 }}>{ms.payslip_visibility === "net_only" ? "※手取りと期のみの表示です。内訳は店にご確認ください。" : slipFootNoteOf(vis)}</p>
       </section>
       )}
