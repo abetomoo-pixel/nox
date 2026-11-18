@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import { Message } from "@/components/ui/toast"; // ★裁定281: メッセージ表示の共通部品
 import type { PayRateTier } from "@/lib/nox/rules-0175/canon";
-import { PAY_RATE_TIER_MAX, PAY_RATE_STREAK_MAX, PAY_RATE_STREAK_MIN, emptyPayRateRow, payRatePatchOf, payRateRowsErrOf, payRateRowsOf, payRateStreakErrOf, type PayRateTierRow } from "@/lib/nox/comp/pay-rate-tiers";
+import { PAY_RATE_BACK_HOLD_NOTE, PAY_RATE_TIER_MAX, PAY_RATE_STREAK_MAX, PAY_RATE_STREAK_MIN, emptyPayRateRow, payRatePatchOf, payRateRowBackEnabledOf, payRateRowsErrOf, payRateRowsOf, payRateStreakErrOf, type PayRateTierRow } from "@/lib/nox/comp/pay-rate-tiers";
 
 export default function PayRateTiersEditor({ planId, tiers, streak, onSaved, onErr }: {
   planId: string; tiers: readonly PayRateTier[] | null | undefined; streak: number | null | undefined;
@@ -22,10 +22,10 @@ export default function PayRateTiersEditor({ planId, tiers, streak, onSaved, onE
   useEffect(() => { if (typeof window !== "undefined" && window.location.hash === "#pay-rate-tiers") document.getElementById("pay-rate-tiers")?.scrollIntoView({ block: "start" }); }, []);
   const err = payRateRowsErrOf(rows) ?? payRateStreakErrOf(n);
   const set = (i: number, k: keyof Omit<PayRateTierRow, "rest">, v: string) => setRows((rs) => rs.map((r, j) => (j === i ? { ...r, [k]: v } : r)));
-  const cell = (i: number, k: keyof Omit<PayRateTierRow, "rest">, label: string, post: string) => (
-    <label style={{ display: "inline-flex", gap: 4, alignItems: "center", fontSize: 12 }}>
+  const cell = (i: number, k: keyof Omit<PayRateTierRow, "rest">, label: string, post: string, off = false) => (
+    <label style={{ display: "inline-flex", gap: 4, alignItems: "center", fontSize: 12, opacity: off ? 0.5 : 1 }}>
       <span style={{ color: "var(--sub)" }}>{label}</span>
-      <input inputMode="decimal" value={rows[i][k]} onChange={(e) => set(i, k, e.target.value.replace(/[^0-9.]/g, ""))} style={{ ...t.input, width: 84 }} aria-label={`${i + 1} 段目 ${label}`} />
+      <input inputMode="decimal" value={rows[i][k]} onChange={(e) => set(i, k, e.target.value.replace(/[^0-9.]/g, ""))} style={{ ...t.input, width: 84 }} aria-label={`${i + 1} 段目 ${label}`} disabled={off} title={off ? PAY_RATE_BACK_HOLD_NOTE : undefined} />
       <span style={{ color: "var(--sub)" }}>{post}</span>
     </label>
   );
@@ -53,9 +53,10 @@ export default function PayRateTiersEditor({ planId, tiers, streak, onSaved, onE
           {cell(i, "at", "境", "% 以上")}
           {cell(i, "up", "UP 額", "円")}
           {cell(i, "down", "下げる額", "円")}
-          {cell(i, "back", "バック率", "%")}
+          {cell(i, "back", "バック率", "%", !payRateRowBackEnabledOf(r)) /* ★2026-11-18（相談役 A-3）: バック率は UP と査定の段だけ（据え置きの段では計算で効かない）・入っている値は保存のときにそのまま戻す */}
           {cell(i, "pay", "総報酬の率", "%")}
           <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} onClick={() => setRows((rs) => rs.filter((_, j) => j !== i))} aria-label={`${i + 1} 段目を消す`} disabled={busy}>消す</button>
+          {!payRateRowBackEnabledOf(r) && <span style={{ flexBasis: "100%", fontSize: 11, color: "var(--sub)" }} data-pay-rate-back-hold={i}>{PAY_RATE_BACK_HOLD_NOTE}</span>}
         </div>
       ))}
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center", marginTop: 8 }}>

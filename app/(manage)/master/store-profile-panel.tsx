@@ -118,7 +118,8 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
   // 変更分だけを patch に（trim 後の比較・空欄は '' のまま送る＝short は RPC 側で null 化）
   const patchOf = (): Record<string, unknown> => {
     const out: Record<string, unknown> = { ...opsPatchOf(form.ops, cur.ops) }; // ★0164（便 W5-2a）: 会計と運用の 7 列（変更分だけ）
-    for (const k of ["name", "short", "store_code", "display_name", "customer_purpose"] as const) {
+    // ★2026-11-18（Agoora の決定）: 略称・店舗コード・表示名は画面から外した＝送らない（保存済みの値は DB に残す・消さない・書き換えない）
+    for (const k of ["name", "customer_purpose"] as const) {
       const v = form[k].trim();
       if (v !== cur[k]) out[k] = v;
     }
@@ -236,12 +237,7 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 10 }}>
             {on("profile") && field("name", "店舗名", 50, "必須・50 文字まで")}
-            {on("profile") && <details className="nox-settings-fold" style={{ gridColumn: "1 / -1" }} data-settings-fold="profile"><summary>詳しい設定（略称・店舗コード・表示名）</summary>{/* ★2026-11-16（B6）: 特殊な設定は畳む＝試作のとおり */}
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 10, marginTop: 8 }}>
-                {field("short", "略称", 20, "20 文字まで")}
-                {field("store_code", "店舗コード", 20, "20 文字まで")}
-                {field("display_name", "表示名", 50, "50 文字まで")}
-              </div></details>}
+            {/* ★2026-11-18（Agoora の決定）: 「詳しい設定（略称・店舗コード・表示名）」を外した。3 つは画面・帳票・計算のどこでも読まれていない（このパネルだけ）。DB の列と保存済みの値は残す（送らない） */}
             {/* ★0153（裁定305-11／293-4）: 顧客情報の利用目的（200 文字）・保持年数（1〜10・既定 5＝最終来店日＋年数が retention_until）→ ★MC2: データ管理の面（sections に "data"） */}
             {on("data") && field("customer_purpose", "顧客情報の利用目的", 200, "200 文字まで・顧客への説明に使います")}
             {on("data") && <label style={{ display: "block", minWidth: 0 }}>

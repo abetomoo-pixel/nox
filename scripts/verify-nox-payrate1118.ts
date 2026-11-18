@@ -11,7 +11,7 @@ import fs from "node:fs";
 import { Client } from "pg";
 import { loadEnvOrExit } from "./fixtures-f0";
 import { pgTx } from "./fixtures-pgtx";
-import { PAY_RATE_TIER_MAX, emptyPayRateRow, payRatePatchOf, payRateRowsErrOf, payRateRowsOf, payRateStreakErrOf, payRateTiersOf, type PayRateTierRow } from "../lib/nox/comp/pay-rate-tiers";
+import { PAY_RATE_BACK_HOLD_NOTE, payRateRowBackEnabledOf, payRateRowDirectionOf, PAY_RATE_TIER_MAX, emptyPayRateRow, payRatePatchOf, payRateRowsErrOf, payRateRowsOf, payRateStreakErrOf, payRateTiersOf, type PayRateTierRow } from "../lib/nox/comp/pay-rate-tiers";
 import { canonApplyOf, canonOutcomeOf, type CanonCtx, type PayRateTier } from "../lib/nox/rules-0175/canon";
 import { slidesTabOnWithPayRate } from "../lib/nox/store-systems";
 let pass = 0;
@@ -70,6 +70,12 @@ check("pr(4-5) 店舗設定の報酬の軸＝3 択目は案内（「報酬率（
   const pb = fs.readFileSync("app/(manage)/master/cast-comp/plan/plan-board.tsx", "utf8");
   check("pr(6-2) タブ（plan-board）と節（plan-editor）が同じ判定・リンクで来たら位置まで送る", pb.includes('k === "slides" ? slidesTabOnWithPayRate(settings, data.plans') && pe.includes("slides: slidesTabOnWithPayRate(settings, plans") && ed.includes('window.location.hash === "#pay-rate-tiers"') && sp.includes('export const STORE_PAY_RATE_HREF = "/master/cast-comp/plan?tab=slides#pay-rate-tiers";'));
 }
+
+// pr(7) ★2026-11-18（相談役 A-3）: バック率は UP と査定の段だけ（方向は計算と同じ directionOf）・下げる額の欄は残す（本番のデモ MUSE Standard に「下げる額だけで査定」の段がある）
+check("pr(7-1) 行の方向＝計算と同じ（UP 額→up・総報酬の率 90→assess・下げる額だけ→assess・何も無い→hold・バック率 70 だけ→hold）", payRateRowDirectionOf(row("0", { up: "500" })) === "up" && payRateRowDirectionOf(row("0", { pay: "90" })) === "assess" && payRateRowDirectionOf(row("70", { pay: "100", down: "100" })) === "assess" && payRateRowDirectionOf(row("60")) === "hold" && payRateRowDirectionOf(row("70", { back: "70" })) === "hold");
+check("pr(7-2) バック率を入れられるのは UP と査定の段だけ（据え置きは不可）・理由の 1 行", payRateRowBackEnabledOf(row("0", { up: "500" })) && payRateRowBackEnabledOf(row("100", { pay: "90" })) && !payRateRowBackEnabledOf(row("60")) && PAY_RATE_BACK_HOLD_NOTE.startsWith("据え置きの段ではバック率は効きません"));
+check("pr(7-3) 画面：バック率の欄は据え置きの段で入れられない・理由の 1 行・下げる額の欄は残す", ed.includes('{cell(i, "back", "バック率", "%", !payRateRowBackEnabledOf(r))') && ed.includes("data-pay-rate-back-hold={i}") && ed.includes('{cell(i, "down", "下げる額", "円")}'));
+check("pr(7-4) 据え置きの段に入っているバック率は保存のときにそのまま戻す（欄は入れられないだけ）", J(payRateTiersOf([row("60", { back: "70" })])) === J([{ at_pct: 60, back_mult: 70 }]));
 
 async function main() {
   const env = loadEnvOrExit(["SUPABASE_DB_URL"]);

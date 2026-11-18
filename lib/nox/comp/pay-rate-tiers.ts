@@ -2,7 +2,7 @@
 //   保存は comp_plan_ext_set（owner）の p_patch { pay_rate_tiers, slide_streak_n }＝新しい RPC も mig も無い。
 //   検査は DB の comp_plan_pay_rate_check と同じ（最大 10 段・境 at_pct は 0〜300 の昇順（同じ値は不可）・数は 0 以上・率は 100 まで）＝画面で先に止めて 'bad pay_rate_tiers' を出さない。
 //   式（報酬率＝時給分 ÷ 売上小計）と段の当て方（canon.ts payRateTierOf／directionOf）は変えない。
-import type { PayRateTier } from "@/lib/nox/rules-0175/canon";
+import { directionOf, type PayRateTier, type SlideDirection } from "@/lib/nox/rules-0175/canon";
 
 export const PAY_RATE_TIER_MAX = 10;
 export const PAY_RATE_AT_MAX = 300;
@@ -68,3 +68,13 @@ export function payRatePatchOf(rows: readonly PayRateTierRow[], streak: number):
   if (!tiers || payRateStreakErrOf(streak)) return null;
   return { pay_rate_tiers: tiers, slide_streak_n: streak };
 }
+
+/** ★2026-11-18（相談役 A-3）: 行の方向＝計算と同じ directionOf（UP／査定／据え置き）。数として読めない欄は無いものとして見る */
+export function payRateRowDirectionOf(r: PayRateTierRow): SlideDirection {
+  const t: Record<string, unknown> = { ...(r.rest ?? {}), at_pct: 0 };
+  for (const [k, v] of [["up_amount", r.up], ["down_amount", r.down], ["back_mult", r.back], ["pay_pct", r.pay]] as const) { const n = num(v); if (n !== null && !Number.isNaN(n)) t[k] = n; }
+  return directionOf(t as PayRateTier);
+}
+/** バック率を入れられる段＝UP か査定の段だけ（据え置きの段では計算で効かない＝canonOutcomeOf の backMult は UP／査定でだけ当たる） */
+export const payRateRowBackEnabledOf = (r: PayRateTierRow): boolean => payRateRowDirectionOf(r) !== "hold";
+export const PAY_RATE_BACK_HOLD_NOTE = "据え置きの段ではバック率は効きません（UP 額・総報酬の率・下げる額のどれかを入れた段で使えます）";
