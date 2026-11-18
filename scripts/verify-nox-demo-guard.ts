@@ -40,6 +40,7 @@ const DENY_GUARDED: Record<string, string> = {
   "print/jobs": "app/api/print/jobs/route.ts",
   "staff/invite": "app/api/staff/invite/route.ts", // ★便 ON-3（0176 ★2 I-1）: 登録→招待＝staff/create と同じ柵（裁定273-6）
   "line/secret": "app/api/line/secret/route.ts", // ★便 ON-3（0176 ★1 401）: Vault へ書く＝デモは 403
+  "line/richmenu": "app/api/line/richmenu/route.ts", // ★2026-11-18 夜（相談役 ⑤）: LINE のリッチメニュー（外部へ書く）＝デモは 403
   "line/push": "app/api/line/push/route.ts", // ★便 ON-3: 外部送信＝デモ org は 204（送らない・台帳にも書かない）
   "line/notice": "app/api/line/notice/route.ts",
   "auth/invite-accept": "app/api/auth/invite-accept/route.ts",

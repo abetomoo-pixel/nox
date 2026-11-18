@@ -16,6 +16,8 @@ import { LINE_NOTIFY_COUNT_NOTE, LINE_NOTIFY_DEFAULT, LINE_NOTIFY_KINDS, LINE_NO
 import { mig0199On } from "@/lib/nox/rules-0175/flag"; // ★0199（M-114）: 保存は白名単 line_notify の後
 import { errJa } from "@/lib/nox/errors"; // ★裁定467（M-126）
 import InfoTip from "@/components/ui/info-tip"; // ★2026-11-16（C）: 補足は項目の横の ⓘ（店舗情報のパネルと同じ形）
+import { mig0201qOn } from "@/lib/nox/rules-0175/flag"; // ★2026-11-18 夜（相談役 ⑤）: 0201q の set_store_line_extra（公式アカウントの ID・リッチメニューの ID）
+import { BOT_BASIC_ID_NOTE, RICHMENU_STATE_JA, botBasicIdErrorOf, botBasicIdNormOf, richMenuAutoOf, richMenuResultTextOf, richMenuStateOf, type RichMenuAction } from "@/lib/nox/line/richmenu";
 
 type Store = { id: string; name: string };
 
@@ -33,6 +35,9 @@ export default function LineConfigPanel({ stores, isOwner }: { stores: Store[]; 
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+  const [botId, setBotId] = useState(""); // ★相談役 ⑤: 公式アカウントの ID（入れると友だち追加が必須）
+  const [rmMsg, setRmMsg] = useState<{ ok: boolean; text: string } | null>(null); // ★相談役 ⑤: リッチメニューの結果（設定の保存とは別の行＝失敗しても保存は止めない）
+  const extraOn = mig0201qOn();
   const [notify, setNotify] = useState<Record<LineNotifyKind, boolean>>({ ...LINE_NOTIFY_DEFAULT }); // ★M-114（裁定459）: 通知の種類ごと ON／OFF（保存＝★0199 の白名単 line_notify・owner 限定）
   const notifyEditable = isOwner && !isDemo && mig0199On(); // ★0199（M-114）: 保存できるのは管理者（set_store_profile は owner 限定）・デモは変更不可・フラグ false は表示だけ
   const origin = siteOriginOf(typeof window !== "undefined" ? window.location.origin : ""); // ★便 D M-102: 発行する URL は site 固定の 1 値
@@ -44,25 +49,39 @@ export default function LineConfigPanel({ stores, isOwner }: { stores: Store[]; 
     setNotify(lineNotifyOf((s?.settings_json ?? null) as Record<string, unknown> | null)); // ★M-114（裁定459）: 種類ごとの ON／OFF（キーが無ければ既定）
     setCfg(c); setLimit(Number(s?.line_monthly_limit ?? 200)); setLimitInput(String(s?.line_monthly_limit ?? 200));
     setForm({ login_channel_id: c.login_channel_id ?? "", liff_id: c.liff_id ?? "", bot_destination: c.bot_destination ?? "" });
+    setBotId(c.bot_basic_id ?? "");
     const { data: m } = await supabase.rpc("line_push_month_summary", { p_month: jstMonthOf(Date.now()).month });
     setMonth((((m ?? []) as LineMonthRow[]).find((r) => r.store_id === storeId)) ?? null);
   }, [supabase, storeId]);
   useEffect(() => { void load(); }, [load]);
 
+  async function richMenu(action: RichMenuAction) { // ★2026-11-18 夜（相談役 ⑤）: NOX から LINE にリッチメニューを登録（友だち全員）／作り直す／外す＝route（トークンはサーバーだけ）
+    setRmMsg(null);
+    const res = await fetch("/api/line/richmenu", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ storeId, action }) }).catch(() => null);
+    const j = (res ? await res.json().catch(() => ({})) : {}) as { ok?: boolean; status?: string; reason?: string; detail?: string; error?: string };
+    const r = { ok: !!j.ok, status: j.status, reason: j.reason ?? j.error ?? (res ? String(res.status) : "network"), detail: j.detail };
+    setRmMsg({ ok: r.ok, text: richMenuResultTextOf(r) });
+    await load();
+  }
   async function saveConfig() {
     const v = lineConfigErrorOf(form); if (v) { setErr(v); return; }
+    const vb = extraOn ? botBasicIdErrorOf(botId) : null; if (vb) { setErr(vb); return; }
     const patch = lineConfigPatchOf(form, cfg);
-    setBusy(true); setErr(null); setMsg(null);
+    const botNext = botBasicIdNormOf(botId) || null, botChanged = extraOn && botNext !== (cfg?.bot_basic_id ?? null);
+    const auto = extraOn && !isDemo && richMenuAutoOf(!!patch && "liff_id" in patch, !!secrets.access_token.trim()); // ★相談役 ⑤: LIFF ID かアクセストークンを入れた保存のときだけ自動で登録
+    setBusy(true); setErr(null); setMsg(null); setRmMsg(null);
     try {
       if (patch) { const { error } = await supabase.rpc("set_store_line_config", { p_store_id: storeId, p_patch: patch }); if (error) { setErr(rpcErrJa(error.message)); return; } }
+      if (botChanged) { const { error } = await supabase.rpc("set_store_line_extra", { p_store_id: storeId, p_patch: { bot_basic_id: botNext } }); if (error) { setErr(rpcErrJa(error.message)); return; } }
       for (const k of LINE_SECRET_KINDS) {
         if (!secrets[k].trim()) continue;
         const res = await fetch("/api/line/secret", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ storeId, kind: k, secret: secrets[k] }) });
         if (!res.ok) { const j = (await res.json().catch(() => ({}))) as { error?: string }; setErr(`${LINE_SECRET_LABEL[k]}の保存に失敗: ${j.error ?? res.status}`); return; }
       }
       setSecrets({ channel_secret: "", access_token: "" });
-      setMsg(patch || secrets.channel_secret || secrets.access_token ? "LINE の設定を保存しました" : "変更がありません");
+      setMsg(patch || botChanged || secrets.channel_secret || secrets.access_token ? "LINE の設定を保存しました" : "変更がありません");
       await load();
+      if (auto) await richMenu("ensure"); // ★相談役 ⑤: 失敗しても設定の保存は済んでいる（理由は別の行）
     } finally { setBusy(false); }
   }
   async function saveLimit(n: number) {
@@ -112,6 +131,11 @@ export default function LineConfigPanel({ stores, isOwner }: { stores: Store[]; 
             <input value={form[k]} onChange={(e) => setForm((f) => ({ ...f, [k]: e.target.value }))} style={t.input} maxLength={100} placeholder={k === "bot_destination" ? "U で始まる 33 文字（任意）" : ""} data-line-field={k} />
           </label>
         ))}
+        {extraOn && (/* ★2026-11-18 夜（相談役 ⑤）: 公式アカウントの ID＝入れると友だち追加が必須（set_store_line_extra） */
+          <label style={row}><span style={t.fieldLabel}>公式アカウントの ID（任意）<InfoTip>{BOT_BASIC_ID_NOTE}</InfoTip></span>
+            <input value={botId} onChange={(e) => setBotId(e.target.value)} style={t.input} maxLength={41} placeholder="@ で始まる ID（例 @123abcde）" data-line-field="bot_basic_id" />
+          </label>
+        )}
         {LINE_SECRET_KINDS.map((k) => (
           <label key={k} style={row}><span style={t.fieldLabel}>{LINE_SECRET_LABEL[k]}{cfg?.[k === "channel_secret" ? "channel_secret_ref" : "access_token_ref"] ? "（設定済み）" : "（未設定）"}</span>
             <input type="password" value={secrets[k]} onChange={(e) => setSecrets((s) => ({ ...s, [k]: e.target.value }))} style={t.input} placeholder={LINE_SECRET_PLACEHOLDER} autoComplete="off" data-line-secret={k} />
@@ -122,6 +146,18 @@ export default function LineConfigPanel({ stores, isOwner }: { stores: Store[]; 
         {isDemo ? <p style={{ ...t.sub, margin: 0 }}>デモ環境では LINE の設定を変更できません。</p>
           : <div className="nox-actions nox-settings-save" data-settings-save="1">{/* ★便 BTN（裁定242）: 主ボタンは行の中央 */}<button type="button" style={{ ...t.btnGold, ...t.btnSm }} disabled={busy || !storeId} onClick={() => void saveConfig()} data-line-save="1">{busy ? "保存中…" : "LINE の設定を保存"}</button></div>}
       </div>
+      {extraOn && (/* ★2026-11-18 夜（相談役 ⑤）: リッチメニュー＝保存（LIFF ID かトークンを入れたとき）で自動に登録（友だち全員）・作り直す・外す */
+        <div style={{ marginTop: 16, display: "grid", gap: 6 }} data-line-richmenu={richMenuStateOf(cfg)}>
+          <span style={t.fieldLabel}>リッチメニュー：{RICHMENU_STATE_JA[richMenuStateOf(cfg)]}<InfoTip>LINE のトーク画面の下に「ホーム／シフト／お知らせ」のボタンを出します。LINE の設定を保存したとき（LIFF ID かアクセストークンを入れたとき）に自動で登録します。</InfoTip></span>
+          {isDemo ? <p style={{ ...t.sub, margin: 0 }} data-demo-reason="line-richmenu">デモ環境ではリッチメニューを登録できません（本番の店で使えます）。</p> : (
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} disabled={busy || !storeId} onClick={() => { setBusy(true); void richMenu("rebuild").finally(() => setBusy(false)); }} data-line-richmenu-rebuild="1">作り直す</button>
+              <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} disabled={busy || !storeId || richMenuStateOf(cfg) === "off"} onClick={() => { setBusy(true); void richMenu("remove").finally(() => setBusy(false)); }} data-line-richmenu-remove="1">外す</button>
+            </div>
+          )}
+          {rmMsg && <Message kind={rmMsg.ok ? "info" : "error"}>{rmMsg.text}</Message>}
+        </div>
+      )}
       {/* ★M-114（裁定459・2026-11-06）: 通知の種類ごと ON／OFF＝既定はお知らせだけ ON・シフト系は OFF。★0199（2026-11-10）: 保存＝settings_json.line_notify（白名単）＝管理者だけ・4 鍵を常に明示 */}
       <div style={{ marginTop: 16, display: "grid", gap: 6 }} data-line-notify-kinds="1" data-line-notify-editable={notifyEditable ? "1" : "0"}>
         <span style={t.fieldLabel}>LINE で送る通知の種類<InfoTip>{LINE_NOTIFY_COUNT_NOTE}</InfoTip></span>

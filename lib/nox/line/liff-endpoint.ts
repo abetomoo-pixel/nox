@@ -8,7 +8,8 @@ export const LINE_SECRET_KINDS = ["channel_secret", "access_token"] as const;
 export type LineSecretKind = (typeof LINE_SECRET_KINDS)[number];
 export const LINE_SECRET_LABEL: Record<LineSecretKind, string> = { channel_secret: "チャネルシークレット（Messaging API）", access_token: "チャネルアクセストークン（長期・Messaging API）" };
 export const LINE_USER_ID_RE = /^U[0-9a-f]{32}$/;
-export type LineConfig = { login_channel_id?: string | null; liff_id?: string | null; bot_destination?: string | null; channel_secret_ref?: string | null; access_token_ref?: string | null };
+export type LineConfig = { login_channel_id?: string | null; liff_id?: string | null; bot_destination?: string | null; channel_secret_ref?: string | null; access_token_ref?: string | null;
+  /** ★0201q（2026-11-18 夜・相談役 ⑤）: set_store_line_extra の鍵＝公式アカウントの ID・リッチメニューの ID */ bot_basic_id?: string | null; richmenu_id_default?: string | null; richmenu_id_linked?: string | null };
 
 const site = (s: string) => s.replace(/\/+$/, "");
 /** ★便 D M-102（2026-11-05）: LINE の招待リンク・入口 URL・返事の URL・liff.login の redirectUri は site 固定の 1 値（NEXT_PUBLIC_SITE_URL）から組む。

@@ -4,6 +4,8 @@ import type { Metadata } from "next";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { UUID_RE, lineStoreOf } from "@/lib/nox/line/subject";
 import LiffBridge from "./liff-bridge";
+import { friendRequiredOf } from "@/lib/nox/line/richmenu"; // ★2026-11-18 夜（相談役 ⑤）: 友だち追加の必須（公式アカウントの ID がある店だけ）
+import { mig0201qOn } from "@/lib/nox/rules-0175/flag";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "LINE でログイン", robots: { index: false, follow: false } };
@@ -20,7 +22,7 @@ export default async function LiffPage({ params }: { params: Promise<{ storeId: 
         <h1 style={{ fontSize: 18, margin: "0 0 6px" }}>{store ? `${store.name}：LINE でログイン` : "LINE でログイン"}</h1>
         {!store || !liffId
           ? <p style={{ fontSize: 13.5, lineHeight: 1.7, color: "#555" }} data-liff-state="not_configured">この店の LINE 連携はまだ設定されていません。お店にご確認ください。</p>
-          : <LiffBridge storeId={storeId} liffId={liffId} />}
+          : <LiffBridge storeId={storeId} liffId={liffId} botBasicId={mig0201qOn() && friendRequiredOf(store.config) ? store.config.bot_basic_id ?? null : null} />}
       </div>
     </main>
   );

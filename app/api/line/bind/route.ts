@@ -3,7 +3,10 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createSessionForAuthUser, verifyLineIdTokenEx } from "@/lib/nox/line/server"; // ★M-116
+import { createSessionForAuthUser, getLineSecret, verifyLineIdTokenEx } from "@/lib/nox/line/server"; // ★M-116
+import { friendAddUrlOf, friendRequiredOf } from "@/lib/nox/line/richmenu"; // ★2026-11-18 夜（相談役 ⑤）: 友だち追加の必須
+import { lineFriendOf } from "@/lib/nox/line/richmenu-server";
+import { mig0201qOn } from "@/lib/nox/rules-0175/flag";
 import { LINE_STORE_COOKIE, UUID_RE, authUserOfSubject, lineStoreOf, lineStoreCookieOptions } from "@/lib/nox/line/subject";
 import { INVITE_TOKEN_RE } from "@/lib/nox/people/invite";
 import { tokenHashOf } from "@/lib/nox/people/invite-server";
@@ -22,6 +25,13 @@ export async function POST(req: Request) {
   if (!store || !store.config.login_channel_id) return NextResponse.json({ error: "line not configured" }, { status: 503 });
   const v = await verifyLineIdTokenEx(idToken, store.config.login_channel_id);
   if (!v.ok) return NextResponse.json({ error: "bad id_token", reason: v.reason, detail: v.detail }, { status: 401 }); // ★M-116: 理由（expired 等）と LINE の本文を返す（LIFF が 1 回だけ再ログイン）
+  // ★2026-11-18 夜（相談役 ⑤）: 店に公式アカウントの ID がある＝友だち追加を必須に。Messaging API のプロフィール（友だちでなければ 404）で確かめてから bind_line（トークンは使わずに返す＝追加して開き直せば使える）。
+  //   わからない（トークン無し・LINE に届かない）ときは止めない（LIFF の getFriendship が先に止める・連携そのものを止めない）。
+  if (mig0201qOn() && friendRequiredOf(store.config)) {
+    const at = await getLineSecret(admin, storeId, "access_token");
+    const fr = at ? await lineFriendOf(at, v.sub) : "unknown";
+    if (fr === "not_friend") return NextResponse.json({ error: "not friend", addUrl: friendAddUrlOf(String(store.config.bot_basic_id)) }, { status: 403 });
+  }
   const { data, error } = await admin.rpc("bind_line", { p_token_hash: tokenHashOf(token), p_line_user_id: v.sub });
   if (error) {
     const m = error.message;
