@@ -266,7 +266,7 @@ const LATIN = /[A-Za-z]/;
   check("b6(c9-4) B 初期設定のカードの手数料＝1% 刻みの整数（小数は入らない）・確認の画面と保存で同じ値（cardFeePctOf）・Math.round で黙って丸めない",
     sw.includes('<Money value={S.cardfee} unit="%" step={1} integer') && sw.includes('["カード手数料", `${cardFeePctOf(S)}%`]') && v5.includes("pay_fee_rates: { card: cardFeePctOf(S),") && v5.includes("p_card_tax_rate: cardFeePctOf(S)") && !v5.includes("Math.round(S.cardfee"));
   check("b6(c9-5) C 端末のロック中に「名前を選んで入る」＝kiosk_staff_list（PIN を設定した人）→名前→本人の PIN→kiosk_unlock に p_membership_id",
-    kp.includes('if (!r.ok && r.reason === "device_locked") setLocked(true);') && kp.includes('await supabase.rpc("kiosk_staff_list")') /* ★0201m（2026-11-16）: フラグ false の枝 */ && kp.includes('mig0201mOn() ? await supabase.rpc("kiosk_unlock_people")') && kp.includes("filter((x) => x.has_pin)") && kp.includes("onClick={() => void unlockPin(named?.membership_id)}") && kp.includes('data-kiosk-unlock-by-name="1">名前を選んで入る</button>'));
+    kp.includes('if (!r.ok && r.reason === "device_locked") { setLocked(true);') /* ★2026-11-18 夜（相談役 ⑥ B）: 同じ枝で locked_until を持ちトーストを重ねない（verify:nox-kiosk-lock1118 kl(4-4)） */ && kp.includes('await supabase.rpc("kiosk_staff_list")') /* ★0201m（2026-11-16）: フラグ false の枝 */ && kp.includes('mig0201mOn() ? await supabase.rpc("kiosk_unlock_people")') && kp.includes("filter((x) => x.has_pin)") && kp.includes("onClick={() => void unlockPin(named?.membership_id)}") && kp.includes('data-kiosk-unlock-by-name="1">名前を選んで入る</button>'));
 }
 
 // ★2026-11-13 夜（相談役■2 c）: 店の端末で本人がログインしたときの無操作＝店の設定に従う（3〜10 分・既定 10・範囲の外は寄せる）

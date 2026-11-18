@@ -268,9 +268,6 @@ export default function KioskPage() {
                   : <button type="button" key={k} data-kiosk-tile={k} data-kiosk-tile-ready={KIOSK_FEATURE_READY[k] ? "1" : "0"} onClick={() => setTileDest(KIOSK_FEATURE_HREF[k])} style={{ ...bigBtn, textAlign: "center", padding: "18px 0", fontSize: 18, fontFamily: "inherit", cursor: "pointer" }}>{KIOSK_FEATURE_LABEL[k]}</button>))}{/* ★裁定469（M-128）: PIN → 本人セッション → 本店の同じページ（簡易画面は廃止） */}{/* ★0190（裁定435）: 5 タイル＝シフト・在庫・日報は案内画面（K client 第 2 便で本体） */}
               </div>
             )}
-            {!storePunchOff && (<p style={{ textAlign: "center", fontSize: 15, color: "var(--champ)", fontWeight: 700, margin: "0 0 16px" }}>
-              名前を選んでください
-            </p>)}
             {rules0175On() && kioskPunchOff && !castPunchOff && (<p data-kiosk-punch-off="1" style={{ textAlign: "center", fontSize: 13, color: "var(--sub)", margin: "0 0 12px" }}>{KIOSK_PUNCH_OFF_NOTE}</p>)}{/* ★裁定468（M-127） */}
             {rules0175On() && kioskTiles.length === 0 && (<p data-kiosk-no-tiles="1" style={{ textAlign: "center", fontSize: 13, color: "var(--sub)", margin: "0 0 12px" }}>{KIOSK_NO_TILES_NOTE}</p>)}{/* ★裁定468（M-127）: 0 個＝PIN の案内とボタンだけ（下の KioskPersonEntry） */}
             {/* ★便 M5 M-49（2026-10-30）: 本人でログイン＝店長以上がパスワードで本体画面を開く入口（タイルの構成＝裁定435 の 5 タイルは変えない・小さな文字リンク）。
@@ -283,6 +280,12 @@ export default function KioskPage() {
             </p>)}
             {castPunchOff && (
               <p data-kiosk-cast-off="1" data-kiosk-store-off={storePunchOff ? "1" : undefined} style={{ textAlign: "center", fontSize: 13, color: "var(--sub)", margin: "0 0 12px" }}>{storePunchOff ? PUNCH_STORE_OFF_NOTE : "この店ではキャストの出勤・退勤は店が記録します（キャストの打刻はありません）"}</p>
+            )}
+            {!storePunchOff && (/* ★2026-11-18 夜（相談役 ⑥ B）: 人のカードの並び＝出退勤の入口の見出し（「名前を選んでください」はタイルの下から、カードのすぐ上のここへ移した＝「スタッフでログイン（PIN）」と分ける） */
+              <div data-kiosk-punch-head="1" style={{ textAlign: "center", margin: "8px 0 14px", paddingTop: 14, borderTop: "1px solid var(--line)" }}>
+                <h2 style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)", margin: "0 0 4px" }}>出退勤の打刻</h2>
+                <p style={{ fontSize: 15, color: "var(--champ)", fontWeight: 700, margin: 0 }}>名前を選んでください</p>
+              </div>
             )}
             {!storePunchOff && staffs.length > 0 && (/* ★便 E（0197）: 打刻しない店はスタッフ群も出さない */ /* ★便 P174 T-6（355）: キャスト群／スタッフ群の 2 段（スタッフがいる店だけ） */
               <div role="tablist" aria-label="打刻する人" data-kiosk-group={group} style={{ display: "flex", gap: 8, justifyContent: "center", margin: "0 0 14px" }}>

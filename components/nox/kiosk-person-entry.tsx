@@ -23,7 +23,7 @@ export default function KioskPersonEntry({ dest, open: openProp, onClose }: { /*
           style={{ background: "none", border: "none", padding: 0, fontFamily: "inherit", fontSize: 12.5, color: "var(--sub)", textDecoration: "underline", cursor: "pointer" }}>{KIOSK_PERSON_PIN_LINK}</button>
       </p>
       {open && (
-        <Modal onClose={() => { if (!busy) close(); }} maxWidth={460}>
+        <Modal onClose={() => { if (!busy) close(); }} maxWidth={460} opaque>{/* ★2026-11-18 夜（相談役 ⑥ B）: 地を不透明に＝背面の「NOX タイムレコーダー」が透けない */}
           <div data-kiosk-person-entry="1" style={{ padding: "4px 2px" }}>
             <h3 style={{ ...t.cardTitle, margin: "0 0 4px" }}>{KIOSK_PERSON_PIN_LINK}</h3>
             <p style={{ ...t.sub, margin: "0 0 10px", lineHeight: 1.7 }}>{KIOSK_PERSON_PIN_NOTE}</p>

@@ -31,7 +31,7 @@ import * as t from "@/lib/nox/ui/theme";
 //   ★t.card が inline で overflow:hidden を当てているため CSS では上書きできない。
 //     drawer と同じく inline 対 inline で差し替える（④b-1 の教訓）。
 export default function Modal({
-  onClose, maxWidth = 430, variant = "center", scroll = false, children,
+  onClose, maxWidth = 430, variant = "center", scroll = false, opaque = false, children,
 }: {
   /** overlay クリック時に呼ばれる。閉じない条件（busy 等）は呼び出し側で判定する。 */
   onClose: () => void;
@@ -41,6 +41,8 @@ export default function Modal({
   variant?: "center" | "drawer" | "top";
   /** true=カードに高さ上限を与えて中身をスクロールさせる（position:sticky のフッタが効くようになる）。 */
   scroll?: boolean;
+  /** ★2026-11-18 夜（相談役 ⑥ B）: true＝カードの地を不透明（var(--card)）に＝背面の文字が透けない（店の端末の「スタッフでログイン（PIN）」が使う・渡さなければ従来の半透明のグラデのまま）。 */
+  opaque?: boolean;
   children: ReactNode;
 }) {
   // ★裁定253（A モーダル化・2026-09-14）: Esc で閉じる（背景タップ・× と同じ onClose を呼ぶ＝閉じない条件は呼び出し側の onClose が判定）
@@ -68,6 +70,7 @@ export default function Modal({
     paddingBottom: "var(--nox-modal-pad-b, 15px)",
     // カード幅を .nox-modal-card の max-width へ橋渡し（>900 で有効。既定 430・printer のみ 520）。
     ...({ "--nox-modal-max": `${maxWidth}px` } as CSSProperties),
+    ...(opaque ? { background: "var(--card)" } : null), // ★2026-11-18 夜（相談役 ⑥ B）: t.card の地は半透明（.95〜.98）＝タイルの画面の「NOX タイムレコーダー」が名前の一覧のうしろに透けた
     // ★drawer / scroll のときだけ中身をスクロールさせる。t.card が inline で overflow:hidden を
     //   持つため CSS では上書きできない（inline が勝つ）＝ここで inline 対 inline で差し替える。
     //   どちらも渡さない既存6箇所は t.card の hidden のまま＝1px も変わらない。

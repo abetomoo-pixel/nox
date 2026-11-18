@@ -4,7 +4,7 @@
 //   ★QR 便（裁定423 変更＝Agoora 確定 10/26 ⑫・0185）: 「QR で解除」タブ＝キオスクに QR を出す（KioskQrDisplay）→本人がログイン済みのスマホで読む→本人の権限で開く。
 //   旧向き（キオスクのカメラでスマホの QR を読む＝kiosk_unlock_qr）は撤去。QR のタブは mig0185On() の間だけ（false＝PIN だけ）。
 //   同じ PIN が 2 人いたら名前を選ぶ（ambiguous）。RULES_0175_APPLIED=false の間は mount されない（kiosk-register が rules0175On() で出し分け＝従来の操作担当選択）。
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import Toast from "@/components/ui/toast";
@@ -13,6 +13,7 @@ import { browserDeviceFp } from "@/lib/nox/kiosk/device-fp"; // ★M-110（2026-
 import KioskQrDisplay from "@/components/nox/kiosk-qr-display";
 import PinPad from "@/components/nox/pin-pad"; // ★M-154
 import { unlockNextOf, unlockRoleLabelOf, UNLOCK_PEOPLE_EMPTY, type UnlockResult } from "@/lib/nox/rules-0175/kiosk";
+import { deviceLockActiveOf, deviceLockNoteOf, deviceLockProbeOf, DEVICE_LOCK_PROBE_ARGS } from "@/lib/nox/kiosk/device-lock"; // ★2026-11-18 夜（相談役 ⑥ B）
 
 type Cand = { membership_id: string; name: string; role: string };
 
@@ -27,7 +28,27 @@ export default function KioskUnlockPad({ onUnlocked }: { onUnlocked: (r: { membe
   const [locked, setLocked] = useState(false);
   const [people, setPeople] = useState<Cand[] | null>(null);
   const [named, setNamed] = useState<Cand | null>(null);
+  // ★2026-11-18 夜（相談役 ⑥ B）: ロックの解ける時刻（kiosk_unlock の返りの locked_until）と残りの分の時計（15 秒ごと・過ぎたら畳みを解く）
+  const [lockedUntil, setLockedUntil] = useState<string | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+  const lockOn = locked && deviceLockActiveOf(lockedUntil, now);
   const qrOk = mig0185On();
+  // ★2026-11-18 夜（相談役 ⑥ B）: 開いた時点でロック中かを確かめる＝PIN なしの kiosk_unlock（device_lock.ts の頭の説明＝ロック中なら device_locked、そうでなければ bad_pin が返るだけで数えない）。エラーは今までの画面のまま
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      const { data, error } = await createClient().rpc("kiosk_unlock", { ...DEVICE_LOCK_PROBE_ARGS, ...(mig0190On() ? { p_device_fp: browserDeviceFp() } : {}) });
+      if (!alive || error) return;
+      const p = deviceLockProbeOf(data);
+      if (p.locked) { setLocked(true); setLockedUntil(p.lockedUntil); setNow(Date.now()); }
+    })();
+    return () => { alive = false; };
+  }, []);
+  useEffect(() => {
+    if (!locked) return;
+    const id = setInterval(() => setNow(Date.now()), 15000);
+    return () => clearInterval(id);
+  }, [locked]);
   async function openPeople() {
     setBusy(true); setMsg(null);
     // ★0201m（2026-11-16）: フラグ true＝kiosk_unlock_people（kiosk_login が通す人と同じ＝オーナー・管理者・店長・スタッフ・レジに入れるキャスト・PIN を設定した人だけ）。false＝従来の kiosk_staff_list（店長とスタッフ・has_pin で絞る）
@@ -43,7 +64,9 @@ export default function KioskUnlockPad({ onUnlocked }: { onUnlocked: (r: { membe
     const next = unlockNextOf(r);
     if (next.phase === "unlocked" && r.ok) { setMsg(null); await onUnlocked({ membership_id: r.membership_id, operator_name: (r as { operator_name?: string; name?: string }).operator_name ?? (r as { name?: string }).name, role: r.role, idle_sec: r.idle_sec, unlock_method: (r as { unlock_method?: string }).unlock_method }); return; }
     if (next.phase === "choose") { setCands(next.candidates ?? []); setMsg(next.message); return; }
-    if (!r.ok && r.reason === "device_locked") setLocked(true); // ★相談役 C: ロック中は「名前を選んで入る」を出す
+    // ★相談役 C: ロック中は「名前を選んで入る」を出す
+    // ★2026-11-18 夜（相談役 ⑥ B）: ロック中はキーを畳んで案内（deviceLockNoteOf）を出す＝トーストは重ねない
+    if (!r.ok && r.reason === "device_locked") { setLocked(true); setLockedUntil((r as { locked_until?: string | null }).locked_until ?? null); setNow(Date.now()); setMsg(null); setPin(""); return; }
     setMsg(next.message); setPin("");
   }, [onUnlocked]);
 
@@ -65,7 +88,14 @@ export default function KioskUnlockPad({ onUnlocked }: { onUnlocked: (r: { membe
           ))}
         </div>
       )}
-      {tab === "pin" && !cands && !people && (
+      {tab === "pin" && !cands && !people && lockOn && !named && (/* ★2026-11-18 夜（相談役 ⑥ B）: ロック中＝数字のキーと「解除」を畳み、「名前を選んで入る」を主ボタンに（「誰かを選ぶ必要はありません」は出さない） */
+        <div data-kiosk-unlock-locked="1">
+          <p style={{ textAlign: "center", fontSize: 15, fontWeight: 800, margin: "0 0 6px" }}>端末のロック中</p>
+          <p style={{ ...t.sub, lineHeight: 1.7, margin: "0 0 16px" }} data-kiosk-unlock-lock-note="1">{deviceLockNoteOf(lockedUntil, now)}</p>
+          <button style={t.btnPrimary56} disabled={busy} onClick={() => void openPeople()} data-kiosk-unlock-by-name="1">名前を選んで入る</button>
+        </div>
+      )}
+      {tab === "pin" && !cands && !people && !(lockOn && !named) && (
         <>
           <p style={{ textAlign: "center", fontSize: 15, fontWeight: 800, margin: "0 0 4px" }}>{named ? `${named.name} さんの PIN を入力してください` : "PIN を入力してください"}</p>
           <p style={{ textAlign: "center", ...t.sub, margin: "0 0 14px" }}>{named ? "名前を選んで入ります（端末のロックとは別に、本人の PIN の失敗を数えます）" : "誰かを選ぶ必要はありません（PIN で本人を特定します）"}</p>
@@ -75,7 +105,7 @@ export default function KioskUnlockPad({ onUnlocked }: { onUnlocked: (r: { membe
               style={{ ...t.btnGold, opacity: pin.length >= 4 ? 1 : 0.4 }}>解除</button>
           </div>
           {named && <button style={{ ...t.btnGhost, ...t.btnSm, width: "100%", marginTop: 10 }} onClick={() => { setNamed(null); setPin(""); }} data-kiosk-unlock-named-back="1">名前を選び直す</button>}
-          {locked && !named && (/* ★相談役 C: ロック中の画面に「名前を選んで入る」 */
+          {!named && (/* ★相談役 C: ロック中の画面に「名前を選んで入る」 ★2026-11-18 夜（相談役 ⑥ B）: ロック中かどうかに関係なくいつも出す（ロック中は上の畳んだ枠の主ボタン） */
             <button style={{ ...t.btnGhost, width: "100%", marginTop: 12, padding: "12px 0", fontWeight: 800 }} disabled={busy} onClick={() => void openPeople()} data-kiosk-unlock-by-name="1">名前を選んで入る</button>
           )}
         </>
