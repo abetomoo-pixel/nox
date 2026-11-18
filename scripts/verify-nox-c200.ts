@@ -102,7 +102,7 @@ __set0200ForTest(false); const off = mig0200On(); __set0200ForTest(null); check(
 {
   const kpp = src("app/(manage)/master/kiosk-pin-panel.tsx"), ace2 = JSON.parse(src("docs/demo/payload/ace.json")) as { tables: Record<string, Record<string, unknown>[]> };
   const castMem2 = (ace2.tables.memberships ?? []).find((m) => m.role === "cast");
-  check("c200(7-2) M-125 操作担当 PIN の対象＝owner／manager／staff＋can_register のキャスト・ACE の代表キャストに staff_pin（キオスクの PIN でキャストの本人セッション）", kpp.includes('(m.role === "cast" && m.can_register === true)') && !!castMem2 && (ace2.tables.staff_pin ?? []).some((p) => p.membership_id === castMem2.id));
+  check("c200(7-2) M-125 操作担当 PIN の対象＝owner／manager／staff＋can_register のキャスト・ACE の代表キャストは ★0201r の後 staff_pin を持たず打刻の PIN で入る", kpp.includes('(m.role === "cast" && m.can_register === true)') && !!castMem2 && !(ace2.tables.staff_pin ?? []).some((p) => p.membership_id === castMem2.id) && (ace2.tables.cast_pin ?? []).length > 0); /* ★0201r（2026-11-18 21:57 適用）: 代表キャストは staff_pin を持たず打刻の PIN（cast_pin）で店の端末に入る＝種から外した */
 }
 
 (async () => {

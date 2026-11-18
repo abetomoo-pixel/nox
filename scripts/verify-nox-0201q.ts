@@ -14,7 +14,7 @@ function check(label: string, ok: boolean, d?: unknown) { if (ok) pass++; else f
 for (const [c, name] of [["ace", "ひなの"], ["lily", "みく"]] as const) {
   const T = JSON.parse(fs.readFileSync(`docs/demo/payload/${c}.json`, "utf8")).tables as Record<string, Record<string, unknown>[]>;
   const m = T.memberships.find((x) => x.role === "cast");
-  check(`q(5) ${c}: 代表キャスト（${name}）にレジの許可と staff_pin`, !!m && m.can_register === true && T.staff_pin.some((p) => p.membership_id === m.id));
+  check(`q(5) ${c}: 代表キャスト（${name}）にレジの許可・★0201r の後は staff_pin を持たない（打刻の PIN で入る）`, !!m && m.can_register === true && !T.staff_pin.some((p) => p.membership_id === m.id) && T.cast_pin.length > 0);
 }
 async function main() {
   const env = loadEnvOrExit(["SUPABASE_DB_URL"]);

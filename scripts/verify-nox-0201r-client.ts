@@ -11,12 +11,13 @@ import { lockRemainOf, pinLockDefaultMinutesOf, unlockNextOf } from "../lib/nox/
 let pass = 0;
 const fails: string[] = [];
 function check(label: string, ok: boolean, d?: unknown) { if (ok) pass++; else fails.push(`${label}${d !== undefined ? `: ${JSON.stringify(d)}` : ""}`); }
-check("rc(1) MIG_0201R_APPLIED＝false（手貼り前）・override で true／false", MIG_0201R_APPLIED === false && !mig0201rOn() && (__set0201rForTest(true), mig0201rOn()) && (__set0201rForTest(false), !mig0201rOn()));
+check("rc(1) MIG_0201R_APPLIED＝true（★2026-11-18 21:57 本番適用）・override で true／false", MIG_0201R_APPLIED === true && mig0201rOn() && (__set0201rForTest(false), !mig0201rOn()) && (__set0201rForTest(true), mig0201rOn()));
 __set0201rForTest(null);
 const now = Date.parse("2026-11-18T12:00:00Z");
 check("rc(2) lockRemainOf", lockRemainOf("2026-11-18T12:04:01Z", now) === "あと 5 分で解除" && lockRemainOf("2026-11-18T12:05:00Z", now) === "あと 5 分で解除" && lockRemainOf("2026-11-18T12:00:20Z", now) === "あと 1 分で解除"
   && lockRemainOf("2026-11-18T11:59:00Z", now) === null && lockRemainOf(null, now) === null && lockRemainOf("壊れた値", now) === null);
 const lk = { ok: false as const, reason: "locked", locked_until: "2026-11-18T12:04:30Z" }, dl = { ok: false as const, reason: "device_locked", locked_until: "2026-11-18T12:03:00Z" };
+__set0201rForTest(false); // ★0201r 適用後：フラグ false の枝は override で見る
 const off = [unlockNextOf(lk, now).message, unlockNextOf(dl, now).message];
 check("rc(3-1) フラグ false＝今の文言のまま", off[0] === "失敗が続いたためロック中です（しばらくしてから）" && off[1] === "この端末はしばらく使えません（PIN の失敗が続きました）", off);
 __set0201rForTest(true);
@@ -24,7 +25,7 @@ const on = [unlockNextOf(lk, now).message, unlockNextOf(dl, now).message, unlock
 check("rc(3-2) フラグ true＝残りを添える（locked_until が無ければ今の文言）・ほかの理由は変えない", on[0] === "失敗が続いたためロック中です（あと 5 分で解除）" && on[1] === "この端末はしばらく使えません（PIN の失敗が続きました・あと 3 分で解除）" && on[2] === "失敗が続いたためロック中です（しばらくしてから）" && on[3] === "PIN が違います", on);
 check("rc(4-1) ロック時間の既定＝true 5 分", pinLockDefaultMinutesOf() === 5 && pinLockDefaultMinutesOf(false) === 10);
 __set0201rForTest(null);
-check("rc(4-2) フラグ false の既定＝10 分（今のまま）", pinLockDefaultMinutesOf() === 10);
+check("rc(4-2) フラグ true（★0201r 適用後）の既定＝5 分・false の枝は 10 分", pinLockDefaultMinutesOf() === 5 && pinLockDefaultMinutesOf(false) === 10);
 const kp = fs.readFileSync("app/(manage)/master/kiosk-pin-panel.tsx", "utf8");
 check("rc(4-3) PIN の設定の画面は既定を pinLockDefaultMinutesOf から読む（初期値と店の値が無いとき）", kp.includes("useState(pinLockDefaultMinutesOf());") && kp.includes("setLockMin(asInt(sj.pin_lock_minutes, pinLockDefaultMinutesOf()));") && !kp.includes("useState(10);") && !kp.includes("asInt(sj.pin_lock_minutes, 10)"));
 if (fails.length) { console.error(`✗ verify:nox-0201r-client 失敗 ${fails.length}（成功 ${pass}）`); for (const f of fails) console.error(" - " + f); process.exit(1); }

@@ -22,7 +22,7 @@ check("c(1-2) 押した時点で未会計（open の伝票の数）と実査の�
   && rb.includes('.from("checks").select("id", { count: "exact", head: true }).eq("store_id", storeId).eq("status", "open")'));
 check("c(1-3) 窓のボタン：未会計の伝票を見る（レジ）・未会計のまま締める（isManagerUp だけ）・このまま締める（実査だけのとき）・閉じる",
   rb.includes('data-close-guard-see="1">未会計の伝票を見る</a>') && rb.includes("{closeGuard.openN > 0 && isManagerUp && (") && rb.includes('data-close-guard-force="1"') && rb.includes(">未会計のまま締める</button>")
-  && rb.includes('data-close-guard-counted="1"') && rb.includes(">このまま締める</button>") && rb.includes('data-close-guard-close="1">閉じる</button>') && rb.includes("<Modal onClose={() => setCloseGuard(null)} maxWidth={440}>"));
+  && rb.includes('data-close-guard-counted="1"') && rb.includes(">このまま締める</button>") && rb.includes('data-close-guard-close="1">閉じる</button>') && rb.includes('<Modal onClose={() => setCloseGuard(null)} maxWidth={440} variant="dialog">') && fs.readFileSync("app/globals.css", "utf8").includes(".nox-modal-dialog { align-items: center; padding: 16px; }"));
 check("c(2-1) 強行のチェックボックスは無い・p_force は窓からの forced だけ（締め・再締めとも）",
   !rb.includes("未会計があっても強行</label>") && !rb.includes("onChange={(e) => setForce(e.target.checked)}") && rb.includes("p_force: forced, p_idem_key: crypto.randomUUID(), // ★便 X13-G W-24") && (rb.match(/p_force: forced/g) ?? []).length === 2 && !rb.includes("p_force: force,"));
 check("c(2-2) ボタンのすぐ上に理由の 1 行（未会計があるとき）・再締めも未会計は同じ窓（実査は聞かない）",

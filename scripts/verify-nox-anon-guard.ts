@@ -5859,7 +5859,7 @@ async function mainBody() {
               .order("at", { ascending: false }).limit(1);
             const audRow = aud?.[0] as { before_json?: Record<string, unknown>; after_json?: Record<string, unknown> } | undefined;
             check("段37 ★0108(c) audit before=既定5/15・after=3/5",
-              audRow?.before_json?.pin_lock_max_fail === 5 && audRow?.before_json?.pin_lock_minutes === 15
+              audRow?.before_json?.pin_lock_max_fail === 5 && audRow?.before_json?.pin_lock_minutes === 5 /* ★0201r（2026-11-18 21:57 適用）: 既定 15→5 */
               && audRow?.after_json?.pin_lock_max_fail === 3 && audRow?.after_json?.pin_lock_minutes === 5,
               JSON.stringify(audRow));
 

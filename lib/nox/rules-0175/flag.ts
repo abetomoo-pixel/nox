@@ -228,7 +228,7 @@ export function __set0201qForTest(v: boolean | null): void { override0201q = v; 
 
 /** ★0201r（2026-11-18 夜 起草・相談役 ②＝手貼り前＝false）: 店の端末の入口でキャストが cast_pin で入れる・ロックの既定 5 分（関数 7 本）・テーブルチャージ・連携のリンクの発行し直し。
  *  true＝PIN の設定の画面のロック時間の既定を 5 分に（false＝10 分）・端末のロック中の案内に「あと◯分で解除」を出す（false＝今の文言のまま）。 */
-export const MIG_0201R_APPLIED = false;
+export const MIG_0201R_APPLIED = true; // ★2026-11-18 21:57:44 CC が本番に適用（Agoora の承認・相談役の指示＝手貼りの例外・指紋 3 つ照合・検証 8 行一致）
 let override0201r: boolean | null = null;
 export function mig0201rOn(): boolean { return override0201r ?? MIG_0201R_APPLIED; }
 export function __set0201rForTest(v: boolean | null): void { override0201r = v; }

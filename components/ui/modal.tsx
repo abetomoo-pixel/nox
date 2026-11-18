@@ -38,7 +38,7 @@ export default function Modal({
   /** カード幅。既定 430（printer-panel のみ 520 を渡す＝置換前と同値。>900 で有効・≤900 はシートが全幅化）。 */
   maxWidth?: number;
   /** "center"（既定）=中央オーバーレイ／"drawer"=右端から全高スライドイン（>900px のみ・≤900 はシート）／"top"=ヘッダー直下に固定（★起票94・>900px のみ・≤900 はシート・高さ上限＋中身スクロール）。 */
-  variant?: "center" | "drawer" | "top";
+  variant?: "center" | "drawer" | "top" | "dialog"; // ★2026-11-18 夜 2（相談役 ①）: "dialog"＝狭い幅（≤900）でもシートにせず画面の中央（締めの理由の窓）
   /** true=カードに高さ上限を与えて中身をスクロールさせる（position:sticky のフッタが効くようになる）。 */
   scroll?: boolean;
   /** ★2026-11-18 夜（相談役 ⑥ B）: true＝カードの地を不透明（var(--card)）に＝背面の文字が透けない（店の端末の「スタッフでログイン（PIN）」が使う・渡さなければ従来の半透明のグラデのまま）。 */
@@ -59,7 +59,8 @@ export default function Modal({
   }, [onClose]);
   const overlayCls = "nox-modal-overlay"
     + (variant === "drawer" ? " nox-modal-drawer" : "")
-    + (variant === "top" ? " nox-modal-top" : "")   // ★起票94（便 X-12-3）: 上端＝ヘッダー下端＋8px・max-height＝100vh−80px（globals.css・lib/nox/ui/popover.ts と同値）
+    + (variant === "top" ? " nox-modal-top" : "")
+    + (variant === "dialog" ? " nox-modal-dialog" : "")   // ★2026-11-18 夜 2（相談役 ①）   // ★起票94（便 X-12-3）: 上端＝ヘッダー下端＋8px・max-height＝100vh−80px（globals.css・lib/nox/ui/popover.ts と同値）
     + (scroll ? " nox-modal-scroll" : "");
   const cardStyle: CSSProperties = {
     ...t.card,

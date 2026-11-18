@@ -42,9 +42,9 @@ check("kl(2-2) deviceLockProbeOf＝device_locked だけロック中（locked_unt
 check("kl(3-1) 確かめの引数＝PIN も名前も渡さない", DEVICE_LOCK_PROBE_ARGS.p_pin === null && DEVICE_LOCK_PROBE_ARGS.p_membership_id === null && Object.keys(DEVICE_LOCK_PROBE_ARGS).length === 2);
 const migs = fs.readdirSync("supabase/migrations").filter((f) => f.endsWith(".sql")).sort();
 const defs = migs.filter((f) => /function public\.kiosk_unlock\(/i.test(src(`supabase/migrations/${f}`)));
-check("kl(3-2) kiosk_unlock を最後に作り直した mig＝0201g（後の mig が作り直したら順の pin を見直す）", defs[defs.length - 1] === "0201g_pin_device.sql", defs);
+check("kl(3-2) kiosk_unlock を最後に作り直した mig＝0201r（★2026-11-18 21:57 適用・後の mig が作り直したら順の pin を見直す）", defs[defs.length - 1] === "0201r_kiosk_cast_pin_lock5.sql", defs);
 {
-  const m = src("supabase/migrations/0201g_pin_device.sql");
+  const m = src("supabase/migrations/0201r_kiosk_cast_pin_lock5.sql"); // ★0201r: 最後に kiosk_unlock を作り直した mig の本文で順を見る
   const a = m.search(/function public\.kiosk_unlock\(/i), b = m.indexOf("$function$;", a);
   const body = m.slice(a, b);
   const iDL = body.indexOf("if v_device.locked_until is not null and v_device.locked_until > now() then return jsonb_build_object('ok', false, 'reason', 'device_locked', 'locked_until', v_device.locked_until); end if;");

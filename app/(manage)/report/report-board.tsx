@@ -1469,7 +1469,7 @@ export default function ReportBoard({
       )}
 
       {closeGuard && (/* ★2026-11-18 夜 2（相談役 ①）: 締められない理由の窓（中央）＝未会計の件数・実査の未入力。強行は店長・オーナーだけ */
-        <Modal onClose={() => setCloseGuard(null)} maxWidth={440}>
+        <Modal onClose={() => setCloseGuard(null)} maxWidth={440} variant="dialog">
           <div className="nox-modalhead"><h3 style={{ margin: 0, fontSize: 16 }} data-close-guard-title="1">{closeGuardTitleOf(closeGuard)}</h3></div>
           <div className="nox-modalbody" data-close-guard={closeGuard.openN > 0 ? "open" : "counted"}>
             <ul style={{ margin: 0, paddingLeft: 18, display: "grid", gap: 6, fontSize: 13.5 }}>
