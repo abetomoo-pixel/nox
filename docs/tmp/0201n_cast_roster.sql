@@ -1,4 +1,4 @@
--- 0201n_cast_roster（2026-11-17 起草・CC・相談役「レジの許可があるキャストが読める列を絞る」・起票135 の続き）
+-- 0201n_cast_roster v2（2026-11-18 直し・相談役 C＝is distinct from・lock_timeout・数の確認）（v1＝2026-11-17 起草・CC・相談役「レジの許可があるキャストが読める列を絞る」・起票135 の続き）
 --   翻訳元＝なし（NOX 固有）。表の定義は変えない＝関数 1 本の新設と RLS 2 本の差し替えだけ。
 --   ① casts_select：キャストの立場で読めるのは自分の行だけに戻す（旧＝auth_cast_can_register() なら同じ店の全員の全列＝体入の条件・雇用・送りの区分・ランク・入退店日・user_id が読めた）。
 --   ② register_cast_roster(p_store_id)：レジ・日報の画面がキャストの立場で要る列だけ（id・name・photo_updated_at・rank_id・is_active）を返す。
@@ -8,10 +8,12 @@
 --   seats は変えない。
 --   画面の直し（このあとの client 便・フラグ MIG_0201N_APPLIED）：レジ（app/(manage)/register/page.tsx）・日報（report-board.tsx・month-report.tsx）の casts の読取を、キャストの立場のときだけ register_cast_roster に替える。
 --
+-- 関数 450→451（register_cast_roster を足す）・表 122 のまま。前提＝0201m の後（450／122）。0201o（set_store_profile の差し替え）とは関数が重ならない。
 -- 検証クエリ（貼った後に別で流す＝docs/tmp/0201n_verify.sql）：先頭に貼り先証明 select 'nox-project-proof', count(*) from public.orgs;
 --   ・casts_select の qual に auth_cast_can_register が無い／daily_reports_select の qual に auth_cast_close_ok がある
 --   ・register_cast_roster が SECURITY DEFINER・search_path public・EXECUTE は authenticated だけ（public／anon は無い）
 begin;
+set local lock_timeout = '10s';   -- ★v2（2026-11-18 相談役 C・教訓132）: 錠を待ち続けない（casts と daily_reports の方針を差し替える）
 
 -- ② レジ用の一覧（列を絞る）
 create or replace function public.register_cast_roster(p_store_id uuid)
@@ -21,7 +23,7 @@ as $function$
 begin
   if public.auth_org_id() is null then raise exception 'forbidden'; end if;
   if p_store_id is null or p_store_id <> public.auth_store_id() then raise exception 'forbidden'; end if;
-  if public.auth_role() <> 'cast' then raise exception 'forbidden'; end if;   -- 店長以上・スタッフは表を直接読む（RLS のまま）
+  if public.auth_role() is distinct from 'cast' then raise exception 'forbidden'; end if;   -- 店長以上・スタッフ・店の端末（役割 null）は表を直接読む（RLS のまま）★v2: <> は null で素通りする＝is distinct from
   if not (coalesce(public.auth_cast_can_register(), false) or coalesce(public.auth_cast_close_ok(p_store_id), false)) then raise exception 'forbidden'; end if;
   return query
     select c.id, c.name, c.photo_updated_at, c.rank_id, c.is_active
