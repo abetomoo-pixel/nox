@@ -32,6 +32,7 @@ export async function GET(req: Request) {
   const { data: orgs, error } = await qb;
   if (error) { console.error(`cron demo-reset: orgs 読取失敗 ${error.message}`); return new NextResponse("error", { status: 500 }); }
   const results: { org: string; ok: boolean; mode?: string; chunks?: number; skipped?: string; error?: string }[] = [];
+  const skippedOrgs: { org: string; reason: string }[] = []; // ★2026-11-19 夜（相談役 ①）: 鍵が無くて飛ばした店（応答の skipped_orgs）
   for (const o of orgs ?? []) {
     const orgId = o.id as string;
     const { data: store } = await admin.from("stores").select("settings_json").eq("org_id", orgId).order("name").limit(1).maybeSingle();
@@ -40,6 +41,8 @@ export async function GET(req: Request) {
     // 再試行＝その営業日に reset 済みの org は飛ばす（demo_reset_at の営業日が今日なら済み）
     if (retry && o.demo_reset_at && bizDateOf(new Date(o.demo_reset_at as string).toISOString(), cutoff) === bizDate) { results.push({ org: o.name as string, ok: true, skipped: "already reset today" }); continue; }
     const built = await buildPayload(admin, orgId, bizDate);
+    // ★2026-11-19 夜（相談役 ①）: DEMO_USERS に店の鍵が無い＝消さずに飛ばす（今のまま）・失敗（500）にせず「飛ばした店」として成功の応答に載せる（監査の失敗も書かない・ほかの店の本当の失敗は今までどおり 500）
+    if (!built.ok && built.skip) { console.warn(`cron demo-reset: ${o.name} を飛ばした（${built.error}）`); results.push({ org: o.name as string, ok: true, skipped: built.error }); skippedOrgs.push({ org: o.name as string, reason: built.error }); continue; }
     if (!built.ok) { await markFailed(admin, orgId, built.error); results.push({ org: o.name as string, ok: false, error: built.error }); continue; }
     const r = await runDemoReset(admin, orgId, built.payload);
     if (!r.ok) { console.error(`cron demo-reset: ${o.name} ${r.error}`); await markFailed(admin, orgId, r.error); results.push({ org: o.name as string, ok: false, error: "reset failed" }); continue; }
@@ -47,7 +50,7 @@ export async function GET(req: Request) {
     results.push({ org: o.name as string, ok: true, mode: r.mode, chunks: r.chunks });
   }
   const ok = results.every((r) => r.ok);
-  return NextResponse.json({ ok, count: results.length, retry, results }, { status: ok ? 200 : 500 }); // ★0192: 1 店でも失敗＝failed
+  return NextResponse.json({ ok, count: results.length, retry, skipped_orgs: skippedOrgs, results }, { status: ok ? 200 : 500 }); // ★0192: 1 店でも失敗＝failed
 }
 
 /** 失敗の記録（audit 'demo.reset.failed'）。★0192: cron 専用 RPC demo_reset_mark_failed（service_role のみ）・0192 未適用は console のみ */

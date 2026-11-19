@@ -232,3 +232,10 @@ export const MIG_0201R_APPLIED = true; // ★2026-11-18 21:57:44 CC が本番に
 let override0201r: boolean | null = null;
 export function mig0201rOn(): boolean { return override0201r ?? MIG_0201R_APPLIED; }
 export function __set0201rForTest(v: boolean | null): void { override0201r = v; }
+
+/** ★0201t（2026-11-19 夜 起草・相談役 ③＝起草と試走まで・手貼り前＝false）: PIN の重なりを照らしていない 3 つの経路（0201g より前・退店から戻した・許可を後から付けた）に印。
+ *  true＝PIN の画面に pin_overlap_counts の件数（重なり・未照合）だけを出す（PIN・誰かは出さない）。false＝出さない（関数が無い）。 */
+export const MIG_0201T_APPLIED = false;
+let override0201t: boolean | null = null;
+export function mig0201tOn(): boolean { return override0201t ?? MIG_0201T_APPLIED; }
+export function __set0201tForTest(v: boolean | null): void { override0201t = v; }

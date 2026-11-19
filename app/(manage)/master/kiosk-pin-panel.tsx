@@ -21,6 +21,7 @@ import { pinLockDefaultMinutesOf } from "@/lib/nox/rules-0175/kiosk"; // ★0201
 import * as t from "@/lib/nox/ui/theme";
 import Modal from "@/components/ui/modal";
 
+import PinOverlapNotice from "@/components/nox/pin-overlap-notice"; // ★0201t（相談役 11/19 夜 ③）: 重なりの件数だけ（旗の後ろ）
 import Toast, { Message } from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 type Store = { id: string; name: string };
 type OpMember = { id: string; store_id: string; role: string; user_name: string };
@@ -194,6 +195,7 @@ export default function KioskPinPanel({ stores, isOwner }: { stores: Store[]; is
           <h3 style={h3}>PIN</h3>{/* ★便 M5 M-45: 2 系統を 1 つの一覧に＝操作担当 PIN（スタッフ・ここで設定）／キオスク PIN（キャスト・設定はキャスト詳細） */}
           <span className="nox-stpill" style={{ marginLeft: "auto" }}>{PIN_DIGITS_LABEL}</span>
         </div>
+        <PinOverlapNotice stores={stores} />
         <p style={sub} data-pin-two-kinds="1">操作担当 PIN（管理者・店長・スタッフ＝レジ操作を担当者と紐付ける・ここで設定）と、キオスク PIN（キャスト＝打刻・レジの本人確認・設定はキャスト詳細 › アカウント）</p>
         <div style={{ overflowX: "auto" }}>
           <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 12 }}>
