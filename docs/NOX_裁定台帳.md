@@ -5986,6 +5986,10 @@ CC の処置＝M-130（下の節）。
 - 手順書（handpaste_0201s_1119.md）は検証を「8 行」と書いていたが、ファイルは貼り先証明＋8＝9 行（相談役の指示の 9 行が正）。
 - 貼った後の本文＝check_group_subtotal（0f9d5594）・cast_sales_aggregate_subtotal（d6bcec88）とも本体ファイルの中の本文と 1 文字も同じ。check_group_due・get_cast_sales_subtotal は前と同じ md5。収蔵＝supabase/migrations/0201s_subtotal_like_due.sql（sha 一致）。
 
+## ホストの reset の cron 作成（2026-11-19 17:22:10・**Agoora の承認で CC が作成**・1 回だけ）
+- cron.job に nox-demo-reset-host（jobid 13・schedule '17 21 * * *'＝JST 06:17・active）を作った。相談役が渡した 1 文をそのまま 1 回（sha256 78d945ca…2ba79・375 字）・f0 の 2 連の後・06:05〜06:40 の外・繋ぎ先 ref hiqbfagmkrdpmlqhkmsu・貼り先証明 11。前＝10 行で host 無し・後＝11 行・command がそのまま・ほかの 10 行は前と同じ。vault の中身は読んでいない。全文＝docs/tmp/apply_cron_host_1119.log。
+- 本番の env にホストの鍵が入るまでは、06:17 の job と 06:35 の再試行（is_demo の全 org・ホストも含む）がホストで止まる（DEMO_USERS に鍵が無いときは消す前に止める守り＝99d995c1）＝ホストのデータは消えない。
+
 ## 次の番号（2026-11-18 夜・裁定505／506・教訓157〜159 を収載した時点＝実測）
 - **次の裁定＝507**・**次の M＝M-195**・**次の起票＝136**・**次の教訓＝160**。
 

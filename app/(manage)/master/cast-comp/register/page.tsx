@@ -4,6 +4,7 @@ import { getSessionRole } from "@/lib/nox/auth";
 import CastRegisterPanel from "../../cast-register-panel";
 import { managePageGate } from "@/lib/nox/nav/page-gate";
 import { castRegisterLevelOf } from "@/lib/nox/rules-0175/cast-register"; // ★裁定473
+import { mig0201eOn } from "@/lib/nox/rules-0175/flag"; // ★2026-11-19 夕（相談役 ③）: 締めの許可（0201e の後だけ読む）
 
 export const dynamic = "force-dynamic";
 
@@ -24,15 +25,16 @@ export default async function CastCompRegisterPage() {
     .eq("store_id", storeId).eq("is_active", true).order("name");
   const castUserIds = (casts ?? []).map((c) => c.user_id).filter(Boolean) as string[];
   const { data: castMems } = castUserIds.length
-    ? await supabase.from("memberships").select("id, user_id, can_register")
+    ? await supabase.from("memberships").select(mig0201eOn() ? "id, user_id, can_register, cast_can_close" : "id, user_id, can_register")
         .eq("store_id", storeId).eq("role", "cast").in("user_id", castUserIds)
-    : { data: [] as { id: string; user_id: string; can_register: boolean }[] };
-  const memByUser = new Map((castMems ?? []).map((m) => [m.user_id, m]));
+    : { data: [] as { id: string; user_id: string; can_register: boolean; cast_can_close?: boolean }[] };
+  const memByUser = new Map(((castMems ?? []) as unknown as { id: string; user_id: string; can_register: boolean; cast_can_close?: boolean }[]).map((m) => [m.user_id, m]));
   const castRegRows = (casts ?? []).map((c) => ({
     id: c.id,
     name: c.name,
     membershipId: (memByUser.get(c.user_id)?.id as string | undefined) ?? null,
     canRegister: (memByUser.get(c.user_id)?.can_register as boolean | undefined) ?? false,
+    ...(mig0201eOn() ? { canClose: memByUser.get(c.user_id)?.cast_can_close === true } : {}), // ★2026-11-19 夕（相談役 ③）
   }));
   return (
     <CastRegisterPanel

@@ -22,3 +22,19 @@ export function castCloseRowsOf(casts: readonly CastCloseCast[], mems: readonly 
 export function castCloseArgsOf(membershipId: string, on: boolean): { p_membership_id: string; p_on: boolean } {
   return { p_membership_id: membershipId, p_on: on === true };
 }
+
+// ★2026-11-19 夕（相談役 ③・画面だけ）: 締めの許可は「レジの許可」がある人にだけ付けられる。権限の判定（auth_register_access・castRegisterEntryOf・RLS・RPC）は変えない。
+//   すでに締めの許可だけを持つ人は、外す向き（ON → OFF）だけ押せる。
+export const CAST_CLOSE_NEEDS_REGISTER = "レジの許可がある人だけ付けられます（キャスト会計の許可で設定）";
+/** キャスト会計の許可の画面で、レジの許可を外す前に出す 1 行 */
+export const CAST_REGISTER_OFF_CLEARS_CLOSE = "レジの許可を外すと、締めの許可も外れます。";
+
+/** 締めのスイッチを押せるか（付けるのはレジの許可がある人だけ・外すのはいつでも） */
+export function castCloseTogglableOf(r: { canRegister: boolean; canClose: boolean }): boolean {
+  return r.canClose || r.canRegister;
+}
+
+/** レジの許可を外すとき、先に締めの許可を外すか（外す向き∧締めの許可がある） */
+export function castRegisterOffClearsCloseOf(r: { canClose?: boolean }, nextCanRegister: boolean): boolean {
+  return nextCanRegister === false && r.canClose === true;
+}

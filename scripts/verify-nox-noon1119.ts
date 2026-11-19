@@ -2,11 +2,13 @@
  * verify:nox-noon1119 — 通しで出た直しの便（2026-11-19 昼・相談役 ②③）。お金の計算の式には触れない（表示だけ）。
  *  g(1)〜g(3) ② レジを使えないキャストに卓の一覧（「使用中 0／6卓」と空席の並び）の代わりの案内：純関数・layout の差し込み・案内の部品。権限の判定（auth_register_access・castRegisterEntryOf）は変えない。
  *  t(1)〜t(3) ③ 明細の時給の行：時給 0 円・額 0 円の「時給 ¥0/h × ◯h ¥0」は出さない。時給のある人（0h でも＝303-2）・固定給・1稼働・区間行は今のまま。
+ *  e(1)〜e(3) 夕の便（相談役 ③）締めの許可の付け方（画面だけ）：締めの許可はレジの許可がある人にだけ付けられる・レジの許可を外すと先に締めの許可も外す（押す前に 1 行）。権限の判定は変えない。
  */
 import fs from "node:fs";
 import { castRegisterGuideOf, CAST_REGISTER_OFF_DUTY_GUIDE, CAST_REGISTER_GUIDE_BACK, CAST_REGISTER_STORE_WINDOW_GUIDE, CAST_REGISTER_NOT_ALLOWED_GUIDE, CAST_REGISTER_GUIDE_BACK_STORE } from "../lib/nox/register/cast-register-guide";
 import { REGISTER_OFF_DUTY_NOTE_STORE } from "../lib/nox/register/register-visibility";
 import { breakdownLinesOf, timeLineOf, timeZeroWageOf } from "../lib/nox/payroll/breakdown-lines";
+import { CAST_CLOSE_NEEDS_REGISTER, CAST_REGISTER_OFF_CLEARS_CLOSE, castCloseTogglableOf, castRegisterOffClearsCloseOf } from "../lib/nox/staff/cast-close";
 let pass = 0;
 const fails: string[] = [];
 function check(label: string, ok: boolean, d?: unknown) { if (ok) pass++; else fails.push(`${label}${d !== undefined ? `: ${JSON.stringify(d)}` : ""}`); }
@@ -55,6 +57,23 @@ check("g(1-2) 使える（allowed）＝案内なし（卓の一覧をそのま�
   check("t(2-3) 判定の関数：区間行（2 本以上）は外さない・時給の行以外は外さない", !timeZeroWageOf({ wage: 0, timePay: 0 }, [{ key: "timePay-1", label: "a", amount: 0 }, { key: "timePay-2", label: "b", amount: 0 }]) && !timeZeroWageOf({ wage: 0, timePay: 0, payRule: { rule: "fixed" } }, [{ key: "timePay", label: "固定給", amount: 0 }]) && timeZeroWageOf({ wage: 0, timePay: 0 }, [{ key: "timePay", label: "時給 ¥0/h × 3h", amount: 0 }]));
   const src = fs.readFileSync("lib/nox/payroll/breakdown-lines.ts", "utf8");
   check("t(3-1) 表示だけ（breakdownLinesOf の時給の行の差し込みだけ・確定の内訳を作る core／collect は触らない）", src.includes("if (!timeZeroWageOf(p, timeLines)) earn.push(...timeLines);") && !fs.readFileSync("lib/nox/payroll/core.ts", "utf8").includes("timeZeroWageOf") && !fs.readFileSync("lib/nox/payroll/collect.ts", "utf8").includes("timeZeroWageOf"));
+}
+
+// ── 夕の便 ③ 締めの許可の付け方（画面だけ） ──
+{
+  check("e(1-1) 締めのスイッチ＝付けるのはレジの許可がある人だけ・すでに締めの許可だけを持つ人は外す向きだけ押せる", castCloseTogglableOf({ canRegister: true, canClose: false }) && castCloseTogglableOf({ canRegister: true, canClose: true }) && castCloseTogglableOf({ canRegister: false, canClose: true }) && !castCloseTogglableOf({ canRegister: false, canClose: false }));
+  check("e(1-2) レジの許可を外す向き∧締めの許可あり＝先に締めの許可を外す・付ける向きや締めの許可なしは外さない", castRegisterOffClearsCloseOf({ canClose: true }, false) && !castRegisterOffClearsCloseOf({ canClose: true }, true) && !castRegisterOffClearsCloseOf({ canClose: false }, false) && !castRegisterOffClearsCloseOf({}, false));
+  check("e(1-3) 文言＝「レジの許可を外すと、締めの許可も外れます。」・付けられない人の行の注", CAST_REGISTER_OFF_CLEARS_CLOSE === "レジの許可を外すと、締めの許可も外れます。" && CAST_CLOSE_NEEDS_REGISTER.startsWith("レジの許可がある人だけ付けられます"));
+  const cp = fs.readFileSync("app/(manage)/staff/cast-close-panel.tsx", "utf8");
+  check("e(2-1) スタッフ管理の締めのスイッチ＝レジの許可が無い人は付けられない（disabled・押しても付けない）・行に注", cp.includes("disabled={busy || !castCloseTogglableOf(r)}") && cp.includes("if (next && !r.canRegister) return;") && cp.includes("{CAST_CLOSE_NEEDS_REGISTER}</span>"));
+  const rp = fs.readFileSync("app/(manage)/master/cast-register-panel.tsx", "utf8");
+  const iClose = rp.indexOf("await supabase.rpc(CAST_CLOSE_RPC, castCloseArgsOf(row.membershipId, false))"), iReg = rp.indexOf(`await supabase.rpc("set_cast_register", { p_membership_id: row.membershipId, p_can_register: next })`);
+  check("e(2-2) キャスト会計の許可＝レジの許可を外すとき先に締めの許可を外す（既存の RPC・明示の false）→ レジの許可", iClose > 0 && iReg > iClose && rp.includes("const clearClose = castRegisterOffClearsCloseOf(row, next);"));
+  check("e(2-3) 押す前に 1 行（「4. キャスト別の許可」の見出しの下）", rp.includes("<h3 style={h3}>4. キャスト別の許可</h3>\n        {rows.some((r) => r.canClose !== undefined) && <p data-cast-register-off-clears-close=\"1\""));
+  const pg = fs.readFileSync("app/(manage)/master/cast-comp/register/page.tsx", "utf8");
+  check("e(2-4) 締めの許可を読むのは 0201e の後だけ（フラグ false は今の列のまま）", pg.includes(`.select(mig0201eOn() ? "id, user_id, can_register, cast_can_close" : "id, user_id, can_register")`) && pg.includes("...(mig0201eOn() ? { canClose: memByUser.get(c.user_id)?.cast_can_close === true } : {})"));
+  const cs = fs.readFileSync("lib/nox/staff/cast-close.ts", "utf8");
+  check("e(3-1) 権限の判定は変えない（書く RPC は set_cast_close／set_cast_register のまま・入口の判定は g(3-3)）", cs.includes(`export const CAST_CLOSE_RPC = "set_cast_close";`) && (rp.match(/rpc\("[a-z_]+"/g) ?? []).every((x) => x === 'rpc("set_cast_register"' || x === 'rpc("set_store_profile"'));
 }
 
 if (fails.length) { console.error(`✗ verify:nox-noon1119 失敗 ${fails.length}（成功 ${pass}）`); for (const f of fails) console.error(" - " + f); process.exit(1); }

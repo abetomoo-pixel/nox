@@ -11,11 +11,12 @@ import * as t from "@/lib/nox/ui/theme";
 
 import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 import { mig0200On, rules0175On } from "@/lib/nox/rules-0175/flag"; // ★追補 2 ★0200
+import { CAST_CLOSE_RPC, CAST_REGISTER_OFF_CLEARS_CLOSE, castCloseArgsOf, castRegisterOffClearsCloseOf } from "@/lib/nox/staff/cast-close"; // ★2026-11-19 夕（相談役 ③）: レジの許可を外すと締めの許可も外す（画面だけ）
 import { CAST_REGISTER_LEVEL_DESC, CAST_REGISTER_LEVEL_LABEL, CAST_REGISTER_SCOPE_DESC, CAST_REGISTER_SCOPE_LABEL, castRegisterLevelOf, castRegisterScopeNoteOf, castRegisterScopeOf, type CastRegisterLevel, type CastRegisterScope } from "@/lib/nox/rules-0175/cast-register"; // ★追補 2（裁定420）★裁定473
 import { CAST_REGISTER_DEVICE_LABEL, castRegisterDeviceOf, type CastRegisterDevice } from "@/lib/nox/register/p173"; // ★便 P173（裁定389）→ ★裁定473: ここが正本
 import { STAFF_DISCOUNT_LABEL, staffDiscountCapOf, staffDiscountLevelOf, type StaffDiscountLevel } from "@/lib/nox/rules-0175/staff-discount"; // ★追補 2（裁定421 候補）
 import { errJa } from "@/lib/nox/errors"; // ★裁定467（M-126）: 利用者向けの文言は辞書 1 本
-type CastRow = { id: string; name: string; membershipId: string | null; canRegister: boolean };
+type CastRow = { id: string; name: string; membershipId: string | null; canRegister: boolean; canClose?: boolean }; // canClose＝締めの許可（0201e の後だけ読む）
 
 const card: React.CSSProperties = t.card;
 const h2: React.CSSProperties = { ...t.pheadH1, fontSize: 16 };
@@ -56,11 +57,18 @@ export default function CastRegisterPanel({
     if (busy || !row.membershipId) return;
     const next = !row.canRegister;
     setBusy(true); setMsg("");
+    // ★2026-11-19 夕（相談役 ③）: レジの許可を外すときは、先に締めの許可を外す（締めの許可だけが残る形を作らない・先に外す＝途中で失敗してもレジだけ残る側）
+    const clearClose = castRegisterOffClearsCloseOf(row, next);
+    if (clearClose) {
+      const { error: ec } = await supabase.rpc(CAST_CLOSE_RPC, castCloseArgsOf(row.membershipId, false));
+      if (ec) { setMsg(`エラー: ${errJa(ec.message)}`); setBusy(false); return; }
+      setRows((rs) => rs.map((r) => (r.id === row.id ? { ...r, canClose: false } : r)));
+    }
     const { error } = await supabase.rpc("set_cast_register", { p_membership_id: row.membershipId, p_can_register: next });
-    if (error) setMsg(`エラー: ${errJa(error.message)}`);
+    if (error) setMsg(`エラー: ${errJa(error.message)}${clearClose ? "（締めの許可は外れています）" : ""}`);
     else {
       setRows((rs) => rs.map((r) => (r.id === row.id ? { ...r, canRegister: next } : r)));
-      setMsg(`${row.name} のレジ会計を「${next ? "許可" : "不許可"}」にしました`);
+      setMsg(`${row.name} のレジ会計を「${next ? "許可" : "不許可"}」にしました${clearClose ? "（締めの許可も外しました）" : ""}`);
     }
     setBusy(false);
   }
@@ -139,6 +147,7 @@ export default function CastRegisterPanel({
       {/* cast 別許可（owner/manager 操作可） */}
       <section className="nox-cardtop" style={card}>
         <h3 style={h3}>4. キャスト別の許可</h3>
+        {rows.some((r) => r.canClose !== undefined) && <p data-cast-register-off-clears-close="1" style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 8px" }}>{CAST_REGISTER_OFF_CLEARS_CLOSE}</p>}
         {!enabled && (
           <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 8px" }}>
             ※段階が「OFF」のため、ここで許可しても実際には使えません（段階を「注文のみ」か「会計まで」にすると効きます）。
