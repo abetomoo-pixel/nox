@@ -225,7 +225,7 @@ export default function KioskPage() {
   return (
     <main className="nox-dark" style={{ ...t.loginBg, minHeight: "100dvh", position: "relative", padding: 20 }}>
       {phase !== "login" && clock}
-      <div style={{ width: "100%", maxWidth: 720, margin: "0 auto", paddingTop: 26 }}>{/* ★M-154 の残り（2026-11-11 夜・実測）: main は flex（中央寄せ）＝幅を指定しないと中身の幅に縮み、PIN 枠が 182px のまま（スタッフでログインは 339px）→ 100% にして同じ幅に */}
+      <div style={{ width: "100%", maxWidth: 720, margin: "0 auto", paddingTop: "clamp(26px, calc((600px - 100vw) * 0.2), 52px)" }}>{/* ★2026-11-19 夜（相談役 ② の C・通しの 375 で実測）: 狭い幅（約 440px 未満）では右上の「端末ログアウト」が「タイムレコーダー」の字に重なった＝狭いときだけ上の余白を足す（375 で 45px・500px 以上は今までの 26px のまま） */}{/* ★M-154 の残り（2026-11-11 夜・実測）: main は flex（中央寄せ）＝幅を指定しないと中身の幅に縮み、PIN 枠が 182px のまま（スタッフでログインは 339px）→ 100% にして同じ幅に */}
         <div style={{ textAlign: "center", marginBottom: 22 }}>
           <span style={{ ...t.brand, fontSize: 26 }}>NOX</span>
           <span style={{ marginLeft: 12, fontSize: 13, color: "var(--sub)" }}>タイムレコーダー</span>

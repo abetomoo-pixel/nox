@@ -55,7 +55,7 @@ check("b1(3-1) 教訓142・裁定481 /report のページ自体でキャスト�
 {
   const css = src("app/globals.css");
   check("b1(4-2) M-154 の残り（実測 182px→339px）＝打刻の画面の入れ物は幅 100%（main が flex の中央寄せ＝指定しないと中身の幅に縮む）",
-    src("app/kiosk/page.tsx").includes('<div style={{ width: "100%", maxWidth: 720, margin: "0 auto", paddingTop: 26 }}>'));
+    src("app/kiosk/page.tsx").includes('<div style={{ width: "100%", maxWidth: 720, margin: "0 auto", paddingTop: "clamp(26px, calc((600px - 100vw) * 0.2), 52px)" }}>')); /* ★2026-11-19 夜（② の C）: 上の余白は狭い幅だけ足す形に（幅 100% は不変） */
   check("b1(4-1) M-154 の残り＝枠の幅は部品の側（.nox-pinpad-frame＝width 100%・max-width 380px）・出退勤とスタッフでログインが同じ枠",
     css.includes(".nox-pinpad-frame { width: 100%; max-width: 380px;") && src("app/kiosk/page.tsx").includes('<div className="nox-pinpad-frame" data-pin-frame="punch">') && src("components/nox/kiosk-unlock-pad.tsx").includes('<div className="nox-pinpad-frame" data-pin-frame="unlock"'));
 }

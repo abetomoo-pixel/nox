@@ -2112,6 +2112,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                         <td className="num">{r.date}</td>
                         <td>
                           {/* ★裁定137（v4.1 H21）: 差分はモック逐語「本人希望 → 管理側」の横並び（値と出所は不変） */}
+                          {r.wish?.kind === "off" && <span data-queue-off="1">休み希望</span>}{/* ★2026-11-19 夜（相談役 ② の C・通しの場面 13）: 人ごとの並びで休みの希望の行は時間の欄が空だった＝日付順の並びと同じ語を出す（ボタンの出し分けは変えない＝報告に残す） */}
                           {r.wishHm && <span className="num" style={{ color: r.nowHm ? "var(--v2-muted)" : undefined }}>本人希望 {r.wishHm}</span>}
                           {r.nowHm && (
                             <span className="num" style={{ marginLeft: r.wishHm ? 6 : 0 }}>

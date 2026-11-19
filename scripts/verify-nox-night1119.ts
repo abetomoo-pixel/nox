@@ -59,5 +59,14 @@ check("p(1-1) 旗 MIG_0201T_APPLIED＝false（手貼り前）", MIG_0201T_APPLIE
   }
 }
 
+// ── ② 通しの C（文言・折り返し・重なり）の直し（2026-11-19 夜・本番のデモで 375 と 1024 を実測）──
+{
+  const kiosk = src("app/kiosk/page.tsx"), css = src("app/globals.css"), sb = src("app/(manage)/shift/shift-board.tsx");
+  check("w(1) 店の端末：狭い幅だけ上の余白を足す（375 で「端末ログアウト」が「タイムレコーダー」に重ならない・500px 以上は 26px のまま）", kiosk.includes('paddingTop: "clamp(26px, calc((600px - 100vw) * 0.2), 52px)"') && !kiosk.includes('margin: "0 auto", paddingTop: 26 }}'));
+  check("w(2) シフトの今日：480px 以下は名前の列を中身の幅に（1 文字ずつ縦に折れない）・1024 の行は今のまま", css.includes("@media (max-width: 480px) { .nox-todaywrap .nox-table.cardrows tr { grid-template-columns: auto minmax(0, 1fr) auto; } .nox-todaywrap .nox-table.cardrows td.c-name > span:first-child { word-break: keep-all; } }")
+    && css.includes("@media (max-width: 1279px) { .nox-todaywrap .nox-table.cardrows tr { grid-template-columns: minmax(0, 1fr) auto auto; }") && css.indexOf("(max-width: 480px) { .nox-todaywrap") > css.indexOf("(max-width: 1279px) { .nox-todaywrap .nox-table.cardrows tr { grid-template-columns: minmax(0, 1fr)"));
+  check("w(3) 承認待ちの人ごとの並び：休みの希望の行に「休み希望」（日付順の並びと同じ語・ボタンは変えない）", sb.includes('{r.wish?.kind === "off" && <span data-queue-off="1">休み希望</span>}') && sb.includes('(r.wish.kind ?? "work") === "off" ? "休み希望"'));
+}
+
 if (fails.length) { console.error(`✗ verify:nox-night1119 失敗 ${fails.length}（成功 ${pass}）`); for (const f of fails) console.error(" - " + f); process.exit(1); }
 console.log(`verify:nox-night1119 OK (${pass} checks)`);
