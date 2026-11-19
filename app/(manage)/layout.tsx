@@ -30,6 +30,10 @@ import * as t from "@/lib/nox/ui/theme";
 import { StoreHoursProvider } from "@/components/ui/store-hours-context"; // ★M-145: 時刻の選択の既定（営業開始・終了・切替時刻）
 import { storeHoursOf } from "@/lib/nox/time/store-hours-server";
 import { registerVisibilityServerOf } from "@/lib/nox/register/register-visibility-server"; // ★M-158／M-159: レジの出し分けは 1 つの関数
+import { castRegisterGuideOf } from "@/lib/nox/register/cast-register-guide"; // ★2026-11-19 昼（相談役 ②）: レジを使えない cast の案内
+import CastRegisterGuidePanel from "@/components/nox/cast-register-guide";
+import { mig0200On } from "@/lib/nox/rules-0175/flag";
+import { storeDecidesPunchOf } from "@/lib/nox/shift/punch-mode";
 
 // 店側エリア（register/shift/report/master）の layout。auth_role() rpc は「ここで1回/リクエスト」のみ。
 // cast は原則 /mine へ（利便のためのリダイレクト・真の防御はパターン2 RLS＝checks 系 0行）。
@@ -51,6 +55,10 @@ export default async function ManageLayout({ children }: { children: React.React
   const kioskPersonCast = mig0196On() && mig0199On() && role === "cast" ? parseKioskPersonCookie((await cookies()).get(KIOSK_PERSON_COOKIE)?.value) : null;
   if (kioskPersonCast) { const pn = (await headers()).get("x-pathname") ?? ""; if (!(pn === "/register" || pn.startsWith("/register/"))) redirect("/register"); }
   let castReg = !!kioskPersonCast;
+  // ★2026-11-19 昼（相談役 ②）: レジを使えない cast に卓の一覧（「使用中 0／6卓」と空席の並び）の代わりの案内を出す＝権限の判定（auth_register_access）はそのまま・表示だけ。
+  //   店の端末の本人セッション＝出勤前（off_duty）と許可なし（締めの許可だけの人が「日報」のタイルから回された）・自分のスマホ＝/register の出勤前。
+  let castGuideAccess: { allowed: boolean; reason: string | null } | null = null;
+  if (kioskPersonCast && mig0200On()) { const { data: ga } = await supabase.rpc("auth_register_access"); const a = (ga ?? null) as { allowed?: boolean; reason?: string | null } | null; castGuideAccess = { allowed: a?.allowed === true, reason: a?.reason ?? "forbidden" }; }
   if (role === "cast" && !kioskPersonCast) {
     // ★便 P173（裁定389・0173）: ON のキャストは /register（開卓・注文・会計）と /report（日次の締め）だけ。店設定「操作端末」が店端末のみ（登録済みのレジ端末あり）なら本人セッションは通さない（店端末＝kiosk-register）
     const pathname = (await headers()).get("x-pathname") ?? "";
@@ -58,6 +66,7 @@ export default async function ManageLayout({ children }: { children: React.React
     if (onRegister) {
       const e = await castRegisterEntryOf(supabase);
       castReg = e.allowed;
+      if (!castReg && e.reason === "off_duty" && (pathname === "/register" || pathname.startsWith("/register/"))) { castGuideAccess = { allowed: false, reason: "off_duty" }; castReg = true; } // ★2026-11-19 昼（相談役 ②）: スマホの出勤前も /mine へ戻さず同じ案内（日報は今のまま /mine へ）
       // ★便 M5 M-40 (c)（2026-10-30）: 通さない理由を /mine に持って行く（黙って戻さない）＝/mine が「この店ではキャストのレジ操作は使いません」等を出す
       if (!castReg) redirect(`/mine?denied=register&why=${e.reason ?? "not_allowed"}`);
     }
@@ -69,6 +78,7 @@ export default async function ManageLayout({ children }: { children: React.React
   //     manager／staff／cast は対象外。既存店は 0147 の埋め戻しで setup_done=true＝不変。
   const { data: storeRows } = await supabase.from("stores").select("name, settings_json").order("name");
   const storeLabel = (storeRows?.[0]?.name as string | undefined) ?? "店舗";
+  const castGuide = castGuideAccess ? castRegisterGuideOf({ ...castGuideAccess, storeDecidesPunch: storeDecidesPunchOf((storeRows?.[0]?.settings_json ?? null) as Record<string, unknown> | null) }) : null; // ★2026-11-19 昼（相談役 ②）
   // ★N7-2: デモ org の判定＝orgs.is_demo（RLS orgs_select＝自 org 1 行・読取 1 本。0149 ★1 の列）
   const { data: orgRow } = await supabase.from("orgs").select("is_demo").limit(1).maybeSingle();
   const isDemo = orgRow?.is_demo === true;
@@ -215,7 +225,7 @@ export default async function ManageLayout({ children }: { children: React.React
             {isDemo && <DemoBanner />}{/* ★N7-2 ①: デモ環境の帯＋初期状態に戻す */}
             {billingLocked && <BillingBanner isOwner={isOwnerRaw} trialEnded={trialEnded} />}
             {trialNote && <div className="nox-alert" role="status" data-trial-reminder="1">{trialNote} <Link href="/billing" className="nox-link" style={{ fontWeight: 700 }}>ご契約の手続きへ</Link></div>}{/* ★追補 3 R-8: 復帰導線（ご契約）はオーナー本人だけ */}
-            <DemoProvider isDemo={isDemo}><StoreHoursProvider value={storeHours}>{children}</StoreHoursProvider></DemoProvider>
+            <DemoProvider isDemo={isDemo}><StoreHoursProvider value={storeHours}>{castGuide ? <CastRegisterGuidePanel guide={castGuide} kiosk={!!kioskPersonCast} /> : children}</StoreHoursProvider></DemoProvider>
           </main>
         </div>
       </div>

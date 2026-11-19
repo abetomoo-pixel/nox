@@ -166,6 +166,13 @@ export function timeLinesOf(pay: BreakdownPayLike, opts: { period?: string | nul
   return [timeLineOf(pay)];
 }
 
+/** ★2026-11-19 昼（相談役 ③）: 時給の行を出さない場合＝時給の行が 1 本（actual かシフト時間保証）∧ 時給 0 円 ∧ 額 0 円（ホストの店の明細の先頭に出ていた）。
+ *  固定給・1稼働・区間行・時給のある人（0h でも＝303-2）は今のまま。確定済みの内訳は書き換えない（表示だけ）。 */
+export function timeZeroWageOf(pay: BreakdownPayLike, lines: readonly BreakdownLine[]): boolean {
+  const rule = pay.payRule?.rule ?? "actual";
+  return (rule === "actual" || rule === "shift_guarantee") && lines.length === 1 && lines[0].key === "timePay" && z(pay.wage) === 0 && z(pay.timePay) === 0 && lines[0].amount === 0;
+}
+
 /** 時間行（303-2）＝報酬型ごとの 1 行。常に返す（0 でも出す） */
 export function timeLineOf(pay: BreakdownPayLike): BreakdownLine {
   const rule = pay.payRule?.rule ?? "actual";
@@ -199,7 +206,7 @@ export function breakdownLinesOf(input: BreakdownInput): Breakdown {
   };
   // 時間（303-2＝常に出す）。★PR-1 R-2（裁定416）: 時給が変わる期は区間ごとの行（保証→基本・半月判定の判定日）＝そのときは「うち基本／うち保証」の補助行は出さない（区間行が代わり）
   const timeLines = timeLinesOf(p, { period: input.period, splitAtD: input.splitAtD });
-  earn.push(...timeLines);
+  if (!timeZeroWageOf(p, timeLines)) earn.push(...timeLines); // ★2026-11-19 昼（相談役 ③）: 時給 0 円・額 0 円の「時給 ¥0/h × ◯h ¥0」は出さない（表示だけ・時給のある人は今のまま）
   if (p.guarantee && timeLines.length === 1) {
     push("guaBase", `　うち基本（${p.guarantee.baseHours}h）`, z(p.guarantee.basePay), { keepZero: true, sub: true });
     push("guaPay", `　うち保証 ${p.guarantee.spans.map((s) => `${md(s.from)}〜${s.to ? md(s.to) : ""} ${yen(s.base)}`).join("／")}（${p.guarantee.guaHours}h）`, z(p.guarantee.guaPay), { keepZero: true, sub: true });
