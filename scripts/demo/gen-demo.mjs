@@ -14,7 +14,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import { groupDueFull } from "../../lib/nox/check-calc.ts";
-import { ADVANCES, SLIDES, EXTRA_PLANS, PROFILES, TRIAL, STAFF_DEMO, BONUS_TIERS, EXT_PATTERNS, sysSettingsOf, backOf as profileBackOf, canonOf, okuriModeOf as profileOkuriModeOf, EXTRA_CASTS, PAY_RATE_DEMO, billRoundOf, MONTH_GROSS_TARGET, HOST_SOURCE, HOST_PLAN, hostCommissionDefsOf, hostStoreSettingsOf, HOST_ALLOWANCE } from "./profiles.mjs"; // ★X-13c: 6 店の差別化（表＝docs/demo/store_profiles_20261009.md）
+import { ADVANCES, SLIDES, EXTRA_PLANS, PROFILES, TRIAL, STAFF_DEMO, BONUS_TIERS, EXT_PATTERNS, sysSettingsOf, backOf as profileBackOf, canonOf, okuriModeOf as profileOkuriModeOf, EXTRA_CASTS, PAY_RATE_DEMO, billRoundOf, MONTH_GROSS_TARGET, HOST_SOURCE, HOST_PLAN, HOST_COMMISSION_BASIS, hostCommissionDefsOf, hostStoreSettingsOf, HOST_ALLOWANCE } from "./profiles.mjs"; // ★X-13c: 6 店の差別化（表＝docs/demo/store_profiles_20261009.md）
 import { RULES_0175_APPLIED, MIG_0200_APPLIED } from "./rules-0175-flag.mjs";
 import { demoPinOf } from "../../lib/nox/demo/pin.ts"; // ★夜便レーン 1（2026-11-11）: デモの人ごとの PIN（全員 1234 をやめる）
 // ★デモの PIN のハッシュ＝scripts/demo/demo-pin-hashes.json（id → bcrypt・本番 DB の crypt を固定の salt で読み取りだけで呼んで作る＝gen-demo-pin-hashes.mjs）。足りない id は一覧に書いて止める
@@ -547,10 +547,16 @@ for (const st of STORES) {
   // ★2026-11-18 夜（相談役 ④）: ホスト＝本指名（場内）が 1 人だけの伝票を、人ごとの目標（小計 × 1.43＝請求額の目安）へ割り振り直す（大きい伝票から・足りない人へ）。
   //   シンは場内の伝票だけ（ヘルプ中心）。指名料の行・シャンパン等の担当の行は新しい担当へ・キャストのドリンクの行はそのまま（元の人のヘルプのドリンク）。
   //   お客様の付いた固定来店（fv）と 2 人指名の伝票は動かさない（数えるだけ）。目標を超えた分はレオ（No.1・段の上限なし）へ。
+  const grossOfDue = grossOf;
+  //   ★2026-11-19 朝（相談役 ③）: 小計の基準（HOST_COMMISSION_BASIS＝'subtotal'）では人ごとの目標も割り振りも小計（税・サ料の前＝割引を引いた行の合計＝check_group_subtotal と同じ数え方）で数える＝目標＝v.sub そのまま。
+  //   シンは場内の伝票の小計の和がちょうど目標（20 万）になる組を選ぶ（部分和・見つからなければ目標以下で最も近い組）。請求額の基準（'due'）は前のまま（目標＝v.sub × 1.43・請求額で数える）。
   if (code === "host") {
     const nameOf = Object.fromEntries(Object.values(CAST).map((c) => [c.id, c.display_name]));
     const idOfName = Object.fromEntries(Object.values(CAST).map((c) => [c.display_name, c.id]));
-    const want = new Map(Object.entries(HOST_PLAN.casts).map(([n, v]) => [idOfName[n], Math.round(v.sub * HOST_PLAN.ratio)]));
+    const bySub = HOST_COMMISSION_BASIS === "subtotal";
+    const subOf = (c) => Math.max(0, c.lines.filter((l) => l.kind !== "discount").reduce((a, l) => a + l.line_total, 0) - c.lines.filter((l) => l.kind === "discount").reduce((a, l) => a + l.line_total, 0));
+    const grossOf = bySub ? subOf : grossOfDue;
+    const want = new Map(Object.entries(HOST_PLAN.casts).map(([n, v]) => [idOfName[n], bySub ? v.sub : Math.round(v.sub * HOST_PLAN.ratio)]));
     const got = new Map([...want.keys()].map((k) => [k, 0]));
     const shin = idOfName["シン"], leo = idOfName["レオ"];
     const pool = [];
@@ -568,6 +574,17 @@ for (const st of STORES) {
     const deficit = (id) => (want.get(id) ?? 0) - (got.get(id) ?? 0);
     pool.sort((x, y) => grossOf(y) - grossOf(x));
     // 先に場内の伝票でシンの目標を埋める（小さい伝票から＝境から離す）
+    if (bySub) {
+      // 部分和（小計は整数の円）：場内の伝票から和がちょうど deficit(shin) の組を選ぶ（大きい伝票は使わない＝和が目標を超える伝票は除く）
+      const jp = pool.filter((x) => x.noms[0].kind === "jonai" && subOf(x) > 0 && subOf(x) <= deficit(shin)).sort((x, y) => subOf(x) - subOf(y));
+      const goal = Math.max(0, deficit(shin));
+      const from = new Map([[0, -1]]); // 和 → その和に最後に足した伝票の番号（同じ伝票を 2 度使わない＝伝票ごとに前の層から広げる）
+      const prevOf = new Map();
+      jp.forEach((c, i) => { const s = subOf(c); for (const [sum] of [...from]) { const ns = sum + s; if (ns <= goal && !from.has(ns)) { from.set(ns, i); prevOf.set(ns, sum); } } });
+      const best = from.has(goal) ? goal : Math.max(...from.keys());
+      for (let sum = best; sum > 0; sum = prevOf.get(sum)) { const c = jp[from.get(sum)]; moveTo(c, shin); c.$hostDone = true; got.set(shin, got.get(shin) + subOf(c)); }
+      report.hostShinExact = best === goal;
+    } else
     for (const c of pool.filter((x) => x.noms[0].kind === "jonai").sort((x, y) => grossOf(x) - grossOf(y))) { if (deficit(shin) < grossOf(c) * 0.5) break; moveTo(c, shin); c.$hostDone = true; got.set(shin, got.get(shin) + grossOf(c)); }
     for (const c of pool) {
       if (c.$hostDone) continue;
@@ -576,7 +593,7 @@ for (const st of STORES) {
       const to = deficit(best) >= grossOf(c) * 0.5 ? best : leo; // 半分も入らない伝票はレオへ（小さい人を境の上へ押し上げない）
       moveTo(c, to); got.set(to, got.get(to) + grossOf(c));
     }
-    report.hostSales = Object.fromEntries([...want.keys()].map((id) => [nameOf[id], { wantDue: want.get(id), gotDue: Math.round(got.get(id)), estSub: Math.round(got.get(id) / HOST_PLAN.ratio) }]));
+    report.hostSales = Object.fromEntries([...want.keys()].map((id) => [nameOf[id], bySub ? { wantSub: want.get(id), gotSub: Math.round(got.get(id)) } : { wantDue: want.get(id), gotDue: Math.round(got.get(id)), estSub: Math.round(got.get(id) / HOST_PLAN.ratio) }]));
   }
   const perDayResult = [];
   for (const day of days) {

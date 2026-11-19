@@ -39,12 +39,12 @@ try {
     if (frozen.length === 0) continue;
     const mgr = (await db.query("select u.auth_user_id from public.memberships m join public.users u on u.id=m.user_id where m.store_id=$1 and m.role in ('manager','owner') and m.is_active order by (m.role='manager') desc limit 1", [st.id])).rows[0];
     const managerClient = { rpc: async (name: string, args: Record<string, unknown>) => {
-      if (name !== "get_cast_sales") return { data: null, error: { message: `unexpected rpc ${name}` } };
+      if (name !== "get_cast_sales" && name !== "get_cast_sales_subtotal") return { data: null, error: { message: `unexpected rpc ${name}` } }; // ★2026-11-19 朝（相談役 ③）: 小計の基準の店（ホストのデモ）は窓口 get_cast_sales_subtotal（同じ引数・同じ列）
       await db.query("savepoint s");
       try {
         await db.query("select set_config('request.jwt.claims', $1, true)", [JSON.stringify({ sub: mgr.auth_user_id, role: "authenticated" })]);
         await db.query("set local role authenticated");
-        const r = await db.query("select * from public.get_cast_sales($1::uuid, $2::date, $3::date)", [args.p_store_id, args.p_from, args.p_to]);
+        const r = await db.query(`select * from public.${name}($1::uuid, $2::date, $3::date)`, [args.p_store_id, args.p_from, args.p_to]);
         await db.query("reset role"); await db.query("release savepoint s");
         return { data: r.rows.map((x) => ({ ...x, biz_date: typeof x.biz_date === "string" ? x.biz_date : new Date(x.biz_date.getTime() - x.biz_date.getTimezoneOffset() * 60000).toISOString().slice(0, 10), sales: Number(x.sales), hon: Number(x.hon), jonai: Number(x.jonai), dohan: Number(x.dohan) })), error: null };
       } catch (e) { await db.query("rollback to savepoint s"); await db.query("reset role"); return { data: null, error: { message: (e as Error).message } }; }

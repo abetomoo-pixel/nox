@@ -1044,8 +1044,8 @@
    "sha256": "7d8223eb17ad2e984f65773d130d084c30176cdc29d849ffd230633af52df40d"
   },
   "host": {
-   "bytes": 6578076,
-   "rows": 11056,
+   "bytes": 6575395,
+   "rows": 11050,
    "tables": 47,
    "checks": 941,
    "lines": 6166,
@@ -1159,7 +1159,7 @@
       0
      ],
      "jonai": [
-      8,
+      7,
       14
      ],
      "dohan": [
@@ -1170,7 +1170,7 @@
     {
      "cast": "レオ",
      "hon": [
-      139,
+      140,
       105
      ],
      "jonai": [
@@ -1178,22 +1178,22 @@
       0
      ],
      "dohan": [
-      12,
+      6,
       8
      ]
     },
     {
      "cast": "アキラ",
      "hon": [
-      76,
+      72,
       92
      ],
      "jonai": [
-      1,
+      3,
       0
      ],
      "dohan": [
-      4,
+      7,
       7
      ]
     },
@@ -1204,48 +1204,48 @@
       70
      ],
      "jonai": [
-      2,
+      1,
       0
      ],
      "dohan": [
-      5,
+      8,
       5
      ]
     },
     {
      "cast": "ソウマ",
      "hon": [
-      42,
+      43,
       45
      ],
      "jonai": [
-      2,
+      1,
       0
      ],
      "dohan": [
-      2,
+      3,
       3
      ]
     },
     {
      "cast": "ハル",
      "hon": [
-      24,
+      25,
       25
      ],
      "jonai": [
-      0,
+      1,
       0
      ],
      "dohan": [
-      2,
+      1,
       2
      ]
     },
     {
      "cast": "ルイ",
      "hon": [
-      15,
+      16,
       15
      ],
      "jonai": [
@@ -1253,7 +1253,7 @@
       0
      ],
      "dohan": [
-      1,
+      0,
       1
      ]
     },
@@ -1268,12 +1268,12 @@
       0
      ],
      "dohan": [
-      0,
+      1,
       0
      ]
     }
    ],
-   "sha256": "bcf93afb81cb486318973546a170253b5c9bffce2852a34c60bdf33ff6c4984c"
+   "sha256": "18760aabe0543f584a79aa293aa6c5121482a21e87fa88d9236d9a1e23508eda"
   }
  },
  "ids": 0,
@@ -1284,7 +1284,7 @@
   "ace": 2912,
   "lily": 4708,
   "nest": 4483,
-  "host": 5316
+  "host": 5313
  },
  "trialDedup": {
   "muse.shifts": 1,
@@ -1304,66 +1304,55 @@
    }
   }
  },
+ "hostShinExact": true,
  "hostSales": {
   "レオ": {
-   "wantDue": 5434000,
-   "gotDue": 7078000,
-   "estSub": 4949650
+   "wantSub": 3800000,
+   "gotSub": 4789100
   },
   "アキラ": {
-   "wantDue": 4719000,
-   "gotDue": 4731000,
-   "estSub": 3308392
+   "wantSub": 3300000,
+   "gotSub": 3301550
   },
   "ミナト": {
-   "wantDue": 3575000,
-   "gotDue": 3570000,
-   "estSub": 2496503
+   "wantSub": 2500000,
+   "gotSub": 2507700
   },
   "ソウマ": {
-   "wantDue": 2145000,
-   "gotDue": 2140000,
-   "estSub": 1496503
+   "wantSub": 1500000,
+   "gotSub": 1501680
   },
   "ハル": {
-   "wantDue": 1072500,
-   "gotDue": 1067000,
-   "estSub": 746154
+   "wantSub": 750000,
+   "gotSub": 751710
   },
   "ルイ": {
-   "wantDue": 572000,
-   "gotDue": 585000,
-   "estSub": 409091
+   "wantSub": 400000,
+   "gotSub": 401560
   },
   "ジン": {
-   "wantDue": 314600,
-   "gotDue": 309000,
-   "estSub": 216084
+   "wantSub": 220000,
+   "gotSub": 228360
   },
   "ユウキ": {
-   "wantDue": 257400,
-   "gotDue": 269000,
-   "estSub": 188112
+   "wantSub": 180000,
+   "gotSub": 181520
   },
   "カイト": {
-   "wantDue": 143000,
-   "gotDue": 156000,
-   "estSub": 109091
+   "wantSub": 100000,
+   "gotSub": 108200
   },
   "ハヤト": {
-   "wantDue": 114400,
-   "gotDue": 127000,
-   "estSub": 88811
+   "wantSub": 80000,
+   "gotSub": 85680
   },
   "リョウ": {
-   "wantDue": 85800,
-   "gotDue": 94000,
-   "estSub": 65734
+   "wantSub": 60000,
+   "gotSub": 63360
   },
   "シン": {
-   "wantDue": 286000,
-   "gotDue": 277000,
-   "estSub": 193706
+   "wantSub": 200000,
+   "gotSub": 200000
   }
  }
 }

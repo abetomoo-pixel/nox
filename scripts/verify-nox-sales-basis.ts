@@ -42,7 +42,8 @@ try {
   const keyed = st.filter((s) => s.settings_json && ("sales_basis" in s.settings_json || "sales_back_default_off" in s.settings_json));
   const plain = st.filter((s) => !keyed.includes(s));
   check("sb(3-1) 鍵の無い店は今までと同じ経路（get_cast_sales・既定の売上歩合を止めない）", plain.every((s) => salesRpcOf(salesBasisOf(s.settings_json, true)) === "get_cast_sales" && !salesBackDefaultOffOf(s.settings_json, true)), plain.map((s) => s.name));
-  check("sb(3-2) 本番で鍵のある店＝0（2026-11-18 夜・デモと検査の店を含む全 11 店）", keyed.length === 0, keyed.map((s) => s.name));
+  // ★2026-11-19 朝（相談役 ③）: ホストのデモ CLUB VESPER だけが小計の基準（種で鍵を入れる・reset の後）＝鍵のある店は CLUB VESPER だけ・値はちょうど subtotal／true（reset の前は 0 店）
+  check("sb(3-2) 本番で鍵のある店＝CLUB VESPER だけ（sales_basis＝'subtotal'・sales_back_default_off＝true）か 0 店（ホストの reset の前）", keyed.every((s) => s.name === "CLUB VESPER" && s.settings_json?.sales_basis === "subtotal" && s.settings_json?.sales_back_default_off === true) && keyed.length <= 1, keyed.map((s) => [s.name, s.settings_json?.sales_basis, s.settings_json?.sales_back_default_off]));
   const fn = (await c.query<{ n: string }>("select count(*)::text n from pg_proc where pronamespace='public'::regnamespace and proname in ('get_cast_sales','get_cast_sales_subtotal')")).rows[0].n;
   check("sb(3-3) 2 つの RPC が本番にある（0201q）", fn === "2", fn);
 } finally { await c.query("rollback").catch(() => undefined); await c.end(); }

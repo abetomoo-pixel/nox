@@ -150,15 +150,18 @@ export const HOST_PLAN = {
 };
 /** ★2026-11-18 夜（相談役 ④）: 売上歩合の段（小計の 40〜65%・境 30／50／100／200／300 万）。
  *  basis＝'due'（今）：判定は請求額＝境 × 1.43・率 ÷ 1.43（custom_back_defs.value は integer＝小数の率は入らない→累積の率を整数に寄せる＝小計で 40.0／44.3／50.1／54.3／60.1／64.4% 相当）。
- *  basis＝'subtotal'（③＝collect が sales_basis を読む便が出た後）：判定と率を小計のまま（境 30〜300 万・率 40〜65%）＋店の鍵 sales_basis＝'subtotal'・sales_back_default_off＝true。★切り替えはこの 1 か所（HOST_COMMISSION_BASIS）。 */
-export const HOST_COMMISSION_BASIS = "due";
+ *  basis＝'subtotal'（③＝collect が sales_basis を読む便が出た後）：判定と率を小計のまま（境 30〜300 万・率 40〜65%）＋店の鍵 sales_basis＝'subtotal'・sales_back_default_off＝true。★切り替えはこの 1 か所（HOST_COMMISSION_BASIS）。
+ *  ★2026-11-19 朝（相談役 ③）: 小計の基準へ切り替えた（売上の基準の便 e2e7caee の後）。行の名前から「相当」を外す（小計の素の率）。生成器の人ごとの割り振りも小計で数える（ratio は請求額の基準へ戻すときだけ）。 */
+export const HOST_COMMISSION_BASIS = "subtotal";
 export const HOST_TIERS = [{ at: 0, pct: 40 }, { at: 300000, pct: 45 }, { at: 500000, pct: 50 }, { at: 1000000, pct: 55 }, { at: 2000000, pct: 60 }, { at: 3000000, pct: 65 }];
 export function hostCommissionDefsOf(basis = HOST_COMMISSION_BASIS, ratio = HOST_PLAN.ratio) {
   const cum = HOST_TIERS.map((t) => (basis === "subtotal" ? t.pct : Math.round(t.pct / ratio)));
   const man = (y) => `${y / 10000} 万円`;
   return HOST_TIERS.map((t, i) => ({
     key: `tier${i}`,
-    name: i === 0 ? `売上歩合（小計の ${t.pct}% 相当）` : `売上歩合の加算（小計 ${man(t.at)}〜・小計の ${t.pct - HOST_TIERS[i - 1].pct}% 相当）`,
+    name: basis === "subtotal"
+      ? (i === 0 ? `売上歩合（小計の ${t.pct}%）` : `売上歩合の加算（小計 ${man(t.at)}〜・小計の ${t.pct - HOST_TIERS[i - 1].pct}%）`)
+      : (i === 0 ? `売上歩合（小計の ${t.pct}% 相当）` : `売上歩合の加算（小計 ${man(t.at)}〜・小計の ${t.pct - HOST_TIERS[i - 1].pct}% 相当）`),
     basis: "sales", value: i === 0 ? cum[0] : cum[i] - cum[i - 1],
     cond: i === 0 ? null : { metric: "sales", min: basis === "subtotal" ? t.at : Math.round(t.at * ratio) },
   }));

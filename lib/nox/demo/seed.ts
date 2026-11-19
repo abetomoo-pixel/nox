@@ -130,6 +130,8 @@ export async function buildPayload(admin: SupabaseClient, orgId: string, bizDate
   // demo org の users（役割→users.id）＝payload の meta.users と役割で対応させる。役割は env DEMO_USERS（店:役割→auth user id）から引く
   const userIdByRole: Record<string, string> = {};
   const envMap = parseDemoUsers(process.env.DEMO_USERS);
+  // ★2026-11-19 朝（相談役 ③の調べ）: env DEMO_USERS があるのにこの店の鍵（`${store}:…`）が 1 つも無い＝消すと load が 'org mismatch' で落ちて店が空のまま（11/19 06:35 の再試行がホストを消した）→ 消す前に失敗で返す（env の無い手元の検査は前のまま）
+  if (envMap && !Object.keys(envMap).some((k) => k.startsWith(`${store}:`))) return { ok: false, status: 503, error: `DEMO_USERS に ${store} の鍵がありません（消さずに止めました）` };
   if (envMap) {
     const { data: users } = await admin.from("users").select("id, auth_user_id").eq("org_id", orgId);
     for (const role of DEMO_ROLES) {
