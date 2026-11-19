@@ -207,3 +207,63 @@
 ### 走らせたままのもの
 - **0**（12:04 確かめ＝NOX の repo のパスを含む node・headless の Edge・cmd・bash）。3200 番の dev は起こしていない・止めていない。BANZEN には触れていない。
 - docs/demo/host_unsupported_1118.md と host_demo_steps_1118.md を小計の基準に書き替えた（1.43 倍・「相当」・加算の説明を外した・鍵の無い店を消さない守りの節を足した）。
+
+## 追記（11/19 昼）＝相談役の指示 ① ホストの公開の確かめ ② 出勤前のキャストのレジ ③ 明細の時給の行（お金の計算の式には触れない）
+
+### ① ホストの公開の確かめ（本番）
+- **公開はまだ本番に届いていない（Agoora の作業が要る）**。確かめたのは 13:01 と、直しの便の deploy（a52fd71d・Vercel success 14:50）の後の 14:51 の 2 回。
+  - /demo と /lp に CLUB VESPER（ホスト）のカードが出ない（新しい deploy の後の /demo は Age 0 の作り直しでも 0 件。ほかの店は出る）。
+  - 入場の窓口（POST /api/demo/enter・store＝host・role＝owner）が 503「デモは準備中です」＝本番の実行時の env DEMO_USERS に `host:owner` の鍵が無い。同じ窓口で ACE の owner は 303（/dashboard）。新しい deploy の後も 503 なので、「保存したが deploy し直していない」ではなく、**本番（Production）の DEMO_USERS にホストの鍵が入っていない**（Preview だけに入れた・別の変数名・保存されていない、のどれか）。コードが見る店の鍵は `host`（lib/nox/demo/seed.ts の DEMO_STORES）。
+  - **cron.job に nox-demo-reset-host が無い**（本番 ref hiqbfagmkrdpmlqhkmsu＝本番の bundle と同じ・読取だけ・cron.job の全 10 行を見た：reset は muse／luna／noir／ace／lily／nest／retry の 7 本・ほかに entries-purge・shift の 2 本）。
+  - CC は Vercel に入らない・cron を作らない決まりなので、ここで止めた。→ **Agoora へ**：Vercel の Production の DEMO_USERS に `host:owner`／`host:manager`／`host:staff`／`host:cast`／`host:kiosk` を足して Redeploy、Supabase の本番で nox-demo-reset-host を作る（手順は docs/demo/host_demo_steps_1118.md）。入ったら CC が 5 役の入場・レオのホームと確定明細（375 幅）・reset 1 回と 6 店の不変を確かめる。
+  - ホストの reset もかけていない（cron が無い・env に鍵が無いと消す前に止める守りが入っている＝99d995c1）。
+- **既存の 6 店は公開の前と同じ**：
+  - 入口＝6 店×5 役の 30 本が全部 303 で、行き先も今まで通り（owner・manager＝/dashboard・staff＝/register・cast＝/mine・端末＝/kiosk）。14:51 に確かめた。入るたびにデモの入場の記録（demo_entries）に 1 行ずつ書く（デモだけ・reset の時間帯の外・f0 の走行の外）。
+  - 明細＝本番の確定明細 69 枚を HEAD と直した後とで描き比べ、6 店＋CLUB NOX の 57 枚は 1 バイトも同じ（下の ③）。
+- 写し：ホストは公開前なので本番では撮れない。代わりに本物の部品をホストの本番の確定明細で静的に描いた 375 幅の写しを docs/tmp/shots_noon_1119/slip_レオ.png（「売上の基準：小計」が歩合の行の下・時給 ¥0 の行なし・はみ出し 0）に置いた。
+
+### ② 出勤前のキャストのレジ（店の端末）＝**a52fd71d**
+- 原因：店の端末の本人セッション（PIN）の cast は layout が /register を**無条件に通していた**（0199＝端末の cast はレジだけ・端末なので操作端末の設定を見ない）。出勤中かどうかは RPC 側（auth_register_access と伝票の RLS）だけが見ていたので、出勤前は伝票が全部隠れて「使用中 0／6卓」と空席の並びが黙って出た。出勤の打刻の後は伝票が見えて 5／6。
+- 直し：layout が本人セッションの cast のとき auth_register_access（0200・ナビと入場の同じ真実）を読み、使えない（allowed＝false）なら**卓の一覧の代わりに案内**を出す。卓の数と空席の並びは描かない（案内の部品に「卓・使用中・空席」の語なし＝検査 g(3-2)）。
+  - 出勤前（off_duty）＝「**出勤の打刻をしてから、レジを使えます**」＋ボタン「**打刻の画面へ戻る**」（端末＝本人の終了 → 端末のホーム＝打刻の画面／スマホ＝/mine＝打刻のボタンがある本人のホーム）。
+  - 打刻しない店（punch_mode＝'store'）の出勤前＝「確定シフトの時間内にレジが使えます」＋「戻る」（打刻の画面が無いため。スタッフの案内と同じ文）＝**迷った所・推奨の側で進めた**。
+- **本人のスマホ**：今までは /register の出勤前を /mine へ戻して上に「レジは出勤中だけ使えます」を出していた（空では出ていない）。指示どおり同じ案内に揃えた（/register の出勤前だけ。日報の出勤前・許可なし・店端末のみは今までどおり /mine へ理由つきで戻す）。
+- **締めの許可だけを持つキャスト（確かめた結果）**：
+  - 店の端末＝**空で出ていた**。端末の cast は「日報」のタイルを押しても /register へ回され（裁定466＝端末の cast はレジだけ）、レジの許可が無い（not_allowed）ので伝票が隠れて空の卓が並んだ。→ 案内にした。文言は「**レジの許可がないため、この画面は使えません**」＋「打刻の画面へ戻る」（出勤の打刻をしても使えないので、打刻を促す文にはしない＝**迷った所・推奨の側で進めた**。スマホの /mine の理由の文「レジの操作が許可されていません（店に確認してください）」と揃える案もある＝f0 の走行中に気づいたので今回は揃えていない）。
+  - 本人のスマホ＝空では出ない（/report の入口が castRegisterEntryOf＝レジの判定で not_allowed → /mine へ「このキャストはレジの許可がありません」系の理由つき）。
+  - ★**見つけたこと（直していない＝権限の判定）**：締めの許可（0201e・cast_can_close）だけのキャストは、端末からもスマホからも**日報（締め）の画面に入れない**（入口がレジの許可で見ている）。締めの許可を使うには今はレジの許可も要る。→ 下の残りの表に載せた。
+- 権限の判定そのものは変えていない（auth_register_access・castRegisterEntryOf・RLS・RPC は 1 文字も触れない＝検査 g(3-3)）。
+- 写し（本物の部品を静的に描いた 375 幅）：docs/tmp/shots_noon_1119/guide_kiosk_off_duty.png・guide_phone_off_duty.png・guide_kiosk_not_allowed.png（はみ出し 0）。本番の端末での確かめは **していない**。本番の /demo で入るには規約の同意のチェックが要り、規約の同意は CC が勝手に押さない決まりにしたため（相談役の指示の 5 役の入場はホストの公開の後にまとめて行う）。代わりに、layout に関わる検査 25 本（m5c・0199・0200・c200・c201・nav・demo-guard ほか）を単独で走らせて緑、静的な写し 3 枚、f0 2 連緑で確かめた。本番の端末で ACE の出勤前のキャストを PIN で入れて見る確かめは、同意を押してよければ次の便で行う。
+
+### ③ 明細の時給の行＝**a52fd71d**（②と同じ便）
+- 時給 0 円・額 0 円の「時給 ¥0/h × ◯h ¥0」を出さない（明細と給与の右パネルの共通の関数 breakdownLinesOf の差し込み 1 か所・表示だけ）。時給のある人は 0h でも今のまま（303-2「時給 ¥n/h × 0h」）・固定給・1稼働・区間行・額のある行も今のまま。確定済みの内訳（breakdown_json）は書き換えない。
+- **本番の確定明細 69 枚（8 社・finalized／paid の全部・読取だけ）を本物の部品 PayslipSlip で HEAD と直した後とで描き比べ**：違ったのは CLUB VESPER の 12 枚だけ（12 枚とも時給 0・額 0）。ほかの 57 枚（CLUB NOX 11・ACE 7・LILY 6・LUNA 15・MUSE 5・NEST 5・NOIR 8）は描いた HTML が 1 バイトも同じ。道具＝docs/tmp/cmp_time_line_1119.mts。
+- 写し：docs/tmp/shots_noon_1119/slip_レオ.png・slip_シン.png・slip_カイト.png（先頭が本指名バックから・「売上の基準：小計」は歩合の行の下・はみ出し 0）。
+
+### 検査・f0・本番
+- 検査 verify:nox-noon1119（19）＝② g(1)〜g(3)・③ t(1)〜t(3)。f0 の chain に足した（229 段）。
+- 1 回目（f0_k）は 62 段目の verify:nox-messages ms(2-1) で**赤**＝新しい案内の部品が文言を素の p に載せていた（決まり＝Message の部品で出す）。揺れではなく本当の漏れ。Message に直して流し直した。
+- 直した後の f0 **229 段 8,406 件 2 連緑**（f0_m 13:22〜14:04・f0_n 14:04〜14:45・間を空けた道具・golden 5931／125802 不変・揺れ 0）・ビルド緑（14:47）。push 14:47・Vercel success 14:50（a52fd71d）。
+
+### テスターの店に依頼する前に残っているもの（2026-11-19 昼の時点）
+決まり＝launch_gate 43（依頼は 37＝営業の通し と 38＝Agoora の実機の通し で A・B が 0 件になってから）。読取だけで洗い、根拠のファイルを数か所確かめた。
+
+| 区分 | 項目 | 今どうなっているか | 根拠 | 直しの重さ | 判断 |
+|---|---|---|---|---|---|
+| A | 通しの確かめ（launch_gate 37・38） | どちらも「未」。Agoora の実機の通しは 11/19 朝に始まり、出た直し（②③）はこの便で入れた | docs/demo/launch_gate.md 37・38・43 | 中 | Agoora（実機）／相談役 |
+| A | 招待・再設定のメールのテンプレ 4 本と OTP 3600 秒（gate 10・14）→ 招待から受諾を 1 回通す | 記録上は「未」。11/12 に別の端末で開くと PKCE で通らなかった（set-password の直しは main に入っている・貼った記録が無い） | launch_gate.md 10・14／docs/demo/mail_templates/paste_steps.md | 小（管理画面） | Agoora |
+| A | テスター店舗の課金を切れない形にする手作業 | create-org は trialing 1 か月で作る＝そのままだと 1 か月で閲覧だけになる。SQL で active・subscription null にして台帳に 1 行（裁定500-5） | docs/demo/tester_store_runbook.md | 小（手順） | Agoora |
+| A | 締めの許可だけのキャストが締めの画面に入れない | 入口がレジの許可で見ている（スマホ＝/mine へ・端末＝/register へ回す）。画面では締めの許可だけを付けられる。この便は案内を出すだけで判定は変えていない | app/(manage)/layout.tsx（cast の入口）／台帳 裁定481 | 小〜中（締めだけを付けさせないか・入口を足すか） | 相談役 |
+| A | PIN の重なりを照らしていない経路 3 つ | ① 0201g より前の PIN（実の店 CLUB NOX の staff_pin 2）② 退店から戻した人 ③ レジの許可を後から付けたキャスト。重なると 2 人とも PIN だけでは入れない（名前を選べば入れる）・失敗は端末の回数に数える | morning_1119.md（11/18 夜 2 の PIN の重なり） | 中（mig） | 相談役 |
+| A | LINE 連携の実機の確かめ | 本番のデモでは連携できない作り。公式アカウントとログインのチャネルのリンク・リッチメニュー・QR・LIFF は実機で未確認・紐付けの解除は SQL だけ | launch_gate.md（#11）／tester_store_runbook.md §6 | 小（確かめ） | Agoora |
+| A | プリンタの送り先を noxapp.jp に替えてテスト印刷（gate 16） | 「未」。旧 URL は 308 の転送で、プリンタは追わない恐れ | launch_gate.md 16 | 小 | Agoora（使う店だけ） |
+| B | 利用規約が v0.9（【弁護士確認】つき）のまま同意を取っている・マイナンバー特約が無い | /terms は terms_store_v0.9.md を出す。v1.0 と特約（gate 25）・「当社」の表記と再同意（gate 20 の残り）は「未」 | app/terms/page.tsx 18／launch_gate.md 20・25 | 中（文面）＋小 | Agoora（弁護士）／相談役 |
+| B | 管理画面の二段階認証の残り（gate 22・34） | Vercel・Supabase は済（Supabase の予備は未登録）。Stripe・Resend・LINE Developers・ドメインの管理は未確認 | launch_gate.md 22・34 | 小 | Agoora |
+| B | テスター店舗の報酬制度が今の作りで表せるか（店ごとの照合） | 表せない型＝入金済みで数える・売上と指名の AND・商品バックと歩合の重なりを止める・報酬率で時給を下げる型・境の上限 300%・日給保証×日数・役職手当（加算の口が無い）。依頼する店がこの型なら明細が店の計算と合わない | docs/tmp/review_gap_1118.md／docs/demo/host_unsupported_1118.md | 中〜大（型による） | 相談役（どの店に頼むか）／Agoora |
+| B | 小計を基準にする店の残り | 鍵（sales_basis・sales_back_default_off）を店が保存する画面が無い（種と SQL だけ）・sales_subtotal_mode と別の鍵で意味が食い違う恐れ・ランキングや分析の売上は請求額のまま。本番で鍵を持つ店はホストのデモだけ | morning_1119.md ②／host_unsupported_1118.md | 小〜中 | 相談役 |
+
+- 外したもの：売掛の控除が方針を見ない件（0201h で済）・枝の merge と 0201s（済）・ホストのデモの env と cron（デモだけ）・シフト無し出勤の中抜け（裁定503-3＝依頼のあと）・Stripe の本番化・/signup・Yuiba（裁定494-5＝開始に要らない）・0201p ほかデモだけの件・PITR（裁定499-1）・プライバシーポリシー（11/13 公開済み）・見せ方だけのもの。
+- 別枠：**0201q の本文が supabase/migrations に無い**（本番は 11/18 16:53 適用済み・本文は docs/tmp/0201q_add_keys.sql だけ）＝A・B ではないが DB を作り直すときの穴。launch_gate.md の 44〜51 の一部と tester_store_runbook.md §7・host_unsupported_1118.md のテーブルチャージの行は状態が古い（docs だけの直し）。
+
+### 走らせたままのもの
+- **0**（14:52 確かめ＝コマンドラインに NOX の repo のパスを含むもの）。3200 番の dev は起こしていない・止めていない。BANZEN には触れていない。
