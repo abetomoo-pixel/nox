@@ -229,7 +229,11 @@ export function breakdownLinesOf(input: BreakdownInput): Breakdown {
   }
   // ★便 ON-4（C2-22・Agoora 確定 10/26 ⑨）: 来期の時給見込み＝スライド行の下に 1 行（確定済みの明細には出さない・金額 0）
   if (!input.frozen) { const nw = nextWageLineOf(nextWageOfPay(p as NextWagePayLike, { salesOn: sysOn(sysK, "sys_sales_slide"), ptOn: sysOn(sysK, "sys_point_slide") && sysOn(sysK, "sys_points") })); if (nw) earn.push({ key: "next-wage", label: nw.label, label2: nw.label2, amount: 0, info: true, amountText: "—" }); }
-  if (p.salesBasis === "subtotal") earn.push({ key: "sales-basis", label: SALES_BASIS_LINE, amount: 0, info: true, amountText: "" }); // ★2026-11-19（相談役 ②）: 小計の店だけ・売上（スライド）の行の下に小さく
+  // ★2026-11-19（相談役 ②）: 小計の店だけ・売上の行の下に小さく。売上（スライド）の行があればその下、無ければ売上で決まる歩合の行（売上バック・自由設計バック）の下
+  //   （③ ホストの明細＝スライドなし・既定の売上歩合なし→時給の行の下に出て時給の注のように読めた＝11/19 朝の撮影で直した）
+  const basisLine: BreakdownLine | null = p.salesBasis === "subtotal" ? { key: "sales-basis", label: SALES_BASIS_LINE, amount: 0, info: true, amountText: "" } : null;
+  if (basisLine && earn.some((l) => l.key.startsWith("slide"))) earn.push(basisLine);
+  const basisAfterBacks = !!basisLine && !earn.includes(basisLine);
   push("honBack", "本指名バック", z(p.honBack));
   push("jonaiBack", "場内指名バック", z(p.jonaiBack));
   push("dohanBack", "同伴バック", z(p.dohanBack));
@@ -245,6 +249,7 @@ export function breakdownLinesOf(input: BreakdownInput): Breakdown {
   } else {
     push("customTotal", "自由設計バック", z(p.customTotal));
   }
+  if (basisAfterBacks && basisLine) earn.push(basisLine);
   push("achievementBonus", p.normTarget?.source === "plan" ? `達成ボーナス（目標 ¥${p.normTarget.sales.toLocaleString()}＝プランの既定）` : "達成ボーナス", z(p.achievementBonus)); // ★裁定347 追補2: 既定から継承した目標は明細に出所を出す
   push("guaranteeAdd", "最低保証加算", z(p.guaranteeAdd));
   for (const [i, e] of (input.extras ?? []).entries()) push(`extra-${i}`, e.label ?? (e.kind === "attendance_bonus" ? "出勤ボーナス" : e.kind), z(e.amount));

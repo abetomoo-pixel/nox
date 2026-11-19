@@ -31,6 +31,14 @@ check("sb(2-2) collect：salesBackTable を空にする条件＝sys_backs OFF �
   check("sb(4-3) 凍結形：masters.salesBasis＝'subtotal' のときだけ pay に salesBasis を足す（請求額の店はキーを足さない）", coreSrc.includes(`if (masters.salesBasis === "subtotal") (pay as { salesBasis?: unknown }).salesBasis = "subtotal";`));
   check("sb(4-4) collect：店の鍵が小計のときだけ masters に salesBasis", co.includes(`...(salesBasisOf((stR.data?.settings_json ?? null) as Record<string, unknown> | null, mig0201qOn()) === "subtotal" ? { salesBasis: "subtotal" as const } : {}),`));
   const slip = fs.readFileSync("components/payslip-slip.tsx", "utf8"), board = fs.readFileSync("app/(manage)/payroll/payroll-board.tsx", "utf8");
+  // sb(4-6) ★2026-11-19 朝（③の撮影）: 置き場所＝スライドの行があればその下・無ければ売上で決まる歩合の行（売上バック・自由設計バック）の下（時給の行の下に出さない）
+  {
+    const hostLike = { ...base, salesBasis: "subtotal" as const, cbacks: [{ name: "売上歩合（小計の 40%）", amount: 80000 }, { name: "売上歩合の加算（小計 30 万円〜・小計の 5%）", amount: 0 }], customTotal: 80000, guaranteeAdd: 1000 };
+    const k = breakdownLinesOf({ pay: hostLike, frozen: true }).earn.map((l) => l.key);
+    const iB = k.indexOf("sales-basis");
+    const hostPlain = breakdownLinesOf({ pay: { ...hostLike, salesBasis: undefined }, frozen: true }).earn.map((l) => l.key);
+    check("sb(4-6) スライドの無い小計の店＝基準の行は自由設計バックの行のすぐ下（時給の下ではない）・ほかの行の並びは同じ", iB > 0 && k[iB - 1] === "cback-0" && k[iB + 1] === "guaranteeAdd" && k[iB - 1] !== "time" && JSON.stringify(k.filter((x) => x !== "sales-basis")) === JSON.stringify(hostPlain), k);
+  }
   check("sb(4-5) 明細（PayslipSlip）と給与の右パネルで基準の行を小さく（11px）", slip.includes(`data-sales-basis={key === "sales-basis" ? "subtotal" : undefined}`) && slip.includes(`fontSize: 11, color: "var(--sub)"`) && board.includes(`data-sales-basis={key === "sales-basis" ? "subtotal" : undefined}`) && board.includes(`fontSize: key === "sales-basis" ? 11 : 12.5`));
 }
 async function main(): Promise<void> {
