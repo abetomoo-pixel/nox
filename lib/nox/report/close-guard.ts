@@ -18,3 +18,18 @@ export const closeGuardForceConfirmOf = (openN: number): string => `未会計 ${
 
 /** ボタンのすぐ上の 1 行（押す前から） */
 export const closeBlockedLineOf = (openN: number): string => `未会計 ${openN} 件のため、このままでは締められません`;
+
+// ★0201v（夜便 2026-11-20 N1・相談役）: 締めの前の「今日の送り」の窓の出し分け＝純関数（サーバの判定は 0201u／0201v のまま・画面は出し分けだけ）
+//   record＝記録できる人（オーナー・店長・シフトの許可があるスタッフ）＝今のとおり金額を入れて記録して締める
+//   noRecord＝一覧は読めるが記録できない人（締めの許可だけのスタッフ）＝金額の欄を出さず「記録しないで締める」
+//   noRead＝一覧を読めない人（締めの許可があるキャスト＝okuri_today_summary が forbidden）＝「このまま締める」
+//   error＝通信などほかのエラー＝今のまま止める（窓を出さない）
+export type OkuriWindowMode = "record" | "noRecord" | "noRead" | "error";
+export function okuriWindowModeOf(o: { flagOn: boolean; errMsg: string | null; canRecord: boolean }): OkuriWindowMode {
+  if (o.errMsg != null) return o.flagOn && /forbidden/.test(o.errMsg) ? "noRead" : "error";
+  return o.flagOn && !o.canRecord ? "noRecord" : "record";
+}
+/** 記録できる人（transport_issue_bulk の 0201u の判定と同じ＝UI は利便・真の防御は RPC） */
+export const okuriCanRecordOf = (o: { isManagerUp: boolean; staffCanShift: boolean; mig0201uOn: boolean }): boolean => o.isManagerUp || (o.mig0201uOn && o.staffCanShift);
+export const okuriNoRecordLineOf = (n: number): string => `未記録の送りが ${n} 件あります。送りを記録できるのは、オーナー・店長・シフトの許可があるスタッフです。`;
+export const OKURI_NO_READ_LINE = "送りの一覧を見る許可がありません。未記録の送りが残っていないか、店長に確かめてください。";

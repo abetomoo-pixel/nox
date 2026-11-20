@@ -246,3 +246,10 @@ export const MIG_0201U_APPLIED = true;
 let override0201u: boolean | null = null;
 export function mig0201uOn(): boolean { return override0201u ?? MIG_0201U_APPLIED; }
 export function __set0201uForTest(v: boolean | null): void { override0201u = v; }
+
+/** ★0201v（2026-11-20 起草→同日 18:20:51 本番適用＝Agoora の承認（11/20 18:08 の決定 1）で CC が適用・検証 9 行一致→true）: 今日の送りの一覧（okuri_today_summary）を、自店のスタッフで締めの許可かシフトの許可がある人にも開く。
+ *  true＝日報の締めの前の窓で、記録できない人（締めの許可だけのスタッフ）には金額の欄を出さず「記録しないで締める」・一覧を読めない人（締めの許可があるキャスト）には「このまま締める」。false＝今のまま（一覧の読取の失敗で止める）。 */
+export const MIG_0201V_APPLIED = true;
+let override0201v: boolean | null = null;
+export function mig0201vOn(): boolean { return override0201v ?? MIG_0201V_APPLIED; }
+export function __set0201vForTest(v: boolean | null): void { override0201v = v; }

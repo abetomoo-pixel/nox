@@ -14,14 +14,14 @@ import CashPayoutIssue, { type PayoutIssueKind } from "@/components/nox/cash-pay
 import { OKURI_ROW_LABEL, okuriAsks, okuriCashOf, okuriExpenseOf, okuriModeOf, type OkuriMode } from "@/lib/nox/shift/okuri-mode"; // ★裁定414（S-4）: 送りの 4 方式＝現金支払／諸経費の読み分け // ★便 X13-G W-24 ②: 内訳の ＋発行 // ★裁定311-②／④（便 Y-4）: 現金支払のプレフィル集計と内訳
 import { mig0191On, rules0175On } from "@/lib/nox/rules-0175/flag"; // ★便 P175-prep P-2
 import { canMarkDeductOf, castCloseOf } from "@/lib/nox/report/gates"; // ★0201h（裁定485）: 給与天引きは cast_liability_allowed の店だけ・★0201e（裁定481）: キャストの締め
-import { mig0201eOn, mig0201nOn } from "@/lib/nox/rules-0175/flag"; // ★0201n（相談役 C）
+import { mig0201eOn, mig0201nOn, mig0201uOn, mig0201vOn } from "@/lib/nox/rules-0175/flag"; // ★0201n（相談役 C）
 import { staffDirectDiscountOf } from "@/lib/nox/rules-0175/staff-discount"; // ★追補 2（裁定421 候補）
 import { castPaymentsOf } from "@/lib/nox/rules-0175/cast-register"; // ★追補 2（裁定420）
 import { roundYen } from "@/lib/nox/money";
 import * as t from "@/lib/nox/ui/theme";
 import Toast from "@/components/ui/toast";
 import Modal from "@/components/ui/modal";
-import { closeBlockedLineOf, closeGuardForceConfirmOf, closeGuardReasonsOf, closeGuardTitleOf } from "@/lib/nox/report/close-guard"; // ★2026-11-18 夜 2（相談役 ①）: 締められない理由の窓
+import { closeBlockedLineOf, closeGuardForceConfirmOf, closeGuardReasonsOf, closeGuardTitleOf, okuriCanRecordOf, okuriNoRecordLineOf, okuriWindowModeOf, OKURI_NO_READ_LINE } from "@/lib/nox/report/close-guard"; // ★2026-11-18 夜 2（相談役 ①）: 締められない理由の窓
 import MonthReport from "./month-report";
 
 import { rpcErrJa as rpcErrJaCommon } from "@/lib/nox/ui/rpc-err"; // ★N2-2（2026-09-18）: 生の RPC 語の日本語化（写像に無い語は「処理できませんでした（コード: …）」）
@@ -177,7 +177,7 @@ export default function ReportBoard({
   //   owner／manager は RPC 側（report_can_close／report_can_reopen）が常に可＝UI も isManagerUp で可。
   //   新規読取＝flag 1＋staff のみ 2（＋loadReports の memberships 1）＝manager 2／staff 4。flag off＝解除・差異承認の導線は不在（横断 §4）。
   const [reopenFlag, setReopenFlag] = useState(false);
-  const [staffPerm, setStaffPerm] = useState({ close: false, reopen: false });
+  const [staffPerm, setStaffPerm] = useState({ close: false, reopen: false, shift: false });
   const [reopenPick, setReopenPick] = useState<Report | null>(null);   // 解除モーダルの対象行
   const [approvePick, setApprovePick] = useState<Report | null>(null); // 差異承認モーダルの対象行
   const [reasonVal, setReasonVal] = useState("");
@@ -398,8 +398,8 @@ export default function ReportBoard({
       if (!alive) return;
       setReopenFlag(fl === true);
       if (!isManagerUp) {
-        const [c, r] = await Promise.all([supabase.rpc("auth_staff_can_close"), supabase.rpc("auth_staff_can_reopen")]);
-        if (alive) setStaffPerm({ close: c.data === true, reopen: r.data === true });
+        const [c, r, sh] = await Promise.all([supabase.rpc("auth_staff_can_close"), supabase.rpc("auth_staff_can_reopen"), supabase.rpc("auth_staff_can_shift")]);   // ★0201v: シフトの許可＝送りを記録できるスタッフ（0201u）
+        if (alive) setStaffPerm({ close: c.data === true, reopen: r.data === true, shift: sh.data === true });
       }
     })();
     return () => { alive = false; };
@@ -538,6 +538,9 @@ export default function ReportBoard({
   const [okuriAmt, setOkuriAmt] = useState<Record<string, string>>({});
   const [okuriBusy, setOkuriBusy] = useState(false);
   const [okuriMsg, setOkuriMsg] = useState<string | null>(null);
+  // ★0201v（夜便 N1）: 記録できない人（締めの許可だけのスタッフ）は金額の欄を出さず「記録しないで締める」／一覧を読めない人（締めの許可があるキャスト）は「このまま締める」
+  const [okuriCanRecord, setOkuriCanRecord] = useState(true);
+  const [okuriNoRead, setOkuriNoRead] = useState(false);
   // ★裁定317（便 X-9-3）: 発行済みの送り（当日営業日の transport・cancelled 除外）＝締め前モーダルで「発行済み n 件・合計 ¥m」を確認
   const [okuriIssued, setOkuriIssued] = useState<{ n: number; sum: number }>({ n: 0, sum: 0 });
   /** ★2026-11-18 夜 2（相談役 ①）: 押した時点の未会計の件数（RPC の判定と同じ open の伝票） */
@@ -559,7 +562,11 @@ export default function ReportBoard({
     const { data: st } = await supabase.from("stores").select("settings_json").eq("id", storeId).maybeSingle();
     if (okuriAsks(okuriModeOf((st?.settings_json ?? {}) as Record<string, unknown>))) { // ★裁定414: 'none' 以外
       const { data: rows, error: eO } = await supabase.rpc("okuri_today_summary", { p_store_id: storeId, p_biz_date: bizDate });
-      if (eO) { setMsg(`送りの確認に失敗: ${rpcErrJaCommon(eO.message)}`); return; }
+      const canRec = okuriCanRecordOf({ isManagerUp, staffCanShift: staffPerm.shift, mig0201uOn: mig0201uOn() });
+      const mode = okuriWindowModeOf({ flagOn: mig0201vOn(), errMsg: eO ? eO.message : null, canRecord: canRec });
+      if (mode === "noRead") { setOkuriNoRead(true); return; }   // ★0201v: 一覧を読めない人＝窓で「このまま締める」か「戻る」
+      if (eO) { setMsg(`送りの確認に失敗: ${rpcErrJaCommon(eO.message)}`); return; }   // 通信などほかのエラーは今のまま止める
+      setOkuriCanRecord(mode === "record");
       const list = (rows ?? []) as OkuriRow[];
       const { data: tr } = await supabase.from("transport").select("amount").eq("store_id", storeId).eq("biz_date", bizDate).neq("status", "cancelled");
       const issued = ((tr ?? []) as { amount: number }[]);
@@ -721,12 +728,14 @@ export default function ReportBoard({
           </div>
           <p style={{ fontSize: 12.5, color: "var(--sub)", margin: "4px 0 10px", lineHeight: 1.7 }}>
             記録済みの送りは {okuriIssued.n} 件・合計 ¥{okuriIssued.sum.toLocaleString()} です（退勤時に記録した分を含みます）。
-            {okuriRows.length > 0
+            {!okuriCanRecord && okuriRows.length > 0
+              ? <><br /><span data-okuri-norecord="1" style={{ color: "var(--ink)", fontWeight: 700 }}>{okuriNoRecordLineOf(okuriRows.length)}</span></>
+              : okuriRows.length > 0
               ? " 下は退勤時に「送り」だった打刻のうち、まだ発行していない残りです。金額を確認して発行し、そのまま締めます（再送は二重になりません）。"
               : " 未記録の送りはありません。確認して締めます。"}
           </p>
           <div style={{ display: "grid", gap: 8 }}>
-            {okuriRows.map((r) => (
+            {okuriCanRecord && okuriRows.map((r) => (
               <label key={r.punch_id} style={{ display: "grid", gridTemplateColumns: "1fr 140px", gap: 8, alignItems: "center", fontSize: 13 }}>
                 <span>{r.cast_name}<span style={{ marginLeft: 8, fontSize: 11.5, color: "var(--sub)" }}>{new Date(r.punched_at).toLocaleTimeString("ja-JP", { timeZone: "Asia/Tokyo", hour: "2-digit", minute: "2-digit" })} 退勤</span></span>
                 <MoneyInput value={okuriAmt[r.punch_id] ?? ""} disabled={okuriBusy} width="100%"
@@ -737,9 +746,26 @@ export default function ReportBoard({
           {okuriMsg && <Toast msg={okuriMsg} style={{ margin: "8px 0 0" }} />}
           <div className="nox-formmodal-foot">
             <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} disabled={okuriBusy} onClick={() => setOkuriRows(null)}>戻る（締めない）</button>
+            {okuriCanRecord || okuriRows.length === 0 ? (
             <button type="button" style={{ ...t.btnGold, opacity: okuriBusy ? 0.6 : 1 }} disabled={okuriBusy} onClick={() => void issueOkuriAndClose()}>
               {okuriBusy ? "処理中…" : okuriRows.length > 0 ? "送りを記録して締める" : "確認して締める"}
             </button>
+            ) : (
+            <button type="button" data-okuri-skip="1" style={{ ...t.btnGold }} onClick={() => { setOkuriRows(null); void closeDayNow(force); }}>記録しないで締める</button>
+            )}
+          </div>
+        </Modal>
+      )}
+      {okuriNoRead && (
+        <Modal onClose={() => setOkuriNoRead(false)} maxWidth={520}>
+          <div className="nox-formmodal-head">
+            <strong>今日の送り</strong>
+            <button type="button" className="nox-formmodal-x" aria-label="閉じる" onClick={() => setOkuriNoRead(false)}>×</button>
+          </div>
+          <p data-okuri-noread="1" style={{ fontSize: 13, margin: "4px 0 10px", lineHeight: 1.7 }}>{OKURI_NO_READ_LINE}</p>
+          <div className="nox-formmodal-foot">
+            <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} onClick={() => setOkuriNoRead(false)}>戻る</button>
+            <button type="button" data-okuri-noread-close="1" style={{ ...t.btnGold }} onClick={() => { setOkuriNoRead(false); void closeDayNow(force); }}>このまま締める</button>
           </div>
         </Modal>
       )}
