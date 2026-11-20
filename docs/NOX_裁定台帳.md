@@ -6000,6 +6000,13 @@ CC の処置＝M-130（下の節）。
 ## 0201t は適用しない（2026-11-20 昼・相談役の指示）
 - 依頼の後に相談役が読んで決める。旗 MIG_0201T_APPLIED は false のまま・起草と試走の記録（docs/tmp の 0201t 一式・handpaste_0201t_1119.md）はそのまま置く。
 
+## 0201v 本番適用（2026-11-20 18:20:51・**Agoora の承認（11/20 18:08 の決定 1＝この 1 本だけ）で CC が適用＝手貼りの例外**・0201u と同じ手順・相談役が指紋を照合済みのファイル）
+- 例外の範囲＝0201v の 1 回だけ（0202a・0202b には及ばない＝起草と試走まで）。f0 の走行中ではない・06:05〜06:40 の外・ほかに本番へ繋ぐ CC の処理 0（pg_stat_activity の nox-cc% も 0）。
+- 中身＝okuri_today_summary（今日の送りの一覧）の役の判定に、自店のスタッフで締めの許可（auth_staff_can_close）かシフトの許可（auth_staff_can_shift）がある人を足す。記録（transport_issue_bulk）は 0201u のまま（シフトの許可がある人だけ）。返す列・行・日付と会社の検査・権限は今のまま。
+- 指紋＝本体 b1cb8a42…93b2・事前確認 b27fd578…97bc・検証 d40c8068…1ceb（3 つとも一致）。繋ぎ先 ref hiqbfagmkrdpmlqhkmsu・ロール postgres。事前確認＝貼り先証明の 1 行だけ・本体をファイルのまま 1 回（BEGIN・SET・CREATE・REVOKE・GRANT・COMMIT）・検証 9 行とも期待値（関数 455・表 122・okuri_today_summary の md5 fee3087c…・スタッフの行 1・権限そのまま・security definer・stable・transport_issue_bulk は c5bec95a のまま）。全文＝docs/tmp/apply_0201v_1120.log。
+- 貼る前の本文 d1b5ca84 → 貼った後 fee3087c。試走（同日・本番 BEGIN…ROLLBACK）23/23。収蔵＝supabase/migrations/0201v_okuri_summary_staff.sql（sha 一致）。
+- 旗 MIG_0201V_APPLIED を true（日報の締めの前の窓：締めの許可だけのスタッフは金額の欄なしで「記録しないで締める」・一覧を読めない人（締めの許可があるキャスト）は「このまま締める」・ほかのエラーは止める）＝夜便 N1。
+
 ## 次の番号（2026-11-18 夜・裁定505／506・教訓157〜159 を収載した時点＝実測）
 - **次の裁定＝507**・**次の M＝M-195**・**次の起票＝136**・**次の教訓＝160**。
 
