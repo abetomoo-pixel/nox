@@ -28,7 +28,7 @@ import SegSelect from "@/components/ui/seg-select";
 import { rpcErrJa } from "@/lib/nox/ui/rpc-err";
 import { JOIN_MODE_LABEL, PAY_FEE_KEYS, PAY_FEE_KEY_LABEL, joinModeOf, payFeeRatesOf, type JoinMode, type PayFeeKey } from "@/lib/nox/register/p173"; // ★便 P173（裁定386／393・0173）
 import { mig0187On, mig0190On, mig0191On, mig0192On, mig0197On, mig0200On } from "@/lib/nox/rules-0175/flag"; // ★0187（便 CASH） // ★0190（裁定436 ①a）: 打刻ゲート
-import { PAY_ADJUST_LABEL, PAY_ADJUST_MODES, PAY_DISCOUNT_BASE_LABEL, discountRateInputOf, payAdjustHasDisc, payAdjustHasFee, payAdjustModeOf, payDiscountBaseOf, payDiscountRatesOf, type PayAdjustMode, type PayDiscountBase, type PayDiscountKey } from "@/lib/nox/rules-0175/pay-discount"; // ★0187（便 CASH・Agoora 確定 10/27）: 支払方法の調整（なし／カード手数料／現金割引／両方）と割引対象
+import { PAY_ADJUST_LABEL, PAY_ADJUST_MODES, PAY_DISCOUNT_BASE_SHORT, discountRateInputOf, payAdjustHasDisc, payAdjustHasFee, payAdjustModeOf, payDiscountBaseOf, payDiscountRatesOf, type PayAdjustMode, type PayDiscountBase, type PayDiscountKey } from "@/lib/nox/rules-0175/pay-discount"; // ★0187（便 CASH・Agoora 確定 10/27）: 支払方法の調整（なし／カード手数料／現金割引／両方）と割引対象
 import { PAY_TIME_BASIS_LABEL, payTimeBasisApplyNoteOf, payTimeBasisApplyOf, payTimeBasisViewOf, type PayTimeBasis, type PayTimeBasisView } from "@/lib/nox/payroll/time-basis"; // ★裁定324（0159・便 C-1）: 勤務時間の計算基準 // ★裁定317（0158・便 AB-6）: 送りの基本額（okuri_base_amount・0〜99,999 の整数・空欄＝未設定＝0 を送る）
 type Store = { id: string; name: string };
 // ★0164（裁定331 C 5 項目＋裁定334・便 W5-2a・2026-10-13）: 「会計と運用」節＝stores の列 7 つ（settings_json ではない）を同じ set_store_profile の patch で保存。
@@ -284,7 +284,7 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
                     onChange={(e) => setForm((f) => ({ ...f, pay_disc_cash: e.target.value.replace(/[^0-9.]/g, "").slice(0, 5) }))} style={{ ...input, marginTop: 2 }} placeholder="10" /></UnitBox>
                 </label>
                 <label style={{ display: "block", minWidth: 0, fontSize: 12 }}>割引対象
-                  <span data-pay-disc-base="1" style={{ display: "block" }}><SegSelect value={form.pay_disc_base} disabled={busy || !loaded} onChange={(v) => setForm((f) => ({ ...f, pay_disc_base: v === "subtotal" ? "subtotal" : "total" }))} options={(["total", "subtotal"] as PayDiscountBase[]).map((v) => [v, PAY_DISCOUNT_BASE_LABEL[v]] as const)} ariaLabel="割引対象" style={{ marginTop: 2 }} /></span>{/* ★M-82 */}
+                  <span data-pay-disc-base="1" style={{ display: "block" }}><SegSelect value={form.pay_disc_base} disabled={busy || !loaded} onChange={(v) => setForm((f) => ({ ...f, pay_disc_base: v === "subtotal" ? "subtotal" : "total" }))} options={(["total", "subtotal"] as PayDiscountBase[]).map((v) => [v, PAY_DISCOUNT_BASE_SHORT[v]] as const)} ariaLabel="割引対象" style={{ marginTop: 2 }} /></span>{/* ★M-82・★2026-11-20 午後（相談役 ⑤）: 長い語（「小計から（税・サ…」）が欄で切れていた＝選択肢は短い語・中身はすぐ下の 1 行の説明 */}
                 </label>
                 <span style={{ gridColumn: "1 / -1", fontSize: 11.5, color: "var(--sub)", lineHeight: 1.6 }}>合計から＝税・サービス料込みの残額×率を最後に引き、店の端数処理で丸めます（既定・税理士に確認中）。小計から＝税・サービス料の前の小計から引いてから税・サービス料。入金のたびに「率を指定／額を指定／なし」で上書きできます（店長以上）。</span>
               </div>}

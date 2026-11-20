@@ -31,7 +31,6 @@ import ReasonModal from "@/components/nox/reason-modal"; // ★裁定443 18-⑦:
 import SegSelect from "@/components/ui/seg-select";
 import CastPicker from "@/components/nox/cast-picker";
 import { type BusinessHourRow } from "@/lib/nox/business-hours";
-import { hm2min } from "@/lib/nox/shift-time";
 // ★裁定245-6: 日セルの「不足 n」＝純関数 gapOf（required−assigned・選択中は −1・0 は充足）
 import { gapOf } from "@/lib/nox/shift/gap";
 import { dayCastStateOf, availHmOf, availTimeCellOf } from "@/lib/nox/shift/half-hour"; // ★便 A M-65 (c): 割当ピッカーと同じ 1 本の判定（希望＞基本の働き方）
@@ -71,6 +70,8 @@ function hoursOf(date: string, bhRows: BusinessHourRow[]): [string, string] | nu
   return [row.open_hm, row.close_hm];
 }
 
+/** ★2026-11-20 午後（相談役 ⑤）: 開始・終了の時刻の欄の幅＝時計＋「翌01:00」が欄の中に収まる幅（日をまたがない時刻でも同じ幅＝並びが崩れない） */
+const SHIFT_TIME_W = 120;
 /** 日跨ぎ hm の表示写像（26:00 → 翌02:00）。器は hm のまま＝表示のみ。 */
 function fmtNext(hm: string): string {
   const h = Number(hm.slice(0, 2));
@@ -549,9 +550,9 @@ export default function ShiftAddForm({
                         <div style={{ fontSize: 10, color: "var(--v2-muted)" }}>必要な日だけ下で個別変更できます</div>
                       </div>
                       <label style={{ fontSize: 11 }}>開始<br />
-                        <TimeInput value={bulkStart} onChange={setBulkStart} maxHour={23} ariaLabel="開始（一括）" style={{ ...input, width: 76 }} /></label>
+                        <TimeInput value={bulkStart} onChange={setBulkStart} maxHour={23} ariaLabel="開始（一括）" style={{ ...input, width: SHIFT_TIME_W }} /></label>
                       <label style={{ fontSize: 11 }}>終了<br />
-                        <TimeInput value={bulkEnd} onChange={setBulkEnd} ariaLabel="終了（一括）" style={{ ...input, width: 76 }} />{hm2min(bulkEnd) >= 1440 && <span className="num" style={{ fontSize: 10.5, color: "var(--sub)", marginLeft: 4 }} data-bulk-end-next="1">= {fmtNext(bulkEnd)}</span>}</label>{/* ★便 M-11 ②: 入力は 26:00 も受け、表示は翌02:00 */}
+                        <TimeInput value={bulkEnd} onChange={setBulkEnd} ariaLabel="終了（一括）" style={{ ...input, width: SHIFT_TIME_W }} /></label>{/* ★便 M-11 ②: 入力は 26:00 も受け、表示は翌02:00（欄の中＝TimeInput）。★2026-11-20 午後（相談役 ⑤）: 右の「= 翌02:00」の補足は外した（欄の中の表示と二重になる） */}
                       <button style={btnLight} onClick={applyAll}>全日に適用</button>
                     </div>
                     <div style={{ display: "grid", gap: 5, marginTop: 7 }}>
@@ -559,10 +560,9 @@ export default function ShiftAddForm({
                         <div key={d} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap",
                           border: "1px solid var(--line)", borderRadius: 8, padding: "6px 9px", fontSize: 12 }}>
                           <b className="num" style={{ width: 96 }}>{Number(mm)}/{Number(d.slice(8))}（{DOW[dowOf(d)]}）</b>
-                          <TimeInput value={e.start} onChange={(v) => setDayTime(d, "start", v)} maxHour={23} ariaLabel={`${d} 開始`} style={{ ...input, width: 72, padding: "5px 7px" }} />
+                          <TimeInput value={e.start} onChange={(v) => setDayTime(d, "start", v)} maxHour={23} ariaLabel={`${d} 開始`} style={{ ...input, width: SHIFT_TIME_W }} />
                           <span style={{ color: "var(--sub)" }}>〜</span>
-                          <TimeInput value={e.end} onChange={(v) => setDayTime(d, "end", v)} ariaLabel={`${d} 終了`} style={{ ...input, width: 72, padding: "5px 7px" }} />
-                          {hm2min(e.end) >= 1440 && <span className="num" style={{ fontSize: 10.5, color: "var(--sub)" }}>= {fmtNext(e.end)} まで</span>}
+                          <TimeInput value={e.end} onChange={(v) => setDayTime(d, "end", v)} ariaLabel={`${d} 終了`} style={{ ...input, width: SHIFT_TIME_W }} />{/* ★相談役 ⑤: 「翌01:00」が欄からはみ出して右の「= 翌01:00 まで」と重なっていた＝欄を広げ、右の補足は外す（欄の中に翌の表示がある） */}
                           {e.src === "wish" && <span style={{ fontSize: 10, color: "var(--blue)", fontWeight: 700 }}>希望から</span>}
                           {e.src === "edit" && <span style={{ fontSize: 10, color: "var(--gold2)", fontWeight: 700 }}>登録済みの編集</span>}
                           {e.override && <span style={{ fontSize: 10, color: "var(--bad)", fontWeight: 700 }}>不可を押切（{e.override}）</span>}
