@@ -104,7 +104,7 @@ export default function KioskUnlockPad({ onUnlocked }: { onUnlocked: (r: { membe
             <button disabled={pin.length < 4 || busy} onClick={() => void unlockPin(named?.membership_id)} data-kiosk-unlock-go="1"
               style={{ ...t.btnGold, opacity: pin.length >= 4 ? 1 : 0.4 }}>解除</button>
           </div>
-          {named && <button style={{ ...t.btnGhost, ...t.btnSm, width: "100%", marginTop: 10 }} onClick={() => { setNamed(null); setPin(""); }} data-kiosk-unlock-named-back="1">名前を選び直す</button>}
+          {named && <button style={{ ...t.btnGhost, ...t.btnSm, width: "100%", marginTop: 10 }} onClick={() => { setNamed(null); setPin(""); setMsg(null); }} data-kiosk-unlock-named-back="1">名前を選び直す</button>}
           {!named && (/* ★相談役 C: ロック中の画面に「名前を選んで入る」 ★2026-11-18 夜（相談役 ⑥ B）: ロック中かどうかに関係なくいつも出す（ロック中は上の畳んだ枠の主ボタン） */
             <button style={{ ...t.btnGhost, width: "100%", marginTop: 12, padding: "12px 0", fontWeight: 800 }} disabled={busy} onClick={() => void openPeople()} data-kiosk-unlock-by-name="1">名前を選んで入る</button>
           )}
@@ -117,7 +117,7 @@ export default function KioskUnlockPad({ onUnlocked }: { onUnlocked: (r: { membe
           <div style={{ display: "grid", gap: 8 }} data-kiosk-unlock-people="1">
             {people.map((c) => <button key={c.membership_id} style={{ ...t.btnGhost, padding: "12px 0", fontSize: 16, fontWeight: 800 }} disabled={busy} onClick={() => { setNamed(c); setPeople(null); setPin(""); setMsg(null); }}>{c.name}<span style={{ fontSize: 11, color: "var(--sub)", marginLeft: 8 }}>{unlockRoleLabelOf(c.role)}</span></button>)}
           </div>)}
-          <button style={{ ...t.btnGhost, ...t.btnSm, width: "100%", marginTop: 10 }} onClick={() => setPeople(null)}>もどる</button>
+          <button style={{ ...t.btnGhost, ...t.btnSm, width: "100%", marginTop: 10 }} onClick={() => { setPeople(null); setMsg(null); }}>もどる</button>{/* ★2026-11-20（相談役 ⑤ 場面 4）: 画面を戻ったら前の失敗の文を消す（「名前を選び直す」・候補の「もどる」も同じ） */}
         </>
       )}
       {cands && (
@@ -126,7 +126,7 @@ export default function KioskUnlockPad({ onUnlocked }: { onUnlocked: (r: { membe
           <div style={{ display: "grid", gap: 8 }}>
             {cands.map((c) => <button key={c.membership_id} style={{ ...t.btnGhost, padding: "12px 0", fontSize: 16, fontWeight: 800 }} disabled={busy} onClick={() => void unlockPin(c.membership_id)}>{c.name}<span style={{ fontSize: 11, color: "var(--sub)", marginLeft: 8 }}>{unlockRoleLabelOf(c.role)}</span></button>)}
           </div>
-          <button style={{ ...t.btnGhost, ...t.btnSm, width: "100%", marginTop: 10 }} onClick={() => { setCands(null); setPin(""); }}>もどる</button>
+          <button style={{ ...t.btnGhost, ...t.btnSm, width: "100%", marginTop: 10 }} onClick={() => { setCands(null); setPin(""); setMsg(null); }}>もどる</button>
         </>
       )}
       {tab === "qr" && qrOk && <KioskQrDisplay onUnlocked={onUnlocked} />}

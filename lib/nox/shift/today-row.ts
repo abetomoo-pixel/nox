@@ -68,6 +68,12 @@ export function okuriButtonOf(input: { canRecord: boolean; okuriActual: boolean;
   if (!input.hasIn) return { show: true, enabled: false, title: "出勤（in）の打刻がありません" };
   return { show: true, enabled: true, title: "送りを記録します（退勤後でも営業日内は記録できます）" };
 }
+/** ★2026-11-20（相談役 ①・Agoora の返事）: 送りを記録できる役か＝送りの記録の窓口（transport_issue_bulk）と同じ判定。
+ *  今はオーナー・店長だけ（スタッフが押すと窓口に拒まれ、退勤だけが記録されていた）。0201u の後（旗）は、シフトの許可があるスタッフも。キャストは不可。 */
+export function okuriRoleOk(input: { role: string; staffCanShift: boolean; mig0201u: boolean }): boolean {
+  if (input.role === "owner" || input.role === "manager") return true;
+  return input.role === "staff" && input.staffCanShift && input.mig0201u;
+}
 /** ★裁定357: 「退勤」を押したときにダイアログ（送りを発行して退勤／退勤のみ）を出すか＝実費の店で当日未発行のときだけ。実費以外の店はダイアログなし */
 export const outDialogNeeded = (input: { okuriActual: boolean; issuedToday: boolean }): boolean => input.okuriActual && !input.issuedToday;
 

@@ -239,3 +239,10 @@ export const MIG_0201T_APPLIED = false;
 let override0201t: boolean | null = null;
 export function mig0201tOn(): boolean { return override0201t ?? MIG_0201T_APPLIED; }
 export function __set0201tForTest(v: boolean | null): void { override0201t = v; }
+
+/** ★0201u（2026-11-20 起草・相談役 ①＝起草と試走まで・手貼り前＝false）: 送りの記録（transport_issue_bulk）を、シフトの許可（can_shift）があるスタッフにも自店だけ開く。
+ *  true＝シフトの今日の画面で、シフトの許可があるスタッフにも「送り」と退勤の 2 択（送りを記録して退勤）を出す。false＝スタッフには出さない（退勤だけ）。 */
+export const MIG_0201U_APPLIED = false;
+let override0201u: boolean | null = null;
+export function mig0201uOn(): boolean { return override0201u ?? MIG_0201U_APPLIED; }
+export function __set0201uForTest(v: boolean | null): void { override0201u = v; }

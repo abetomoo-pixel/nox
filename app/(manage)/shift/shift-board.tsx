@@ -8,7 +8,7 @@
 import { hmLabelOf } from "@/lib/nox/time/hhmm"; // ★便 M5b M-51 追補: 日をまたぐ時刻は「翌02:00」
 import DatePicker from "@/components/ui/date-picker"; // ★M-82（裁定452・教訓133）: 日付は共通のピッカー
 import { REGISTER_DAY_GRANT_LABEL, REGISTER_DAY_GRANT_NOTE, storeDecidesPunchOf } from "@/lib/nox/shift/punch-mode"; // ★便 E（0197 用）
-import { mig0196On, mig0197On, mig0198On, mig0201On } from "@/lib/nox/rules-0175/flag";
+import { mig0196On, mig0197On, mig0198On, mig0201On, mig0201uOn } from "@/lib/nox/rules-0175/flag";
 import { punchMarksOf, type PunchMarkRow } from "@/lib/nox/punch/marks"; // ★0201（裁定474）: 勤怠の印
 import DayDedAfterPunch from "@/components/nox/day-ded-after-punch"; // ★0198（裁定461 ①・M-120）: 代行の出勤の直後の「今日の控除」 // ★便 E（0196 用）: staff の代行 ★0197: 今日だけ許可
 import TimeInput from "@/components/ui/time-input"; // ★便 M5b M-51: 時刻欄の共通部品（時計アイコン・時と分を選ぶ・翌の表示）
@@ -34,7 +34,7 @@ import { SHIFT_VIEWS, VIEW_TABS, makeStepsOf, searchOfTab, stepOfTab, tabFromSea
 import { matchPunches, LATE_GRACE_MIN_DEFAULT } from "@/lib/nox/punch-match"; // ★裁定257 R20-a: 遅刻判定は給与側と同じ純関数
 import { buildMatchInput, type PunchRow } from "@/lib/nox/punch-io";
 // ★便 AT2（2026-09-24）: 今日タブの出退勤表示＝純関数（退勤ボタンの出し分け・時刻文字列・最初の in／最後の out）
-import { firstInLastOut, okuriButtonOf, outButtonOf, outDialogNeeded, punchTimeLabel, punchInAfterAtt, attRowModeOf, arrivedChipOf, todayRowViewOf } from "@/lib/nox/shift/today-row";
+import { firstInLastOut, okuriButtonOf, okuriRoleOk, outButtonOf, outDialogNeeded, punchTimeLabel, punchInAfterAtt, attRowModeOf, arrivedChipOf, todayRowViewOf } from "@/lib/nox/shift/today-row";
 import { dohanSeatsOf, dohanMarkTextOf, lateExemptByDohanOf } from "@/lib/nox/shift/dohan-mark"; // ★便 PR-1 R-4（裁定417）: 同伴の正本＝伝票（今日タブの同伴ボタンは撤去） // ★裁定357（GV-5・便 N1014 A-6）: 送りは退勤後も営業日内は可・退勤ダイアログ 2 択
 import { opsProfileOf } from "@/lib/nox/store/ops-profile"; // ★0164（便 W5-2b）: punch_methods.proxy
 import { PunchCorrectionForm } from "@/components/nox/punch-correction-modal"; // ★0154 D1: 出退勤の修正（owner／manager＝申請＝確定）・★裁定310: 「調整」モーダルのタブ①に埋め込む（本体のみ）
@@ -1209,6 +1209,8 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   // ★0156（裁定309-9・便 V-5）: 店の送り方式（settings_json.okuri_mode）＝'actual' の店だけ退勤に「送り」チェックを出す（+1・RLS 越しの stores 読取）
   const [okuriActual, setOkuriActual] = useState(false); // ★裁定414: 名前は従来のまま＝意味は「送りの導線を出す店」（'none' 以外）
   const [okuriMode, setOkuriMode] = useState<OkuriMode>("flat");
+  // ★2026-11-20（相談役 ①）: 送りの欄（「送り」と退勤の 2 択）は送りを記録できる役だけ＝オーナー・店長（0201u の後はシフトの許可があるスタッフも）。スタッフには退勤だけ（p_okuri=false＝送りの印を残さない）
+  const okuriShow = okuriActual && okuriRoleOk({ role, staffCanShift: role === "staff" && isManagerUp, mig0201u: mig0201uOn() });
   const [storeDecides, setStoreDecides] = useState(false);
   useEffect(() => { if (storeDecides && (tab === "build" || tab === "submit")) setTab("queue"); // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storeDecides, tab]); // ★便 D M-96（2026-11-05）: 店設定 shift_request_mode='store'（店が決めて本人に通知）＝シフト作成は ③配置→④公開 の 2 段（①期間 ②提出一覧 を出さない）
@@ -1279,7 +1281,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   }
   // ★裁定357: 「退勤」押下＝実費の店で当日の送りが未発行ならダイアログ（送りを発行して退勤（既定）／退勤のみ）。実費以外の店はダイアログなし＝そのまま退勤
   async function outPressed(castId: string) {
-    if (outDialogNeeded({ okuriActual, issuedToday: okuriIssued.has(castId) })) { await openOkuri(castId, "outAndIssue", true); return; }
+    if (outDialogNeeded({ okuriActual: okuriShow, issuedToday: okuriIssued.has(castId) })) { await openOkuri(castId, "outAndIssue", true); return; }
     await proxyOut(castId);
   }
   // ★裁定317（便 X-9-3）: 「送り」押下＝金額ダイアログ。既定＝店設定 okuri_base_amount → 同 cast の直近 transport 額 → 空欄（必須）
@@ -1803,7 +1805,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                                         onClick={() => void toggleDayGrant(s.cast_id)}>{REGISTER_DAY_GRANT_LABEL}{dayGrants.has(s.cast_id) ? " 済" : ""}</button>
                                     )}
                                     {/* ★裁定317／357: 「送り」＝okuriButtonOf（退勤後も営業日内は発行可＝退勤後は送りだけ）。退勤前＝退勤＋送り／退勤後＝送りだけ発行 */}
-                                    {(() => { const okb = okuriButtonOf({ canRecord, okuriActual, attStatus: att?.status, hasIn: !!io?.inHm, issuedToday: okuriIssued.has(s.cast_id) }); return okb.show ? (
+                                    {(() => { const okb = okuriButtonOf({ canRecord, okuriActual: okuriShow, attStatus: att?.status, hasIn: !!io?.inHm, issuedToday: okuriIssued.has(s.cast_id) }); return okb.show ? (
                                       <button type="button" style={{ ...btnLight, padding: "4px 12px", fontSize: 12, opacity: okb.enabled ? 1 : 0.5 }} data-okuri-issued={okuriIssued.has(s.cast_id) ? "1" : undefined}
                                         disabled={!okb.enabled} title={okb.title}
                                         onClick={() => void openOkuri(s.cast_id, io?.outHm ? "issueOnly" : "outAndIssue")}>送り{okuriIssued.has(s.cast_id) ? "済" : ""}</button>
@@ -1989,8 +1991,10 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
           const proposed = shifts.filter((x) => x.status === "proposed");
           // ★便 SH-UI-c2 C2-17 ④（相談役案）: 集計の「希望どおり」＝未処理の希望のうち定休日でない件数（＝一括採用の対象＝N が同じ数になる）・「要調整」＝定休日の希望（そのままでは採用できない）。
           //   旧＝planned／proposed の時刻一致（採用後の調整の有無）を数えていたため、一括採用の N（未処理の希望）と食い違っていた（8≠7）。
-          const ids = wishes.filter((w) => !closedOf(w.date, w.start_hm, w.end_hm)).map((w) => w.id);
-          const adjustN = wishes.length - ids.length;
+          // ★2026-11-20（相談役 ②・Agoora の返事）: 休みの希望は一括採用の数と対象から外す（採用できない＝見送りだけ）。要調整にも数えない（定休日の出勤希望だけ）
+          const isOffWish = (w: { kind?: string | null }) => (w.kind ?? "work") === "off";
+          const ids = wishes.filter((w) => !isOffWish(w) && !closedOf(w.date, w.start_hm, w.end_hm)).map((w) => w.id);
+          const adjustN = wishes.filter((w) => !isOffWish(w) && closedOf(w.date, w.start_hm, w.end_hm)).length;
           const applicants = new Set(wishes.map((w) => w.cast_id)).size;
           const waiting = planned.length + proposed.length; // 確認待ち（調整中＋送り返し）
           const head = queueHeadTextOf({ pending: wishes.length, asIs: ids.length, adjust: adjustN, waiting });
@@ -2128,7 +2132,12 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                           {r.shift && declineTextOf(r.shift) && <span data-queue-declined="1" style={{ display: "block", fontSize: 10.5, color: "var(--gold2)", fontWeight: 700, marginTop: 2 }}>{declineTextOf(r.shift)}</span>}{/* ★便 ON-3（0176 ★5 (c)・裁定406）: 本人が辞退＝planned に戻っている */}
                         </td>
                         <td className="ops">
-                          {isManagerUp && r.kind === "wish" && (
+                          {isManagerUp && r.kind === "wish" && (r.wish!.kind ?? "work") === "off" && (/* ★2026-11-20（相談役 ②・Agoora の返事）: 休みの希望の行は「見送り」だけ（日付順の並びと同じ＝採用は shift_wish_decide が off wish で拒む） */
+                            <span className="nox-rowops" data-queue-off-ops="1">
+                              <button style={btnLight} onClick={() => decide(r.wish!.id, false)}>見送り</button>
+                            </span>
+                          )}
+                          {isManagerUp && r.kind === "wish" && (r.wish!.kind ?? "work") !== "off" && (
                             <span className="nox-rowops">
                               <button style={{ ...btnDark, opacity: closed ? 0.45 : 1 }} disabled={closed}
                                 title={closed ? "この希望日は定休日に設定されています（見送りは可能）" : undefined}
