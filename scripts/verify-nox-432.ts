@@ -67,8 +67,8 @@ const bd = breakdownLinesOf({ pay: eM as unknown as BreakdownPayLike, extras: []
 const bdV = breakdownLinesOf({ pay: pV as unknown as BreakdownPayLike, extras: [] });
 check("432(3-4) 明細＝社員の控除は入れた項目だけ行に（PDF・/mine も同じ関数）・源泉のラベル＝ホステス報酬／報酬・料金／指定額・区分なしは従来",
   J(bd.ded.filter((l) => l.key.startsWith("empDed-")).map((l) => [l.label, l.amount])) === J([["社会保険料", 15000], ["住民税", 8000], ["寮費", 20000]]) && bd.net === eM.net
-  && whLabel432Of({ withholdingKind: "hostess" }) === "源泉（ホステス報酬）" && whLabel432Of({ withholdingKind: "other_fee", withholdingOverride: 1 }) === "源泉（報酬・料金・指定額）" && whLabel432Of({ taxMode: "委託" }) === "源泉（報酬・料金）"
-  && bdV.ded.find((l) => l.key === "withholding")?.label === "源泉（ホステス報酬・指定額）" && totalDeductionsOf(eM) === totalDeductionsOf(e0) + 43000, { bdNet: bd.net, net: eM.net });
+  && whLabel432Of({ withholdingKind: "hostess" }) === "源泉所得税（報酬）" && whLabel432Of({ withholdingKind: "other_fee", withholdingOverride: 1 }) === "源泉（報酬・料金・指定額）" && whLabel432Of({ taxMode: "委託" }) === "源泉（報酬・料金）"
+  && bdV.ded.find((l) => l.key === "withholding")?.label === "源泉所得税（報酬・指定額）" && totalDeductionsOf(eM) === totalDeductionsOf(e0) + 43000, { bdNet: bd.net, net: eM.net });
 const csvRow = (pay: object, name: string) => ({ castName: name, taxMode: "雇用", period: "2026-10", pay: pay as never, extrasTotal: 0, net: 0, paidTotal: 0 });
 const csv1 = buildPayrollCsv([csvRow(e0, "A")]), csv2 = buildPayrollCsv([csvRow(e0, "A"), csvRow(eM, "B")]);
 check("432(3-5) 給与 CSV＝社員の控除が 1 人も無ければ列を足さない（従来と同値）・あれば「社員の控除」列に入れた項目だけ", !csv1.includes("社員の控除") && csv2.split("\r\n")[0].endsWith(",社員の控除") && csv2.includes("社会保険料 ¥15000／住民税 ¥8000／寮費 ¥20000"));

@@ -150,9 +150,10 @@ export function slideLinesOf(p: SlideLineInput, opts: { frozen?: boolean; showSa
 export function whLabelOf(taxMode: string | null | undefined): string {
   return taxMode === "委託" ? "源泉（報酬・料金）" : taxMode === "雇用" ? "源泉（給与）" : "源泉";
 }
-/** ★裁定432: 区分があればその名（hostess＝ホステス報酬／other_fee＝報酬・料金）・指定額なら「（指定額）」。区分が無い旧データは whLabelOf のまま */
+/** ★裁定432: 区分があればその名（hostess＝源泉所得税（報酬）＝11/20 Agoora 決定／other_fee＝報酬・料金）・指定額なら「（指定額）」。区分が無い旧データは whLabelOf のまま */
 export function whLabel432Of(p: { taxMode?: string | null; withholdingKind?: string; withholdingOverride?: number }): string {
-  const base = p.withholdingKind === "hostess" ? "源泉（ホステス報酬）" : p.withholdingKind === "other_fee" ? "源泉（報酬・料金）" : p.withholdingKind === "other_204" ? "源泉（その他 204 条）" : whLabelOf(p.taxMode); // ★0188（裁定434）: other_204
+  // ★2026-11-20 午後（相談役 ④・Agoora 決定）: ホステス等の区分の明細の名＝全業態で「源泉所得税（報酬）」（ホストクラブ等でも同じ語）。税の書類（納付の集計・支払調書）と区分の選び方の語は今のまま。計算は変えない
+  const base = p.withholdingKind === "hostess" ? "源泉所得税（報酬）" : p.withholdingKind === "other_fee" ? "源泉（報酬・料金）" : p.withholdingKind === "other_204" ? "源泉（その他 204 条）" : whLabelOf(p.taxMode); // ★0188（裁定434）: other_204
   return typeof p.withholdingOverride === "number" ? `${base.replace(/）$/, "")}・指定額）` : base;
 }
 
