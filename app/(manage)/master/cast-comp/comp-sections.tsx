@@ -9,6 +9,7 @@ import { NORM_AXES, NORM_AXIS_LABEL, NORM_AXIS_UNIT, normAxesOf, normTargetsOf, 
 import type { StoreSettings } from "@/lib/nox/store-systems";
 import { useCallback, useEffect, useState } from "react";
 import SegSelect from "@/components/ui/seg-select";
+import Modal from "@/components/ui/modal"; // ★2026-11-20 夕（相談役 ⑧A）: 自由設計のバックの編集は中央の窓
 import { DAY_RULE_NOTE, DAY_RULE_OPTS, DED_KIND_CAST_OPTS, DED_PER_NOTE, DED_PER_OPTS_0195, dedAmountLabelOf, dedKindCastLabelOf, dedTargetLabelOf, dedUnitLabelOf } from "@/lib/nox/payroll/deduction-labels"; // ★0195（M-73）
 import { mig0195On } from "@/lib/nox/rules-0175/flag"; // ★0195
 import { ResponsiveTable, SegmentTabs } from "@/components/ui/responsive-kit"; // ★裁定382（GV-B W-1）・373（W-3）
@@ -1159,9 +1160,21 @@ export function PenaltyTab({ penalty, setPenalty, exists, isOwner, storeId, setM
 }
 
 // ── 自由バック（manager 以上・cond {metric,min} 任意）──
+/** ★2026-11-20 夕（相談役 ⑧A）: 自由設計のバックの一覧の並び＝条件の無い行が先・条件の額の小さい順（同じなら名前） */
+export function backDefsSortedOf<T extends Pick<BackDef, "name" | "cond_json">>(rows: readonly T[]): T[] {
+  return [...rows].sort((a, b) => (a.cond_json ? 1 : 0) - (b.cond_json ? 1 : 0) || (a.cond_json?.min ?? 0) - (b.cond_json?.min ?? 0) || a.name.localeCompare(b.name, "ja"));
+}
+/** 条件の文＝桁の区切りつき（売上 ≥ 1,000,000） */
+export const backCondLabelOf = (c: BackDef["cond_json"]): string => (c ? `${metricJa(c.metric)} ≥ ${Number(c.min).toLocaleString("ja-JP")}` : "—");
+/** 値の文＝売上×% は %・ほかは桁の区切り */
+export const backValueLabelOf = (b: Pick<BackDef, "basis" | "value">): string => (b.basis === "sales" ? `${b.value}%` : Number(b.value).toLocaleString("ja-JP"));
+/** 窓の見出し＝そのバックの名前を全部（追加は「バックを追加」） */
+export const backEditTitleOf = (name: string | null): string => (name === null ? "バックを追加" : `${name}を編集`);
+
 export function BackTab({ backs, isManagerUp, storeId, setMsg, reload }: { backs: BackDef[]; isManagerUp: boolean; storeId: string; setMsg: (m: string) => void; reload: () => Promise<void> }) {
   const supabase = createClient();
-  const [id, setId] = useState<string | null>(null);
+  // ★2026-11-20 夕（相談役 ⑧A）: 一覧の下の欄を切り替える形をやめ、行ごとの「編集」と「＋ バックを追加」から中央の窓で編集する（保存の先＝set_custom_back_def・引数は今のまま）
+  const [open, setOpen] = useState<null | { id: string | null; title: string }>(null);
   const [name, setName] = useState("");
   const [basis, setBasis] = useState("flat");
   const [value, setValue] = useState(0);
@@ -1169,72 +1182,90 @@ export function BackTab({ backs, isManagerUp, storeId, setMsg, reload }: { backs
   const [condMetric, setCondMetric] = useState("sales");
   const [condMin, setCondMin] = useState(0);
   const [active, setActive] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
   function edit(b: BackDef) {
-    setId(b.id); setName(b.name); setBasis(b.basis); setValue(b.value); setActive(b.is_active);
+    setName(b.name); setBasis(b.basis); setValue(b.value); setActive(b.is_active); setErr(null);
     if (b.cond_json) { setCondOn(true); setCondMetric(b.cond_json.metric); setCondMin(b.cond_json.min); }
-    else setCondOn(false);
+    else { setCondOn(false); setCondMetric("sales"); setCondMin(0); }
+    setOpen({ id: b.id, title: backEditTitleOf(b.name) });
+  }
+  function add() {
+    setName(""); setBasis("flat"); setValue(0); setCondOn(false); setCondMetric("sales"); setCondMin(0); setActive(true); setErr(null);
+    setOpen({ id: null, title: backEditTitleOf(null) });
   }
   async function save() {
+    if (!open) return;
+    setBusy(true); setErr(null);
     const { error } = await supabase.rpc("set_custom_back_def", {
-      p_id: id, p_store_id: storeId, p_name: name, p_basis: basis, p_value: value,
+      p_id: open.id, p_store_id: storeId, p_name: name, p_basis: basis, p_value: value,
       p_cond: condOn ? { metric: condMetric, min: condMin } : null,
       p_is_active: active,
     });
-    setMsg(error ? compErrJa(error.message) : id ? "自由バックを更新しました" : "自由バックを登録しました");
-    if (!error) { setId(null); setName(""); setValue(0); setCondOn(false); await reload(); }
+    setBusy(false);
+    if (error) { setErr(compErrJa(error.message)); return; }   // 失敗は窓の中に出す（窓は閉じない）
+    setMsg(open.id ? "自由バックを更新しました" : "自由バックを登録しました");
+    setOpen(null); await reload();
   }
+  const rows = backDefsSortedOf(backs);
   return (
     <div>
+      {isManagerUp && <div className="nox-actions" style={{ marginBottom: 8 }}><button type="button" style={btnDark} onClick={add} data-back-add="1">＋ バックを追加</button></div>}
       <div className="nox-tablewrap plain">{/* ★M1 第 2 レーン（裁定251・2026-09-18）: 横スクロール容器 */}
       <table className="nox-table" style={{ marginBottom: 10 }}>
-        <thead><tr>{["名称", "基準", "値", "条件", "状態"].map((h) => <th key={h}>{h}</th>)}</tr></thead>
+        <thead><tr>{["名称", "基準", "値", "条件", "状態", ...(isManagerUp ? ["操作"] : [])].map((h) => <th key={h}>{h}</th>)}</tr></thead>
         <tbody>
-          {backs.map((b) => (
-            <tr key={b.id} onClick={() => isManagerUp && edit(b)} style={{ cursor: isManagerUp ? "pointer" : "default" }}>
-              <td>{b.name}</td>
+          {rows.map((b) => (
+            <tr key={b.id} data-back-row={b.id}>
+              <td style={{ overflowWrap: "anywhere" }}>{b.name}</td>
               <td>{metricJa(b.basis)}</td>
-              <td className="num">{b.basis === "sales" ? `${b.value}%` : b.value}</td>
-              <td>{b.cond_json ? `${metricJa(b.cond_json.metric)}≥${b.cond_json.min}` : "—"}</td>
+              <td className="num">{backValueLabelOf(b)}</td>
+              <td className="num" style={{ whiteSpace: "nowrap" }}>{backCondLabelOf(b.cond_json)}</td>
               <td style={{ color: b.is_active ? "var(--ok)" : "var(--sub)" }}>{b.is_active ? "有効" : "無効"}</td>
+              {isManagerUp && <td><button type="button" style={btnLight} onClick={() => edit(b)} data-back-edit={b.id} aria-label={backEditTitleOf(b.name)}>編集</button></td>}
             </tr>
           ))}
         </tbody>
       </table>
       </div>
-      {isManagerUp ? (
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-          <span style={note}>{id ? "編集中" : "新規"}</span>
-          <input placeholder="名称" value={name} onChange={(e) => setName(e.target.value)} style={{ ...input, width: 140 }} />
-          {/* ★裁定106 B2: 計算方法3種（本数×円／固定額／売上×%）＝v3 準拠の見せ方。保存語彙 basis/value は不変
-              （本数×円＝既存の数量 basis 群・固定額＝flat・売上×%＝sales）。 */}
-          <label style={{ fontSize: 12 }}>計算方法{" "}
-            <SegSelect value={basis === "flat" ? "flat" : basis === "sales" ? "sales" : "count"}
-              onChange={(m) => { if (m === "flat") setBasis("flat"); else if (m === "sales") setBasis("sales"); else if (basis === "flat" || basis === "sales") setBasis("hon"); }}
-              options={[["count", "本数×円"], ["flat", "固定額"], ["sales", "売上×%"]] as const} ariaLabel="計算の型" />{/* ★M-82: 3 択＝ボタン群 */}
-          </label>
-          {basis !== "flat" && basis !== "sales" && (
-            <label style={{ fontSize: 12 }}>基準{" "}
-              <SegSelect value={basis} onChange={setBasis} options={METRICS.filter((m) => m !== "sales").map((m) => [m, metricJa(m)] as const)} ariaLabel="基準" wrap />{/* ★M-82: 7 択＝ボタン群（折返し） */}
+      {!isManagerUp && <p style={note}>自由バックはマネージャー以上のみ可能です。</p>}
+      {open && isManagerUp && (
+        <Modal onClose={() => { if (!busy) setOpen(null); }} maxWidth={560} variant="dialog">
+          <div className="nox-modalhead"><h3 style={{ margin: 0, fontSize: 16, overflowWrap: "anywhere" }} data-back-modal-title="1">{open.title}</h3></div>
+          <div className="nox-modalbody" style={{ display: "grid", gap: 10 }} data-back-modal="1">
+            <label style={{ fontSize: 12, display: "grid", gap: 4 }}>名称<input placeholder="名称" value={name} onChange={(e) => setName(e.target.value)} style={{ ...input, width: "100%" }} /></label>
+            {/* ★裁定106 B2: 計算方法3種（本数×円／固定額／売上×%）＝v3 準拠の見せ方。保存語彙 basis/value は不変
+                （本数×円＝既存の数量 basis 群・固定額＝flat・売上×%＝sales）。 */}
+            <label style={{ fontSize: 12 }}>計算方法{" "}
+              <SegSelect value={basis === "flat" ? "flat" : basis === "sales" ? "sales" : "count"}
+                onChange={(m) => { if (m === "flat") setBasis("flat"); else if (m === "sales") setBasis("sales"); else if (basis === "flat" || basis === "sales") setBasis("hon"); }}
+                options={[["count", "本数×円"], ["flat", "固定額"], ["sales", "売上×%"]] as const} ariaLabel="計算の型" />{/* ★M-82: 3 択＝ボタン群 */}
             </label>
-          )}
-          {basis === "sales" ? <label style={{ fontSize: 12 }}>値(%) <input type="number" min={0} value={value} onChange={(e) => setValue(Number(e.target.value))} className="nox-numfield num" inputMode="numeric" onWheel={numWheelBlur} style={numFieldStyle(4)} /></label>
-            : <span style={{ fontSize: 12, display: "inline-flex", alignItems: "center", gap: 6 }}>金額 <MoneyInput value={value} width={130} ariaLabel="金額" onChange={(d) => setValue(Number(d || 0))} /></span>}{/* ★M-155 ①: 円の欄は MoneyInput */}
-          <label style={{ fontSize: 12 }}><input type="checkbox" checked={condOn} onChange={(e) => setCondOn(e.target.checked)} /> 達成条件</label>
-          {condOn && (
-            <>
-              <select value={condMetric} onChange={(e) => setCondMetric(e.target.value)} style={input}>
-                {METRICS.map((m) => <option key={m} value={m}>{metricJa(m)}</option>)}
-              </select>
-              <label style={{ fontSize: 12 }}>≥ <input type="number" min={0} value={condMin} onChange={(e) => setCondMin(Number(e.target.value))} style={{ ...input, width: 90 }} /></label>
-            </>
-          )}
-          <label style={{ fontSize: 12 }}><input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} /> 有効</label>
-          <div className="nox-actions" style={{ flexBasis: "100%", width: "100%" }}>{/* ★便 BTN（裁定242）: 主ボタン（＋補助）は行の中央 */}
-            <button style={btnDark} onClick={save}>{id ? "更新" : "登録"}</button>
-            {id && <button style={btnLight} onClick={() => { setId(null); setName(""); }}>新規に戻す</button>}
+            {basis !== "flat" && basis !== "sales" && (
+              <label style={{ fontSize: 12 }}>基準{" "}
+                <SegSelect value={basis} onChange={setBasis} options={METRICS.filter((m) => m !== "sales").map((m) => [m, metricJa(m)] as const)} ariaLabel="基準" wrap />{/* ★M-82: 7 択＝ボタン群（折返し） */}
+              </label>
+            )}
+            {basis === "sales" ? <label style={{ fontSize: 12 }}>値(%) <input type="number" min={0} value={value} onChange={(e) => setValue(Number(e.target.value))} className="nox-numfield num" inputMode="numeric" onWheel={numWheelBlur} style={numFieldStyle(4)} /></label>
+              : <span style={{ fontSize: 12, display: "inline-flex", alignItems: "center", gap: 6 }}>金額 <MoneyInput value={value} width={130} ariaLabel="金額" onChange={(d) => setValue(Number(d || 0))} /></span>}{/* ★M-155 ①: 円の欄は MoneyInput */}
+            <label style={{ fontSize: 12 }}><input type="checkbox" checked={condOn} onChange={(e) => setCondOn(e.target.checked)} /> 達成条件</label>
+            {condOn && (
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                <select value={condMetric} onChange={(e) => setCondMetric(e.target.value)} style={input} aria-label="条件の指標">
+                  {METRICS.map((m) => <option key={m} value={m}>{metricJa(m)}</option>)}
+                </select>
+                <span style={{ fontSize: 12, display: "inline-flex", alignItems: "center", gap: 6 }}>≥ <GroupedNumberInput value={condMin} onChange={(n) => setCondMin(Number(n || 0))} ariaLabel="条件の額" style={{ ...input, width: 150 }} /></span>{/* ★相談役 ⑧A: 条件の額は桁の区切り */}
+              </div>
+            )}
+            <label style={{ fontSize: 12 }}><input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} /> 有効</label>
+            {err && <Message kind="error">{err}</Message>}
           </div>
-        </div>
-      ) : <p style={note}>自由バックはマネージャー以上のみ可能です。</p>}
+          <div className="nox-modalfoot nox-actions">
+            <button type="button" style={btnDark} disabled={busy} onClick={() => void save()} data-back-save="1">{busy ? "保存中…" : "保存"}</button>
+            <button type="button" style={btnLight} disabled={busy} onClick={() => setOpen(null)} data-back-cancel="1">やめる</button>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }
