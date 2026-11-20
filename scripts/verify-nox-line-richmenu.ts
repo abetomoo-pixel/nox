@@ -68,6 +68,11 @@ check("lr(6-2) 設定の画面：LIFF ID かトークンを入れた保存だけ
   pn.includes('const auto = extraOn && !isDemo && richMenuAutoOf(!!patch && "liff_id" in patch, !!secrets.access_token.trim());')
   && pn.indexOf("setMsg(patch || botChanged") > 0 && pn.indexOf("setMsg(patch || botChanged") < pn.indexOf('if (auto) await richMenu("ensure");')
   && pn.includes('data-line-richmenu-rebuild="1"') && pn.includes('data-line-richmenu-remove="1"') && pn.includes('{rmMsg && <Message kind={rmMsg.ok ? "info" : "error"}>{rmMsg.text}</Message>}'));
+// ★2026-11-20 午後（相談役 ③）: ほかのボタンで保存していない通知の種類を戻さない・未保存の印・結果の文は押したボタンの近く
+check("lr(6-3) 設定の画面：保存のあとの読み直しは押した節だけ（LINE の設定＝config・作り直す／外す＝cfg・上限＝limit・通知の種類＝notify）・通知の種類を DB の値に戻すのは最初と店の切り替えと通知の保存だけ・未保存の印・結果の文は 3 か所",
+  pn.includes('if (part === "all" || part === "notify") setNotify(nf);') && pn.includes('await load("config");') && pn.includes('await load("cfg");') && pn.includes('await load("limit");') && pn.includes('await load("notify");')
+  && !/await load\(\);/.test(pn) && pn.includes('data-line-notify-unsaved="1">まだ保存していません</span>') && pn.includes("const notifyDirty = LINE_NOTIFY_KINDS.some((k) => notify[k] !== savedNotify[k]);")
+  && ["config", "notify", "limit"].every((w) => pn.includes(`{outAt("${w}")}`)) && !pn.includes('{err && <Message kind="error">{err}</Message>}\n      {msg && <Toast msg={msg} />}\n    </section>'));
 
 if (fails.length) { console.error(`✗ verify:nox-line-richmenu 失敗 ${fails.length}（成功 ${pass}）`); for (const f of fails) console.error(" - " + f); process.exit(1); }
 console.log(`verify:nox-line-richmenu OK (${pass} checks)`);

@@ -20,6 +20,10 @@ import { mig0201qOn } from "@/lib/nox/rules-0175/flag"; // ★2026-11-18 夜（�
 import { BOT_BASIC_ID_NOTE, RICHMENU_STATE_JA, botBasicIdErrorOf, botBasicIdNormOf, richMenuAutoOf, richMenuResultTextOf, richMenuStateOf, type RichMenuAction } from "@/lib/nox/line/richmenu";
 
 type Store = { id: string; name: string };
+/** ★2026-11-20 午後（相談役 ③）: 保存のあとに読み直す範囲＝押した節だけ（ほかの節の保存していない入力を DB の値で上書きしない）。all＝最初と店の切り替え */
+type LoadPart = "all" | "config" | "notify" | "limit" | "cfg";
+/** 結果の文を出す場所＝押したボタンの近く */
+type MsgAt = "config" | "notify" | "limit";
 
 export default function LineConfigPanel({ stores, isOwner }: { stores: Store[]; isOwner: boolean }) {
   const supabase = createClient();
@@ -34,22 +38,30 @@ export default function LineConfigPanel({ stores, isOwner }: { stores: Store[]; 
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [msgAt, setMsgAt] = useState<MsgAt>("config"); // ★相談役 ③: 結果の文は押したボタンの近くに
   const [copied, setCopied] = useState<string | null>(null);
   const [botId, setBotId] = useState(""); // ★相談役 ⑤: 公式アカウントの ID（入れると友だち追加が必須）
   const [rmMsg, setRmMsg] = useState<{ ok: boolean; text: string } | null>(null); // ★相談役 ⑤: リッチメニューの結果（設定の保存とは別の行＝失敗しても保存は止めない）
   const extraOn = mig0201qOn();
   const [notify, setNotify] = useState<Record<LineNotifyKind, boolean>>({ ...LINE_NOTIFY_DEFAULT }); // ★M-114（裁定459）: 通知の種類ごと ON／OFF（保存＝★0199 の白名単 line_notify・owner 限定）
+  const [savedNotify, setSavedNotify] = useState<Record<LineNotifyKind, boolean>>({ ...LINE_NOTIFY_DEFAULT }); // ★相談役 ③: DB の値（まだ保存していない変更の印）
   const notifyEditable = isOwner && !isDemo && mig0199On(); // ★0199（M-114）: 保存できるのは管理者（set_store_profile は owner 限定）・デモは変更不可・フラグ false は表示だけ
   const origin = siteOriginOf(typeof window !== "undefined" ? window.location.origin : ""); // ★便 D M-102: 発行する URL は site 固定の 1 値
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (part: LoadPart = "all") => {
     if (!storeId) return;
     const { data: s } = await supabase.from("stores").select("line_config, line_monthly_limit, settings_json").eq("id", storeId).maybeSingle();
     const c = ((s?.line_config ?? {}) as LineConfig);
-    setNotify(lineNotifyOf((s?.settings_json ?? null) as Record<string, unknown> | null)); // ★M-114（裁定459）: 種類ごとの ON／OFF（キーが無ければ既定）
-    setCfg(c); setLimit(Number(s?.line_monthly_limit ?? 200)); setLimitInput(String(s?.line_monthly_limit ?? 200));
-    setForm({ login_channel_id: c.login_channel_id ?? "", liff_id: c.liff_id ?? "", bot_destination: c.bot_destination ?? "" });
-    setBotId(c.bot_basic_id ?? "");
+    const nf = lineNotifyOf((s?.settings_json ?? null) as Record<string, unknown> | null); // ★M-114（裁定459）: 種類ごとの ON／OFF（キーが無ければ既定）
+    setSavedNotify(nf);
+    // ★2026-11-20 午後（相談役 ③）: 入力の欄を DB の値に戻すのは、最初・店の切り替え・その節の保存のときだけ（ほかのボタンでは戻さない）
+    if (part === "all" || part === "notify") setNotify(nf);
+    setCfg(c); setLimit(Number(s?.line_monthly_limit ?? 200));
+    if (part === "all" || part === "limit") setLimitInput(String(s?.line_monthly_limit ?? 200));
+    if (part === "all" || part === "config") {
+      setForm({ login_channel_id: c.login_channel_id ?? "", liff_id: c.liff_id ?? "", bot_destination: c.bot_destination ?? "" });
+      setBotId(c.bot_basic_id ?? "");
+    }
     const { data: m } = await supabase.rpc("line_push_month_summary", { p_month: jstMonthOf(Date.now()).month });
     setMonth((((m ?? []) as LineMonthRow[]).find((r) => r.store_id === storeId)) ?? null);
   }, [supabase, storeId]);
@@ -61,9 +73,10 @@ export default function LineConfigPanel({ stores, isOwner }: { stores: Store[]; 
     const j = (res ? await res.json().catch(() => ({})) : {}) as { ok?: boolean; status?: string; reason?: string; detail?: string; error?: string };
     const r = { ok: !!j.ok, status: j.status, reason: j.reason ?? j.error ?? (res ? String(res.status) : "network"), detail: j.detail };
     setRmMsg({ ok: r.ok, text: richMenuResultTextOf(r) });
-    await load();
+    await load("cfg"); // ★相談役 ③: リッチメニューの状態だけ読み直す（保存していない入力は残す）
   }
   async function saveConfig() {
+    setMsgAt("config");
     const v = lineConfigErrorOf(form); if (v) { setErr(v); return; }
     const vb = extraOn ? botBasicIdErrorOf(botId) : null; if (vb) { setErr(vb); return; }
     const patch = lineConfigPatchOf(form, cfg);
@@ -80,30 +93,34 @@ export default function LineConfigPanel({ stores, isOwner }: { stores: Store[]; 
       }
       setSecrets({ channel_secret: "", access_token: "" });
       setMsg(patch || botChanged || secrets.channel_secret || secrets.access_token ? "LINE の設定を保存しました" : "変更がありません");
-      await load();
+      await load("config");
       if (auto) await richMenu("ensure"); // ★相談役 ⑤: 失敗しても設定の保存は済んでいる（理由は別の行）
     } finally { setBusy(false); }
   }
   async function saveLimit(n: number) {
+    setMsgAt("limit");
     const v = lineLimitErrorOf(n); if (v) { setErr(v); return; }
     setBusy(true); setErr(null); setMsg(null);
     const { error } = await supabase.rpc("set_store_line_limit", { p_store_id: storeId, p_limit: n });
     setBusy(false);
     if (error) { setErr(rpcErrJa(error.message)); return; }
-    setMsg(`月の上限を ${lineLimitLabelOf(n)} にしました`); await load();
+    setMsg(`月の上限を ${lineLimitLabelOf(n)} にしました`); await load("limit");
   }
   async function saveNotify() { // ★0199（M-114・裁定459）: set_store_profile に {line_notify: 4 鍵を常に明示}（原則7）＝RPC が object／boolean／鍵名を検査（'bad line_notify'）
     if (!notifyEditable || !storeId) return;
+    setMsgAt("notify");
     setBusy(true); setErr(null); setMsg(null);
     const { error } = await supabase.rpc("set_store_profile", { p_store_id: storeId, p_patch: lineNotifyPatchOf(notify) });
     setBusy(false);
     if (error) { setErr(errJa(error.message)); return; }
-    setMsg(LINE_NOTIFY_SAVED_MSG); await load();
+    setMsg(LINE_NOTIFY_SAVED_MSG); await load("notify");
   }
   const copy = (k: string, v: string) => { void navigator.clipboard?.writeText(v).then(() => setCopied(k)).catch(() => undefined); };
   const jm = jstMonthOf(Date.now());
   const st = month ? lineStatusOf(month.sent, month.monthly_limit, lineForecastOf(month.sent, jm.dayOfMonth, jm.daysInMonth), jm.dayOfMonth) : null;
   const row: React.CSSProperties = { display: "grid", gap: 4 };
+  const notifyDirty = LINE_NOTIFY_KINDS.some((k) => notify[k] !== savedNotify[k]); // ★相談役 ③: 通知の種類に保存していない変更がある
+  const outAt = (w: MsgAt) => (msgAt === w && (err || msg) ? <div data-line-msg-at={w} style={{ marginTop: 6 }}>{err && <Message kind="error">{err}</Message>}{msg && <Toast msg={msg} />}</div> : null); // ★相談役 ③: 押したボタンの近くに
 
   return (
     <section className="nox-panel" data-line-config-panel="1" data-line-configured={lineConfiguredOf(cfg) ? "1" : "0"}>
@@ -145,6 +162,7 @@ export default function LineConfigPanel({ stores, isOwner }: { stores: Store[]; 
       <div style={{ marginTop: 10 }}>{/* ★便 BTN: 保存はフォームの列（最大 560px）の外＝カードの中央 */}
         {isDemo ? <p style={{ ...t.sub, margin: 0 }}>デモ環境では LINE の設定を変更できません。</p>
           : <div className="nox-actions nox-settings-save" data-settings-save="1">{/* ★便 BTN（裁定242）: 主ボタンは行の中央 */}<button type="button" style={{ ...t.btnGold, ...t.btnSm }} disabled={busy || !storeId} onClick={() => void saveConfig()} data-line-save="1">{busy ? "保存中…" : "LINE の設定を保存"}</button></div>}
+        {outAt("config")}
       </div>
       {extraOn && (/* ★2026-11-18 夜（相談役 ⑤）: リッチメニュー＝保存（LIFF ID かトークンを入れたとき）で自動に登録（友だち全員）・作り直す・外す */
         <div style={{ marginTop: 16, display: "grid", gap: 6 }} data-line-richmenu={richMenuStateOf(cfg)}>
@@ -169,8 +187,9 @@ export default function LineConfigPanel({ stores, isOwner }: { stores: Store[]; 
           ))}
         </div>
         {notifyEditable
-          ? <div className="nox-actions nox-settings-save" data-settings-save="1">{/* ★便 BTN（裁定242）: 主ボタンは行の中央 */}<button type="button" style={{ ...t.btnGold, ...t.btnSm }} disabled={busy || !storeId} onClick={() => void saveNotify()} data-line-notify-save="1">{busy ? "保存中…" : "通知の種類を保存"}</button></div>
+          ? <div className="nox-actions nox-settings-save" data-settings-save="1">{/* ★便 BTN（裁定242）: 主ボタンは行の中央 */}<button type="button" style={{ ...t.btnGold, ...t.btnSm }} disabled={busy || !storeId} onClick={() => void saveNotify()} data-line-notify-save="1">{busy ? "保存中…" : "通知の種類を保存"}</button>{notifyDirty && <span style={{ fontSize: 12, fontWeight: 700, color: "var(--warning)", alignSelf: "center" }} role="status" data-line-notify-unsaved="1">まだ保存していません</span>}</div>
           : <p style={{ ...t.sub, margin: 0, color: "var(--v2-muted)" }}>{isDemo ? "デモ環境では LINE の設定を変更できません。" : !mig0199On() ? LINE_NOTIFY_SAVE_PENDING_NOTE : LINE_NOTIFY_OWNER_NOTE}</p>}
+        {outAt("notify")}
       </div>
       <div style={{ marginTop: 16, display: "grid", gap: 6 }} data-line-limit={limit}>
         <span style={t.fieldLabel}>月の送信上限（表示のための設定）<InfoTip>{LINE_PLAN_TIERS.map(lineLimitLabelOf).join("・")}。{LINE_LIMIT_NOTE}</InfoTip></span>
@@ -182,6 +201,7 @@ export default function LineConfigPanel({ stores, isOwner }: { stores: Store[]; 
           {isDemo && <span style={{ fontSize: 11.5, color: "var(--sub)" }} data-demo-reason="line-limit">デモでは上限を変えられません（本番の店で使えます）</span>}{/* ★M-139: デモで使えない操作は近くに理由 */}
           {!isDemo && <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} disabled={busy} onClick={() => void saveLimit(Number(limitInput))}>この数にする</button>}
         </div>
+        {outAt("limit")}
       </div>
       <div style={{ marginTop: 16 }} data-line-month={month ? st ?? "normal" : "none"}>
         <span style={t.fieldLabel}>今月の送信数（JST の暦月・sent の宛先数の合計）</span>
@@ -191,8 +211,6 @@ export default function LineConfigPanel({ stores, isOwner }: { stores: Store[]; 
           {st === "normal" && month.rejected_429 > 0 && <Message kind="warn">{lineStatusTextOf(st, month.monthly_limit, month.rejected_429)}</Message>}
         </>) : <p style={{ ...t.sub, margin: "4px 0 0" }}>まだ送信はありません。</p>}
       </div>
-      {err && <Message kind="error">{err}</Message>}
-      {msg && <Toast msg={msg} />}
     </section>
   );
 }
