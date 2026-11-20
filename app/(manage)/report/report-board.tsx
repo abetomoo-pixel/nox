@@ -21,7 +21,7 @@ import { roundYen } from "@/lib/nox/money";
 import * as t from "@/lib/nox/ui/theme";
 import Toast from "@/components/ui/toast";
 import Modal from "@/components/ui/modal";
-import { closeBlockedLineOf, closeGuardReasonsOf, closeGuardTitleOf } from "@/lib/nox/report/close-guard"; // ★2026-11-18 夜 2（相談役 ①）: 締められない理由の窓
+import { closeBlockedLineOf, closeGuardForceConfirmOf, closeGuardReasonsOf, closeGuardTitleOf } from "@/lib/nox/report/close-guard"; // ★2026-11-18 夜 2（相談役 ①）: 締められない理由の窓
 import MonthReport from "./month-report";
 
 import { rpcErrJa as rpcErrJaCommon } from "@/lib/nox/ui/rpc-err"; // ★N2-2（2026-09-18）: 生の RPC 語の日本語化（写像に無い語は「処理できませんでした（コード: …）」）
@@ -1470,16 +1470,17 @@ export default function ReportBoard({
 
       {closeGuard && (/* ★2026-11-18 夜 2（相談役 ①）: 締められない理由の窓（中央）＝未会計の件数・実査の未入力。強行は店長・オーナーだけ */
         <Modal onClose={() => setCloseGuard(null)} maxWidth={440} variant="dialog">
-          <div className="nox-modalhead"><h3 style={{ margin: 0, fontSize: 16 }} data-close-guard-title="1">{closeGuardTitleOf(closeGuard)}</h3></div>
+          <div className="nox-modalhead"><h3 style={{ margin: 0, fontSize: 16 }} data-close-guard-title="1">{closeGuardTitleOf(closeGuard, isManagerUp)}</h3></div>
           <div className="nox-modalbody" data-close-guard={closeGuard.openN > 0 ? "open" : "counted"}>
             <ul style={{ margin: 0, paddingLeft: 18, display: "grid", gap: 6, fontSize: 13.5 }}>
               {closeGuardReasonsOf(closeGuard).map((r) => <li key={r} data-close-guard-reason="1">{r}</li>)}
             </ul>
           </div>
           <div className="nox-modalfoot nox-actions" style={{ flexWrap: "wrap" }}>
-            {closeGuard.openN > 0 && <a href="/register" style={{ ...btnLight, textDecoration: "none", display: "inline-flex", alignItems: "center" }} data-close-guard-see="1">未会計の伝票を見る</a>}
+            {/* ★2026-11-20 夕（相談役 ⑧B）: 主のボタン（青）＝未会計の伝票を見る・「未会計のまま締める」は目立たない形（文字のボタン）＋確かめ 1 回 */}
+            {closeGuard.openN > 0 && <a href="/register" style={{ ...btnDark, textDecoration: "none", display: "inline-flex", alignItems: "center" }} data-close-guard-see="1">未会計の伝票を見る</a>}
             {closeGuard.openN > 0 && isManagerUp && (
-              <button style={btnDark} data-close-guard-force="1" onClick={() => { const g = closeGuard; setCloseGuard(null); if (g.mode === "reclose" && g.reportId) void recloseFromForm(g.reportId, true); else void closeDay({ forced: true, countedOk: true }); }}>未会計のまま締める</button>
+              <button type="button" style={{ ...t.link, fontSize: 12.5, color: "var(--sub)", minHeight: 40 }} data-close-guard-force="1" onClick={() => { const g = closeGuard; if (!window.confirm(closeGuardForceConfirmOf(g.openN))) return; setCloseGuard(null); if (g.mode === "reclose" && g.reportId) void recloseFromForm(g.reportId, true); else void closeDay({ forced: true, countedOk: true }); }}>未会計のまま締める</button>
             )}
             {closeGuard.openN === 0 && closeGuard.countedMissing && (
               <button style={btnDark} data-close-guard-counted="1" onClick={() => { setCloseGuard(null); void closeDay({ forced: false, countedOk: true }); }}>このまま締める</button>

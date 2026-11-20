@@ -15,7 +15,7 @@ const css = fs.readFileSync("app/globals.css", "utf8");
 
 check("c(1-1) 文言：見出し・理由（未会計 n 件・実査の未入力の問い）・ボタンの上の 1 行",
   closeGuardTitleOf({ openN: 4, countedMissing: false }) === "まだ締められません" && closeGuardTitleOf({ openN: 0, countedMissing: true }) === "実査が未入力です"
-  && JSON.stringify(closeGuardReasonsOf({ openN: 4, countedMissing: true })) === JSON.stringify(["未会計の伝票が 4 件あります", "実査（数えた現金）が未入力です。このまま締めますか"])
+  && JSON.stringify(closeGuardReasonsOf({ openN: 4, countedMissing: true })) === JSON.stringify(["未会計の伝票が 4 件あります", "実査（数えた現金）が未入力です"]) /* ★2026-11-20 夕（相談役 ⑧B）: 問いの文を混ぜない */ && closeGuardTitleOf({ openN: 4, countedMissing: false }, true) === "未会計の伝票があります"
   && closeBlockedLineOf(4) === "未会計 4 件のため、このままでは締められません");
 check("c(1-2) 押した時点で未会計（open の伝票の数）と実査の空欄を確かめ、あれば窓を出して締めない",
   rb.includes("const openN = opts?.forced ? 0 : await openCheckCountNow();") && rb.includes('const countedMissing = !opts?.countedOk && counted === "";') && rb.includes('if (openN > 0 || countedMissing) { setCloseGuard({ openN, countedMissing, mode: "close" }); return; }')
