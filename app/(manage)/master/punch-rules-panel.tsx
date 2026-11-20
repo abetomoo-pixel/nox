@@ -49,6 +49,13 @@ export default function PunchRulesPanel({ stores, isOwner = false }: { stores: S
     setIps(list); setCur(f); setForm(f); setLoaded(true);
   }, [storeSel]);
   useEffect(() => { void load(); }, [load]);
+  // ★夜便 2026-11-20 N3（相談役・LINE 連携の画面の ③ と同じ形）: Wi-Fi の登録・外すの後は Wi-Fi の一覧だけを読み直す＝保存していない判定・判定方法・位置・予定外の打刻を消さない
+  const loadIps = useCallback(async () => {
+    if (!storeSel) return;
+    const { data, error } = await createClient().from("stores").select("punch_allow_ip").eq("id", storeSel).single();
+    if (error || !data) { setMsg(`読み込みに失敗: ${error?.message ?? ""}`); return; }
+    setIps((data.punch_allow_ip as string[] | null) ?? []);
+  }, [storeSel]);
   useEffect(() => { void fetch("/api/punch/wifi").then((r) => r.json()).then((j: { ip?: string | null }) => setMyIp(j.ip ?? null)).catch(() => setMyIp(null)); }, []);
 
   const f = { ...form, ipCount: ips.length };
@@ -79,14 +86,14 @@ export default function PunchRulesPanel({ stores, isOwner = false }: { stores: S
     const j = (await r.json().catch(() => ({}))) as { error?: string; ip?: string };
     setBusy(false);
     if (!r.ok) { setMsg(`登録に失敗: ${errJa(j.error ?? String(r.status))}`); return; }
-    setMsg(`店の Wi-Fi（${j.ip}）を登録しました`); await load();
+    setMsg(`店の Wi-Fi（${j.ip}）を登録しました`); await loadIps();
   }
   async function removeWifi(ip: string) {
     setBusy(true); setMsg(null);
     const { error } = await createClient().rpc("store_wifi_remove", { p_store_id: storeSel, p_ip: ip });
     setBusy(false);
     if (error) { setMsg(`削除に失敗: ${errJa(error.message)}`); return; }
-    setMsg(`店の Wi-Fi（${ip}）を外しました`); await load();
+    setMsg(`店の Wi-Fi（${ip}）を外しました`); await loadIps();
   }
 
   const needPos = form.mode === "gps" || form.mode === "both" || form.mode === "either";
@@ -143,6 +150,7 @@ export default function PunchRulesPanel({ stores, isOwner = false }: { stores: S
       {msg && <Toast msg={msg} style={{ margin: "10px 0 0" }} />}
       {isOwner && (
         <div className="nox-actions nox-settings-save" data-settings-save="1" style={{ marginTop: 12, alignItems: "center" }}>
+          {dirty && !formErr && !missing && <span data-punch-unsaved="1" style={{ fontSize: 12.5, color: "var(--warn, var(--bad))", fontWeight: 700 }}>まだ保存していません</span>}
           {(formErr || missing) && <span data-punch-save-block="1" style={{ fontSize: 12.5, color: "var(--bad)" }}>{formErr ?? missing}</span>}
           <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} disabled={busy || !dirty} onClick={() => { setForm(cur); setMsg(null); }}>元に戻す</button>
           <button type="button" style={{ ...t.btnGold, ...t.btnSm }} disabled={!canEdit || !dirty || !!formErr || !!missing} onClick={() => void save()}>打刻の設定を保存</button>
