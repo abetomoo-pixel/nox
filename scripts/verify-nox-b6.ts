@@ -127,7 +127,7 @@ const LATIN = /[A-Za-z]/;
     && (() => { __set0201eForTest(false); const r = castCloseOf({ isCast: true, closeOk: false, bizDate: "x", todayBiz: "y" }); __set0201eForTest(null); return r; })());
   const rb = src("app/(manage)/report/report-board.tsx");
   check("b6(5-5) 日報の配線＝auth_cast_close_ok を読む・締めの節と canClose は castClose",
-    rb.includes('supabase.rpc("auth_cast_close_ok", { p_store_id: storeId })') && rb.includes("const canClose = isManagerUp || staffPerm.close || castClose;") && rb.includes("{(isManagerUp || castClose) && (") && !rb.includes("{(isManagerUp || isCast) && ("));
+    rb.includes('supabase.rpc("auth_cast_close_ok", { p_store_id: storeId })') && rb.includes("const canClose = isManagerUp || staffPerm.close || castClose;") && rb.includes("{(isManagerUp || staffPerm.close || castClose) && (") && !rb.includes("{(isManagerUp || isCast) && ("));
 }
 // (6) 取り下げ
 {

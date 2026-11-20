@@ -63,6 +63,9 @@ check("n3(1) Wi-Fi の登録・外すの後は Wi-Fi の一覧だけを読み直
   && pr.includes('.select("punch_allow_ip").eq("id", storeSel).single()') && (pr.match(/await load\(\);/g) ?? []).length === 1);
 check("n3(2) 保存していないときは「まだ保存していません」", pr.includes('{dirty && !formErr && !missing && <span data-punch-unsaved="1"') && pr.includes(">まだ保存していません</span>"));
 
+// ── 夜便 2（2026-11-20 21:00・相談役 §8-1／§8-12）──
+check("n2b(1) 日報の締めの欄＝店長以上・締めの許可があるスタッフ・締めの許可があるキャスト（差異の承認と再締めは canClose のまま）", rb.includes("{(isManagerUp || staffPerm.close || castClose) && (") && !rb.includes("{(isManagerUp || castClose) && (") && rb.includes("const canClose = isManagerUp || staffPerm.close || castClose;") && rb.includes("const canApproveDiff = isManagerUp || staffPerm.close;"));
+check("n2b(2) 待遇プランの判定期間の札は折り返す（375 ではみ出さない）", /data-slide-period-pill="1" style={{ whiteSpace: "normal", maxWidth: "100%"/.test(pe));
 if (fails.length) { console.error(`✗ verify:nox-night1120 失敗 ${fails.length}（成功 ${pass}）`); for (const f of fails) console.error(" - " + f); process.exit(1); }
 console.log(`verify:nox-night1120 OK (${pass} checks)`);
 console.log("夜便 11/20: 締めの前の送りの窓（0201v の後ろ）・報酬の軸は下書きと保存・段の欄の出し分け・打刻の設定の Wi-Fi の後に一覧だけ読み直す");

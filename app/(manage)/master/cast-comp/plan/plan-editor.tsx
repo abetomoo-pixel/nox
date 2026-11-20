@@ -539,7 +539,7 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
         <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 8px", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <span>判定期間:</span>
           <SegSelect value={draft.slidePeriod} disabled={!isOwner} ariaLabel="スライドの判定期間" onChange={(v) => d({ slidePeriod: v as SlidePeriod })} options={[["monthly", "月次（既定）"], ["half", "半月"], ["daily", "日次"]] as const} />{/* ★M-82 */}
-          <span className="nox-stpill">{slidePillOf(draft.slidePeriod, effApply === "next")}</span>
+          <span className="nox-stpill" data-slide-period-pill="1" style={{ whiteSpace: "normal", maxWidth: "100%", lineHeight: 1.45 }} /* ★夜便 2 2026-11-20（相談役 §8-12）: 375 でカードの右にはみ出す＝札だけ折り返す（nox-stpill の nowrap を上書き） */>{slidePillOf(draft.slidePeriod, effApply === "next")}</span>
           <span>対象: <b style={{ color: "var(--v2-text)" }}>時給</b>（固定）</span>
         </p>
         {rules0175On() && draft.id && (/* ★便 P175-prep P-3（裁定412 追補・0175 v2 ★12 comp_plan_ext_set）: 報酬の軸はプラン単位（null＝店の軸を引き継ぐ）。保存済みプランだけ。フラグ false＝DOM 差分 0 */

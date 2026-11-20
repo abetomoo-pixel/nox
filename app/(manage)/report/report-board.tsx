@@ -1254,7 +1254,7 @@ export default function ReportBoard({
       </section>
 
       {/* 締めは manager 以上のみ（RPC 側も owner/manager 強制＝二重）・★便 P173（裁定389）: ON のキャストも通常の締め */}
-      {(isManagerUp || castClose) && (
+      {(isManagerUp || staffPerm.close || castClose) && (/* ★夜便 2 2026-11-20（相談役 §8-1）: 締めの許可があるスタッフにも締めの欄（関数は前から通す＝画面だけ揃える）。差異の承認と再締めの出し分けは canClose のまま */
         <>
         {/* ★B4-3（DP-R 監査の欠落解消）: モック nox-daily-report の「営業サマリー」カード。
             ★新規取得はゼロ＝すべて既存 Preview の再形（newCust/repeatCust/hon/dohan/bottlesOpened/
