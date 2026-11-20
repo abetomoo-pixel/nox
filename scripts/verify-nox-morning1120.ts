@@ -14,13 +14,13 @@ function check(label: string, ok: boolean, d?: unknown) { if (ok) pass++; else f
 const src = (f: string) => fs.readFileSync(f, "utf8");
 
 // ── ① ──
-check("o(1-1) 旗 MIG_0201U_APPLIED＝false（手貼り前）", MIG_0201U_APPLIED === false && mig0201uOn() === false);
+check("o(1-1) 旗 MIG_0201U_APPLIED＝true（2026-11-20 12:06:50 本番適用の後）", MIG_0201U_APPLIED === true && mig0201uOn() === true);
 check("o(1-2) 役：オーナー・店長は出す・スタッフは旗 false なら出さない・旗 true でもシフトの許可が無いスタッフとキャストは出さない",
   okuriRoleOk({ role: "owner", staffCanShift: false, mig0201u: false }) && okuriRoleOk({ role: "manager", staffCanShift: false, mig0201u: false })
   && !okuriRoleOk({ role: "staff", staffCanShift: true, mig0201u: false }) && okuriRoleOk({ role: "staff", staffCanShift: true, mig0201u: true })
   && !okuriRoleOk({ role: "staff", staffCanShift: false, mig0201u: true }) && !okuriRoleOk({ role: "cast", staffCanShift: true, mig0201u: true }) && !okuriRoleOk({ role: "", staffCanShift: true, mig0201u: true }));
 check("o(1-3) 出さないとき＝「送り」ボタンなし・退勤は 2 択を開かずそのまま退勤", okuriButtonOf({ canRecord: true, okuriActual: false, attStatus: "shukkin", hasIn: true, issuedToday: false }).show === false && outDialogNeeded({ okuriActual: false, issuedToday: false }) === false);
-__set0201uForTest(true); check("o(1-4) 旗の上書き（試験用）", mig0201uOn() === true); __set0201uForTest(null);
+__set0201uForTest(false); check("o(1-4) 旗の上書き（試験用）", mig0201uOn() === false); __set0201uForTest(null);
 {
   const sb = src("app/(manage)/shift/shift-board.tsx");
   check("o(2-1) 画面：okuriShow＝店の方式 ∧ 役（スタッフのシフトの許可＝isManagerUp）・送りのボタンと退勤の 2 択だけに使う", sb.includes('const okuriShow = okuriActual && okuriRoleOk({ role, staffCanShift: role === "staff" && isManagerUp, mig0201u: mig0201uOn() });')
