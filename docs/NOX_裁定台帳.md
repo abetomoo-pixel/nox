@@ -5990,6 +5990,16 @@ CC の処置＝M-130（下の節）。
 - cron.job に nox-demo-reset-host（jobid 13・schedule '17 21 * * *'＝JST 06:17・active）を作った。相談役が渡した 1 文をそのまま 1 回（sha256 78d945ca…2ba79・375 字）・f0 の 2 連の後・06:05〜06:40 の外・繋ぎ先 ref hiqbfagmkrdpmlqhkmsu・貼り先証明 11。前＝10 行で host 無し・後＝11 行・command がそのまま・ほかの 10 行は前と同じ。vault の中身は読んでいない。全文＝docs/tmp/apply_cron_host_1119.log。
 - 本番の env にホストの鍵が入るまでは、06:17 の job と 06:35 の再試行（is_demo の全 org・ホストも含む）がホストで止まる（DEMO_USERS に鍵が無いときは消す前に止める守り＝99d995c1）＝ホストのデータは消えない。
 
+## 0201u 本番適用（2026-11-20 12:06:50・**Agoora の承認で CC が適用＝手貼りの例外**・0201r／0201s と同じ手順・相談役が指紋を照合済みのファイル）
+- 例外の範囲＝0201u の 1 回だけ（ほかの mig には及ばない）。f0 の走行中ではない・06:05〜06:40 の外・ほかに本番へ繋ぐ CC の処理 0（pg_stat_activity の nox-cc% も 0）。
+- 中身＝transport_issue_bulk（送りの記録）の役の判定に、自店のスタッフでシフトの許可（memberships.can_shift＝auth_staff_can_shift()）がある人を 1 行足す。「代行打刻の許可があるスタッフ」をシフトの許可がある人と読んだ（CC の判断・相談役の照合の後に Agoora の承認）。金額 1 円以上・店の送りの方式・締め済みの期間・同じキャストの重複・冪等キー・監査・権限は今のまま。
+- 指紋＝本体 86652f06…4060・事前確認 e90e8db2…89ae・検証 2dad1193…2b22（3 つとも一致）。繋ぎ先 ref hiqbfagmkrdpmlqhkmsu・ロール postgres（試走と同じ）。事前確認＝貼り先証明の 1 行だけ・本体をファイルのまま 1 回（BEGIN・SET・CREATE・REVOKE・GRANT・COMMIT）・検証 7 行とも期待値（関数 455・表 122・transport_issue_bulk の md5 c5bec95a…・スタッフの行 1・権限そのまま・security definer）。全文＝docs/tmp/apply_0201u_1120.log。
+- 貼る前の本文 d998fd83（11/20 読取の底本と同じ）→ 貼った後 c5bec95a。auth_staff_can_shift・punch_proxy は前と同じ md5。試走（同日 10:18・本番 BEGIN…ROLLBACK）23/23。収蔵＝supabase/migrations/0201u_transport_staff.sql（sha 一致）。
+- この後の便＝旗 MIG_0201U_APPLIED を true（シフトの今日の画面で、シフトの許可があるスタッフにも「送り」と退勤の 2 択）・検査の張り替え。
+
+## 0201t は適用しない（2026-11-20 昼・相談役の指示）
+- 依頼の後に相談役が読んで決める。旗 MIG_0201T_APPLIED は false のまま・起草と試走の記録（docs/tmp の 0201t 一式・handpaste_0201t_1119.md）はそのまま置く。
+
 ## 次の番号（2026-11-18 夜・裁定505／506・教訓157〜159 を収載した時点＝実測）
 - **次の裁定＝507**・**次の M＝M-195**・**次の起票＝136**・**次の教訓＝160**。
 
