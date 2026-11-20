@@ -3,11 +3,10 @@
 // ★便 P175-prep P-3（裁定418 CANON 型・0175 v2 ★3／★11 店設定キー）: 「使う制度」の下に出る 0175 の店設定＝ドリンクバック ON／OFF・売上小計の範囲・支払サイクル（週払いの締め曜日と支払までの日数）・税の既定（新規店＝外税）。
 //   RULES_0175_APPLIED=false の間は systems-board が mount しない（白名単に無いキーは set_store_profile が 'bad key'）。保存＝親の onPatch（set_store_profile の patch・audit は RPC 側）。
 import OnOffSeg from "@/components/ui/on-off";
-import SegSelect from "@/components/ui/seg-select"; // ★M-82（裁定452・教訓133）: 固定の選択肢はボタン群
 import * as t from "@/lib/nox/ui/theme";
-import { DOW_LABEL, NEW_STORE_PRICE_DISPLAY_0175, SALES_SUBTOTAL_MODE_LABEL, STORE_KEYS_0175, drinkCountBackOn, payCycleOf, payCycleTextOf, salesSubtotalModeOf } from "@/lib/nox/rules-0175/settings";
-
-type Ssm = keyof typeof SALES_SUBTOTAL_MODE_LABEL;
+import SalesBasisRows from "@/components/nox/sales-basis-rows"; // ★2026-11-19 夜（相談役 ④）: 歩合・スライドの売上の基準／既定の売上歩合（0201q の 2 鍵）
+import { mig0201qOn } from "@/lib/nox/rules-0175/flag";
+import { DOW_LABEL, NEW_STORE_PRICE_DISPLAY_0175, STORE_KEYS_0175, drinkCountBackOn, payCycleOf, payCycleTextOf } from "@/lib/nox/rules-0175/settings";
 
 export default function StoreRules0175Panel({ settings, payDay = null, onPatch, readOnly = false, busy = false }: {
   settings: Record<string, unknown> | null | undefined;
@@ -16,7 +15,6 @@ export default function StoreRules0175Panel({ settings, payDay = null, onPatch, 
   readOnly?: boolean; busy?: boolean;
 }) {
   const drinkOn = drinkCountBackOn(settings);
-  const ssm = salesSubtotalModeOf(settings);
   const cyc = payCycleOf(settings, payDay);
   const row: React.CSSProperties = { display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap", padding: "8px 0", borderTop: "1px solid var(--line)" };
   return (
@@ -29,13 +27,8 @@ export default function StoreRules0175Panel({ settings, payDay = null, onPatch, 
         {!readOnly ? <OnOffSeg value={drinkOn} ariaLabel="ドリンクバック" disabled={busy} onChange={(v) => void onPatch({ [STORE_KEYS_0175.drinkCountBack]: v === true }, `ドリンクバックを「${v === true ? "ON" : "OFF"}」`)} />
           : <b style={{ color: drinkOn ? "var(--ok)" : "var(--sub)" }}>{drinkOn ? "ON" : "OFF"}</b>}
       </div>
-      <div style={row} data-sales-subtotal-mode={ssm}>
-        <div style={{ minWidth: 0, flex: "1 1 260px" }}>
-          <div className="nox-onoff-head" style={{ fontSize: 13, fontWeight: 800 }}>売上小計の範囲</div>
-          <p className="nox-onoff-body" style={{ fontSize: 11.5, color: "var(--sub)", margin: "2px 0 0", lineHeight: 1.6 }}>報酬率やバックの母数にする売上。会計額か、税・サービス料と割引を除いた小計か。</p>
-        </div>
-        <SegSelect value={ssm} disabled={readOnly || busy} ariaLabel="売上小計の範囲" onChange={(v) => void onPatch({ [STORE_KEYS_0175.salesSubtotalMode]: v }, `売上小計の範囲を「${SALES_SUBTOTAL_MODE_LABEL[v as Ssm]}」`)} options={(Object.keys(SALES_SUBTOTAL_MODE_LABEL) as Ssm[]).map((k) => [k, SALES_SUBTOTAL_MODE_LABEL[k]] as const)} />{/* ★M-82 */}
-      </div>
+      <SalesBasisRows settings={settings} onPatch={onPatch} readOnly={readOnly} busy={busy} on={mig0201qOn()} />{/* ★2026-11-19 夜（相談役 ④）: 0201q の後だけ（false＝DOM 差分 0） */}
+      {/* ★2026-11-20（相談役 ③・Agoora の返事）: 「報酬率の母数（売上小計の範囲）」の行は出さない＝計算がどこからも読んでいない（salesSubtotalModeOfStore は未使用）。保存済みの値は消さない・書き換えない・set_store_profile の受け口（sales_subtotal_mode の鍵）は変えない */}
       <div style={row} data-pay-cycle={cyc.cycle}>
         <div style={{ minWidth: 0, flex: "1 1 260px" }}>
           <div className="nox-onoff-head" style={{ fontSize: 13, fontWeight: 800 }}>支払サイクル</div>

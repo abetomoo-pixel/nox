@@ -481,7 +481,7 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
           <h3 style={h3}>時給スライド</h3>
           <p style={lead}>時給を決めるスライドは 1 つだけ選びます。</p>
           <SegSelect value={p.slide} onChange={(v) => up((s) => { s.pay.slide = v as V5State["pay"]["slide"]; s.slideTiers = slideTiersFor(s.pay.slide); })} options={[["sales", "売上スライド"], ["point", "ポイントスライド"], ["rate", "報酬率スライド"], ["none", "使用しない"]] as const} ariaLabel="時給スライド" wrap />
-          {p.slide === "rate" && <p style={note}>報酬率＝決定した報酬（時給分）÷売上小計（税・サービス料前・割引前）。率が低いほど店の取り分が多いので、低い率の段ほど時給を上げる形で入れます。{later("段の写像は待遇プランで")}</p>}
+          {p.slide === "rate" && <p style={note}>{/* ★2026-11-20（相談役 ③）: 「（税・サービス料前・割引前）」を外した＝売上小計の範囲の設定（計算はどこからも読んでいない）を前提にした書き方だった */}報酬率＝決定した報酬（時給分）÷売上小計。率が低いほど店の取り分が多いので、低い率の段ほど時給を上げる形で入れます。{later("段の写像は待遇プランで")}</p>}
           {p.slide === "rate" && <p style={{ ...note, color: "var(--champ)", fontWeight: 700 }} data-setup-rate-later="1">{RATE_SLIDE_TIERS_LATER}（初期設定では報酬の軸だけを保存します）。段を入れる場所：<a href={PAY_RATE_TIERS_HREF} target="_blank" rel="noreferrer" className="nox-link">待遇プラン → スライド・ポイント → 報酬率の段</a></p>}{/* ★2026-11-17（相談役 2）→★夜（Y3b）: 行き先 */}
           {p.slide !== "none" && (<>
             <div style={{ marginTop: 8 }}><span style={t.fieldLabel}>判定の単位</span><SegSelect value={S.slidePeriod} onChange={(v) => up((s) => { s.slidePeriod = v as "month" | "half"; })} options={[["month", "月単位（前月の実績で今月の時給）"], ["half", "半月単位（前の半月の実績で次の半月）"]] as const} ariaLabel="判定の単位" wrap /></div>
