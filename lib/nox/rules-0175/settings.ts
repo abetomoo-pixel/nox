@@ -59,3 +59,24 @@ export const planRewardAxisPatchOf = (axis: PlanRewardAxis | null): { reward_axi
 
 /** 新規店の税既定＝外税（0175 v2 で DB の既定も tax_excluded・client の初期値も揃える） */
 export const NEW_STORE_PRICE_DISPLAY_0175 = "tax_excluded" as const;
+
+// ★夜便 2026-11-20 N2（相談役・Agoora 18:08 の決定 3＝画面だけ・計算は変えない）: 待遇プラン › 報酬の軸の画面の出し分け＝純関数
+//   計算（pay.ts）は「売上の段と pt の段の高いほう（と基本）」＝軸は報酬率のときだけ効く。売上⇔pt の切替では今の計算は変わらない。
+/** 「給与の計算が変わります」の確かめ＝報酬率に切り替えるとき・報酬率から外すときだけ（売上⇔ポイントでは出さない） */
+export const planAxisNeedsConfirmOf = (before: PlanRewardAxis, after: PlanRewardAxis): boolean => (before === "pay_rate") !== (after === "pay_rate");
+export const PLAN_AXIS_CONFIRM_TEXT = "給与の計算が変わります。報酬の軸を保存しますか";
+/** 「店の軸に従う」の横の今の店の軸（短い語） */
+export const STORE_AXIS_SHORT: Record<"sales" | "pts", string> = { sales: "売上", pts: "ポイント" };
+export const SLIDE_ALSO_USED_NOTE = "この段も計算に使われます（売上の段とポイントの段の高いほうを採用）";
+type SlideRowLike = { at: number; wage: number };
+const hasRows = (s: readonly SlideRowLike[]): boolean => s.some((r) => Number(r.at) > 0 || Number(r.wage) > 0);
+/** 段の欄の出し分け：軸に合う種類の欄を主に（先に）出す。軸と違う種類は、行が残っているときだけ注記つきで出す（行が無ければ出さない）。報酬率の軸は今のまま（両方・注記なし） */
+export function slideFieldsOf(o: { axis: PlanRewardAxis; salesOn: boolean; pointOn: boolean; sales: readonly SlideRowLike[]; points: readonly SlideRowLike[] }): { kind: "sales" | "pts"; note: string | null }[] {
+  if (o.axis === "pay_rate") return [...(o.salesOn ? [{ kind: "sales" as const, note: null }] : []), ...(o.pointOn ? [{ kind: "pts" as const, note: null }] : [])];
+  const main = o.axis;
+  const other: "sales" | "pts" = main === "sales" ? "pts" : "sales";
+  const on = (k: "sales" | "pts") => (k === "sales" ? o.salesOn : o.pointOn);
+  const rows = (k: "sales" | "pts") => (k === "sales" ? o.sales : o.points);
+  if (!on(main)) return on(other) ? [{ kind: other, note: null }] : [];   // 軸の種類の節を使っていない店（例：pt は使うが pt スライドは OFF）＝もう一方を今のまま出す
+  return [...(on(main) ? [{ kind: main, note: null }] : []), ...(on(other) && hasRows(rows(other)) ? [{ kind: other, note: SLIDE_ALSO_USED_NOTE }] : [])];
+}

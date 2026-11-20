@@ -22,7 +22,8 @@ import { slideErrOf, slideToSave } from "@/lib/nox/comp/slide-rows"; // ★便 P
 import PayRateTiersEditor from "./pay-rate-tiers-editor"; // ★2026-11-17 夜（相談役 Y3b）: 報酬率の段
 import type { PayRateTier } from "@/lib/nox/rules-0175/canon";
 import { rules0175On } from "@/lib/nox/rules-0175/flag"; // ★便 P175-prep P-3
-import { PLAN_REWARD_AXIS_LABEL, planRewardAxisOf, planRewardAxisPatchOf, type PlanRewardAxis } from "@/lib/nox/rules-0175/settings"; // ★便 P175-prep P-3（裁定412 追補）→★便 M5 M-36: 表示だけ（planRewardAxisPatchOf は使わない）
+import { PLAN_AXIS_CONFIRM_TEXT, PLAN_REWARD_AXIS_LABEL, planAxisNeedsConfirmOf, planRewardAxisOf, planRewardAxisPatchOf, slideFieldsOf, STORE_AXIS_SHORT, type PlanRewardAxis } from "@/lib/nox/rules-0175/settings";
+import { rewardAxisOf } from "@/lib/nox/store-systems"; // ★便 P175-prep P-3（裁定412 追補）→★便 M5 M-36: 表示だけ（planRewardAxisPatchOf は使わない）
 import {
   SlideInput, compErrJa, secTitle, BackTab, PRODUCT_BACK_OPTIONS, productBackArgsOf, productBackErrOf,
   type Plan, type Slide, type BackModeRow, type CompRow, type BackDef, type ProductBackMode,
@@ -209,6 +210,10 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
   const [snap, setSnap] = useState<string>(JSON.stringify(BLANK));
   const [comps, setComps] = useState<CompRow[]>([]);
   const [secErr, setSecErr] = useState<Record<string, string>>({});
+  // ★夜便 2026-11-20 N2（Agoora 18:08 の決定 3＝画面だけ）: 報酬の軸は押した瞬間に保存しない＝下書き（null＝変えていない）→「保存」で確定
+  const [axisDraft, setAxisDraft] = useState<PlanRewardAxis | "store" | null>(null);
+  const [axisBusy, setAxisBusy] = useState(false);
+  useEffect(() => { setAxisDraft(null); }, [draft.id]);
   // ③ 固定名プリセット（裁定101 補正3・器＝custom_back_defs）
   const [presetName, setPresetName] = useState("");
   const [presetValue, setPresetValue] = useState(0);
@@ -543,12 +548,35 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
           <p data-plan-reward-axis={planRewardAxisOf(plans.find((x) => x.id === draft.id) as { reward_axis?: string | null } | undefined, settings)} style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 8px", display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
             <span>報酬の軸（スライドの方式）:</span>
             {(() => { const cur = (plans.find((x) => x.id === draft.id) as { reward_axis?: string | null } | undefined)?.reward_axis ?? null; const curKey: PlanRewardAxis | "store" = cur === null ? "store" : cur === "pt" ? "pts" : (cur as PlanRewardAxis);
-              return ([["store", "店の軸に従う"], ["sales", PLAN_REWARD_AXIS_LABEL.sales], ["pts", PLAN_REWARD_AXIS_LABEL.pts], ["pay_rate", PLAN_REWARD_AXIS_LABEL.pay_rate]] as const).map(([v, label]) => (
+              const shown = axisDraft ?? curKey; const storeAxis = rewardAxisOf(settings ?? {});
+              const effOf = (k: PlanRewardAxis | "store"): PlanRewardAxis => (k === "store" ? storeAxis : k);
+              const dirtyAxis = axisDraft !== null && axisDraft !== curKey;
+              const saveAxis = async () => {
+                if (!dirtyAxis || !draft.id) return;
+                if (planAxisNeedsConfirmOf(effOf(curKey), effOf(axisDraft!)) && !window.confirm(PLAN_AXIS_CONFIRM_TEXT)) return;   // 報酬率に入る・出るときだけ（売上⇔ポイントでは今の計算は変わらない）
+                setAxisBusy(true);
+                const { error } = await supabase.rpc("comp_plan_ext_set", { p_plan_id: draft.id, p_patch: planRewardAxisPatchOf(axisDraft === "store" ? null : axisDraft) });
+                setAxisBusy(false);
+                if (error) { setSecErr((e) => ({ ...e, スライド: compErrJa(error.message) })); return; }
+                const label = axisDraft === "store" ? "店の軸に従う" : PLAN_REWARD_AXIS_LABEL[axisDraft!];
+                setMsg(`報酬の軸を「${label}」にしました`); setAxisDraft(null); await reload();
+              };
+              return (<>
+              {([["store", "店の軸に従う"], ["sales", PLAN_REWARD_AXIS_LABEL.sales], ["pts", PLAN_REWARD_AXIS_LABEL.pts], ["pay_rate", PLAN_REWARD_AXIS_LABEL.pay_rate]] as const).map(([v, label]) => (
                 <label key={v} style={{ display: "inline-flex", gap: 4, alignItems: "center" }} data-plan-reward-axis-option={v}>
-                  <input type="radio" name="plan-reward-axis" checked={curKey === v} disabled={!isOwner} aria-label={`報酬の軸 ${label}`}
-                    onChange={() => void (async () => { const { error } = await supabase.rpc("comp_plan_ext_set", { p_plan_id: draft.id, p_patch: planRewardAxisPatchOf(v === "store" ? null : v) }); if (error) { setSecErr((e) => ({ ...e, スライド: compErrJa(error.message) })); return; } setMsg(`報酬の軸を「${label}」にしました`); await reload(); })()} />{label}
+                  <input type="radio" name="plan-reward-axis" checked={shown === v} disabled={!isOwner || axisBusy} aria-label={`報酬の軸 ${label}`}
+                    onChange={() => setAxisDraft(v === curKey ? null : v)} />{label}
+                  {v === "store" && <span data-plan-store-axis={storeAxis} style={{ color: "var(--sub)" }}>（今は{STORE_AXIS_SHORT[storeAxis]}）</span>}
                 </label>
-              )); })()}
+              ))}
+              {isOwner && dirtyAxis && (
+                <span style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
+                  <span data-plan-axis-unsaved="1" style={{ color: "var(--warn, var(--bad))", fontWeight: 700 }}>まだ保存していません</span>
+                  <button type="button" data-plan-axis-save="1" style={{ ...t.btnGold, ...t.btnSm }} disabled={axisBusy} onClick={() => void saveAxis()}>{axisBusy ? "保存中…" : "保存"}</button>
+                  <button type="button" data-plan-axis-cancel="1" style={{ ...t.btnGhost, ...t.btnSm }} disabled={axisBusy} onClick={() => setAxisDraft(null)}>やめる</button>
+                </span>
+              )}
+              </>); })()}
           </p>
         )}
         {/* ★2026-11-17 夜（相談役 Y3b）: 報酬率の段＝owner だけ・保存済みプランで報酬の軸が報酬率のときだけ（最大 10 段・RPC と同じ検査・保存は comp_plan_ext_set）。式は不変 */}
@@ -584,18 +612,30 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
                 onChange={(e) => d({ slideRankIds: e.target.checked ? [...draft.slideRankIds, r.id] : draft.slideRankIds.filter((x) => x !== r.id) })} />{r.name}
             </label>
           ))}
-          <span className="nox-stpill">{slideBasisPillOf(draft.slideBasis, draft.slideRankIds, ranks.filter((r) => draft.slideRankIds.includes(r.id)).map((r) => r.name)) || "判定基準: 売上・対象: 全員"}</span>
+          <span className="nox-stpill">{slideBasisPillOf(draft.slideBasis, draft.slideRankIds, ranks.filter((r) => draft.slideRankIds.includes(r.id)).map((r) => r.name)) || "スライドの判定基準: 売上・対象: 全員"}</span>
         </p>
         {/* ★N2→★X-13-19: 段は 1 段 1 行（[判定] 円 以上 → 時給 [時給] 円・通貨は接尾のみ）＝SlideInput の basis で切替 */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 16 }}>
-          {salesSlideOn(settings) && (/* ★便 GV-C C-5（GV-43）: 売上スライドの節＝sys_sales_slide 単独 */
-          <SlideInput label={draft.slideBasis === "sales" ? "売上スライド" : `${SLIDE_BASIS_LABEL[draft.slideBasis]}スライド` /* ★便 P174 T-1（裁定390）: 段数は可変＝見出しから「3段」を外す */}
-            desc={draft.slideBasis === "sales" ? slideDescOf(draft.slidePeriod, "yen", effApply === "next") : slideDescOf(draft.slidePeriod, "count", effApply === "next", SLIDE_BASIS_LABEL[draft.slideBasis])}
-            basis={draft.slideBasis === "sales" ? "yen" : "count"} period={draft.slidePeriod} slide={draft.salesSlide} setSlide={(s) => d({ salesSlide: s })} />
-          )}
-          {pointSlideOn(settings) && (/* ★便 GV-C C-5（GV-43）: pt スライドの節＝sys_point_slide かつ sys_points */
-          <SlideInput label="ポイントスライド" desc={slideDescOf(draft.slidePeriod, "pt", effApply === "next")} basis="pt" period={draft.slidePeriod} slide={draft.pointSlide} setSlide={(s) => d({ pointSlide: s })} />
-          )}
+          {(() => {
+            // ★夜便 2026-11-20 N2: 軸に合う種類の段の欄を主に（先に）出す・軸と違う種類は行が残っているときだけ注記つき（計算は売上の段と pt の段の高いほう＝pay.ts は不変）。
+            //   報酬の軸を出さない形（旗 OFF・未保存のプラン）は今のまま両方（slideFieldsOf の pay_rate の枝＝注記なし）
+            const axisOn = rules0175On() && !!draft.id;
+            const saved = planRewardAxisOf(plans.find((x) => x.id === draft.id) as { reward_axis?: string | null } | undefined, settings ?? {});
+            const shownAxis: PlanRewardAxis = !axisOn ? "pay_rate" : axisDraft === null ? saved : axisDraft === "store" ? rewardAxisOf(settings ?? {}) : axisDraft;
+            const fields = slideFieldsOf({ axis: shownAxis, salesOn: salesSlideOn(settings), pointOn: pointSlideOn(settings), sales: draft.salesSlide, points: draft.pointSlide });
+            return fields.map((f) => (
+              <div key={f.kind} data-slide-field={f.kind}>
+                {f.note && <div data-slide-also-used={f.kind} style={{ fontSize: 12, color: "var(--warn, var(--bad))", margin: "0 0 4px" }}>{f.note}</div>}
+                {f.kind === "sales" ? (/* ★便 GV-C C-5（GV-43）: 売上スライドの節＝sys_sales_slide 単独 */
+                <SlideInput label={draft.slideBasis === "sales" ? "売上スライド" : `${SLIDE_BASIS_LABEL[draft.slideBasis]}スライド` /* ★便 P174 T-1（裁定390）: 段数は可変＝見出しから「3段」を外す */}
+                  desc={draft.slideBasis === "sales" ? slideDescOf(draft.slidePeriod, "yen", effApply === "next") : slideDescOf(draft.slidePeriod, "count", effApply === "next", SLIDE_BASIS_LABEL[draft.slideBasis])}
+                  basis={draft.slideBasis === "sales" ? "yen" : "count"} period={draft.slidePeriod} slide={draft.salesSlide} setSlide={(s) => d({ salesSlide: s })} />
+                ) : (/* ★便 GV-C C-5（GV-43）: pt スライドの節＝sys_point_slide かつ sys_points */
+                <SlideInput label="ポイントスライド" desc={slideDescOf(draft.slidePeriod, "pt", effApply === "next")} basis="pt" period={draft.slidePeriod} slide={draft.pointSlide} setSlide={(s) => d({ pointSlide: s })} />
+                )}
+              </div>
+            ));
+          })()}
         </div>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
 

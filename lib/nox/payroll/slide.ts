@@ -103,7 +103,7 @@ export type SlideScope = { basis: SlideBasis; rankIds: string[]; castRankId: str
 /** 青ピル（基準・対象）＝sales・全員なら空（従来どおり印なし） */
 export function slideBasisPillOf(basis: SlideBasis, rankIds: readonly string[], rankNames?: readonly string[]): string {
   const parts: string[] = [];
-  if (basis !== "sales") parts.push(`判定基準: ${SLIDE_BASIS_LABEL[basis]}`);
+  if (basis !== "sales") parts.push(`スライドの判定基準: ${SLIDE_BASIS_LABEL[basis]}`);   // ★夜便 2026-11-20 N2: 札は「スライドの判定基準」と分かる形に
   if (rankIds.length) parts.push(`対象: ${rankNames?.length ? rankNames.join("・") : `${rankIds.length} ランク`}`);
   return parts.join("・");
 }

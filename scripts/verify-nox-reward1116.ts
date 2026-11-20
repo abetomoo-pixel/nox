@@ -19,7 +19,7 @@ check("r(1-2) 待遇プランの編集に選ぶ所（ラジオ）＝店の軸に
   pe.includes('([["store", "店の軸に従う"], ["sales", PLAN_REWARD_AXIS_LABEL.sales], ["pts", PLAN_REWARD_AXIS_LABEL.pts], ["pay_rate", PLAN_REWARD_AXIS_LABEL.pay_rate]] as const)')
   && pe.includes('<input type="radio" name="plan-reward-axis"') && !pe.includes("data-plan-reward-axis-own"));
 check("r(1-3) 保存＝comp_plan_ext_set の reward_axis（pts→'pt'・店の軸＝null）・owner だけ押せる",
-  pe.includes('supabase.rpc("comp_plan_ext_set", { p_plan_id: draft.id, p_patch: planRewardAxisPatchOf(v === "store" ? null : v) })') && pe.includes("disabled={!isOwner} aria-label={`報酬の軸 ${label}`}")
+  pe.includes('supabase.rpc("comp_plan_ext_set", { p_plan_id: draft.id, p_patch: planRewardAxisPatchOf(axisDraft === "store" ? null : axisDraft) })') && pe.includes("disabled={!isOwner || axisBusy} aria-label={`報酬の軸 ${label}`}") /* ★夜便 2026-11-20 N2: 押した瞬間ではなく下書き→「保存」で同じ中身を送る */
   && JSON.stringify(planRewardAxisPatchOf("pay_rate")) === JSON.stringify({ reward_axis: "pay_rate" }) && JSON.stringify(planRewardAxisPatchOf("pts")) === JSON.stringify({ reward_axis: "pt" }) && JSON.stringify(planRewardAxisPatchOf(null)) === JSON.stringify({ reward_axis: null }));
 check("r(2-1) 初期設定のスライドの方式＝売上・ポイント・報酬率（＋使用しない）", sw.includes('{ sales: "売上スライド", point: "ポイントスライド", rate: "報酬率スライド", none: "使用しない" }'));
 
