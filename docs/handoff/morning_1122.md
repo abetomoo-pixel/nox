@@ -289,3 +289,157 @@ ox-wt-ops-v2・main の f5ca3689 の上）。すべて旗 MIG_0202B_APPLIED（fa
 2. **NOX-CHECK-代行 の作り物のシークレット**（Vault の行）を残すか消すか（会社は残す指示）。
 3. **店の側の LINE 連携の画面に、LINE に聞く確かめを付けるか**（部品はある・画面は作っていない）。
 4. **通しの d と f で画面を押していない所**（確定の前の 3 つの欄・本登録の日付）を、画面で押し直すか。
+
+---
+
+## 追記（11/22 未明・相談役 0:15 の便）
+
+### 0. まとめ
+- 0202e は 2026-11-21 23:59:44 に本番へ入った（検証 9 行とも期待どおり・関数 478・表 126 は変わらない）。
+- LINE の確かめの枝を旗 true にして main に入れた：3ca07c9f・5a9e126a（push 済み・本番に反映）。
+  - 手元の本番版での確かめは 7 つとも合格した。
+  - f0 は 238 段・8,795 件で 2 連緑。ゴールデン 5931／125802 は変わらない。
+- ホストの骨格は枝 night1122-host-core（35fb7d19・push していない）。mig 0202f は試走 17/17 まで（適用していない）。**式は相談役の合図を待つ**。
+- 起票138（店の側の LINE 連携の画面に、LINE に聞く確かめを付ける）を台帳に残した。
+
+### 1. 0202e の適用
+- 時刻：2026-11-21 23:59:44。ログは docs/tmp/apply_0202e_1122.log。
+- 指紋は適用の直前に取り直し、3 つとも一致した。
+  - 本体 18d08fdc…238a6dec8
+  - 事前確認 6b5f4864…c8aea11d2
+  - 検証 4fd0c037…a636826713e
+- 繋ぎ先：ref hiqbfagmkrdpmlqhkmsu・ロール postgres。ほかに本番へ繋ぐ CC の処理は 0、f0 は走っていなかった。
+- 事前確認は貼り先証明の 1 行だけ（会社 13）。本体はファイルのまま 1 回（BEGIN・SET・DROP・CREATE・REVOKE・GRANT×2 組・COMMIT）。
+- 検証の全行（9 行・期待値と違う行 0）：
+  - nox-project-proof 13・fn count 478・table count 126
+  - onb_line_verify：4 引数で戻りは時刻 1・line_links を見ない 0・ACL は postgres と service_role だけ
+  - ops_org_list：新しい列 2・ACL は postgres と service_role だけ・1 本だけ 1
+- 収蔵：supabase/migrations/0202e_line_verify.sql（sha 一致）。台帳に適用の節。
+- 張り替え：verify-nox-ops の (c) 返す列の名簿に 2 列（受諾と LINE の確かめの日時）。
+  - ★この pin は本番の DB を読むので、0202e の適用から main に入るまでの間（23:59〜1:28）は、main の f0 ではここが赤だった。今は main に入った。
+
+### 2. LINE の確かめの枝を main へ
+- 変えた所：
+  - 旗 MIG_0202E_APPLIED を true にした。「確かめは次の更新で使えます」の 1 行は、画面からも定数からも外した。
+  - 運営の代行の 4 段目は、共通の部品 lib/nox/line/verify-channel.ts で LINE に聞き、その結果を新しい onb_line_verify に渡す。
+  - /ops の札の「何日前」を、受諾と LINE にも出す。
+- 手元の本番版（旗 true・本番の DB・0:04〜0:05）で確かめた。7 つとも合格（ログと写しは docs/tmp/walk21_1122/）。
+  - 0：1 行は出ず、確かめのボタンが押せる。
+  - 1：作り物のアクセストークンを入れた（画面には出さず、欄は空に戻る）。
+  - 2：作り物のトークンでは確かめが「済」にならない（line_verified_at は入らない）。「確かめが通りませんでした：ボットの ID が保存した値と違う…・Webhook の…」と日本語で出る。
+  - 3：応答（2 本）と画面に、トークン・Webhook の URL・ボットの ID が出ない。
+  - 4：監査は真偽の 4 つと ok（false）だけ。
+  - 5：/ops の札で、受諾に「1 日前」が出る。LINE は確かめ済みでないので「何日前」は出ない。
+    - LINE の「何日前」は、確かめ済みの店で出ることを検査の c(7-7) で見た。
+  - 6：サーバのログにも、トークン・URL・ボットの ID が出ない。
+  - 375 ではみ出しは無い。
+- 書けるようにするため、オーナーのセッションでサポート許可 1 日を出し、終わりに取り消した。
+- 確かめの運営者は 0:05:16 に消した（auth・ops_operators・MFA とも 0）。
+- NOX-CHECK-代行 の店には、作り物のアクセストークンの Vault の行が 1 つ増えた（チャネルシークレットと同じく残す）。
+- 本物のチャネルで「済」になる所は、Agoora の実機で見る（CC は通していない）。
+- f0：枝で 2 連緑（0:46・1:28）。238 段・8,795 件、ゴールデン 5931／125802 は変わらない。
+- main：5a9e126a（3ca07c9f と 5a9e126a を早送りで入れた）。本番の反映は 1:30 ごろ（Vercel success）。
+
+### 3. ホストの骨格（枝 night1122-host-core・35fb7d19・push していない・式は合図待ち）
+作業の木は C:\Users\abet\nox-wt-host、旗 MIG_0202F_APPLIED＝false。main の木の今の計算とは 1 バイトも変わらない（下の 3）。
+
+**1. 変えた式の前後**
+- pay.ts の売上歩合：
+  - 前：
+    `const sRate = salesRateOf(cast.sales, input.salesBackTable);`
+    `const salesBack = roundYen(less(cast.sales, tx?.sales) * sRate);`
+  - 後：
+    `const cTiers = eplan.commissionTiers && eplan.commissionTiers.length > 0 ? eplan.commissionTiers : null;`
+    `const cRate = cTiers ? commissionRateOf(cast.sales, cTiers) : null;`
+    `const sRate = cTiers ? cRate / 100 : salesRateOf(cast.sales, input.salesBackTable);`
+    `const salesBack = cTiers ? roundYen((less(cast.sales, tx?.sales) * cRate) / 100) : roundYen(less(cast.sales, tx?.sales) * sRate);`
+  - 段の率（commissionRateOf）は、at の昇順の表で売上が届いた最後の段の率。どこにも届かなければ 0。
+  - 表があると、凍結の形に commission { tiers, rate, base } を足す（表が無いときはキーを作らない）。
+- pay.ts の最低保証（guarantee_min）：
+  - 前：`if (cur < c.amount) guaranteeAdd += c.amount - cur;`
+  - 後：`floor = c.amount`。ただし `params.unit === "day"` のときは `floor = c.amount × days`（days＝`input.attendanceDays ?? effDays`）。そのうえで `if (cur < floor) guaranteeAdd += floor - cur;`
+  - 比べ方は今のまま（全部を含めた総額と比べて高いほう）。unit が 'day' のときだけ guaranteeDay { perDay, days, floor } を足す。
+- collect.ts：comp_plans の select に commission_tiers を足し、表があるプランだけ commissionTiers を付ける。どちらも旗 true のときだけ（列は本番にまだ無い）。
+- 明細（breakdown-lines.ts）：
+  - 段の表の人は「売上歩合 55%（小計 ¥1,234,567 の 55%）」の 1 行。
+  - 補填があるときは「最低保証加算」の下に「日給 ¥10,000 × 出勤 11 日（¥110,000）」の情報の行（額は上の行に入っている）。
+- 作っていないもの：保証と歩合を足す形・日給のスライド・指名料を小計から外す鍵・ランキングを隠す選択・既定の表の編集・呼び方の変更・日の単位の期限。率を掛ける基準は店の sales_basis のまま（プランごとの上書きは無い）。
+
+**2. ゴールデン**：5931／125802 は変わらない。
+- verify:nox-pay は 163 件（T16 を 13 件足した）。
+- T16-12 で、玲奈の結果に commission と guaranteeDay のキーが無いことも見ている。
+
+**3. デモ 7 店の下書き（表と unit を入れる前）**
+- 今月（2026-11）と先月（2026-10）の 14 本を、main の木と枝の木の computePayrollDraft で出して比べた。
+- **1 バイト同じ**（475,092 バイト・sha256 e5939452…）。
+- 本番は begin read only で読むだけ（docs/tmp/cmp_host_1122.mts・出力 docs/tmp/cmp_draft_main.json と cmp_draft_branch.json）。
+
+**4. VESPER を新しい形に移した種での前後（2026-11・12 人）**
+- 読み込みの所で差し替えて計算した（DB は変えていない）。
+  - VESPER Standard と VESPER 新人に表 [0:40・30 万:45・50 万:50・100 万:55・200 万:60・300 万:65]。
+  - 自由設計のバックの 6 行を外す。
+- 歩合の行の前（6 行の和）→ 後（表）：
+
+| 人 | 母数（小計） | 率 | 前 | 後 | 差 |
+|---|---|---|---|---|---|
+| レオ | 3,502,430 | 65% | 2,276,582 | 2,276,580 | −2 |
+| アキラ | 2,158,720 | 60% | 1,295,232 | 1,295,232 | 0 |
+| ミナト | 2,020,430 | 60% | 1,212,260 | 1,212,258 | −2 |
+| ソウマ | 1,147,630 | 55% | 631,198 | 631,197 | −1 |
+| ハル | 520,380 | 50% | 260,190 | 260,190 | 0 |
+| ルイ | 304,580 | 45% | 137,061 | 137,061 | 0 |
+| シン | 159,440 | 40% | 63,776 | 63,776 | 0 |
+| ジン | 158,120 | 40% | 63,248 | 63,248 | 0 |
+| ユウキ | 110,570 | 40% | 44,228 | 44,228 | 0 |
+| リョウ | 63,360 | 40% | 25,344 | 25,344 | 0 |
+| カイト | 44,480 | 40% | 17,792 | 17,792 | 0 |
+| ハヤト | 43,020 | 40% | 17,208 | 17,208 | 0 |
+
+- 最大の差は 2 円で、どれも丸め（前は 6 回・後は 1 回）。外れた人はいない。総支給の差も同じ額。
+- ★気づいた点：体験入店のプランには表を入れていない。前は自由設計のバック（店の全員に効く）で、体験入店の人にも歩合が付いていた。今月の VESPER には体験入店の人がいないので、差は出ていない（§6）。
+
+**5. 日給の保証の例**
+- VESPER の 2026-11 で、プラン全部に日給 10,000 円の保証（unit 'day'）を読み込みの所で足した（DB は変えていない）。
+  - 床に届く人：ルイ（出勤 6 日・床 60,000・保証なしの総支給 151,261）→ 補填 0。明細に日給の行は出ない。
+  - 届かない人：シン（出勤 11 日・床 110,000・保証なし 75,256）→ 補填 34,744、総支給 110,000。
+    - 明細は「最低保証加算 34,744」と、その下に「日給 ¥10,000 × 出勤 11 日（¥110,000）」。
+  - 出勤 0 日の人：デモにはいないので pay の検査の T16-7 で見た。床 0、補填 0、総支給 0。
+  - ほかに届かなかった人：リョウ・ハヤト・ユウキ・カイト（それぞれ補填 100,256／119,592／98,972／129,008）。
+- unit 'month' と unit なしは今のまま（床＝額）。結果は 1 バイト同値（T16-8）。
+
+**6. 凍結した明細は計算し直されない**
+- 凍結した明細は、保存した pay（JSON）から breakdownLinesOf で行を作るだけで、payOf は呼ばない（今の仕組み）。
+- 新しいキー（commission・guaranteeDay）は、新しい形で計算したときにだけ付く。
+- 今の形の凍結（キー無し）の明細は今の行のまま（「売上バック（率）」・日給の行は出ない＝T16-11）。
+
+**7. mig 0202f（起草と試走まで・適用していない）**
+- 中身は 3 つ。
+  - comp_plans に commission_tiers（jsonb・null 既定）。
+  - comp_plan_ext_set の鍵に commission_tiers。昇順の整数・0〜100 の整数・10 段まで・null で外す。ほかの鍵と検査は 1 字も変えない。
+  - set_comp_component で、guarantee_min の params.unit は 'month'・'day' だけ。
+  - 関数と表の数は変わらない（列 1・作り直し 2）。
+- 指紋（docs/tmp）：
+  - 本体 0202f_host_core.sql＝3e18bf9a096d370549f1927a9dc0c3b5db4a6aa52f924391288bf83b449079f8
+  - 事前確認 0202f_precheck.sql＝ab91b5bfff9c7b56aa155c2260ed97cab070384cb057b580938e61c35ab501b4
+  - 検証 0202f_verify.sql＝07c410265a2e8f7954e1d35cc31b8402d7ad8b962651219237f4a9993bf3b36e
+  - 生成器 docs/tmp/gen_0202f.cjs（本番の今の本文から作った）
+- 試走：**17/17**（本番 BEGIN…ROLLBACK・0:46 の f0 の後）。恒久変更 0（comp_plans の列 49→49）。
+  - オーナーが 6 段を保存できる・監査に残る。
+  - 悪い形 8 つは bad commission_tiers。null で外せる。
+  - unit は 'day'・'month'・なしが通り、'week' は bad unit。ほかの kind は今のまま。
+  - anon は呼べない。ほかの鍵（reward_axis）は今のまま通る。
+- 枝の中だけの差し替え：
+  - VESPER の種：生成器で、Standard と新人に表を入れ、自由設計のバックを 0 行にした。payload は host.json だけが変わる。
+  - /setup のホストの雛形：旗 true のときは、基本プランと新人に段の表を入れる（comp_plan_ext_set）。旗 false は今のまま（6 行）。
+  - プランの編集の画面に「歩合の段の表」の欄（オーナーだけ・旗の後ろ）。
+  - host_unsupported_1118.md の「売上歩合の段」を「対応済み」に。
+  - 検査 demo1118 の d(7-2) を段の表の形に張り替えた。
+- 本番のデモは今のまま。
+
+### 4. 起票
+- 起票138：店の側の LINE 連携の画面に、LINE に聞く確かめを付ける（部品は lib/nox/line/verify-channel.ts）。後に回す。
+
+### 5. 判断が要る所（進めていない）
+1. **ホストの骨格の式（■3）への合図**。合図の後は、0202f の適用 → 枝を main へ（旗 true）→ 本番のデモの種の差し替え（06:05 の reset で VESPER が新しい形になる）の順。
+2. **体験入店のプランに歩合の段の表を入れるか**。今の種では入れていない。前は自由設計のバックで、体験入店の人にも歩合が付いていた。
+3. **NOX-CHECK-代行 の作り物のアクセストークン**（Vault の行）も残すか。チャネルシークレットは残す指示だった。
