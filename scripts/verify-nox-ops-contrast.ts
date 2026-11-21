@@ -75,7 +75,7 @@ try {
   check("c(4-2) ログインと MFA の根＝nox-dark＋nox-ops（t.loginBg）", login.includes('<main className="nox-dark nox-ops" style={t.loginBg} data-ops-login="1">') && mfa.includes('<main className="nox-dark nox-ops" style={t.loginBg} data-ops-mfa={phase.kind}>'));
   const g = src("app/globals.css");
   check("c(4-5) /ops の中だけの上げ＝.nox-ops の青（--primary-hover）と押せないボタン（減光しない・灰色の地と --sub）・店の .nox-dark の値は変えていない",
-    g.includes(".nox-ops { --primary: var(--primary-hover); }") && g.includes(".nox-ops button:disabled { opacity: 1; background: var(--card2) !important; border-color: var(--line2) !important; color: var(--sub) !important; }")
+    g.includes(".nox-ops, .nox-readable { --primary: var(--primary-hover); }") && g.includes(".nox-ops button:disabled { opacity: 1; background: var(--card2) !important; border-color: var(--line2) !important; color: var(--sub) !important; }")
     && g.includes("  --primary: #2f7fe7;") && g.includes("button:disabled, .nox-btn:disabled { opacity: .45; cursor: not-allowed; }"));
   check("c(4-3) 配色を OS の設定で変える決まりが無い（prefers-color-scheme が globals.css と app/ops に無い）",
     !/prefers-color-scheme/.test(src("app/globals.css")) && ![shell, login, mfa, src("app/ops/org-list.tsx"), src("app/ops/orgs/new/new-org-form.tsx"), src("app/ops/orgs/[id]/org-detail.tsx")].some((s) => /prefers-color-scheme|colorScheme/.test(s)));

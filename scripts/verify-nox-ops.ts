@@ -61,7 +61,7 @@ check("o4(6) 招待 → 作成・作成の失敗は今回できた auth だけ�
 // ── o5 ──
 const od = rd("app/ops/orgs/[id]/org-detail.tsx");
 check("o5(1) 版 1 に入れない＝「リンクを出す」・「導入中に戻す」・generateLink", !od.includes("リンクを出す</button>") && !od.includes("導入中に戻す</button>") && !apis.some((p) => rd(p).includes("generateLink")));
-check("o5(2) 詳細＝出し直しは未受諾だけ・経路の保存と外す・導入完了は導入中だけ・運営の記録・ボタンは中央", od.includes("row.owner_email && !row.owner_accepted") && od.includes(">外す（直販にする）</button>") && od.includes('row.onboarding_state === "onboarding" && (') && od.includes('aria-label="運営の記録"') && (od.match(/className="nox-actions"/g) ?? []).length === 3);
+check("o5(2) 詳細＝出し直しは未受諾だけ・経路の保存と外す・導入完了は導入中だけ・運営の記録・ボタンは中央", od.includes("row.owner_email && !row.owner_accepted") && od.includes(">外す（直販にする）</button>") && od.includes('row.onboarding_state === "onboarding" && (') && od.includes('aria-label="運営の記録"') && (od.match(/className="nox-actions"/g) ?? []).length === 4 /* ★枝 night1121-ops-v2: 「導入を代行する」の入口で 1 つ増えた */);
 
 
 // ── o6 DB（★旗 true の便 2026-11-21：0202a 本番適用 12:06 の後・試走 trial_0202a の (a)〜(j) を本番の BEGIN…ROLLBACK で・(k) 消す SQL は運用の紙なので入れない）──

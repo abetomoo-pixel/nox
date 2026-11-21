@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import * as t from "@/lib/nox/ui/theme";
 import { Message } from "@/components/ui/toast";
+import TimeInput from "@/components/ui/time-input"; // 時刻の欄は共通の部品（M-51）
 import { fmtJst } from "@/lib/nox/ops/labels";
 import { assistedMarksOf, assistGateOf, lineStepsOf, linePublicErrOf } from "@/lib/nox/ops/assist";
 import { applyType, v5DefaultState, V5_TYPES, type V5State, type V5Type } from "@/lib/nox/setup/v5";
@@ -18,13 +19,14 @@ export type AssistProps = {
   line: { login_channel_id: boolean; liff_id: boolean; bot_basic_id: boolean; channel_secret_ref: boolean; access_token_ref: boolean; line_verified_at: string | null };
   provisionals: { id: string; name: string; created_who: string | null; created_at: string; promoted_at: string | null; discarded_at: string | null }[];
   nowIso: string;
+  /** 検査（verify:nox-assist-contrast）が各歩を静的に描くための口。画面（page.tsx）は渡さない */ initialStep?: number;
 };
 const STEPS = ["初期設定の下書き", "LINE 連携", "キャストの仮の登録"] as const;
 
 export default function AssistWizard(p: AssistProps) {
   const router = useRouter();
   const gate = assistGateOf({ onboarding_state: p.onboardingState, is_demo: p.isDemo, support_until: p.supportUntil }, new Date(p.nowIso));
-  const [step, setStep] = useState(0);
+  const [step, setStep] = useState(p.initialStep ?? 0);
   const [busy, setBusy] = useState<string | null>(null);
   const [out, setOut] = useState<{ at: string; ok: boolean; text: string; stale?: boolean } | null>(null);
   const baseS = (): V5State => {
@@ -61,7 +63,7 @@ export default function AssistWizard(p: AssistProps) {
 
   function saveDraft() {
     const S = baseS(); S.shop = { ...S.shop, name: shop.name.trim(), open: shop.open, close: shop.close };
-    void post("draft", { action: "draft", step: 1, data: { S, savedAt: Date.now(), ids: (p.draft?.data as { ids?: unknown } | null)?.ids ?? null, issued: (p.draft?.data as { issued?: unknown } | null)?.issued ?? null }, expected_at: p.draft?.updatedAt ?? null }, "下書きに入れました（オーナーが確定するまで店には効きません）");
+    void post("draft", { action: "draft", step: 1, data: { S, savedAt: new Date().toISOString(), ids: (p.draft?.data as { ids?: unknown } | null)?.ids ?? null, issued: (p.draft?.data as { issued?: unknown } | null)?.issued ?? null }, expected_at: p.draft?.updatedAt ?? null }, "下書きに入れました（オーナーが確定するまで店には効きません）");
   }
 
   return (
@@ -85,8 +87,8 @@ export default function AssistWizard(p: AssistProps) {
             <div style={{ display: "grid", gap: 10 }}>
               <label style={{ display: "grid", gap: 4 }}>{lbl("店名")}<input value={shop.name} maxLength={60} onChange={(e) => setShop({ ...shop, name: e.target.value })} style={t.input} disabled={dis} /></label>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                <label style={{ display: "grid", gap: 4 }}>{lbl("開店")}<input type="time" value={shop.open} onChange={(e) => setShop({ ...shop, open: e.target.value })} style={t.input} disabled={dis} /></label>
-                <label style={{ display: "grid", gap: 4 }}>{lbl("閉店")}<input type="time" value={shop.close} onChange={(e) => setShop({ ...shop, close: e.target.value })} style={t.input} disabled={dis} /></label>
+                <label style={{ display: "grid", gap: 4 }}>{lbl("開店")}<TimeInput value={shop.open} onChange={(v) => setShop({ ...shop, open: v })} disabled={dis} ariaLabel="開店" /></label>
+                <label style={{ display: "grid", gap: 4 }}>{lbl("閉店")}<TimeInput value={shop.close} onChange={(v) => setShop({ ...shop, close: v })} after={shop.open} disabled={dis} ariaLabel="閉店" /></label>
               </div>
             </div>
             <div className="nox-actions" style={{ marginTop: 12 }}><button type="button" style={t.btnGold} disabled={dis || !shop.name.trim()} onClick={saveDraft}>{busy === "draft" ? "保存中…" : "下書きに入れる"}</button></div>

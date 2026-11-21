@@ -5,6 +5,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requireOperatorPage } from "@/lib/nox/ops/require-operator";
 import type { OpsOrgRow } from "@/lib/nox/ops/labels";
 import OpsShell from "../../ops-shell";
+import { mig0202bOn } from "@/lib/nox/rules-0175/flag";
+import { assistGateOf } from "@/lib/nox/ops/assist";
 import OrgDetail, { type OpsLogRow } from "./org-detail";
 
 export const dynamic = "force-dynamic";
@@ -22,5 +24,14 @@ export default async function OpsOrgPage({ params }: { params: Promise<{ id: str
   const nameOf = new Map(((ops ?? []) as { auth_user_id: string; name: string }[]).map((o) => [o.auth_user_id, o.name]));
   const logRows: OpsLogRow[] = ((logs ?? []) as { id: string; at: string; ops_user_id: string; action: string; before_json: unknown; after_json: unknown; reason: string | null }[])
     .map((l) => ({ id: l.id, at: l.at, who: nameOf.get(l.ops_user_id) ?? "運営", action: l.action, before: l.before_json, after: l.after_json, reason: l.reason }));
-  return <OpsShell name={op.name}><OrgDetail row={row} logs={logRows} nowIso={new Date().toISOString()} /></OpsShell>;
+  // ★枝 night1121-ops-v2（0202b 版 4・旗 MIG_0202B_APPLIED の後ろ）: 導入を代行する（書けるか＝導入中か、オーナーのサポート許可の間・デモは不可）
+  let assist: { ok: boolean; reason: string | null } | null = null;
+  if (mig0202bOn()) {
+    const [{ data: org }, { data: grant }] = await Promise.all([
+      admin.from("orgs").select("is_demo").eq("id", id).maybeSingle(),
+      admin.from("ops_support_grants").select("expires_at").eq("org_id", id).is("revoked_at", null).gt("expires_at", new Date().toISOString()).order("expires_at", { ascending: false }).limit(1).maybeSingle(),
+    ]);
+    assist = assistGateOf({ onboarding_state: row.onboarding_state, is_demo: org?.is_demo === true, support_until: (grant?.expires_at as string | undefined) ?? null }, new Date());
+  }
+  return <OpsShell name={op.name}><OrgDetail row={row} logs={logRows} nowIso={new Date().toISOString()} assist={assist} /></OpsShell>;
 }

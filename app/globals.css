@@ -3438,7 +3438,7 @@ tr.nox-rowflash, .nox-rowflash { animation: nox-rowflash 1.6s ease-out; }
    ① 青の文字（リンク・枠のボタン）--primary #2f7fe7 はカードの地（#191916）で 4.45・金のにじみの上で 4.49 → /ops では --primary-hover #61a7ff（約 7）。
    ② 押せないボタン（全体の button:disabled＝opacity .45 で 1.9〜2.2）→ /ops では減光せず、灰色の地（--card2）と --sub の文字（約 8）＝押せないと分かり、読める。
       部品のボタンは地と文字を inline の style で持つ＝ここだけ !important で上書きする。 */
-.nox-ops { --primary: var(--primary-hover); }
+.nox-ops, .nox-readable { --primary: var(--primary-hover); } /* ★枝 night1121-ops-v2: .nox-readable＝店の側の新しい部品（サポート許可・仮の登録）にも同じ上げ（店の既存の画面は変えない） */
 .nox-ops button:disabled { opacity: 1; background: var(--card2) !important; border-color: var(--line2) !important; color: var(--sub) !important; }
 
 /* ★2026-11-21 夜（相談役 18:40 の 2b）: 初期設定の上の帯＝375 で「店名・あとからすべて変更できます」と「入力は自動で保存されます」が 1 行に詰まって割れた。

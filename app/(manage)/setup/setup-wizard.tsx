@@ -19,10 +19,12 @@ import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import SegSelect from "@/components/ui/seg-select";
 import { Message } from "@/components/ui/toast";
+import CastProvisionalsPanel from "@/components/nox/cast-provisionals-panel"; // ★枝 night1121-ops-v2
+import { assistedMarksOf } from "@/lib/nox/ops/assist";
 import {
   CSV_HEADER, PIN_RE, V5_STEPS, V5_TYPES, WD, applyType, buildV5Plan, castPlanOf, clone, genPin, kindVal, menuCount, normRule, parseCsv, rebuildBack, seatNames, slideTiersFor, v5CheckSelectorOf, v5Checks, v5DefaultState, v5TypeName, v5ZeroPriceItems,
   type V5Cast, type V5Ctx, type V5Rule, type V5State, type V5Step, type V5Type, ROUND_MODE_LABEL, TIME_MODE_LABEL, cardFeePctOf, payDayOf, trialDaysOf, cashRateOf, cashFloatOf, autoConfirmHoursOf, svcVipOf, okuriBaseOf, okuriFlatBaseMissingOf, RATE_SLIDE_TIERS_LATER, PAY_RATE_TIERS_HREF, RATE_SLIDE_BASE_UNTIL_TIERS, OKURI_FLAT_BASE_LABEL, OKURI_FLAT_BASE_REQUIRED, CAST_REGISTER_SETUP_NOTE } from "@/lib/nox/setup/v5";
-import { mig0190On, mig0191On, mig0197On } from "@/lib/nox/rules-0175/flag"; // ★0190／0191 のフラグ true 便: 器が入った項目は「後で（マスタから）」を出さない
+import { mig0190On, mig0191On, mig0197On, mig0202bOn } from "@/lib/nox/rules-0175/flag"; // ★0190／0191 のフラグ true 便: 器が入った項目は「後で（マスタから）」を出さない
 import type { ProductRow } from "@/lib/nox/setup/template-plan";
 
 const DRAFT_KEY = (storeId: string) => `nox.setup.v5.draft.${storeId}`;
@@ -102,6 +104,11 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
   const savedT = useRef<ReturnType<typeof setTimeout> | null>(null);
   const draftT = useRef<ReturnType<typeof setTimeout> | null>(null); // ★0191 ★6: server 下書きの間引き
   const [draftFrom, setDraftFrom] = useState<"local" | "server">("local"); // ★0191 ★6: 復元元（表示）
+  // ★枝 night1121-ops-v2（0202b 版 4・旗 MIG_0202B_APPLIED の後ろ）: 運営の代行の下書きを自動保存で上書きしない（案 (i)＝DB は変えない）。
+  //   knownAt＝開いたとき・自分が保存したときの setup_drafts.updated_at。保存の前に読み直し、運営が書いた印（updated_by が null）で新しければ自動保存を止めて知らせる（読み直す）。読んでから書くまでの隙間は残る（案 (ii) は DB の作り直し＝判断待ち）。
+  const knownAt = useRef<string | null>(null);
+  const [staleBy, setStaleBy] = useState<string | null>(null);
+  const [assisted, setAssisted] = useState<unknown>(null);
 
   // ── 自動保存（localStorage・店ごと）: 復元は hydration 後・変更ごとに保存・完了で消す ──
   useEffect(() => {
@@ -115,7 +122,8 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
     if (mig0191On()) {
       let localAt = "";
       try { const raw = window.localStorage.getItem(DRAFT_KEY(store.id)); if (raw) localAt = String((JSON.parse(raw) as { savedAt?: string }).savedAt ?? ""); } catch { /* noop */ }
-      void supabase.from("setup_drafts").select("data, updated_at").eq("store_id", store.id).maybeSingle().then(({ data }) => {
+      void supabase.from("setup_drafts").select((mig0202bOn() ? "data, updated_at, assisted" : "data, updated_at") as "data, updated_at").eq("store_id", store.id).maybeSingle().then(({ data }) => {
+        if (data) { knownAt.current = (data as { updated_at?: string }).updated_at ?? null; if (mig0202bOn()) setAssisted((data as { assisted?: unknown }).assisted ?? null); }
         const d = (data?.data ?? null) as { S?: V5State; savedAt?: string; ids?: { device: string; staff: string[] }; issued?: Issued[] } | null;
         if (!d?.S?.type || !d.savedAt || (localAt && d.savedAt <= localAt)) return;
         setS(typeof initialStep === "number" && initialStep >= 0 && initialStep <= 9 ? { ...d.S, step: initialStep } : d.S); setRestoredAt(d.savedAt); if (d.ids) ids.current = d.ids; if (d.issued) setIssued(d.issued); // ★便 M5 M-37b: ?step= の明示は server の下書きの step より優先（撮影・直リンク）
@@ -133,9 +141,17 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
     const savedAt = new Date().toISOString();
     try { window.localStorage.setItem(DRAFT_KEY(store.id), JSON.stringify({ S, savedAt, ids: ids.current, issued })); } catch { /* 容量超過などは無視 */ }
     // ★0191 ★6: server の下書き（setup_draft_set＝owner・2 秒の間引き・失敗は無視＝localStorage が主）
-    if (mig0191On() && isOwner) { if (draftT.current) clearTimeout(draftT.current); draftT.current = setTimeout(() => { void supabase.rpc("setup_draft_set", { p_store_id: store.id, p_data: { S, savedAt, ids: ids.current, issued } }).then(() => undefined, () => undefined); }, 2000); }
+    if (mig0191On() && isOwner && !staleBy) { if (draftT.current) clearTimeout(draftT.current); draftT.current = setTimeout(() => { void (async () => {
+      if (mig0202bOn()) {   // ★枝 night1121-ops-v2: 保存の前に読み直す＝運営の代行が新しければ上書きしない
+        const { data: cur } = await supabase.from("setup_drafts").select("updated_at, updated_by").eq("store_id", store.id).maybeSingle();
+        const c = cur as { updated_at?: string; updated_by?: string | null } | null;
+        if (c?.updated_at && c.updated_by == null && (!knownAt.current || new Date(c.updated_at).getTime() > new Date(knownAt.current).getTime())) { setStaleBy(c.updated_at); return; }
+      }
+      await supabase.rpc("setup_draft_set", { p_store_id: store.id, p_data: { S, savedAt, ids: ids.current, issued } }).then(() => undefined, () => undefined);
+      if (mig0202bOn()) { const { data: after } = await supabase.from("setup_drafts").select("updated_at").eq("store_id", store.id).maybeSingle(); knownAt.current = (after as { updated_at?: string } | null)?.updated_at ?? knownAt.current; }
+    })(); }, 2000); }
     setSaved("保存しました"); if (savedT.current) clearTimeout(savedT.current); savedT.current = setTimeout(() => setSaved("入力は自動で保存されます"), 1200);
-  }, [hydrated, S, issued, run.completed, store.id]);
+  }, [hydrated, S, issued, run.completed, store.id, staleBy]);
   function restart() { try { window.localStorage.removeItem(DRAFT_KEY(store.id)); } catch { /* noop */ } if (mig0191On() && isOwner) void supabase.rpc("setup_draft_set", { p_store_id: store.id, p_data: null }).then(() => window.location.reload(), () => window.location.reload()); else window.location.reload(); } // ★0191 ★6: server の下書きも消す
 
   const up = (f: (s: V5State) => void) => setS((prev) => { const n = clone(prev); f(n); n.dirty = true; return n; });
@@ -273,6 +289,11 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
         )}
       </header>
       <main className="nox-setup-main" data-setup-main="1">
+      {staleBy && (/* ★枝 night1121-ops-v2: 運営の代行の下書きが新しい＝自動保存を止めた */
+        <div data-setup-stale="1" style={{ marginBottom: 12 }}>
+          <Message kind="warn">運営が初期設定の下書きを入れました（{new Date(staleBy).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}）。この画面の入力は保存していません。読み直すと運営の入力が出ます。</Message>
+          <div className="nox-actions" style={{ marginTop: 8 }}><button type="button" style={t.btnGold} onClick={() => { const key = DRAFT_KEY(store.id); try { window.localStorage.removeItem(key); } catch { /* noop */ } window.location.reload(); }}>読み直す</button></div>
+        </div>)}
       {!isDone && (
         <>
           <div role="progressbar" aria-valuemin={1} aria-valuemax={9} aria-valuenow={S.step + 1} aria-label="進捗" style={{ height: 4, borderRadius: 2, background: "var(--line)", margin: "0 0 14px", overflow: "hidden" }}><div style={{ width: `${((S.step + 1) / 9) * 100}%`, height: "100%", background: "var(--gold)" }} /></div>
@@ -642,6 +663,14 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
       {/* ── 9 確認 ── */}
       {S.step === 8 && (() => { const p = S.pay, r = S.reg, pr = S.payroll; return (
         <><div className="nox-setup-head" data-setup-head="1"><h2>確認</h2><p>この内容で始めます。あとからマスタでいつでも変えられます。</p></div>
+          {mig0202bOn() && assistedMarksOf(assisted).length > 0 && (/* ★枝 night1121-ops-v2: 運営が入れた STEP の札 */
+            <section className="nox-cardtop" style={card} data-setup-assisted="1">
+              <h3 style={h3}>運営が入力した所</h3>
+              <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "grid", gap: 6 }}>
+                {assistedMarksOf(assisted).map((m) => <li key={m.step} style={{ display: "flex", gap: 8, alignItems: "baseline", fontSize: 13.5 }}><span className="nox-stpill warn">{m.who}が入力（{new Date(m.at).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}）</span><span style={{ color: "var(--ink)", fontWeight: 700 }}>STEP {m.step} {V5_STEPS[m.step - 1]}</span></li>)}
+              </ul>
+            </section>)}
+          {mig0202bOn() && <CastProvisionalsPanel />}
           <section className="nox-cardtop" style={card}>
           {tplS.tplKey && (/* ★便 M6: テンプレートを入れたら料金システムとバックの確認が 2 つとも要る */
             <div style={{ ...t.card, padding: 10, marginBottom: 10, display: "grid", gap: 6 }} data-setup-template-confirm="1">

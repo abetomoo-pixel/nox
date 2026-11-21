@@ -31,7 +31,7 @@ export default function SupportGrantPanel({ orgId, initial }: { orgId: string; i
     setMsg({ ok: true, text: okText }); void load();
   }
   return (
-    <section style={{ ...t.card }} data-support-grant="1">
+    <section className="nox-readable" style={{ ...t.card }} data-support-grant="1">
       <h2 style={{ ...t.cardTitle, margin: "0 0 8px" }}>サポート許可</h2>
       <p style={{ ...t.sub, fontSize: 12.5, margin: "0 0 10px", lineHeight: 1.7 }}>運営に、決めた日数だけ代行を許します。許可の間に運営ができるのは、初期設定の下書き・LINE 連携・キャストの仮の登録だけです（会計・給与・店の設定は触れません）。</p>
       <p style={{ margin: "0 0 10px", fontSize: 14, fontWeight: 700, color: "var(--ink)" }} data-support-until={until ?? ""}>{until ? `許可しています（${fmtJst(until)} まで）` : "許可していません"}</p>

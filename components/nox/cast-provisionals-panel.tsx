@@ -43,7 +43,7 @@ export default function CastProvisionalsPanel({ initial, initialOpen = false }: 
     void load();
   }
   return (
-    <section style={{ ...t.card, marginBottom: 12 }} data-cast-provisionals={String(rows.length)}>
+    <section className="nox-readable" style={{ ...t.card, marginBottom: 12 }} data-cast-provisionals={String(rows.length)}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
         <b style={{ fontSize: 15, color: "var(--ink)" }}>仮の登録 {rows.length} 人</b>
         <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} onClick={() => setOpen((v) => !v)} aria-expanded={open}>{open ? "閉じる" : "見る"}</button>

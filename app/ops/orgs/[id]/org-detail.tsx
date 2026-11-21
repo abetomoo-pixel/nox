@@ -2,6 +2,7 @@
 // ★運営コンソール 版 1（夜便 2026-11-20 N5）: テナントの詳細の節（画面の案 §5）。ボタンは中央・結果の文は押したボタンの近く・保存の後は画面を読み直す（router.refresh）。
 //   版 1 に入れないもの：「リンクを出す」（判断 8）・「導入中に戻す」（cannot reopen）・版 2 の代行（初期設定・LINE・サポート許可・店舗の停止）。
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import * as t from "@/lib/nox/ui/theme";
 import { Message } from "@/components/ui/toast";
@@ -12,7 +13,7 @@ export type OpsLogRow = { id: string; at: string; who: string; action: string; b
 const ACTION_LABEL: Record<string, string> = { "ops.org.create": "作成", "ops.agency_code": "経路", "ops.onboarding": "導入", "ops.org.reinvite": "招待の出し直し" };
 const brief = (v: unknown): string => (v == null ? "—" : typeof v === "object" ? Object.entries(v as Record<string, unknown>).map(([k, x]) => `${k}: ${x ?? "—"}`).join("・") : String(v));
 
-export default function OrgDetail({ row, logs, nowIso }: { row: OpsOrgRow; logs: OpsLogRow[]; nowIso: string }) {
+export default function OrgDetail({ row, logs, nowIso, assist }: { row: OpsOrgRow; logs: OpsLogRow[]; nowIso: string; /** ★枝 night1121-ops-v2（0202b 版 4・旗の後ろ）: 導入を代行する（書けるかと理由） */ assist?: { ok: boolean; reason: string | null } | null }) {
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
   const [out, setOut] = useState<{ at: string; ok: boolean; text: string } | null>(null);
@@ -35,6 +36,12 @@ export default function OrgDetail({ row, logs, nowIso }: { row: OpsOrgRow; logs:
       <h1 style={{ fontSize: 18, margin: "0 0 12px", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>{row.org_name}<span className="nox-stpill">{kindLabelOf(row)}</span></h1>
       {/* ★2026-11-21 夜（2c）: 導入の状況を一番上へ（次にすること＋項目ごとの札）。now はサーバの時刻（描画のずれを作らない） */}
       <OpsProgressCard row={row} now={new Date(nowIso)} />
+      {assist && (/* ★枝 night1121-ops-v2: 導入を代行する（書けないときは理由を 1 行） */
+        <section style={sec} aria-label="導入を代行する" data-ops-assist-entry={assist.ok ? "1" : "0"}>
+          <h2 style={h2}>導入を代行する</h2>
+          <p style={{ ...t.sub, fontSize: 12.5, margin: "0 0 10px", lineHeight: 1.7 }}>初期設定の下書き・LINE 連携・キャストの仮の登録を、1 歩ずつ代わりに入れます（確定はオーナー）。</p>
+          {assist.ok ? <div className="nox-actions"><Link href={`/ops/orgs/${row.org_id}/assist`} style={{ ...t.btnGold, textDecoration: "none" }}>導入を代行する</Link></div> : <Message kind="warn">{assist.reason}</Message>}
+        </section>)}
 
       <section style={sec} aria-label="オーナー">
         <h2 style={h2}>オーナー</h2>
