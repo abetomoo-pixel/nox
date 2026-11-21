@@ -3432,3 +3432,11 @@ tr.nox-rowflash, .nox-rowflash { animation: nox-rowflash 1.6s ease-out; }
 .nox-acct .nox-frow .k { white-space: nowrap; }
 .nox-acct .nox-frow .v { justify-self: stretch; text-align: left; justify-content: flex-start; }
 @media (max-width: 480px) { .nox-acct .nox-frow { grid-template-columns: minmax(0, 1fr); } }
+
+/* ★2026-11-21 夕（相談役 16:15）: 運営コンソール（/ops）の器 .nox-ops（OpsShell・ログイン・MFA の根に .nox-dark と並べる）。
+   店の配色の決まり（.nox-dark）に乗せたうえで、読める差（4.5 以上・verify:nox-ops-contrast）に足りない 2 点だけ /ops の中で上げる＝店の画面は変えない:
+   ① 青の文字（リンク・枠のボタン）--primary #2f7fe7 はカードの地（#191916）で 4.45・金のにじみの上で 4.49 → /ops では --primary-hover #61a7ff（約 7）。
+   ② 押せないボタン（全体の button:disabled＝opacity .45 で 1.9〜2.2）→ /ops では減光せず、灰色の地（--card2）と --sub の文字（約 8）＝押せないと分かり、読める。
+      部品のボタンは地と文字を inline の style で持つ＝ここだけ !important で上書きする。 */
+.nox-ops { --primary: var(--primary-hover); }
+.nox-ops button:disabled { opacity: 1; background: var(--card2) !important; border-color: var(--line2) !important; color: var(--sub) !important; }

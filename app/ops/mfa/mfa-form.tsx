@@ -7,15 +7,19 @@ import * as t from "@/lib/nox/ui/theme";
 import { Message } from "@/components/ui/toast";
 import Loading from "@/components/ui/loading";
 
-type Phase = { kind: "loading" } | { kind: "enroll"; factorId: string; qr: string; secret: string } | { kind: "verify"; factorId: string } | { kind: "error"; text: string };
+export type OpsMfaPhase = { kind: "loading" } | { kind: "enroll"; factorId: string; qr: string; secret: string } | { kind: "verify"; factorId: string } | { kind: "error"; text: string };
 
-export default function OpsMfaForm() {
+type Phase = OpsMfaPhase;
+
+// ★2026-11-21 夕: initial＝配色の検査（verify:nox-ops-contrast）が各段の見た目を静的に描くための口。画面（page.tsx）は渡さない＝今までどおり loading から。
+export default function OpsMfaForm({ initial }: { initial?: OpsMfaPhase }) {
   const router = useRouter();
-  const [phase, setPhase] = useState<Phase>({ kind: "loading" });
+  const [phase, setPhase] = useState<Phase>(initial ?? { kind: "loading" });
   const [code, setCode] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   useEffect(() => {
+    if (initial) return;
     void (async () => {
       const mfa = createClient().auth.mfa;
       const { data, error } = await mfa.listFactors();
@@ -27,7 +31,7 @@ export default function OpsMfaForm() {
       if (en.error || !en.data) { setPhase({ kind: "error", text: "認証アプリの登録を始められませんでした" }); return; }
       setPhase({ kind: "enroll", factorId: en.data.id, qr: en.data.totp.qr_code, secret: en.data.totp.secret });
     })();
-  }, []);
+  }, [initial]); // 画面は initial を渡さない＝今までどおり 1 回だけ
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (phase.kind !== "enroll" && phase.kind !== "verify") return;
@@ -43,7 +47,7 @@ export default function OpsMfaForm() {
     router.refresh();
   }
   return (
-    <main className="nox-dark" style={t.loginBg} data-ops-mfa={phase.kind}>
+    <main className="nox-dark nox-ops" style={t.loginBg} data-ops-mfa={phase.kind}>
       <div className="nox-lcardtop" style={t.lcard}>
         {phase.kind === "loading" && <Loading />}
         {phase.kind === "error" && <Message kind="error">{phase.text}</Message>}

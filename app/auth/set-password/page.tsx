@@ -74,10 +74,11 @@ export default function SetPasswordPage() {
     setBusy(true); setErr(null);
     // client は auth.updateUser を呼ばない（demo-guard dg(6-1)）＝route が本人の admin.updateUserById・デモは 403
     const res = await fetch("/api/auth/invite-accept", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ password: pw }) });
-    const j = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+    const j = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string; dest?: string };
     if (!res.ok || !j.ok) { setErr(setPasswordErrJa(res.status, j.error)); setBusy(false); return; }
     setPhase("done");
-    window.location.href = "/dashboard";
+    // ★2026-11-21 夕: 行き先はサーバ（invite-accept の dest）が決める＝運営者は /ops/login・店のユーザーは今までどおり /dashboard（知らない値は /dashboard）
+    window.location.href = j.dest === "/ops/login" ? "/ops/login" : "/dashboard";
   }
 
   const body: React.CSSProperties = { ...t.sub, fontSize: 13.5, lineHeight: 1.7 };

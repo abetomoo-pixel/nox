@@ -23,7 +23,7 @@ export default function OpsLoginForm() {
     router.refresh();
   }
   return (
-    <main className="nox-dark" style={t.loginBg} data-ops-login="1">
+    <main className="nox-dark nox-ops" style={t.loginBg} data-ops-login="1">
       <div className="nox-lcardtop" style={t.lcard}>
         <h1 style={{ margin: "0 0 4px", textAlign: "center", fontSize: 20 }}>NOX 運営</h1>
         <form onSubmit={onSubmit}>
