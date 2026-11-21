@@ -70,7 +70,7 @@ const ALLOW = new Set<string>([
 ]);
 
 // D) 運営（★夜便 2026-11-20 N5・枝 night1120-ops-console）: 運営コンソールの道＝店の会社に属さない運営者だけ（requireOperatorApi＝getUser → ops_operators → aal2・旗 false は 404）。デモのユーザーは運営者の表に居ない＝404。
-const OPS = new Set<string>(["ops/orgs", "ops/orgs/[id]/invite", "ops/orgs/[id]/agency", "ops/orgs/[id]/onboarding"]);
+const OPS = new Set<string>(["ops/orgs", "ops/orgs/[id]/invite", "ops/orgs/[id]/agency", "ops/orgs/[id]/onboarding", "ops/orgs/[id]/assist" /* ★枝 night1121-ops-v2（0202b 版 4 の画面・旗 MIG_0202B_APPLIED の後ろ） */]);
 
 function walk(dir: string, out: string[]) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {

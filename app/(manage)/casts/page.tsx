@@ -1,4 +1,6 @@
 import { redirect } from "next/navigation";
+import CastProvisionalsPanel from "@/components/nox/cast-provisionals-panel"; // ★枝 night1121-ops-v2
+import { mig0202bOn } from "@/lib/nox/rules-0175/flag";
 import { deniedHrefOf } from "@/lib/nox/nav/denied"; // ★M-169
 import { okuriTiersOn } from "@/lib/nox/rules-0175/flag"; // ★裁定414 追補（0180）
 import { trialCastColsOf } from "@/lib/nox/cast/trial-terms"; // ★0201c（裁定480）: 体入の個人の上書き 3 列
@@ -45,6 +47,8 @@ export default async function CastsPage() {
     : { data: [] as { id: string; email: string | null }[] };
   const emailByUser: Record<string, string | null> = Object.fromEntries(((castUsers ?? []) as { id: string; email: string | null }[]).map((u) => [u.id, u.email]));
   return (
+    <>
+    {mig0202bOn() && <CastProvisionalsPanel />}{/* ★枝 night1121-ops-v2（0202b 版 4・旗の後ろ）: 仮の登録 n 人 → 生年月日・本名 → 本登録／登録しない */}
     <CastsBoard
       isOwner={role === "owner"}
       emailByUser={emailByUser}
@@ -54,6 +58,7 @@ export default async function CastsPage() {
       initialLoginCasts={(loginCasts ?? []) as unknown as CastLogin[]}
       ranks={(ranks ?? []) as { id: string; name: string; is_active: boolean }[]}
     />
+    </>
   );
 }
 

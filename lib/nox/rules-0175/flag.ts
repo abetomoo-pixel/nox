@@ -260,3 +260,11 @@ export const MIG_0202A_APPLIED = true; // ★2026-11-21 12:06:44 本番適用（
 let override0202a: boolean | null = null;
 export function mig0202aOn(): boolean { return override0202a ?? MIG_0202A_APPLIED; }
 export function __set0202aForTest(v: boolean | null): void { override0202a = v; }
+
+/** ★0202b（導入の代行 版 4・2026-11-21 夜 起草・試走は本番 BEGIN…ROLLBACK・本番は未適用）: サポート許可・下書きの代行・LINE 連携の代行・キャストの仮の登録。
+ *  true＝運営の「導入を代行する」・店の設定のサポート許可と「導入完了にする」・/setup の「運営が入力」の札と仮の登録の一覧・キャストの画面の「仮の登録」を出す。false＝全部出さない（0202b の関数と表が無い）。
+ *  枝 night1121-ops-v2 だけ（push しない）。0202b の適用と検証の後の便で true にする。 */
+export const MIG_0202B_APPLIED = false;
+let override0202b: boolean | null = null;
+export function mig0202bOn(): boolean { return override0202b ?? MIG_0202B_APPLIED; }
+export function __set0202bForTest(v: boolean | null): void { override0202b = v; }

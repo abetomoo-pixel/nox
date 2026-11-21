@@ -8,6 +8,8 @@ import PrinterPanel from "../printer-panel";
 import { mig0194On } from "@/lib/nox/rules-0175/flag"; // ★0194（裁定444 ①②）
 const isOwner0194 = (role: string | null | undefined): boolean => role === "owner" || (mig0194On() && role === "manager");
 import SensitiveTaxPanel from "../sensitive-tax-panel";
+import SupportGrantPanel from "@/components/nox/support-grant-panel"; // ★枝 night1121-ops-v2（0202b 版 4・旗の後ろ）
+import { mig0202bOn } from "@/lib/nox/rules-0175/flag";
 import Link from "next/link"; // ★裁定330（便 MC2）: 機能の公開は店舗設定 ＞ 利用機能へ（案内行のリンク）
 import MasterPageHead from "../master-page-head";
 import SystemBoard, { type SystemTab } from "./system-board";
@@ -138,6 +140,11 @@ export default async function MasterSystemPage() {
     node: <SensitiveTaxPanel casts={(casts ?? []) as { id: string; name: string }[]}
       stores={(allStores ?? []) as { id: string; name: string }[]} isOwner={isOwner} isManager={role === "manager"} />, // ★F193-4: 店長にも機密の入力欄（0193）
   });
+  // ★枝 night1121-ops-v2（0202b 版 4・旗 MIG_0202B_APPLIED の後ろ）: オーナーだけ「サポート許可」（1／3／7 日・取り消し）と「導入完了にする」
+  if (mig0202bOn() && role === "owner") {
+    const { data: orgId } = await supabase.rpc("auth_org_id");
+    if (orgId) tabs.push({ key: "support", label: "◇ サポート許可", node: <SupportGrantPanel orgId={orgId as string} /> });
+  }
 
   return (
     <div className="nox-mv1">
