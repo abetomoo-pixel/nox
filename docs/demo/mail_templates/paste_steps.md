@@ -1,5 +1,7 @@
 # Supabase に認証メールのテンプレートを貼る手順（Agoora・1 枚・2026-11-12）
 
+> **先に Email OTP expiration を 86400 にしてから貼る**（Authentication › Sign In / Providers › Email・秒＝24 時間。4 本の文面は「24 時間有効」＝2026-11-21 に 1 時間から改めた。順を逆にすると、貼った直後のメールが 1 時間で切れるのに文面は 24 時間になる）。
+
 正＝2026-11-10 に確定した文面（このフォルダの 5 本）。2026-11-12 のひな形 v0.1 の当てはめ（■15）は取り下げ。
 **リンクの形（2026-11-12 ■K-1 で承認）**＝4 本（再設定・招待・確認・マジックリンク）のボタンと「貼り付けて」の URL は `{{ .SiteURL }}/auth/set-password?token_hash={{ .TokenHash }}&type=…`（recovery／invite／email／magiclink）。`{{ .ConfirmationURL }}` は使わない（申し込んだのと別の端末で PKCE のエラーになる＝cross_device_links.md）。email_change は今は送っていない＝対象外・貼らない。
 **貼る前の柵**＝/auth/set-password が「開いただけで合言葉を使う」作りを直す便（相談役の確認の後）が本番に出てから貼る。
@@ -19,7 +21,7 @@
 
 ## 2. 手順
 
-1. **Authentication › Sign In / Providers › Email**（画面によっては Providers › Email）の **Email OTP expiration** を **3600**（秒＝1 時間）にして保存。文面の「1 時間有効」と合わせる。
+1. **Authentication › Sign In / Providers › Email**（画面によっては Providers › Email）の **Email OTP expiration** を **86400**（秒＝24 時間）にして保存。文面の「24 時間有効」と合わせる。
 1-2. **Authentication › URL Configuration** の **Site URL が `https://noxapp.jp`** であることを目視（リンクの頭になる）。Redirect URLs に `https://noxapp.jp/auth/set-password` があること。
 2. **Authentication › SMTP Settings**（Resend の noxapp.jp のドメイン認証が Verified になってから）＝Enable Custom SMTP・Host `smtp.resend.com`・Port `465`・User `resend`・Password＝**NOX 専用の新しい Resend のアカウント**の API キー（チャットにも CC にも貼らない）・Sender email `noreply@noxapp.jp`・Sender name `NOX`。
 3. **Authentication › Emails（Email Templates）**＝上の表のとおり、テンプレートごとに Subject に件名、Message body に .html の全文（Source のモード）を貼って保存。Invite user と Reset password は必ず・Confirm signup と Magic Link は予備として貼る・Change Email Address は貼らない（今は送っていない）。貼った後、Message body の中に `ConfirmationURL` の文字が残っていないことを目で確かめる。

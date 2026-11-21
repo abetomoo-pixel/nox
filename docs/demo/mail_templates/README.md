@@ -15,7 +15,7 @@
 ## Supabase 側の貼り方（Agoora・URL の ref＝hiqbfagmkrdpmlqhkmsu を目視）
 1. **Authentication › Emails（Email Templates）**＝テンプレごとに **Subject** に件名、**Message body（HTML）** に .html の全文を貼る（Source モード）。テキスト版は Supabase の UI に別欄が無い＝HTML が読めないクライアント向けの予備＝そのまま保管（Resend の Plain text には貼らない）。
    - Confirm signup ← confirm_signup.html／Invite user ← invite.html／Magic Link ← magic_link.html／Reset password（Recovery）← recovery.html／Change Email Address ← email_change.html。
-2. **Authentication › Providers › Email**＝「Email OTP expiration」を **3600**（秒＝1 時間＝文面の「1 時間有効」と一致）。「Confirm email」は今の設定のまま（招待は inviteUserByEmail＝確認不要）。
+2. **Authentication › Providers › Email**＝「Email OTP expiration」を **86400**（秒＝24 時間＝文面の「24 時間有効」と一致・2026-11-21 に 1 時間から改めた）。「Confirm email」は今の設定のまま（招待は inviteUserByEmail＝確認不要）。
 3. **Authentication › SMTP Settings**＝Enable Custom SMTP＝Resend（Host smtp.resend.com・Port 465・User resend・Password＝API キー・Sender email noreply@noxapp.jp・Sender name NOX）。Resend 側＝noxapp.jp のドメイン認証（TXT／MX／DKIM）が Verified になってから。
 4. **Authentication › URL Configuration**＝Site URL https://noxapp.jp・Redirect URLs に https://noxapp.jp/**（docs/demo/domain_switch.md §4 の 1・2）。
 5. 確認＝自分宛に **/auth/forgot** で 1 通（recovery）→ 件名・ロゴ・ボタン・リンク先が noxapp.jp/auth/set-password であること。ロゴが出なければ https://noxapp.jp/brand/nox_logo_horizontal_dark.png を直接開いて 200 を確認。
@@ -33,5 +33,5 @@
 
 - 送信元＝`noreply@noxapp.jp`（Resend のカスタム SMTP＝Supabase › Authentication › SMTP Settings・Sender name「NOX」）。
 - ロゴ＝`https://noxapp.jp/brand/nox_logo_horizontal_dark.png`（暗い地の帯に置く・SVG はメールクライアントが落とすので PNG）。ボタン＝金（#c9a24a・文字 #1a1a1a）。本文の地＝白・文字 #1a1a1a・補足 #666。
-- リンクの有効期限＝Email OTP expiration（推奨 3600 秒）に合わせて文面の「1 時間」を直す。
+- リンクの有効期限＝Email OTP expiration（推奨 86400 秒＝24 時間・2026-11-21）に合わせて文面の「24 時間」を直す。
 - 貼り方＝Supabase › Authentication › Email Templates › 各テンプレの Subject と Body（HTML）に貼る → 自分宛に /auth/forgot で 1 通出して見た目を確認。
