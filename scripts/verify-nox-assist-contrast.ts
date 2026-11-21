@@ -20,6 +20,7 @@ import { assistedMarksOf, assistErrJa, assistGateOf, lineStepsOf, linePublicErrO
 import { MIG_0202B_APPLIED } from "../lib/nox/rules-0175/flag";
 import type { OpsOrgRow } from "../lib/nox/ops/labels";
 import { docOf, PROBE, type Probe } from "./contrast-probe";
+import { verifyLineChannel } from "../lib/nox/line/verify-channel";
 import * as t from "../lib/nox/ui/theme";
 process.loadEnvFile(".env.local");
 (globalThis as { React?: unknown }).React = React;
@@ -67,6 +68,33 @@ async function main() {
     check("a(1-4) 英語のエラーを出さない（stale は「オーナーが先に保存しました」・forbidden (demo)・no link・知らない文は共通の文）",
       assistErrJa("stale").startsWith("オーナーが先に保存しました") && assistErrJa("forbidden (demo)") === "デモの会社には書けません" && assistErrJa("no link").startsWith("LINE とつながった人") && !/[a-z]{3}/.test(assistErrJa("weird english error")));
     check("a(1-5) 運営の札（assisted → STEP・だれ・時刻）・生年月日は必須", assistedMarksOf(base.draft!.assisted).length === 1 && assistedMarksOf(base.draft!.assisted)[0].who === "運営" && assistedMarksOf({ "0": { at: "x" }, "x": {} }).length === 0 && !!promoteErrOf("") && promoteErrOf("1999-01-01") === null);
+    // a(4) ★0202e：LINE に聞く確かめ（偽の応答で判定だけを見る＝通信しない）
+    {
+      const TOKEN = "TEST-TOKEN-SHOULD-NOT-LEAK";
+      const WH = "https://noxapp.jp/api/line/webhook/S1";
+      const mk = (o: { info?: unknown; infoOk?: boolean; ep?: unknown; test?: unknown; throws?: boolean }) => (async (url: string | URL | Request, init?: RequestInit) => {
+        if (o.throws) throw new Error("net");
+        const u = String(url); const auth = (init?.headers as Record<string, string> | undefined)?.authorization;
+        if (auth !== `Bearer ${TOKEN}`) return new Response("{}", { status: 401 });
+        if (u.endsWith("/info")) return new Response(JSON.stringify(o.info ?? {}), { status: o.infoOk === false ? 401 : 200 });
+        if (u.endsWith("/webhook/endpoint")) return new Response(JSON.stringify(o.ep ?? {}), { status: 200 });
+        if (u.endsWith("/webhook/test")) return new Response(JSON.stringify(o.test ?? {}), { status: 200 });
+        return new Response("{}", { status: 404 });
+      }) as typeof fetch;
+      const good = { info: { basicId: "@nox", userId: "U" + "a".repeat(32) }, ep: { endpoint: WH, active: true }, test: { success: true } };
+      const v1 = await verifyLineChannel({ token: TOKEN, expectBasicId: "@nox", webhookUrl: WH, fetchImpl: mk(good) });
+      const v2 = await verifyLineChannel({ token: TOKEN, expectBasicId: "@other", webhookUrl: WH, fetchImpl: mk(good) });
+      const v3 = await verifyLineChannel({ token: TOKEN, webhookUrl: WH, fetchImpl: mk(good) });
+      const v4 = await verifyLineChannel({ token: TOKEN, expectUserId: "U" + "a".repeat(32), webhookUrl: WH, fetchImpl: mk({ ...good, ep: { endpoint: "https://example.com/x", active: false }, test: { success: false } }) });
+      const v5 = await verifyLineChannel({ token: TOKEN, expectBasicId: "@nox", webhookUrl: WH, fetchImpl: mk({ throws: true }) });
+      const all = JSON.stringify([v1, v2, v3, v4, v5]);
+      check("a(4-1) 4 つとも合う＝全部真・理由なし／ボットの ID 違い・保存した ID が無い＝bot_id_match 偽", Object.values(v1.result).every(Boolean) && v1.reasons.length === 0 && !v2.result.bot_id_match && v2.result.webhook_test_ok && !v3.result.bot_id_match);
+      check("a(4-2) 登録先が違う・Webhook がオフ・テストが通らない＝それぞれ偽で理由が日本語で出る・通信の失敗は全部偽", v4.result.bot_id_match && !v4.result.webhook_endpoint_ok && !v4.result.webhook_active && !v4.result.webhook_test_ok && v4.reasons.length === 3 && Object.values(v5.result).every((x) => !x) && v5.reasons.length === 4);
+      check("a(4-3) 戻りは真偽の 4 つと理由だけ（トークン・URL・ボットの ID を含まない）", !all.includes(TOKEN) && !all.includes("@nox") && !all.includes(WH) && Object.keys(v1.result).sort().join(",") === "bot_id_match,webhook_active,webhook_endpoint_ok,webhook_test_ok");
+      const rt0 = src("app/api/ops/orgs/[id]/assist/route.ts");
+      check("a(4-4) route：トークンは getLineSecret（Vault）で読み、応答は真偽と理由と時刻だけ（トークンを返さない・ログに出さない）・0202e の旗が false の間は押せない",
+        rt0.includes('const token = await getLineSecret(admin, store.id, "access_token");') && rt0.includes("return NextResponse.json({ ok: !!at, result: v.result, reasons: v.reasons, verified_at: at ?? null }") && !/console\.(log|error)\([^)]*token/.test(rt0) && rt0.includes("if (!LINE_VERIFY_READY) return NextResponse.json({ error: LINE_VERIFY_LATER_NOTE }, { status: 409 });"));
+    }
     // a(2) 源
     const rt = src("app/api/ops/orgs/[id]/assist/route.ts"), wz = src("app/ops/orgs/[id]/assist/assist-wizard.tsx"), pg = src("app/ops/orgs/[id]/assist/page.tsx");
     check("a(2-1) route：旗 false は 404・運営者だけ（requireOperatorApi）・行い手は 'ops' だけ（'agency' を渡す道が無い）・シークレットは応答に出さない",

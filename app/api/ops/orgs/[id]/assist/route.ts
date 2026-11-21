@@ -6,6 +6,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requireOperatorApi } from "@/lib/nox/ops/require-operator";
 import { mig0202bOn } from "@/lib/nox/rules-0175/flag";
 import { assistErrJa, LINE_VERIFY_LATER_NOTE, LINE_VERIFY_READY } from "@/lib/nox/ops/assist";
+import { getLineSecret } from "@/lib/nox/line/server";
+import { verifyLineChannel } from "@/lib/nox/line/verify-channel";
+import { siteOriginOf, webhookUrlOf } from "@/lib/nox/line/liff-endpoint";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -41,7 +44,18 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       if (error) return NextResponse.json({ error: assistErrJa(error.message) }, { status: 409 });
       return NextResponse.json({ ok: true });   // 値は返さない
     }
-    case "line_verify": if (!LINE_VERIFY_READY) return NextResponse.json({ error: LINE_VERIFY_LATER_NOTE }, { status: 409 }); return call("onb_line_verify", { p_store_id: store.id });   // ★0202e まで止める（今の関数は「つながった人 1 人以上」で見る＝相談役 22:10 ■2）
+    case "line_verify": {
+      if (!LINE_VERIFY_READY) return NextResponse.json({ error: LINE_VERIFY_LATER_NOTE }, { status: 409 });   // ★0202e まで止める
+      // ★0202e: Vault のトークンで LINE に聞く（トークン・URL・ボットの ID は応答にもログにも出さない）→ 真偽の 4 つを関数へ（全部が真のときだけ確かめ済み）
+      const { data: sc } = await admin.from("stores").select("line_config").eq("id", store.id).single();
+      const lc = (sc?.line_config ?? {}) as Record<string, unknown>;
+      const token = await getLineSecret(admin, store.id, "access_token");
+      if (!token) return NextResponse.json({ error: "アクセストークンが入っていません" }, { status: 409 });
+      const v = await verifyLineChannel({ token, expectBasicId: typeof lc.bot_basic_id === "string" ? lc.bot_basic_id : null, expectUserId: typeof lc.bot_destination === "string" ? lc.bot_destination : null, webhookUrl: webhookUrlOf(siteOriginOf(new URL(req.url).origin), store.id) });
+      const { data: at, error } = await admin.rpc("onb_line_verify", { ...who, p_store_id: store.id, p_result: v.result });
+      if (error) return NextResponse.json({ error: assistErrJa(error.message) }, { status: 409 });
+      return NextResponse.json({ ok: !!at, result: v.result, reasons: v.reasons, verified_at: at ?? null }, { status: at ? 200 : 409 });
+    }
     case "provisional_add": return call("onb_cast_provisional_add", { p_store_id: store.id, p_name: String(b.name ?? "").trim(), p_plan_id: b.plan_id ?? null, p_note: b.note ?? null });
     case "provisional_cancel": return call("onb_cast_provisional_cancel", { p_id: b.id });
     default: return NextResponse.json({ error: "bad action" }, { status: 400 });

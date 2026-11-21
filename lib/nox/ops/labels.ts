@@ -39,6 +39,7 @@ export type OpsOrgRow = {
   setup_done_stores: number; setup_step_max: number | null; setup_draft_at: string | null;
   line_login_stores: number; line_notify_stores: number; line_richmenu_stores: number; line_links: number;
   cast_count: number; staff_count: number; last_used_at: string | null; created_at: string;
+  /** ★0202e: オーナーの受諾の日時・LINE の確かめの日時（0202e の前は無い） */ owner_accepted_at?: string | null; line_verified_at?: string | null;
 };
 export const kindLabelOf = (r: Pick<OpsOrgRow, "kind" | "trial_ends_at">): string =>
   r.kind === "trial" ? `お試し（〜${fmtJst(r.trial_ends_at, false)}）` : (OPS_KIND_LABEL[r.kind] ?? r.kind);
@@ -127,13 +128,13 @@ export function opsProgressOf(r: OpsOrgRow, now: Date): OpsProgressItem[] {
   const setupDone = r.store_count > 0 && r.setup_done_stores >= r.store_count;
   const setup: OpsStepState = setupDone ? "done" : r.setup_step_max || r.setup_draft_at ? "doing" : "todo";
   const lineAll = !!(r.line_login_stores && r.line_notify_stores && r.line_richmenu_stores);
-  const line: OpsStepState = lineAll ? "done" : r.line_login_stores || r.line_notify_stores || r.line_richmenu_stores ? "doing" : "todo";
+  const line: OpsStepState = lineAll || r.line_verified_at ? "done" : r.line_login_stores || r.line_notify_stores || r.line_richmenu_stores ? "doing" : "todo";
   const people: OpsStepState = r.cast_count > 0 ? "done" : r.staff_count > 0 ? "doing" : "todo";
   const onb: OpsStepState = r.onboarding_state === "done" ? "done" : "doing";
   return [
-    { key: "owner", name: "オーナーの受諾", state: owner, detail: inviteLabelOf(r), ago: null },
+    { key: "owner", name: "オーナーの受諾", state: owner, detail: inviteLabelOf(r), ago: owner === "done" ? daysAgoJa(r.owner_accepted_at, now) : null },
     { key: "setup", name: "初期設定", state: setup, detail: setupLabelOf(r), ago: setup === "done" ? daysAgoJa(r.setup_draft_at, now) : null },
-    { key: "line", name: "LINE", state: line, detail: lineLabelOf(r), ago: null },
+    { key: "line", name: "LINE", state: line, detail: r.line_verified_at ? `${lineLabelOf(r)}・確かめ済み` : lineLabelOf(r), ago: line === "done" ? daysAgoJa(r.line_verified_at, now) : null },
     { key: "people", name: "キャスト・スタッフ", state: people, detail: `${r.cast_count} 人・${r.staff_count} 人`, ago: null },
     { key: "onboarding", name: "導入", state: onb, detail: onboardingLabelOf(r.onboarding_state), ago: onb === "done" ? daysAgoJa(r.onboarding_done_at, now) : null },
   ];

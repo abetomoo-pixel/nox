@@ -47,9 +47,9 @@ export default function AssistWizard(p: AssistProps) {
   async function post(at: string, body: Record<string, unknown>, okText: string, after?: () => void) {
     setBusy(at); setOut(null);
     const r = await fetch(`/api/ops/orgs/${p.orgId}/assist`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
-    const j = (await r.json().catch(() => ({}))) as { error?: string; stale?: boolean };
+    const j = (await r.json().catch(() => ({}))) as { error?: string; stale?: boolean; reasons?: string[] };
     setBusy(null);
-    if (!r.ok) { setOut({ at, ok: false, text: j.error ?? "保存できませんでした", stale: j.stale }); return; }
+    if (!r.ok) { setOut({ at, ok: false, text: j.error ?? (j.reasons?.length ? `確かめが通りませんでした：${j.reasons.join("・")}` : "保存できませんでした"), stale: j.stale }); return; }
     setOut({ at, ok: true, text: okText }); after?.(); router.refresh();
   }
   const msgAt = (at: string) => out && out.at === at && (

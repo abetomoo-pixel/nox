@@ -1,3 +1,4 @@
+import { MIG_0202E_APPLIED } from "../rules-0175/flag";
 // ★導入の代行 版 2 の画面（2026-11-21 夜・枝 night1121-ops-v2・旗 MIG_0202B_APPLIED の後ろ）: 判定と表示の純関数（DB を知らない）。
 //   書けるか＝会社が導入中か、オーナーのサポート許可（1／3／7 日）の間（0202b の onb_can_write と同じ・判定の正は DB＝ここは画面の案内）。
 //   LINE 連携は 4 段（公開の値 → チャネルシークレット → アクセストークン → 友だち追加と連携の確かめ）。シークレットとトークンは入れた後に画面へ出さない（「入力済み」とだけ）。
@@ -63,5 +64,5 @@ export function promoteErrOf(birthday: string): string | null {
 }
 
 /** ★相談役 11/21 22:10 の ■2: LINE の 4 段目（確かめ）は 0202e（LINE に聞いて確かめる onb_line_verify）が本番に入るまで押せない。入ったら true */
-export const LINE_VERIFY_READY = false;
+export const LINE_VERIFY_READY = MIG_0202E_APPLIED; // ★枝 night1121-line-verify: 0202e の旗に従う
 export const LINE_VERIFY_LATER_NOTE = "確かめは次の更新で使えます";
