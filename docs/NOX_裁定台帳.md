@@ -6017,6 +6017,15 @@ CC の処置＝M-130（下の節）。
 - 関数・表の数の pin（455／122）を 463／124 に張り替え。旗 MIG_0202A_APPLIED は枝 night1120-ops-console を main に入れる便で true。
 - 旗 true＝874d05a7（2026-11-21・枝の取り込み・f0 235 段 8,555 件 2 連緑・本番反映 14:40:49）。本番の /ops を確かめ専用の運営者で通して合格・確かめの運営者は 14:43:44 に消した（運営の監査 7 行は残る）・確かめ用の会社 NOX-CHECK-招待（f58ac866…）は消さない（Agoora が受諾を確かめる）。詳細＝docs/handoff/morning_1121.md「追記（11/21 昼）」。
 
+## 0202f 本番適用（2026-11-22 03:02:33・**Agoora が認めた・相談役 11/22 2:35／3:00 の便で CC が適用＝手貼りの例外**・0202a／b／c／e と同じ手順）
+- 中身＝ホストの骨格：comp_plans に commission_tiers（jsonb・null 既定＝歩合の段の表）・comp_plan_ext_set の鍵に commission_tiers（昇順の整数・0〜100 の整数・10 段まで・null で外す）・set_comp_component で guarantee_min の params.unit は 'month'／'day' だけ。関数と表の数は変わらない（列 1・作り直し 2）。
+- 指紋＝本体 3e18bf9a…49079f8・事前確認 ab91b5bf…ab501b4・検証 07c41026…3bf3b36e（適用の直前に取り直して一致）。ref hiqbfagmkrdpmlqhkmsu・ロール postgres・ほかに本番へ繋ぐ CC の処理 0・f0 の走行中ではない。事前確認＝貼り先証明の 1 行だけ（会社 13）・本体をファイルのまま 1 回（BEGIN・SET・ALTER・CREATE×2・COMMIT）・検証 9 行とも期待値。全文＝docs/tmp/apply_0202f_1122.log。試走（本番 BEGIN…ROLLBACK）17/17。
+- 収蔵＝supabase/migrations/0202f_host_core.sql（sha 一致）。
+- 式（lib/nox/pay.ts）：段の表がある人は売上の全額 × 届いた段の率（丸め 1 回）・既定の表（3〜10%）と店の止め（sales_back_default_off・各種バック OFF）は表の人には効かない。guarantee_min の unit＝'day' は額 × 出勤日数（attendanceDays）・比べ方は今のまま（全部を含めた総額と比べて高いほう）。明細の「日給 × 出勤日数」の行は効いた床が日給のときだけ。
+- 相談役 11/22 3:00 の決め：保証は 1 つのプランに 1 つ（画面だけで限る＝プランの編集の画面は保証があるときは今の 1 つを直す形・単位はその中で選ぶ）。DB の set_comp_component は 2 つ目を止めない（本番で 2 つ以上のプランは 0）。
+- 適用の後の張り替え（枝 night1122-host-core・同じ流れ）：verify-nox-0158 の comp_plans の列の数 49→50・verify-nox-payroll の作り物の部品 2 か所の unit を 'day'→'month'（前は読まれていなかった意味の無い値＝月の床の意図のまま・本番に unit を持つ行は 0）・verify-nox-shop-contrast の s(4-2)（ホストの雛形は段の表 3 つ）。
+- 判断 2 の答え（11/22 2:35）：体験入店のプランにも段の表（VESPER の種と /setup のホストの雛形）。
+
 ## 0202e 本番適用（2026-11-21 23:59:44・**Agoora が認めた・相談役 11/22 0:15 の便の 1 で CC が適用＝手貼りの例外**・0202a／0202b／0202c と同じ手順）
 - 中身＝onb_line_verify を作り直し（引数 4・戻りは時刻・「つながった人が 1 人以上」を外す・route が Vault のトークンで LINE に聞いた真偽 4 つが全部真のときだけ line_verified_at・監査は真偽と ok だけ）＋ ops_org_list に owner_accepted_at・line_verified_at（末尾の 2 列）。drop して create が 2 本＝関数と表の数は変わらない。
 - 指紋＝本体 18d08fdc…238a6dec8・事前確認 6b5f4864…c8aea11d2・検証 4fd0c037…a636826713e（適用の直前に取り直して一致）。ref hiqbfagmkrdpmlqhkmsu・ロール postgres・ほかに本番へ繋ぐ CC の処理 0・f0 の走行中ではない。事前確認＝貼り先証明の 1 行だけ（会社 13）・本体をファイルのまま 1 回・検証 9 行とも期待値（関数 478・表 126 は不変）。全文＝docs/tmp/apply_0202e_1122.log。試走（本番 BEGIN…ROLLBACK）19/19。

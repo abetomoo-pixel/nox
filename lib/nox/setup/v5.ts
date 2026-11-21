@@ -4,7 +4,7 @@
 import type { MineSettings } from "../store/mine-settings";
 import { mineSettingsPatchOf } from "../store/mine-settings";
 import { presetsWithAmountsOf } from "../payroll/settlement"; // ★便 D 裁定455-3: 既定 2 件の額は ⑦ の 2 欄から
-import { mig0190On, mig0191On, mig0197On } from "../rules-0175/flag"; // ★0190／0191 のフラグ true 便: 器なし項目を実保存に（false の間は従来＝「後で（マスタから）」）
+import { mig0190On, mig0191On, mig0197On, mig0202fOn } from "../rules-0175/flag"; // ★0190／0191 のフラグ true 便: 器なし項目を実保存に（false の間は従来＝「後で（マスタから）」）
 /** ★0191 ★1: 締め日の表記→settlement_close_day（15／20／25／31＝末日） */
 export const CLOSE_DAY_OF: Record<string, 15 | 20 | 25 | 31> = { "15": 15, "20": 20, "25": 25, "末日": 31 };
 const pct100 = (n: number): number => Math.max(0, Math.min(100, Math.round(n || 0)));
@@ -167,6 +167,8 @@ export const HOST_SALES_BACKS: ReadonlyArray<{ name: string; value: number; cond
   { name: "売上歩合の加算（小計 200 万円〜・小計の 5%）", value: 5, cond: { metric: "sales", min: 2000000 } },
   { name: "売上歩合の加算（小計 300 万円〜・小計の 5%）", value: 5, cond: { metric: "sales", min: 3000000 } },
 ];
+/** ★0202f: host_standard の歩合の段の表（VESPER と同じ・率は % の整数・売上の全額に掛ける） */
+export const HOST_COMMISSION_TIERS: ReadonlyArray<{ at: number; rate: number }> = [{ at: 0, rate: 40 }, { at: 300000, rate: 45 }, { at: 500000, rate: 50 }, { at: 1000000, rate: 55 }, { at: 2000000, rate: 60 }, { at: 3000000, rate: 65 }];
 export function applyType(s: V5State, id: V5Type): V5State {
   const t = V5_TPL[id]();
   const n = clone(s);
@@ -399,7 +401,9 @@ export function buildV5Plan(S: V5State, ctx: V5Ctx): { steps: V5Step[]; deferred
   if (S.type === "host") { // ★2026-11-21 夜（3）: host_standard＝VESPER の「新人」（月の最低保証 160,000 円）と売上歩合の段（自由設計のバック 6 行＝小計の 40%＋段ごとに 5%）。新しい店（プラン 0）のときだけ
     push({ key: "comp_2", group: "comp", label: "待遇プラン「新人」（月の最低保証つき）", rpc: "set_comp_plan", guard: "plans_empty", args: planArgs("新人", S.pay.base, false) });
     push({ key: "comp_2_guarantee", group: "comp", label: "「新人」の月の最低保証 ¥160,000", rpc: "set_comp_component", useResult: { from: "comp_2", as: "p_plan_id" }, args: { p_id: null, p_kind: "guarantee_min", p_mode: "amount", p_amount: 160000, p_rate: null, p_params: {}, p_priority: 100, p_is_active: true } });
-    HOST_SALES_BACKS.forEach((b, i) => push({ key: `custom_back_${i}`, group: "comp", label: `売上歩合「${b.name}」`, rpc: "set_custom_back_def", guard: "plans_empty", args: { p_id: null, p_store_id: s, p_name: b.name, p_basis: "sales", p_value: b.value, p_cond: b.cond, p_is_active: true } }));
+    if (mig0202fOn()) {   // ★0202f（枝 night1122-host-core）: 売上歩合の段はプランの段の表（commission_tiers）＝基本プランと新人に同じ表・自由設計のバックは作らない
+      for (const from of ["comp_0", "comp_2"]) push({ key: `${from}_tiers`, group: "comp", label: `「${from === "comp_0" ? "基本プラン" : "新人"}」の歩合の段の表（小計の 40〜65%・6 段）`, rpc: "comp_plan_ext_set", useResult: { from, as: "p_plan_id" }, args: { p_patch: { commission_tiers: HOST_COMMISSION_TIERS } } });
+    } else HOST_SALES_BACKS.forEach((b, i) => push({ key: `custom_back_${i}`, group: "comp", label: `売上歩合「${b.name}」`, rpc: "set_custom_back_def", guard: "plans_empty", args: { p_id: null, p_store_id: s, p_name: b.name, p_basis: "sales", p_value: b.value, p_cond: b.cond, p_is_active: true } }));
   }
   // ★2026-11-17（相談役 2・Agoora「初期設定からいる」）: 報酬率スライドを選んだら、基本プランに報酬の軸（pay_rate）だけ保存する（comp_plan_ext_set・owner）。段は保存しない＝段を入れるまで計算は基本の時給
   if (S.pay.slide === "rate") push({ key: "comp_0_axis", group: "comp", label: "基本プランの報酬の軸＝報酬率（段はあとで待遇プランで）", rpc: "comp_plan_ext_set", useResult: { from: "comp_0", as: "p_plan_id" }, args: { p_patch: { reward_axis: "pay_rate" } } });

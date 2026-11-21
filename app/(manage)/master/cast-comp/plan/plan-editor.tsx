@@ -8,7 +8,7 @@ import GroupedNumberInput from "@/components/ui/grouped-number-input"; // ★便
 //   各節に 保存済み/未保存 表示・失敗はその節だけ赤（裁定101 §3）。器なし項目は準備中バッジ（C5・起票#42）。
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { mig0198On } from "@/lib/nox/rules-0175/flag"; // ★0198（夜便レーン 3）: 貸付の同意の項目＝手貼り前は出さない・送らない（set_comp_plan は 32 引数のまま）
+import { mig0198On, mig0202fOn } from "@/lib/nox/rules-0175/flag"; // ★0198（夜便レーン 3）: 貸付の同意の項目＝手貼り前は出さない・送らない（set_comp_plan は 32 引数のまま）
 import * as t from "@/lib/nox/ui/theme";
 import MoneyInput from "@/components/ui/money-input"; // ★便 X-12-1（起票90）: 金額欄の共通部品（数字のみ・3 桁区切り・右に「円」）
 import { UnitBox } from "@/components/ui/unit-input"; // ★便 M5b M-50
@@ -19,7 +19,8 @@ import { SLIDE_APPLY_LABEL, SLIDE_BASIS_LABEL, slideBasisOf, slideBasisPillOf, s
 import { isSectionOn, isSystemOn, pointSlideOn, salesSlideOn, slidesTabOnWithPayRate, type StoreSettings } from "@/lib/nox/store-systems"; // ★裁定269: 使う制度の出し分け
 import { BONUS_TIER_MAX, bonusParamsOf, bonusTiersErrOf, bonusTiersLabel, bonusTiersOf, type BonusTier } from "@/lib/nox/bonus-tiers"; // ★便 P173 T-2（起票110）: 達成ボーナスの多段
 import { slideErrOf, slideToSave } from "@/lib/nox/comp/slide-rows"; // ★便 P174 T-1（裁定390）
-import PayRateTiersEditor from "./pay-rate-tiers-editor"; // ★2026-11-17 夜（相談役 Y3b）: 報酬率の段
+import PayRateTiersEditor from "./pay-rate-tiers-editor";
+import CommissionTiersEditor, { type CommissionTier } from "./commission-tiers-editor"; // ★0202f // ★2026-11-17 夜（相談役 Y3b）: 報酬率の段
 import type { PayRateTier } from "@/lib/nox/rules-0175/canon";
 import { rules0175On } from "@/lib/nox/rules-0175/flag"; // ★便 P175-prep P-3
 import { PLAN_AXIS_CONFIRM_TEXT, PLAN_REWARD_AXIS_LABEL, planAxisNeedsConfirmOf, planRewardAxisOf, planRewardAxisPatchOf, slideFieldsOf, STORE_AXIS_SHORT, type PlanRewardAxis } from "@/lib/nox/rules-0175/settings";
@@ -583,6 +584,11 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
         {rules0175On() && draft.id && isOwner && planRewardAxisOf(plans.find((x) => x.id === draft.id) as { reward_axis?: string | null } | undefined, settings) === "pay_rate" && (() => {
           const pl = plans.find((x) => x.id === draft.id) as { pay_rate_tiers?: PayRateTier[] | null; slide_streak_n?: number | null } | undefined;
           return <PayRateTiersEditor planId={draft.id} tiers={pl?.pay_rate_tiers} streak={pl?.slide_streak_n} onErr={(m) => setSecErr((e) => ({ ...e, スライド: m }))} onSaved={async (m) => { setSecErr((e) => ({ ...e, スライド: "" })); setMsg(m); await reload(); }} />;
+        })()}
+        {/* ★0202f（ホストの骨格 B・枝 night1122-host-core・旗の後ろ）: 歩合の段の表＝owner だけ・保存済みプラン（売上の全額 × 届いた段の率・既定の売上歩合を使わない） */}
+        {mig0202fOn() && draft.id && isOwner && (() => {
+          const pl = plans.find((x) => x.id === draft.id) as { commission_tiers?: CommissionTier[] | null } | undefined;
+          return <CommissionTiersEditor planId={draft.id} tiers={pl?.commission_tiers} onErr={(m) => setSecErr((e) => ({ ...e, スライド: m }))} onSaved={async (m) => { setSecErr((e) => ({ ...e, スライド: "" })); setMsg(m); await reload(); }} />;
         })()}
         {/* ★便 P174 T-4（裁定395・395 追補2）: 判定のタイミング＝詳細設定の奥（主表示は上の判定期間）。null＝店設定に従う・前期の実績（既定）・当期の累計（稀） */}
         <details data-slide-apply="1" style={{ margin: "0 0 8px", fontSize: 12, color: "var(--sub)" }}>

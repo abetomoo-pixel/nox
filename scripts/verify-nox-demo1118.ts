@@ -8,7 +8,7 @@
  *  d(5) Y2d：会計の丸め＝業態で（クラブ系＝キャバクラ・ラウンジ 1,000 円／スナック・ガールズバー 100 円・切り上げ）・伝票はみな店の丸め・締めた伝票は入金の和＝請求（売掛を含む）。
  */
 import fs from "node:fs";
-import { PROFILES, SLIDES, EXTRA_CASTS, PAY_RATE_DEMO, TRIAL, BIZ_TYPE_OF, billRoundOf, ROUND_UNIT_OF, MONTH_GROSS_TARGET, HOST_PLAN, HOST_TIERS, HOST_ALLOWANCE, HOST_COMMISSION_BASIS, hostCommissionDefsOf, hostStoreSettingsOf } from "./demo/profiles.mjs";
+import { PROFILES, SLIDES, EXTRA_CASTS, PAY_RATE_DEMO, TRIAL, BIZ_TYPE_OF, billRoundOf, ROUND_UNIT_OF, MONTH_GROSS_TARGET, HOST_PLAN, HOST_TIERS, HOST_ALLOWANCE, HOST_COMMISSION_BASIS, hostCommissionDefsOf, hostStoreSettingsOf, HOST_COMMISSION_TIERS_ON, hostCommissionTiersOf } from "./demo/profiles.mjs";
 import { payRateTierOf, directionOf } from "../lib/nox/rules-0175/canon";
 let pass = 0;
 const fails: string[] = [];
@@ -112,7 +112,13 @@ for (const c of Object.keys(want)) {
   const want = hostCommissionDefsOf().map((d) => ({ name: d.name, basis: d.basis, value: d.value, cond: d.cond }));
   // ★2026-11-19 朝（相談役 ③）: 小計の基準へ切り替えた＝率 40／5×5・境 30〜300 万・名前に「相当」なし・店の鍵 sales_basis＝'subtotal'・sales_back_default_off＝true
   const stS = T.stores[0].settings_json as Record<string, unknown>;
-  check("d(7-2) 売上歩合の段＝自由設計のバック 6 行（基本 40＋5×5＝小計の素の率 40〜65%・境 30〜300 万・名前に「相当」なし）・店の鍵 sales_basis＝'subtotal'・sales_back_default_off＝true", HOST_COMMISSION_BASIS === "subtotal" && J(defs) === J(want) && J(want.map((d) => d.value)) === J([40, 5, 5, 5, 5, 5]) && J(want.slice(1).map((d) => d.cond?.min)) === J([300000, 500000, 1000000, 2000000, 3000000]) && defs.every((d) => !String(d.name).includes("相当")) && String(defs[0]?.name) === "売上歩合（小計の 40%）" && String(defs[1]?.name) === "売上歩合の加算（小計 30 万円〜・小計の 5%）" && stS.sales_basis === "subtotal" && stS.sales_back_default_off === true, defs.map((d) => [d.name, d.value]));
+  // ★0202f（枝 night1122-host-core・2026-11-22）: 売上歩合の段は自由設計のバック 6 行から、VESPER Standard と VESPER 新人のプランの段の表（commission_tiers）へ移した（HOST_COMMISSION_TIERS_ON）
+  const hostPlans = (T.comp_plans ?? []) as { name: string; commission_tiers?: { at: number; rate: number }[] | null }[];
+  const tiersWant = HOST_TIERS.map((t) => ({ at: t.at, rate: t.pct }));
+  check("d(7-2) 売上歩合の段＝VESPER Standard と VESPER 新人に段の表（小計の 40〜65%・境 30〜300 万）・自由設計のバックは 0 行・体験入店は表なし・店の鍵 sales_basis＝'subtotal'・sales_back_default_off＝true",
+    HOST_COMMISSION_BASIS === "subtotal" && HOST_COMMISSION_TIERS_ON === true && defs.length === 0 && J(hostCommissionTiersOf()) === J(tiersWant)
+    && ["VESPER Standard", "VESPER 新人"].every((n) => J(hostPlans.find((p) => p.name === n)?.commission_tiers) === J(tiersWant)) && (hostPlans.find((p) => p.name === "体験入店")?.commission_tiers ?? null) === null
+    && J(want.map((d) => d.value)) === J([40, 5, 5, 5, 5, 5]) && stS.sales_basis === "subtotal" && stS.sales_back_default_off === true);
   const dueV = hostCommissionDefsOf("due");
   check("d(7-3) 請求額の基準へ戻す道（1 か所）＝率 28＋3／4／3／4／3・境 × 1.43・店の鍵なし", J(dueV.map((d) => d.value)) === J([28, 3, 4, 3, 4, 3]) && J(dueV.slice(1).map((d) => d.cond?.min)) === J([429000, 715000, 1430000, 2860000, 4290000]) && J(hostStoreSettingsOf("due")) === J({}) && J(hostStoreSettingsOf("subtotal")) === J({ sales_basis: "subtotal", sales_back_default_off: true }));
   const inc = T.attendance_incentives ?? [];

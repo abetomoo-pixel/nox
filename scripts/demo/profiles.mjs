@@ -166,6 +166,11 @@ export function hostCommissionDefsOf(basis = HOST_COMMISSION_BASIS, ratio = HOST
     cond: i === 0 ? null : { metric: "sales", min: basis === "subtotal" ? t.at : Math.round(t.at * ratio) },
   }));
 }
+/** ★0202f（ホストの骨格 B・2026-11-22・枝 night1122-host-core）: VESPER の売上歩合の段を自由設計のバック 6 行からプランの段の表（comp_plans.commission_tiers）へ移す。
+ *  true＝VESPER Standard と VESPER 新人に表 [0:40, 30 万:45, 50 万:50, 100 万:55, 200 万:60, 300 万:65]・自由設計のバック 6 行は作らない。false＝今のまま（6 行）。
+ *  本番のデモは今のまま（0202f が本番に入るまで main に入れない）。 */
+export const HOST_COMMISSION_TIERS_ON = true;
+export const hostCommissionTiersOf = () => HOST_TIERS.map((t) => ({ at: t.at, rate: t.pct }));
 export const hostStoreSettingsOf = (basis = HOST_COMMISSION_BASIS) => (basis === "subtotal" ? { sales_basis: "subtotal", sales_back_default_off: true } : {});
 /** ★2026-11-18 夜（相談役 ④）: レオの幹部手当＝精算調整は控除だけ（加算の口が無い）→ 出勤ボーナスの表（attendance_incentives・宛先をレオだけ・理由「幹部手当」）で先月に 1 件 */
 export const HOST_ALLOWANCE = { cast: "レオ", amount: 50000, reason: "幹部手当（役職手当・月額）" };

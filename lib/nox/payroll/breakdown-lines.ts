@@ -29,6 +29,8 @@ export type BreakdownPayLike = {
   drinkBack?: number; champBack?: number; bottleBack?: number; calculatedBack?: number; salesBack?: number;
   customTotal?: number; cbacks?: { name?: string; amount?: number }[];
   achievementBonus?: number; guaranteeAdd?: number;
+  guaranteeDay?: { perDay: number; days: number; floor: number }; // ★0202f
+  commission?: { tiers: { at: number; rate: number }[]; rate: number; base: number }; // ★0202f
   salesBasis?: "subtotal"; // ★2026-11-19（相談役 ②）: 売上の基準が小計の店だけ（凍結 pay にも入る）
   normTarget?: { sales: number; source: "override" | "plan" | null }; // ★裁定347 追補2（便 N1014 A-4）: 達成ボーナスの目標の出所（プラン既定から継承したときだけ凍結）
   gross?: number;
@@ -249,7 +251,7 @@ export function breakdownLinesOf(input: BreakdownInput): Breakdown {
   push("champBack", "シャンパンバック", z(p.champBack));
   push("bottleBack", "ボトルバック", z(p.bottleBack));
   push("calculatedBack", "商品バック（プラン率／固定）", z(p.calculatedBack));
-  push("salesBack", "売上バック（率）", z(p.salesBack)); // ★便 SH-UI-c2 C2-10（裁定412 の残り）: 旧「売上歩合」＝各種バックの並び
+  push("salesBack", p.commission ? `売上歩合 ${p.commission.rate}%（${p.salesBasis === "subtotal" ? "小計" : "売上"} ${yen(p.commission.base)} の ${p.commission.rate}%）` : "売上バック（率）", z(p.salesBack)); // ★0202f: 段の表の人は率と母数を 1 行に // ★便 SH-UI-c2 C2-10（裁定412 の残り）: 旧「売上歩合」＝各種バックの並び
   if (Array.isArray(p.cbacks) && p.cbacks.length > 0) {
     for (const [i, c] of p.cbacks.entries()) push(`cback-${i}`, c.name ? `自由設計バック（${c.name}）` : "自由設計バック", z(c.amount));
     const rest = z(p.customTotal) - p.cbacks.reduce((a, c) => a + z(c.amount), 0);
@@ -260,6 +262,7 @@ export function breakdownLinesOf(input: BreakdownInput): Breakdown {
   if (basisAfterBacks && basisLine) earn.push(basisLine);
   push("achievementBonus", p.normTarget?.source === "plan" ? `達成ボーナス（目標 ¥${p.normTarget.sales.toLocaleString()}＝プランの既定）` : "達成ボーナス", z(p.achievementBonus)); // ★裁定347 追補2: 既定から継承した目標は明細に出所を出す
   push("guaranteeAdd", "最低保証加算", z(p.guaranteeAdd));
+  if (p.guaranteeDay && (p.guaranteeAdd ?? 0) > 0) push("guaranteeDay", `　日給 ${yen(p.guaranteeDay.perDay)} × 出勤 ${p.guaranteeDay.days} 日（${yen(p.guaranteeDay.floor)}）`, 0, { keepZero: true, sub: true, info: true }); // ★0202f: 補填の下に 1 行（額は上の行に入っている＝情報の行）
   for (const [i, e] of (input.extras ?? []).entries()) push(`extra-${i}`, e.label ?? (e.kind === "attendance_bonus" ? "出勤ボーナス" : e.kind), z(e.amount));
 
   const ded: BreakdownLine[] = [];

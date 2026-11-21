@@ -17,7 +17,7 @@ import { calcPeriodOf } from "./assemble"; // ★0154 D6
 import { baseOverrideOf } from "./base-override"; // ★便 P174 T-5（R-11 (d)）
 import { attendanceWithDohanOf } from "@/lib/nox/shift/dohan-mark"; // ★便 PR-1 R-4（裁定417）: 同伴の正本＝伝票
 import { payTimeBasisOf } from "./time-basis"; // ★裁定324（便 L-2-3）
-import { mig0183On, mig0197On, mig0201lOn, rules0175On } from "@/lib/nox/rules-0175/flag"; // ★便 P175-prep: 0175 v2 の列・表を読むのはフラグ true のときだけ（false＝従来と 1 バイト同値）
+import { mig0183On, mig0197On, mig0201lOn, rules0175On, mig0202fOn } from "@/lib/nox/rules-0175/flag"; // ★便 P175-prep: 0175 v2 の列・表を読むのはフラグ true のときだけ（false＝従来と 1 バイト同値）
 import { loadCanonCtx, loadCastMeta0175, loadRateHistory, loadRules0175Store } from "./rules-0175-collect"; // ★便 P175-prep P-1／P-5
 import type { ShortfallDay } from "./shortfall"; // ★裁定324-3（便 L-2-4）: 不就労控除の入力（営業日ごとの確定シフト×打刻）: 勤務時間の計算基準（store 設定・期の初日で解決）
 /** ★0154 D2: 'HH:MM'（0-47 域）→ 分（shift-time.hm2min と同式・collect 内で閉じる） */
@@ -101,7 +101,7 @@ export type CollectResult = {
 // periodEnd は period_bounds 由来の 'YYYY-MM-DD'（win.periodEnd・写像単一ソース＝Date 非経由）。
 async function loadMasters(admin: SupabaseClient, storeId: string, period: string, periodEnd: string, runPeriodStart?: string) {
   const [plansR, castPlanR, penR, dedR, cbR, normR, taxR, compR, stR] = await Promise.all([
-    admin.from("comp_plans").select("norm_days_target, norm_dohan_target, norm_sales_target, norm_shimei_target, id, name, base, hon_back, jonai_back, dohan_back, sales_slide, point_slide, hon_back_mode, hon_back_rate, jonai_back_mode, jonai_back_rate, dohan_back_mode, dohan_back_rate, product_back_mode, product_back_rate, product_back_fixed, slide_period, slide_basis, slide_rank_ids, slide_apply").eq("store_id", storeId), // ★便 P174 T-4（裁定395・0174 ★4）: slide_apply（null＝店設定）・★裁定343（0170）: 判定基準・対象
+    admin.from("comp_plans").select("norm_days_target, norm_dohan_target, norm_sales_target, norm_shimei_target, id, name, base, hon_back, jonai_back, dohan_back, sales_slide, point_slide, hon_back_mode, hon_back_rate, jonai_back_mode, jonai_back_rate, dohan_back_mode, dohan_back_rate, product_back_mode, product_back_rate, product_back_fixed, slide_period, slide_basis, slide_rank_ids, slide_apply" + (mig0202fOn() ? ", commission_tiers" : "")) /* ★0202f: 歩合の段の表は旗の後ろ（列が無い間は読まない） */.eq("store_id", storeId), // ★便 P174 T-4（裁定395・0174 ★4）: slide_apply（null＝店設定）・★裁定343（0170）: 判定基準・対象
     // ★裁定97: 適用行の選択は3段（期間と重なる行を全部読み、下の castPlanByCast 構築で選ぶ）。
     //   a) 期首（period-01）時点で有効な行があればそれ＝裁定96-④ 不変（期中変更は翌期から）。
     //   b) 無ければ期間内（期首 < valid_from ≤ 期末）で最も早い valid_from の行＝backfill 導入月の救済。日割りなし。
@@ -140,7 +140,7 @@ async function loadMasters(admin: SupabaseClient, storeId: string, period: strin
   const slideRankIdsByPlan = new Map<string, string[]>(); // ★裁定343（0170）: 対象ランク（空＝全員）
   const slideApplyByPlan = new Map<string, "next" | "current">(); // ★便 P174 T-4（裁定395）: プランの判定タイミング（null＝店設定＝ここに入れない）
   const planNormById = new Map<string, NormTargets>(); // ★裁定347 追補2（0171）: プラン既定の目標 4 軸
-  for (const p of (plansR.data ?? []) as Record<string, unknown>[]) {
+  for (const p of (plansR.data ?? []) as unknown as Record<string, unknown>[]) {
     planNormById.set(p.id as string, normTargetsOf(p as { norm_days_target?: number | null; norm_dohan_target?: number | null; norm_sales_target?: number | null; norm_shimei_target?: number | null }));
     slidePeriodByPlan.set(p.id as string, slidePeriodOf(p.slide_period));
     slideBasisByPlan.set(p.id as string, slideBasisOf(p.slide_basis));
@@ -168,6 +168,7 @@ async function loadMasters(admin: SupabaseClient, storeId: string, period: strin
       productBackMode: (p.product_back_mode ?? "product_rule") as CompPlan["productBackMode"],
       productBackRate: (p.product_back_rate ?? null) as number | null,
       productBackFixed: (p.product_back_fixed ?? null) as number | null,
+      ...(mig0202fOn() && Array.isArray(p.commission_tiers) && (p.commission_tiers as unknown[]).length > 0 ? { commissionTiers: (p.commission_tiers as { at: number; rate: number }[]).map((t) => ({ at: Number(t.at), rate: Number(t.rate) })) } : {}), // ★0202f: 表があるプランだけキーを持つ（無いプランは今と 1 バイト同値）
     });
   }
   // ★便 P174 T-5（R-11 (d)）: 期首行が保証行なら base／guarantee を外す＝lib/nox/payroll/base-override.ts（純関数）

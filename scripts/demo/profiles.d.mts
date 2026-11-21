@@ -41,5 +41,7 @@ export declare const HOST_PLAN: { ratio: number; casts: Record<string, { sub: nu
 export declare const HOST_COMMISSION_BASIS: "due" | "subtotal";
 export declare const HOST_TIERS: { at: number; pct: number }[];
 export function hostCommissionDefsOf(basis?: "due" | "subtotal", ratio?: number): { key: string; name: string; basis: "sales"; value: number; cond: { metric: "sales"; min: number } | null }[];
+export declare const HOST_COMMISSION_TIERS_ON: boolean; // ★0202f
+export function hostCommissionTiersOf(): { at: number; rate: number }[]; // ★0202f
 export function hostStoreSettingsOf(basis?: "due" | "subtotal"): Record<string, unknown>;
 export declare const HOST_ALLOWANCE: { cast: string; amount: number; reason: string };

@@ -40,7 +40,10 @@ import {
   type Product,
   type Metrics,
   payRulesFor, // ★0154 D2
+  DEFAULT_SALES_BACK_TABLE, // ★0202f
 } from "../lib/nox/pay";
+import { roundYen } from "../lib/nox/money"; // ★0202f
+import { breakdownLinesOf } from "../lib/nox/payroll/breakdown-lines"; // ★0202f
 
 // ── assert ────────────────────────────────────────────────────
 let pass = 0;
@@ -538,6 +541,47 @@ eq("補足 castPts（玲奈=308pt）", castPts(REINA, 110), 308);
   eq("T15-13d 体入なし＝定額 5,000（従来）", r13d.cbacks[0].amount, 5000);
 }
 
+
+// ── T16 ★0202f（ホストの骨格・2026-11-22・相談役 0:15 の ■3）: 歩合の段の表（commissionTiers）と日給の保証（guarantee_min の params.unit＝'day'）
+//   逆テスト＝pay.ts の cTiers を常に null にする→T16-1 赤・unit の分岐を外す→T16-5 赤・戻して緑
+{
+  const TIERS = [{ at: 0, rate: 40 }, { at: 300_000, rate: 45 }, { at: 500_000, rate: 50 }, { at: 1_000_000, rate: 55 }, { at: 2_000_000, rate: 60 }, { at: 3_000_000, rate: 65 }];
+  const P_T: CompPlan = { id: "p_t", name: "段の表", base: 0, honBack: 0, jonaiBack: 0, dohanBack: 0, salesSlide: [], pointSlide: [], commissionTiers: TIERS };
+  const daily = [1, 2, 3, 4].map((d) => ({ d, hours: 5, sales: 300_000 }));
+  const base: PayInput = { ...REINA_INPUT, cast: { hon: 0, jonai: 0, dohan: 0, days: 4, sales: 1_234_567 }, daily, plan: P_T, pointProducts: 0, customBackDefs: [], deductions: [], periodDays: 30, extrasTotal: 0, productBack: { drink: 0, champ: 0, bottle: 0 }, salesTarget: 0 };
+  const t1 = payOf(base);
+  eq("T16-1 段の表＝売上の全額 × 届いた段の率（1,234,567 → 55%）・丸め 1 回（678,511.85 → roundYen）・sRate 0.55・凍結の形に表と率と母数", `${t1.salesBack}/${t1.sRate}/${t1.commission?.rate}/${t1.commission?.base}/${t1.commission?.tiers.length}`, `${roundYen((1_234_567 * 55) / 100)}/0.55/55/1234567/6`);
+  const t2 = payOf({ ...base, salesBackTable: [] });
+  eq("T16-2 店が既定の売上歩合を止めていても（salesBackTable []）段の表の人は表で払う", t2.salesBack, t1.salesBack);
+  const t3 = payOf({ ...base, salesBackTable: DEFAULT_SALES_BACK_TABLE });
+  eq("T16-3 既定の表を渡しても、段の表の人は既定の表を使わない（並べない）", t3.salesBack, t1.salesBack);
+  const t4 = payOf({ ...base, plan: { ...P_T, commissionTiers: null } }), t4b = payOf({ ...base, plan: { ...P_T, commissionTiers: [] } });
+  const { commissionTiers: _x, ...P_none } = P_T; void _x;
+  const noPlan = (r: object): string => JSON.stringify({ ...r, plan: undefined, eplan: undefined }); // 結果の中のプランの写し（入力そのもの）を外して比べる
+  const t4c = payOf({ ...base, plan: P_none as CompPlan });
+  eq("T16-4 表が null・空・キー無し＝今のまま（既定の表で 7%・commission キー無し・3 つとも結果は 1 バイト同値＝入力の写しの plan／eplan を除く）", `${t4.salesBack}/${"commission" in t4}/${noPlan(t4) === noPlan(t4c)}/${noPlan(t4b) === noPlan(t4c)}`, `${roundYen(1_234_567 * 0.07)}/false/true/true`);
+  eq("T16-4b 表の下限に届かない売上（最初の段が 100,000 から）＝0%", payOf({ ...base, cast: { ...base.cast, sales: 50_000 }, plan: { ...P_T, commissionTiers: [{ at: 100_000, rate: 40 }] } }).salesBack, 0);
+  // 日給の保証（unit 'day'）：床＝額 × 出勤日数（attendanceDays）・全部を含めた総額と比べて高いほう（今の比べ方のまま）
+  const G = (unit: string | null, amount: number): CompPlan => ({ id: "p_g2", name: "日給保証", base: 1000, honBack: 0, jonaiBack: 0, dohanBack: 0, salesSlide: [], pointSlide: [], components: [{ kind: "guarantee_min", mode: "amount", amount, rate: null, params: unit ? { unit } : {}, priority: 100 }] as CompPlan["components"] });
+  const gb: PayInput = { ...base, plan: G("day", 10_000), cast: { hon: 0, jonai: 0, dohan: 0, days: 4, sales: 0 }, daily: [1, 2, 3, 4].map((d) => ({ d, hours: 5, sales: 0 })), attendanceDays: 4 };
+  const g1 = payOf(gb);
+  eq("T16-5 床に届かない人＝時給 1,000 × 20h＝20,000 < 日給 10,000 × 出勤 4 日＝40,000 → 補填 20,000・guaranteeDay", `${g1.guaranteeAdd}/${g1.gross - g1.guaranteeAdd}/${g1.guaranteeDay?.perDay}/${g1.guaranteeDay?.days}/${g1.guaranteeDay?.floor}`, "20000/20000/10000/4/40000");
+  const g2 = payOf({ ...gb, plan: G("day", 4_000) });
+  eq("T16-6 床に届く人＝20,000 ≥ 4,000 × 4＝16,000 → 補填 0（guaranteeDay は残る＝明細の行は補填のときだけ）", `${g2.guaranteeAdd}/${g2.guaranteeDay?.floor}`, "0/16000");
+  const g3 = payOf({ ...gb, cast: { ...gb.cast, days: 0 }, daily: [], attendanceDays: 0 });
+  eq("T16-7 出勤 0 日の人＝床 0 → 補填 0・総支給 0", `${g3.guaranteeAdd}/${g3.gross}/${g3.guaranteeDay?.floor}`, "0/0/0");
+  const gm = payOf({ ...gb, plan: G("month", 40_000) }), gn = payOf({ ...gb, plan: G(null, 40_000) });
+  eq("T16-8 unit 'month' と unit なし＝今のまま（床＝額 40,000 → 補填 20,000・guaranteeDay キー無し・2 つは結果が 1 バイト同値＝入力の写しを除く）", `${gm.guaranteeAdd}/${"guaranteeDay" in gm}/${noPlan(gm) === noPlan(gn)}`, "20000/false/true");
+  // 明細の行（凍結の pay から作る＝breakdownLinesOf）
+  const bl = breakdownLinesOf({ pay: g1 as unknown as Parameters<typeof breakdownLinesOf>[0]["pay"] }).earn.map((l) => `${l.label}=${l.amount}`);
+  eq("T16-9 明細：「最低保証加算」の下に「日給 ¥10,000 × 出勤 4 日（¥40,000）」の情報の行", bl.some((x) => x.startsWith("最低保証加算=20000")) && bl.some((x) => x.includes("日給 ¥10,000 × 出勤 4 日（¥40,000）")), true);
+  const bl2 = breakdownLinesOf({ pay: { ...t1, salesBasis: "subtotal" } as unknown as Parameters<typeof breakdownLinesOf>[0]["pay"] }).earn.map((l) => l.label);
+  eq("T16-10 明細：段の表の人は「売上歩合 55%（小計 ¥1,234,567 の 55%）」", bl2.some((x) => x === "売上歩合 55%（小計 ¥1,234,567 の 55%）"), true);
+  const old = breakdownLinesOf({ pay: payOf(REINA_INPUT) as unknown as Parameters<typeof breakdownLinesOf>[0]["pay"] }).earn.map((l) => l.label);
+  eq("T16-11 凍結済みの今の形（commission・guaranteeDay キー無し）の明細は今の行のまま（「売上バック（率）」・日給の行は出ない）", `${old.includes("売上バック（率）")}/${old.some((x) => x.includes("日給"))}`, "true/false");
+  const rg = payOf(REINA_INPUT);
+  eq("T16-12 golden 不変（玲奈 5931／125802・commission と guaranteeDay のキー無し）", `${rg.wage}/${rg.withholding}/${"commission" in rg}/${"guaranteeDay" in rg}`, "5931/125802/false/false");
+}
 
 if (fails.length) {
   console.error(`FAIL ${fails.length} 件 / pass ${pass}`);

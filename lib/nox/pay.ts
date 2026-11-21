@@ -45,6 +45,9 @@ export type CompPlan = {
   dohanBackMode?: BackMode;
   dohanBackRate?: number | null;
   components?: CompComponent[];
+  // ★0202f（2026-11-22 ホストの骨格 B・相談役 0:15 の ■3b）: 歩合の段の表＝[{ at: 売上の下限, rate: %（整数） }]（at の昇順・10 段まで）。
+  //   売上の全額 × 届いた段の率・丸めは 1 回。表がある人は既定の売上歩合の表（DEFAULT_SALES_BACK_TABLE／店の止め）を使わない。null・空＝今のまま（1 バイト同値）。
+  commissionTiers?: { at: number; rate: number }[] | null;
   // ★裁定113（mig0132）＋裁定123（mig0133）: 商品販売バック3方式。optional＝未指定は product_rule（既存 fixture・golden 不変）。
   //   方式判定は close 側（check_close が確定スナップへ凍結）＝**給与側は凍結値 Σ のみ**（方式判定を持ち込まない・例外なし）。
   //   3項は読取保持（UI 表示・sim 用）で payOf はどれも参照しない。
@@ -342,6 +345,8 @@ export type PayResult = {
   // ★裁定96（挙動段）: components の結線結果
   achievementBonus: number;
   guaranteeAdd: number;
+  /** ★0202f: 日給の保証（unit＝'day' の部品があるときだけ） */ guaranteeDay?: { perDay: number; days: number; floor: number };
+  /** ★0202f: 歩合の段の表（プランに表があるときだけ）＝凍結の形に表と率を残す */ commission?: { tiers: { at: number; rate: number }[]; rate: number; base: number };
   compSkipped: string[];
   canon?: CanonOutcome & { backsDelta: number; timeDelta: number; bonus: number; payPctDelta: number; grossBefore: number; forecast?: NextWage | null }; // ★便 ON-4（C2-22）: forecast＝来期の時給見込み（表示だけ・金額に効かない） // ★便 P175-prep P-5（裁定418）: rules0175 を渡した cast だけ
   gross: number;
@@ -536,6 +541,13 @@ function lessMetrics(m: Metrics, x: Partial<Metrics>): Metrics {
   return out as Metrics;
 }
 
+/** ★0202f: 歩合の段の表の率（%・整数）＝at の昇順の表で、売上が届いた最後の段の率（どこにも届かなければ 0） */
+export function commissionRateOf(sales: number, tiers: { at: number; rate: number }[]): number {
+  let r = 0;
+  for (const t of tiers) if (sales >= t.at) r = t.rate;
+  return r;
+}
+
 export function salesRateOf(
   sales: number,
   table: SalesBackStep[] = DEFAULT_SALES_BACK_TABLE,
@@ -717,8 +729,12 @@ export function payOf(input: PayInput): PayResult {
   const calculatedBack = less(input.calculatedBack ?? 0, tx?.calculated);
 
   // 売上バック
-  const sRate = salesRateOf(cast.sales, input.salesBackTable);
-  const salesBack = roundYen(less(cast.sales, tx?.sales) * sRate); // ★裁定490-4: 率は期の合計の段のまま・母数から体入の日の売上を引く
+  // ★0202f: プランに歩合の段の表があれば、その率を売上の全額に掛ける（丸め 1 回・既定の表は使わない）。表が無い人は次の 2 行（今のまま）
+  const cTiers = eplan.commissionTiers && eplan.commissionTiers.length > 0 ? eplan.commissionTiers : null;
+  const cRate = cTiers ? commissionRateOf(cast.sales, cTiers) : null;
+  const sRate = cTiers ? (cRate as number) / 100 : salesRateOf(cast.sales, input.salesBackTable);
+  const salesBack = cTiers ? roundYen((less(cast.sales, tx?.sales) * (cRate as number)) / 100) : roundYen(less(cast.sales, tx?.sales) * sRate); // ★裁定490-4: 率は期の合計の段のまま・母数から体入の日の売上を引く
+  const commission = cTiers ? { tiers: cTiers.map((t) => ({ at: t.at, rate: t.rate })), rate: cRate as number, base: less(cast.sales, tx?.sales) } : null; // ★0202f: 凍結の形に表と率を残す
 
   // 自由設計バック（metrics は cast 実績＋pointProducts で補完・sim 上書きは反映しない＝モック Vy(u) と同一）
   const metrics: Metrics = {
@@ -779,10 +795,18 @@ export function payOf(input: PayInput): PayResult {
 
   // ③ achievement を足した総額に ① guarantee_min が**最後に床を張る**（差額補填・priority 順＝逐次適用は max と同値）
   let guaranteeAdd = 0;
+  let guaranteeDay: { perDay: number; days: number; floor: number } | null = null; // ★0202f（ホストの骨格 A-1）: params.unit＝'day' の床＝日給 × 出勤日数（unit が無い・'month'＝今のまま）
   for (const c of amountComps) {
     if (c.kind !== "guarantee_min") continue;
+    const unit = (c.params as { unit?: unknown } | null | undefined)?.unit;
+    let floor = c.amount as number;
+    if (unit === "day") {
+      const days = Math.max(0, Math.trunc(input.attendanceDays ?? effDays)); // 出勤日数＝今の attendanceDays（出勤・遅刻・同伴の日・早退の日も 1 日）
+      floor = (c.amount as number) * days;
+      guaranteeDay = { perDay: c.amount as number, days, floor };
+    }
     const cur = grossBase + achievementBonus + guaranteeAdd;
-    if (cur < (c.amount as number)) guaranteeAdd += (c.amount as number) - cur;
+    if (cur < floor) guaranteeAdd += floor - cur;
   }
   let gross = grossBase + achievementBonus + guaranteeAdd; // ①=控除前総支給への床（控除はこの後）
   // ★便 P175-prep P-5（裁定418）: CANON 型＝報酬率の段（UP 累積は時給履歴側・ここは倍率／支給率／減率／ボーナス／支給可否）を gross に差し込む。input.rules0175 が無ければ通らない
@@ -906,6 +930,8 @@ export function payOf(input: PayInput): PayResult {
     customTotal,
     achievementBonus, // ★裁定96-②
     guaranteeAdd,     // ★裁定96-①
+    ...(guaranteeDay ? { guaranteeDay } : {}), // ★0202f: unit＝'day' の部品があるときだけキーを持つ（今の明細と凍結は 1 バイト同値）
+    ...(commission ? { commission } : {}),     // ★0202f: 段の表があるときだけ
     compSkipped,      // ★rate モード等の明示スキップ（黙殺しない）
     ...(canon ? { canon } : {}), // ★便 P175-prep P-5: CANON 型の判定と差分（rules0175 を渡した cast だけキーを持つ＝凍結の互換）
     gross,
