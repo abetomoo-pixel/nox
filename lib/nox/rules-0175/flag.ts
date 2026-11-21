@@ -272,7 +272,7 @@ export function __set0202bForTest(v: boolean | null): void { override0202b = v; 
 /** ★0202e（LINE 連携の確かめを LINE に聞く形に・2026-11-21 夜 起草・試走 19/19・本番は未適用）: onb_line_verify(…, p_result) と ops_org_list の受諾と LINE の確かめの日時。
  *  true＝運営の代行の LINE の 4 段目（確かめ）を押せる（route が Vault のトークンで LINE に聞く）・/ops の「何日前」を受諾と LINE にも出す。false＝押せない（「確かめは次の更新で使えます」）。
  *  枝 night1121-line-verify だけ（push しない）。0202e の適用と検証の後の便で true にする。 */
-export const MIG_0202E_APPLIED = false;
+export const MIG_0202E_APPLIED = true; // ★2026-11-21 23:59:44 本番適用（Agoora が認めた・CC が適用・検証 9 行とも期待値）＝相談役 11/22 0:15 の ■2
 let override0202e: boolean | null = null;
 export function mig0202eOn(): boolean { return override0202e ?? MIG_0202E_APPLIED; }
 export function __set0202eForTest(v: boolean | null): void { override0202e = v; }

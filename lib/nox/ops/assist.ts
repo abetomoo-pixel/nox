@@ -63,6 +63,5 @@ export function promoteErrOf(birthday: string): string | null {
   return null;
 }
 
-/** ★相談役 11/21 22:10 の ■2: LINE の 4 段目（確かめ）は 0202e（LINE に聞いて確かめる onb_line_verify）が本番に入るまで押せない。入ったら true */
+/** ★相談役 11/21 22:10 の ■2 → ★0202e（2026-11-21 23:59 適用）: LINE の 4 段目（確かめ）は 0202e の旗に従う（true＝LINE に聞いて確かめる）。「確かめは次の更新で使えます」の 1 行は 11/22 0:15 に外した */
 export const LINE_VERIFY_READY = MIG_0202E_APPLIED; // ★枝 night1121-line-verify: 0202e の旗に従う
-export const LINE_VERIFY_LATER_NOTE = "確かめは次の更新で使えます";

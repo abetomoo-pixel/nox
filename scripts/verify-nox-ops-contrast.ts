@@ -101,6 +101,8 @@ try {
       opsNextStepOf(opsProgressOf(all, now)) === "なし（導入は済んでいます）" && opsProgressOf(rows[2], now)[0].state === "todo" && opsNextStepOf(opsProgressOf(rows[2], now)) === "オーナーを決めて招待を送る");
     check("c(7-4) 何日前は JST の日付（11/24 00:00 JST は今日・その 1 分前は 1 日前・未来と空は出さない）",
       daysAgoJa("2026-11-23T15:00:00Z", now) === "今日" && daysAgoJa("2026-11-23T14:59:00Z", now) === "1 日前" && daysAgoJa("2026-11-25T00:00:00Z", now) === null && daysAgoJa(null, now) === null);
+    { const r9 = opsProgressOf({ ...rows[1], owner_accepted_at: "2026-11-21T03:00:00Z", line_login_stores: 1, line_notify_stores: 0, line_richmenu_stores: 0, line_verified_at: "2026-11-23T03:00:00Z" }, now);
+      check("c(7-7) ★0202e：受諾と LINE にも「何日前」（受諾＝owner_accepted_at・LINE＝line_verified_at があれば済＋確かめ済み）", r9[0].ago === "3 日前" && r9[2].state === "done" && r9[2].ago === "1 日前" && r9[2].detail.endsWith("・確かめ済み")); }
     const det = SCREENS.find((x) => x.key === "detail")!.html, list = SCREENS.find((x) => x.key === "list")!.html;
     const iP = det.indexOf('data-ops-progress="1"'), iO = det.indexOf('aria-label="オーナー"');
     check("c(7-5) 詳細：導入の状況のカードが一番上（オーナーより前）・次にすることの 1 行・項目 5 つ・導入の状況は 1 つだけ",

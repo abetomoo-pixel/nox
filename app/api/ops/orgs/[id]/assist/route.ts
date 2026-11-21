@@ -5,7 +5,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireOperatorApi } from "@/lib/nox/ops/require-operator";
 import { mig0202bOn } from "@/lib/nox/rules-0175/flag";
-import { assistErrJa, LINE_VERIFY_LATER_NOTE, LINE_VERIFY_READY } from "@/lib/nox/ops/assist";
+import { assistErrJa, LINE_VERIFY_READY } from "@/lib/nox/ops/assist";
 import { getLineSecret } from "@/lib/nox/line/server";
 import { verifyLineChannel } from "@/lib/nox/line/verify-channel";
 import { siteOriginOf, webhookUrlOf } from "@/lib/nox/line/liff-endpoint";
@@ -45,7 +45,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       return NextResponse.json({ ok: true });   // 値は返さない
     }
     case "line_verify": {
-      if (!LINE_VERIFY_READY) return NextResponse.json({ error: LINE_VERIFY_LATER_NOTE }, { status: 409 });   // ★0202e まで止める
+      if (!LINE_VERIFY_READY) return NextResponse.json({ error: "今は確かめられません" }, { status: 409 });   // 0202e の旗が false のときだけ（2026-11-21 23:59 適用＝true）
       // ★0202e: Vault のトークンで LINE に聞く（トークン・URL・ボットの ID は応答にもログにも出さない）→ 真偽の 4 つを関数へ（全部が真のときだけ確かめ済み）
       const { data: sc } = await admin.from("stores").select("line_config").eq("id", store.id).single();
       const lc = (sc?.line_config ?? {}) as Record<string, unknown>;

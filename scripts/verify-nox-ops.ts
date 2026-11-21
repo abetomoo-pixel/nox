@@ -112,7 +112,7 @@ async function dbSection() {
       const kinds = list.ok ? [...new Set(list.r.map((x: Row) => x.kind))].sort().join(",") : "";
       check("(c) ops_org_list＝全部の会社・デモ／検証用の分類", list.ok && list.r.length >= 10 && kinds.includes("demo") && kinds.includes("verify"), list.err ?? `${list.r.length} 行・${kinds}`);
       const cols = list.ok && list.r[0] ? Object.keys(list.r[0]).join(",") : "";
-      check("(c) 返す列に金額・業務の列が無い（名簿で固定）", cols === "org_id,org_name,kind,store_count,billing_status,trial_ends_at,has_subscription,agency_code,onboarding_state,onboarding_done_at,owner_email,owner_invited_at,owner_accepted,setup_done_stores,setup_step_max,setup_draft_at,line_login_stores,line_notify_stores,line_richmenu_stores,line_links,cast_count,staff_count,last_used_at,created_at", cols);
+      check("(c) 返す列に金額・業務の列が無い（名簿で固定）", cols === "org_id,org_name,kind,store_count,billing_status,trial_ends_at,has_subscription,agency_code,onboarding_state,onboarding_done_at,owner_email,owner_invited_at,owner_accepted,setup_done_stores,setup_step_max,setup_draft_at,line_login_stores,line_notify_stores,line_richmenu_stores,line_links,cast_count,staff_count,last_used_at,created_at,owner_accepted_at,line_verified_at" /* ★0202e（2026-11-21 23:59）: 受諾と LINE の確かめの日時を末尾に 2 列 */, cols);
       // (d) テナント追加
       const n0 = async () => (await q("select (select count(*)::int from orgs) o, (select count(*)::int from org_billing) b, (select count(*)::int from stores) s, (select count(*)::int from users) u, (select count(*)::int from memberships) m, (select count(*)::int from audit_logs where action='ops.org.create') a, (select count(*)::int from ops_audit_logs where action='ops.org.create') oa"))[0];
       const c0 = await n0();
