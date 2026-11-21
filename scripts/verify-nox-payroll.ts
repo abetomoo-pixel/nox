@@ -339,7 +339,7 @@ async function main() {
       // set_comp_component: owner 成功（guarantee_min/amount）＋audit 形
       const { data: cid, error: eC1 } = await owner.rpc("set_comp_component", {
         p_id: null, p_plan_id: planV2, p_kind: "guarantee_min", p_mode: "amount",
-        p_amount: 12000, p_rate: null, p_params: { unit: "day" }, p_priority: 100, p_is_active: true,
+        p_amount: 12000, p_rate: null, p_params: { unit: "month" } /* ★0202f（2026-11-22）: 前は意味の無い unit "day"（読まれていなかった）＝月の床の意図のまま "month" に */, p_priority: 100, p_is_active: true,
       });
       compId = (cid as string) ?? null;
       const { data: crow } = await admin.from("comp_plan_components")
@@ -489,7 +489,7 @@ async function main() {
       });
       const { error: eB3 } = await owner.rpc("set_comp_component", {
         p_id: null, p_plan_id: planB97, p_kind: "guarantee_min", p_mode: "amount",
-        p_amount: 88888, p_rate: null, p_params: { unit: "day" }, p_priority: 100, p_is_active: true,
+        p_amount: 88888, p_rate: null, p_params: { unit: "month" } /* ★0202f（2026-11-22）: 同上（unit "day" は日給 × 出勤日数になった） */, p_priority: 100, p_is_active: true,
       });
       check("裁定97 fixture B: 期中割当＋components 2本が成功", !eB1 && !eB2 && !eB3,
         eB1?.message ?? eB2?.message ?? eB3?.message);

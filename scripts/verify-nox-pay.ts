@@ -573,6 +573,15 @@ eq("補足 castPts（玲奈=308pt）", castPts(REINA, 110), 308);
   eq("T16-7 出勤 0 日の人＝床 0 → 補填 0・総支給 0", `${g3.guaranteeAdd}/${g3.gross}/${g3.guaranteeDay?.floor}`, "0/0/0");
   const gm = payOf({ ...gb, plan: G("month", 40_000) }), gn = payOf({ ...gb, plan: G(null, 40_000) });
   eq("T16-8 unit 'month' と unit なし＝今のまま（床＝額 40,000 → 補填 20,000・guaranteeDay キー無し・2 つは結果が 1 バイト同値＝入力の写しを除く）", `${gm.guaranteeAdd}/${"guaranteeDay" in gm}/${noPlan(gm) === noPlan(gn)}`, "20000/false/true");
+  // T16-8b ★相談役 11/22 3:00：保証が 2 つの入力（画面では 1 つに限るが DB は止めない）＝額は今のまま（逐次の差額補填＝高い床が効く）・明細の日給の行は効いた床が日給のときだけ
+  const G2 = (a: { unit: string | null; amount: number }, b: { unit: string | null; amount: number }): CompPlan => ({ ...G(null, 0), components: [a, b].map((x, i) => ({ kind: "guarantee_min", mode: "amount", amount: x.amount, rate: null, params: x.unit ? { unit: x.unit } : {}, priority: 100 + i })) as CompPlan["components"] });
+  const two1 = payOf({ ...gb, plan: G2({ unit: "day", amount: 10_000 }, { unit: "month", amount: 30_000 }) }); // 床 40,000（日給）と 30,000（月）
+  const two2 = payOf({ ...gb, plan: G2({ unit: "day", amount: 5_000 }, { unit: "month", amount: 30_000 }) });  // 床 20,000（日給）と 30,000（月）
+  const two3 = payOf({ ...gb, plan: G2({ unit: "month", amount: 30_000 }, { unit: "day", amount: 10_000 }) }); // 順を入れ替え
+  eq("T16-8b 保証が 2 つ：額は高い床（日給 40,000 → 補填 20,000／月 30,000 → 補填 10,000）・日給の行は効いた床が日給のときだけ・順を入れ替えても同じ",
+    `${two1.guaranteeAdd}/${two1.guaranteeDay?.floor ?? "なし"}/${two2.guaranteeAdd}/${two2.guaranteeDay?.floor ?? "なし"}/${two3.guaranteeAdd}/${two3.guaranteeDay?.floor ?? "なし"}`, "20000/40000/10000/なし/20000/40000");
+  const bl2b = breakdownLinesOf({ pay: two2 as unknown as Parameters<typeof breakdownLinesOf>[0]["pay"] }).earn.map((l) => l.label);
+  eq("T16-8c 効いた床が月の額のとき＝明細に日給の行は出ない", bl2b.some((x) => x.includes("日給")), false);
   // 明細の行（凍結の pay から作る＝breakdownLinesOf）
   const bl = breakdownLinesOf({ pay: g1 as unknown as Parameters<typeof breakdownLinesOf>[0]["pay"] }).earn.map((l) => `${l.label}=${l.amount}`);
   eq("T16-9 明細：「最低保証加算」の下に「日給 ¥10,000 × 出勤 4 日（¥40,000）」の情報の行", bl.some((x) => x.startsWith("最低保証加算=20000")) && bl.some((x) => x.includes("日給 ¥10,000 × 出勤 4 日（¥40,000）")), true);

@@ -19,7 +19,7 @@ import * as t from "../lib/nox/ui/theme";
 import { TERMS_ACCEPT_LABEL, TERMS_VERSION_LABEL } from "../lib/nox/terms";
 import { mineSettingsOf } from "../lib/nox/store/mine-settings";
 import { docOf, PROBE, type Probe } from "./contrast-probe";
-import { applyType, buildV5Plan, HOST_SALES_BACKS, V5_TYPES, v5DefaultState, type V5Ctx } from "../lib/nox/setup/v5";
+import { applyType, buildV5Plan, HOST_COMMISSION_TIERS, HOST_SALES_BACKS, V5_TYPES, v5DefaultState, type V5Ctx } from "../lib/nox/setup/v5";
 process.loadEnvFile(".env.local"); // 部品の中の createClient（ブラウザ用）が URL と鍵の名前を読む＝通信はしない
 (globalThis as { React?: unknown }).React = React;
 
@@ -77,9 +77,12 @@ async function main() {
       const patchOf = (x: typeof p) => (x.find((y) => y.key === "settings")!.args as { p_patch: Record<string, unknown> }).p_patch;
       check("s(4-1) 業態の 6 つ目＝ホストクラブ（指名・売上の歩合中心）・雛形＝セット 7,000／60 分・本指名 3,000・場内 2,000・サービス料 30%・卓 7・時給 0・体験入店 0・ランキング off・丸め 切り上げ・税別",
         V5_TYPES.length === 6 && V5_TYPES[5].id === "host" && V5_TYPES[5].name === "ホストクラブ" && S.rules[0].set === 7000 && S.fees.hon === 3000 && S.fees.jo === 2000 && S.svc === 30 && S.seats.table === 7 && S.pay.base === 0 && S.pay.trial === 0 && S.mine.rank === false && S.roundMode === "up" && S.tax === "ex" && S.menu.reduce((n, c) => n + c.items.length, 0) === 22);
-      check("s(4-2) 確定：業態 host・売上の基準 subtotal・既定の売上歩合を止める・自由設計のバック 6 行（40%＋5%×5・プラン 0 のときだけ）・新人の月の最低保証 160,000",
+      // ★0202f（2026-11-22 03:02 適用・旗 true）: 売上歩合の段は自由設計のバック 6 行から、基本プラン・体験入店・新人の段の表（comp_plan_ext_set の commission_tiers）へ
+      const tierSteps = p.filter((x) => x.rpc === "comp_plan_ext_set" && /_tiers$/.test(x.key));
+      check("s(4-2) 確定：業態 host・売上の基準 subtotal・既定の売上歩合を止める・段の表 3 つ（基本プラン・体験入店・新人＝40〜65%・6 段・自由設計のバックは作らない）・新人の月の最低保証 160,000",
         patchOf(p).biz_type === "host" && patchOf(p).sales_basis === "subtotal" && patchOf(p).sales_back_default_off === true
-        && p.filter((x) => x.rpc === "set_custom_back_def").length === 6 && p.filter((x) => x.rpc === "set_custom_back_def").every((x, i) => x.guard === "plans_empty" && (x.args as { p_value: number }).p_value === HOST_SALES_BACKS[i].value)
+        && p.filter((x) => x.rpc === "set_custom_back_def").length === 0 && HOST_SALES_BACKS.length === 6
+        && tierSteps.length === 3 && tierSteps.map((x) => x.useResult?.from).join(",") === "comp_0,comp_1,comp_2" && tierSteps.every((x) => JSON.stringify((x.args as { p_patch: { commission_tiers: unknown } }).p_patch.commission_tiers) === JSON.stringify(HOST_COMMISSION_TIERS))
         && (p.find((x) => x.key === "comp_2_guarantee")?.args as { p_amount: number; p_kind: string }).p_amount === 160000 && p.find((x) => x.key === "comp_2_guarantee")?.useResult?.from === "comp_2");
       check("s(4-3) 業態が入っている初回の店（lockedType host）：確定の設定に biz_type が無い（host のまま）・ほかの鍵は同じ",
         !("biz_type" in patchOf(pL)) && patchOf(pL).sales_basis === "subtotal" && JSON.stringify({ ...patchOf(p), biz_type: undefined }) === JSON.stringify({ ...patchOf(pL), biz_type: undefined }));

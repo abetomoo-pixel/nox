@@ -115,9 +115,9 @@ for (const c of Object.keys(want)) {
   // ★0202f（枝 night1122-host-core・2026-11-22）: 売上歩合の段は自由設計のバック 6 行から、VESPER Standard と VESPER 新人のプランの段の表（commission_tiers）へ移した（HOST_COMMISSION_TIERS_ON）
   const hostPlans = (T.comp_plans ?? []) as { name: string; commission_tiers?: { at: number; rate: number }[] | null }[];
   const tiersWant = HOST_TIERS.map((t) => ({ at: t.at, rate: t.pct }));
-  check("d(7-2) 売上歩合の段＝VESPER Standard と VESPER 新人に段の表（小計の 40〜65%・境 30〜300 万）・自由設計のバックは 0 行・体験入店は表なし・店の鍵 sales_basis＝'subtotal'・sales_back_default_off＝true",
+  check("d(7-2) 売上歩合の段＝VESPER Standard と VESPER 新人に段の表（小計の 40〜65%・境 30〜300 万）・自由設計のバックは 0 行・体験入店にも同じ表・店の鍵 sales_basis＝'subtotal'・sales_back_default_off＝true",
     HOST_COMMISSION_BASIS === "subtotal" && HOST_COMMISSION_TIERS_ON === true && defs.length === 0 && J(hostCommissionTiersOf()) === J(tiersWant)
-    && ["VESPER Standard", "VESPER 新人"].every((n) => J(hostPlans.find((p) => p.name === n)?.commission_tiers) === J(tiersWant)) && (hostPlans.find((p) => p.name === "体験入店")?.commission_tiers ?? null) === null
+    && ["VESPER Standard", "VESPER 新人", "体験入店"].every((n) => J(hostPlans.find((p) => p.name === n)?.commission_tiers) === J(tiersWant)) /* ★相談役 11/22 2:35 の答え 2: 体験入店にも表 */
     && J(want.map((d) => d.value)) === J([40, 5, 5, 5, 5, 5]) && stS.sales_basis === "subtotal" && stS.sales_back_default_off === true);
   const dueV = hostCommissionDefsOf("due");
   check("d(7-3) 請求額の基準へ戻す道（1 か所）＝率 28＋3／4／3／4／3・境 × 1.43・店の鍵なし", J(dueV.map((d) => d.value)) === J([28, 3, 4, 3, 4, 3]) && J(dueV.slice(1).map((d) => d.cond?.min)) === J([429000, 715000, 1430000, 2860000, 4290000]) && J(hostStoreSettingsOf("due")) === J({}) && J(hostStoreSettingsOf("subtotal")) === J({ sales_basis: "subtotal", sales_back_default_off: true }));

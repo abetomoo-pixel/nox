@@ -401,8 +401,8 @@ export function buildV5Plan(S: V5State, ctx: V5Ctx): { steps: V5Step[]; deferred
   if (S.type === "host") { // ★2026-11-21 夜（3）: host_standard＝VESPER の「新人」（月の最低保証 160,000 円）と売上歩合の段（自由設計のバック 6 行＝小計の 40%＋段ごとに 5%）。新しい店（プラン 0）のときだけ
     push({ key: "comp_2", group: "comp", label: "待遇プラン「新人」（月の最低保証つき）", rpc: "set_comp_plan", guard: "plans_empty", args: planArgs("新人", S.pay.base, false) });
     push({ key: "comp_2_guarantee", group: "comp", label: "「新人」の月の最低保証 ¥160,000", rpc: "set_comp_component", useResult: { from: "comp_2", as: "p_plan_id" }, args: { p_id: null, p_kind: "guarantee_min", p_mode: "amount", p_amount: 160000, p_rate: null, p_params: {}, p_priority: 100, p_is_active: true } });
-    if (mig0202fOn()) {   // ★0202f（枝 night1122-host-core）: 売上歩合の段はプランの段の表（commission_tiers）＝基本プランと新人に同じ表・自由設計のバックは作らない
-      for (const from of ["comp_0", "comp_2"]) push({ key: `${from}_tiers`, group: "comp", label: `「${from === "comp_0" ? "基本プラン" : "新人"}」の歩合の段の表（小計の 40〜65%・6 段）`, rpc: "comp_plan_ext_set", useResult: { from, as: "p_plan_id" }, args: { p_patch: { commission_tiers: HOST_COMMISSION_TIERS } } });
+    if (mig0202fOn()) {   // ★0202f（枝 night1122-host-core）: 売上歩合の段はプランの段の表（commission_tiers）＝基本プラン・体験入店・新人に同じ表（相談役 11/22 2:35 の答え 2）・自由設計のバックは作らない
+      for (const from of ["comp_0", "comp_1", "comp_2"]) push({ key: `${from}_tiers`, group: "comp", label: `「${from === "comp_0" ? "基本プラン" : from === "comp_1" ? "体験入店" : "新人"}」の歩合の段の表（小計の 40〜65%・6 段）`, rpc: "comp_plan_ext_set", useResult: { from, as: "p_plan_id" }, args: { p_patch: { commission_tiers: HOST_COMMISSION_TIERS } } });
     } else HOST_SALES_BACKS.forEach((b, i) => push({ key: `custom_back_${i}`, group: "comp", label: `売上歩合「${b.name}」`, rpc: "set_custom_back_def", guard: "plans_empty", args: { p_id: null, p_store_id: s, p_name: b.name, p_basis: "sales", p_value: b.value, p_cond: b.cond, p_is_active: true } }));
   }
   // ★2026-11-17（相談役 2・Agoora「初期設定からいる」）: 報酬率スライドを選んだら、基本プランに報酬の軸（pay_rate）だけ保存する（comp_plan_ext_set・owner）。段は保存しない＝段を入れるまで計算は基本の時給

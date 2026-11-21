@@ -79,9 +79,15 @@ const PB_KEYS: (keyof Draft)[] = ["productBackMode", "productBackRate", "product
 // components（最低保証／達成ボーナス）の行＋追加/編集フォーム。★モジュール階層＝state が親再レンダーで飛ばない。
 function CompRows({ kind, section, comps, isOwner, onSave }: {
   kind: string; section: string; comps: CompRow[]; isOwner: boolean;
-  onSave: (section: string, kind: string, over: { id: string | null; amount: number; priority: number; active: boolean }) => Promise<void>;
+  onSave: (section: string, kind: string, over: { id: string | null; amount: number; priority: number; active: boolean; unit?: "month" | "day" }) => Promise<void>;
 }) {
   const rows = comps.filter((c) => c.kind === kind);
+  // ★0202f（相談役 11/22 3:00）: 保証は 1 つのプランに 1 つ（画面だけで限る・DB の set_comp_component は変えない）。保証がすでにあるときは「追加」を出さず、今の 1 つ（有効なものを先に）を直す形にする。
+  //   単位（月の額／日給 × 出勤日数）はその 1 つの中で選ぶ（params.unit）。旗 MIG_0202F_APPLIED の後ろ（false は今のまま＝追加できる）。
+  const single = kind === "guarantee_min" && mig0202fOn();
+  const cur = single ? (rows.find((r) => r.is_active) ?? rows[0] ?? null) : null;
+  const unitOf = (r: CompRow | null | undefined): "month" | "day" => ((r?.params as { unit?: unknown } | null | undefined)?.unit === "day" ? "day" : "month");
+  const [unit, setUnit] = useState<"month" | "day">(() => unitOf(cur));
   const [amount, setAmount] = useState(0);
   const [editId, setEditId] = useState<string | null>(null);
   const [active, setActive] = useState(true);
@@ -89,6 +95,7 @@ function CompRows({ kind, section, comps, isOwner, onSave }: {
   //   適用順は kind で決まり（achievement 加算→guarantee 床＝pay.ts）、同 kind 内は加算/逐次 max＝順序非依存
   //   （2026-09-01 実測＝挙動不変）。既存行の priority 値は上書き保存時にこの固定値へ収斂する。
   const FIXED_PRIORITY = kind === "guarantee_min" ? 100 : 90;
+  useEffect(() => { if (single && cur) { setEditId(cur.id); setAmount(cur.amount ?? 0); setActive(cur.is_active); setUnit(unitOf(cur)); } }, [single, cur?.id, cur?.amount, cur?.is_active]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <div>
       {rows.length > 0 && (
@@ -100,7 +107,7 @@ function CompRows({ kind, section, comps, isOwner, onSave }: {
               <tr key={c.id} onClick={() => { if (!isOwner) return; setEditId(c.id); setAmount(c.amount ?? 0); setActive(c.is_active); }}
                 style={{ cursor: isOwner ? "pointer" : "default" }}>
                 <td className="num">{(c.amount ?? 0).toLocaleString()} 円</td>{/* ★X-13-19: 通貨は接尾「円」（¥ 接頭撤去） */}
-                <td>{kind === "guarantee_min" ? "月（固定）" : "達成100%・1段（固定）"}</td>
+                <td>{kind === "guarantee_min" ? (single && unitOf(c) === "day" ? "日給 × 出勤日数" : "月（固定）") : "達成100%・1段（固定）"}</td>
                 <td style={{ color: c.is_active ? "var(--ok)" : "var(--sub)" }}>{c.is_active ? "有効" : "無効"}</td>
               </tr>
             ))}
@@ -110,15 +117,22 @@ function CompRows({ kind, section, comps, isOwner, onSave }: {
       )}
       {isOwner && (
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-          <span style={{ fontSize: 12, color: "var(--sub)" }}>{editId ? "編集中" : "追加"}</span>
-          <label style={{ fontSize: 12 }}>{kind === "guarantee_min" ? "保証額（月）" : "加算額"}{/* ★X-13-19: 単位は MoneyInput の「円」だけ（「円 円」の二重を解消） */}{" "}
+          <span style={{ fontSize: 12, color: "var(--sub)" }}>{single ? (editId ? "保証（1 つ）" : "保証を入れる") : editId ? "編集中" : "追加"}</span>
+          {single && (
+            <span role="radiogroup" aria-label="保証の単位" style={{ display: "inline-flex", gap: 6 }} data-guarantee-unit={unit}>
+              {([["month", "月の額"], ["day", "日給 × 出勤日数"]] as const).map(([v, l]) => (
+                <button key={v} type="button" role="radio" aria-checked={unit === v} onClick={() => setUnit(v)} style={{ ...(unit === v ? t.btnGold : t.btnGhost), ...t.btnSm }} data-guarantee-unit-opt={v}>{l}</button>
+              ))}
+            </span>
+          )}
+          <label style={{ fontSize: 12 }}>{kind === "guarantee_min" ? (single && unit === "day" ? "日給" : "保証額（月）") : "加算額"}{/* ★X-13-19: 単位は MoneyInput の「円」だけ（「円 円」の二重を解消） */}{" "}
             <MoneyInput value={amount} onChange={(v) => setAmount(Number(v || 0))} style={t.input} width={130} ariaLabel="金額" /></label>
           <label style={{ fontSize: 12 }}><input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} /> 有効</label>
           <button type="button" style={{ ...t.btnGhost, ...t.btnSm }}
-            onClick={() => void onSave(section, kind, { id: editId, amount, priority: FIXED_PRIORITY, active })}>
+            onClick={() => void onSave(section, kind, { id: editId, amount, priority: FIXED_PRIORITY, active, ...(single ? { unit } : {}) })} data-comp-save={kind}>
             {editId ? "更新" : "追加"}
           </button>
-          {editId && <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} onClick={() => { setEditId(null); setAmount(0); setActive(true); }}>追加に戻す</button>}
+          {editId && !single && <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} onClick={() => { setEditId(null); setAmount(0); setActive(true); }}>追加に戻す</button>}
         </div>
       )}
     </div>
@@ -302,9 +316,9 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
     await reload();
   }
 
-  async function saveComp(section: string, kind: string, over: { id: string | null; amount: number; priority: number; active: boolean }) {
+  async function saveComp(section: string, kind: string, over: { id: string | null; amount: number; priority: number; active: boolean; unit?: "month" | "day" }) {
     if (!draft.id) { setSecErr((e) => ({ ...e, [section]: "先にプランを保存してください（基本給・保証の保存でプランが作成されます）" })); return; }
-    const params = { period: "month" }; // ★便 P173 T-2: 達成ボーナスは saveBonus（多段）
+    const params = { period: "month", ...(over.unit ? { unit: over.unit } : {}) }; // ★便 P173 T-2: 達成ボーナスは saveBonus（多段）・★0202f: 保証の単位（month／day）
     const { error } = await supabase.rpc("set_comp_component", {
       p_id: over.id, p_plan_id: draft.id, p_kind: kind, p_mode: "amount",
       p_amount: over.amount, p_rate: null, p_params: params, p_priority: over.priority, p_is_active: over.active,

@@ -796,15 +796,18 @@ export function payOf(input: PayInput): PayResult {
   // ③ achievement を足した総額に ① guarantee_min が**最後に床を張る**（差額補填・priority 順＝逐次適用は max と同値）
   let guaranteeAdd = 0;
   let guaranteeDay: { perDay: number; days: number; floor: number } | null = null; // ★0202f（ホストの骨格 A-1）: params.unit＝'day' の床＝日給 × 出勤日数（unit が無い・'month'＝今のまま）
+  let topFloor = -1; // ★0202f（相談役 11/22 3:00）: 明細の日給の行は、効いた床（一番高い床）が日給のときだけ（額の式＝逐次の差額補填は変えない）
   for (const c of amountComps) {
     if (c.kind !== "guarantee_min") continue;
     const unit = (c.params as { unit?: unknown } | null | undefined)?.unit;
     let floor = c.amount as number;
+    let day: { perDay: number; days: number; floor: number } | null = null;
     if (unit === "day") {
       const days = Math.max(0, Math.trunc(input.attendanceDays ?? effDays)); // 出勤日数＝今の attendanceDays（出勤・遅刻・同伴の日・早退の日も 1 日）
       floor = (c.amount as number) * days;
-      guaranteeDay = { perDay: c.amount as number, days, floor };
+      day = { perDay: c.amount as number, days, floor };
     }
+    if (floor > topFloor) { topFloor = floor; guaranteeDay = day; } // 同じ高さなら先の部品（priority 順）
     const cur = grossBase + achievementBonus + guaranteeAdd;
     if (cur < floor) guaranteeAdd += floor - cur;
   }

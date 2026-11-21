@@ -280,7 +280,7 @@ export function __set0202eForTest(v: boolean | null): void { override0202e = v; 
 /** ★0202f（ホストの骨格・2026-11-22 起草・相談役 0:15 の ■3＝起草と試走まで・本番は未適用）: comp_plans.commission_tiers（歩合の段の表）と guarantee_min の params.unit（'day'＝日給 × 出勤日数）。
  *  true＝collect が commission_tiers を読む・プランの編集の画面に段の表の欄。false＝読まない（列が無い）＝今の計算と 1 バイト同値。
  *  枝 night1122-host-core だけ（push しない）。式は相談役が前後の比べを読んでから合図。 */
-export const MIG_0202F_APPLIED = false;
+export const MIG_0202F_APPLIED = true; // ★2026-11-22 03:02:33 本番適用（Agoora が認めた・CC が適用・検証 9 行とも期待値）＝相談役 11/22 3:00
 let override0202f: boolean | null = null;
 export function mig0202fOn(): boolean { return override0202f ?? MIG_0202F_APPLIED; }
 export function __set0202fForTest(v: boolean | null): void { override0202f = v; }

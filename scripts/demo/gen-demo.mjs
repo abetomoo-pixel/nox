@@ -266,7 +266,7 @@ for (const st of STORES) {
   const TR = TRIAL[code]; const trialPlanId = uid(`plan:trial:${code}`);
   // ★裁定490 (a)（12 点の 1・10・2026-11-16）: 体入の間は店の既定のプランを持つ＝体入のキャストの cast_plan（3 行）は店の既定のプラン（下の W-18 ④ と同じ＝体験入店以外の最初のプラン）。体験入店プランの行は残す（割り当て 0）
   const trialHoldPlanId = plans.length ? uid(`plan:${plans[0].plan_id}`) : (extraPlans[0]?.id ?? trialPlanId);
-  push("comp_plans", { id: trialPlanId, store_id: storeId, name: "体験入店", base: TR.base, slide_apply: null, ...PLAN_0175_KEYS, ...RATE_NULL_KEYS, /* ★Y2b 直し */ /* ★便 ON-2: CANON 店はキー集合を揃える */ /* ★便 P173: 体験入店はスライドなし＝店設定 */ hon_back: 0, jonai_back: 0, dohan_back: 0,
+  push("comp_plans", { id: trialPlanId, store_id: storeId, name: "体験入店", base: TR.base, slide_apply: null, ...(code === "host" && HOST_COMMISSION_TIERS_ON ? { commission_tiers: hostCommissionTiersOf() } : {}), /* ★0202f（相談役 11/22 2:35 の答え 2）: 体験入店にも同じ表 */ ...PLAN_0175_KEYS, ...RATE_NULL_KEYS, /* ★Y2b 直し */ /* ★便 ON-2: CANON 店はキー集合を揃える */ /* ★便 P173: 体験入店はスライドなし＝店設定 */ hon_back: 0, jonai_back: 0, dohan_back: 0,
     sales_slide: [], point_slide: [], is_active: true, hon_back_mode: "per_count", hon_back_rate: null, jonai_back_mode: "per_count", jonai_back_rate: null, dohan_back_mode: "per_count", dohan_back_rate: null, product_back_mode: "plan_fixed", product_back_rate: null, product_back_fixed: 0, product_back_fixed_hon: null, product_back_fixed_jonai: null, product_back_fixed_free: null, slide_period: "daily", slide_basis: "sales", slide_rank_ids: [] });
   let castSeq = 0;
   const people = D("people").filter((p) => p.store_id === S);
