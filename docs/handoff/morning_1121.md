@@ -393,3 +393,8 @@
 - 本番の書込：0202a の適用と、P3 の確かめ（運営者の作成と削除・NOX-CHECK-招待 の作成と操作・招待メール 2 通）と、デモ ACE の許可・打刻・reset だけ。
 - 0202b・0202c は適用していない。f0 の走行中と 06:05〜06:40 には書いていない。Vercel には入っていない。
 - 走らせたままのもの：無し（ローカルの本番版は止め、.claude/launch.json は元に戻し、ビルドの出力は消した）。
+
+### 最初の運営者の登録（相談役 15:56＝Agoora の依頼・CC が行った・本番の書込はこの登録だけ）
+- auth のユーザーは**いなかった**＝CC が admin API で作った（15:56:54・確認済みの扱い・パスワードは乱数でどこにも記録していない）。登録は 15:56:59 に 1 つの取引で 1 回（ops_operators 1 行・監査 'ops.operator.seed'（by 'cc-on-agoora-request'）1 行）。後の読取＝運営者は info@agoora.co.jp・Agoora・ops_admin・true の 1 行だけ・public.users 0（ログ docs/tmp/ops_first_operator_1121.log）。
+- パスワードを決める手順（コードを読んで通ると確かめた＝運営者でも止める所が無い）：① https://noxapp.jp/auth/forgot に info@agoora.co.jp を入れて「再設定の案内を送る」② メールのリンクを開き「続ける」→ 新しいパスワードを 2 回入れて決める（決めた後は店の画面へ送られ、店のユーザーではないので店のログイン画面に戻る＝それで正しい）③ https://noxapp.jp/ops/login で入り、認証アプリを登録する（手順書 C の 9〜10）。
+- メールが届かないとき：Supabase の画面（URL の ref を目で見る）› Authentication › Users › info@agoora.co.jp ›「Send password recovery」で同じメールを出し直せる（同じ送り手なので、それでも届かなければ送りの設定を見る必要がある＝CC は触れていない）。
