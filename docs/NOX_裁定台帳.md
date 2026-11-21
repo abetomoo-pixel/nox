@@ -6017,6 +6017,13 @@ CC の処置＝M-130（下の節）。
 - 関数・表の数の pin（455／122）を 463／124 に張り替え。旗 MIG_0202A_APPLIED は枝 night1120-ops-console を main に入れる便で true。
 - 旗 true＝874d05a7（2026-11-21・枝の取り込み・f0 235 段 8,555 件 2 連緑・本番反映 14:40:49）。本番の /ops を確かめ専用の運営者で通して合格・確かめの運営者は 14:43:44 に消した（運営の監査 7 行は残る）・確かめ用の会社 NOX-CHECK-招待（f58ac866…）は消さない（Agoora が受諾を確かめる）。詳細＝docs/handoff/morning_1121.md「追記（11/21 昼）」。
 
+## 0202c 本番適用（2026-11-21 18:28:11・**Agoora が認めた・相談役 11/21 18:40 の便の 1 で CC が適用＝手貼りの例外**・0202a と同じ手順）
+- 中身＝0176 の audit_log_write_service の引数の取り違え 4 か所を直した（set_line_secret・bind_line・staff_invite_accept・shift_periods_auto_close の監査の呼び出し 1 か所ずつ＝行い手の欄は null・店の欄に店の id）。create or replace 4 本・関数と表の数は変わらない。ほかは 1 字も変えていない。
+- 指紋＝本体 9885afc0…8ece8947c・事前確認 6984853a…17c54d7e・検証 9c88be13…3f936e9017e（適用の直前に取り直して 3 つとも一致）。繋ぎ先 ref hiqbfagmkrdpmlqhkmsu・ロール postgres・ほかに本番へ繋ぐ CC の処理 0・f0 の走行中ではない。事前確認＝貼り先証明の 1 行だけ（会社 12）・本体をファイルのまま 1 回（BEGIN … COMMIT）・検証 7 行とも期待値（関数 463 は前と同じ・4 本の md5 が起草と一致・店を行い手にした呼び出しの残り 0）。全文＝docs/tmp/apply_0202c_1121.log。
+- 前後とも関数 463・表 124。収蔵＝supabase/migrations/0202c_audit_service_args.sql（sha 一致）。4 本の本文を写す検査・数の pin は無い＝張り替えなし（収める前に確かめた）。
+- staff_invite_accept の行い手は null のまま（相談役の指示）。
+- **0202c の前の 8 行は店の欄が空**（bind_line 4・set_line_secret 2・shift_period_auto_close 2＝行い手の欄に店の id）。直さない（docs/tmp/0202c_data_fix.sql は流していない）。
+
 ## 次の番号（2026-11-18 夜・裁定505／506・教訓157〜159 を収載した時点＝実測）
 - **次の裁定＝507**・**次の M＝M-195**・**次の起票＝136**・**次の教訓＝160**。
 
