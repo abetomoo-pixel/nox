@@ -31,7 +31,7 @@ export default async function OpsOrgPage({ params }: { params: Promise<{ id: str
       admin.from("orgs").select("is_demo").eq("id", id).maybeSingle(),
       admin.from("ops_support_grants").select("expires_at").eq("org_id", id).is("revoked_at", null).gt("expires_at", new Date().toISOString()).order("expires_at", { ascending: false }).limit(1).maybeSingle(),
     ]);
-    assist = assistGateOf({ onboarding_state: row.onboarding_state, is_demo: org?.is_demo === true, support_until: (grant?.expires_at as string | undefined) ?? null }, new Date());
+    assist = org?.is_demo === true ? null : assistGateOf({ onboarding_state: row.onboarding_state, is_demo: false, support_until: (grant?.expires_at as string | undefined) ?? null }, new Date());   // デモの会社には入口を出さない（代行の関数もデモを止める）
   }
   return <OpsShell name={op.name}><OrgDetail row={row} logs={logRows} nowIso={new Date().toISOString()} assist={assist} /></OpsShell>;
 }

@@ -143,7 +143,9 @@ export default async function MasterSystemPage() {
   // ★枝 night1121-ops-v2（0202b 版 4・旗 MIG_0202B_APPLIED の後ろ）: オーナーだけ「サポート許可」（1／3／7 日・取り消し）と「導入完了にする」
   if (mig0202bOn() && role === "owner") {
     const { data: orgId } = await supabase.rpc("auth_org_id");
-    if (orgId) tabs.push({ key: "support", label: "◇ サポート許可", node: <SupportGrantPanel orgId={orgId as string} /> });
+    const { data: orgRow } = orgId ? await supabase.from("orgs").select("is_demo").eq("id", orgId as string).maybeSingle() : { data: null };
+    if (orgId && orgRow?.is_demo !== true) tabs.push(   // デモの会社には出さない（関数も forbidden (demo)・reset で戻らない）
+     { key: "support", label: "◇ サポート許可", node: <SupportGrantPanel orgId={orgId as string} /> });
   }
 
   return (

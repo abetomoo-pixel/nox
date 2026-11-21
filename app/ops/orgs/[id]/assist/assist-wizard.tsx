@@ -121,7 +121,7 @@ export default function AssistWizard(p: AssistProps) {
             <div className="nox-actions"><button type="button" style={t.btnGold} disabled={dis || !token.trim()} onClick={() => void post("token", { action: "line_secret", kind: "access_token", secret: token }, "アクセストークンを入れました（画面には出しません）", () => setToken(""))}>{busy === "token" ? "保存中…" : "トークンを保存"}</button></div>
             {msgAt("token")}
             <b style={{ fontSize: 13.5, marginTop: 6 }}>4. 友だち追加と連携の確かめ</b>
-            <p style={{ ...t.sub, fontSize: 12, margin: 0, lineHeight: 1.7 }}>店の人がボットを友だちに追加し、店の画面のリンクから連携した後に押します（つながった人が 1 人以上いれば確かめ済み）。</p>
+            <p style={{ ...t.sub, fontSize: 12, margin: 0, lineHeight: 1.7 }}>LINE に問い合わせて確かめます（ボットの ID が保存した値と同じ・Webhook の登録先が NOX・テストが通る）。</p>
             <div className="nox-actions"><button type="button" style={t.btnGhost} disabled={dis || !LINE_VERIFY_READY} onClick={() => void post("verify", { action: "line_verify" }, "連携を確かめました")} data-line-verify-btn={LINE_VERIFY_READY ? "1" : "0"}>{busy === "verify" ? "確かめ中…" : "連携を確かめる"}</button></div>
             {!LINE_VERIFY_READY && <p style={{ ...t.sub, fontSize: 12, margin: 0, textAlign: "center" }} data-line-verify-later="1">{LINE_VERIFY_LATER_NOTE}</p>}
             {msgAt("verify")}
