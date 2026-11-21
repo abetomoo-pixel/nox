@@ -43,6 +43,7 @@ import {
   DEFAULT_SALES_BACK_TABLE, // ★0202f
 } from "../lib/nox/pay";
 import { roundYen } from "../lib/nox/money"; // ★0202f
+import fs from "node:fs"; // ★0202f（collect の行の pin）
 import { breakdownLinesOf } from "../lib/nox/payroll/breakdown-lines"; // ★0202f
 
 // ── assert ────────────────────────────────────────────────────
@@ -579,6 +580,17 @@ eq("補足 castPts（玲奈=308pt）", castPts(REINA, 110), 308);
   eq("T16-10 明細：段の表の人は「売上歩合 55%（小計 ¥1,234,567 の 55%）」", bl2.some((x) => x === "売上歩合 55%（小計 ¥1,234,567 の 55%）"), true);
   const old = breakdownLinesOf({ pay: payOf(REINA_INPUT) as unknown as Parameters<typeof breakdownLinesOf>[0]["pay"] }).earn.map((l) => l.label);
   eq("T16-11 凍結済みの今の形（commission・guaranteeDay キー無し）の明細は今の行のまま（「売上バック（率）」・日給の行は出ない）", `${old.includes("売上バック（率）")}/${old.some((x) => x.includes("日給"))}`, "true/false");
+  // T16-13／14 ★相談役 11/22 2:35 の ■1 A：店の鍵 sales_back_default_off と各種バック（sys_backs）の止めは、既定の表（3〜10%）だけを止める＝collect は salesBackTable を [] にするだけ（下の pin）。
+  //   段の表の人は表で払う（4 通りとも同じ額）・表なしの人は今の main と同じ（止めが無いときだけ既定の表 7%・どちらかの止めで 0）
+  const colSrc = fs.readFileSync("lib/nox/payroll/collect.ts", "utf8");
+  eq("T16-13a collect の止めの判定＝各種バックが ON かつ既定を止めていないときだけ既定の表・それ以外は salesBackTable []（ほかに売上歩合を止める所が無い）",
+    colSrc.includes('...(isSystemOn((stR.data?.settings_json ?? null) as Record<string, unknown> | null, "sys_backs") && !salesBackDefaultOffOf((stR.data?.settings_json ?? null) as Record<string, unknown> | null, mig0201qOn()) ? {} : { salesBackTable: [] }),') && (colSrc.match(/salesBackTable/g) ?? []).length === 1, true);
+  const tableFor = (sysBacksOn: boolean, defaultOff: boolean) => (sysBacksOn && !defaultOff ? {} : { salesBackTable: [] }); // collect の行の写し
+  const combos: [boolean, boolean][] = [[true, false], [true, true], [false, false], [false, true]];
+  const withT = combos.map(([on, off]) => payOf({ ...base, ...tableFor(on, off) }).salesBack);
+  eq("T16-13 表あり × 各種バック ON／OFF × 既定の止め あり／なし の 4 通り＝どれも表の額（55%）", withT.join("/"), Array(4).fill(t1.salesBack).join("/"));
+  const noT = combos.map(([on, off]) => payOf({ ...base, plan: P_none as CompPlan, ...tableFor(on, off) }).salesBack);
+  eq("T16-14 表なしの 4 通り＝今の main と同じ（止めなし＝既定の表 7%・各種バック OFF か既定の止め＝0）", noT.join("/"), `${roundYen(1_234_567 * 0.07)}/0/0/0`);
   const rg = payOf(REINA_INPUT);
   eq("T16-12 golden 不変（玲奈 5931／125802・commission と guaranteeDay のキー無し）", `${rg.wage}/${rg.withholding}/${"commission" in rg}/${"guaranteeDay" in rg}`, "5931/125802/false/false");
 }
