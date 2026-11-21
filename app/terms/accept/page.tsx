@@ -19,8 +19,9 @@ export default async function TermsAcceptPage() {
     supabase.rpc("terms_accepted_version_ok", { p_version: TERMS_VERSION }),
   ]);
   if (orgRow?.is_demo === true || ok === true) redirect(role === "cast" ? "/mine" : "/dashboard");
+  // ★2026-11-21（相談役 18:40 の 2a）: t.loginBg は横並びの flex＝スマホでロゴとカードが横に並んで潰れた → 縦（ロゴが上・カードが下・中央）。カードは画面の幅に収める
   return (
-    <main className="nox-dark" style={{ ...t.loginBg, minHeight: "100dvh", padding: "24px 16px" }}>
+    <main className="nox-dark" style={{ ...t.loginBg, flexDirection: "column", minHeight: "100dvh", padding: "24px 16px" }} data-terms-accept-page="1">
       <div style={{ textAlign: "center", marginBottom: 18 }}><span style={{ ...t.brand, fontSize: 26 }}>NOX</span></div>
       <TermsAcceptForm isOwner={(rules0175On() ? roleRaw : role) === "owner"} orgName={(orgRow?.name as string | undefined) ?? "この店舗"} />
     </main>

@@ -5,13 +5,14 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import * as t from "@/lib/nox/ui/theme";
 import { Message } from "@/components/ui/toast";
+import { OpsProgressCard } from "../../ops-progress";
 import { fmtJst, inviteLabelOf, kindLabelOf, lineLabelOf, onboardingLabelOf, opsErrJa, routeLabelOf, ROUTE_FIELD_NOTE, setupLabelOf, type OpsOrgRow } from "@/lib/nox/ops/labels";
 
 export type OpsLogRow = { id: string; at: string; who: string; action: string; before: unknown; after: unknown; reason: string | null };
 const ACTION_LABEL: Record<string, string> = { "ops.org.create": "作成", "ops.agency_code": "経路", "ops.onboarding": "導入", "ops.org.reinvite": "招待の出し直し" };
 const brief = (v: unknown): string => (v == null ? "—" : typeof v === "object" ? Object.entries(v as Record<string, unknown>).map(([k, x]) => `${k}: ${x ?? "—"}`).join("・") : String(v));
 
-export default function OrgDetail({ row, logs }: { row: OpsOrgRow; logs: OpsLogRow[] }) {
+export default function OrgDetail({ row, logs, nowIso }: { row: OpsOrgRow; logs: OpsLogRow[]; nowIso: string }) {
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
   const [out, setOut] = useState<{ at: string; ok: boolean; text: string } | null>(null);
@@ -32,6 +33,8 @@ export default function OrgDetail({ row, logs }: { row: OpsOrgRow; logs: OpsLogR
   return (
     <div data-ops-detail={row.org_id} style={{ maxWidth: 760, margin: "0 auto" }}>
       <h1 style={{ fontSize: 18, margin: "0 0 12px", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>{row.org_name}<span className="nox-stpill">{kindLabelOf(row)}</span></h1>
+      {/* ★2026-11-21 夜（2c）: 導入の状況を一番上へ（次にすること＋項目ごとの札）。now はサーバの時刻（描画のずれを作らない） */}
+      <OpsProgressCard row={row} now={new Date(nowIso)} />
 
       <section style={sec} aria-label="オーナー">
         <h2 style={h2}>オーナー</h2>
@@ -81,18 +84,6 @@ export default function OrgDetail({ row, logs }: { row: OpsOrgRow; logs: OpsLogR
             {msgAt("onboarding")}
           </>
         )}
-      </section>
-
-      <section style={sec} aria-label="導入の状況">
-        <h2 style={h2}>導入の状況</h2>
-        <dl style={{ display: "grid", gridTemplateColumns: "max-content 1fr", gap: "4px 12px", margin: 0, fontSize: 13 }}>
-          <dt style={t.sub}>店の数</dt><dd style={{ margin: 0 }}>{row.store_count}</dd>
-          <dt style={t.sub}>初期設定</dt><dd style={{ margin: 0 }}>{setupLabelOf(row)}</dd>
-          <dt style={t.sub}>LINE</dt><dd style={{ margin: 0 }}>{lineLabelOf(row)}</dd>
-          <dt style={t.sub}>キャスト・スタッフ</dt><dd style={{ margin: 0 }}>{row.cast_count} 人・{row.staff_count} 人</dd>
-          <dt style={t.sub}>最後に使われた時刻</dt><dd style={{ margin: 0 }}>{fmtJst(row.last_used_at)}</dd>
-          <dt style={t.sub}>お試しの期限</dt><dd style={{ margin: 0 }}>{row.kind === "tester" ? "期限なし" : row.kind === "trial" ? fmtJst(row.trial_ends_at, false) : "—"}</dd>
-        </dl>
       </section>
 
       <section style={sec} aria-label="運営の記録">

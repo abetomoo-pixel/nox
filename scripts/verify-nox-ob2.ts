@@ -30,7 +30,7 @@ const stateOf = (t: V5Type): V5State => { const s = applyType(v5DefaultState("20
 async function main() {
   // ── (A) 正本と写経 ──
   const html = fs.existsSync("docs/handoff/mock/setup_v5.html") ? src("docs/handoff/mock/setup_v5.html") : "";
-  check("ob2(A-1) 正本モック（初期設定 v5）が repo にある（9 STEP・業態 5）", html.includes('var STEPS=["お店","席・卓","料金","メニュー","キャスト待遇","スタッフ","シフト・勤怠","会計・レジ","確認"]') && html.includes('{id:"cabaret",name:"キャバクラ"') && J(V5_STEPS) === J(["お店", "席・卓", "料金", "メニュー", "キャスト待遇", "スタッフ", "シフト・勤怠", "会計・レジ", "確認"]) && V5_TYPES.length === 5);
+  check("ob2(A-1) 正本モック（初期設定 v5）が repo にある（9 STEP・業態 5＋ホスト）", html.includes('var STEPS=["お店","席・卓","料金","メニュー","キャスト待遇","スタッフ","シフト・勤怠","会計・レジ","確認"]') && html.includes('{id:"cabaret",name:"キャバクラ"') && J(V5_STEPS) === J(["お店", "席・卓", "料金", "メニュー", "キャスト待遇", "スタッフ", "シフト・勤怠", "会計・レジ", "確認"]) && V5_TYPES.length === 6 && V5_TYPES[5].id === "host") /* ★2026-11-21 夜（相談役 18:40 の 3）: モックの 5 業態の後ろにホストクラブ（雛形＝CLUB VESPER）を足した */;
   const cab = V5_TPL.cabaret(), bar = V5_TPL.bar(), gb = V5_TPL.girlsbar(), lg = V5_TPL.lounge(), sn = V5_TPL.snack();
   check("ob2(A-2) テンプレ値＝モック逐語（キャバクラ セット 7,000／60 分・延長 30 分 3,500＋60 分 7,000・VIP 10,000・本指名 3,000・サ 20／VIP 25・席 卓10 VIP2／ガールズバー チャージ 3,000 カウンター 10／スナック 90 分 5,000／ラウンジ 8,000・VIP 12,000／バー チャージ 1,000・min 0）",
     cab.rules[1].set === 7000 && cab.rules[1].min === 60 && J(cab.rules[1].ext) === J([[30, 3500, 1], [60, 7000, 0]]) && cab.rules[2].set === 10000 && cab.rules[2].seat === "VIP" && cab.fees.hon === 3000 && cab.svc === 20 && cab.svcVip === 25 && cab.seats.table === 10 && cab.seats.vip === 2 && cab.pay.base === 3000 && cab.back.drink === 50 && cab.vip[0] === true && cab.vip[1] === 5000

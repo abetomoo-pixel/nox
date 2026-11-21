@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useState } from "react";
 import * as t from "@/lib/nox/ui/theme";
-import { fmtJst, inviteLabelOf, kindLabelOf, lineLabelOf, OPS_KIND_FILTERS, OPS_ROUTE_FILTERS, opsFilterOf, routeLabelOf, setupLabelOf, type OpsOrgRow } from "@/lib/nox/ops/labels";
+import { fmtJst, kindLabelOf, OPS_KIND_FILTERS, OPS_ROUTE_FILTERS, opsFilterOf, routeLabelOf, type OpsOrgRow } from "@/lib/nox/ops/labels";
+import { OpsProgressPills } from "./ops-progress"; // ★2026-11-21 夜（2c）: 会社ごとの札（受諾・初期設定・LINE・キャスト・導入＝済／途中／未）
 
 export default function OrgList({ rows }: { rows: OpsOrgRow[] }) {
   const [kind, setKind] = useState("all");
@@ -26,17 +27,14 @@ export default function OrgList({ rows }: { rows: OpsOrgRow[] }) {
           <div className="nox-ops-table" style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
               <thead><tr style={{ textAlign: "left", color: "var(--sub)" }}>
-                {["会社名", "状態", "経路", "オーナーの招待", "初期設定", "LINE", "キャスト・スタッフ", "最後に使われた時刻", "作った日"].map((h) => <th key={h} style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>{h}</th>)}
+                {["会社名", "状態", "経路", "導入の状況", "最後に使われた時刻", "作った日"].map((h) => <th key={h} style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>{h}</th>)}
               </tr></thead>
               <tbody>{list.map((r) => (
                 <tr key={r.org_id} data-ops-row={r.org_id} style={{ borderTop: "1px solid var(--line)" }}>
                   <td style={{ padding: "8px" }}><Link href={`/ops/orgs/${r.org_id}`} className="nox-link" style={{ fontWeight: 700 }}>{r.org_name}</Link>{r.onboarding_state === "onboarding" && <span className="nox-stpill" style={{ marginLeft: 6 }}>導入中</span>}</td>
                   <td style={{ padding: "8px", whiteSpace: "nowrap" }}><span className="nox-stpill">{kindLabelOf(r)}</span></td>
                   <td style={{ padding: "8px" }}>{routeLabelOf(r.agency_code)}</td>
-                  <td style={{ padding: "8px" }}>{inviteLabelOf(r)}</td>
-                  <td style={{ padding: "8px" }}>{setupLabelOf(r)}</td>
-                  <td style={{ padding: "8px" }}>{lineLabelOf(r)}</td>
-                  <td style={{ padding: "8px" }} className="num">{r.cast_count} 人・{r.staff_count} 人</td>
+                  <td style={{ padding: "8px", minWidth: 260 }}><OpsProgressPills row={r} /></td>
                   <td style={{ padding: "8px" }} className="num">{fmtJst(r.last_used_at)}</td>
                   <td style={{ padding: "8px" }} className="num">{fmtJst(r.created_at, false)}</td>
                 </tr>
@@ -48,10 +46,9 @@ export default function OrgList({ rows }: { rows: OpsOrgRow[] }) {
               <Link key={r.org_id} href={`/ops/orgs/${r.org_id}`} style={{ ...t.card, display: "block", textDecoration: "none", color: "inherit" }} data-ops-card={r.org_id}>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "baseline" }}><b>{r.org_name}</b><span className="nox-stpill">{kindLabelOf(r)}</span></div>
                 <div style={{ ...t.sub, fontSize: 12, marginTop: 4, lineHeight: 1.7 }}>
-                  {r.onboarding_state === "onboarding" ? "導入中・" : ""}{routeLabelOf(r.agency_code)}・{inviteLabelOf(r)}<br />
-                  初期設定 {setupLabelOf(r)}・LINE {lineLabelOf(r)}<br />
-                  キャスト {r.cast_count} 人・スタッフ {r.staff_count} 人・最後 {fmtJst(r.last_used_at)}
+                  {r.onboarding_state === "onboarding" ? "導入中・" : ""}{routeLabelOf(r.agency_code)}・最後 {fmtJst(r.last_used_at)}
                 </div>
+                <div style={{ marginTop: 6 }}><OpsProgressPills row={r} /></div>
               </Link>
             ))}
           </div>

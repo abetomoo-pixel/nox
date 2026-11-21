@@ -8,7 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import { Message } from "@/components/ui/toast";
 import { rpcErrJa } from "@/lib/nox/ui/rpc-err";
-import { TERMS_PATH, TERMS_VERSION, TERMS_VERSION_LABEL } from "@/lib/nox/terms";
+import { TERMS_ACCEPT_LABEL, TERMS_PATH, TERMS_VERSION } from "@/lib/nox/terms";
 
 export default function TermsAcceptForm({ isOwner, orgName }: { isOwner: boolean; orgName: string }) {
   const router = useRouter();
@@ -28,22 +28,22 @@ export default function TermsAcceptForm({ isOwner, orgName }: { isOwner: boolean
   }
 
   return (
-    <section className="nox-cardtop" style={{ ...t.card, maxWidth: 560, margin: "0 auto" }} data-terms-accept="1">
+    <section className="nox-cardtop" style={{ ...t.card, width: "100%", maxWidth: 560, margin: "0 auto" }} data-terms-accept="1">
       <h1 style={{ fontSize: 18, fontWeight: 900, margin: "0 0 6px" }}>店舗向け利用規約への同意</h1>
       <p style={{ ...t.sub, margin: "0 0 12px", lineHeight: 1.7 }}>
-        {orgName} で NOX を使い始めるには、店舗向け利用規約（{TERMS_VERSION_LABEL}）への同意が必要です。同意は店舗（法人）単位で 1 回・管理者が行います。
+        {orgName} で NOX を使い始めるには、店舗向け利用規約（{TERMS_ACCEPT_LABEL}）への同意が必要です。同意は店舗（法人）単位で 1 回・管理者が行います。
       </p>
       <p style={{ margin: "0 0 12px" }}><a href={TERMS_PATH} target="_blank" rel="noreferrer" style={{ color: "var(--gold)", fontWeight: 700 }}>規約の全文を読む（別タブ）</a></p>
       {isOwner ? (
         <>
           <label style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
             <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} disabled={busy} data-terms-agree="1" />
-            利用規約（{TERMS_VERSION_LABEL}）に同意する
+            利用規約（{TERMS_ACCEPT_LABEL}）に同意する
           </label>
           {err && <Message kind="error" style={{ margin: "10px 0 0" }}>{err}</Message>}
-          <button type="button" style={{ ...t.btnPrimary56, marginTop: 14, opacity: agreed ? 1 : 0.5 }} disabled={!agreed || busy} onClick={() => void accept()} data-terms-submit="1">
+          <div className="nox-actions" style={{ marginTop: 14 }}><button type="button" style={{ ...t.btnPrimary56, maxWidth: 360, ...(agreed ? {} : { background: "var(--card2)", borderColor: "var(--line2)", color: "var(--sub)", opacity: 1 }) }} disabled={!agreed || busy} onClick={() => void accept()} data-terms-submit="1">
             {busy ? "記録中…" : "同意して使い始める"}
-          </button>
+          </button></div>
         </>
       ) : (
         <Message kind="warn" style={{ margin: 0 }}>管理者の同意待ちです。管理者がログインして同意すると、店舗の全員が使えるようになります。</Message>

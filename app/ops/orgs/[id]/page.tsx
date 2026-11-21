@@ -22,5 +22,5 @@ export default async function OpsOrgPage({ params }: { params: Promise<{ id: str
   const nameOf = new Map(((ops ?? []) as { auth_user_id: string; name: string }[]).map((o) => [o.auth_user_id, o.name]));
   const logRows: OpsLogRow[] = ((logs ?? []) as { id: string; at: string; ops_user_id: string; action: string; before_json: unknown; after_json: unknown; reason: string | null }[])
     .map((l) => ({ id: l.id, at: l.at, who: nameOf.get(l.ops_user_id) ?? "運営", action: l.action, before: l.before_json, after: l.after_json, reason: l.reason }));
-  return <OpsShell name={op.name}><OrgDetail row={row} logs={logRows} /></OpsShell>;
+  return <OpsShell name={op.name}><OrgDetail row={row} logs={logRows} nowIso={new Date().toISOString()} /></OpsShell>;
 }

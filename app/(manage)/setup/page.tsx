@@ -36,7 +36,10 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
   const sj = target.settings_json ?? {};
   const str = (k: string) => (typeof sj[k] === "string" ? (sj[k] as string) : "");
   const stepN = Number(sp.step ?? ""); const initialStep = Number.isInteger(stepN) && stepN >= 1 && stepN <= 9 ? stepN - 1 : undefined;
-  const initialType = ["cabaret", "girlsbar", "snack", "lounge", "bar"].includes(sp.type ?? "") ? (sp.type as V5Type) : (typeof sj.biz_type === "string" && ["cabaret", "girlsbar", "snack", "lounge", "bar"].includes(sj.biz_type) && sj.setup_done !== true ? (sj.biz_type as V5Type) : null);
+  // ★2026-11-21 夜（相談役 18:40 の 3）: 業態に host。業態がすでに入っている初回の店（運営の追加で入る）は STEP 1 をその値で固定＝lockedType（確定で biz_type を書かない）
+  const V5_IDS = ["cabaret", "girlsbar", "snack", "lounge", "bar", "host"];
+  const lockedType = typeof sj.biz_type === "string" && V5_IDS.includes(sj.biz_type) && sj.setup_done !== true ? (sj.biz_type as V5Type) : null;
+  const initialType = lockedType ?? (V5_IDS.includes(sp.type ?? "") ? (sp.type as V5Type) : null);
   return (
     <SetupWizard
       store={{ id: target.id, name: target.name, setupDone: target.settings_json?.setup_done === true,
@@ -50,6 +53,7 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
       isOwner={role === "owner"}
       initialStep={initialStep}
       initialType={initialType}
+      lockedType={lockedType}
     />
   );
 }

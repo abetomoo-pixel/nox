@@ -38,13 +38,14 @@ export const cardFeePctOf = (S: { cardfee: number }): number => Math.max(0, Math
 
 // ── 9 STEP・業態 5 種（モック STEPS／TYPES 逐語） ──
 export const V5_STEPS: readonly string[] = ["お店", "席・卓", "料金", "メニュー", "キャスト待遇", "スタッフ", "シフト・勤怠", "会計・レジ", "確認"];
-export type V5Type = "cabaret" | "girlsbar" | "snack" | "lounge" | "bar";
+export type V5Type = "cabaret" | "girlsbar" | "snack" | "lounge" | "bar" | "host"; // ★2026-11-21 夜（相談役 18:40 の 3）: host＝ホストクラブ（雛形 host_standard＝CLUB VESPER の設定が土台）
 export const V5_TYPES: ReadonlyArray<{ id: V5Type; name: string; desc: string; price: string }> = [
   { id: "cabaret", name: "キャバクラ", desc: "セット・指名・同伴中心", price: "セット ¥7,000／60分" },
   { id: "girlsbar", name: "ガールズバー", desc: "チャージ＋ドリンク中心", price: "チャージ ¥3,000／60分" },
   { id: "snack", name: "スナック", desc: "セット＋ボトル中心", price: "セット ¥5,000／90分" },
   { id: "lounge", name: "ラウンジ", desc: "セット＋VIP・高単価", price: "セット ¥8,000／60分" },
   { id: "bar", name: "バー", desc: "チャージ＋商品会計", price: "チャージ ¥1,000〜" },
+  { id: "host", name: "ホストクラブ", desc: "指名・売上の歩合中心", price: "セット ¥7,000／60分" },
 ];
 export const WD = ["日", "月", "火", "水", "木", "金", "土"] as const;
 
@@ -104,6 +105,8 @@ export const V5_MENU: Record<V5Type, () => V5Cat[]> = {
   lounge: () => [M("キャストドリンク", [["Cast Drink S", 1500, 750], ["Cast Drink M", 2200, 1100], ["Cast Drink L", 3300, 1650]]), M("ビール", [["生ビール", 1100]]), M("ウイスキー", [["ハイボール", 1100], ["山崎（ボトル）", 33000, 3300, 1], ["響（ボトル）", 38500, 3850, 1]]), M("焼酎", [["森伊蔵（ボトル）", 33000, 3300, 1]]), M("シャンパン", [["モエ", 27500, 2750], ["ヴーヴ・クリコ", 33000, 3300], ["ドン・ペリニヨン", 77000, 7700], ["アルマンド", 132000, 13200]]), M("ソフトドリンク", [["ウーロン茶", 880], ["コーラ", 880]]), M("軽食", [["チョコレート", 1650], ["フルーツ盛り", 5500]])],
   girlsbar: () => [M("キャストドリンク", [["キャストドリンク", 1000, 500], ["キャストショット", 1000, 500]]), M("ショット", [["テキーラ", 1000, 300]]), M("ビール", [["ビール", 800]]), M("ウイスキー", [["ハイボール", 800]]), M("サワー", [["レモンサワー", 800], ["カシスオレンジ", 800]]), M("焼酎", [["鏡月（ボトル）", 4000, 400, 1]]), M("ソフトドリンク", [["ウーロン茶", 500], ["コーラ", 500]])],
   snack: () => [M("ボトル", [["鏡月（ボトル）", 4000, 0, 1], ["二階堂（ボトル）", 5000, 0, 1], ["角瓶（ボトル）", 6000, 0, 1]]), M("割物", [["割物セット", 1000], ["氷", 500]]), M("ママ・キャストドリンク", [["ママドリンク", 1000, 500], ["キャストドリンク", 1000, 500]]), M("ビール", [["ビール", 700]]), M("ソフトドリンク", [["ウーロン茶", 500]]), M("カラオケ", [["カラオケ 1 曲", 100]]), M("おつまみ", [["乾き物", 500]])],
+  // ★2026-11-21 夜（3）: host_standard＝CLUB VESPER（docs/demo/payload/host.json）の 22 品・バックは売上歩合（自由設計のバック）で払う＝商品ごとのバックは 0
+  host: () => [M("キャストドリンク", [["Cast Drink S", 1100], ["Cast Drink M", 1650], ["Cast Drink L", 2200]]), M("ビール", [["生ビール", 880], ["コロナ", 990]]), M("ウイスキー", [["ハイボール", 880], ["角瓶", 6600, 0, 1], ["山崎", 22000, 0, 1], ["響", 27500, 0, 1]]), M("サワー", [["レモンサワー", 880]]), M("焼酎", [["黒霧島", 5500, 0, 1], ["吉四六", 8800, 0, 1]]), M("ワイン", [["赤ワイン", 8800], ["白ワイン", 8800]]), M("スパークリング", [["カフェ・ド・パリ", 11000]]), M("シャンパン", [["モエ", 22000], ["ヴーヴ・クリコ", 27500], ["ドン・ペリニヨン", 66000]]), M("ソフトドリンク", [["ウーロン茶", 660], ["コーラ", 660]]), M("フード", [["ミックスナッツ", 880], ["フルーツ盛り", 3300]])],
   bar: () => [M("カクテル", [["ジントニック", 1200], ["モスコミュール", 1200]]), M("ウイスキー", [["ハイボール", 900], ["ウイスキー（ショット）", 1200]]), M("ビール", [["ビール", 900]]), M("ワイン", [["グラスワイン", 1000]]), M("ソフトドリンク", [["ジンジャーエール", 600]]), M("フード", [["ナッツ", 800], ["チーズ盛り合わせ", 1500]])],
 };
 type Tpl = { rules: V5Rule[]; fees: V5State["fees"]; svc: number; svcVip?: number; join: "join" | "extend"; seats: { counter: number; table: number; vip: number }; pay: { base: number; slide: V5State["pay"]["slide"]; norma: boolean; bonus: boolean }; back: V5State["back"]; reg: boolean; vip: [boolean, number, number] };
@@ -116,6 +119,9 @@ export const V5_TPL: Record<V5Type, () => Tpl> = {
     fees: { hon: 0, jo: 0, dohan: 0 }, svc: 10, join: "extend", seats: { counter: 8, table: 3, vip: 0 }, pay: { base: 2000, slide: "none", norma: false, bonus: false }, back: { hon: 0, jo: 0, dohan: 0, drink: 50, bottle: 0 }, reg: true, vip: [false, 3000, 1500] }),
   lounge: () => ({ rules: [R("通常", "20:00〜翌2:00", 8000, 60, [[30, 4000, 1]]), R("VIP", "20:00〜翌2:00", 12000, 60, [[30, 6000, 1]], "VIP")],
     fees: { hon: 3000, jo: 2000, dohan: 5000 }, svc: 20, svcVip: 30, join: "join", seats: { counter: 0, table: 8, vip: 3 }, pay: { base: 4000, slide: "sales", norma: true, bonus: true }, back: { hon: 1500, jo: 500, dohan: 2000, drink: 50, bottle: 10 }, reg: false, vip: [true, 8000, 4000] }),
+  // ★2026-11-21 夜（3）: host_standard＝CLUB VESPER（セット 7,000 円／60 分・延長 30 分 3,000 円・本指名 3,000・場内 2,000・サービス料 30%・卓 7・時給 0・バック 本指名 1,000／場内 500／同伴 2,000）
+  host: () => ({ rules: [R("平日アーリー", "20:00〜21:00", 7000, 60, [[30, 3000, 1]]), R("通常", "21:00〜翌1:00", 7000, 60, [[30, 3000, 1]])],
+    fees: { hon: 3000, jo: 2000, dohan: 0 }, svc: 30, join: "join", seats: { counter: 0, table: 7, vip: 0 }, pay: { base: 0, slide: "none", norma: false, bonus: false }, back: { hon: 1000, jo: 500, dohan: 2000, drink: 0, bottle: 0 }, reg: false, vip: [false, 0, 0] }),
   bar: () => ({ rules: [R("チャージ", "全時間帯", 1000, 0, [])],
     fees: { hon: 0, jo: 0, dohan: 0 }, svc: 0, join: "extend", seats: { counter: 10, table: 2, vip: 0 }, pay: { base: 1200, slide: "none", norma: false, bonus: false }, back: { hon: 0, jo: 0, dohan: 0, drink: 30, bottle: 0 }, reg: true, vip: [false, 0, 0] }),
 };
@@ -152,6 +158,15 @@ export const v5TypeName = (t: V5Type | null): string => V5_TYPES.find((x) => x.i
 export const clone = <T,>(o: T): T => JSON.parse(JSON.stringify(o)) as T;
 
 /** 業態を選ぶと初期値が入る（モック applyType 逐語） */
+/** ★2026-11-21 夜（3）: host_standard の売上歩合の段＝CLUB VESPER の自由設計のバック 6 行（名前・率・条件をそのまま） */
+export const HOST_SALES_BACKS: ReadonlyArray<{ name: string; value: number; cond: { metric: "sales"; min: number } | null }> = [
+  { name: "売上歩合（小計の 40%）", value: 40, cond: null },
+  { name: "売上歩合の加算（小計 30 万円〜・小計の 5%）", value: 5, cond: { metric: "sales", min: 300000 } },
+  { name: "売上歩合の加算（小計 50 万円〜・小計の 5%）", value: 5, cond: { metric: "sales", min: 500000 } },
+  { name: "売上歩合の加算（小計 100 万円〜・小計の 5%）", value: 5, cond: { metric: "sales", min: 1000000 } },
+  { name: "売上歩合の加算（小計 200 万円〜・小計の 5%）", value: 5, cond: { metric: "sales", min: 2000000 } },
+  { name: "売上歩合の加算（小計 300 万円〜・小計の 5%）", value: 5, cond: { metric: "sales", min: 3000000 } },
+];
 export function applyType(s: V5State, id: V5Type): V5State {
   const t = V5_TPL[id]();
   const n = clone(s);
@@ -162,6 +177,7 @@ export function applyType(s: V5State, id: V5Type): V5State {
   n.back = t.back; n.reg.castReg = t.reg ? "pay" : "off"; n.vip.on = t.vip[0]; n.vip.amt = t.vip[1]; n.vip.ext = t.vip[2];
   n.menu = V5_MENU[id]();
   n.menu.forEach((c) => { const champ = /シャンパン|スパークリング/.test(c.cat); c.items.forEach((it) => { if (champ) { it.bt = "pct"; it.b = n.back.bottle; } else it.bt = "yen"; }); });
+  if (id === "host") { n.pay.trial = 0; n.mine.rank = false; n.roundMode = "up"; n.tax = "ex"; } // ★2026-11-21 夜（3）: VESPER＝体験入店も時給 0（売上歩合）・ランキングは出さない（ranking＝off）・会計の丸めは切り上げ・価格は税別表示
   n.dirty = false;
   return n;
 }
@@ -257,6 +273,7 @@ export type V5Ctx = {
   setupDone?: boolean;
   current: { round_unit: number; round_mode: string; time_mode: string; time_per: string; receipt: { address: string; tel: string; reg_no: string; footer: string }; mine: MineSettings;
     tax: { business_tax_status: string; price_display: string; invoice_status: string; invoice_reg_no: string | null; tax_rounding: string; card_surcharge_rate: number | null } };
+  /** ★2026-11-21 夜（3）: 店の設定にすでに業態（biz_type）が入っている初回の店＝STEP 1 はその値で固定・確定で biz_type を書かない（運営の追加で入った値を上書きしない） */ lockedType?: V5Type | null;
   /** 端末登録（STEP 8）の idemKey＝下書きに持つ（再送で同じ） */ deviceIdemKey: string;
   /** スタッフ行の idemKey（行ごと） */ staffIdemKeys: string[];
 };
@@ -321,6 +338,8 @@ export function buildV5Plan(S: V5State, ctx: V5Ctx): { steps: V5Step[]; deferred
   if (mig0197On()) patch.punch_mode = S.punch.how === "store" ? "store" : "punch";   // ★便 E（0197 用＝裁定455 の 1・4）: 3 択目＝punch_mode（白名単は 0197）。'store' のとき punch_methods は無視される
   if (S.seats.vip > 0 && S.svcVip !== S.svc) patch.service_rate_by_seat = { VIP: svcVipOf(S) }; // ★2026-11-13 夜（相談役■2 d）
   if (S.payroll.okuriMode === "fixed") patch.okuri_flat_tiers = [{ code: "near", name: "近距離", amount: S.payroll.okuriTiers[0] }, { code: "mid", name: "中距離", amount: S.payroll.okuriTiers[1] }, { code: "far", name: "遠距離", amount: S.payroll.okuriTiers[2] }];
+  if (ctx.lockedType) delete patch.biz_type; // ★2026-11-21 夜（3）: 業態が入っている初回の店は biz_type を書かない（上書きしない）
+  if (S.type === "host") { patch.sales_basis = "subtotal"; patch.sales_back_default_off = true; } // ★2026-11-21 夜（3）: VESPER の店の鍵（売上の基準＝小計・既定の売上歩合は止める＝自由設計のバックで払う）
   push({ key: "settings", group: "settings", label: "店舗設定（業態・使う制度・会計・シフト・打刻・キオスク）", rpc: "set_store_profile", args: { p_store_id: s, p_patch: patch } });
   push({ key: "okuri_mode", group: "settings", label: `送りの方式（${({ fixed: "定額を給与から引く", actual: "立替を給与から引く", store: "店負担", none: "送りなし" } as const)[S.payroll.okuriMode]}）`, rpc: "set_store_okuri_mode", args: { p_store_id: s, p_mode: OKURI_MODE_OF[S.payroll.okuriMode] } });
   push({ key: "receivable", group: "settings", label: `売掛（${S.reg.uri ? "使う" : "使わない"}）`, rpc: "set_store_receivable_policy", args: { p_store_id: s, p_policy: S.reg.uri ? "customer_only" : "disabled" } });
@@ -377,6 +396,11 @@ export function buildV5Plan(S: V5State, ctx: V5Ctx): { steps: V5Step[]; deferred
     p_slide_apply: "next", p_slide_method: null, p_pt_rules: S.pay.slide === "point" ? { hon: S.pt.hon, jonai: S.pt.jo, dohan: S.pt.dohan, sales_yen_per_pt: S.pt.salesPer } : null });
   push({ key: "comp_0", group: "comp", label: `待遇プラン「基本プラン」時給 ¥${S.pay.base}`, rpc: "set_comp_plan", guard: "plans_empty", args: planArgs("基本プラン", S.pay.base, true) });
   push({ key: "comp_1", group: "comp", label: `待遇プラン「体験入店」時給 ¥${S.pay.trial}（${S.pay.trialDays} 日）`, rpc: "set_comp_plan", guard: "plans_empty", args: planArgs("体験入店", S.pay.trial, false) });
+  if (S.type === "host") { // ★2026-11-21 夜（3）: host_standard＝VESPER の「新人」（月の最低保証 160,000 円）と売上歩合の段（自由設計のバック 6 行＝小計の 40%＋段ごとに 5%）。新しい店（プラン 0）のときだけ
+    push({ key: "comp_2", group: "comp", label: "待遇プラン「新人」（月の最低保証つき）", rpc: "set_comp_plan", guard: "plans_empty", args: planArgs("新人", S.pay.base, false) });
+    push({ key: "comp_2_guarantee", group: "comp", label: "「新人」の月の最低保証 ¥160,000", rpc: "set_comp_component", useResult: { from: "comp_2", as: "p_plan_id" }, args: { p_id: null, p_kind: "guarantee_min", p_mode: "amount", p_amount: 160000, p_rate: null, p_params: {}, p_priority: 100, p_is_active: true } });
+    HOST_SALES_BACKS.forEach((b, i) => push({ key: `custom_back_${i}`, group: "comp", label: `売上歩合「${b.name}」`, rpc: "set_custom_back_def", guard: "plans_empty", args: { p_id: null, p_store_id: s, p_name: b.name, p_basis: "sales", p_value: b.value, p_cond: b.cond, p_is_active: true } }));
+  }
   // ★2026-11-17（相談役 2・Agoora「初期設定からいる」）: 報酬率スライドを選んだら、基本プランに報酬の軸（pay_rate）だけ保存する（comp_plan_ext_set・owner）。段は保存しない＝段を入れるまで計算は基本の時給
   if (S.pay.slide === "rate") push({ key: "comp_0_axis", group: "comp", label: "基本プランの報酬の軸＝報酬率（段はあとで待遇プランで）", rpc: "comp_plan_ext_set", useResult: { from: "comp_0", as: "p_plan_id" }, args: { p_patch: { reward_axis: "pay_rate" } } });
   if (S.pay.slide === "rate") deferred.push({ item: "報酬率スライドの段", note: RATE_SLIDE_TIERS_LATER });

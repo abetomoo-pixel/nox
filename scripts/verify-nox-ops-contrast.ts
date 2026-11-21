@@ -9,6 +9,7 @@
  *        c(2) light と dark で、全要素の文字の色と地の色が一字一致（OS の設定で見た目が変わらない）。
  *        c(3) 横のはみ出しが無い（文書の幅 ≤ 画面の幅）。
  *        c(4) 器の源：OpsShell の根に nox-dark と t.appBg・ログインと MFA の根に nox-dark（源の pin）。
+ *        c(7) 導入の状況の札（済・途中・未・何日前・次にすること・詳細の一番上・一覧の札）＝相談役 11/21 18:40 の 2c。
  *        c(6) 検査が元の不具合を拾う（器の配色を外した詳細＝直す前の形は赤）。
  *        c(5) パスワードを決めた後の行き先：invite-accept が運営者（ops_operators の有効な行）だけ /ops/login・set-password は dest に従う（知らない値は /dashboard）。
  *  使い方: npm run verify:nox-ops-contrast（--keep で写しを残したまま・既定でも残す＝docs/tmp は scratch）
@@ -25,7 +26,7 @@ import OpsShell from "../app/ops/ops-shell";
 import OrgList from "../app/ops/org-list";
 import NewOrgFormView from "../app/ops/orgs/new/new-org-form";
 import OrgDetail, { type OpsLogRow } from "../app/ops/orgs/[id]/org-detail";
-import type { OpsOrgRow } from "../lib/nox/ops/labels";
+import { daysAgoJa, opsNextStepOf, opsProgressOf, type OpsOrgRow } from "../lib/nox/ops/labels";
 
 (globalThis as { React?: unknown }).React = React; // tsx は tsconfig の jsx: preserve を古い形（React.createElement）で変換する＝部品の中の React を global で渡す
 let pass = 0, fail = 0;
@@ -50,6 +51,7 @@ const logs: OpsLogRow[] = [
   { id: "l1", at: "2026-11-21T05:41:16Z", who: "Agoora", action: "ops.org.create", before: null, after: { org_name: "TEST CLUB" }, reason: null },
   { id: "l2", at: "2026-11-21T05:42:00Z", who: "Agoora", action: "ops.agency_code", before: { agency_code: null }, after: { agency_code: "AG-001" }, reason: null },
 ];
+const NOW = "2026-11-24T03:00:00Z"; // 見本の今（導入完了 11/21 → 3 日前）
 const router = { back() {}, forward() {}, refresh() {}, push() {}, replace() {}, prefetch() {} };
 const wrap = (el: React.ReactElement) => renderToStaticMarkup(React.createElement(AppRouterContext.Provider, { value: router as never }, el));
 const SCREENS: { key: string; html: string }[] = [
@@ -58,52 +60,11 @@ const SCREENS: { key: string; html: string }[] = [
   { key: "mfa-verify", html: wrap(React.createElement(OpsMfaForm, { initial: { kind: "verify", factorId: "f" } })) },
   { key: "list", html: wrap(React.createElement(OpsShell, { name: "Agoora", children: React.createElement(OrgList, { rows }) })) },
   { key: "new", html: wrap(React.createElement(OpsShell, { name: "Agoora", children: React.createElement(NewOrgFormView) })) },
-  { key: "detail", html: wrap(React.createElement(OpsShell, { name: "Agoora", children: React.createElement(OrgDetail, { row: base, logs }) })) },
-  { key: "detail-done", html: wrap(React.createElement(OpsShell, { name: "Agoora", children: React.createElement(OrgDetail, { row: rows[1], logs }) })) },
+  { key: "detail", html: wrap(React.createElement(OpsShell, { name: "Agoora", children: React.createElement(OrgDetail, { row: base, logs, nowIso: NOW }) })) },
+  { key: "detail-done", html: wrap(React.createElement(OpsShell, { name: "Agoora", children: React.createElement(OrgDetail, { row: rows[1], logs, nowIso: NOW }) })) },
 ];
-const css = src("app/globals.css");
-const docOf = (body: string) => `<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><style>${css}</style></head><body>${body}</body></html>`;
 
-// ── ブラウザの中で数える（文字のある要素ごとに、文字の色・地の候補・比）──
-type Probe = { sel: string; text: string; fg: string; bgs: string[]; ratio: number; need: number; size: number };
-const PROBE = `(() => {
-  const parse = (s) => { const m = s.match(/rgba?\\(([^)]+)\\)/); if (!m) return null; const p = m[1].split(/[ ,\\/]+/).filter(Boolean).map(Number); return { r: p[0], g: p[1], b: p[2], a: p.length > 3 ? p[3] : 1 }; };
-  const allColors = (s) => (s.match(/rgba?\\([^)]+\\)/g) || []).map(parse).filter(Boolean);
-  const over = (top, bot) => { const a = top.a + bot.a * (1 - top.a); if (a === 0) return { r: 0, g: 0, b: 0, a: 0 }; return { r: (top.r * top.a + bot.r * bot.a * (1 - top.a)) / a, g: (top.g * top.a + bot.g * bot.a * (1 - top.a)) / a, b: (top.b * top.a + bot.b * bot.a * (1 - top.a)) / a, a }; };
-  const lum = (c) => { const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }; return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b); };
-  const ratio = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
-  const hex = (c) => '#' + [c.r, c.g, c.b].map((v) => Math.round(v).toString(16).padStart(2, '0')).join('') + (c.a < 1 ? '/' + c.a.toFixed(2) : '');
-  const out = [];
-  const els = Array.from(document.body.querySelectorAll('*'));
-  for (const el of els) {
-    const own = Array.from(el.childNodes).filter((n) => n.nodeType === 3 && n.textContent.trim()).map((n) => n.textContent.trim()).join(' ');
-    const isField = (el.tagName === 'INPUT' && !['hidden', 'checkbox', 'radio'].includes(el.type) && el.value) || (el.tagName === 'SELECT');
-    const text = own || (isField ? (el.value || (el.options && el.options[el.selectedIndex] ? el.options[el.selectedIndex].text : '')) : '');
-    if (!text) continue;
-    const cs = getComputedStyle(el); const rect = el.getBoundingClientRect();
-    if (cs.display === 'none' || cs.visibility === 'hidden' || rect.width === 0 || rect.height === 0) continue;
-    let hidden = false; for (let p = el; p; p = p.parentElement) { if (getComputedStyle(p).display === 'none') { hidden = true; break; } } if (hidden) continue;
-    // 地の候補：根から順に重ねる（グラデは全色を候補に・候補は 24 個まで）
-    const chain = []; for (let p = el; p; p = p.parentElement) chain.unshift(p);
-    let cands = [{ r: 255, g: 255, b: 255, a: 1 }];
-    let opacity = 1;
-    for (const p of chain) {
-      const s = getComputedStyle(p); opacity *= Number(s.opacity);
-      const grads = s.backgroundImage && s.backgroundImage !== 'none' ? allColors(s.backgroundImage) : [];
-      const bc = parse(s.backgroundColor);
-      if (bc && bc.a > 0) cands = cands.map((c) => over(bc, c));
-      if (grads.length) { const n = []; for (const c of cands) for (const g of grads) n.push(over(g, c)); cands = n.slice(0, 24); }
-    }
-    let fg = parse(cs.color); fg = { ...fg, a: fg.a * opacity };
-    let worst = Infinity;
-    for (const c of cands) { const f = over(fg, c); worst = Math.min(worst, ratio(f, c)); }
-    const size = parseFloat(cs.fontSize); const bold = Number(cs.fontWeight) >= 700;
-    const need = size >= 24 || (bold && size >= 18.66) ? 3 : 4.5;
-    const sel = el.tagName.toLowerCase() + (el.getAttribute('data-ops-msg') ? '[msg]' : '') + (el.className && typeof el.className === 'string' ? '.' + el.className.split(' ')[0] : '');
-    out.push({ sel, text: text.slice(0, 24), fg: hex(parse(cs.color)) + (opacity < 1 ? ' op' + opacity.toFixed(2) : ''), bgs: [...new Set(cands.map(hex))].slice(0, 4), ratio: Math.round(worst * 100) / 100, need, size });
-  }
-  return { probes: out, docW: document.documentElement.scrollWidth, vw: window.innerWidth };
-})()`;
+import { docOf, PROBE, type Probe } from "./contrast-probe";
 
 async function main() {
 let browser: Browser | null = null;
@@ -126,6 +87,27 @@ try {
     && ia.indexOf("updateUserById(user.id, { password })") < ia.indexOf('from("ops_operators")'));
   check("c(5-2) set-password：dest に従う（知らない値は /dashboard）", sp.includes('window.location.href = j.dest === "/ops/login" ? "/ops/login" : "/dashboard";'));
   check("c(5-3) /login と /auth/forgot は運営者を見ない（応答の差を作らない）", !/ops_operators|\/ops\//.test(src("app/login/page.tsx")) && !/ops_operators|\/ops\//.test(src("app/auth/forgot/page.tsx")));
+
+  // c(7) 導入の状況の札（相談役 11/21 18:40 の 2c）：判定の純関数・詳細の一番上・一覧の会社ごとの札
+  {
+    const now = new Date(NOW);
+    const st = (r: OpsOrgRow) => opsProgressOf(r, now).map((x) => `${x.key}:${x.state}${x.ago ? "(" + x.ago + ")" : ""}`).join(",");
+    check("c(7-1) 見本 1（招待済み・STEP 3・LINE なし・導入中）＝受諾 途中・初期設定 途中・LINE 未・キャスト 未・導入 途中／次＝受諾を待つ",
+      st(base) === "owner:doing,setup:doing,line:todo,people:todo,onboarding:doing" && opsNextStepOf(opsProgressOf(base, now)).startsWith("オーナーの受諾を待つ"), st(base));
+    check("c(7-2) 見本 2（受諾・初期設定済み・導入完了 11/21）＝済には何日前（JST の日付の差で 3 日前）／次＝LINE",
+      st(rows[1]) === "owner:done,setup:done(3 日前),line:todo,people:done,onboarding:done(3 日前)" && opsNextStepOf(opsProgressOf(rows[1], now)).startsWith("LINE 連携を終える"), st(rows[1]));
+    const all: OpsOrgRow = { ...rows[1], line_login_stores: 1, line_notify_stores: 1, line_richmenu_stores: 1 };
+    check("c(7-3) 全部済＝次にすること「なし」・オーナーなし＝受諾 未（次＝招待を送る）",
+      opsNextStepOf(opsProgressOf(all, now)) === "なし（導入は済んでいます）" && opsProgressOf(rows[2], now)[0].state === "todo" && opsNextStepOf(opsProgressOf(rows[2], now)) === "オーナーを決めて招待を送る");
+    check("c(7-4) 何日前は JST の日付（11/24 00:00 JST は今日・その 1 分前は 1 日前・未来と空は出さない）",
+      daysAgoJa("2026-11-23T15:00:00Z", now) === "今日" && daysAgoJa("2026-11-23T14:59:00Z", now) === "1 日前" && daysAgoJa("2026-11-25T00:00:00Z", now) === null && daysAgoJa(null, now) === null);
+    const det = SCREENS.find((x) => x.key === "detail")!.html, list = SCREENS.find((x) => x.key === "list")!.html;
+    const iP = det.indexOf('data-ops-progress="1"'), iO = det.indexOf('aria-label="オーナー"');
+    check("c(7-5) 詳細：導入の状況のカードが一番上（オーナーより前）・次にすることの 1 行・項目 5 つ・導入の状況は 1 つだけ",
+      iP > 0 && iO > iP && det.includes('data-ops-next="1"') && (det.match(/data-ops-step="/g) ?? []).length === 5 && (det.match(/aria-label="導入の状況"/g) ?? []).length === 1, `progress ${iP}・owner ${iO}`);
+    check("c(7-6) 一覧：会社ごとに札（表とカードの両方＝3 社 × 2）・札は 5 項目ずつ",
+      (list.match(/data-ops-pills="/g) ?? []).length === 6 && (list.match(/data-ops-pill="/g) ?? []).length === 30);
+  }
 
   // c(1)〜c(3) 画面
   browser = await chromium.launch({ channel: "msedge", headless: true });

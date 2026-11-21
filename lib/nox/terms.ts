@@ -8,6 +8,8 @@
 export const TERMS_VERSION = "0.9";
 /** 画面に出す版表示（雛形＝弁護士確認前） */
 export const TERMS_VERSION_LABEL = "v0.9（雛形・弁護士確認前）";
+/** 同意の画面（/terms/accept）に出す版表示＝版だけ（★2026-11-21 相談役 18:40 の 2a：「雛形・弁護士確認前」は同意の画面から外す・規約の本文（/terms）の印は残す） */
+export const TERMS_ACCEPT_LABEL = `v${TERMS_VERSION}`;
 export const TERMS_PATH = "/terms";
 export const TERMS_ACCEPT_PATH = "/terms/accept";
 

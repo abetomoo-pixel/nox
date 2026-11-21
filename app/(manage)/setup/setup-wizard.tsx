@@ -70,12 +70,14 @@ function Opt({ title, sub, children, dimmed }: { title: string; sub?: React.Reac
 }
 const later = (why: string) => <span className="nox-stpill" style={{ marginLeft: 6, fontSize: 10.5 }} data-setup-later="1">後で（マスタから）・{why}</span>;
 
-export default function SetupWizard({ store, counts, isOwner, initialStep, initialType }: {
+export default function SetupWizard({ store, counts, isOwner, initialStep, initialType, lockedType = null }: {
   store: { id: string; name: string; setupDone: boolean; current: V5Ctx["current"] };
   counts: { seats: number; products: number; plans: number; rules: number };
   isOwner: boolean;
   /** 深いリンク（?step=1〜9・?type=cabaret＝業態が未選択ならその初期値を入れる）＝suite・actions-center 用 */
   initialStep?: number; initialType?: V5Type | null;
+  /** ★2026-11-21 夜（3）: 業態が入っている初回の店＝STEP 1 はこの値で固定（選び直しのボタンを出さない）・確定で biz_type を書かない */
+  lockedType?: V5Type | null;
 }) {
   const supabase = createClient();
   const today = new Date(); const todayYmd = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
@@ -123,8 +125,8 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
   }, [store.id]);
   useEffect(() => {
     if (!hydrated || initialType == null) return;
-    setS((s) => (s.type ? s : applyType(s, initialType)));
-  }, [hydrated, initialType]);
+    setS((s) => (lockedType ? (s.type === lockedType ? s : applyType(s, lockedType)) : s.type ? s : applyType(s, initialType)));
+  }, [hydrated, initialType, lockedType]);
   useEffect(() => { if (hydrated && typeof initialStep === "number" && initialStep >= 0 && initialStep <= 9) setS((s) => ({ ...s, step: initialStep })); }, [hydrated, initialStep]);
   useEffect(() => {
     if (!hydrated || !S.type || run.completed) return;
@@ -147,6 +149,7 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
   };
   const next = () => { setS((s) => ({ ...s, done: { ...s.done, [s.step]: true }, step: s.step + 1 })); window.scrollTo({ top: 0, behavior: "smooth" }); };
   function pickType(id: V5Type) {
+    if (lockedType) return; // ★2026-11-21 夜（3）: 業態は固定
     const nm = v5TypeName(id);
     if (S.type && S.type !== id && S.dirty) {
       if (window.confirm(`入力した席・料金・メニュー・待遇を「${nm}」の初期値に入れ替えますか？\nキャンセルすると、入力はそのままで業態だけ「${nm}」になります。`)) setS((s) => applyType(s, id));
@@ -155,7 +158,7 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
   }
   const W = useMemo(() => v5Checks(S), [S]);
   const zeroItems = useMemo(() => v5ZeroPriceItems(S), [S]); // ★M-141: 確認画面のメニューの段に出す
-  const ctx: V5Ctx = useMemo(() => ({ storeId: store.id, current: store.current, setupDone: store.setupDone /* ★裁定443 1-① */, deviceIdemKey: ids.current.device, staffIdemKeys: S.staff.map((_, i) => { if (!ids.current.staff[i]) ids.current.staff[i] = crypto.randomUUID(); return ids.current.staff[i]; }) }), [store.id, store.current, store.setupDone, S.staff]);
+  const ctx: V5Ctx = useMemo(() => ({ storeId: store.id, current: store.current, setupDone: store.setupDone /* ★裁定443 1-① */, lockedType /* ★2026-11-21 夜（3） */, deviceIdemKey: ids.current.device, staffIdemKeys: S.staff.map((_, i) => { if (!ids.current.staff[i]) ids.current.staff[i] = crypto.randomUUID(); return ids.current.staff[i]; }) }), [store.id, store.current, store.setupDone, lockedType, S.staff]);
   const planAll = useMemo(() => buildV5Plan(S, ctx), [S, ctx]);
 
   // ── 実行（この内容で始める）＝計画を順に・route は fetch・useResult は直前の結果を差す・guard は既存データで skip ──
@@ -258,13 +261,13 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
       <header className="nox-setup-top" data-setup-top="1">
         <div className="nox-setup-bar">
           <div className="nox-setup-mark" aria-hidden="true">N</div>
-          <div><h1>NOX 初期設定{type && <span className="nox-stpill" style={{ marginLeft: 8, verticalAlign: "middle" }}>{v5TypeName(type)}</span>}</h1><div className="sub">{store.name}・あとからすべて変更できます{store.setupDone && <span className="nox-setup-sub-note">{"（設定済みの店＝再実行は既存データを二重投入しません）"}</span>}</div></div>
+          <div><h1>NOX 初期設定{type && <span className="nox-stpill" style={{ marginLeft: 8, verticalAlign: "middle" }}>{v5TypeName(type)}</span>}</h1><div className="sub"><span className="nox-setup-sub-store">{store.name}</span><span className="nox-setup-sub-dot">・</span><span className="nox-setup-sub-hint">あとからすべて変更できます</span>{store.setupDone && <span className="nox-setup-sub-note">{"（設定済みの店＝再実行は既存データを二重投入しません）"}</span>}</div></div>
           <div className="save" data-setup-saved="1">{saved}</div>
         </div>
         {!isDone && (
           <ol className="nox-setup-steps" aria-label="初期設定の手順">
             {V5_STEPS.map((n, i) => { const cur = S.step === i, done = !!S.done[i] && !cur; return (
-              <li key={n}><button type="button" className={done ? "done" : undefined} aria-current={cur ? "step" : undefined} disabled={i > 0 && !type} onClick={() => go(i)} data-step={i} style={{ opacity: i > 0 && !type ? 0.5 : 1 }}>
+              <li key={n}><button type="button" className={done ? "done" : undefined} aria-current={cur ? "step" : undefined} disabled={i > 0 && !type} onClick={() => go(i)} data-step={i} style={{ opacity: i > 0 && !type ? 0.7 : 1 }}>{/* ★2026-11-21 夜（2b）: 業態を選ぶ前の手順は 0.5 で明るさの比 3.09＝読めない → 0.7（約 5.2・まだ押せないと分かる薄さ） */}
                 <span className="n num">{done ? "✓" : i + 1}</span><span className="t">{n}</span></button></li>); })}
           </ol>
         )}
@@ -282,9 +285,9 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
         <><div className="nox-setup-head" data-setup-head="1"><h2>お店について</h2><p>業態を選ぶと、席・料金・メニュー・待遇・会計の初期値がその業態の一般的な形で入ります。</p></div>
           <section className="nox-cardtop" style={card}>
           <h3 style={h3}>お店のタイプ</h3>
-          <p style={lead}>選び直すときは、入力した内容を入れ替えるか確認します。</p>
+          <p style={lead} data-setup-type-lead="1">{lockedType ? "業態はお申し込みのときの値です。変えるときは運営へご連絡ください。" : "選び直すときは、入力した内容を入れ替えるか確認します。"}</p>
           <div style={grid(150)}>
-            {V5_TYPES.map((x) => (
+            {V5_TYPES.filter((x) => !lockedType || x.id === lockedType).map((x) => (
               <button key={x.id} type="button" aria-pressed={type === x.id} onClick={() => pickType(x.id)} data-type={x.id}
                 style={{ ...t.card, textAlign: "left", cursor: "pointer", padding: 12, border: type === x.id ? "1px solid var(--gold)" : "1px solid var(--line)", background: type === x.id ? "var(--goldface2)" : "var(--card2)", color: type === x.id ? "var(--champ)" : "var(--ink)" }}>
                 <b style={{ fontSize: 14 }}>{x.name}</b><small style={{ display: "block", color: "var(--sub)" }}>{x.desc}</small><span className="num" style={{ fontSize: 11.5 }}>{x.price}</span>

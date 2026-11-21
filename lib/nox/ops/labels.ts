@@ -107,3 +107,46 @@ export function opsErrJa(msg: string | null | undefined): string {
   for (const k of Object.keys(ERR).sort((a, b) => b.length - a.length)) if (m.includes(k)) return ERR[k];
   return "うまくいきませんでした。時間をおいてもう一度試してください";
 }
+
+// ★2026-11-21 夜（相談役 18:40 の 2c）: 導入の状況の札（済・途中・未）・「何日前」・次にすること（詳細の一番上と一覧で同じもの）。
+//   「何日前」は済んだ日時が ops_org_list にある項目だけ（導入＝onboarding_done_at・初期設定＝setup_draft_at＝最後の保存）。オーナーの受諾と LINE は済んだ日時を返していない＝出さない。
+export type OpsStepState = "done" | "doing" | "todo";
+export const OPS_STEP_STATE_LABEL: Record<OpsStepState, string> = { done: "済", doing: "途中", todo: "未" };
+export type OpsProgressItem = { key: "owner" | "setup" | "line" | "people" | "onboarding"; name: string; state: OpsStepState; detail: string; ago: string | null };
+/** JST の日付の差（今日・n 日前）。日時が無い・未来は null */
+export function daysAgoJa(iso: string | null | undefined, now: Date): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  const day = (x: Date) => Math.floor((x.getTime() + 9 * 3600_000) / 86_400_000);
+  const n = day(now) - day(d);
+  return n < 0 ? null : n === 0 ? "今日" : `${n} 日前`;
+}
+export function opsProgressOf(r: OpsOrgRow, now: Date): OpsProgressItem[] {
+  const owner: OpsStepState = r.owner_accepted ? "done" : r.owner_email ? "doing" : "todo";
+  const setupDone = r.store_count > 0 && r.setup_done_stores >= r.store_count;
+  const setup: OpsStepState = setupDone ? "done" : r.setup_step_max || r.setup_draft_at ? "doing" : "todo";
+  const lineAll = !!(r.line_login_stores && r.line_notify_stores && r.line_richmenu_stores);
+  const line: OpsStepState = lineAll ? "done" : r.line_login_stores || r.line_notify_stores || r.line_richmenu_stores ? "doing" : "todo";
+  const people: OpsStepState = r.cast_count > 0 ? "done" : r.staff_count > 0 ? "doing" : "todo";
+  const onb: OpsStepState = r.onboarding_state === "done" ? "done" : "doing";
+  return [
+    { key: "owner", name: "オーナーの受諾", state: owner, detail: inviteLabelOf(r), ago: null },
+    { key: "setup", name: "初期設定", state: setup, detail: setupLabelOf(r), ago: setup === "done" ? daysAgoJa(r.setup_draft_at, now) : null },
+    { key: "line", name: "LINE", state: line, detail: lineLabelOf(r), ago: null },
+    { key: "people", name: "キャスト・スタッフ", state: people, detail: `${r.cast_count} 人・${r.staff_count} 人`, ago: null },
+    { key: "onboarding", name: "導入", state: onb, detail: onboardingLabelOf(r.onboarding_state), ago: onb === "done" ? daysAgoJa(r.onboarding_done_at, now) : null },
+  ];
+}
+/** 次にすること（1 行）＝済でない最初の項目 */
+export function opsNextStepOf(items: readonly OpsProgressItem[]): string {
+  const it = items.find((x) => x.state !== "done");
+  if (!it) return "なし（導入は済んでいます）";
+  switch (it.key) {
+    case "owner": return it.state === "todo" ? "オーナーを決めて招待を送る" : "オーナーの受諾を待つ（届いていなければ招待をもう一度送る）";
+    case "setup": return it.state === "todo" ? "オーナーが初期設定を始める" : `オーナーが初期設定を終える（今 ${it.detail}）`;
+    case "line": return "LINE 連携を終える（ログイン・通知・リッチメニュー）";
+    case "people": return "キャストを登録する";
+    default: return "確かめが済んだら「導入完了にする」";
+  }
+}
