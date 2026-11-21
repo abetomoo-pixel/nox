@@ -636,6 +636,11 @@ staff_deactivate / kiosk_deactivate
 - 構造除外（B(a) と同列＝内部専用・4 ロール revoke）: check_group_subtotal（伝票×pay_group の小計＝請求額の側と同じ数え方の税・サ料・丸めの前）
 （除外 242→**243**・全数 454→**455**（0201s ＋1＝B +1）。cast_sales_aggregate_subtotal は作り直しだけ＝名前不変）
 
+### B(ai). 0202a 新設の除外（8本・2026-11-21・0202a の本番適用＝CC が適用の後の検査の張り替えで収載）
+- 構造除外（B(a) と同列＝service_role 専用・authenticated 実行不可＝運営コンソールの route から admin で呼ぶ・会社をまたぐ運営の操作＝店の課金ゲートの外）: ops_org_list／ops_org_create／ops_org_set_agency_code／ops_onboarding_set／ops_invite_logged
+- 構造除外（B(a) と同列＝内部専用・4 ロール revoke）: ops_operator_ok／ops_audit_write／ops_users_guard（トリガ関数）
+（除外 243→**251**・全数 455→**463**（0202a ＋8＝B +8）。店の側の既存の関数は作り直していない）
+
 ## C. kiosk 腕を持つ対象（実装注意・18本）
 A1 の check_open / check_add_line / check_remove_line / check_add_seat / check_remove_seat /
 check_move_seat / check_set_nominations / check_time_charge_apply / check_shimei_add / check_dohan_add /

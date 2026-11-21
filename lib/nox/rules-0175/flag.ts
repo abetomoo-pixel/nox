@@ -253,3 +253,10 @@ export const MIG_0201V_APPLIED = true;
 let override0201v: boolean | null = null;
 export function mig0201vOn(): boolean { return override0201v ?? MIG_0201V_APPLIED; }
 export function __set0201vForTest(v: boolean | null): void { override0201v = v; }
+
+/** ★0202a（運営コンソール 版 1・2026-11-20 起草・試走 64/64・本番は未適用＝相談役の読み直しの後）: 運営者の表と関数（ops_operators・ops_org_create ほか）。
+ *  true＝/ops の画面と /api/ops/* を開く（requireOperator を通った運営者だけ）。false＝/ops の下と /api/ops/* は全部 404。0202a の適用と検証の後の便で true にする。 */
+export const MIG_0202A_APPLIED = true; // ★2026-11-21 12:06:44 本番適用（Agoora の承認 11/20 23:39・CC が適用・検証 18 行とも期待値）＝相談役 11/21 12:10 の P3 で true
+let override0202a: boolean | null = null;
+export function mig0202aOn(): boolean { return override0202a ?? MIG_0202A_APPLIED; }
+export function __set0202aForTest(v: boolean | null): void { override0202a = v; }

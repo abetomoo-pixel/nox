@@ -18,7 +18,8 @@ export const DEMO_PREWIPE_TABLES: readonly string[] = [
 /** org_id が無く、端末（kiosk_devices）経由で消す表 */
 export const DEMO_PREWIPE_BY_DEVICE: readonly string[] = ["kiosk_qr_keys"];
 /** org_id を持つが消さない表（users と同じく残す＝demo_entries は /demo の入場ログ・member_profiles は users の属性） */
-export const DEMO_KEEP_EXTRA: readonly string[] = ["demo_entries", "member_profiles"];
+//   ★0202a（2026-11-21 本番適用）: ops_audit_logs は運営の監査（会社をまたぐ・会社を消すと org_id が null で残る）＝デモの wipe では消さない（デモの会社には運営の操作を許さない＝行は出来ない）
+export const DEMO_KEEP_EXTRA: readonly string[] = ["demo_entries", "member_profiles", "ops_audit_logs"];
 
 export type PrewipeResult = { ok: true; deleted: Record<string, number> } | { ok: false; table: string; error: string; deleted: Record<string, number> };
 

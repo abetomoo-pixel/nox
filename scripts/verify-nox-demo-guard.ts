@@ -69,6 +69,9 @@ const ALLOW = new Set<string>([
   "kiosk/lock-notice", // ★0190 フラグ true 便 K-1（2026-10-30）: 端末アカウントの PIN ロックのお知らせ 1 行（kiosk_devices で端末を確かめる・notices に 1 行・デモ org も可＝06:05 の reset で消える）
 ]);
 
+// D) 運営（★夜便 2026-11-20 N5・枝 night1120-ops-console）: 運営コンソールの道＝店の会社に属さない運営者だけ（requireOperatorApi＝getUser → ops_operators → aal2・旗 false は 404）。デモのユーザーは運営者の表に居ない＝404。
+const OPS = new Set<string>(["ops/orgs", "ops/orgs/[id]/invite", "ops/orgs/[id]/agency", "ops/orgs/[id]/onboarding"]);
+
 function walk(dir: string, out: string[]) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
     const p = path.join(dir, e.name);
@@ -81,11 +84,14 @@ walk("app/api", files);
 const routes = files.map((f) => f.replace(/^app\/api\//, "").replace(/\/route\.ts$/, "")).sort();
 
 // (1) 未分類 0
-const unclassified = routes.filter((r) => !(r in DENY_GUARDED) && !DENY_NO_SESSION.has(r) && !ALLOW.has(r));
-check(`dg(1-1) app/api の全 route が分類済み（走査 ${routes.length}・A ${Object.keys(DENY_GUARDED).length}／B ${DENY_NO_SESSION.size}／C ${ALLOW.size}）`, unclassified.length === 0, unclassified.join(", "));
+const unclassified = routes.filter((r) => !(r in DENY_GUARDED) && !DENY_NO_SESSION.has(r) && !ALLOW.has(r) && !OPS.has(r));
+check(`dg(1-1) app/api の全 route が分類済み（走査 ${routes.length}・A ${Object.keys(DENY_GUARDED).length}／B ${DENY_NO_SESSION.size}／C ${ALLOW.size}／運営 ${OPS.size}）`, unclassified.length === 0, unclassified.join(", "));
 // (4) 重複 0
 const dup = [...Object.keys(DENY_GUARDED)].filter((r) => DENY_NO_SESSION.has(r) || ALLOW.has(r)).concat([...DENY_NO_SESSION].filter((r) => ALLOW.has(r)));
 check("dg(4-1) 分類表に重複なし", dup.length === 0, dup.join(", "));
+// (2-OPS) 運営の道＝requireOperatorApi を最初に通す・ops/ の下は全部この群（ほかの群に入れない）
+for (const r of OPS) { const s2 = fs.existsSync(`app/api/${r}/route.ts`) ? fs.readFileSync(`app/api/${r}/route.ts`, "utf8") : ""; check(`dg(2-ops) ${r}: requireOperatorApi を最初に`, s2.includes('from "@/lib/nox/ops/require-operator"') && /const g = await requireOperatorApi\(\);\s*\n\s*if \(g\.res\) return g\.res;/.test(s2)); }
+check("dg(2-ops2) ops/ の下の route は全部 運営の群", routes.filter((r) => r.startsWith("ops/")).every((r) => OPS.has(r)) && [...OPS].every((r) => !(r in DENY_GUARDED) && !DENY_NO_SESSION.has(r) && !ALLOW.has(r)));
 // (2) A の柵
 for (const [r, guardFile] of Object.entries(DENY_GUARDED)) {
   const routeFile = `app/api/${r}/route.ts`;
