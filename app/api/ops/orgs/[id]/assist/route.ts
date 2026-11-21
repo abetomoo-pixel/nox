@@ -5,7 +5,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireOperatorApi } from "@/lib/nox/ops/require-operator";
 import { mig0202bOn } from "@/lib/nox/rules-0175/flag";
-import { assistErrJa } from "@/lib/nox/ops/assist";
+import { assistErrJa, LINE_VERIFY_LATER_NOTE, LINE_VERIFY_READY } from "@/lib/nox/ops/assist";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -41,7 +41,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       if (error) return NextResponse.json({ error: assistErrJa(error.message) }, { status: 409 });
       return NextResponse.json({ ok: true });   // 値は返さない
     }
-    case "line_verify": return call("onb_line_verify", { p_store_id: store.id });
+    case "line_verify": if (!LINE_VERIFY_READY) return NextResponse.json({ error: LINE_VERIFY_LATER_NOTE }, { status: 409 }); return call("onb_line_verify", { p_store_id: store.id });   // ★0202e まで止める（今の関数は「つながった人 1 人以上」で見る＝相談役 22:10 ■2）
     case "provisional_add": return call("onb_cast_provisional_add", { p_store_id: store.id, p_name: String(b.name ?? "").trim(), p_plan_id: b.plan_id ?? null, p_note: b.note ?? null });
     case "provisional_cancel": return call("onb_cast_provisional_cancel", { p_id: b.id });
     default: return NextResponse.json({ error: "bad action" }, { status: 400 });

@@ -61,3 +61,7 @@ export function promoteErrOf(birthday: string): string | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(birthday)) return "生年月日を入れてください";
   return null;
 }
+
+/** ★相談役 11/21 22:10 の ■2: LINE の 4 段目（確かめ）は 0202e（LINE に聞いて確かめる onb_line_verify）が本番に入るまで押せない。入ったら true */
+export const LINE_VERIFY_READY = false;
+export const LINE_VERIFY_LATER_NOTE = "確かめは次の更新で使えます";

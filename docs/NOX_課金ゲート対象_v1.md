@@ -641,6 +641,13 @@ staff_deactivate / kiosk_deactivate
 - 構造除外（B(a) と同列＝内部専用・4 ロール revoke）: ops_operator_ok／ops_audit_write／ops_users_guard（トリガ関数）
 （除外 243→**251**・全数 455→**463**（0202a ＋8＝B +8）。店の側の既存の関数は作り直していない）
 
+### B(aj). 0202b 版 4 新設の除外（15本・2026-11-21・0202b の本番適用＝CC が適用の後の枝 night1121-ops-v2 の張り替えで収載）
+- 構造除外（B(a) と同列＝service_role 専用・authenticated 実行不可＝運営の代行の route から admin で呼ぶ・会社をまたぐ運営の操作）: onb_setup_draft_set／onb_line_set／onb_line_secret_set／onb_line_verify／ops_org_set_agency_assist／onb_cast_provisional_add／onb_cast_provisional_cancel
+- 構造除外（B(a) と同列＝内部専用・4 ロール revoke）: onb_can_write／onb_audit_write
+- 運用除外（オーナーの許可と導入の状態＝お金を動かさない・デモの会社は関数が止める）: support_grant_set／support_grant_revoke／set_agency_assist／onboarding_done_by_owner／cast_provisional_discard
+- 中で A を呼ぶ（本登録＝中で呼ぶキャストの作成が A のゲート済み＝止まっている会社ではそこで止まる）: cast_provisional_promote
+（除外 251→**266**・全数 463→**478**（0202b ＋15＝B +15）。0202c は作り直し 4 本＝数は変わらない）
+
 ## C. kiosk 腕を持つ対象（実装注意・18本）
 A1 の check_open / check_add_line / check_remove_line / check_add_seat / check_remove_seat /
 check_move_seat / check_set_nominations / check_time_charge_apply / check_shimei_add / check_dohan_add /

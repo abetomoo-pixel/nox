@@ -9,7 +9,7 @@ import * as t from "@/lib/nox/ui/theme";
 import { Message } from "@/components/ui/toast";
 import TimeInput from "@/components/ui/time-input"; // 時刻の欄は共通の部品（M-51）
 import { fmtJst } from "@/lib/nox/ops/labels";
-import { assistedMarksOf, assistGateOf, lineStepsOf, linePublicErrOf } from "@/lib/nox/ops/assist";
+import { assistedMarksOf, assistGateOf, lineStepsOf, linePublicErrOf, LINE_VERIFY_LATER_NOTE, LINE_VERIFY_READY } from "@/lib/nox/ops/assist";
 import { applyType, v5DefaultState, V5_TYPES, type V5State, type V5Type } from "@/lib/nox/setup/v5";
 
 export type AssistProps = {
@@ -122,7 +122,8 @@ export default function AssistWizard(p: AssistProps) {
             {msgAt("token")}
             <b style={{ fontSize: 13.5, marginTop: 6 }}>4. 友だち追加と連携の確かめ</b>
             <p style={{ ...t.sub, fontSize: 12, margin: 0, lineHeight: 1.7 }}>店の人がボットを友だちに追加し、店の画面のリンクから連携した後に押します（つながった人が 1 人以上いれば確かめ済み）。</p>
-            <div className="nox-actions"><button type="button" style={t.btnGhost} disabled={dis} onClick={() => void post("verify", { action: "line_verify" }, "連携を確かめました")}>{busy === "verify" ? "確かめ中…" : "連携を確かめる"}</button></div>
+            <div className="nox-actions"><button type="button" style={t.btnGhost} disabled={dis || !LINE_VERIFY_READY} onClick={() => void post("verify", { action: "line_verify" }, "連携を確かめました")} data-line-verify-btn={LINE_VERIFY_READY ? "1" : "0"}>{busy === "verify" ? "確かめ中…" : "連携を確かめる"}</button></div>
+            {!LINE_VERIFY_READY && <p style={{ ...t.sub, fontSize: 12, margin: 0, textAlign: "center" }} data-line-verify-later="1">{LINE_VERIFY_LATER_NOTE}</p>}
             {msgAt("verify")}
           </div>
         </section>)}
