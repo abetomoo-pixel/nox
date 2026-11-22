@@ -43,7 +43,7 @@ check("(1) 2 店以上の会社＝店の patch から支払日を外す（ほか
 check("(1) 写す part は 5 つ・知らない値は落とす・語（二重に写さない・デモ不可）", STORE_COPY_PARTS.length === 5 && JSON.stringify(copyPartsOf(["pricing", "casts", "hours"])) === JSON.stringify(["pricing", "hours"]) && storeCopyErrJa("not empty: pricing").includes("二重に写しません") && storeAddErrJa("forbidden (demo)") === "デモの会社には足せません");
 
 // (2) 形
-check("(2) 旗 MIG_0203_APPLIED は false（枝の上・main に入れない）", MIG_0203_APPLIED === false);
+check("(2) 旗 MIG_0203_APPLIED は false（枝の上・main に入れない）", (MIG_0203_APPLIED as boolean) === false);
 check("(2) 外枠と画面の柵は needsSetupOf（旗 true は「どの店も前」）", src("app/(manage)/layout.tsx").includes("const needsSetup = needsSetupOf({ flag: mig0203On(),") && src("lib/nox/nav/page-gate.ts").includes("const needsSetup = needsSetupOf({ flag: mig0203On(),"));
 check("(2) 切り替えの route と運営の店を追加の route は旗 false で 404", src("app/api/store/current/route.ts").includes('if (!mig0203On()) return NextResponse.json({ error: "not found" }, { status: 404 });') && src("app/api/ops/orgs/[id]/stores/route.ts").includes('if (!mig0203On()) return NextResponse.json({ error: "not found" }, { status: 404 });') && src("app/api/ops/orgs/[id]/stores/route.ts").includes('rpc("ops_store_add"'));
 const mig = src("supabase/migrations/0203_multi_store.sql");

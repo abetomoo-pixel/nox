@@ -1,4 +1,5 @@
 "use client";
+import { mig0203On } from "@/lib/nox/rules-0175/flag"; // ★0203
 
 // ボトルキープ登録（A2・裁定8 N1-a）。書込は bottle_keep_register（mig0023）のみ＝
 // can_register 準拠ゲート・顧客/商品の org/店照合・audit は RPC 側で完備（UI だけが無かった）。
@@ -53,10 +54,10 @@ export default function BottleKeepPanel({ storeId, products }: { storeId: string
   const load = useCallback(async () => {
     const { data: cs } = await supabase.from("customers").select("id, name, furigana").order("name");
     const { data: ks } = await supabase.from("bottle_keeps")
-      .select("id, customer_id, product_id, opened_at, note")
+      .select((mig0203On() ? "id, customer_id, product_id, opened_at, note, store_id" : "id, customer_id, product_id, opened_at, note") as string)
       .eq("status", "active").order("opened_at", { ascending: false }).limit(30);
     setCustomers((cs ?? []) as Customer[]);
-    setKeeps((ks ?? []) as Keep[]);
+    setKeeps(((ks ?? []) as unknown as (Keep & { store_id?: string })[]).filter((k) => !(mig0203On() && storeId) || k.store_id === storeId)); // ★0203（■2-e）: 今見ている店のボトルだけ（旗 false＝今のまま）
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
