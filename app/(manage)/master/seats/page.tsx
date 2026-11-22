@@ -1,4 +1,6 @@
 import { redirect } from "next/navigation";
+import { mig0203On } from "@/lib/nox/rules-0175/flag"; // ★0203
+import { currentStoreRowsOf } from "@/lib/nox/store/current-server"; // ★0203
 import { createClient } from "@/lib/supabase/server";
 import { getSessionRole } from "@/lib/nox/auth";
 import SeatsBoard from "./seats-board";
@@ -24,13 +26,16 @@ export default async function MasterSeatsPage() {
   if (!isManagerUp) redirect("/dashboard");
 
   const supabase = await createClient();
-  const { data: stores } = await supabase.from("stores").select("id, use_vip, use_counter").order("name").limit(1); // ★0164（裁定334・便 W5-2a）: 種別の表示切替
+  const { data: stores } = await currentStoreRowsOf(supabase, "id, use_vip, use_counter") /* ★0203（■2-e）: 今見ている店（旗 false＝今のまま＝店名順の先頭） */; // ★0164（裁定334・便 W5-2a）: 種別の表示切替
   const storeId = (stores?.[0]?.id as string | undefined) ?? "";
   const hiddenKinds = hiddenKindsOf({ use_vip: stores?.[0]?.use_vip !== false, use_counter: stores?.[0]?.use_counter !== false });
-  const { data: seats } = await supabase
+  const { data: seats0 } = await supabase
     .from("seats")
     .select("id, name, kind, sort_order, is_active")
     .order("sort_order");
+  // ★0203（■2-e）: オーナーの今見ている店の席だけ（旗 false＝今のまま）
+  const seatIds = mig0203On() && storeId ? new Set((((await supabase.from("seats").select("id").eq("store_id", storeId)).data ?? []) as { id: string }[]).map((r) => r.id)) : null;
+  const seats = seatIds ? (seats0 ?? []).filter((x) => seatIds.has(x.id as string)) : seats0;
 
   return (
     <SeatsBoard

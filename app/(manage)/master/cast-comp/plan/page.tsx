@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { currentStoreRowsOf } from "@/lib/nox/store/current-server"; // ★0203
 import { createClient } from "@/lib/supabase/server";
 import { getSessionRole } from "@/lib/nox/auth";
 import { loadStoreSimData } from "@/lib/nox/payroll/sim-data";
@@ -16,7 +17,7 @@ export default async function CastCompPlanPage() {
   if (!isManagerUp) redirect("/dashboard");
   const supabase = await createClient();
   // U-2 ⑦: ノルマ統合のため settings_json（採用軸フラグ）も読む（norma/page.tsx の読みを移設）。
-  const { data: stores } = await supabase.from("stores").select("id, settings_json").order("name").limit(1);
+  const { data: stores } = await currentStoreRowsOf(supabase, "id, settings_json") /* ★0203（■2-e）: 今見ている店（旗 false＝今のまま＝店名順の先頭） */;
   const store = stores?.[0];
   const storeId = (store?.id as string | undefined) ?? "";
   if (!storeId) redirect("/master");

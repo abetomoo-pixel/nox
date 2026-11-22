@@ -1,4 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
+import { currentStoreRowsOf } from "@/lib/nox/store/current-server"; // ★0203
+import { mig0203On } from "@/lib/nox/rules-0175/flag";
 import { getSessionRole } from "@/lib/nox/auth";
 import NoticesBoard from "./notices-board";
 import { managePageGate } from "@/lib/nox/nav/page-gate";
@@ -26,7 +28,7 @@ export default async function NoticesPage() {
   const [castRes, memRes, storeRes] = await Promise.all([
     supabase.from("casts").select("id", { count: "exact", head: true }).eq("is_active", true),
     supabase.from("memberships").select("id, role", { count: "exact", head: true }).eq("is_active", true).eq("role", "staff"),
-    supabase.from("stores").select("id, name, settings_json").limit(1).maybeSingle(), // ★便 D M-101: id＝送信数カード
+    mig0203On() ? currentStoreRowsOf(supabase, "id, name, settings_json").then((r) => ({ data: r.data?.[0] ?? null })) : supabase.from("stores").select("id, name, settings_json").limit(1).maybeSingle(), // ★便 D M-101: id＝送信数カード ★0203（■2-e）: 今見ている店
   ]);
 
   return (

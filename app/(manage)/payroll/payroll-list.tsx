@@ -1,4 +1,5 @@
 "use client";
+import { mig0203On } from "@/lib/nox/rules-0175/flag"; // ★0203
 
 // B5 給与 月次一覧（設計書 B5 v1 §3.1／§3.3・裁定 B5-2〜B5-8・裁定238）。/payroll の起点＝店舗×期間（payroll_runs 1 行）を 1 行で。
 //   読取＝authenticated select のみ（RLS: owner=全店・manager=自店・payslips は staff 除外・audit_logs は owner 限定）。route は不要。
@@ -153,7 +154,7 @@ export default function PayrollList({ stores, isOwner }: { stores: Store[]; isOw
       </div>
 
       <section className="nox-panel nox-print">
-        <h3>{view === "store" ? `${nameOf.get(storeSel) ?? "店舗"}の期間一覧` : `${periodSel} の店舗一覧`}</h3>
+        <h3>{view === "store" ? `${nameOf.get(storeSel) ?? "店舗"}の期間一覧` : `${periodSel} の店舗一覧`}{mig0203On() && view !== "store" && stores.length > 1 ? "（下の数字＝全店の合計）" : ""}</h3>
         {/* KPI 4 枚（B4 H18 写し）＝表示スコープの合計。値は list.ts の sum＝凍結値の再形 */}
         <div className="nox-inset nox-kpi4" data-kpi4="1" style={{ padding: "8px 12px", marginBottom: 10 }}>{/* ★便 X13-G W-6 ①: ≤899 は 2×2（値が隣の列へはみ出して連結して見えた） */}
           {(([["対象者", `${kpi.castCount}`, "人"], ["総支給", yen(kpi.gross), ""], ["差引支給", yen(kpi.net), ""], ["支払済み", `${kpi.paidRuns}`, "件"] /* ★#82: run.status=paid の件数（payment_records 件数ではない） */]) as const).map(([l, v, u]) => (

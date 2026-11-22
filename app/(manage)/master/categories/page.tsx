@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { currentStoreRowsOf } from "@/lib/nox/store/current-server"; // ★0203
 import { createClient } from "@/lib/supabase/server";
 import { getSessionRole } from "@/lib/nox/auth";
 import { fetchProducts, fetchProductCategories } from "@/lib/nox/master/queries";
@@ -23,12 +24,12 @@ export default async function MasterCategoriesPage() {
   if (!isManagerUp) redirect("/dashboard");
 
   const supabase = await createClient();
-  const { data: stores } = await supabase.from("stores").select("id").order("name").limit(1);
+  const { data: stores } = await currentStoreRowsOf(supabase, "id") /* ★0203（■2-e）: 今見ている店（旗 false＝今のまま＝店名順の先頭） */;
   const storeId = (stores?.[0]?.id as string | undefined) ?? "";
 
   const [categories, products] = await Promise.all([
     fetchProductCategories(supabase),
-    fetchProducts(supabase),
+    fetchProducts(supabase, (stores?.[0]?.id as string | undefined) ?? null),
   ]);
 
   return <CategoriesBoard storeId={storeId} isManagerUp={isManagerUp} initial={{ categories, products }} />;

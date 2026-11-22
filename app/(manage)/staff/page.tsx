@@ -1,4 +1,6 @@
 import { redirect } from "next/navigation";
+import { mig0203On } from "@/lib/nox/rules-0175/flag"; // ★0203
+import { currentStoreIdOf } from "@/lib/nox/store/current-server"; // ★0203
 import { deniedHrefOf } from "@/lib/nox/nav/denied"; // ★M-169
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
@@ -27,7 +29,8 @@ export default async function StaffPage({ searchParams }: { searchParams: Promis
     data: { user },
   } = await supabase.auth.getUser();
   const { data: stores } = await supabase.from("stores").select("id, name").order("name");
-  const { data: myStoreId } = await supabase.rpc("auth_store_id");
+  const { data: myStoreId0 } = await supabase.rpc("auth_store_id");
+  const myStoreId = mig0203On() ? await currentStoreIdOf(supabase) : myStoreId0; // ★0203（■2-e）: オーナーは今見ている店（旗 false・owner でない＝auth_store_id のまま）
   // ★M-64: タブの代わりに案内 1 行（勤怠の正本は 給与 › 勤怠（スタッフ））・★便 A M-80 追記: 働き方は行を押して編集
   const tabs = (
     <p data-staff-work-link="1" style={{ fontSize: 12.5, color: "var(--sub)", margin: "0 0 12px" }}>勤怠は <Link href={STAFF_WORK_HREF} className="nox-link">給与 › 勤怠（スタッフ）</Link> で見ます。働き方（雇用形態・給与）は行を押して編集します。</p>

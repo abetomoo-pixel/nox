@@ -1,4 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
+import { mig0203On } from "@/lib/nox/rules-0175/flag"; // ★0203
+import { currentStoreIdOf } from "@/lib/nox/store/current-server";
 import { getSessionRole } from "@/lib/nox/auth";
 import ReportBoard from "./report-board";
 import { redirect } from "next/navigation";
@@ -20,7 +22,8 @@ export default async function ReportPage() {
   // RLS スコープの店一覧（owner=org 全店・manager/staff=自店1件）＝月報タブの店セレクタ用。
   //   日報タブは先頭店（[0]）を従来どおり使う。
   const { data: stores } = await supabase.from("stores").select("id, name, settings_json, card_tax_rate").order("name");
-  const store = stores?.[0];
+  const cur = mig0203On() ? await currentStoreIdOf(supabase) : null; // ★0203（■2-e）: 日報タブは今見ている店（旗 false＝今のまま＝先頭の店）
+  const store = (cur ? stores?.find((x) => x.id === cur) : undefined) ?? stores?.[0];
   const settings = (store?.settings_json ?? {}) as Record<string, unknown>;
   return (
     <ReportBoard

@@ -1,4 +1,5 @@
 "use client";
+import { mig0203On } from "@/lib/nox/rules-0175/flag"; // ★0203
 
 import { jstToday, jstThisMonth } from "@/lib/nox/jst-today"; // ★起票145: JST の今日・今月（UTC だと 0:00〜9:00 が JST の昨日）
 import { hmLabelOf } from "@/lib/nox/time/hhmm"; // ★便 M5b M-51 追補: 日をまたぐ時刻は「翌02:00」
@@ -304,7 +305,7 @@ export default function ReportBoard({
   const loadReports = useCallback(async () => {
     const { data } = await supabase
       .from("daily_reports").select("*").order("biz_date", { ascending: false }).limit(14);
-    const rows = (data ?? []) as (Report & { closed_by: string | null })[];
+    const rows = ((data ?? []) as (Report & { closed_by: string | null; store_id?: string })[]).filter((r) => !(mig0203On() && storeId) || r.store_id === storeId); // ★0203（■2-e）: 今見ている店の日報だけ（旗 false＝今のまま）
     setReports(rows as Report[]);
     // ★C層③: 解除者／再締め者／承認者は memberships.id ＝ memberships → user_id を 1 クエリで引き（表示専用・+1）、
     //   下の users クエリ（E8-2 #8 の締め担当名）へ相乗りして名前にする＝users クエリは従来どおり 1 本。

@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { currentStoreRowsOf } from "@/lib/nox/store/current-server"; // ★0203
 import { createClient } from "@/lib/supabase/server";
 import { getSessionRole } from "@/lib/nox/auth";
 import {
@@ -27,13 +28,13 @@ export default async function MasterProductsPage() {
   if (!isManagerUp) redirect("/dashboard");
 
   const supabase = await createClient();
-  const { data: stores } = await supabase.from("stores").select("id, settings_json").order("name").limit(1); // ★裁定269: settings_json（sys_*）は既存の stores 読取に列を足すだけ
+  const { data: stores } = await currentStoreRowsOf(supabase, "id, settings_json") /* ★0203（■2-e）: 今見ている店（旗 false＝今のまま＝店名順の先頭） */; // ★裁定269: settings_json（sys_*）は既存の stores 読取に列を足すだけ
   const storeId = (stores?.[0]?.id as string | undefined) ?? "";
   const settings = (stores?.[0]?.settings_json ?? null) as Record<string, unknown> | null;
 
   const [products, categories, costs, stock] = await Promise.all([
-    fetchProducts(supabase),
-    fetchProductCategories(supabase),
+    fetchProducts(supabase, storeId),
+    fetchProductCategories(supabase, storeId),
     fetchProductCosts(supabase),
     fetchStockTotals(supabase),
   ]);

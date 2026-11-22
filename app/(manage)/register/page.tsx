@@ -1,4 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
+import { mig0203On } from "@/lib/nox/rules-0175/flag"; // ★0203
+import { currentStoreIdOf } from "@/lib/nox/store/current-server"; // ★0203
 import { getSessionRole } from "@/lib/nox/auth";
 import { redirect } from "next/navigation";
 import { registerVisibilityServerOf } from "@/lib/nox/register/register-visibility-server"; // ★M-159 追記
@@ -61,17 +63,20 @@ export default async function RegisterPage() {
   // 予約タブの可視判定（staff は can_crm・cast は予約不可＝会計のみ）と予約作成先の店（自分の membership の店）
   const { data: canCrm } = role === "staff" ? await supabase.rpc("auth_staff_can_crm") : { data: false };
   const { data: myStoreId } = await supabase.rpc("auth_store_id");
+  // ★0203（■2-e）: オーナーの今見ている店（旗 false・owner でない＝null＝今のまま）。他店の席・商品・カテゴリ・キャストを出さない
+  const curStore = mig0203On() && role === "owner" ? await currentStoreIdOf(supabase) : null;
+  const curIds = curStore ? await (async () => { const [p, c, k] = await Promise.all([supabase.from("products").select("id").eq("store_id", curStore), supabase.from("product_categories").select("id").eq("store_id", curStore), supabase.from("casts").select("id").eq("store_id", curStore)]); const ids = (r: { data: unknown }) => new Set(((r.data ?? []) as { id: string }[]).map((x) => x.id)); return { p: ids(p), c: ids(c), k: ids(k) }; })() : null;
   // ★裁定473（M-131）: キャスト本人のセッション＝段階（注文のみ＝会計タブを出さない）。会計できる卓（own）は RLS が卓を絞る（0200）
   const castLevel = role === "cast" ? (castRegisterLevelOf(((await supabase.from("stores").select("settings_json").limit(1).maybeSingle()).data?.settings_json ?? null) as Record<string, unknown> | null) === 2 ? 2 : 1) as 1 | 2 : null; // auth_cast_register_level は内部専用＝店の設定（RLS 自店）から読む
   return (
     <RegisterBoard
-      seats={seats ?? []}
-      products={products ?? []}
-      categories={categories ?? []}
-      casts={casts ?? []}
+      seats={curStore ? (seats ?? []).filter((x) => x.store_id === curStore) : (seats ?? [])}
+      products={curIds ? (products ?? []).filter((x) => curIds.p.has(x.id as string)) : (products ?? [])}
+      categories={curIds ? (categories ?? []).filter((x) => curIds.c.has(x.id as string)) : (categories ?? [])}
+      casts={curIds ? (casts ?? []).filter((x) => curIds.k.has(x.id as string)) : (casts ?? [])}
       isManagerUp={isManagerUp}
       showReserve={role !== "cast" && (isManagerUp || canCrm === true)}
-      storeId={(myStoreId as string | null) ?? ""}
+      storeId={(curStore ?? (myStoreId as string | null)) ?? ""}
       castLevel={castLevel}
     />
   );

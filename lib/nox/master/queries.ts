@@ -8,6 +8,7 @@
 //
 // ★SELECT の内容は master-board.tsx の load() から1文字も変えていない
 //   （products は select("*")・並びは type→name 等）。移設で取得結果が変わらないことを優先。
+import { mig0203On } from "@/lib/nox/rules-0175/flag"; // ★0203
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { mig0201cOn } from "@/lib/nox/rules-0175/flag"; // ★0201c（M-146）
 
@@ -29,12 +30,13 @@ export type MasterProduct = {
 // 純増⑦（mig0063）: 商品カテゴリマスタ（store スコープ・sort_order 順・is_active で有効/無効）
 export type MasterCategory = { id: string; name: string; sort_order: number; is_active: boolean; default_back_rate?: number | null; default_track_stock?: boolean | null /* ★0201c（M-146）: 新しい商品の既定＝フラグ true のときだけ select */ };
 
-export async function fetchProducts(sb: SupabaseClient): Promise<MasterProduct[]> {
+export async function fetchProducts(sb: SupabaseClient, storeId?: string | null): Promise<MasterProduct[]> {
   const { data } = await sb.from("products").select("*").order("type").order("name");
-  return (data ?? []) as MasterProduct[];
+  return ((data ?? []) as MasterProduct[]).filter((p) => !(mig0203On() && storeId) || (p as { store_id?: string }).store_id === storeId); // ★0203（■2-e）: オーナーの今見ている店だけ（旗 false＝今のまま）
 }
 
-export async function fetchProductCategories(sb: SupabaseClient): Promise<MasterCategory[]> {
+export async function fetchProductCategories(sb: SupabaseClient, storeId?: string | null): Promise<MasterCategory[]> {
+  if (mig0203On() && storeId) { const ids = new Set((((await sb.from("product_categories").select("id").eq("store_id", storeId)).data ?? []) as { id: string }[]).map((r) => r.id)); return (await fetchProductCategories(sb)).filter((c) => ids.has(c.id)); } // ★0203（■2-e）
   // 無効も含めて管理表に出す（並びは sort_order→name）
   const { data } = await sb.from("product_categories")
     .select((mig0201cOn() ? "id, name, sort_order, is_active, default_back_rate, default_track_stock" : "id, name, sort_order, is_active") as string).order("sort_order").order("name"); // ★0201c（M-146）: カテゴリの既定 2 列

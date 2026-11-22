@@ -1,4 +1,6 @@
 "use client";
+import { mig0203On } from "@/lib/nox/rules-0175/flag"; // ★0203
+import AllStoresMonth from "@/components/nox/all-stores-month"; // ★0203
 
 // A4 月報（裁定8 N1-b・裁定12）。会計 write RPC は叩かない・daily_report_aggregate 非改修。
 // 取得＝売上系は daily_reports 直 SELECT（月内 biz_date 合算）・指名は get_store_nom_counts（mig0054・
@@ -202,6 +204,7 @@ export default function MonthReport({ stores, defaultStoreId, isManagerUp }: {
   return (
     // 段0R 第3陣: 器のみ nox-panel へ（同一画面の日報タブと器を揃える・集計/取得は非改変）
     <section className="nox-panel">
+      {mig0203On() && isManagerUp && stores.length > 1 && <AllStoresMonth stores={stores.map((s) => ({ id: s.id, name: s.name }))} period={period} />}{/* ★0203（■2-f）: 全店の合計（読むだけ・2 店以上） */}
       <h3>
         月報
         {/* ★0164（便 W5-2b・裁定334）: 締め日は月末固定・支払日は店設定 pay_day（翌月 N 日）＝見出しの注記（表示のみ） */}

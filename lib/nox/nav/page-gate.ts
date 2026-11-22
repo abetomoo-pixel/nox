@@ -12,7 +12,9 @@ import { TERMS_VERSION, termsGateRedirectOf } from "@/lib/nox/terms";
 import { castRegisterEntryOf } from "@/lib/nox/register/cast-entry-server";
 import { setupGateRedirectOf } from "@/lib/nox/setup/gate";
 import { KIOSK_PERSON_COOKIE, parseKioskPersonCookie } from "@/lib/nox/kiosk/person-session";
-import { mig0196On, mig0199On } from "@/lib/nox/rules-0175/flag";
+import { mig0196On, mig0199On, mig0203On } from "@/lib/nox/rules-0175/flag";
+import { needsSetupOf } from "@/lib/nox/store/current"; // ★0203（■2-d）
+import { currentStoreIdOf } from "@/lib/nox/store/current-server";
 
 const onPath = (p: string, base: string): boolean => p === base || p.startsWith(`${base}/`);
 
@@ -44,7 +46,13 @@ export async function managePageGate(): Promise<void> {
     const to = termsGateRedirectOf(isDemo, termsOk === true, pathname);
     if (to) redirect(to);
   }
-  const needsSetup = (storeRows ?? []).some((r) => ((r.settings_json as Record<string, unknown> | null)?.setup_done) !== true);
+  const needsSetup = needsSetupOf({ flag: mig0203On(), setupDone: (storeRows ?? []).map((r) => ((r.settings_json as Record<string, unknown> | null)?.setup_done) === true) }); // ★0203（■2-d）: 旗 true は「どの店も初期設定の前」のときだけ
   const toSetup = setupGateRedirectOf({ role, isDemo, needsSetup, pathname });
   if (toSetup) redirect(toSetup);
+  // ★0203（■2-d）: オーナーが初期設定の前の店を見ているときは、その店の /setup へ
+  if (mig0203On() && role === "owner" && !isDemo && !onPath(pathname, "/setup")) {
+    const cur = await currentStoreIdOf(supabase);
+    const { data: cs } = cur ? await supabase.from("stores").select("settings_json").eq("id", cur).maybeSingle() : { data: null };
+    if (cs && ((cs.settings_json as Record<string, unknown> | null)?.setup_done) !== true) redirect(`/setup?store=${cur}`);
+  }
 }

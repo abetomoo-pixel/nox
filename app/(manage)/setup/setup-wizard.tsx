@@ -27,6 +27,9 @@ import {
 import { castStepFailTextOf } from "@/lib/nox/setup/cast-errors"; // ★起票143（■1-c）
 import { mig0190On, mig0191On, mig0197On, mig0202bOn } from "@/lib/nox/rules-0175/flag"; // ★0190／0191 のフラグ true 便: 器が入った項目は「後で（マスタから）」を出さない
 import type { ProductRow } from "@/lib/nox/setup/template-plan";
+import { mig0203On } from "@/lib/nox/rules-0175/flag"; // ★0203（■2-b）
+import { STORE_COPY_LABEL, STORE_COPY_NEVER, STORE_COPY_PARTS, storeCopyErrJa, type StoreCopyPart } from "@/lib/nox/ops/store-add";
+import { applyCopyToPlan, copyPartsOf, stripOrgLevelKeys } from "@/lib/nox/setup/copy-plan";
 
 const DRAFT_KEY = (storeId: string) => `nox.setup.v5.draft.${storeId}`;
 const card: React.CSSProperties = t.card;
@@ -73,7 +76,7 @@ function Opt({ title, sub, children, dimmed }: { title: string; sub?: React.Reac
 }
 const later = (why: string) => <span className="nox-stpill" style={{ marginLeft: 6, fontSize: 10.5 }} data-setup-later="1">後で（マスタから）・{why}</span>;
 
-export default function SetupWizard({ store, counts, isOwner, initialStep, initialType, lockedType = null }: {
+export default function SetupWizard({ store, counts, isOwner, initialStep, initialType, lockedType = null, copy = null, multiStore = false }: {
   store: { id: string; name: string; setupDone: boolean; current: V5Ctx["current"] };
   counts: { seats: number; products: number; plans: number; rules: number };
   isOwner: boolean;
@@ -81,6 +84,10 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
   initialStep?: number; initialType?: V5Type | null;
   /** ★2026-11-21 夜（3）: 業態が入っている初回の店＝STEP 1 はこの値で固定（選び直しのボタンを出さない）・確定で biz_type を書かない */
   lockedType?: V5Type | null;
+  /** ★0203（■2-b）: 1 店目から写すもの（確定の最初に store_copy_settings・写した群の段は飛ばす） */
+  copy?: { from: string; fromName: string; parts: string[] } | null;
+  /** ★0203（■2-c）: 会社の店が 2 つ以上 */
+  multiStore?: boolean;
 }) {
   const supabase = createClient();
   const today = new Date(); const todayYmd = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
@@ -112,6 +119,7 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
   const knownAt = useRef<string | null>(null);
   const [staleBy, setStaleBy] = useState<string | null>(null);
   const [assisted, setAssisted] = useState<unknown>(null);
+  const [copyParts, setCopyParts] = useState<StoreCopyPart[]>(() => copyPartsOf(copy?.parts)); // ★0203（■2-b）
 
   // ── 自動保存（localStorage・店ごと）: 復元は hydration 後・変更ごとに保存・完了で消す ──
   useEffect(() => {
@@ -228,7 +236,13 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
   }
   async function execute() {
     if (run.running || !S.type) return;
-    const steps = planAll.steps;
+    // ★0203（■2-b）: 1 店目から写す＝最初に写して、写した群の段を飛ばす（写せなければ止める）
+    if (copy && copyParts.length > 0 && mig0203On()) {
+      const { error: ce } = await supabase.rpc("store_copy_settings", { p_src: copy.from, p_dst: store.id, p_parts: copyParts });
+      if (ce && !/not empty/.test(ce.message)) { setRun({ running: false, done: 0, total: planAll.steps.length, failedAt: 0, error: storeCopyErrJa(ce.message), completed: false, log: [] }); return; }
+    }
+    const steps0 = copy && mig0203On() ? applyCopyToPlan(planAll.steps, copyParts) : planAll.steps;
+    const steps = mig0203On() && multiStore ? stripOrgLevelKeys(steps0) : steps0; // ★0203（■2-c）: 2 店以上の会社は支払日を店で書かない
     setRun({ running: true, done: 0, total: steps.length, failedAt: null, error: null, completed: false, log: [] });
     const r = await runSteps(steps, { onIssued: (x) => setIssued((xs) => [...xs, x]) });
     if (!r.ok) { setRun({ running: false, done: r.at ?? 0, total: steps.length, failedAt: r.at ?? 0, error: r.error ?? "失敗", completed: false, log: r.log }); return; }
@@ -312,6 +326,14 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
         )}
       </header>
       <main className="nox-setup-main" data-setup-main="1">
+      {copy && mig0203On() && !isDone && (/* ★0203（■2-b）: 1 店目から写すもの（オーナーが外せる） */
+        <div className="nox-inset" style={{ padding: "10px 12px", marginBottom: 12, display: "grid", gap: 6 }} data-setup-copy={copyParts.join(",")}>
+          <b style={{ fontSize: 13.5 }}>{copy.fromName} から写すもの</b>
+          {STORE_COPY_PARTS.filter((p) => copy.parts.includes(p)).map((p) => (
+            <label key={p} style={{ display: "flex", gap: 8, alignItems: "flex-start", fontSize: 13 }}><input type="checkbox" checked={copyParts.includes(p)} onChange={() => setCopyParts((xs) => (xs.includes(p) ? xs.filter((x) => x !== p) : [...xs, p]))} style={{ marginTop: 3 }} />
+              <span><b>{STORE_COPY_LABEL[p].name}</b><span style={{ display: "block", color: "var(--sub)", fontSize: 11.5 }}>{STORE_COPY_LABEL[p].what}</span></span></label>))}
+          <p style={{ ...note, margin: 0 }}>「この内容で始める」のときに写します。写すものの STEP の入力は使いません（確定の後にマスタで直せます）。{STORE_COPY_NEVER}</p>
+        </div>)}
       {staleBy && (/* ★枝 night1121-ops-v2: 運営の代行の下書きが新しい＝自動保存を止めた */
         <div data-setup-stale="1" style={{ marginBottom: 12 }}>
           <Message kind="warn">運営が初期設定の下書きを入れました（{new Date(staleBy).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}）。この画面の入力は保存していません。読み直すと運営の入力が出ます。</Message>

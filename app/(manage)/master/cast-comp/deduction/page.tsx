@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { currentStoreRowsOf } from "@/lib/nox/store/current-server"; // ★0203
 import { okuriModeOf, okuriFlatTiersOf } from "@/lib/nox/shift/okuri-mode"; // ★裁定414（S-4）・★裁定414 追補（0180）: 距離区分
 import { createClient } from "@/lib/supabase/server";
 import { getSessionRole } from "@/lib/nox/auth";
@@ -14,7 +15,7 @@ export default async function CastCompDeductionPage() {
   const isManagerUp = role === "owner" || role === "manager";
   if (!isManagerUp) redirect("/dashboard");
   const supabase = await createClient();
-  const { data: stores } = await supabase.from("stores").select("id, settings_json").order("name").limit(1);
+  const { data: stores } = await currentStoreRowsOf(supabase, "id, settings_json") /* ★0203（■2-e）: 今見ている店（旗 false＝今のまま＝店名順の先頭） */;
   const store = stores?.[0];
   const storeId = (store?.id as string | undefined) ?? "";
   if (!storeId) redirect("/master");

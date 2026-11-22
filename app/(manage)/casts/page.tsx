@@ -1,4 +1,6 @@
 import { redirect } from "next/navigation";
+import { mig0203On } from "@/lib/nox/rules-0175/flag"; // ★0203
+import { currentStoreIdOf } from "@/lib/nox/store/current-server"; // ★0203
 import CastProvisionalsPanel from "@/components/nox/cast-provisionals-panel"; // ★枝 night1121-ops-v2
 import { mig0202bOn } from "@/lib/nox/rules-0175/flag";
 import { deniedHrefOf } from "@/lib/nox/nav/denied"; // ★M-169
@@ -27,7 +29,8 @@ export default async function CastsPage() {
     .eq("status", "trial")
     .order("created_at", { ascending: false });
   const { data: stores } = await supabase.from("stores").select("id, name, settings_json").order("name"); // ★裁定300-2: 送り方式・ベース額（同じ 1 クエリ＝fetch +0）
-  const { data: myStoreId } = await supabase.rpc("auth_store_id");
+  const { data: myStoreId0 } = await supabase.rpc("auth_store_id");
+  const myStoreId = mig0203On() ? await currentStoreIdOf(supabase) : myStoreId0; // ★0203（■2-e）: オーナーは今見ている店（旗 false・owner でない＝auth_store_id のまま）
   // F3g' castログイン招待（mig0041）: cast の結線状態（user_id の有無のみ・RLS 自動スコープ）。
   // 段P: photo_updated_at（null=写真なし。実体パスは規約導出＝URL は保存しない）。
   // 段C2: is_active フィルタを client 側の「在籍/退店済み」タブで行うため .eq("is_active", true) を外した

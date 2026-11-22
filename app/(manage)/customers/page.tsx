@@ -1,4 +1,6 @@
 import { redirect } from "next/navigation";
+import { mig0203On } from "@/lib/nox/rules-0175/flag"; // ★0203
+import { currentStoreIdOf } from "@/lib/nox/store/current-server"; // ★0203
 import { deniedHrefOf } from "@/lib/nox/nav/denied"; // ★M-169
 import { createClient } from "@/lib/supabase/server";
 import { getSessionRole } from "@/lib/nox/auth";
@@ -24,7 +26,8 @@ export default async function CustomersPage() {
   }
   const { data: stores } = await supabase.from("stores").select("id, name").order("name");
   const { data: casts } = await supabase.from("casts").select("id, name, store_id, is_active");
-  const { data: myStoreId } = await supabase.rpc("auth_store_id");
+  const { data: myStoreId0 } = await supabase.rpc("auth_store_id");
+  const myStoreId = mig0203On() ? await currentStoreIdOf(supabase) : myStoreId0; // ★0203（■2-e）: オーナーは今見ている店（旗 false・owner でない＝auth_store_id のまま）
   return (
     <CustomersBoard
       isOwner={role === "owner"}

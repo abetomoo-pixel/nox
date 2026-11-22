@@ -1,4 +1,5 @@
 "use client";
+import { mig0203On } from "@/lib/nox/rules-0175/flag"; // ★0203
 
 // ホームのボード（E5）。読取専用＝書込 RPC なし（承認操作は DrinkClaimQueue 内で完結）。
 // KPI の材料はすべて既存可視面：attendance（staff も可視＝台帳#24）・daily_reports（締め済み実績）・
@@ -221,6 +222,7 @@ export default function DashboardBoard({ storeId, storeName, cutoff, casts, shor
             <select value={curStoreId} onChange={(e) => setCurStoreId(e.target.value)} aria-label="店舗を切り替え"
               style={{ ...t.input, width: "auto", padding: "4px 8px", fontSize: 12.5, marginRight: 10 }}>
               {stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+              {mig0203On() && <option value="">全店（合計）</option>}{/* ★0203（■2-f）: 全店＝店で絞らずに読む（owner の RLS は会社の全店）＝出勤・日報の売上・シフト・お知らせの合計 */}
             </select>
           ) : (
             curStoreName && <span style={{ fontSize: 12.5, color: "var(--sub)", marginRight: 10 }}>{curStoreName}</span>

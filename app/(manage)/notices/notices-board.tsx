@@ -1,4 +1,5 @@
 "use client";
+import { mig0203On } from "@/lib/nox/rules-0175/flag"; // ★0203
 
 // お知らせ・連絡ボード（F3e・mig0034）。RLS が可視範囲を物理保証（store_id=auth_store_id()・
 // cast は all/cast のみ）＝client 側フィルタ不要。投稿/編集/削除は owner/manager のみ（notice_* RPC が
@@ -179,10 +180,10 @@ export default function NoticesBoard({ isManagerUp, audienceCounts, storeName, c
   const load = useCallback(async () => {
     const { data } = await supabase
       .from("notices")
-      .select(mig0201iOn() ? "id, title, body, audience, pinned, until, created_at, cast_ids, staff_ids, rsvp, rsvp_at, rsvp_place, rsvp_due" : mig0200On() ? "id, title, body, audience, pinned, until, created_at, cast_ids, staff_ids" : "id, title, body, audience, pinned, until, created_at") // ★M-129: 個別の宛先（0200 の列）
+      .select((mig0203On() ? "store_id, " : "") + (mig0201iOn() ? "id, title, body, audience, pinned, until, created_at, cast_ids, staff_ids, rsvp, rsvp_at, rsvp_place, rsvp_due" : mig0200On() ? "id, title, body, audience, pinned, until, created_at, cast_ids, staff_ids" : "id, title, body, audience, pinned, until, created_at")) // ★M-129: 個別の宛先（0200 の列）★0203: 旗 true は store_id も（今見ている店で絞る）
       .order("pinned", { ascending: false })
       .order("created_at", { ascending: false });
-    setRows((data ?? []) as unknown as Notice[]); // ★M-129: select の列はフラグで切り替わる（型は Notice に寄せる）
+    setRows(((data ?? []) as unknown as Notice[]).filter((n) => !(mig0203On() && storeId) || (n as { store_id?: string | null }).store_id === storeId)); // ★M-129: select の列はフラグで切り替わる（型は Notice に寄せる）★0203（■2-e）: 今見ている店の分だけ
     if (mig0201iOn()) {
       const [{ data: role }, { data: mid }] = await Promise.all([supabase.rpc("auth_role"), supabase.rpc("auth_membership_id")]);
       const m = { role: String(role ?? ""), mid: String(mid ?? "") }; setMe(m);
@@ -208,8 +209,8 @@ export default function NoticesBoard({ isManagerUp, audienceCounts, storeName, c
     const targetArgs = fAud === "targets" ? noticeTargetsArgsOf(sel) : null;
     if (fAud === "targets" && !targetArgs) { setBusy(false); setMsg("宛先を 1〜" + NOTICE_TARGETS_MAX + " 人選んでください"); return; }
     const { data: newId, error } = targetArgs
-      ? await supabase.rpc("notice_create_targets", { p_title: fTitle, p_body: fBody, ...targetArgs, p_pinned: fPinned === true, p_until: untilFromSeg(fUntilSeg) })
-      : await supabase.rpc("notice_create", { p_title: fTitle, p_body: fBody, p_audience: fAud, p_pinned: fPinned, p_until: untilFromSeg(fUntilSeg) });
+      ? (mig0203On() && storeId ? await supabase.rpc("notice_create_targets_at", { p_store_id: storeId, p_title: fTitle, p_body: fBody, ...targetArgs, p_pinned: fPinned === true, p_until: untilFromSeg(fUntilSeg) }) /* ★0203（■2-e）: 出す店＝今見ている店 */ : await supabase.rpc("notice_create_targets", { p_title: fTitle, p_body: fBody, ...targetArgs, p_pinned: fPinned === true, p_until: untilFromSeg(fUntilSeg) }))
+      : (mig0203On() && storeId ? await supabase.rpc("notice_create_at", { p_store_id: storeId, p_title: fTitle, p_body: fBody, p_audience: fAud, p_pinned: fPinned, p_until: untilFromSeg(fUntilSeg) }) : await supabase.rpc("notice_create", { p_title: fTitle, p_body: fBody, p_audience: fAud, p_pinned: fPinned, p_until: untilFromSeg(fUntilSeg) }));
     if (error) { setBusy(false); setMsg(`投稿に失敗: ${rpcErrJa(error.message)}`); return; }
     let lineMsg = "";
     if (mig0201iOn() && fRsvp && typeof newId === "string") { // ★0201i: 作成の後に出欠の設定（notice_create の署名は変えない）

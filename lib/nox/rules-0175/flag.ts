@@ -300,3 +300,10 @@ export const MIG_0206_APPLIED = true; // ★相談役 11/24 4:10 の ■2：0206
 let override0206: boolean | null = null;
 export function mig0206On(): boolean { return override0206 ?? MIG_0206_APPLIED; }
 export function __set0206ForTest(v: boolean | null): void { override0206 = v; }
+
+/** ★0203（2 号店の段 1・段 2・2026-11-22 起草・相談役 21:40 の ■2＝枝 multi-store-1122・起草と試走まで・本番は未適用）: orgs.pay_day（支払日は会社で 1 つ）・ops_store_add（運営が店を足す）・store_copy_settings（1 店目から写す）・notice_create_at／notice_create_targets_at（店を指定してお知らせ）。
+ *  false の間は、店が 1 つの会社も 2 つの会社も今と 1 字も変わらない（今見ている店の切り替え・/setup の柵の新しい決まり・全店の合算も出さない）。 */
+export const MIG_0203_APPLIED = false;
+let override0203: boolean | null = null;
+export function mig0203On(): boolean { return override0203 ?? MIG_0203_APPLIED; }
+export function __set0203ForTest(v: boolean | null): void { override0203 = v; }

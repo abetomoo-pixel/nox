@@ -1,4 +1,5 @@
 "use client";
+import { mig0203On } from "@/lib/nox/rules-0175/flag"; // ★0203（■2-c）
 
 // ★mig0144（店舗設定の統合 setter＝set_store_profile）: /master/business-hours の先頭に置く 2 節。
 //   ① 店舗情報（owner のみ表示）: 店舗名（name・必須 1..50）／略称（short・0..20）／店舗コード（store_code・0..20）／
@@ -176,9 +177,14 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
     // ★0164（便 W5-2a）: 会計と運用＝RPC の 'bad pay_day'／'bad payment_methods'／'bad punch_methods' と同じ条件を先回り（二重防御の外側）
     { const e = opsPatchErrorOf(patch); if (e) { setMsg(e); return; } }
     setBusy(true); setMsg(null);
-    const { error } = await setStoreProfile(patch);
+    // ★0203（2 号店の段 1・■2-c）: 支払日は会社で 1 つ＝set_org_pay_day（会社の全店の pay_day も同じ値にそろう）。旗 false は今のまま（店の patch）
+    const orgPay = mig0203On() && "pay_day" in patch ? Number(patch.pay_day) : null;
+    if (orgPay !== null) delete patch.pay_day;
+    const { error } = Object.keys(patch).length > 0 || orgPay === null ? await setStoreProfile(patch) : { error: null };
+    const { error: pe } = !error && orgPay !== null ? await createClient().rpc("set_org_pay_day", { p_pay_day: orgPay }) : { error: null };
     setBusy(false);
     if (error) { setMsg(`保存に失敗: ${storeProfileErrJa(error.message)}`); return; }
+    if (pe) { setMsg(`支払日の保存に失敗: ${storeProfileErrJa(pe.message)}`); return; }
     setMsg(card1 ? `${card1Title}を保存しました` : `${opsTitle}を保存しました`);
     await load();
   }
@@ -337,7 +343,7 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
                 <DatePicker value={form.ops.invoice_registered_on} disabled={busy} onChange={(v) => setOps({ invoice_registered_on: v })} ariaLabel="インボイス登録日" />{/* ★M-82 */}
               </label>}
               {on("opsPay") && <label style={{ display: "block", minWidth: 0 }}>
-                <span style={label}>給与の支払日<InfoTip>翌月 1〜31 日・締め日は月末固定・表示と案内に使います</InfoTip></span>
+                <span style={label}>給与の支払日<InfoTip>翌月 1〜31 日・締め日は月末固定・表示と案内に使います{mig0203On() ? "・会社で 1 つ（全店に効きます）" : ""}</InfoTip></span>
                 <input type="number" min={1} max={31} step={1} inputMode="numeric" value={form.ops.pay_day} disabled={busy} onChange={(e) => setOps({ pay_day: e.target.value })} style={input} aria-label="給与の支払日" />
               </label>}
               {on("opsTax") && <div style={{ minWidth: 0 }}>

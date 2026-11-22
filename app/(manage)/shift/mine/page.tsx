@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { currentStoreRowsOf } from "@/lib/nox/store/current-server"; // ★0203
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getSessionRole } from "@/lib/nox/auth";
@@ -16,7 +17,7 @@ export default async function MyShiftPage() {
   const { role } = await getSessionRole();
   if (role !== "staff" && role !== "manager") redirect(role === "cast" ? "/mine" : "/dashboard");
   const supabase = await createClient();
-  const { data: st } = await supabase.from("stores").select("settings_json").order("name").limit(1);
+  const { data: st } = await currentStoreRowsOf(supabase, "settings_json") /* ★0203（■2-e）: 今見ている店（旗 false＝今のまま＝店名順の先頭） */;
   const sj = (st?.[0]?.settings_json ?? {}) as Record<string, unknown>;
   const cutoff = typeof sj.biz_cutoff_hm === "string" && sj.biz_cutoff_hm ? (sj.biz_cutoff_hm as string) : "06:00";
   const my = await myStaffScheduleOf(supabase, cutoff);

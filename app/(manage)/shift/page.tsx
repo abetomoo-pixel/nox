@@ -1,4 +1,6 @@
 import { mig0183On } from "@/lib/nox/rules-0175/flag"; // ★便 M-9（0183）
+import { mig0203On } from "@/lib/nox/rules-0175/flag"; // ★0203
+import { currentStoreRowsOf } from "@/lib/nox/store/current-server"; // ★0203
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getSessionRole } from "@/lib/nox/auth";
@@ -21,17 +23,19 @@ export default async function ShiftPage() {
     if (canShift !== true) redirect("/dashboard");
     staffCanShift = true;
   }
-  const { data: stores } = await supabase.from("stores").select("id, name, settings_json").order("name").limit(1);
+  const { data: stores } = await currentStoreRowsOf(supabase, "id, name, settings_json") /* ★0203（■2-e）: 今見ている店（旗 false＝今のまま＝店名順の先頭） */;
   // 段P: photo_updated_at を追加（日詳細のアバターを写真にするため。null=写真なし＝頭文字にフォールバック）。
   const { data: casts } = await supabase
     .from("casts")
     .select("id, name, photo_updated_at, employment, shift_request_mode") // ★0154 D1: 用語（労働時間／稼働実績）の出し分け・★裁定337（0167）: 個別の方式＝配置ビューの印
     .eq("is_active", true)
     .order("name");
+  // ★0203（■2-e）: 今見ている店のキャストの ID（旗 false＝null＝今のまま）
+  const curCastIds = mig0203On() && stores?.[0]?.id ? new Set((((await supabase.from("casts").select("id").eq("store_id", stores[0].id as string)).data ?? []) as { id: string }[]).map((r) => r.id)) : null;
   return (
     <ShiftBoard
       storeId={stores?.[0]?.id ?? ""}
-      casts={casts ?? []}
+      casts={curCastIds ? (casts ?? []).filter((c) => curCastIds.has(c.id as string)) : (casts ?? [])} /* ★0203（■2-e）: 今見ている店のキャストだけ＝他店のシフトを作れない */
       isManagerUp={role === "owner" || role === "manager" || (mig0183On() && staffCanShift)}
       isOwner={role === "owner"}
       role={role ?? ""}

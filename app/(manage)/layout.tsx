@@ -34,6 +34,10 @@ import { castRegisterGuideOf } from "@/lib/nox/register/cast-register-guide"; //
 import CastRegisterGuidePanel from "@/components/nox/cast-register-guide";
 import { mig0200On } from "@/lib/nox/rules-0175/flag";
 import { storeDecidesPunchOf } from "@/lib/nox/shift/punch-mode";
+import { mig0203On } from "@/lib/nox/rules-0175/flag"; // ★0203（2 号店の段 1・段 2）
+import { needsSetupOf, pendingSetupStoresOf, storeSwitchShownOf } from "@/lib/nox/store/current";
+import { currentStoreIdOf } from "@/lib/nox/store/current-server";
+import StoreSwitcher from "@/components/nox/store-switcher";
 
 // 店側エリア（register/shift/report/master）の layout。auth_role() rpc は「ここで1回/リクエスト」のみ。
 // cast は原則 /mine へ（利便のためのリダイレクト・真の防御はパターン2 RLS＝checks 系 0行）。
@@ -77,7 +81,12 @@ export default async function ManageLayout({ children }: { children: React.React
   //   ★裁定269-5／270-1: 同じ読取に settings_json を足し、owner かつ setup_done !== true の店があれば /setup へ（1 条件・/setup 自身は除外）。
   //     manager／staff／cast は対象外。既存店は 0147 の埋め戻しで setup_done=true＝不変。
   const { data: storeRows } = await supabase.from("stores").select("name, settings_json").order("name");
-  const storeLabel = (storeRows?.[0]?.name as string | undefined) ?? "店舗";
+  let storeLabel = (storeRows?.[0]?.name as string | undefined) ?? "店舗";
+  // ★0203（2 号店の段 2・相談役 21:40 の ■2-e）: オーナーの今見ている店（旗 false＝null＝今のまま）。店名は今見ている店の名前
+  const multi = mig0203On() ? ((await supabase.from("stores").select("id, name, settings_json").order("name")).data ?? []).map((r) => ({ id: r.id as string, name: r.name as string, setupDone: ((r.settings_json as Record<string, unknown> | null)?.setup_done) === true })) : [];
+  const curStoreId = mig0203On() ? await currentStoreIdOf(supabase) : null;
+  const curStore = curStoreId ? multi.find((s) => s.id === curStoreId) ?? null : null;
+  if (curStore) storeLabel = curStore.name;
   const castGuide = castGuideAccess ? castRegisterGuideOf({ ...castGuideAccess, storeDecidesPunch: storeDecidesPunchOf((storeRows?.[0]?.settings_json ?? null) as Record<string, unknown> | null) }) : null; // ★2026-11-19 昼（相談役 ②）
   // ★N7-2: デモ org の判定＝orgs.is_demo（RLS orgs_select＝自 org 1 行・読取 1 本。0149 ★1 の列）
   const { data: orgRow } = await supabase.from("orgs").select("is_demo").limit(1).maybeSingle();
@@ -93,9 +102,11 @@ export default async function ManageLayout({ children }: { children: React.React
   //   /setup は manager／staff には案内（オーナーが終えるまで）＝page.tsx。判定は純関数 setupGateRedirectOf（verify:nox-su）。
   const pathnameSU = (await headers()).get("x-pathname") ?? "";
   {
-    const needsSetup = (storeRows ?? []).some((r) => ((r.settings_json as Record<string, unknown> | null)?.setup_done) !== true);
+    const needsSetup = needsSetupOf({ flag: mig0203On(), setupDone: (storeRows ?? []).map((r) => ((r.settings_json as Record<string, unknown> | null)?.setup_done) === true) }); // ★0203（■2-d）: 旗 true は「どの店も初期設定の前」のときだけ（店が 1 つなら今と同じ）
     const to = setupGateRedirectOf({ role, isDemo, needsSetup, pathname: pathnameSU });
     if (to) redirect(to);
+    // ★0203（■2-d）: オーナーが初期設定の前の店を見ているときは、その店の /setup へ（ほかの店の画面は使える）
+    if (!to && curStore && !curStore.setupDone && role === "owner" && !isDemo && !isSetupPath(pathnameSU)) redirect(`/setup?store=${curStore.id}`);
   }
   // ★便 SU（M-37 (1)）: /setup は通常の画面殻（左ナビ・上部バー）の外＝正本 docs/handoff/mock/setup_v5.html と同じ専用レイアウト（殻は setup-wizard が描く）
   if (isSetupPath(pathnameSU)) {
@@ -116,7 +127,8 @@ export default async function ManageLayout({ children }: { children: React.React
   const { data: billingWritable } = await supabase.rpc("auth_org_billing_writable");
   const billingLocked = billingWritable === false;
   const { data: myStoreId } = await supabase.rpc("auth_store_id"); // ★M-145
-  const storeHours = await storeHoursOf(supabase, (myStoreId as string | null) ?? null);
+  const storeHours = await storeHoursOf(supabase, (curStoreId ?? (myStoreId as string | null)) ?? null); // ★0203: 今見ている店（旗 false＝auth_store_id のまま）
+  const pendingSetup = pendingSetupStoresOf({ flag: mig0203On(), role: role as string, stores: multi }); // ★0203（■2-d）: 初期設定の前の店の案内（2 店以上の owner）
   // ★裁定475 追補1 の 2（2026-11-10）: お試しの案内（オーナーだけ＝org_billing の RLS SELECT は owner 限定）。7 日前から帯・前日は強め・終了後は失効の帯の文言をお試し用に。デモは出さない。
   let trialNote: string | null = null; let trialEnded = false;
   if (isOwnerRaw && !isDemo) {
@@ -213,7 +225,7 @@ export default async function ManageLayout({ children }: { children: React.React
                   topbar には出さない＝同じ情報を2箇所に出さない。
                 右は従来どおりロール表示＋ログアウト＝モックの管理者チップ位置と一致。 */}
             {/* ★裁定275 追補2-2（N4）: ヘッダー左＝ロゴ（ホームへ）＋店舗名。900+ はサイドバーに同じ brand があるため CSS で隠す（同じ情報を 2 箇所に出さない＝仮決め） */}
-            <Link href="/" className="crumb nox-tb-brand" aria-label="ホームへ" data-brand-home="/"><BrandLogo height={22} /><small>{storeLabel}</small></Link>{/* ★便 SH-UI-b2 B2-2: ロゴ＝ホーム（/＝role で振り分け） */}{/* ★便 SH-UI-a A-2: ロゴ */}
+            <Link href="/" className="crumb nox-tb-brand" aria-label="ホームへ" data-brand-home="/"><BrandLogo height={22} /><small>{storeLabel}</small></Link>{storeSwitchShownOf({ flag: mig0203On(), role: role as string, storeCount: multi.length }) && <StoreSwitcher stores={multi} currentId={curStoreId} />}{/* ★0203（■2-e）: 2 店以上の owner だけ */}{/* ★便 SH-UI-b2 B2-2: ロゴ＝ホーム（/＝role で振り分け） */}{/* ★便 SH-UI-a A-2: ロゴ */}
             <div className="acts">
               {/* ★裁定275 追補2-2（N4）: 右＝歯車（マスタ・監査・ご契約＝gear 群・cast／staff は項目 0＝描かない）＋「登録名｜役割」（自分の情報＋ログアウト）。POST /auth/signout は不変 */}
               {role !== "cast" && <PendingBell storeId={null} />}{/* ★便 SH-UI-c2 C2-13 ④: ベル＝未処理の合計（/api/home/pending＝HOME のカードと同じ数）・押すと HOME の要承認カードへ */}
@@ -223,6 +235,7 @@ export default async function ManageLayout({ children }: { children: React.React
           </header>
           <main className="nox-mainarea">
             {isDemo && <DemoBanner />}{/* ★N7-2 ①: デモ環境の帯＋初期状態に戻す */}
+            {pendingSetup.length > 0 && <div className="nox-inset" style={{ margin: "8px 0", padding: "8px 12px", fontSize: 13 }} data-pending-setup={pendingSetup.length}>{pendingSetup.map((s) => <span key={s.id} style={{ display: "inline-flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>{s.name} の初期設定がまだです。<a href={`/setup?store=${s.id}`} className="nox-link">初期設定へ</a></span>)}</div>}{/* ★0203（■2-d）: 済んだ店の画面は使える・初期設定の前の店の入口（a＝読み直す移動） */}
             {billingLocked && <BillingBanner isOwner={isOwnerRaw} trialEnded={trialEnded} />}
             {trialNote && <div className="nox-alert" role="status" data-trial-reminder="1">{trialNote} <Link href="/billing" className="nox-link" style={{ fontWeight: 700 }}>ご契約の手続きへ</Link></div>}{/* ★追補 3 R-8: 復帰導線（ご契約）はオーナー本人だけ */}
             <DemoProvider isDemo={isDemo}><StoreHoursProvider value={storeHours}>{castGuide ? <CastRegisterGuidePanel guide={castGuide} kiosk={!!kioskPersonCast} /> : children}</StoreHoursProvider></DemoProvider>

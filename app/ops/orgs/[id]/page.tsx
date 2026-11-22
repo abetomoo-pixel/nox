@@ -5,7 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requireOperatorPage } from "@/lib/nox/ops/require-operator";
 import type { OpsOrgRow } from "@/lib/nox/ops/labels";
 import OpsShell from "../../ops-shell";
-import { mig0202bOn } from "@/lib/nox/rules-0175/flag";
+import { mig0202bOn, mig0203On } from "@/lib/nox/rules-0175/flag";
 import { assistGateOf } from "@/lib/nox/ops/assist";
 import OrgDetail, { type OpsLogRow } from "./org-detail";
 
@@ -33,5 +33,11 @@ export default async function OpsOrgPage({ params }: { params: Promise<{ id: str
     ]);
     assist = org?.is_demo === true ? null : assistGateOf({ onboarding_state: row.onboarding_state, is_demo: false, support_until: (grant?.expires_at as string | undefined) ?? null }, new Date());   // デモの会社には入口を出さない（代行の関数もデモを止める）
   }
-  return <OpsShell name={op.name}><OrgDetail row={row} logs={logRows} nowIso={new Date().toISOString()} assist={assist} /></OpsShell>;
+  // ★0203（■2-a）: 店を追加＝会社の店の一覧（デモは出さない）
+  let stores: { id: string; name: string; setupDone: boolean }[] | null = null;
+  if (mig0203On()) {
+    const [{ data: org }, { data: st }] = await Promise.all([admin.from("orgs").select("is_demo").eq("id", id).maybeSingle(), admin.from("stores").select("id, name, settings_json").eq("org_id", id).order("name")]);
+    stores = org?.is_demo === true ? null : ((st ?? []) as { id: string; name: string; settings_json: Record<string, unknown> | null }[]).map((r) => ({ id: r.id, name: r.name, setupDone: r.settings_json?.setup_done === true }));
+  }
+  return <OpsShell name={op.name}><OrgDetail row={row} logs={logRows} nowIso={new Date().toISOString()} assist={assist} stores={stores} /></OpsShell>;
 }

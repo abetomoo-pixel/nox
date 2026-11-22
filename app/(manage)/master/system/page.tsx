@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { currentStoreRowsOf } from "@/lib/nox/store/current-server"; // ★0203
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getSessionRole } from "@/lib/nox/auth";
@@ -47,7 +48,7 @@ export default async function MasterSystemPage() {
   const isOwner = role === "owner";
 
   const supabase = await createClient();
-  const { data: stores } = await supabase.from("stores").select("id, org_id, settings_json").order("name").limit(1);
+  const { data: stores } = await currentStoreRowsOf(supabase, "id, org_id, settings_json") /* ★0203（■2-e）: 今見ている店（旗 false＝今のまま＝店名順の先頭） */;
   const store = stores?.[0];
   const storeId = (store?.id as string | undefined) ?? "";
   // settings_json は printer プロファイル（レシート・プリンタ タブ）で使用する。

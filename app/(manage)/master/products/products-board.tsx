@@ -198,7 +198,7 @@ export default function ProductsBoard({ storeId, isManagerUp, initial, settings 
   // 保存後の再取得。取得内容は移設前の load() と同一（server の初期取得と同じ関数を使う）。
   async function reload() {
     const [ps, cats, cs, st] = await Promise.all([
-      fetchProducts(supabase), fetchProductCategories(supabase),
+      fetchProducts(supabase, storeId), fetchProductCategories(supabase, storeId),
       fetchProductCosts(supabase), fetchStockTotals(supabase),
     ]);
     setProducts(ps); setCategories(cats);

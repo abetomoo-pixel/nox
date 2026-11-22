@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { currentStoreRowsOf } from "@/lib/nox/store/current-server"; // ★0203
 import { createClient } from "@/lib/supabase/server";
 import { getSessionRole } from "@/lib/nox/auth";
 import StoreProfilePanel from "../store-profile-panel";
@@ -39,7 +40,7 @@ export default async function MasterStoreProfilePage({ searchParams }: { searchP
   // ★MC2: 利用機能タブの報酬制度＝systems/page.tsx と同じ組み立て（先頭店・settings_json・使用数は純関数 systemUsageOf）
   let systems: { storeId: string; storeName: string; settings: Record<string, unknown>; usage: ReturnType<typeof systemUsageOf> } | null = null;
   if (tab === "pay") { // ★■8: 報酬制度（SystemsBoard）は給与のタブ（旧 利用機能）
-    const { data: first } = await supabase.from("stores").select("id, name, settings_json").order("name").limit(1);
+    const { data: first } = await currentStoreRowsOf(supabase, "id, name, settings_json") /* ★0203（■2-e）: 今見ている店（旗 false＝今のまま＝店名順の先頭） */;
     const store = first?.[0];
     const storeId = (store?.id as string | undefined) ?? "";
     if (storeId) {

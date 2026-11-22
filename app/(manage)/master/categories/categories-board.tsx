@@ -55,7 +55,7 @@ export default function CategoriesBoard({ storeId, isManagerUp, initial }: {
   const [cDefTrack, setCDefTrack] = useState(false);
 
   async function reload() {
-    const [cats, ps] = await Promise.all([fetchProductCategories(supabase), fetchProducts(supabase)]);
+    const [cats, ps] = await Promise.all([fetchProductCategories(supabase, storeId), fetchProducts(supabase, storeId)]);
     setCategories(cats);
     setProducts(ps);
   }
