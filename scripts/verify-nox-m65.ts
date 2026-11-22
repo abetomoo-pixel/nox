@@ -72,8 +72,8 @@ check("m74(8-1) 控除ルール一覧＝単位を日本語（日ごと／月ご�
 // ── M-75
 check("m75(9-1) 日タブの追加配置＝対象は選択中の日（todayDate）・ラベル「＋ 当日追加配置」／「＋ 11/8 に追加配置」・題名と説明も選択日・定休日（特別営業日でない／臨時休業）はボタンを出さず 1 行・追加後は選択日の表に即反映",
   sb.includes("isClosedForAdd(todayDate)") && sb.includes('data-today-add-closed={todayDate}>定休日（特別営業日にすると配置できます）</span>') && sb.includes('todayDate === bizToday ? "＋ 当日追加配置" : `＋ ${Number(todayDate.slice(5, 7))}/${Number(todayDate.slice(8, 10))} に追加配置`')
-  && sb.includes("data-today-add-head={todayDate}") && sb.includes("保存すると確定のシフトになり、その日のタブに出ます。") && sb.includes("<DayAddPanel date={todayDate}") && sb.includes('const isClosedForAdd = (ymd: string) => specialOf(ymd) === "closed" || (isClosedDay(ymd) && specialOf(ymd) !== "open");')
-  && sb.includes('supabase.from("store_special_days").select("day, kind")'));
+  && sb.includes("data-today-add-head={todayDate}") && sb.includes("保存すると確定のシフトになり、その日のタブに出ます。") && sb.includes("<DayAddPanel date={todayDate}") && sb.includes('const isClosedForAdd = (ymd: string) => specialOf(ymd) === "closed" || (isClosedDowDay(ymd) && specialOf(ymd) !== "open");') /* ★2026-11-22: 曜日だけの判定は isClosedDowDay（isClosedDay は臨時の日を見る＝同じ結果） */
+  && sb.includes('supabase.from("store_special_days").select(mig0201dOn() ? "day, kind, price_dow, open_hm, close_hm" : "day, kind, open_hm, close_hm")') /* ★2026-11-22（相談役 14:10 の 3）: price_dow と時刻も読む */);
 // ── M-76
 check("m76(10-1) 期間の必要人数＝店の曜日別の既定を初期表示（定休日は「定休」・入力不可）・−／＋のステッパー＋「名」・既定から変えた曜日だけ保存（既定に戻せば空）・「店の既定に戻す」・説明文・追加行は曜日ボタン群と TimePicker（ネイティブ select なし）",
   sb.includes("const storeNeedOf = (dow: number): number => (closedDows.has(dow) ? 0 : needs.filter((n) => n.dow === dow).reduce((m, n) => Math.max(m, n.required), 0));") && sb.includes('data-period-need-closed="1"') && sb.includes("data-period-need-value={cur}")

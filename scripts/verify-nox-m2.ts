@@ -109,7 +109,7 @@ check("m2(19-1) 確定シフトの日モーダル＝その日専用の DayAddPan
     && so[0].value === "00:00" && so.at(-1)!.value === "23:30" && eo2.at(-1)!.label === "翌23:30"
     && dp.includes("casts.filter((c) => !assigned.has(c.id))") && dp.includes("const span = initialSpanOf(st.wish, availTimeByCast[c.id]?.[dow] ?? null, preset ?? null, [FALLBACK_START, FALLBACK_END]);") /* ★M-91: 希望 → 基本の働き方の時刻 → 営業時間 */ && dp.includes('data-day-add-all="1"') && dp.includes(">時間をそろえる</button>")
     && dp.includes("if (closed) {") && dp.includes("p_override_reason: r.needReason ? r.reason.trim() : null") && dp.includes("const blocked = rows.some((r) => r.needReason && r.reason.trim() === \"\");")
-    && sb.split("<DayAddPanel date={selDate} casts={casts} photoUrls={photoUrls} bhRows={bhRows} wishes={wishAll} closed={isClosedDay(selDate)}").length - 1 === 3);
+    && sb.split("<DayAddPanel date={selDate} casts={casts} photoUrls={photoUrls} bhRows={bhRowsForDayOf(selDate, bhRows, specialDays)} wishes={wishAll} closed={isClosedDay(selDate)}").length - 1 === 3 /* ★2026-11-22（相談役 14:10 の 3）: 臨時営業の日は既定の時刻をその日の時刻に */);
 }
 // ── BTN 追記（10/26 夜・75db8fc に未収載だった分） ──
 {
