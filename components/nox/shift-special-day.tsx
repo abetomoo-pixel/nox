@@ -11,7 +11,7 @@ import { Message } from "@/components/ui/toast";
 import { errJa } from "@/lib/nox/errors";
 import { DOW_JA } from "@/lib/nox/business-hours-special";
 import type { BusinessHourRow } from "@/lib/nox/business-hours";
-import { CLOSE_REMOVE_NOTE, CLOSE_SHIFT_CHOICES, closeAskOf, closeDoneTextOf, openDowChoicesOf, openHoursOfDow, specialDayActionOf, type ShiftSpecialDay } from "@/lib/nox/shift/special-day";
+import { CLOSE_KEEP_NOTE, CLOSE_REMOVE_NOTE, CLOSE_SHIFT_CHOICES, closeAskOf, closeDoneTextOf, openDowChoicesOf, openHoursOfDow, specialDayActionOf, type ShiftSpecialDay } from "@/lib/nox/shift/special-day";
 
 export default function ShiftSpecialDay({ storeId, ymd, bizToday, isManagerUp, weekdayClosed, special, bhRows, shiftCount, onChanged, onRemoveShifts }: {
   storeId: string; ymd: string; bizToday: string; isManagerUp: boolean; weekdayClosed: boolean; special: ShiftSpecialDay | null;
@@ -88,6 +88,7 @@ export default function ShiftSpecialDay({ storeId, ymd, bizToday, isManagerUp, w
           <div className="nox-seg" role="group" aria-label="入っているシフト" style={{ justifyContent: "center" }}>
             {CLOSE_SHIFT_CHOICES.map(([k, l]) => <button key={k} type="button" className={shiftChoice === k ? "on" : ""} aria-pressed={shiftChoice === k} onClick={() => setShiftChoice(k)} data-shift-special-closechoice={k}>{k === "remove" ? `入っているシフト ${shiftCount} 人を${l}` : l}</button>)}
           </div>
+          <p style={{ margin: "6px 0 0", fontSize: 11.5, color: shiftChoice === "keep" ? "var(--champ)" : "var(--sub)", textAlign: "center" }} data-shift-special-keepnote="1">「残す」：{CLOSE_KEEP_NOTE}</p>
           <p style={{ margin: "6px 0 0", fontSize: 11.5, color: "var(--sub)", textAlign: "center" }} data-shift-special-closenote="1">{CLOSE_REMOVE_NOTE}</p>
           <div className="nox-actions" style={{ marginTop: 8 }}>
             <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} disabled={busy} onClick={() => { setClosing(false); setShiftChoice("remove"); }}>やめる</button>

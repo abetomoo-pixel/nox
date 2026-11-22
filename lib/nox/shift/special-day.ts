@@ -60,6 +60,8 @@ export function specialDayActionOf(a: { ymd: string; bizToday: string; isManager
 export const closeAskOf = (ymd: string, shiftCount: number): string | null =>
   shiftCount > 0 ? `${ymd} には ${shiftCount} 人のシフトが入っています。臨時休業にするときに、入っているシフトをどうしますか？` : null;
 export const CLOSE_SHIFT_CHOICES = [["remove", "外す"], ["keep", "残す"]] as const;
+/** ★2026-11-22（相談役 21:40 の 1-a）: 「残す」の横の 1 行（起票139＝給与の式は変えない・文で知らせる） */
+export const CLOSE_KEEP_NOTE = "残したシフトは給与の計算に入ります（シフト時間保証の人・打刻しない店）";
 /** 外したシフトは臨時休業を取り消しても戻らない（確かめの文の 1 行） */
 export const CLOSE_REMOVE_NOTE = "外したシフトは、あとで臨時休業を取り消しても戻りません。確定のシフトを外した人には、今のシフトの変更の知らせが届きます。";
 /** 登録の後の文（外した人数・外せなかった人数） */

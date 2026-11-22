@@ -10,7 +10,7 @@
  */
 import fs from "node:fs";
 import pg from "pg";
-import { bhRowsForDayOf, closedEffOf, closeAskOf, closeDoneTextOf, CLOSE_REMOVE_NOTE, CLOSE_SHIFT_CHOICES, needDowOf, openDowChoicesOf, openHoursOfDow, specialDayActionOf } from "../lib/nox/shift/special-day";
+import { bhRowsForDayOf, closedEffOf, closeAskOf, closeDoneTextOf, CLOSE_KEEP_NOTE, CLOSE_REMOVE_NOTE, CLOSE_SHIFT_CHOICES, needDowOf, openDowChoicesOf, openHoursOfDow, specialDayActionOf } from "../lib/nox/shift/special-day";
 import { dayStateOf, HOLIDAY_MARK } from "../lib/nox/mine/day-state";
 import { cellTextOf } from "../lib/nox/shift/cal-cell";
 import { closedDaysOfMonth } from "../lib/nox/mine/closed-days";
@@ -46,7 +46,7 @@ check("(2) 追加の口の既定の時刻＝臨時営業の日はその日の時
 const cp = src("components/nox/shift-special-day.tsx");
 check("(3) 書込は既存の 2 関数だけ（set_store_special_day／remove_store_special_day）", (cp.match(/"(set_store_special_day|remove_store_special_day)"/g) ?? []).length >= 3 && !/rpc\("(?!set_store_special_day|remove_store_special_day)/.test(cp.replace(/createClient\(\)\.rpc\(fn, args\)/, "")));
 check("(3) 料金と必要人数の曜日＝既定の選択なし（null から）・選ぶまで登録できない", cp.includes("useState<number | null>(null)") && cp.includes("disabled={busy || dow === null} onClick={makeOpen}") && cp.includes("料金と必要人数は何曜日と同じにしますか？"));
-check("(3) 臨時休業はシフトが入っていれば外す／残すを選ぶ（既定は外す）・登録が通ってから外す・ボタンは中央（nox-actions）", cp.includes("useState<\"remove\" | \"keep\">(\"remove\")") && cp.includes("const r = shiftCount > 0 && shiftChoice === \"remove\" ? await onRemoveShifts() : null;") && cp.indexOf("await onRemoveShifts()") > cp.indexOf("p_kind: \"closed\"") && cp.includes("{CLOSE_REMOVE_NOTE}") && (cp.match(/className="nox-actions"/g) ?? []).length === 5);
+check("(3) 臨時休業はシフトが入っていれば外す／残すを選ぶ（既定は外す）・登録が通ってから外す・ボタンは中央（nox-actions）", cp.includes("useState<\"remove\" | \"keep\">(\"remove\")") && cp.includes("const r = shiftCount > 0 && shiftChoice === \"remove\" ? await onRemoveShifts() : null;") && cp.indexOf("await onRemoveShifts()") > cp.indexOf("p_kind: \"closed\"") && cp.includes("{CLOSE_REMOVE_NOTE}") && cp.includes("「残す」：{CLOSE_KEEP_NOTE}") && CLOSE_KEEP_NOTE === "残したシフトは給与の計算に入ります（シフト時間保証の人・打刻しない店）" /* ★2026-11-22（相談役 21:40 の 1-a）*/ && (cp.match(/className="nox-actions"/g) ?? []).length === 5);
 check("(3) 外すのは今ある shift_remove・確定を外した人だけ今の shift_removed の知らせ（removeShift と同じ決まり）・札は wish-form と店のカレンダーに配線", sb.includes("async function removeShiftsOn(ymd: string): Promise<{ removed: number; failed: number }> {") && sb.includes("if (s.status === \"confirmed\") void notifyCast(supabase, { castId: s.cast_id, kind: \"shift_removed\", body: shiftRemovedBody(s.date, s.start_hm, s.end_hm), ref: notifRefOf(\"shifts\", s.id) });") && sb.includes("onRemoveShifts={() => removeShiftsOn(selDate)}") && sb.includes("holiday={specialOf(ymd) === \"closed\"}") && src("app/mine/wishes/wish-form.tsx").includes("holiday: holidayDates.has(ymd)"));
 
 // (4) キャストの希望
