@@ -10,11 +10,12 @@ import * as t from "@/lib/nox/ui/theme";
 import Toast, { Message } from "@/components/ui/toast";
 import { rpcErrJa } from "@/lib/nox/ui/rpc-err";
 import { useIsDemo } from "@/lib/nox/demo/context";
-import { LINE_CONFIG_KEYS, LINE_CONFIG_LABEL, LINE_LIMIT_NOTE, LINE_PLAN_TIERS, LINE_SECRET_KINDS, LINE_SECRET_LABEL, LINE_SECRET_PLACEHOLDER, liffEntryUrlOf, siteOriginOf, lineConfigErrorOf, lineConfigPatchOf, lineConfiguredOf, lineLimitErrorOf, lineLimitLabelOf, lineLimitStepOf, lineLoginReadyOf, webhookUrlOf, type LineConfig, type LineConfigKey, type LineSecretKind } from "@/lib/nox/line/liff-endpoint";
+import { LINE_CONFIG_KEYS, LINE_CONFIG_LABEL, LINE_LIMIT_NOTE, LINE_PLAN_TIERS, LINE_SECRET_KINDS, LINE_SECRET_LABEL, LINE_SECRET_PLACEHOLDER, siteOriginOf, lineConfigErrorOf, lineConfigPatchOf, lineConfiguredOf, lineLimitErrorOf, lineLimitLabelOf, lineLimitStepOf, lineLoginReadyOf, type LineConfig, type LineConfigKey, type LineSecretKind } from "@/lib/nox/line/liff-endpoint";
 import { jstMonthOf, lineForecastOf, lineMonthLineOf, lineStatusOf, lineStatusTextOf, type LineMonthRow } from "@/lib/nox/line/push-forecast";
 import { LINE_NOTIFY_COUNT_NOTE, LINE_NOTIFY_DEFAULT, LINE_NOTIFY_KINDS, LINE_NOTIFY_LABEL, LINE_NOTIFY_OWNER_NOTE, LINE_NOTIFY_SAVE_PENDING_NOTE, LINE_NOTIFY_SAVED_MSG, lineNotifyOf, lineNotifyPatchOf, type LineNotifyKind } from "@/lib/nox/line/notify-kinds"; // ★M-114（裁定459）★0199（種類ごとの保存）
 import { mig0199On } from "@/lib/nox/rules-0175/flag"; // ★0199（M-114）: 保存は白名単 line_notify の後
 import { errJa } from "@/lib/nox/errors"; // ★裁定467（M-126）
+import LineUrls from "@/components/nox/line-urls"; // ★2026-11-22: LINE Developers に貼る URL（運営の代行と同じ部品）
 import InfoTip from "@/components/ui/info-tip"; // ★2026-11-16（C）: 補足は項目の横の ⓘ（店舗情報のパネルと同じ形）
 import { mig0201qOn } from "@/lib/nox/rules-0175/flag"; // ★2026-11-18 夜（相談役 ⑤）: 0201q の set_store_line_extra（公式アカウントの ID・リッチメニューの ID）
 import { BOT_BASIC_ID_NOTE, RICHMENU_STATE_JA, botBasicIdErrorOf, botBasicIdNormOf, richMenuAutoOf, richMenuResultTextOf, richMenuStateOf, type RichMenuAction } from "@/lib/nox/line/richmenu";
@@ -39,7 +40,6 @@ export default function LineConfigPanel({ stores, isOwner }: { stores: Store[]; 
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [msgAt, setMsgAt] = useState<MsgAt>("config"); // ★相談役 ③: 結果の文は押したボタンの近くに
-  const [copied, setCopied] = useState<string | null>(null);
   const [botId, setBotId] = useState(""); // ★相談役 ⑤: 公式アカウントの ID（入れると友だち追加が必須）
   const [rmMsg, setRmMsg] = useState<{ ok: boolean; text: string } | null>(null); // ★相談役 ⑤: リッチメニューの結果（設定の保存とは別の行＝失敗しても保存は止めない）
   const extraOn = mig0201qOn();
@@ -115,7 +115,6 @@ export default function LineConfigPanel({ stores, isOwner }: { stores: Store[]; 
     if (error) { setErr(errJa(error.message)); return; }
     setMsg(LINE_NOTIFY_SAVED_MSG); await load("notify");
   }
-  const copy = (k: string, v: string) => { void navigator.clipboard?.writeText(v).then(() => setCopied(k)).catch(() => undefined); };
   const jm = jstMonthOf(Date.now());
   const st = month ? lineStatusOf(month.sent, month.monthly_limit, lineForecastOf(month.sent, jm.dayOfMonth, jm.daysInMonth), jm.dayOfMonth) : null;
   const row: React.CSSProperties = { display: "grid", gap: 4 };
@@ -133,12 +132,7 @@ export default function LineConfigPanel({ stores, isOwner }: { stores: Store[]; 
       <details className="nox-settings-fold" style={{ marginBottom: 12 }} data-settings-fold="line-urls"><summary>詳しい設定（LINE Developers に貼る URL）</summary>{/* ★2026-11-16（C）: 特殊な設定は畳む */}
       <div className="nox-inset" style={{ padding: "10px 12px", marginTop: 8, display: "grid", gap: 6 }} data-line-urls="1">
         <p style={{ margin: 0, fontSize: 12, fontWeight: 800, color: "var(--champ)" }}>LINE Developers に貼る URL（店ごとにチャネルを 2 つ＝Messaging API と LINE ログイン）</p>
-        {([["LIFF エンドポイント URL（LINE ログインチャネル ＞ LIFF・サイズ Full・Scope openid）", liffEntryUrlOf(origin, storeId), "liff"], ["Webhook URL（Messaging API チャネル ＞ Webhook の利用 ON・応答メッセージ OFF）", webhookUrlOf(origin, storeId), "webhook"]] as const).map(([l, v, k]) => (
-          <div key={k} style={{ display: "grid", gap: 2, fontSize: 12 }}>
-            <span style={{ color: "var(--sub)" }}>{l}</span>
-            <span style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}><code style={{ fontSize: 11.5, wordBreak: "break-all" }} data-line-url={k}>{v}</code><button type="button" style={{ ...t.btnGhost, ...t.btnSm }} onClick={() => copy(k, v)}>{copied === k ? "コピーしました ✓" : "コピー"}</button></span>
-          </div>
-        ))}
+        <LineUrls origin={origin} storeId={storeId} />{/* ★2026-11-22（相談役 17:50 の 2-a）: 運営の代行と同じ部品（どこに貼るかを 1 行ずつ） */}
         <p style={{ margin: 0, fontSize: 11.5, color: "var(--sub)" }}>状態: {lineLoginReadyOf(cfg) ? "ログイン可（チャネル ID・LIFF ID あり）" : "ログイン未設定"}・{lineConfiguredOf(cfg) ? "通知可（アクセストークンあり）" : "通知未設定（アクセストークンなし）"}</p>
       </div>
       </details>

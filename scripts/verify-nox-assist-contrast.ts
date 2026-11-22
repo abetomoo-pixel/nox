@@ -35,7 +35,7 @@ const NOW = "2026-11-24T03:00:00Z";
 
 const base: AssistProps = {
   orgId: "00000000-0000-4000-8000-000000000001", orgName: "TEST CLUB", onboardingState: "onboarding", isDemo: false, supportUntil: null,
-  storeName: "TEST CLUB 本店", bizType: "host", setupDone: false,
+  storeId: "00000000-0000-4000-8000-0000000000a1", storeName: "TEST CLUB 本店", bizType: "host", setupDone: false,
   draft: { updatedAt: "2026-11-23T10:00:00.123456Z", assisted: { "1": { kind: "ops", who: "運営", at: "2026-11-23T10:00:00Z" } }, data: null },
   line: { login_channel_id: true, liff_id: true, bot_basic_id: true, channel_secret_ref: true, access_token_ref: false, line_verified_at: null },
   provisionals: [{ id: "p1", name: "見本 みく", created_who: "運営", created_at: "2026-11-23T11:00:00Z", promoted_at: null, discarded_at: null }, { id: "p2", name: "見本 れな", created_who: "運営", created_at: "2026-11-23T11:05:00Z", promoted_at: "2026-11-23T12:00:00Z", discarded_at: null }],

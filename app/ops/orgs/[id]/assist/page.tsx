@@ -34,7 +34,7 @@ export default async function OpsAssistPage({ params }: { params: Promise<{ id: 
   const sj = (store.settings_json ?? {}) as Record<string, unknown>;
   const props: AssistProps = {
     orgId: id, orgName: row.org_name, onboardingState: row.onboarding_state, isDemo: org?.is_demo === true, supportUntil: (grant?.expires_at as string | undefined) ?? null,
-    storeName: store.name as string, bizType: typeof sj.biz_type === "string" ? (sj.biz_type as string) : null, setupDone: sj.setup_done === true,
+    storeId: store.id as string, storeName: store.name as string, bizType: typeof sj.biz_type === "string" ? (sj.biz_type as string) : null, setupDone: sj.setup_done === true,
     draft: draft ? { updatedAt: draft.updated_at as string, assisted: draft.assisted ?? null, data: draft.data ?? null } : null,
     line: { login_channel_id: has("login_channel_id"), liff_id: has("liff_id"), bot_basic_id: has("bot_basic_id"), channel_secret_ref: has("channel_secret_ref"), access_token_ref: has("access_token_ref"), line_verified_at: has("line_verified_at") ? (lc.line_verified_at as string) : null },
     provisionals: ((prov ?? []) as { id: string; name: string; created_who: string | null; created_at: string; promoted_at: string | null; discarded_at: string | null }[]),

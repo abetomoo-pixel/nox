@@ -9,12 +9,14 @@ import * as t from "@/lib/nox/ui/theme";
 import { Message } from "@/components/ui/toast";
 import TimeInput from "@/components/ui/time-input"; // 時刻の欄は共通の部品（M-51）
 import { fmtJst } from "@/lib/nox/ops/labels";
-import { assistedMarksOf, assistGateOf, lineStepsOf, linePublicErrOf, LINE_VERIFY_READY } from "@/lib/nox/ops/assist";
+import { assistedMarksOf, assistGateOf, lineStepsOf, linePublicErrOf, LINE_VERIFY_READY, BOT_BASIC_ID_WHERE, opsGateErrJa, verifiedAtJa } from "@/lib/nox/ops/assist";
+import LineUrls from "@/components/nox/line-urls"; // ★2026-11-22（相談役 17:50 の 2-a）: 店の側の「詳しい設定」と同じ部品
+import { siteOriginOf } from "@/lib/nox/line/liff-endpoint";
 import { applyType, v5DefaultState, V5_TYPES, type V5State, type V5Type } from "@/lib/nox/setup/v5";
 
 export type AssistProps = {
   orgId: string; orgName: string; onboardingState: string; isDemo: boolean; supportUntil: string | null;
-  storeName: string; bizType: string | null; setupDone: boolean;
+  storeId: string; storeName: string; bizType: string | null; setupDone: boolean;
   draft: { updatedAt: string; assisted: unknown; data: unknown } | null;
   line: { login_channel_id: boolean; liff_id: boolean; bot_basic_id: boolean; channel_secret_ref: boolean; access_token_ref: boolean; line_verified_at: string | null };
   provisionals: { id: string; name: string; created_who: string | null; created_at: string; promoted_at: string | null; discarded_at: string | null }[];
@@ -44,13 +46,13 @@ export default function AssistWizard(p: AssistProps) {
   const lsteps = lineStepsOf(p.line);
   const dis = !gate.ok || !!busy;
 
-  async function post(at: string, body: Record<string, unknown>, okText: string, after?: () => void) {
+  async function post(at: string, body: Record<string, unknown>, okText: string | ((j: { verified_at?: string | null }) => string), after?: () => void) {
     setBusy(at); setOut(null);
     const r = await fetch(`/api/ops/orgs/${p.orgId}/assist`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
-    const j = (await r.json().catch(() => ({}))) as { error?: string; stale?: boolean; reasons?: string[] };
+    const j = (await r.json().catch(() => ({}))) as { error?: string; stale?: boolean; reasons?: string[]; verified_at?: string | null };
     setBusy(null);
-    if (!r.ok) { setOut({ at, ok: false, text: j.error ?? (j.reasons?.length ? `確かめが通りませんでした：${j.reasons.join("・")}` : "保存できませんでした"), stale: j.stale }); return; }
-    setOut({ at, ok: true, text: okText }); after?.(); router.refresh();
+    if (!r.ok) { setOut({ at, ok: false, text: opsGateErrJa(j.error) ?? j.error ?? (j.reasons?.length ? `確かめが通りませんでした：${j.reasons.join("・")}` : "保存できませんでした"), stale: j.stale }); return; }
+    setOut({ at, ok: true, text: typeof okText === "function" ? okText(j) : okText }); after?.(); router.refresh();
   }
   const msgAt = (at: string) => out && out.at === at && (
     <div data-assist-msg={at} style={{ marginTop: 8 }}>
@@ -106,10 +108,12 @@ export default function AssistWizard(p: AssistProps) {
               </li>))}
           </ul>
           <div style={{ display: "grid", gap: 10 }}>
+            <b style={{ fontSize: 13.5 }}>LINE Developers に貼る URL</b>{/* ★2026-11-22（相談役 17:50 の 2-a）: 店の側の「詳しい設定」と同じ値・同じ部品（運営元だけで連携を終えられるように） */}
+            <div className="nox-inset" style={{ padding: "10px 12px", display: "grid", gap: 8 }} data-line-urls="assist"><LineUrls origin={siteOriginOf(typeof window !== "undefined" ? window.location.origin : "")} storeId={p.storeId} /></div>
             <b style={{ fontSize: 13.5 }}>1. 公開の値</b>
             <label style={{ display: "grid", gap: 4 }}>{lbl("ログインのチャネル ID")}<input inputMode="numeric" value={pub.login_channel_id} onChange={(e) => setPub({ ...pub, login_channel_id: e.target.value })} style={t.input} disabled={dis} placeholder={lsteps[0].done ? "入力済み（変えるときだけ入れる）" : ""} /></label>
             <label style={{ display: "grid", gap: 4 }}>{lbl("LIFF ID")}<input value={pub.liff_id} onChange={(e) => setPub({ ...pub, liff_id: e.target.value })} style={t.input} disabled={dis} placeholder={lsteps[0].done ? "入力済み（変えるときだけ入れる）" : ""} /></label>
-            <label style={{ display: "grid", gap: 4 }}>{lbl("ボットの ID（@ から）")}<input value={pub.bot_basic_id} onChange={(e) => setPub({ ...pub, bot_basic_id: e.target.value })} style={t.input} disabled={dis} placeholder={lsteps[0].done ? "入力済み（変えるときだけ入れる）" : ""} /></label>
+            <label style={{ display: "grid", gap: 4 }}>{lbl("ボットの ID（@ から）")}<input value={pub.bot_basic_id} onChange={(e) => setPub({ ...pub, bot_basic_id: e.target.value })} style={t.input} disabled={dis} placeholder={lsteps[0].done ? "入力済み（変えるときだけ入れる）" : ""} /><span style={{ ...t.sub, fontSize: 11.5 }} data-bot-id-where="1">{BOT_BASIC_ID_WHERE}</span></label>
             <div className="nox-actions"><button type="button" style={t.btnGold} disabled={dis} onClick={() => { const e = linePublicErrOf(pub); if (e) { setOut({ at: "line", ok: false, text: e }); return; } void post("line", { action: "line", patch: pub }, "公開の値を入れました", () => setPub({ login_channel_id: "", liff_id: "", bot_basic_id: "" })); }}>{busy === "line" ? "保存中…" : "公開の値を保存"}</button></div>
             {msgAt("line")}
             <b style={{ fontSize: 13.5, marginTop: 6 }}>2. チャネルシークレット</b>
@@ -120,9 +124,9 @@ export default function AssistWizard(p: AssistProps) {
             <label style={{ display: "grid", gap: 4 }}>{lbl(lsteps[2].done ? "アクセストークン（入力済み・変えるときだけ入れる）" : "アクセストークン")}<input type="password" autoComplete="off" value={token} onChange={(e) => setToken(e.target.value)} style={t.input} disabled={dis} /></label>
             <div className="nox-actions"><button type="button" style={t.btnGold} disabled={dis || !token.trim()} onClick={() => void post("token", { action: "line_secret", kind: "access_token", secret: token }, "アクセストークンを入れました（画面には出しません）", () => setToken(""))}>{busy === "token" ? "保存中…" : "トークンを保存"}</button></div>
             {msgAt("token")}
-            <b style={{ fontSize: 13.5, marginTop: 6 }}>4. 友だち追加と連携の確かめ</b>
+            <b style={{ fontSize: 13.5, marginTop: 6 }}>4. 連携の確かめ</b>
             <p style={{ ...t.sub, fontSize: 12, margin: 0, lineHeight: 1.7 }}>LINE に問い合わせて確かめます（ボットの ID が保存した値と同じ・Webhook の登録先が NOX・テストが通る）。</p>
-            <div className="nox-actions"><button type="button" style={t.btnGhost} disabled={dis || !LINE_VERIFY_READY} onClick={() => void post("verify", { action: "line_verify" }, "連携を確かめました")} data-line-verify-btn={LINE_VERIFY_READY ? "1" : "0"}>{busy === "verify" ? "確かめ中…" : "連携を確かめる"}</button></div>
+            <div className="nox-actions"><button type="button" style={t.btnGhost} disabled={dis || !LINE_VERIFY_READY} onClick={() => void post("verify", { action: "line_verify" }, (j) => (j.verified_at ? `連携を確かめました（${verifiedAtJa(j.verified_at)}）` : "連携を確かめました"))} data-line-verify-btn={LINE_VERIFY_READY ? "1" : "0"}>{busy === "verify" ? "確かめ中…" : "連携を確かめる"}</button></div>
             {msgAt("verify")}
           </div>
         </section>)}

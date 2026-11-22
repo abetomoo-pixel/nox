@@ -1,7 +1,7 @@
 import { MIG_0202E_APPLIED } from "../rules-0175/flag";
 // ★導入の代行 版 2 の画面（2026-11-21 夜・枝 night1121-ops-v2・旗 MIG_0202B_APPLIED の後ろ）: 判定と表示の純関数（DB を知らない）。
 //   書けるか＝会社が導入中か、オーナーのサポート許可（1／3／7 日）の間（0202b の onb_can_write と同じ・判定の正は DB＝ここは画面の案内）。
-//   LINE 連携は 4 段（公開の値 → チャネルシークレット → アクセストークン → 友だち追加と連携の確かめ）。シークレットとトークンは入れた後に画面へ出さない（「入力済み」とだけ）。
+//   LINE 連携は 4 段（公開の値 → チャネルシークレット → アクセストークン → 連携の確かめ＝2026-11-22 に見出しを改めた）。シークレットとトークンは入れた後に画面へ出さない（「入力済み」とだけ）。
 
 export type AssistGate = { ok: boolean; reason: string | null };
 /** 運営が代行で書けるか（画面の案内・理由は 1 行） */
@@ -14,13 +14,24 @@ export function assistGateOf(o: { onboarding_state: string; is_demo?: boolean; s
 
 /** LINE 連携の 4 段（line_config の鍵の有無だけを見る＝値は読まない・画面に出さない） */
 export type LineStep = { key: "public" | "secret" | "token" | "verify"; name: string; done: boolean; note: string };
+/** ★2026-11-22: 確かめの日時（JST・「11/22 18:05」） */
+export const verifiedAtJa = (iso: string): string => new Date(iso).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" });
+/** ★2026-11-22（相談役 17:50 の 2-c）: ボットの ID の在りか */
+export const BOT_BASIC_ID_WHERE = "LINE 公式アカウントの管理画面（LINE Official Account Manager）＞ 設定 ＞ アカウント設定の「ベーシック ID」（@ から始まる）";
+/** ★2026-11-22（相談役 17:50 の 2-d）: 運営の柵が返す語（login／mfa／notfound）を日本語に（画面に英字を出さない） */
+export function opsGateErrJa(e: string | null | undefined): string | null {
+  if (e === "login") return "運営のログインが切れました。ログインし直してください";
+  if (e === "mfa") return "二段階認証が済んでいません。ログインし直してください";
+  if (e === "notfound" || e === "not found") return "見つかりません（運営者でないか、会社がありません）";
+  return null;
+}
 export function lineStepsOf(c: { login_channel_id?: boolean; liff_id?: boolean; bot_basic_id?: boolean; channel_secret_ref?: boolean; access_token_ref?: boolean; line_verified_at?: string | null }): LineStep[] {
   const pub = !!(c.login_channel_id && c.liff_id && c.bot_basic_id);
   return [
     { key: "public", name: "公開の値（ログインのチャネル ID・LIFF ID・ボットの ID）", done: pub, note: pub ? "入力済み" : "未入力" },
     { key: "secret", name: "チャネルシークレット", done: !!c.channel_secret_ref, note: c.channel_secret_ref ? "入力済み" : "未入力" },
     { key: "token", name: "アクセストークン", done: !!c.access_token_ref, note: c.access_token_ref ? "入力済み" : "未入力" },
-    { key: "verify", name: "友だち追加と連携の確かめ", done: !!c.line_verified_at, note: c.line_verified_at ? "確かめ済み" : "未確認" },
+    { key: "verify", name: "連携の確かめ", done: !!c.line_verified_at, note: c.line_verified_at ? `確かめ済み（${verifiedAtJa(c.line_verified_at)}）` : "未確認" }, // ★2026-11-22（相談役 17:50 の 2-b・d）: 見出しは「連携の確かめ」・済みは日時つき
   ];
 }
 /** 公開の値の形（画面で先に見る・DB も検査する） */
@@ -38,6 +49,8 @@ export function assistErrJa(msg: string | null | undefined): string {
   if (/forbidden \(demo\)/.test(m)) return "デモの会社には書けません";
   if (/forbidden/.test(m)) return "今は代行で書けません（導入完了の後はサポート許可の間だけ）";
   if (/setup done/.test(m)) return "初期設定は確定済みです。店の設定は店の画面で直します";
+  if (/not configured/.test(m)) return "LIFF ID とアクセストークンを先に入れてください（確かめはその後）"; // ★2026-11-22（相談役 17:50 の 2-d）
+  if (/bad result/.test(m)) return "確かめの結果を記録できませんでした。もう一度お試しください";
   if (/no link/.test(m)) return "LINE とつながった人がまだいません（友だち追加と連携をしてもらってから確かめます）";
   if (/bad key|bad value|bad patch/.test(m)) return "入力の形が違います";
   if (/bad secret|bad kind/.test(m)) return "値が空か長すぎます";
