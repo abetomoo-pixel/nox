@@ -47,5 +47,18 @@ const before = `    router.replace(role === "cast" ? "/mine" : "/dashboard");\n 
 const beforeTerms = `    router.replace("/dashboard");\n    router.refresh();\n`;
 check("(4) 直す前の形（ログイン・同意）はこの検査で赤", softIntoManage(before) && softIntoManage(beforeTerms));
 
+// (5) ★2026-11-22（相談役 17:50 の 1）: 同じ形の洗い出し＝外枠が「同じ群の中」へ戻す行き先は店側の殻の 3 つ（/setup・キオスクの本人の /register・権限の無いスタッフの /dashboard）。
+//   そこへ殻の外から入る口は、どれも読み直す移動（or フォームの POST）であること（読み直さない移動に変えたら赤）。
+const has = (p: string, s: string) => src(p).includes(s);
+check("(5) 戻しを持つ外枠＝店側の殻（/setup・/register・/dashboard は同じ群）・マスタ（/dashboard＝同じ群だが殻の中からだけ）・キャスト（/register＝別の群）・運営は戻しなし",
+  (layout.match(/redirect\(/g) ?? []).length === 8 && (src("app/(manage)/master/layout.tsx").match(/redirect\(/g) ?? []).length === 3 && (src("app/mine/layout.tsx").match(/redirect\(/g) ?? []).length === 2 && !src("app/ops/layout.tsx").includes("redirect("));
+check("(5) パスワードを決めた後（set-password）＝読み直す移動（/dashboard・運営は /ops/login）", has("app/auth/set-password/page.tsx", 'window.location.href = "/dashboard"') && has("app/auth/set-password/page.tsx", 'window.location.href = j.dest === "/ops/login" ? "/ops/login" : "/dashboard"'));
+check("(5) 招待の受諾（/i/[token]）＝読み直す移動", has("app/i/[token]/accept-form.tsx", 'window.location.href = j.dest ?? "/dashboard"'));
+check("(5) 初期設定の確定の後「ホームへ」＝a の href（読み直す移動）", has("app/(manage)/setup/setup-wizard.tsx", '<a href="/dashboard" style={{ ...t.btnGold, textDecoration: "none" }} data-setup-home="1">ホームへ</a>'));
+check("(5) 端末（キオスク）の入口＝タイルの行き先も本人のログインも location.assign", has("components/nox/kiosk-person-entry.tsx", "window.location.assign(dest ?? r.dest)") && has("lib/nox/kiosk/person-login-client.ts", 'window.location.assign("/login?kiosk=1")') && has("lib/nox/kiosk/person-login-client.ts", 'window.location.assign(ok ? "/kiosk" : "/login")'));
+check("(5) LINE（LIFF）から着いた後＝location.replace", has("app/liff/[storeId]/liff-bridge.tsx", "location.replace(liffDestOf("));
+check("(5) ログアウト＝フォームの POST（/auth/signout が 303 で /login）・デモの入口＝フォームの POST（/api/demo/enter）", has("components/ui/header-chips.tsx", '<form action="/auth/signout" method="post"') && has("components/ui/demo-terms.tsx", 'method="post" action="/api/demo/enter"'));
+check("(5) 運営のログインと MFA＝運営の殻は戻しを持たない（柵は各ページ）＝読み直さない移動でよい", has("app/ops/login/login-form.tsx", 'router.replace("/ops/mfa")') && has("app/ops/mfa/mfa-form.tsx", 'router.replace("/ops")'));
+
 if (fails.length) { console.error(`verify:nox-login-land FAIL ${fails.length}（pass ${pass}）\n` + fails.map((f) => ` - ${f}`).join("\n")); process.exit(1); }
 console.log(`verify:nox-login-land OK ${pass} checks（ログインの直後の白い画面＝読み直す移動）`);
