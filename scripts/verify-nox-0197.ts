@@ -92,7 +92,9 @@ async function main(): Promise<void> {
         const biz = (await pc.query(`select public.biz_date_of($1, now())::text d, floor(extract(epoch from (now() - (public.biz_date_of($1, now())::timestamp at time zone 'Asia/Tokyo'))) / 60)::int m`, [st.id])).rows[0] as { d: string; m: number };
         const hm = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
         const mNow = Number(biz.m);
-        const sh = (s: number, e: number) => pc.query(`insert into public.shifts (org_id, store_id, cast_id, date, start_hm, end_hm, status, created_by) values ($1, $2, $3, $4, $5, $6, 'confirmed', $7)`, [st.org_id, st.id, nc.id, biz.d, hm(Math.max(0, Math.min(47 * 60 + 59, s))), hm(Math.max(1, Math.min(47 * 60 + 59, e))), owner.user_id]);
+        // ★2026-11-22（相談役 11:20 の判断 3）: 開始は 0〜23 時（shifts_start_hm_check）＝営業日の 24 時を過ぎた時間帯（2 時〜6 時）は「いま −120 分」が 24:00 以上になって入らなかった。
+        //   5-6／5-7 は「終了が何分前か」だけを試す＝開始は 23:59 で頭打ちにしてよい（終了は 47:59 まで・開始 < 終了は保たれる）。本番の関数は変えない。
+        const sh = (s: number, e: number) => pc.query(`insert into public.shifts (org_id, store_id, cast_id, date, start_hm, end_hm, status, created_by) values ($1, $2, $3, $4, $5, $6, 'confirmed', $7)`, [st.org_id, st.id, nc.id, biz.d, hm(Math.max(0, Math.min(23 * 60 + 59, s))), hm(Math.max(1, Math.min(47 * 60 + 59, e))), owner.user_id]);
         const clear = () => pc.query(`delete from public.shifts where cast_id=$1`, [nc.id]);
         const duty = async () => (await pc.query(`select public.on_duty_of('cast', $1, $2, $3::date) b`, [nc.id, st.id, biz.d])).rows[0].b as boolean;
         check("0197(5-5) on_duty_of＝確定シフトなし・打刻なし＝false", (await duty()) === false);
