@@ -21,8 +21,10 @@ export type CellText = { fill: Fill; center: string; sub: string | null; pending
 /** セルの文字＝中央「確定/必要」・下「あと N 名」（充足／未設定）・小字「確認待ち n」（proposed＋planned） */
 /** ★便 NR-1 B①: 定休日のセル＝地色 closed・中央「定休日」（人数は出さない・既にある行は日詳細の赤バッジで見せる） */
 export const CLOSED_CELL_TEXT: CellText = { fill: "closed", center: "定休日", sub: null, pending: null };
-export function cellTextOf(st: CellStat, closed = false): CellText {
-  if (closed) return CLOSED_CELL_TEXT;
+/** ★2026-11-22（相談役 19:40 の 1-a）: 臨時休業の日のセル＝中央「休業」（定休日は「定休日」のまま） */
+export const HOLIDAY_CELL_TEXT: CellText = { ...CLOSED_CELL_TEXT, center: "休業" };
+export function cellTextOf(st: CellStat, closed = false, holiday = false): CellText {
+  if (closed) return holiday ? HOLIDAY_CELL_TEXT : CLOSED_CELL_TEXT;
   const fill = fillOf(st.assigned, st.required);
   if (st.required <= 0) return { fill, center: "未設定", sub: null, pending: null };
   const pend = st.proposed + st.planned;

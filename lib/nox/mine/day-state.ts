@@ -28,7 +28,9 @@ export type DayWish = { status: string; kind?: string | null; start_hm?: string 
 export type DayShift = { status: string; start_hm: string; end_hm: string } | null | undefined;
 
 /** 1 日の状態と、セルに出す短い文字（時刻／「希望」／「休み」等）。 */
-export function dayStateOf(a: { wish: DayWish; shift: DayShift; open: boolean; closed?: boolean }): { key: DayStateKey; mark: string | null } {
+/** ★2026-11-22（相談役 19:40 の 1-a）: 臨時休業の日の札（定休日は「定休」のまま） */
+export const HOLIDAY_MARK = "休業";
+export function dayStateOf(a: { wish: DayWish; shift: DayShift; open: boolean; closed?: boolean; /** 臨時休業（store_special_days の closed）＝札は「休業」 */ holiday?: boolean }): { key: DayStateKey; mark: string | null } {
   const { wish, shift } = a;
   if (shift) {
     const tm = fmtWin(shift.start_hm, shift.end_hm);
@@ -41,7 +43,7 @@ export function dayStateOf(a: { wish: DayWish; shift: DayShift; open: boolean; c
     // accepted だがシフトが無い（削除等）＝確認待ち（wishStateOf と同じ扱い）
     return { key: "wait", mark: wish.start_hm && wish.end_hm ? fmtWin(wish.start_hm, wish.end_hm) : null };
   }
-  if (a.closed) return { key: "closed", mark: "定休" };
+  if (a.closed) return { key: "closed", mark: a.holiday ? HOLIDAY_MARK : "定休" };
   if (a.open) return { key: "open", mark: null };
   return { key: "dim", mark: null };
 }

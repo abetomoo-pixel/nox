@@ -10,7 +10,9 @@
  */
 import fs from "node:fs";
 import pg from "pg";
-import { bhRowsForDayOf, closedEffOf, closeConfirmOf, needDowOf, openDowChoicesOf, openHoursOfDow, specialDayActionOf } from "../lib/nox/shift/special-day";
+import { bhRowsForDayOf, closedEffOf, closeAskOf, closeDoneTextOf, CLOSE_REMOVE_NOTE, CLOSE_SHIFT_CHOICES, needDowOf, openDowChoicesOf, openHoursOfDow, specialDayActionOf } from "../lib/nox/shift/special-day";
+import { dayStateOf, HOLIDAY_MARK } from "../lib/nox/mine/day-state";
+import { cellTextOf } from "../lib/nox/shift/cal-cell";
 import { closedDaysOfMonth } from "../lib/nox/mine/closed-days";
 import { pgTx } from "./fixtures-pgtx";
 
@@ -29,7 +31,8 @@ check("(1) 臨時営業の日の営業時間＝その日の時刻で日曜を営
 check("(1) 選べる曜日＝定休以外（日を外す）・選んだ曜日の時刻は翌日の形（金 20:00〜26:00）", JSON.stringify(openDowChoicesOf(bh)) === "[1,2,3,4,5,6]" && JSON.stringify(openHoursOfDow(5, bh)) === JSON.stringify({ open: "20:00", close: "26:00" }) && openHoursOfDow(0, bh) === null);
 const A = (o: Partial<Parameters<typeof specialDayActionOf>[0]>) => specialDayActionOf({ ymd: "2026-11-29", bizToday: "2026-11-22", isManagerUp: true, weekdayClosed: true, special: null, ...o }).kind;
 check("(1) 出すボタン＝定休日→臨時営業にする・営業日→臨時休業にする・登録済み→取消・スタッフと過去の日は出さない", A({}) === "make_open" && A({ weekdayClosed: false }) === "make_closed" && A({ special: sp[0] }) === "undo_open" && A({ special: sp[1] }) === "undo_closed" && A({ isManagerUp: false }) === "none" && A({ ymd: "2026-11-21" }) === "none" && A({ ymd: "2026-11-22" }) === "make_open");
-check("(1) 臨時休業の確かめ＝シフトが入っていれば人数を出す（0 人は確かめない）", closeConfirmOf("2026-11-24", 3)?.includes("3 人のシフトが入っています") === true && closeConfirmOf("2026-11-24", 0) === null);
+check("(1) 臨時休業の問い＝シフトが入っていれば人数を出して外す／残す（既定は外す・0 人は問わない）・外したシフトは取り消しても戻らない", closeAskOf("2026-11-24", 3)?.includes("3 人のシフトが入っています") === true && closeAskOf("2026-11-24", 0) === null && CLOSE_SHIFT_CHOICES[0][0] === "remove" && CLOSE_REMOVE_NOTE.includes("取り消しても戻りません") && closeDoneTextOf("2026-11-24", { removed: 2, failed: 1 }).includes("シフト 2 人を外しました・1 人は") && closeDoneTextOf("2026-11-24", null).includes("残しました"));
+check("(1-a) 臨時休業の日の札＝「休業」（キャストの希望のカレンダーと店のカレンダー）・定休日は「定休」「定休日」のまま", dayStateOf({ wish: null, shift: null, open: false, closed: true, holiday: true }).mark === HOLIDAY_MARK && HOLIDAY_MARK === "休業" && dayStateOf({ wish: null, shift: null, open: false, closed: true }).mark === "定休" && cellTextOf({ assigned: 0, confirmed: 0, proposed: 0, planned: 0, required: 0 } as never, true, true).center === "休業" && cellTextOf({ assigned: 0, confirmed: 0, proposed: 0, planned: 0, required: 0 } as never, true).center === "定休日");
 
 // (2) シフト作成
 const sb = src("app/(manage)/shift/shift-board.tsx");
@@ -43,7 +46,8 @@ check("(2) 追加の口の既定の時刻＝臨時営業の日はその日の時
 const cp = src("components/nox/shift-special-day.tsx");
 check("(3) 書込は既存の 2 関数だけ（set_store_special_day／remove_store_special_day）", (cp.match(/"(set_store_special_day|remove_store_special_day)"/g) ?? []).length >= 3 && !/rpc\("(?!set_store_special_day|remove_store_special_day)/.test(cp.replace(/createClient\(\)\.rpc\(fn, args\)/, "")));
 check("(3) 料金と必要人数の曜日＝既定の選択なし（null から）・選ぶまで登録できない", cp.includes("useState<number | null>(null)") && cp.includes("disabled={busy || dow === null} onClick={makeOpen}") && cp.includes("料金と必要人数は何曜日と同じにしますか？"));
-check("(3) 臨時休業はシフトの人数で確かめる・ボタンは中央（nox-actions）", cp.includes("const c = closeConfirmOf(ymd, shiftCount);") && (cp.match(/className="nox-actions"/g) ?? []).length === 4);
+check("(3) 臨時休業はシフトが入っていれば外す／残すを選ぶ（既定は外す）・登録が通ってから外す・ボタンは中央（nox-actions）", cp.includes("useState<\"remove\" | \"keep\">(\"remove\")") && cp.includes("const r = shiftCount > 0 && shiftChoice === \"remove\" ? await onRemoveShifts() : null;") && cp.indexOf("await onRemoveShifts()") > cp.indexOf("p_kind: \"closed\"") && cp.includes("{CLOSE_REMOVE_NOTE}") && (cp.match(/className="nox-actions"/g) ?? []).length === 5);
+check("(3) 外すのは今ある shift_remove・確定を外した人だけ今の shift_removed の知らせ（removeShift と同じ決まり）・札は wish-form と店のカレンダーに配線", sb.includes("async function removeShiftsOn(ymd: string): Promise<{ removed: number; failed: number }> {") && sb.includes("if (s.status === \"confirmed\") void notifyCast(supabase, { castId: s.cast_id, kind: \"shift_removed\", body: shiftRemovedBody(s.date, s.start_hm, s.end_hm), ref: notifRefOf(\"shifts\", s.id) });") && sb.includes("onRemoveShifts={() => removeShiftsOn(selDate)}") && sb.includes("holiday={specialOf(ymd) === \"closed\"}") && src("app/mine/wishes/wish-form.tsx").includes("holiday: holidayDates.has(ymd)"));
 
 // (4) キャストの希望
 const cm = closedDaysOfMonth("2026-11", sun, sp);

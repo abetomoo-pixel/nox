@@ -6,14 +6,15 @@ import type { CSSProperties, ReactNode } from "react";
 import type { PeriodCellStage } from "@/lib/nox/shift/period-cell";
 import { cellTextOf, FILL_WORD, LEGEND_FILL, LEGEND_STAGE, STAGE_WORD, type CellStat } from "@/lib/nox/shift/cal-cell";
 
-export function CalCell({ ymd, stat, stage, past, sel, today, onClick, title, extra, yen, closed }: {
+export function CalCell({ ymd, stat, stage, past, sel, today, onClick, title, extra, yen, closed, holiday }: {
   ymd: string; stat: CellStat; stage: PeriodCellStage; past?: boolean; sel?: boolean; today?: boolean; closed?: boolean; // ★便 NR-1 B①: 定休日
+  /** ★2026-11-22（相談役 19:40 の 1-a）: 臨時休業＝中央「休業」 */ holiday?: boolean;
   onClick?: () => void; title?: string; extra?: ReactNode; yen?: string | null;
 }) {
-  const tx = cellTextOf(stat, closed === true);
+  const tx = cellTextOf(stat, closed === true, holiday === true);
   const cls = ["nox-cald", "nox-cald2", `fill-${tx.fill}`, past ? "past" : "", sel ? "sel" : "", today ? "today" : ""].filter(Boolean).join(" ");
   return (
-    <button type="button" className={cls} data-cal-cell={ymd} data-cal-fill={tx.fill} data-cal-stage={stage} data-cal-closed={closed ? "1" : undefined} onClick={onClick} title={title ?? `${ymd}・${FILL_WORD[tx.fill]}・${STAGE_WORD[stage]}`}>
+    <button type="button" className={cls} data-cal-cell={ymd} data-cal-fill={tx.fill} data-cal-stage={stage} data-cal-closed={closed ? "1" : undefined} onClick={onClick} title={title ?? `${ymd}・${closed && holiday ? "臨時休業" : FILL_WORD[tx.fill]}・${STAGE_WORD[stage]}`}>
       <span className="nox-cald-n num">{Number(ymd.slice(8))}</span>
       <span className={`nox-cald-bd stg-${stage}`} data-cal-badge={stage}>{STAGE_WORD[stage]}</span>
       <span className="nox-cald-ctr num" data-cal-center="1">{tx.center}{tx.pending && <small className="nox-cald-pd">（{tx.pending}）</small>}</span>

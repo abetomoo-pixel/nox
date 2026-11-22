@@ -56,6 +56,14 @@ export function specialDayActionOf(a: { ymd: string; bizToday: string; isManager
   return a.weekdayClosed ? { kind: "make_open" } : { kind: "make_closed" };
 }
 
-/** 臨時休業にする前の確かめ（その日にシフトが入っているとき） */
-export const closeConfirmOf = (ymd: string, shiftCount: number): string | null =>
-  shiftCount > 0 ? `${ymd} には ${shiftCount} 人のシフトが入っています。臨時休業にしますか？（入っているシフトは消えません。必要なら外してください）` : null;
+/** 臨時休業にする前の問い（その日にシフトが入っているとき）＝★2026-11-22（相談役 19:40 の 1-b）: 入っているシフトを外す／残すを選ぶ（既定は外す） */
+export const closeAskOf = (ymd: string, shiftCount: number): string | null =>
+  shiftCount > 0 ? `${ymd} には ${shiftCount} 人のシフトが入っています。臨時休業にするときに、入っているシフトをどうしますか？` : null;
+export const CLOSE_SHIFT_CHOICES = [["remove", "外す"], ["keep", "残す"]] as const;
+/** 外したシフトは臨時休業を取り消しても戻らない（確かめの文の 1 行） */
+export const CLOSE_REMOVE_NOTE = "外したシフトは、あとで臨時休業を取り消しても戻りません。確定のシフトを外した人には、今のシフトの変更の知らせが届きます。";
+/** 登録の後の文（外した人数・外せなかった人数） */
+export function closeDoneTextOf(ymd: string, r: { removed: number; failed: number } | null): string {
+  if (!r) return `${ymd} を臨時休業にしました（入っているシフトは残しました）`;
+  return `${ymd} を臨時休業にしました（シフト ${r.removed} 人を外しました${r.failed > 0 ? `・${r.failed} 人は出勤記録などがあり外せませんでした` : ""}）`;
+}

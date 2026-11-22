@@ -683,6 +683,17 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
 
   // ★N4（対応表 H30・B層）: shift_remove（0103 裁定D）の UI 結線＝計画中／確認待ちの行を個別削除。
   //   confirmed で出勤記録がある日は RPC が 'has attendance' で拒否。wish 由来の行は wish が pending に戻る（RPC 側）。
+  // ★2026-11-22（相談役 19:40 の 1-b）: 臨時休業にするときにその日のシフトを外す＝今ある shift_remove を 1 人ずつ・確定を外した人には今の shift_removed の知らせ（removeShift と同じ決まり）
+  async function removeShiftsOn(ymd: string): Promise<{ removed: number; failed: number }> {
+    let removed = 0, failed = 0;
+    for (const s of shiftsOn(ymd)) {
+      const { error } = await supabase.rpc("shift_remove", { p_id: s.id });
+      if (error) { failed++; continue; }
+      removed++;
+      if (s.status === "confirmed") void notifyCast(supabase, { castId: s.cast_id, kind: "shift_removed", body: shiftRemovedBody(s.date, s.start_hm, s.end_hm), ref: notifRefOf("shifts", s.id) });
+    }
+    return { removed, failed };
+  }
   async function removeShift(s: Shift) {
     if (!confirm(`${castName(s.cast_id)} ${s.date} ${fmtWin(s.start_hm, s.end_hm)} のシフトを削除しますか？${s.wish_id ? "（元の希望は「キャスト希望」に戻ります）" : ""}`)) return;
     setMsg(null);
@@ -2290,7 +2301,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                 const fc = fcOf(ymd);
                 const stage = periodCellStageOf(periodsAll, ymd, bizToday);
                 return (
-                  <CalCell key={ymd} ymd={ymd} stat={st} stage={stage} past={isPast(ymd)} sel={ymd === selDate} today={ymd === bizToday} closed={isClosedDay(ymd)} /* ★便 NR-1 B① */
+                  <CalCell key={ymd} ymd={ymd} stat={st} stage={stage} past={isPast(ymd)} sel={ymd === selDate} today={ymd === bizToday} closed={isClosedDay(ymd)} holiday={specialOf(ymd) === "closed"} /* ★便 NR-1 B① ★2026-11-22: 臨時休業は「休業」 */
                     onClick={() => { setSelDate(ymd); setDayModal("calendar"); }} /* ★便 D M-95（2026-11-05・Agoora 実機）: 期間なしの日も割当モーダル（shifts.period_id は null 可＝期間なしの配置）。旧 B2-1「①の新規作成へ」は外した（①は手順の段から） */
                     title={`${ymd}・${FILL_LABEL[st.fill]}（確定${st.confirmed}/確認待ち${st.proposed}/予定${st.planned}）${st.over > 0 ? `・余剰${st.over}` : ""}`}
                     yen={isManagerUp && fc && fc.total > 0 ? yen(fc.total) : null}
@@ -2773,7 +2784,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
           <div className="nox-modalbody">
             {/* ★2026-11-22（相談役 14:10 の 3・裁定478）: 臨時営業・臨時休業をこの日のモーダルで登録／取消（店長以上・過去の日は出さない・既存の set_store_special_day／remove_store_special_day） */}
             <ShiftSpecialDay storeId={storeId} ymd={selDate} bizToday={bizToday} isManagerUp={isManagerUp} weekdayClosed={isClosedDowDay(selDate)} special={specialDays.find((x) => x.day === selDate) ?? null} bhRows={bhRows} shiftCount={shiftsOn(selDate).length}
-              onChanged={async (text) => { setMsg(text); await load(); }} />
+              onChanged={async (text) => { setMsg(text); await load(); }} onRemoveShifts={() => removeShiftsOn(selDate)} />
             {/* 充足ピル／内訳3値／余剰＝移設前の逐語（順序も語彙も不変） */}
             <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 9 }}>
               <span className={`nox-stpill ${selStat.fill === "none" ? "" : selStat.fill}`}>

@@ -28,7 +28,7 @@ import MonthNav, { useYmQuery } from "@/components/nox/month-nav"; // ★裁定3
 import { outOfPeriodNoteOf, ymFromSearch } from "@/lib/nox/ui/month-nav";
 // ★裁定326-7／追補2-4（0160・便 M4-1）: 店設定 shift_request_mode。'off_only'＝休み希望（kind 'off'・時刻なし＝時間欄を出さない）。'shift'＝従来（kind 'work'）
 import { wishNeedsTimes, wishPageTextOf, wishRowLabelOf, wishSubmitArgsOf, type WishMode } from "@/lib/nox/mine/wish-mode";
-import { DAY_STATE_ORDER, dayStateLabelOf, dayStateOf, type DayShift } from "@/lib/nox/mine/day-state";
+import { DAY_STATE_ORDER, HOLIDAY_MARK, dayStateLabelOf, dayStateOf, type DayShift } from "@/lib/nox/mine/day-state";
 import { closedDaysOfMonth, probeDaysOf } from "@/lib/nox/mine/closed-days"; // ★M-188 // ★便 GV-C C-14（GV-60・裁定403）: 日の状態 7 種
 import { rules0175On } from "@/lib/nox/rules-0175/flag"; // ★便 P175-prep P-4
 import { availFormOf, fixedOffConflictOf, wishDefaultOf, type AvailForm, type AvailRow, type AvailTerms } from "@/lib/nox/rules-0175/availability"; // ★便 P175-prep P-4（裁定397＋413）
@@ -53,6 +53,7 @@ export default function WishForm({ mode = "shift" }: { mode?: WishMode }) {
   const [busy, setBusy] = useState(false);
   const [storeId, setStoreId] = useState<string | null>(null);
   const [closedDates, setClosedDates] = useState<Set<string>>(new Set());
+  const [holidayDates, setHolidayDates] = useState<Set<string>>(new Set()); // ★2026-11-22（相談役 19:40 の 1-a）: 臨時休業の日（札「休業」）
   const [checkedDates, setCheckedDates] = useState<Set<string>>(new Set());
   const [focus, setFocus] = useState<string | null>(null); // 提出済みの日をタップ＝取り下げ導線
   // ★便 P175-prep P-4（裁定397＋413・0175 v2 ★9）: 基本の働き方（本人）＝曜日ごとの既定時間と固定休。フラグ false＝読まない（null）＝既定値は従来 20:00〜26:00
@@ -123,7 +124,7 @@ export default function WishForm({ mode = "shift" }: { mode?: WishMode }) {
       const probes = [...probeDaysOf(month, specials.map((s) => s.day)).entries()];
       const res = await Promise.all(probes.map(([, d]) => supabase.rpc("shift_is_closed_day", { p_store_id: storeId, p_date: d })));
       const dows = new Set<number>(probes.filter((_, i) => res[i].data === true).map(([w]) => w));
-      if (alive) setClosedDates(closedDaysOfMonth(month, dows, specials));
+      if (alive) { setClosedDates(closedDaysOfMonth(month, dows, specials)); setHolidayDates(new Set(specials.filter((x) => x.kind === "closed").map((x) => x.day))); } // ★2026-11-22（相談役 19:40 の 1-a）: 臨時休業の日は札「休業」
     })();
     return () => { alive = false; };
   }, [month, storeId]);
@@ -151,7 +152,7 @@ export default function WishForm({ mode = "shift" }: { mode?: WishMode }) {
       const supabase = createClient();
       const { data } = await supabase.rpc("shift_is_closed_day", { p_store_id: storeId, p_date: ymd });
       setCheckedDates((s) => new Set(s).add(ymd));
-      if (data === true) { setClosedDates((s) => new Set(s).add(ymd)); setMsg({ kind: "warn", text: `${mdDowOf(ymd)} は定休日です（提出できません）` }); return; }
+      if (data === true) { setClosedDates((s) => new Set(s).add(ymd)); setMsg({ kind: "warn", text: `${mdDowOf(ymd)} は${holidayDates.has(ymd) ? "臨時休業" : "定休日"}です（提出できません）` }); return; }
     }
     setMsg(null);
     setFailed((f) => { const n = { ...f }; delete n[ymd]; return n; });
@@ -177,7 +178,7 @@ export default function WishForm({ mode = "shift" }: { mode?: WishMode }) {
       // ★M4-1: 'off_only' は時刻 null＋kind 'off'・'shift' は時刻＋kind 'work'（0160 の 4 引数）
       const { error } = await supabase.rpc("shift_wish_submit", wishSubmitArgsOf(r, mode));
       if (error) {
-        const text = error.message.includes("closed day") ? "定休日です（希望を提出できません）"
+        const text = error.message.includes("closed day") ? (holidayDates.has(r.date) ? "臨時休業です（希望を提出できません）" : "定休日です（希望を提出できません）")
           : error.message.includes("bad time") ? "時刻の形式が不正です（例 2000・20:00／開始 00:00〜23:59・終了 00:00〜47:59）"
           : rpcErrJa(error.message);
         results.push({ date: r.date, ok: false, err: text });
@@ -217,12 +218,12 @@ export default function WishForm({ mode = "shift" }: { mode?: WishMode }) {
           const isActive = active.has(ymd);
           const err = failed[ymd];
           const disabled = !isActive && !(w && isLiveWish(w.status));
-          const ds = dayStateOf({ wish: w as { status: string; kind?: string | null; start_hm?: string | null; end_hm?: string | null } | null, shift: monthShifts.get(ymd), open: isActive, closed: closedDates.has(ymd) }); // ★GV-60
+          const ds = dayStateOf({ wish: w as { status: string; kind?: string | null; start_hm?: string | null; end_hm?: string | null } | null, shift: monthShifts.get(ymd), open: isActive, closed: closedDates.has(ymd), holiday: holidayDates.has(ymd) }); // ★GV-60 ★2026-11-22: 臨時休業は「休業」
           const cls = ["nox-cald", on ? "sel" : "", ymd < today ? "past" : "", ymd === today ? "today" : "", err ? "ng" : "", w && isLiveWish(w.status) ? "ok" : ""].filter(Boolean).join(" ");
           return (
             <button key={ymd} type="button" className={cls} data-day-state={ds.key} disabled={disabled || busy} onClick={() => void tap(ymd)}
               style={{ minHeight: 56, ...(err ? { outline: "2px solid var(--bad)", outlineOffset: -2 } : {}), ...(focus === ymd ? { outline: "2px solid var(--gold)", outlineOffset: -2 } : {}) }}
-              title={err ? `${mdDowOf(ymd)}: ${err}` : `${mdDowOf(ymd)}: ${dayStateLabelOf(ds.key, mode)}${ds.mark ? `（${ds.mark}）` : ""}${mark ? `・${mark}` : ""}`}>
+              title={err ? `${mdDowOf(ymd)}: ${err}` : `${mdDowOf(ymd)}: ${ds.mark === HOLIDAY_MARK ? "臨時休業" : dayStateLabelOf(ds.key, mode)}${ds.mark && ds.mark !== HOLIDAY_MARK ? `（${ds.mark}）` : ""}${mark ? `・${mark}` : ""}`}>
               <span className="nox-cald-n num">{Number(ymd.slice(8))}</span>
               {!on && ds.mark && <span className="nox-dstext num">{ds.mark}</span>}{/* ★GV-60: 確定／確認待ち＝時刻・審査中＝「希望」・休み希望＝「休み」・見送り */}
               {on && <span className="num" style={{ fontSize: 8.5, color: "var(--champ)" }}>{needsTimes && sel[ymd] ? `${sel[ymd]!.start}-` : needsTimes ? "選択" : "休み"}</span>}
