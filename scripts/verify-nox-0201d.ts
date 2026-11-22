@@ -44,8 +44,8 @@ check("0201d(3-2) specialOpenStepOf＝定休日：店長以上は問う・キャ
   && specialOpenStepOf("day closed", true) === null && specialOpenStepOf("off duty", true) === null && specialOpenStepOf(null, true) === null);
 check("0201d(3-3) 料金の曜日の候補＝定休でない曜日（行の無い曜日は営業）", JSON.stringify(priceDowChoicesOf([{ dow: 0, is_closed: true }, { dow: 1, is_closed: false }, { dow: 3, is_closed: true }])) === JSON.stringify([1, 2, 4, 5, 6]));
 check("0201d(3-4) 一覧の 1 行＝「料金＝土曜と同じ」・price_dow 無しは今までどおり・臨時休業には付けない",
-  specialDayLineOf({ day: "2026-11-15", kind: "open", open_hm: "20:00", close_hm: "25:00", note: null, price_dow: 6 }) === "11/15 特別営業 20:00〜翌01:00・料金＝土曜と同じ"
-  && specialDayLineOf({ day: "2026-11-15", kind: "open", open_hm: "20:00", close_hm: "25:00", note: null }) === "11/15 特別営業 20:00〜翌01:00"
+  specialDayLineOf({ day: "2026-11-15", kind: "open", open_hm: "20:00", close_hm: "25:00", note: null, price_dow: 6 }) === "11/15 臨時営業 20:00〜翌01:00・料金＝土曜と同じ"
+  && specialDayLineOf({ day: "2026-11-15", kind: "open", open_hm: "20:00", close_hm: "25:00", note: null }) === "11/15 臨時営業 20:00〜翌01:00"
   && specialDayLineOf({ day: "2026-11-15", kind: "closed", open_hm: null, close_hm: null, note: null, price_dow: 6 }) === "11/15 臨時休業"
   && priceDowLabelOf(6) === "土曜の料金" && priceDowLabelOf(null) === "" && priceDowLabelOf(7) === "");
 check("0201d(3-5) errJa＝6 語（'day closed' の締め済みとは別）",

@@ -49,11 +49,11 @@ export default function SpecialDaysPanel({ storeId, editable }: { storeId: strin
     const { error } = await createClient().rpc("set_store_special_day", { p_store_id: storeId, p_day: day, p_kind: kind, p_open_hm: kind === "open" ? openHm : null, p_close_hm: kind === "open" ? closeHm : null, p_note: note.trim() || null, ...(mig0201dOn() ? { p_price_dow: kind === "open" ? priceDow : null } : {}) });
     setBusy(false);
     if (error) { setMsg({ kind: "error", text: /forbidden/.test(errJa(error.message)) ? "権限がありません（店長・管理者のみ）" : errJa(error.message) }); return; }
-    setMsg({ kind: "success", text: `${day} を${kind === "closed" ? "臨時休業" : "特別営業"}にしました` }); setDay(""); setNote(""); setPriceDow(null);
+    setMsg({ kind: "success", text: `${day} を${kind === "closed" ? "臨時休業" : "臨時営業"}にしました` }); setDay(""); setNote(""); setPriceDow(null);
     await load();
   }
   async function remove(d: string) {
-    if (!confirm(`${d} の特別日を消して曜日の設定に戻しますか？`)) return;
+    if (!confirm(`${d} の臨時営業・臨時休業を消して曜日の設定に戻しますか？`)) return;
     setBusy(true);
     const { error } = await createClient().rpc("remove_store_special_day", { p_store_id: storeId, p_day: d });
     setBusy(false);
@@ -63,9 +63,9 @@ export default function SpecialDaysPanel({ storeId, editable }: { storeId: strin
 
   return (
     <section className="nox-cardtop" style={t.card} data-special-days="1">
-      <h2 style={{ fontSize: 15, fontWeight: 800, margin: "0 0 2px" }}>特別営業日・臨時休業</h2>
+      <h2 style={{ fontSize: 15, fontWeight: 800, margin: "0 0 2px" }}>臨時営業・臨時休業</h2>{/* ★2026-11-22（相談役 17:50 の 3）: 言葉を「臨時営業」「臨時休業」にそろえた（DB の名前は変えない） */}
       <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "0 0 10px" }}>日付ごとの設定は曜日の設定より優先します（シフトの定休日・予約の受付も同じ）</p>
-      {rows.length === 0 ? <p style={{ ...t.sub, margin: "0 0 10px" }}>今日以降の特別日はありません。</p> : (
+      {rows.length === 0 ? <p style={{ ...t.sub, margin: "0 0 10px" }}>今日以降の臨時営業・臨時休業はありません。</p> : (
         <ul style={{ listStyle: "none", padding: 0, margin: "0 0 10px", display: "grid", gap: 6 }}>
           {rows.map((r) => (
             <li key={r.day} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 13 }} data-special-day={r.day}>
@@ -79,9 +79,9 @@ export default function SpecialDaysPanel({ storeId, editable }: { storeId: strin
       {editable && (
         <>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
-            <label style={t.fieldLabel}>日付<br /><input type="date" value={day} onChange={(e) => setDay(e.target.value)} style={{ ...t.input, maxWidth: 160 }} aria-label="特別日の日付" /></label>
+            <label style={t.fieldLabel}>日付<br /><input type="date" value={day} onChange={(e) => setDay(e.target.value)} style={{ ...t.input, maxWidth: 160 }} aria-label="臨時営業・臨時休業の日付" /></label>
             <div className="nox-seg" role="group" aria-label="設定内容">
-              {([["closed", "臨時休業"], ["open", "特別営業"]] as const).map(([k, l]) => <button key={k} type="button" className={kind === k ? "on" : ""} onClick={() => setKind(k)}>{l}</button>)}
+              {([["closed", "臨時休業"], ["open", "臨時営業"]] as const).map(([k, l]) => <button key={k} type="button" className={kind === k ? "on" : ""} onClick={() => setKind(k)}>{l}</button>)}
             </div>
             {kind === "open" && (
               <>
@@ -100,7 +100,7 @@ export default function SpecialDaysPanel({ storeId, editable }: { storeId: strin
             <label style={t.fieldLabel}>名称・理由<br /><input value={note} onChange={(e) => setNote(e.target.value)} maxLength={100} placeholder="例: 年末年始" style={{ ...t.input, maxWidth: 200 }} /></label>
           </div>
           <div className="nox-actions" style={{ marginTop: 10 }}>{/* ★便 BTN（裁定242） */}
-            <button type="button" style={{ ...t.btnGold, ...t.btnSm }} disabled={busy || !day} onClick={() => void save()} data-special-day-save="1">特別日を保存</button>
+            <button type="button" style={{ ...t.btnGold, ...t.btnSm }} disabled={busy || !day} onClick={() => void save()} data-special-day-save="1">保存する</button>
           </div>
         </>
       )}

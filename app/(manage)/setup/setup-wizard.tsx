@@ -614,7 +614,7 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
           <h3 style={h3}>シフトの集め方</h3>
           <SegSelect value={S.shift.mode} onChange={(v) => up((s) => { s.shift.mode = v as "want" | "off" | "store"; })} options={[["want", "出たい日を出してもらう（シフト希望）"], ["off", "休みだけ出してもらう（休み希望のみ）"], ["store", "店が決めて本人に通知する"]] as const} ariaLabel="シフトの集め方" wrap />
           <p style={note}>{({ off: "休みを出していない日は「出られる日」として、シフト配置の候補になります。", want: "出たい日と時間を出してもらい、店が承認してシフトにします。", store: "店が配置した時点で確定し、本人に通知します。希望は集めません。" } as const)[S.shift.mode]}</p>
-          <p style={note}>店が配置したシフトは既定で「確定」です。確定後に足した分も本人に通知されます。定休日には配置できません（特別営業日を入れたときだけ）。</p>
+          <p style={note}>店が配置したシフトは既定で「確定」です。確定後に足した分も本人に通知されます。定休日には配置できません（臨時営業を入れたときだけ）。</p>
           {S.shift.mode !== "store" && <div style={{ ...grid(180), marginTop: 8 }}>
             <Field label="希望の締切（期間の何日前）"><Money value={S.shift.due} unit="日前" onChange={(n) => up((s) => { s.shift.due = n; })} width={90} /></Field>
             <Field label="送り返した時間の自動確定"><Money value={S.shift.auto} unit="時間後" integer min={0} max={168} onChange={(n) => up((s) => { s.shift.auto = n; })} width={90} /></Field></div>}{/* ★便 A M-69 ①: 3 桁が収まる幅（2 つとも同じ型） */}

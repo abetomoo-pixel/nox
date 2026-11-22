@@ -6,10 +6,10 @@ export const DOW_JA = ["日", "月", "火", "水", "木", "金", "土"] as const
 export const priceDowLabelOf = (d: number | null | undefined): string => (d === null || d === undefined || d < 0 || d > 6 ? "" : `${DOW_JA[d]}曜の料金`);
 const md = (d: string) => `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`;
 const hm47 = (hm: string | null) => { if (!hm) return "—"; const h = Number(hm.slice(0, 2)); return h >= 24 ? `翌${String(h - 24).padStart(2, "0")}:${hm.slice(3, 5)}` : hm.slice(0, 5); };
-/** 一覧の 1 行「12/31 臨時休業（年末年始）」「1/1 特別営業 19:00〜翌02:00」 */
+/** 一覧の 1 行「12/31 臨時休業（年末年始）」「1/1 臨時営業 19:00〜翌02:00」 */
 export function specialDayLineOf(r: SpecialDay): string {
   const pd = r.kind === "open" ? priceDowLabelOf(r.price_dow) : ""; // ★0201d: 「料金＝土曜と同じ」
-  const head = r.kind === "closed" ? "臨時休業" : `特別営業 ${hm47(r.open_hm)}〜${hm47(r.close_hm)}${pd ? `・料金＝${DOW_JA[r.price_dow as number]}曜と同じ` : ""}`;
+  const head = r.kind === "closed" ? "臨時休業" : `臨時営業 ${hm47(r.open_hm)}〜${hm47(r.close_hm)}${pd ? `・料金＝${DOW_JA[r.price_dow as number]}曜と同じ` : ""}`;
   return `${md(r.day)} ${head}${r.note ? `（${r.note}）` : ""}`;
 }
 /** 入力の検査（RPC の鏡）＝日付必須・特別営業は開店（0〜23 時）と閉店（開店より後・47:59 まで） */

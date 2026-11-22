@@ -1619,7 +1619,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                   shift_set は insert 経路で p_status をそのまま格納する（planned 固定ではない）と live 実測済み。 */}
             {isManagerUp && (
               isClosedForAdd(todayDate)
-                ? <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--sub)" }} data-today-add-closed={todayDate}>定休日（特別営業日にすると配置できます）</span>
+                ? <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--sub)" }} data-today-add-closed={todayDate}>定休日（臨時営業にすると配置できます）</span>
                 : <button className="nox-addc" style={{ marginLeft: "auto" }}
                   data-today-add="1" onClick={() => setTodayAdd(true) /* ★便 M5b M-58 → ★便 A M-75: 対象＝選択中の日（todayDate）・ラベル＝今日なら「当日」・それ以外は「11/8 に」 */}>{todayDate === bizToday ? "＋ 当日追加配置" : `＋ ${Number(todayDate.slice(5, 7))}/${Number(todayDate.slice(8, 10))} に追加配置`}</button>
             )}
