@@ -3133,6 +3133,11 @@ input[type="date"]::-webkit-date-and-time-value, input[type="time"]::-webkit-dat
 .nox-setup-main button[data-type][aria-pressed="true"]::after { content: "選択中"; position: absolute; top: 12px; right: 12px; font-size: 12px; background: var(--blue, #2f6fd6); color: #fff; border-radius: 999px; padding: 2px 10px; }
 .nox-setup-main .nox-seg { width: 100% !important; display: flex !important; border-radius: 12px; }
 .nox-setup-main .nox-seg > button { flex: 1 1 0; min-height: 46px !important; font-size: 15px !important; }
+/* ★2026-11-22（相談役 14:10 の 2-1・2-4）: 選択肢を 1 字ずつ縦に折らない＝ボタンは文字の幅より狭くならない（入らない分は次の行へ）。幅いっぱいに等分（flex 1 1 0）は前のまま */
+.nox-setup-main .nox-seg:not(.nox-seg--wrap) { flex-wrap: wrap; overflow: visible; }
+.nox-setup-main .nox-seg:not(.nox-seg--wrap) > button { min-width: -webkit-fit-content; min-width: fit-content; }
+.nox-setup-main .nox-seg.nox-seg--wrap > button { min-width: -webkit-fit-content; min-width: fit-content; } /* 折り返し型も短い語を割らない（1,024 で「店長の承認を待つ」が 2 行に） */
+.nox-setup-main div:has(> button[data-type]) { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)) !important; } /* 業態のカード＝選択中の札（右上）と名前が重ならない幅（1,024 で「キャバクラ」が 2 行に） */
 .nox-setup-main [data-setup-rule-head="1"] { padding: 12px 16px !important; margin: -8px -8px 12px !important; border-bottom: 1px solid var(--line); background: var(--card2); border-radius: 14px 14px 0 0; }
 .nox-setup-main [data-setup-rule-head="1"] > .nox-stpill { width: 30px; height: 30px; border-radius: 8px !important; display: grid; place-items: center; font-size: 14px; padding: 0 !important; }
 .nox-setup-main [data-setup-rule-head="1"] input { max-width: 320px; }
@@ -3144,6 +3149,39 @@ input[type="date"]::-webkit-date-and-time-value, input[type="time"]::-webkit-dat
 .nox-setup-main [data-staff-row] .nox-seg > button { white-space: normal; flex: 1 1 auto; font-size: 13px !important; padding: 4px 10px !important; min-height: 44px !important; } /* ★M-181（2026-11-12）: 長い選択肢（店長（取消・割引・締め解除まで））はボタンの中で折り返す＝枠からはみ出さない（旧 nowrap・flex 1 1 0 は本番 PC 1879 で 228px のボタンが 172px の枠の外へ） */
 .nox-setup-main span:has(> input.num) > em { white-space: nowrap; flex: 0 0 auto; }
 .nox-setup-main button[data-type][aria-pressed="true"] > b { padding-right: 60px; }
+/* ★2026-11-22（相談役 14:10 の 2）: 375 の崩れの直し（席は欄の幅いっぱい・メニューは 1 商品 1 枚・必要人数は 4＋3・スライドの段は 2 行・直すは折らない・次へが押せない理由） */
+@media (max-width: 700px) {
+  .nox-setup-main [data-rule] label:has(> .nox-seg) { grid-column: 1 / -1; }
+  .nox-setup-main .nox-seg.nox-seg--wrap > button { flex: 1 1 calc(50% - 1px); min-width: -webkit-fit-content; min-width: fit-content; } /* 折り返し型＝2 列（入らない選択肢は 1 行）・初期設定の display:flex が 2 列の grid を消していた */
+  .nox-setup-main table.nox-setup-menutbl, .nox-setup-main table.nox-setup-menutbl > tbody { display: block; width: 100%; }
+  .nox-setup-main table.nox-setup-menutbl > colgroup, .nox-setup-main table.nox-setup-menutbl > thead { display: none; }
+  .nox-setup-main table.nox-setup-menutbl tr[data-menu-row] { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 6px 8px; align-items: center; padding: 10px 0; border-top: 1px solid var(--line); }
+  .nox-setup-main table.nox-setup-menutbl tr[data-menu-row] > td { display: flex; align-items: center; gap: 8px; padding: 0 !important; border: 0 !important; min-width: 0; }
+  .nox-setup-main table.nox-setup-menutbl td[data-cell="on"] { grid-column: 1; grid-row: 1; }
+  .nox-setup-main table.nox-setup-menutbl td[data-cell="n"] { grid-column: 2; grid-row: 1; }
+  .nox-setup-main table.nox-setup-menutbl td[data-cell="p"], .nox-setup-main table.nox-setup-menutbl td[data-cell="b"], .nox-setup-main table.nox-setup-menutbl td[data-cell="keep"], .nox-setup-main table.nox-setup-menutbl td[data-cell="act"] { grid-column: 1 / -1; }
+  .nox-setup-main table.nox-setup-menutbl td[data-cell="p"]::before { content: "値段"; }
+  .nox-setup-main table.nox-setup-menutbl td[data-cell="b"]::before { content: "バック（本指名）"; }
+  .nox-setup-main table.nox-setup-menutbl td[data-cell="keep"]::before { content: "ボトルキープ可"; }
+  .nox-setup-main table.nox-setup-menutbl td[data-cell="p"]::before, .nox-setup-main table.nox-setup-menutbl td[data-cell="b"]::before, .nox-setup-main table.nox-setup-menutbl td[data-cell="keep"]::before { flex: 0 0 96px; font-size: 12px; color: var(--sub); white-space: nowrap; }
+  .nox-setup-main table.nox-setup-menutbl td[data-cell="keep"] { justify-content: flex-start !important; }
+  .nox-setup-main table.nox-setup-menutbl td[data-cell="act"] { justify-content: flex-end; }
+  .nox-setup-main table.nox-setup-menutbl tr[data-menu-kindrow] { display: block; padding: 0 0 10px 38px; }
+  .nox-setup-main table.nox-setup-menutbl tr[data-menu-kindrow] > td { display: block; padding: 2px 0 !important; border: 0 !important; }
+  .nox-setup-main table.nox-setup-menutbl tr[data-menu-kindrow] > td:first-child { display: none; }
+  .nox-setup-main .nox-setup-need7 { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; row-gap: 10px !important; }
+  .nox-setup-main .nox-setup-need7 .nox-unit input.num:not([type="checkbox"]) { padding: 9px 4px !important; }
+  .nox-setup-main .nox-setup-need7 .nox-unit em { padding: 0 6px; }
+  .nox-setup-main .nox-tierrow { grid-template-columns: 40px minmax(0, 1fr) auto; row-gap: 4px; }
+  .nox-setup-main .nox-tierrow > :nth-child(1) { grid-row: 1; grid-column: 1; }
+  .nox-setup-main .nox-tierrow > :nth-child(2) { grid-row: 1; grid-column: 2; }
+  .nox-setup-main .nox-tierrow > :nth-child(5) { grid-row: 1; grid-column: 3; }
+  .nox-setup-main .nox-tierrow > :nth-child(3) { grid-row: 2; grid-column: 1; font-size: 11px; }
+  .nox-setup-main .nox-tierrow > :nth-child(4) { grid-row: 2; grid-column: 2; } }
+@media (max-width: 430px) { .nox-setup-main [data-setup-rule-head="1"] { flex-wrap: wrap !important; } }
+.nox-setup-main [data-setup-checks] button, .nox-setup-main [data-setup-box] button { white-space: nowrap; flex: 0 0 auto; }
+.nox-setup-foot .in:has(> .why) { flex-wrap: wrap; }
+.nox-setup-foot .in > .why { flex: 1 0 100%; margin: 0 0 4px; padding: 0 8px; text-align: center; font-size: 13px; color: var(--champ); line-height: 1.5; }
 @media (max-width: 430px) { .nox-setup-main div:has(> button[data-type]) { grid-template-columns: 1fr !important; } .nox-setup-top .sub .nox-setup-sub-note { display: none; } .nox-setup-main [data-staff-row] label:has(> span + .nox-seg) { grid-column: 1 / -1; } }
 .nox-setup-foot .in { justify-content: center; }
 .nox-setup-foot button { min-height: 52px !important; font-size: 17px !important; padding: 12px 28px !important; border-radius: 12px !important; }
