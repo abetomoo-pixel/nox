@@ -64,8 +64,8 @@ const src = (p: string) => fs.readFileSync(p, "utf8");
 {
   const rp = src("app/(manage)/register/page.tsx"), sp = src("app/(manage)/master/seats/page.tsx"), sb = src("app/(manage)/master/seats/seats-board.tsx");
   check("fl(1-1) register/page: stores.use_vip／use_counter を読み seatsVisibleOf で席タイルを絞る（席モデル不変＝RegisterBoard の props はそのまま）",
-    rp.includes('supabase.from("stores").select("id, use_vip, use_counter")') && rp.includes("const seats = seatsVisibleOf(") && rp.includes('import { seatsVisibleOf } from "@/lib/nox/floor-kinds";') && rp.includes("seats={seats ?? []}"));
-  check("fl(1-2) seats/page→SeatsBoard hiddenKinds（フィルタと新規の選択肢から外す・編集中の既存種別は残す）", sp.includes("hiddenKinds={hiddenKinds}") && sp.includes('select("id, use_vip, use_counter")') && sb.includes("hiddenKinds?: string[];")
+    rp.includes('supabase.from("stores").select("id, use_vip, use_counter")') && rp.includes("const seats = seatsVisibleOf(") && rp.includes('import { seatsVisibleOf } from "@/lib/nox/floor-kinds";') && rp.includes("seats={curStore ? (seats ?? []).filter((x) => x.store_id === curStore) : (seats ?? [])}") /* ★0203（■2-e）: オーナーは今見ている店の席（旗 false＝今のまま） */);
+  check("fl(1-2) seats/page→SeatsBoard hiddenKinds（フィルタと新規の選択肢から外す・編集中の既存種別は残す）", sp.includes("hiddenKinds={hiddenKinds}") && sp.includes('currentStoreRowsOf(supabase, "id, use_vip, use_counter")') /* ★0203（■2-e）: 今見ている店（旗 false は今の先頭の店の読み） */ && sb.includes("hiddenKinds?: string[];")
     && sb.includes(".filter(([v]) => v === \"\" || kindOn(v))") && sb.includes(".filter(([v]) => kindOn(v) || v === sKind)"));
 }
 // mg(1)

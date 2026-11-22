@@ -52,6 +52,7 @@ const DENY_NO_SESSION = new Set<string>([
 ]);
 // C) 許可
 const ALLOW = new Set<string>([
+  "store/current" /* ★0203（■2-e）: 今見ている店の cookie だけ（DB に書かない・旗 false は 404・デモは 1 店＝切り替えを出さない） */,
   "payroll/adjustment/add", "payroll/adjustment/delete", "payroll/finalize", "payroll/mark-paid", "payroll/preview", "payroll/tax-overview",
   "payroll/reopen", "payroll/tax-report-csv",
   "payment/record", "advance/issue", "advance/cancel", "transport/issue", "transport/cancel", "incentive/publish", "incentive/cancel",
@@ -70,7 +71,7 @@ const ALLOW = new Set<string>([
 ]);
 
 // D) 運営（★夜便 2026-11-20 N5・枝 night1120-ops-console）: 運営コンソールの道＝店の会社に属さない運営者だけ（requireOperatorApi＝getUser → ops_operators → aal2・旗 false は 404）。デモのユーザーは運営者の表に居ない＝404。
-const OPS = new Set<string>(["ops/orgs", "ops/orgs/[id]/invite", "ops/orgs/[id]/agency", "ops/orgs/[id]/onboarding", "ops/orgs/[id]/assist" /* ★枝 night1121-ops-v2（0202b 版 4 の画面・旗 MIG_0202B_APPLIED の後ろ） */]);
+const OPS = new Set<string>(["ops/orgs/[id]/stores" /* ★0203（■2-a）: 店を追加（旗の後ろ） */, "ops/orgs", "ops/orgs/[id]/invite", "ops/orgs/[id]/agency", "ops/orgs/[id]/onboarding", "ops/orgs/[id]/assist" /* ★枝 night1121-ops-v2（0202b 版 4 の画面・旗 MIG_0202B_APPLIED の後ろ） */]);
 
 function walk(dir: string, out: string[]) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {

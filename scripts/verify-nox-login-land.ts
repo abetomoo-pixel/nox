@@ -51,7 +51,7 @@ check("(4) 直す前の形（ログイン・同意）はこの検査で赤", sof
 //   そこへ殻の外から入る口は、どれも読み直す移動（or フォームの POST）であること（読み直さない移動に変えたら赤）。
 const has = (p: string, s: string) => src(p).includes(s);
 check("(5) 戻しを持つ外枠＝店側の殻（/setup・/register・/dashboard は同じ群）・マスタ（/dashboard＝同じ群だが殻の中からだけ）・キャスト（/register＝別の群）・運営は戻しなし",
-  (layout.match(/redirect\(/g) ?? []).length === 8 && (src("app/(manage)/master/layout.tsx").match(/redirect\(/g) ?? []).length === 3 && (src("app/mine/layout.tsx").match(/redirect\(/g) ?? []).length === 2 && !src("app/ops/layout.tsx").includes("redirect("));
+  (layout.match(/redirect\(/g) ?? []).length === 9 /* ★0203（■2-d）: オーナーが初期設定の前の店を見ているときの /setup?store=（外枠の外から入るのはログインと同意＝読み直す移動） */ &&(src("app/(manage)/master/layout.tsx").match(/redirect\(/g) ?? []).length === 3 && (src("app/mine/layout.tsx").match(/redirect\(/g) ?? []).length === 2 && !src("app/ops/layout.tsx").includes("redirect("));
 check("(5) パスワードを決めた後（set-password）＝読み直す移動（/dashboard・運営は /ops/login）", has("app/auth/set-password/page.tsx", 'window.location.href = "/dashboard"') && has("app/auth/set-password/page.tsx", 'window.location.href = j.dest === "/ops/login" ? "/ops/login" : "/dashboard"'));
 check("(5) 招待の受諾（/i/[token]）＝読み直す移動", has("app/i/[token]/accept-form.tsx", 'window.location.href = j.dest ?? "/dashboard"'));
 check("(5) 初期設定の確定の後「ホームへ」＝a の href（読み直す移動）", has("app/(manage)/setup/setup-wizard.tsx", '<a href="/dashboard" style={{ ...t.btnGold, textDecoration: "none" }} data-setup-home="1">ホームへ</a>'));
