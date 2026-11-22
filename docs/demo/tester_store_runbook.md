@@ -1,20 +1,39 @@
 # テスター店舗の立ち上げ手順（運営用・1 枚）
 
-2026-11-13 夜・相談役 ■11（2026-11-17 夜便 N4 で体入・送りの額・店舗設定のタブ・ロック中の名前の一覧・お試しを今の作りに合わせた）。今の作り（main・本番は 0201d まで）を読んで書いた。**今の作りで出来ない所・手で直す所はそのまま書く**（「★手作業」「★出来ない」の印）。鍵・パスワードの値はこの文書に書かない。
+2026-11-13 夜・相談役 ■11（2026-11-17 夜便 N4 で体入・送りの額・店舗設定のタブ・ロック中の名前の一覧・お試しを今の作りに合わせた）。今の作り（main・本番は 0201d まで）を読んで書いた。**2026-11-22 に §1 を /ops（運営コンソール）の手順に書き換えた（本番は 0202f まで・main a89473c4）。****今の作りで出来ない所・手で直す所はそのまま書く**（「★手作業」「★出来ない」の印）。鍵・パスワードの値はこの文書に書かない。
 
-## 1. 会社と店を作る（運営）
+## 1. 会社と店を作る（運営・/ops）
 
+手順は **会社を追加 → 招待 → 導入（店・運営元の代行）→ LINE 連携の確かめ → 導入完了** の 5 つ。どれも https://noxapp.jp/ops（運営コンソール）で行う。運営者は /ops/login でログインし、二段階認証（認証アプリ）を通った人だけが入れる（店のユーザーとは別の表 ops_operators）。
+
+1. **会社を追加**（/ops/orgs/new・2026-11-21 から）
+   - 入れる値：会社名・店名・業態（キャバクラ・ガールズバー・スナック・ラウンジ・バー・ホストクラブ）・オーナーのメール（必須）・紹介コード（任意＝代理店の経路）・「テスターの店（お試しの期限なし）」の印。
+   - 押すと確かめが 1 回出る → 招待のメールを送って、会社・店・オーナー・お試しの行を 1 つの取引で作る（`app/api/ops/orgs/route.ts`）。店のユーザーに同じメールがあれば止まる。作れなかったときは、今回の招待でできた auth のユーザーだけを消す。
+   - 作った会社は「導入中」。一覧（/ops）の札で、オーナーの受諾・初期設定・LINE・キャストとスタッフ・導入の 5 つの進み具合（済・途中・未と何日前）が見える。
+2. **招待**（オーナーが受諾する）
+   - オーナーにメールが届く → `/auth/set-password` でパスワードを決める（8〜72 字）→ ログイン → 規約の同意 → /setup。
+   - 届かない・期限が切れたとき：会社の詳細の「招待をもう一度送る」（受諾済みには送らない）。★招待のリンクを画面に出す道は無い（リンクはログインそのもの＝相談役 11/20 判断 8）。
+   - 2026-11-21 に確かめ用の会社 NOX-CHECK-招待 で、招待から受諾まで通った（消さない）。
+3. **導入**（店の初期設定・運営元の代行・2026-11-21 夜から）
+   - オーナー本人が /setup（§5）を進めるのが基本。
+   - 運営元が代わりに入れるとき：会社の詳細 → 「導入の代行」（/ops/orgs/<id>/assist）。初期設定の下書き（STEP ごと）・LINE の値・仮のキャスト（名前とプラン）を入れられる。
+     - 代行で入れたものは**下書き**。オーナーが /setup で見直して「この内容で始める」を押すまで店には効かない。代行した STEP には「運営が入力」の札が付く。
+     - 業態は追加のときの値で固定（/setup でも選び直せない）。
+     - 書けるのは「導入中」の間か、オーナーが出した**サポート許可**の間だけ（店舗設定 › システム の「サポート許可」のタブでオーナーが 1／3／7 日を出す・取り消せる・デモの会社には出ない）。監査には行い手（運営）が残る。
+4. **LINE 連携の確かめ**（2026-11-21 23:59 から）
+   - LINE の値（公開の値・チャネルシークレット・アクセストークン）は §6 の手順で店か運営が入れる。
+   - 代行の 4 段目「友だち追加と連携の確かめ」を押すと、保存したトークンで LINE に聞く（ボットの ID が保存した値と同じ・Webhook の送り先が noxapp.jp の店の URL・Webhook が有効・テストの送信が通る）。4 つとも通ったときだけ「確かめ済み」。通らないときは理由が日本語で出る。トークン・URL・ボットの ID は画面にもログにも出ない。
+   - ★店の側（マスタ › LINE 連携）にはこの確かめはまだ無い（起票138・後に回す）。
+5. **導入完了**
+   - 運営は会社の詳細（/ops/orgs/<id>）の「導入完了にする」。オーナーも店舗設定 › システム の「サポート許可」のタブから押せる（onboarding_done_by_owner）。
+   - 完了から導入中には戻せない（cannot reopen）。完了の後に運営が代行できるのは、オーナーのサポート許可（1／3／7 日・取り消せる）の間だけ。
+
+予備の経路（/ops が使えないとき）：
 ```bash
 node scripts/admin/create-org.mjs --store "店名" --type cabaret --email owner@example.com --org "会社名" --dry-run
 ```
-```bash
-NOX_PROD_CONFIRM=1 node scripts/admin/create-org.mjs --store "店名" --type cabaret --email owner@example.com --org "会社名"
-```
-- 入れる値：`--store` 店名／`--type` 業態（cabaret・girlsbar・snack・lounge・bar＝初期設定の STEP 1 の既定）／`--email` 最初のオーナーのメール（そのままログイン ID）／`--org` 会社名（省くと店名）／`--site`（省くと本番 URL）／`--link`（メールを送らず招待リンクを画面に出す）／`--yes`（確認を省く）。`scripts/admin/create-org.mjs:7-9`
-- 柵：本番の ref では `NOX_PROD_CONFIRM=1` が無いと走らない・同じメール／同じ会社名があれば止まる・途中で失敗したら作った行を巻き戻す（`:10`, `:83-95`）。env は `.env.local` の URL・secret・DB_URL（値は書かない）。
-- 作られるもの：orgs 1・org_billing 1（お試し）・stores 1（`setup_done:false`）・auth の招待・users 1・memberships 1（owner）・audit_logs 1（`create_org`）。
-- 2 店目を同じ会社に足す：`node scripts/admin/create-org.mjs --add-store --org-id <id> --store <店名> [--type]`（`:3`, `:26-60`）。★設定の写しは無い（2 店目も空から初期設定）。
-- ★自分で申し込む画面（/signup）は無い。会社を作る経路はこのスクリプトだけ。
+- 本番では `NOX_PROD_CONFIRM=1` が無いと走らない・同じメール／会社名があれば止まる（`scripts/admin/create-org.mjs`）。2 店目は `--add-store --org-id <id>`。★このスクリプトで作った会社は /ops の経路と導入の状態を持たない（「導入完了」の扱い）。
+- ★2 店目の設定の写しは無い（2 店目も空から初期設定）。★自分で申し込む画面（/signup）はまだ無い。
 
 ## 2. お試し期間（切れない設定と、手で延ばす方法）
 
@@ -48,7 +67,7 @@ NOX_PROD_CONFIRM=1 node scripts/admin/create-org.mjs --store "店名" --type cab
 ## 6. LINE の公式アカウントをつなぐ
 
 - 店ごと（全体の env は無い）。手順書＝`docs/demo/line_first_run.md`（8 段）。LINE Developers に Messaging API と LINE ログインの 2 チャネル・LIFF（Full・openid・エンドポイント `https://noxapp.jp/liff/<storeId>`）・Webhook `https://noxapp.jp/api/line/webhook/<storeId>`（ON）・応答メッセージ OFF。
-- NOX 側：店舗設定 › LINE 連携 に公開値（login_channel_id・liff_id・bot_destination）と秘密値（channel_secret・access_token＝Vault へ）。
+- NOX 側：店舗設定 › LINE 連携 に公開値（login_channel_id・liff_id・bot_destination）と秘密値（channel_secret・access_token＝Vault へ）。導入中は運営が /ops の代行でも入れられる・確かめ（LINE に聞く）は /ops の代行の 4 段目（§1 の 4）。
 - キャスト・スタッフの紐付け＝キャスト／スタッフの画面から LINE の招待リンク（1 回だけ・7 日）。★紐付けの解除は画面に無い（SQL）。
 - リッチメニュー＝`docs/demo/line_richmenu_manual_setup.md`（店が手で登録・今は 3 つとも /mine に着く）。
 
@@ -77,7 +96,8 @@ NOX_PROD_CONFIRM=1 node scripts/admin/create-org.mjs --store "店名" --type cab
 
 ## 9. 困ったときに運営が見る所
 
-- 監査：`/audit`（owner だけ・自分の会社の分だけ）。「要確認」の自動判定あり（`lib/nox/audit/alerts.ts`）。★運営が全社を見る画面は無い＝運営は SQL Editor で `audit_logs` を org_id で引く。
+- 導入の進み具合：`/ops` の一覧と会社の詳細（受諾・初期設定・LINE・人数・導入の札）。運営の操作は運営の監査（ops_audit_logs）に残る。
+- 監査：`/audit`（owner だけ・自分の会社の分だけ）。「要確認」の自動判定あり（`lib/nox/audit/alerts.ts`）。★店の監査（audit_logs）を運営が全社で見る画面は無い＝SQL Editor で org_id で引く。
 - お試し・契約：`org_billing`（status・trial_ends_at・stripe_subscription_id）。
 - cron：Vercel の Logs で expire-trials・billing-reminders・audit-purge が 200 か（`docs/demo/domain_switch.md:121, 174`）。★Vercel の画面は Agoora が見る（CC はブラウザで Vercel にログインしない）。
 - 障害の手順：`docs/NOX_運用runbook.md`（構築・復旧・既知の不具合）。
@@ -90,4 +110,5 @@ NOX_PROD_CONFIRM=1 node scripts/admin/create-org.mjs --store "店名" --type cab
 4. LINE の紐付けの解除（SQL）。
 5. リッチメニューのボタンごとの行き先（橋の直し待ち）。
 6. 2 店目の設定の写し（無い）。
-7. 運営が全社の監査を見る画面（無い）。
+7. 店の監査（audit_logs）を運営が全社で見る画面（無い・導入の進み具合は /ops で見える）。
+8. 店の側の LINE 連携の画面で LINE に聞く確かめ（無い＝/ops の代行でだけ・起票138）。

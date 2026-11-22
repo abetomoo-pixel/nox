@@ -1,14 +1,16 @@
-# ローンチゲート（本番で最後に確認する項目・2026-11-06 夜便レーン 6 で起草・2026-11-12 に状態を更新）
+# ローンチゲート（本番で最後に確認する項目・2026-11-06 夜便レーン 6 で起草・2026-11-12 に状態を更新・2026-11-22 に店を作る手順と 0202a〜0202f を更新）
 
 本番＝Supabase ref **hiqbfagmkrdpmlqhkmsu**・Vercel 本番ドメイン **https://noxapp.jp**（nox-kappa-eight.vercel.app は fallback）。「誰が」＝Agoora（手貼り・実機・外部サービスの画面）／相談役（合図・文面・裁定）／CC（verify・reset・撮影・読取）。期待値は実測で埋める（本書は 1 枚＝済んだら「済（日付）」に書き換える・正本は台帳の「次の番号」）。
 
 **切替（docs/demo/domain_switch.md §4）の状態（2026-11-09 夜）**＝手順 3（Vault）・4（NEXT_PUBLIC_SITE_URL）＝済（11/06）・手順 1・2（Auth の URL）＝ゲート 7 のとおり・**手順 5（キオスク端末の再固定）＝済**・**手順 9（全員ログインし直し）＝済（2026-11-11・Agoora）**・**手順 8（308）＝済（2026-11-11）**・**手順 6〜7（Stripe Webhook・プリンタ）＝未**・手順 10＝1〜2 週後。
 
+**店を作る手順（2026-11-22 時点）**＝/ops（運営コンソール）で **会社を追加 → 招待 → 導入（店・運営元の代行）→ LINE 連携の確かめ → 導入完了**。手順の中身は docs/demo/tester_store_runbook.md §1。前の経路（scripts/admin/create-org.mjs）は /ops が使えないときの予備。
+
 | # | 項目 | 誰が | どこで | 期待値 | 状態 |
 |---|---|---|---|---|---|
-| 1 | mig 0001〜0201b・0201c・0201h・0201e・0201e2・0201e3 が本番に適用済み（手貼りの検証行が期待値と全行一致） | Agoora（手貼り）／CC（突合） | Supabase › SQL Editor／verify:nox-0201・grants（G44＝0201e3 のポリシーの形） | 関数 440・表 121 | 済（2026-11-13 朝＝0201e3 の検証 4 行一致・supabase/migrations に収蔵） |
-| 2 | client のフラグ＝lib/nox/rules-0175/flag.ts の MIG_*_APPLIED が本番の mig と一致（0183〜0201 true） | CC | verify:nox-0201 ほか（フラグの pin） | f0 緑 | 済（2026-11-12 夜＝MIG_0201C／0201H／0201E true＝フラグ便 9bad4b1b） |
-| 3 | f0 の基準線＝2 連緑（段数・件数・golden 5931／125802） | CC | docs/tmp/f0_*.log＋f0_count.cjs | 最新の 2 連緑と同じ段数・件数 | 済（2026-11-12 夜）＝f0 2 連緑 f0_fl_K／L（197 段 7,890・golden 5931／125802・9bad4b1b） |
+| 1 | mig 0001〜0202f が本番に適用済み（手貼りか CC の適用の検証行が期待値と全行一致・0201t は未適用・0202d は起草していない） | Agoora（手貼り）／CC（適用＝0202a〜0202f は Agoora が認めた例外・突合） | Supabase › SQL Editor／docs/tmp/apply_0202*.log | 関数 478・表 126 | 済（2026-11-22 03:02:33＝0202f の検証 9 行一致・supabase/migrations に収蔵）・前の版＝2026-11-13 朝 0201e3（関数 440・表 121） |
+| 2 | client のフラグ＝lib/nox/rules-0175/flag.ts の MIG_*_APPLIED が本番の mig と一致（0183〜0202f true・0201t だけ false＝未適用） | CC | verify:nox-0201 ほか（フラグの pin） | f0 緑 | 済（2026-11-22＝MIG_0202A／0202B／0202E／0202F true・main a89473c4）・0202c は旗なし（監査の引数の直しだけ） |
+| 3 | f0 の基準線＝2 連緑（段数・件数・golden 5931／125802） | CC | docs/tmp/f0_*.log＋f0_count.cjs | 最新の 2 連緑と同じ段数・件数 | 済（2026-11-22 朝）＝f0 2 連緑 f0_host_2a／2b（238 段 8,813 件・golden 5931／125802・a89473c4） |
 | 4 | 6 店 reset が noxapp.jp の route で 6/6 ok（Vault nox_demo_reset_url の host＝noxapp.jp） | CC | docs/tmp/on1_reset.mjs | muse／luna／noir／ace／lily／nest＝200 ok | 済（2026-11-09 19:42 ほか＝6/6・ACE の wipe 500 は M-122 で解消） |
 | 5 | 無人 reset（pg_cron 06:05〜・Vercel Cron 03:00／05:00）が翌朝 200 | CC（翌朝読取） | cron.job_run_details・net._http_response・Vercel Logs | status 200・6 店＋retry・expire-trials／billing-reminders 200 | 済（2026-11-10 CC 読取）＝06:05〜06:15 の 6 店（muse／luna／noir／ace／lily／nest）すべて pg_cron succeeded・http 200（count 1・retry false）・06:35 の retry 200・05:15 demo-entries-purge／06:20 shift-periods-close（closed 1）も 200＝M-122 の先掃除の後の初回無人 reset OK |
 | 6 | vercel.app → noxapp.jp の 308（旧 URL の GET が 308 で noxapp.jp に飛ぶ・/r/<token> の領収書 QR も） | Agoora（Vercel › Domains）／CC（curl） | Vercel › Settings › Domains／curl -I | `curl -I https://nox-kappa-eight.vercel.app/login` が 308・Location が noxapp.jp | **済（2026-11-11・Agoora 設定・CC 確認）**＝/login・/r/<token>（領収書の QR）・www.noxapp.jp がどれも 308 で https://noxapp.jp の同じパスへ・POST の /api も 308（メソッドと本文を保つ）。★外部の webhook（Stripe・LINE）は転送を追わないことが多い＝送り先は noxapp.jp で登録すること（Stripe は未設定・LINE は管理画面で確認）。DB 側の送り先（pg_cron＝Vault から読む・Vault の URL＝noxapp.jp）に旧住所なし。手順 10（Supabase の Redirect URLs から vercel.app/** を外す）は 1〜2 週後 |
@@ -60,6 +62,13 @@
 | 52 | mig 0201o（店の報酬の軸 reward_axis・端末の機能 inventory／report・業態 host＝set_store_profile の差し替え 1 本） | 相談役（合図）／Agoora（手貼り）／CC（試走・収蔵） | docs/tmp/handpaste_0201n_0201o_1118.md | 0201o＝sha256 89244f971a8f2f60・999 行・試走 10/10・検証 8 行一致（関数 450・表 122） | **0201o の DB＝済（2026-11-18 15:19・Agoora）**・画面（店の軸の 3 つ目・初期設定のホストクラブ・端末の在庫と日報のタイル）＝未 |
 | 53 | mig 0201n（レジの許可のあるキャストが読める列を絞る＝register_cast_roster・casts／daily_reports の方針） | 相談役（合図）／Agoora（手貼り）／CC（試走・画面の便） | docs/tmp/handpaste_0201n_0201o_1118.md | 0201n＝sha256 031ba07c3e802eac・54 行・試走 12/12・検証 10 行一致（関数 451・表 122） | **0201n の DB＝済（2026-11-18 15:20・Agoora）**・画面（フラグ MIG_0201N_APPLIED＝true・レジと日報はキャストの立場で register_cast_roster）＝2026-11-18 の便 |
 | 54 | デモの 7 店目＝ホストクラブ CLUB VESPER の公開（本番の env DEMO_USERS にホストの鍵 5 個・Agoora が 11/20 14:1x に入れて Redeploy） | Agoora（env）／CC（確かめ） | docs/tmp/walk7_1120/（写し・log.txt）・host_enter_check_1120.log・other6_enter_check_1120.log・host_reset_prod_1120.log・payslip_fp_before_1120b.json／after_1120b.json | /demo に 7 店・5 役で入れる・レオの明細・reset ok・ほかの 6 店が変わらない | **済（2026-11-20 14:2x・CC）**＝/demo に 7 店のカード（375・1024・入るボタン 35・はみ出し 0）・VESPER の 5 役（オーナー／店長＝/dashboard・スタッフ＝/dashboard・キャスト＝/mine のレオ・端末＝/kiosk）で入ったユーザーが demo_users_full_1120.txt の値と 5／5 一致・ほかの 6 店は 1 役ずつ 6／6 一致・レオのホームと確定明細（375）はページのはみ出し 0・「売上の基準：小計（税・サ料の前）」あり・時給 0 円の行 0・本番の店ごとの reset（/api/demo/reset）14:26:48〜14:26:57 ok（wipe+load・47 表 9,378 行・10 月の明細 12 人を確定＝ホストの鍵が無ければここで止まる）・ほかの 6 店の 10 月の確定明細の指紋は前後で同じ。明日 06:17 のホストの job（jobid 13）の結果は 11/21 の最初の報告に書く |
+| 55 | 招待から受諾（/ops で会社を追加 → オーナーへの招待のメール → /auth/set-password で受諾） | CC（会社の追加と出し直し）／Agoora（メールと受諾） | /ops・確かめ用の会社 NOX-CHECK-招待（消さない） | 受諾の後にオーナーがログインできる・/ops の札「オーナーの受諾」が済 | **済（2026-11-21・Agoora の受諾）**＝/ops の札で受諾に「1 日前」が出る（11/22 0:0x の確かめ） |
+| 56 | 運営コンソール 版 1（0202a＝運営者・運営の監査・会社の経路と導入の状態・会社の追加と招待・導入完了） | Agoora（承認）／CC（適用・確かめ） | /ops・docs/tmp/apply_0202a_1120.log | 検証 18 行・関数 463・表 124 | **済（2026-11-21 12:06:44 適用・旗 true 874d05a7・本番の /ops を確かめ専用の運営者で通して合格＝運営者は消した）**・最初の運営者（Agoora）を 11/21 に登録 |
+| 57 | 運営コンソール 版 2（0202b＝導入の代行 版 4：初期設定の下書き・LINE の値・仮のキャスト・オーナーのサポート許可） | Agoora（承認）／CC（適用・通し） | /ops/orgs/<id>/assist・docs/tmp/apply_0202b_1121.log | 検証 23 行・関数 478・表 126 | **済（2026-11-21 21:57:12 適用・旗 true 6f2eb0f3・手元の本番版で通し a〜i 合格＝i の店の側は 11/22 に確かめ直し）** |
+| 58 | 0202c（監査の呼び出しの引数の取り違え 4 か所） | Agoora（承認）／CC（適用） | docs/tmp/apply_0202c_1121.log | 検証 7 行・関数 463 は不変 | **済（2026-11-21 18:28:11 適用）**＝前の 8 行の店の欄は空のまま（直さない） |
+| 59 | LINE 連携の確かめ（0202e＝運営の代行の 4 段目が Vault のトークンで LINE に聞く・真偽 4 つが全部真のときだけ確かめ済み） | Agoora（承認・実機）／CC（適用・確かめ） | /ops の代行の LINE の段・docs/tmp/apply_0202e_1122.log | 検証 9 行・関数 478・表 126 は不変・トークンと URL は応答にもログにも出ない | **DB と画面＝済（2026-11-21 23:59:44 適用・旗 true 5a9e126a・手元の本番版で 7 つとも合格）**・本物の店の LINE での確かめは Agoora の実機・店の側の LINE 連携の画面の確かめは起票138（後に回す） |
+| 60 | ホストの骨格（0202f＝歩合の段の表・日給の保証・/setup のホストの雛形・VESPER の種） | Agoora（承認）／CC（適用・種の差し替え・確かめ） | docs/tmp/apply_0202f_1122.log・check_vesper_1122.log | 検証 9 行・関数 478・表 126 は不変・デモ 7 店の下書きが前と 1 バイト同じ | **済（2026-11-22 03:02:33 適用・旗 true a89473c4・VESPER を 08:05 に reset＝12 人とも歩合の行が 1 行・新人の保証 160,000 が効く・2026-10 の凍結 12 枚も 1 行で出る）** |
+| 61 | 導入完了（/ops の「導入完了にする」か、オーナーの店舗設定 › システム › サポート許可 の「導入完了にする」＝導入中 → 完了・戻さない） | Agoora（運営）／オーナー | /ops/orgs/<id>・/master/system | 札「導入」が済・完了の後に運営が書けるのはオーナーのサポート許可の間だけ | 仕組み＝済（0202a／0202b）・本物の店では未（テスター店舗の作成から） |
 
 ## 使い方
 - 上から順に埋める。「未」の行は domain_switch.md §4 の手順番号と対応（6→手順 8・7→1・2・12→5・13→6・16→7）。
