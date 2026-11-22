@@ -182,7 +182,7 @@ begin
            product_back_fixed_vip, product_back_rate_vip, reservation_back_tiers, back_rate_tiers, advance_loan_agreed, advance_loan_agreed_at, commission_tiers)
     select m.new, v_org, p_dst, c.name, c.base, c.hon_back, c.jonai_back, c.dohan_back, c.sales_slide, c.point_slide, c.is_active, c.hon_back_mode, c.hon_back_rate, c.jonai_back_mode, c.jonai_back_rate, c.dohan_back_mode, c.dohan_back_rate,
            c.product_back_mode, c.product_back_rate, c.product_back_fixed, c.product_back_fixed_hon, c.product_back_fixed_jonai, c.product_back_fixed_free, c.slide_period, c.slide_basis,
-           (select array_agg(coalesce((select m2.new from _nox_copy_map m2 where m2.old = x), x) order by o) from unnest(c.slide_rank_ids) with ordinality u(x, o)),   -- ランクを付け替え
+           coalesce((select array_agg(coalesce((select m2.new from _nox_copy_map m2 where m2.old = x), x) order by o) from unnest(c.slide_rank_ids) with ordinality u(x, o)), '{}'::uuid[]),   -- ランクを付け替え（空は空の配列＝NOT NULL）
            c.norm_days_target, c.norm_dohan_target, c.norm_sales_target, c.norm_shimei_target, c.slide_apply, c.slide_method, c.pt_rules, c.pay_rate_tiers, c.slide_streak_n, c.reward_axis, c.assess_grace_months,
            c.hon_back_unit, c.jonai_back_unit, c.dohan_back_unit, c.product_back_rate_by_kind, c.product_back_fixed_vip, c.product_back_rate_vip, c.reservation_back_tiers, c.back_rate_tiers,
            false, null, c.commission_tiers   -- 前借りの同意は店ごと（写さない）

@@ -43,7 +43,7 @@ try {
   const A2 = await tx.one<{ id: string }>("select id from stores where name = 'NOX-VERIFY-A2'");
   const uid = async (email: string) => ({ auth_user_id: (await tx.one<{ auth_user_id: string }>("select auth_user_id from users where email = $1", [email])).auth_user_id });
   const owner = await uid("nox-verify-owner-a@example.com"), mgr = await uid("nox-verify-manager-a1@example.com"), staff = await uid("nox-verify-staff-a1@example.com"), cast = await uid("nox-verify-cast-a1a@example.com");
-  const op = (await tx.one<{ id: string } | undefined>("select id from ops_operators limit 1"))?.id ?? null;
+  const op = (await tx.one<{ id: string } | undefined>("select auth_user_id id from ops_operators limit 1"))?.id ?? null;
 
   // ★2 支払日
   const p1 = await tx.as(owner, "select public.set_org_pay_day(10)");
@@ -76,9 +76,9 @@ try {
       const xref = await tx.one<{ badcat: number; badrank: number; badplan: number; badpcat: number }>("select (select count(*)::int from pricing_rules r where r.store_id=$1 and r.category_id is not null and not exists (select 1 from pricing_categories c where c.id=r.category_id and c.store_id=$1)) badcat, (select count(*)::int from pricing_rules r where r.store_id=$1 and r.rank_id is not null and not exists (select 1 from cast_ranks k where k.id=r.rank_id and k.store_id=$1)) badrank, (select count(*)::int from comp_plan_components x where x.store_id=$1 and not exists (select 1 from comp_plans p where p.id=x.plan_id and p.store_id=$1)) badplan, (select count(*)::int from products p where p.store_id=$1 and p.category_id is not null and not exists (select 1 from product_categories c where c.id=p.category_id and c.store_id=$1)) badpcat", [sid]);
       check("写し：ID の付け替え＝写し先の行は写し先の区分・ランク・プラン・カテゴリだけを指す", xref.badcat === 0 && xref.badrank === 0 && xref.badplan === 0 && xref.badpcat === 0, xref);
       const kept = await tx.one<{ sd: string; bt: string; lc: string; ip: string | null }>("select settings_json->>'setup_done' sd, settings_json->>'biz_type' bt, line_config::text lc, punch_allow_ip::text ip from stores where id=$1", [sid]);
-      check("写し：初期設定の前・業態はそのまま・LINE と位置（IP）は写さない", kept.sd === "false" && kept.bt === "cabaret" && kept.lc === "{}" && kept.ip === null, kept);
-      const again = await tx.as(owner, "select public.store_copy_settings($1, $2, array['pricing'])", [A1.id, sid]);
-      check("写し：2 回目は not empty（二重に写さない）", !again.ok && /not empty: pricing/.test(tx.errOf(again)), tx.errOf(again));
+      check("写し：初期設定の前・業態はそのまま・LINE と位置（IP）は写さない", kept.sd === "false" && kept.bt === "cabaret" && kept.lc === "{}" && kept.ip === "{}", kept);
+      const again = await tx.as(owner, "select public.store_copy_settings($1, $2, array['products'])", [A1.id, sid]);
+      check("写し：2 回目は not empty（二重に写さない）", !again.ok && /not empty: products/.test(tx.errOf(again)), tx.errOf(again));
       const toDone = await tx.as(owner, "select public.store_copy_settings($1, $2, array['hours'])", [sid, A1.id]);
       check("写し：写し先が初期設定済み・写し元が初期設定の前は不可", !toDone.ok && /(src not ready|dst done)/.test(tx.errOf(toDone)), tx.errOf(toDone));
     }
