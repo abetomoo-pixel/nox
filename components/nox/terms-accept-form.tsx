@@ -3,7 +3,6 @@
 // ★0172（裁定351・便 P172・2026-10-16）: 本番 org の開通ゲート＝店舗向け利用規約への同意（owner のみ・org 単位・冪等＝RPC terms_accept）。
 //   デモ規約（demo-terms.tsx）と同じ形＝チェック→主ボタン 56。manager／staff は同意できない＝「オーナーの同意待ち」の案内だけ。
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import { Message } from "@/components/ui/toast";
@@ -11,7 +10,6 @@ import { rpcErrJa } from "@/lib/nox/ui/rpc-err";
 import { TERMS_ACCEPT_LABEL, TERMS_PATH, TERMS_VERSION } from "@/lib/nox/terms";
 
 export default function TermsAcceptForm({ isOwner, orgName }: { isOwner: boolean; orgName: string }) {
-  const router = useRouter();
   const [agreed, setAgreed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -23,8 +21,7 @@ export default function TermsAcceptForm({ isOwner, orgName }: { isOwner: boolean
     const { error } = await supabase.rpc("terms_accept", { p_version: TERMS_VERSION });
     setBusy(false);
     if (error) { setErr(`同意の記録に失敗: ${rpcErrJa(error.message)}`); return; }
-    router.replace("/dashboard");
-    router.refresh();
+    window.location.replace("/dashboard"); // ★2026-11-22（相談役 14:10 の 1）: 読み直す移動＝初期設定が途中の店で殻の戻しがくり返して白くなるのを避ける（ログインと同じ形）
   }
 
   return (

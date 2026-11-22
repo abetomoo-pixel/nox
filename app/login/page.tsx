@@ -46,8 +46,9 @@ export default function LoginPage() {
     // E5（裁定8）: cast 以外の着地はホーム（モックのログイン後遷移と同型）。
     const { data: role } = await supabase.rpc("auth_role");
     if (fromKiosk && !kioskPersonAllowedOf(role as string | null)) { setError(KIOSK_PERSON_DENY); setBusy(false); window.setTimeout(() => void leaveKioskPersonLogin(supabase), 1500); return; } // ★便 M5 M-49: 店長以上だけ
-    router.replace(role === "cast" ? "/mine" : "/dashboard");
-    router.refresh();
+    // ★2026-11-22（相談役 14:10 の 1）: 読み直す移動にする。router.replace（読み直さない移動）だと、/dashboard の殻（(manage) の layout）が /setup へ戻したとき、
+    //   次の /setup でも同じ殻を使い回し、殻がまた /setup へ戻す＝くり返して白い画面（地 #fafafa だけ）で止まった（初期設定が途中の店のオーナー・店長・スタッフ）。メールのリンク（set-password）と同じ形。
+    window.location.replace(role === "cast" ? "/mine" : "/dashboard");
   }
 
   return (
