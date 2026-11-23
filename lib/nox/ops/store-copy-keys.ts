@@ -4,7 +4,8 @@
 //   鍵を足したのに名簿に入れ忘れたら赤（検査が set_store_profile の白名単・本番の settings_json の鍵・コードの読取の鍵を全部この名簿と照らす）。
 import type { StoreCopyPart } from "@/lib/nox/ops/store-add";
 
-export type CopyClass = { part: StoreCopyPart | null; why: string };
+/** needs＝★版 3（相談役 11/23 16:40 の ■2-c）: 対になる値（端末・同意・LINE・位置・シフト）を写さないのに、設定だけ写すもの＝表に印を付ける（移すかは相談役が決める） */
+export type CopyClass = { part: StoreCopyPart | null; why: string; needs?: string };
 
 /** stores.settings_json の鍵 */
 export const STORE_SETTING_KEYS: Readonly<Record<string, CopyClass>> = {
@@ -40,7 +41,7 @@ export const STORE_SETTING_KEYS: Readonly<Record<string, CopyClass>> = {
   sys_points: { part: "comp", why: "制度：ポイント" }, sys_sales_slide: { part: "comp", why: "制度：売上スライド" }, sys_point_slide: { part: "comp", why: "制度：ポイントスライド" },
   sys_norms: { part: "comp", why: "制度：ノルマ" }, sys_penalties: { part: "comp", why: "制度：罰金" }, sys_bonus: { part: "comp", why: "制度：賞与" },
   sys_wage_cut_rule: { part: "comp", why: "制度：減給の決まり" }, sys_drink_count_back: { part: "comp", why: "制度：ドリンクの杯数バック" },
-  sys_staff_discount: { part: "comp", why: "制度：スタッフ割" }, sys_cast_register: { part: "comp", why: "制度：キャストのレジ使用" },
+  sys_staff_discount: { part: "comp", why: "制度：スタッフ割" }, sys_cast_register: { part: "comp", why: "制度：キャストのレジ使用", needs: "キャストのレジ端末（cast_register_device）と店の端末＝写さない。端末が無い間は使えない" },
   cast_register_enabled: { part: "comp", why: "キャストのレジ使用（旧鍵・sys_cast_register と対）" },
   staff_discount_cap: { part: "comp", why: "スタッフ割の上限" },
   reward_axis: { part: "comp", why: "報酬の軸" }, sales_basis: { part: "comp", why: "売上の基準" }, sales_back_default_off: { part: "comp", why: "既定の売上歩合を止める" },
@@ -61,16 +62,16 @@ export const STORE_SETTING_KEYS: Readonly<Record<string, CopyClass>> = {
   customer_purpose: { part: "settings", why: "顧客情報の利用目的" }, customer_retention_years: { part: "settings", why: "顧客情報の保存年数" }, mynumber_retention_years: { part: "settings", why: "マイナンバーの保存年数" },
   okuri_base_amount: { part: "settings", why: "送りの定額" }, okuri_flat_tiers: { part: "settings", why: "送りの距離区分" }, okuri_mode: { part: "settings", why: "送りの方式" },
   invoice_registered_on: { part: "settings", why: "インボイスの登録日（同じ法人）" }, invoice_reg_no: { part: "settings", why: "登録番号（同じ法人・領収書の表記）" }, receipt_footer: { part: "settings", why: "領収書の下の文" },
-  payment_methods: { part: "settings", why: "支払い方法" }, punch_methods: { part: "settings", why: "打刻の方法" }, punch_enforce: { part: "settings", why: "打刻の強制" },
-  punch_restrict_mode: { part: "settings", why: "打刻の制限の方式（位置の値は写さない）" }, punch_require_shift: { part: "settings", why: "シフトの無い打刻" },
-  punch_round_unit: { part: "settings", why: "打刻の丸めの単位" }, punch_round_mode: { part: "settings", why: "打刻の丸め方" }, punch_mode: { part: "settings", why: "打刻する店かどうか" },
+  payment_methods: { part: "settings", why: "支払い方法" }, punch_methods: { part: "settings", why: "打刻の方法", needs: "店の端末（キオスク）＝写さない。端末が無い間は本人と代理の打刻だけ使える" }, punch_enforce: { part: null, why: "★版 3 打刻の強制＝写さない（位置を写さないので、方式が位置のまま強制だけ写ると店の設定の保存が毎回 range required で止まる）" },
+  punch_restrict_mode: { part: null, why: "★版 3 打刻の制限の方式＝写さない（Wi-Fi・位置の値を写さない＝2 店目は制限なしで始める・「店の端末だけ」を写すと端末の無い 2 店目で本人の打刻が全部止まる）" }, punch_require_shift: { part: "settings", why: "シフトの無い打刻", needs: "シフト＝写さない。「止める」を写すと、2 店目で確定のシフトを作るまで本人の出勤の打刻が止まる" },
+  punch_round_unit: { part: null, why: "★版 3 勤務時間の丸めの単位＝写さない（丸めは店ごとに同意を取る・同意の版は写さない＝2 店目は丸めない（1 分）で始まる）" }, punch_round_mode: { part: null, why: "★版 3 勤務時間の丸め方＝写さない（同上）" }, punch_mode: { part: "settings", why: "打刻する店かどうか" },
   pay_fee_rates: { part: "settings", why: "支払い手数料" }, pay_discount_rates: { part: "settings", why: "支払い割引" }, pay_discount_base: { part: "settings", why: "割引の基準" },
   cash_float_default: { part: "settings", why: "釣り銭の既定" }, register_window_before_min: { part: "settings", why: "レジの前の時間" }, register_window_after_min: { part: "settings", why: "レジの後の時間" },
-  cast_register_scope: { part: "settings", why: "会計できる卓" }, duty_gate: { part: "settings", why: "出勤の柵（読まれていない鍵）" },
+  cast_register_scope: { part: "settings", why: "会計できる卓", needs: "キャストのレジ端末＝写さない（キャストのレジ使用と同じ）" }, duty_gate: { part: "settings", why: "出勤の柵（読まれていない鍵）" },
   ar_enabled: { part: "settings", why: "売掛（receivable_policy と対）" }, pin_lock_max_fail: { part: "settings", why: "PIN のロックの回数" }, pin_lock_minutes: { part: "settings", why: "PIN のロックの時間" },
   payslip_visibility: { part: "settings", why: "マイページ：給与明細の表示" }, drink_claim: { part: "settings", why: "マイページ：ドリンク申告" }, punch_correction_request: { part: "settings", why: "マイページ：打刻の修正申請" },
   ranking: { part: "settings", why: "マイページ：ランキング" }, ranking_show_others: { part: "settings", why: "マイページ：ほかのキャストの表示" }, reservation_request: { part: "settings", why: "マイページ：予約の申請" },
-  shift_request_mode: { part: "settings", why: "マイページ：シフト希望の方式" }, contract_ack: { part: "settings", why: "マイページ：契約の確認を出す" },
+  shift_request_mode: { part: "settings", why: "マイページ：シフト希望の方式" }, contract_ack: { part: "settings", why: "マイページ：契約の確認を出す", needs: "契約の版（contract_ack_rev）＝写さない。2 店目で版を決めるまで確認の画面の版が空" },
   // ── 営業時間（hours） ──
   biz_cutoff_hm: { part: "hours", why: "営業日の切替時刻" }, close_hm: { part: "hours", why: "閉店の時刻" },
 };
@@ -92,9 +93,9 @@ export const STORE_COLUMNS: Readonly<Record<string, CopyClass>> = {
   business_tax_status: { part: "settings", why: "課税事業者（同じ法人）" }, price_display: { part: "settings", why: "税込・税別の表示" }, invoice_status: { part: "settings", why: "インボイス（同じ法人）" },
   invoice_reg_no: { part: "settings", why: "登録番号（同じ法人）" }, invoice_registered_on: { part: "settings", why: "登録日（同じ法人）" }, tax_rounding: { part: "settings", why: "税の端数" },
   card_surcharge_rate: { part: "settings", why: "カードの上乗せ" }, receivable_policy: { part: "settings", why: "売掛" }, tax_inclusive_display: { part: "settings", why: "税込の表示（旧）" },
-  payment_methods: { part: "settings", why: "支払い方法" }, punch_methods: { part: "settings", why: "打刻の方法" }, punch_enforce: { part: "settings", why: "打刻の強制" },
-  punch_restrict_mode: { part: "settings", why: "打刻の制限の方式" }, punch_require_shift: { part: "settings", why: "シフトの無い打刻" }, punch_round_unit: { part: "settings", why: "打刻の丸めの単位" },
-  punch_round_mode: { part: "settings", why: "打刻の丸め方" }, manager_punch_enabled: { part: "settings", why: "店長の打刻" },
+  payment_methods: { part: "settings", why: "支払い方法" }, punch_methods: { part: "settings", why: "打刻の方法", needs: "店の端末＝写さない" }, punch_enforce: { part: null, why: "★版 3 打刻の強制＝写さない（鍵と同じ）" },
+  punch_restrict_mode: { part: null, why: "★版 3 打刻の制限の方式＝写さない（鍵と同じ）" }, punch_require_shift: { part: "settings", why: "シフトの無い打刻", needs: "シフト＝写さない" }, punch_round_unit: { part: null, why: "★版 3 丸め＝写さない（鍵と同じ）" },
+  punch_round_mode: { part: null, why: "★版 3 丸め＝写さない（鍵と同じ）" }, manager_punch_enabled: { part: "settings", why: "店長の打刻" },
   legal_name: { part: "settings", why: "法人名（同じ法人）" }, receipt_default_desc: { part: "settings", why: "領収書の但し書き" },
 };
 

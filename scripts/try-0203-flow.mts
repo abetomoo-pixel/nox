@@ -120,6 +120,8 @@ try {
   check("3 写した商品の値段とバックは 1 店目のまま（雛形で上書きしない）", pb.d === 0, pb);
   const own = await tx.one<{ uv: boolean; addr: string | null; reg: string | null; foot: string | null; a1reg: string | null; a1foot: string | null }>("select d.use_vip uv, d.settings_json->>'receipt_address' addr, d.settings_json->>'invoice_reg_no' reg, d.settings_json->>'receipt_footer' foot, s.settings_json->>'invoice_reg_no' a1reg, s.settings_json->>'receipt_footer' a1foot from stores d, stores s where d.id = $1 and s.id = $2", [sid, A1.id]);
   check("3 版 2 店ごとの鍵は 2 店目の入力（VIP 席の有無・領収書の住所）・登録番号と下の文は 1 店目の写し", own.uv === (S.seats.vip > 0) && own.addr === "東京都" && own.reg === "T1234567890123" && own.a1reg === own.reg && own.foot === "1 店目の下の文" && own.a1foot === own.foot, own);
+  const rnd = await tx.one<{ u: number; m: string; e: boolean }>("select punch_round_unit u, punch_round_mode m, punch_enforce e from stores where id = $1", [sid]);
+  check("3 版 3 2 店目は丸めない（1 分）で始まる（写さない・初期設定の既定も 1 分）・打刻の強制は 2 店目の入力（既定はソフト）", rnd.u === 1 && rnd.e === false, rnd);
   const org = await tx.one<{ pd: number | null }>("select pay_day pd from orgs where id = $1", [A1.org_id]);
   const pds = await tx.q<{ pd: number | null }>("select distinct pay_day pd from stores where org_id = $1", [A1.org_id]);
   check("3 支払日は会社の値のまま（店で書かない）・会社の全店で同じ", pds.length === 1 && pds[0].pd === org.pd, { org: org.pd, stores: pds });
