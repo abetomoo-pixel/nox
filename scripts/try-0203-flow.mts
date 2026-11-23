@@ -53,6 +53,7 @@ try {
     return r.ok ? { ok: true as const, data: r.rows[0]?.r } : { ok: false as const, err: r.err };
   };
 
+  await tx.q("update stores set settings_json = coalesce(settings_json, '{}'::jsonb) || $1::jsonb where name = 'NOX-VERIFY-A1'", [JSON.stringify({ invoice_reg_no: "T1234567890123", receipt_footer: "1 店目の下の文" })]); // 写す値が空振りしないように（この試走の中だけ）
   const A1 = await tx.one<{ id: string; org_id: string; sj: Record<string, unknown> }>("select id, org_id, settings_json sj from stores where name = 'NOX-VERIFY-A1'");
   const owner = { auth_user_id: (await tx.one<{ a: string }>("select auth_user_id a from users where email = 'nox-verify-owner-a@example.com'")).a };
   const op = (await tx.one<{ id: string } | undefined>("select auth_user_id id from ops_operators limit 1"))?.id;
@@ -84,9 +85,13 @@ try {
   const cp = await rpcAs(owner, "store_copy_settings", { p_src: A1.id, p_dst: sid, p_parts: [...STORE_COPY_PARTS] });
   check("3 写し（オーナー・確定の最初）", cp.ok, cp.ok ? undefined : cp.err);
   const ids = copiedPlanIdsOf(cp.ok ? cp.data : null);
-  const steps = stripOrgLevelKeys(applyCopyToPlan(planAll.steps, [...STORE_COPY_PARTS]));
+  // 画面と同じ＝写した後の 2 店目の登録番号と領収書の下の文を読んで、領収書の段に渡す（setup-wizard の execute）
+  const sjCopied = (await tx.as(owner, "select settings_json sj from public.stores where id = $1", [sid]));
+  const sjC = (sjCopied.ok ? (sjCopied.rows[0]?.sj ?? {}) : {}) as Record<string, unknown>;
+  const copiedReceipt = { invoice_reg_no: typeof sjC.invoice_reg_no === "string" ? sjC.invoice_reg_no : null, receipt_footer: typeof sjC.receipt_footer === "string" ? sjC.receipt_footer : null };
+  const steps = stripOrgLevelKeys(applyCopyToPlan(planAll.steps, [...STORE_COPY_PARTS], copiedReceipt));
   const groups = [...new Set(steps.map((s) => s.group))];
-  check("3 写した群の段は飛ばす（料金・商品・商品のバックの上書き・待遇・店舗設定・営業時間の段が計画に無い）", !groups.some((g) => ["pricing", "products", "overrides", "comp", "settings", "hours"].includes(String(g))) && planAll.steps.some((x) => x.group === "overrides"), groups);
+  check("3 写した群の段は飛ばす（料金・商品・商品のバックの上書き・待遇・営業時間）・店舗設定の群は版 2 で店ごとの鍵を書く段（店舗設定・領収書の住所）だけ残る", !groups.some((g) => ["pricing", "products", "overrides", "comp", "hours"].includes(String(g))) && planAll.steps.some((x) => x.group === "overrides") && steps.filter((x) => x.group === "settings").map((x) => x.rpc).join(",") === "set_store_profile,set_store_receipt_profile", { groups, settings: steps.filter((x) => x.group === "settings").map((x) => x.rpc) });
   const created: Record<string, unknown> = {}; let ran = 0, skipped = 0; const errs: string[] = [];
   const runSteps = async (xs: V5Step[]) => {
     const cnt = await countsOf(sid); // 画面と同じ＝件数は始めに 1 回だけ読む
@@ -108,10 +113,13 @@ try {
   const a1Sj = (await tx.one<{ sj: Record<string, unknown> }>("select settings_json sj from stores where id = $1", [A1.id])).sj;
   check("3 1 店目の行と店の設定は変わらない（混ざらない）", JSON.stringify(await countsOf(A1.id)) === JSON.stringify(a1Before) && JSON.stringify(a1Sj) === a1SjBefore, [a1Before, await countsOf(A1.id)]);
   const cmpKeys = ["slide_apply", "settlement_presets", "sys_norms", "sys_penalties", "trial_guarantee_days", "sales_basis", "biz_cutoff_hm", "receipt_footer"];
-  const diff = cmpKeys.filter((k) => JSON.stringify(st2.sj?.[k] ?? null) !== JSON.stringify(A1.sj?.[k] ?? null));
+  const nz = (v: unknown) => (v === "" ? null : v ?? null); // 領収書の段は空を "" で書く（set_store_receipt_profile）＝無いのと同じに数える
+  const diff = cmpKeys.filter((k) => JSON.stringify(nz(st2.sj?.[k])) !== JSON.stringify(nz(A1.sj?.[k])));
   check("3 写した店の設定を初期設定の段が上書きしない（待遇・店舗設定の鍵が 1 店目と同じ）", diff.length === 0, diff.map((k) => ({ k, a1: A1.sj?.[k] ?? null, a3: st2.sj?.[k] ?? null })));
   const pb = await tx.one<{ d: number }>("select count(*)::int d from (select name, back_mode, back_value, unit4_json::text u, price, hon_pt from products where store_id = $1 except select name, back_mode, back_value, unit4_json::text, price, hon_pt from products where store_id = $2) x", [A1.id, sid]);
   check("3 写した商品の値段とバックは 1 店目のまま（雛形で上書きしない）", pb.d === 0, pb);
+  const own = await tx.one<{ uv: boolean; addr: string | null; reg: string | null; foot: string | null; a1reg: string | null; a1foot: string | null }>("select d.use_vip uv, d.settings_json->>'receipt_address' addr, d.settings_json->>'invoice_reg_no' reg, d.settings_json->>'receipt_footer' foot, s.settings_json->>'invoice_reg_no' a1reg, s.settings_json->>'receipt_footer' a1foot from stores d, stores s where d.id = $1 and s.id = $2", [sid, A1.id]);
+  check("3 版 2 店ごとの鍵は 2 店目の入力（VIP 席の有無・領収書の住所）・登録番号と下の文は 1 店目の写し", own.uv === (S.seats.vip > 0) && own.addr === "東京都" && own.reg === "T1234567890123" && own.a1reg === own.reg && own.foot === "1 店目の下の文" && own.a1foot === own.foot, own);
   const org = await tx.one<{ pd: number | null }>("select pay_day pd from orgs where id = $1", [A1.org_id]);
   const pds = await tx.q<{ pd: number | null }>("select distinct pay_day pd from stores where org_id = $1", [A1.org_id]);
   check("3 支払日は会社の値のまま（店で書かない）・会社の全店で同じ", pds.length === 1 && pds[0].pd === org.pd, { org: org.pd, stores: pds });
@@ -120,17 +128,17 @@ try {
   const map = (cp.ok ? ((cp.data as { plans?: { src: string; dst: string }[] }).plans ?? []) : []);
   const dstOf = (src: string | null | undefined) => map.find((m) => m.src === src)?.dst ?? null;
   const wantBasic = dstOf(defA1 ?? plansA1[0]?.id), wantTrial = dstOf(plansA1.find((p) => p.id !== (defA1 ?? plansA1[0]?.id))?.id);
-  check("4 結ぶ先＝写したときの対応（1 店目の既定または最初のプラン・次のプラン）", !!ids && ids.basic === wantBasic && ids.trial === wantTrial && !!wantBasic && !!wantTrial, { ids, wantBasic, wantTrial, n: map.length });
+  check("4 結ぶ先＝基本は写したときの対応（1 店目の既定または最初のプラン）・体験入店は結ばない（版 2 の ■3＝オーナーが選ぶ）", !!ids && ids.basic === wantBasic && ids.trial === null && !!wantBasic && !!wantTrial, { ids, wantBasic, wantTrial, n: map.length });
   const names = await tx.q<{ id: string; name: string }>("select id, name from comp_plans where store_id = $1", [sid]);
   check("4 写したプランの名前は 1 店目の今の名前（改名のまま＝名前では見つからない形）", names.length === plansA1.length && names.every((n) => n.name.endsWith("（改名）")) && !names.some((n) => n.name === "基本プラン" || n.name === "体験入店"), names.map((n) => n.name));
   created.__ = null;
-  const castSteps = [...castPlanOf({ g: "通し在籍", n: "", st: "在籍", kind: "委託", plan: "基本プラン", tel: "", mail: "", pin: "739182", dist: "mid", inv: false, birthday: "2000-01-01" }, sid, ids ?? { basic: null, trial: null }, false),
-    ...castPlanOf({ g: "通し体入", n: "", st: "体入", kind: "委託", plan: "体験入店", tel: "", mail: "", pin: "418257", dist: "mid", inv: false, birthday: "2000-01-01" }, sid, ids ?? { basic: null, trial: null }, false)];
+  const castSteps = [...castPlanOf({ g: "通し在籍", n: "", st: "在籍", kind: "委託", plan: "基本プラン", tel: "", mail: "", pin: "739182", dist: "mid", inv: false, birthday: "2000-01-01" }, sid, { basic: ids?.basic ?? null, trial: wantTrial /* 完了の画面でオーナーが選んだ形 */ }, false),
+    ...castPlanOf({ g: "通し体入", n: "", st: "体入", kind: "委託", plan: "体験入店", tel: "", mail: "", pin: "418257", dist: "mid", inv: false, birthday: "2000-01-01" }, sid, { basic: ids?.basic ?? null, trial: wantTrial /* 完了の画面でオーナーが選んだ形 */ }, false)];
   await runSteps(castSteps);
   check("4 キャストの登録の rpc が通る", errs.length === 0, errs);
   const cpl = await tx.q<{ g: string; plan: string; store: string }>("select c.name g, cp.plan_id::text plan, p.store_id::text store from casts c join cast_plan cp on cp.cast_id = c.id join comp_plans p on p.id = cp.plan_id where c.store_id = $1 order by 1", [sid]);
   const pOf = (g: string) => cpl.find((x) => x.g === g);
-  check("4 在籍＝基本・体入＝体験入店の写しに結ぶ（どちらも 2 店目のプラン）", pOf("通し在籍")?.plan === wantBasic && pOf("通し体入")?.plan === wantTrial && cpl.every((x) => x.store === sid), cpl);
+  check("4 在籍＝基本の写し・体入＝オーナーが選んだプラン（どちらも 2 店目のプラン）", pOf("通し在籍")?.plan === wantBasic && pOf("通し体入")?.plan === wantTrial && cpl.every((x) => x.store === sid), cpl);
   check("4 1 店目の行は最後まで変わらない", JSON.stringify(await countsOf(A1.id)) === JSON.stringify(a1Before), await countsOf(A1.id));
 } finally {
   await db.query("rollback").catch(() => undefined);

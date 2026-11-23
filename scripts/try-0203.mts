@@ -70,6 +70,14 @@ try {
       const src = await tx.one<Record<string, number>>("select (select count(*)::int from pricing_rules where store_id=$1) pr, (select count(*)::int from pricing_categories where store_id=$1) pc, (select count(*)::int from products where store_id=$1) pd, (select count(*)::int from product_categories where store_id=$1) pcat, (select count(*)::int from comp_plans where store_id=$1) cp, (select count(*)::int from comp_plan_components where store_id=$1) cc, (select count(*)::int from store_business_hours where store_id=$1) bh, (select count(*)::int from cast_ranks where store_id=$1) rk", [A1.id]);
       const cpm = await tx.as(mgr, "select public.store_copy_settings($1, $2, array['pricing'])", [A1.id, sid]);
       check("写し：店長は forbidden", !cpm.ok && /forbidden/.test(tx.errOf(cpm)), tx.errOf(cpm));
+      await tx.q("update stores set settings_json = coalesce(settings_json, '{}'::jsonb) || '{\"zz_unknown_key\": 1, \"line_notify\": {\"x\": 1}, \"receipt_address\": \"1 店目の住所\"}'::jsonb, punch_lat = 35.0, trade_name = '1 店目の屋号' where id = $1", [A1.id]);
+      const ghost = (await tx.one<{ g: string }>("select gen_random_uuid()::text g")).g;
+      // 1 店目にランク 2 つ・指名料の行（ランクつき）・スライドのランクを入れる（NOX-VERIFY-A1 にはランクと料金の行が無い＝この試走の中だけ）
+      const rkA = (await tx.q<{ id: string }>("insert into cast_ranks (org_id, store_id, name, sort_order, is_active) values ($1, $2, '試走ランク金', 1, true), ($1, $2, '試走ランク銀', 2, true) returning id", [A1.org_id, A1.id])).map((r) => r.id);
+      await tx.q("insert into pricing_rules (org_id, store_id, fee_kind, rank_id, amount, name) values ($1, $2, 'hon_shimei', $3, 3000, '試走 本指名 金'), ($1, $2, 'hon_shimei', $4, 2000, '試走 本指名 銀'), ($1, $2, 'set', null, 5000, '試走 セット')", [A1.org_id, A1.id, rkA[0], rkA[1]]);
+      await tx.q("update comp_plans set slide_rank_ids = $2::uuid[] where id = (select id from comp_plans where store_id = $1 order by created_at limit 1)", [A1.id, rkA]);
+      Object.assign(src, await tx.one<Record<string, number>>("select (select count(*)::int from pricing_rules where store_id=$1) pr, (select count(*)::int from pricing_categories where store_id=$1) pc, (select count(*)::int from products where store_id=$1) pd, (select count(*)::int from product_categories where store_id=$1) pcat, (select count(*)::int from comp_plans where store_id=$1) cp, (select count(*)::int from comp_plan_components where store_id=$1) cc, (select count(*)::int from store_business_hours where store_id=$1) bh, (select count(*)::int from cast_ranks where store_id=$1) rk", [A1.id])); // 入れた後の件数で比べる
+      await tx.q("update comp_plans set slide_rank_ids = slide_rank_ids || $2::uuid where id = (select id from comp_plans where store_id = $1 order by created_at limit 1)", [A1.id, ghost]);
       const cp = await tx.as(owner, "select public.store_copy_settings($1, $2, array['pricing','products','comp','settings','hours']) j", [A1.id, sid]);
       const dst = await tx.one<Record<string, number>>("select (select count(*)::int from pricing_rules where store_id=$1) pr, (select count(*)::int from pricing_categories where store_id=$1) pc, (select count(*)::int from products where store_id=$1) pd, (select count(*)::int from product_categories where store_id=$1) pcat, (select count(*)::int from comp_plans where store_id=$1) cp, (select count(*)::int from comp_plan_components where store_id=$1) cc, (select count(*)::int from store_business_hours where store_id=$1) bh, (select count(*)::int from cast_ranks where store_id=$1) rk", [sid]);
       check("写し：件数が写し元と同じ（料金・区分・商品・カテゴリ・プラン・部品・営業時間・ランク）", cp.ok && JSON.stringify(src) === JSON.stringify(dst), [tx.errOf(cp), src, dst]);
@@ -77,12 +85,53 @@ try {
       check("写し：ID の付け替え＝写し先の行は写し先の区分・ランク・プラン・カテゴリだけを指す", xref.badcat === 0 && xref.badrank === 0 && xref.badplan === 0 && xref.badpcat === 0, xref);
       const kept = await tx.one<{ sd: string; bt: string; lc: string; ip: string | null }>("select settings_json->>'setup_done' sd, settings_json->>'biz_type' bt, line_config::text lc, punch_allow_ip::text ip from stores where id=$1", [sid]);
       check("写し：初期設定の前・業態はそのまま・LINE と位置（IP）は写さない", kept.sd === "false" && kept.bt === "cabaret" && kept.lc === "{}" && kept.ip === "{}", kept);
+      // ★版 2（■2-a）: 名簿に無い鍵・LINE・住所・位置は写さない・屋号は 2 店目の店名
+      const dsj = await tx.one<{ sj: Record<string, unknown>; tn: string | null; nm: string; lat: number | null }>("select settings_json sj, trade_name tn, name nm, punch_lat lat from stores where id = $1", [sid]);
+      check("版 2 写す鍵の名簿だけ＝名簿に無い鍵・LINE の知らせ・領収書の住所・位置は写さない・屋号は 2 店目の店名", !("zz_unknown_key" in (dsj.sj ?? {})) && !("line_notify" in (dsj.sj ?? {})) && !("receipt_address" in (dsj.sj ?? {})) && dsj.lat === null && dsj.tn === dsj.nm, dsj);
+      // ★版 2（■2-c）: 写した後の 2 店目の行（料金・商品・待遇・設定の jsonb を含む）に 1 店目の行の ID（ランク・カテゴリ・プラン・商品・店）が残っていない
+      const srcIds = (await tx.q<{ id: string }>(`select id::text id from cast_ranks where store_id = $1 union all select id::text from pricing_categories where store_id = $1 union all select id::text from product_categories where store_id = $1
+        union all select id::text from comp_plans where store_id = $1 union all select id::text from products where store_id = $1 union all select $1::text union all select $2::text`, [A1.id, ghost])).map((r) => r.id);
+      const dstText = (await tx.one<{ t: string }>(`select concat_ws('|', (select string_agg(row_to_json(x)::text, '|') from pricing_rules x where store_id = $1), (select string_agg(row_to_json(x)::text, '|') from pricing_categories x where store_id = $1),
+        (select string_agg(row_to_json(x)::text, '|') from products x where store_id = $1), (select string_agg(row_to_json(x)::text, '|') from product_categories x where store_id = $1), (select string_agg(row_to_json(x)::text, '|') from comp_plans x where store_id = $1),
+        (select string_agg(row_to_json(x)::text, '|') from comp_plan_components x where store_id = $1), (select string_agg(row_to_json(x)::text, '|') from plan_norm_tiers x where store_id = $1), (select string_agg(row_to_json(x)::text, '|') from plan_rate_bands x where store_id = $1),
+        (select string_agg(row_to_json(x)::text, '|') from plan_event_bonuses x where store_id = $1), (select string_agg(row_to_json(x)::text, '|') from custom_back_defs x where store_id = $1), (select string_agg(row_to_json(x)::text, '|') from penalty_config x where store_id = $1),
+        (select string_agg(row_to_json(x)::text, '|') from store_business_hours x where store_id = $1), (select string_agg(row_to_json(x)::text, '|') from cast_ranks x where store_id = $1), (select settings_json::text from stores where id = $1)) t`, [sid])).t ?? "";
+      const left = srcIds.filter((i) => dstText.includes(i));
+      check(`版 2 写した 2 店目の行に 1 店目の ID が 1 つも残らない（1 店目の ID ${srcIds.length}・2 店目の行の文字 ${dstText.length}）`, srcIds.length > 5 && dstText.length > 1000 && left.length === 0, left);
       const again = await tx.as(owner, "select public.store_copy_settings($1, $2, array['products'])", [A1.id, sid]);
       check("写し：2 回目は not empty（二重に写さない）", !again.ok && /not empty: products/.test(tx.errOf(again)), tx.errOf(again));
       const toDone = await tx.as(owner, "select public.store_copy_settings($1, $2, array['hours'])", [sid, A1.id]);
       check("写し：写し先が初期設定済み・写し元が初期設定の前は不可", !toDone.ok && /(src not ready|dst done)/.test(tx.errOf(toDone)), tx.errOf(toDone));
     }
+    // ★版 2（■2-b）: 待遇だけ写す → 後から料金を写す＝指名料の行のランクは 2 店目のランク（名前で結ぶ・二重に作らない）
+    const addC = await tx.call("select public.ops_store_add($1, $2, 'NOX-VERIFY-A4（試走）', 'cabaret', null, null) j", [op, A1.org_id]);
+    const sidC = addC.ok ? (addC.rows[0].j as { store_id: string }).store_id : null;
+    if (sidC) {
+      const c1 = await tx.as(owner, "select public.store_copy_settings($1, $2, array['comp'])", [A1.id, sidC]);
+      const nRk1 = (await tx.one<{ n: number }>("select count(*)::int n from cast_ranks where store_id = $1", [sidC])).n;
+      const c2 = await tx.as(owner, "select public.store_copy_settings($1, $2, array['pricing'])", [A1.id, sidC]);
+      const rk = await tx.one<{ n: number; bad: number; rules: number; ranked: number; slide_bad: number }>(`select (select count(*)::int from cast_ranks where store_id = $1) n,
+        (select count(*)::int from pricing_rules r where r.store_id = $1 and r.rank_id is not null and not exists (select 1 from cast_ranks k where k.id = r.rank_id and k.store_id = $1)) bad,
+        (select count(*)::int from pricing_rules where store_id = $1) rules, (select count(*)::int from pricing_rules where store_id = $1 and rank_id is not null) ranked,
+        (select count(*)::int from comp_plans p, unnest(p.slide_rank_ids) x where p.store_id = $1 and not exists (select 1 from cast_ranks k where k.id = x and k.store_id = $1)) slide_bad`, [sidC]);
+      const srcRanked = (await tx.one<{ n: number }>("select count(*)::int n from pricing_rules where store_id = $1 and rank_id is not null", [A1.id])).n;
+      check("版 2 待遇だけ写す→後から料金＝ランクは待遇の写しで作り、料金の写しは名前で結ぶ（増えない）・指名料の行のランクは 2 店目のランク・スライドのランクも 2 店目",
+        c1.ok && c2.ok && nRk1 === rk.n && rk.bad === 0 && rk.slide_bad === 0 && rk.ranked === srcRanked && rk.rules > 0, [tx.errOf(c1), tx.errOf(c2), nRk1, rk, srcRanked]);
+    }
+    const addD = await tx.call("select public.ops_store_add($1, $2, 'NOX-VERIFY-A5（試走）', 'cabaret', null, null) j", [op, A1.org_id]);
+    const sidD = addD.ok ? (addD.rows[0].j as { store_id: string }).store_id : null;
+    if (sidD) {
+      await tx.q("insert into cast_ranks (org_id, store_id, name, sort_order, is_active) values ($1, $2, '2 店目だけのランク', 1, true)", [A1.org_id, sidD]);
+      const srcRanks = (await tx.one<{ n: number }>("select count(*)::int n from cast_ranks where store_id = $1", [A1.id])).n;
+      const c3 = await tx.as(owner, "select public.store_copy_settings($1, $2, array['pricing'])", [A1.id, sidD]);
+      check("版 2 写し先にランクがあって名前で結べないランクがあれば not empty: ranks で止める（1 つも写さない）", srcRanks === 0 ? true : !c3.ok && /not empty: ranks/.test(tx.errOf(c3)) && (await tx.one<{ n: number }>("select count(*)::int n from pricing_rules where store_id = $1", [sidD])).n === 0, [srcRanks, tx.errOf(c3)]);
+    }
   } else check("運営者の行がある（ops_operators）", false, "ops_operators が空");
+  // ★版 2（■2-d）: デモの会社は会社の支払日を書かない（毎朝の入れ直しで stores だけ戻る＝ずれる）
+  await tx.q("update orgs set is_demo = true where id = $1", [A1.org_id]);
+  const pdDemo = await tx.as(owner, "select public.set_org_pay_day(12)");
+  await tx.q("update orgs set is_demo = false where id = $1", [A1.org_id]);
+  check("版 2 デモの会社で set_org_pay_day は forbidden (demo)（店の設定の今の道のまま）", !pdDemo.ok && /forbidden \(demo\)/.test(tx.errOf(pdDemo)), tx.errOf(pdDemo));
 
   // ★5 お知らせ（店を指定）
   const n1 = await tx.as(owner, "select public.notice_create_at($1, 't', 'b', 'all', false, null) id", [A2.id]);

@@ -1,4 +1,4 @@
--- 0203_multi_store.sql（2026-11-22 夜・相談役 21:40 の ■2＝2 号店の段 1・段 2・枝 multi-store-1122・起草と試走まで＝貼らない・合図は相談役）
+-- 0203_multi_store.sql 版 2（2026-11-23・相談役 11/23 14:10 の ■2＝写す鍵の名簿・ランクは名前で結ぶか止める・付け替えられない ID を残さない・デモは会社の支払日を書かない）（版 1＝2026-11-22 夜・相談役 21:40 の ■2＝2 号店の段 1・段 2・枝 multi-store-1122・起草と試走まで＝貼らない・合図は相談役）
 -- ★1 orgs.pay_day（支払日は会社で 1 つ・1〜31・null 可）＝会社の店の pay_day がそろっていればその値で埋める。stores.pay_day は残す（旗 false の間の読み・set_org_pay_day が同じ値に合わせる）
 -- ★2 set_org_pay_day（owner だけ・会社の全店の stores.pay_day も同じ値に・監査）
 -- ★3 ops_store_add（service 専用＝4 ロール revoke → service_role・運営が会社に店を足す・初期設定の前・写す内容は 2 店目の setup_drafts に {copy} として入れるだけ＝行は写さない）
@@ -40,6 +40,8 @@ begin
   if v_org is null then raise exception 'forbidden'; end if;
   if not public.billing_writable_of(v_org) then raise exception 'billing locked'; end if;
   if public.auth_role() <> 'owner' then raise exception 'forbidden'; end if;
+  -- ★版 2（■2-d）: デモの会社は毎朝の入れ直しで stores だけ payload に戻る（orgs は残す）＝会社の支払日を書くと翌朝ずれる。デモは今の道（店の設定の pay_day）のまま
+  if exists (select 1 from public.orgs where id = v_org and is_demo) then raise exception 'forbidden (demo)'; end if;
   if p_pay_day is null or p_pay_day not between 1 and 31 then raise exception 'bad pay day'; end if;
   select pay_day into v_before from public.orgs where id = v_org;
   update public.orgs set pay_day = p_pay_day where id = v_org;
@@ -111,11 +113,11 @@ declare
   v_parts text[];
   v_n jsonb := '{}'::jsonb;
   v_k int;
-  v_comp_keys text[] := array['sys_hourly','sys_backs','sys_sales_rate','sys_points','sys_sales_slide','sys_point_slide','sys_norms','sys_penalties','sys_bonus','sys_cast_register','sys_drink_count_back','sys_staff_discount','sys_wage_cut_rule',
-    'norm_axes','slide_apply','trial_guarantee_days','trial_wage','bonus_tier_mode','kind_back_rate','sales_back_default_off','sales_basis','sales_split','sales_subtotal_mode',
-    'pay_time_basis','pay_time_basis_next','pay_time_basis_next_from','payslip_visibility','withholding_default_cast','withholding_default_staff','mid_pay','default_plan_id'];
-  v_hours_keys text[] := array['biz_cutoff_hm'];
-  v_never_keys text[] := array['setup_done','biz_type','contract_ack','contract_ack_rev','cast_register_device','kiosk_features','line_notify'];   -- 店ごとの印・端末・LINE
+  -- ★版 2（相談役 11/23 14:10 の ■2-a）: 写す鍵の名簿（名簿に無い鍵は写さない＝lib/nox/ops/store-copy-keys.ts と同じ・検査 nox-multi-store が突き合わせる）
+  v_pricing_keys text[] := array['dohan_auto_hon','ext_shimei_enabled','join_mode','service_rate_by_seat'];
+  v_comp_keys text[] := array['bonus_tier_mode','cast_register_enabled','default_plan_id','kind_back_rate','mid_pay','norm_axes','pay_time_basis','pay_time_basis_next','pay_time_basis_next_from','pt_rules_default','reward_axis','sales_back_default_off','sales_basis','sales_norm_enabled','sales_split','sales_subtotal_includes_shimei','sales_subtotal_mode','shimei_norm_enabled','shimei_norm_scope','slide_apply','staff_discount_cap','sys_backs','sys_bonus','sys_cast_register','sys_drink_count_back','sys_hourly','sys_norms','sys_penalties','sys_point_slide','sys_points','sys_sales_rate','sys_sales_slide','sys_staff_discount','sys_wage_cut_rule','trial_back','trial_guarantee_days','trial_wage','withholding_default_cast','withholding_default_staff'];
+  v_settings_keys text[] := array['ar_enabled','billing_mode','cash_float_default','cast_register_scope','contract_ack','customer_purpose','customer_retention_years','daily_pay_cap_tiers','drink_claim','duty_gate','invoice_reg_no','invoice_registered_on','mynumber_retention_years','okuri_base_amount','okuri_flat_tiers','okuri_mode','pay_discount_base','pay_discount_rates','pay_fee_rates','payment_methods','payslip_visibility','pin_lock_max_fail','pin_lock_minutes','punch_correction_request','punch_enforce','punch_methods','punch_mode','punch_require_shift','punch_restrict_mode','punch_round_mode','punch_round_unit','ranking','ranking_show_others','receipt_footer','register_window_after_min','register_window_before_min','reservation_request','settlement_close_day','settlement_cycle','settlement_pay_days_after','settlement_presets','settlement_week_close_dow','shift_auto_confirm_hours','shift_cast_confirm','shift_request_mode','show_open_status'];
+  v_hours_keys text[] := array['biz_cutoff_hm','close_hm'];
   v_sj jsonb;
   v_def text;
   v_plans jsonb := '[]'::jsonb;   -- ★12:00 の ■2-b
@@ -139,12 +141,21 @@ begin
   create temp table if not exists _nox_copy_map (old uuid primary key, new uuid not null) on commit drop;
   truncate _nox_copy_map;
 
-  -- ランク（料金の指名料と待遇のスライドが指す）＝pricing か comp を写すとき・写し先にまだ無ければ
-  if ('pricing' = any(v_parts) or 'comp' = any(v_parts)) and not exists (select 1 from public.cast_ranks where store_id = p_dst) then
-    insert into _nox_copy_map select r.id, gen_random_uuid() from public.cast_ranks r where r.store_id = p_src;
-    insert into public.cast_ranks (id, org_id, store_id, name, sort_order, is_active)
-    select m.new, v_org, p_dst, r.name, r.sort_order, r.is_active from public.cast_ranks r join _nox_copy_map m on m.old = r.id where r.store_id = p_src;
-    get diagnostics v_k = row_count; v_n := v_n || jsonb_build_object('cast_ranks', v_k);
+  -- ランク（料金の指名料と待遇のスライドが指す）＝pricing か comp を写すとき
+  --   ★版 2（■2-b）: 写し先にランクが無ければ写して付け替える。写し先にランクがあれば、名前が同じランクに結ぶ（結べないランクが 1 つでもあれば止める）
+  if 'pricing' = any(v_parts) or 'comp' = any(v_parts) then
+    if not exists (select 1 from public.cast_ranks where store_id = p_dst) then
+      insert into _nox_copy_map select r.id, gen_random_uuid() from public.cast_ranks r where r.store_id = p_src;
+      insert into public.cast_ranks (id, org_id, store_id, name, sort_order, is_active)
+      select m.new, v_org, p_dst, r.name, r.sort_order, r.is_active from public.cast_ranks r join _nox_copy_map m on m.old = r.id where r.store_id = p_src;
+      get diagnostics v_k = row_count; v_n := v_n || jsonb_build_object('cast_ranks', v_k);
+    else
+      if exists (select 1 from public.cast_ranks r where r.store_id = p_src and not exists (select 1 from public.cast_ranks d where d.store_id = p_dst and d.name = r.name)) then
+        raise exception 'not empty: ranks';
+      end if;
+      insert into _nox_copy_map select r.id, (select d.id from public.cast_ranks d where d.store_id = p_dst and d.name = r.name order by d.sort_order, d.id limit 1) from public.cast_ranks r where r.store_id = p_src;
+      v_n := v_n || jsonb_build_object('cast_ranks_by_name', (select count(*) from public.cast_ranks r where r.store_id = p_src));
+    end if;
   end if;
 
   if 'pricing' = any(v_parts) then
@@ -159,7 +170,9 @@ begin
     get diagnostics v_k = row_count; v_n := v_n || jsonb_build_object('pricing_rules', v_k);
     update public.stores d set hon_fee = s.hon_fee, jonai_fee = s.jonai_fee, dohan_fee = s.dohan_fee, service_rate = s.service_rate, service_rate_by_seat = s.service_rate_by_seat,
            set_min = s.set_min, set_fee = s.set_fee, ext_min = s.ext_min, ext_fee = s.ext_fee, time_mode = s.time_mode, time_per = s.time_per, round_unit = s.round_unit, round_mode = s.round_mode,
-           use_vip = s.use_vip, use_counter = s.use_counter, ext_shimei_enabled = s.ext_shimei_enabled, dohan_auto_hon = s.dohan_auto_hon, updated_at = now()
+           card_tax_rate = s.card_tax_rate, ext_shimei_enabled = s.ext_shimei_enabled, dohan_auto_hon = s.dohan_auto_hon,   -- ★版 2: 席の有無（use_vip・use_counter）は写さない＝席は 2 店目のもの
+           settings_json = coalesce(d.settings_json, '{}'::jsonb) || (select coalesce(jsonb_object_agg(e.key, e.value), '{}'::jsonb) from jsonb_each(coalesce(s.settings_json, '{}'::jsonb)) e where e.key = any(v_pricing_keys)),
+           updated_at = now()
     from public.stores s where s.id = p_src and d.id = p_dst;
   end if;
 
@@ -183,7 +196,7 @@ begin
            product_back_fixed_vip, product_back_rate_vip, reservation_back_tiers, back_rate_tiers, advance_loan_agreed, advance_loan_agreed_at, commission_tiers)
     select m.new, v_org, p_dst, c.name, c.base, c.hon_back, c.jonai_back, c.dohan_back, c.sales_slide, c.point_slide, c.is_active, c.hon_back_mode, c.hon_back_rate, c.jonai_back_mode, c.jonai_back_rate, c.dohan_back_mode, c.dohan_back_rate,
            c.product_back_mode, c.product_back_rate, c.product_back_fixed, c.product_back_fixed_hon, c.product_back_fixed_jonai, c.product_back_fixed_free, c.slide_period, c.slide_basis,
-           coalesce((select array_agg(coalesce((select m2.new from _nox_copy_map m2 where m2.old = x), x) order by o) from unnest(c.slide_rank_ids) with ordinality u(x, o)), '{}'::uuid[]),   -- ランクを付け替え（空は空の配列＝NOT NULL）
+           coalesce((select array_agg(m2.new order by o) from unnest(c.slide_rank_ids) with ordinality u(x, o) join _nox_copy_map m2 on m2.old = x), '{}'::uuid[]),   -- ランクを付け替え（★版 2: 付け替えられない ID は残さない・空は空の配列＝NOT NULL）
            c.norm_days_target, c.norm_dohan_target, c.norm_sales_target, c.norm_shimei_target, c.slide_apply, c.slide_method, c.pt_rules, c.pay_rate_tiers, c.slide_streak_n, c.reward_axis, c.assess_grace_months,
            c.hon_back_unit, c.jonai_back_unit, c.dohan_back_unit, c.product_back_rate_by_kind, c.product_back_fixed_vip, c.product_back_rate_vip, c.reservation_back_tiers, c.back_rate_tiers,
            false, null, c.commission_tiers   -- 前借りの同意は店ごと（写さない）
@@ -207,7 +220,7 @@ begin
            x.norm_shimei_flat, x.norm_shimei_per, x.norm_sales_flat, x.norm_sales_per, x.norm_sales_unit
     from public.penalty_config x where x.store_id = p_src;
     -- 待遇の鍵（制度の ON／OFF・体入の条件など）＝default_plan_id は付け替え（無ければ外す）
-    select coalesce(jsonb_object_agg(e.key, e.value), '{}'::jsonb) into v_sj from jsonb_each(v_s.settings_json) e where e.key = any(v_comp_keys) and e.key <> 'default_plan_id';
+    select coalesce(jsonb_object_agg(e.key, e.value), '{}'::jsonb) into v_sj from jsonb_each(coalesce(v_s.settings_json, '{}'::jsonb)) e where e.key = any(v_comp_keys) and e.key <> 'default_plan_id';
     v_def := v_s.settings_json->>'default_plan_id';
     if v_def is not null and exists (select 1 from _nox_copy_map m where m.old::text = v_def) then
       v_sj := v_sj || jsonb_build_object('default_plan_id', (select m.new from _nox_copy_map m where m.old::text = v_def));
@@ -219,18 +232,18 @@ begin
     insert into public.store_business_hours (org_id, store_id, dow, is_closed, open_hm, close_hm)
     select v_org, p_dst, h.dow, h.is_closed, h.open_hm, h.close_hm from public.store_business_hours h where h.store_id = p_src;
     get diagnostics v_k = row_count; v_n := v_n || jsonb_build_object('store_business_hours', v_k);
-    select coalesce(jsonb_object_agg(e.key, e.value), '{}'::jsonb) into v_sj from jsonb_each(v_s.settings_json) e where e.key = any(v_hours_keys);
+    select coalesce(jsonb_object_agg(e.key, e.value), '{}'::jsonb) into v_sj from jsonb_each(coalesce(v_s.settings_json, '{}'::jsonb)) e where e.key = any(v_hours_keys);
     update public.stores set settings_json = coalesce(settings_json, '{}'::jsonb) || v_sj, open_time = v_s.open_time, updated_at = now() where id = p_dst;
   end if;
 
   if 'settings' = any(v_parts) then
-    select coalesce(jsonb_object_agg(e.key, e.value), '{}'::jsonb) into v_sj from jsonb_each(v_s.settings_json) e
-    where not (e.key = any(v_never_keys)) and not (e.key = any(v_comp_keys)) and not (e.key = any(v_hours_keys));
+    select coalesce(jsonb_object_agg(e.key, e.value), '{}'::jsonb) into v_sj from jsonb_each(coalesce(v_s.settings_json, '{}'::jsonb)) e
+    where e.key = any(v_settings_keys);   -- ★版 2: 写す鍵の名簿だけ
     update public.stores d set settings_json = coalesce(d.settings_json, '{}'::jsonb) || v_sj,
            business_tax_status = s.business_tax_status, price_display = s.price_display, invoice_status = s.invoice_status, invoice_reg_no = s.invoice_reg_no, invoice_registered_on = s.invoice_registered_on,
-           tax_rounding = s.tax_rounding, card_surcharge_rate = s.card_surcharge_rate, card_tax_rate = s.card_tax_rate, receivable_policy = s.receivable_policy, tax_inclusive_display = s.tax_inclusive_display,
+           tax_rounding = s.tax_rounding, card_surcharge_rate = s.card_surcharge_rate, receivable_policy = s.receivable_policy, tax_inclusive_display = s.tax_inclusive_display,
            payment_methods = s.payment_methods, punch_methods = s.punch_methods, punch_enforce = s.punch_enforce, punch_restrict_mode = s.punch_restrict_mode, punch_require_shift = s.punch_require_shift,
-           punch_round_unit = s.punch_round_unit, punch_round_mode = s.punch_round_mode, manager_punch_enabled = s.manager_punch_enabled, legal_name = s.legal_name, trade_name = s.trade_name,
+           punch_round_unit = s.punch_round_unit, punch_round_mode = s.punch_round_mode, manager_punch_enabled = s.manager_punch_enabled, legal_name = s.legal_name, trade_name = coalesce(d.trade_name, d.name),   -- ★版 2: 屋号は店ごと（2 店目の店名）
            receipt_default_desc = s.receipt_default_desc, updated_at = now()
     from public.stores s where s.id = p_src and d.id = p_dst;
     v_n := v_n || jsonb_build_object('settings_keys', (select count(*) from jsonb_object_keys(v_sj)));

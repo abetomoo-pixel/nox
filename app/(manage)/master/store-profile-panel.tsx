@@ -181,7 +181,9 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
     const orgPay = mig0203On() && "pay_day" in patch ? Number(patch.pay_day) : null;
     if (orgPay !== null) delete patch.pay_day;
     const { error } = Object.keys(patch).length > 0 || orgPay === null ? await setStoreProfile(patch) : { error: null };
-    const { error: pe } = !error && orgPay !== null ? await createClient().rpc("set_org_pay_day", { p_pay_day: orgPay }) : { error: null };
+    let { error: pe } = !error && orgPay !== null ? await createClient().rpc("set_org_pay_day", { p_pay_day: orgPay }) : { error: null };
+    // ★0203 版 2（相談役 11/23 14:10 の ■2-d）: デモの会社は会社の支払日を書かない（毎朝の入れ直しで店だけ戻る＝ずれる）＝今の道（店の patch）のまま
+    if (pe && /forbidden \(demo\)/.test(pe.message) && orgPay !== null) ({ error: pe } = await setStoreProfile({ pay_day: orgPay }));
     setBusy(false);
     if (error) { setMsg(`保存に失敗: ${storeProfileErrJa(error.message)}`); return; }
     if (pe) { setMsg(`支払日の保存に失敗: ${storeProfileErrJa(pe.message)}`); return; }

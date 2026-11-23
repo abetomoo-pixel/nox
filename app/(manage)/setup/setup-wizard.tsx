@@ -29,7 +29,7 @@ import { mig0190On, mig0191On, mig0197On, mig0202bOn } from "@/lib/nox/rules-017
 import type { ProductRow } from "@/lib/nox/setup/template-plan";
 import { mig0203On } from "@/lib/nox/rules-0175/flag"; // ★0203（■2-b）
 import { STORE_COPY_LABEL, STORE_COPY_NEVER, STORE_COPY_PARTS, storeCopyErrJa, type StoreCopyPart } from "@/lib/nox/ops/store-add";
-import { applyCopyToPlan, copiedPlanIdsOf, copyPartsOf, stripOrgLevelKeys } from "@/lib/nox/setup/copy-plan";
+import { applyCopyToPlan, copiedPlanIdsOf, copyPartsOf, stripOrgLevelKeys, TRIAL_PICK_NOTE, type CopiedReceipt } from "@/lib/nox/setup/copy-plan";
 
 const DRAFT_KEY = (storeId: string) => `nox.setup.v5.draft.${storeId}`;
 const card: React.CSSProperties = t.card;
@@ -121,6 +121,9 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
   const [assisted, setAssisted] = useState<unknown>(null);
   const [copyParts, setCopyParts] = useState<StoreCopyPart[]>(() => copyPartsOf(copy?.parts)); // ★0203（■2-b）
   const copiedPlansRef = useRef<{ basic: string | null; trial: string | null } | null>(null); // ★12:00 の ■2-b
+  const copiedReceiptRef = useRef<CopiedReceipt | null>(null); // ★0203 版 2（■2-a）: 写した登録番号と領収書の下の文（領収書の段に渡す）
+  const [trialChoices, setTrialChoices] = useState<{ id: string; name: string }[] | null>(null); // ★0203 版 2（■3）: 写したときは体験入店のプランをオーナーが選ぶ
+  const [trialPick, setTrialPick] = useState("");
 
   // ── 自動保存（localStorage・店ごと）: 復元は hydration 後・変更ごとに保存・完了で消す ──
   useEffect(() => {
@@ -242,15 +245,24 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
       const { data: cd, error: ce } = await supabase.rpc("store_copy_settings", { p_src: copy.from, p_dst: store.id, p_parts: copyParts });
       if (ce && !/not empty/.test(ce.message)) { setRun({ running: false, done: 0, total: planAll.steps.length, failedAt: 0, error: storeCopyErrJa(ce.message), completed: false, log: [] }); return; }
       if (!ce) copiedPlansRef.current = copiedPlanIdsOf(cd); // ★12:00 の ■2-b: 写したプランは ID の付け替えの対応で結ぶ（途中で止まってやり直すときも同じ画面の間は覚えておく）
+      if (copyParts.includes("settings")) { // ★0203 版 2（■2-a）: 領収書の住所・電話は 2 店目の入力・登録番号と下の文は写した値（写した後の 2 店目を読む）
+        const { data: d2 } = await supabase.from("stores").select("settings_json").eq("id", store.id).maybeSingle();
+        const sj = ((d2 as { settings_json?: Record<string, unknown> } | null)?.settings_json ?? {}) as Record<string, unknown>;
+        copiedReceiptRef.current = { invoice_reg_no: typeof sj.invoice_reg_no === "string" ? sj.invoice_reg_no : null, receipt_footer: typeof sj.receipt_footer === "string" ? sj.receipt_footer : null };
+      }
     }
-    const steps0 = copy && mig0203On() ? applyCopyToPlan(planAll.steps, copyParts) : planAll.steps;
+    const steps0 = copy && mig0203On() ? applyCopyToPlan(planAll.steps, copyParts, copiedReceiptRef.current) : planAll.steps;
     const steps = mig0203On() && multiStore ? stripOrgLevelKeys(steps0) : steps0; // ★0203（■2-c）: 2 店以上の会社は支払日を店で書かない
     setRun({ running: true, done: 0, total: steps.length, failedAt: null, error: null, completed: false, log: [] });
     const r = await runSteps(steps, { onIssued: (x) => setIssued((xs) => [...xs, x]) });
     if (!r.ok) { setRun({ running: false, done: r.at ?? 0, total: steps.length, failedAt: r.at ?? 0, error: r.error ?? "失敗", completed: false, log: r.log }); return; }
     const basic = r.created["comp_0"], trial = r.created["comp_1"];
     let ids2 = { basic: typeof basic === "string" ? basic : null, trial: typeof trial === "string" ? trial : null };
-    if (!ids2.basic && copiedPlansRef.current) ids2 = copiedPlansRef.current; // ★12:00 の ■2-b: 写したときは名前で探さない
+    if (!ids2.basic && copiedPlansRef.current) { // ★12:00 の ■2-b: 写したときは名前で探さない・★版 2（■3）: 体験入店は結ばない＝オーナーが選ぶ
+      ids2 = copiedPlansRef.current;
+      const { data: pl } = await supabase.from("comp_plans").select("id, name").eq("store_id", store.id).eq("is_active", true).order("name");
+      setTrialChoices((pl ?? []) as { id: string; name: string }[]);
+    }
     if (!ids2.basic) { const { data } = await supabase.from("comp_plans").select("id, name").eq("store_id", store.id); const rows = (data ?? []) as { id: string; name: string }[]; ids2 = { basic: rows.find((x) => x.name === "基本プラン")?.id ?? rows[0]?.id ?? null, trial: rows.find((x) => x.name === "体験入店")?.id ?? null }; }
     setPlanIds(ids2);
     try { window.localStorage.removeItem(DRAFT_KEY(store.id)); } catch { /* noop */ }
@@ -260,8 +272,10 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
   }
   // ── 完了画面＝キャストの登録（1 人ずつ／CSV）＝castPlanOf を即時実行・招待は route ──
   async function addCast(c: V5Cast) {
+    const isTrial = c.st === "体入" || c.plan === "体験入店";
+    if (isTrial && trialChoices && !planIds.trial && !trialPick) { setCastMsg(`${c.g} の登録に失敗: ${TRIAL_PICK_NOTE}`); return false; } // ★0203 版 2（■3）: 行を作る前に止める
     setCastBusy(true); setCastMsg(null);
-    const steps = castPlanOf(c, store.id, planIds, S.payroll.okuriMode === "fixed");
+    const steps = castPlanOf(c, store.id, { ...planIds, trial: planIds.trial ?? (trialPick || null) }, S.payroll.okuriMode === "fixed");
     const resume = pendingCastRef.current.get(c.g);
     const r = await runSteps(steps, { created0: resume?.created, skipKeys: resume?.done });
     if (!r.ok) { // ★起票143（■1-c）: だれの・どの段で止まったかを日本語で 1 行（英字の理由を出さない）。作れた段は覚えて、押し直したら続きから
@@ -763,6 +777,12 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
           {S.castTab === "one" ? (
             <section style={{ ...card, marginTop: 10 }} data-setup-cast-one="1">
               <h3 style={h3}>キャストを 1 人ずつ登録</h3>
+              {trialChoices && !planIds.trial && (/* ★0203 版 2（■3）: 写したときの体験入店のプラン＝1 店目の設定から分からないのでオーナーが選ぶ */
+                <div className="nox-inset" style={{ padding: "8px 12px", marginBottom: 8 }} data-setup-trial-pick="1">
+                  <Field label="体験入店のプラン（この店）"><select value={trialPick} onChange={(e) => setTrialPick(e.target.value)} style={{ ...t.input, width: "auto" }} aria-label="体験入店のプラン">
+                    <option value="">選んでください…</option>{trialChoices.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>
+                  <p style={{ ...note, margin: "4px 0 0" }}>{TRIAL_PICK_NOTE}</p>
+                </div>)}
               <div style={grid(180)}>
                 <Field label="源氏名（必須）"><Text value={f.g} onChange={(v) => up((s) => { s.castForm.g = v; })} placeholder="例：ひなの" width="100%" ariaLabel="源氏名" /></Field>
                 <Field label="本名"><Text value={f.n} onChange={(v) => up((s) => { s.castForm.n = v; })} placeholder="支払調書・源泉に使います" width="100%" ariaLabel="本名" /></Field>
