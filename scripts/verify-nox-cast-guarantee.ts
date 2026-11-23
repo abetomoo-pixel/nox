@@ -129,7 +129,7 @@ async function dbChecks() {
     check("gu(9-0) fixture: A1／cast-a1a／owner-a／manager-a1／staff-a1", !!st && !!castU && !!castId && !!ownerA && !!mgrA && !!staffU);
     const snap = async () => JSON.stringify((await q(`select (select count(*)::int from public.cast_plan where cast_id = $1) cp, (select count(*)::int from public.comp_plans where store_id = $2) pl, (select count(*)::int from public.audit_logs where org_id = $3) au`, [castId, st.id, st.org_id]))[0]);
     const before = await snap();
-    const today = (await q<{ d: string }>(`select current_date::text d`))[0].d;
+    const today = (await q<{ d: string }>(`select public.biz_date_of($1, now())::text d`, [st.id]))[0].d; // ★0205 版 2（相談役 11/24 4:10）: 保証の「今日」は営業日（set_cast_guarantee と同じ）＝JST の 6:00〜9:00 も UTC の日付で赤にならない
     const d = (n: number) => addDays(today, n);
     const rowsOf = async () => q<{ f: string; t: string; o: Record<string, unknown> }>(`select valid_from::text f, coalesce(valid_to::text, '∞') t, overrides_json o from public.cast_plan where cast_id = $1 order by valid_from`, [castId]);
     const tbl = (rows: { f: string; t: string; o: Record<string, unknown> }[]) => rows.map((r) => `${r.f}〜${r.t} ${JSON.stringify(r.o)}`).join(" | ");
@@ -159,9 +159,9 @@ async function dbChecks() {
       check("gu(9-3) ★延長＝保証行の終了翌日から呼ぶ→戻し行が保証行（5500・〜+30）に書き換わり・新しい戻し行は base なし（元の非保証に戻る）", g2.ok && r2.some((r) => r.f === d(15) && r.t === d(30) && r.o.base === 5500 && r.o.guarantee === true) && !!back2 && back2.f === d(31) && !("guarantee" in back2.o) && back2.o.base === base0[base0.length - 1].o.base, g2.ok ? tbl(r2) : g2.err);
       // (b) C.valid_from と同日: 保証を消して C を今日始まりに戻す（tx 内の器の付け替え）
       await db.query(`delete from public.cast_plan where cast_id = $1 and valid_from >= $2`, [castId, d(1)]);
-      await db.query(`update public.cast_plan set valid_to = null, valid_from = current_date where cast_id = $1 and valid_to = $2`, [castId, d(0)]);
+      await db.query(`update public.cast_plan set valid_to = null, valid_from = $3::date where cast_id = $1 and valid_to = $2`, [castId, d(0), today]);
       await asUid(ownerA.auth_user_id);
-      const g3 = await call(`select public.set_cast_guarantee($1, 4800, current_date, $2)`, [castId, d(7)]);
+      const g3 = await call(`select public.set_cast_guarantee($1, 4800, $3::date, $2)`, [castId, d(7), today]);
       await asPg();
       const r3 = await rowsOf();
       check("gu(9-4) ★(b) C.valid_from と同日開始→C が保証行に書き換わり（valid_to=+7・base 4800）・戻し行 1 本（+8〜∞）", g3.ok && r3.some((r) => r.f === today && r.t === d(7) && r.o.base === 4800 && r.o.guarantee === true) && r3.filter((r) => r.t === "∞").length === 1 && r3.find((r) => r.t === "∞")?.f === d(8), g3.ok ? tbl(r3) : g3.err);
@@ -261,7 +261,7 @@ async function dbChecks0154() {
 // ★裁定306-13／306-14（2026-09-25）: 待遇プランの切替（純関数）と casts 詳細の配線
 {
   check("cg(306-1) planSwitchValidate: プラン必須・日付形・過去日不可・確定済み（finalized／paid）不可・OK は null", planSwitchValidate({ planId: null, from: "2026-10-01", today: "2026-09-25", runStatus: null }) !== null && planSwitchValidate({ planId: "p", from: "2026-9-1", today: "2026-09-25", runStatus: null }) !== null && planSwitchValidate({ planId: "p", from: "2026-09-24", today: "2026-09-25", runStatus: null })?.includes("過去") === true && planSwitchValidate({ planId: "p", from: "2026-10-01", today: "2026-09-25", runStatus: "finalized" })?.includes("確定済み") === true && planSwitchValidate({ planId: "p", from: "2026-10-01", today: "2026-09-25", runStatus: "paid" })?.includes("確定済み") === true && planSwitchValidate({ planId: "p", from: "2026-10-01", today: "2026-09-25", runStatus: "draft" }) === null);
-  check("cg(306-2) planSwitchErrJa: 'bad valid_from'／'plan inactive'／'forbidden' の和文・不明はコード付き／既定の適用開始日＝次の給与期の初日（2026-09-25→2026-10-01・12 月→翌年 1 月）", planSwitchErrJa("bad valid_from").includes("今日以降") && planSwitchErrJa("plan inactive").includes("無効") && planSwitchErrJa("forbidden").includes("権限") && planSwitchErrJa("xyz") === "処理できませんでした（xyz）" /* ★裁定467（M-126）: 不明は辞書の errUnknownOf */ && nextPeriodStartOf306("2026-09-25") === "2026-10-01" && nextPeriodStartOf306("2026-12-05") === "2027-01-01");
+  check("cg(306-2) planSwitchErrJa: 'bad valid_from'／'plan inactive'／'forbidden' の和文・不明はコード付き／既定の適用開始日＝次の給与期の初日（2026-09-25→2026-10-01・12 月→翌年 1 月）", planSwitchErrJa("bad valid_from").includes("現在の割当の開始日より後") /* ★0205 版 2（旗 true）: 下限は今日でなく最後に確定した期の翌日＝「今日以降」を外した（period finalized は別の和文） */ && planSwitchErrJa("period finalized").includes("確定済み") && planSwitchErrJa("plan inactive").includes("無効") && planSwitchErrJa("forbidden").includes("権限") && planSwitchErrJa("xyz") === "処理できませんでした（xyz）" /* ★裁定467（M-126）: 不明は辞書の errUnknownOf */ && nextPeriodStartOf306("2026-09-25") === "2026-10-01" && nextPeriodStartOf306("2026-12-05") === "2027-01-01");
   const cb2 = fs306.readFileSync("app/(manage)/casts/casts-board.tsx", "utf8");
   check("cg(306-3) 配線: 待遇プラン行に「変更」→Picker の候補＝activePlans（is_active≠false のみ・同じ取得に同乗）・適用開始日の既定＝nextPeriodStartOf(today)・保存＝既存 RPC set_cast_plan に現在の上書き（castPlanOf[c.id]?.ov）を渡す・確定済み期は payroll_runs を読んで planSwitchValidate・注記 NOTE_PLAN_SWITCH", cb2.includes("setActivePlans(") && cb2.includes("r.is_active !== false") && cb2.includes("jonai_back_rate, is_active") && cb2.includes("items={activePlans.map((p) => ({ id: p.id, label: p.name }))}") && cb2.includes("from: nextPeriodStartOf(today)") && cb2.includes('supabase.rpc("set_cast_plan", { p_cast_id: c.id, p_plan_id: planForm.planId, p_overrides: planSwitchOverridesOf(planRowsOf[c.id]), p_valid_from: planForm.from })' /* ★M-153（2026-11-10）: 開いた行の上書きを白名単で */) && cb2.includes('from("payroll_runs").select("status")') && cb2.includes("planSwitchValidate({") && cb2.includes("NOTE_PLAN_SWITCH") && NOTE_PLAN_SWITCH.includes("上書きは維持"));
   check("cg(306-4) 306-14: 「契約区分: 未設定」は「未設定（委託として計算）」", cb2.includes('{emp ?? "未設定（委託として計算）"}') && !cb2.includes('{emp ?? "未設定"}'));

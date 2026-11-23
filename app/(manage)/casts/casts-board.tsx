@@ -60,7 +60,7 @@ import { sumCastSales, type CastSalesRow } from "@/lib/nox/payroll/cast-sales"; 
 import { NORM_AXIS_LABEL, hasOverride, normAxesOf, normTargetsOf, planDefaultQuotaOf, quotaKeysOfAxes, resolveQuotaOf, shimeiScopeOf, resolveNormTargetsOf } from "@/lib/nox/store/norm-axes"; // ★裁定347／GV-2（0171・便 P171）: 継承・上書き・採用軸 // ★GV-3（便 N1013b B-8）: sys_norms OFF＝今月のノルマの入力口を出さない
 import { TRIAL_KIND, TRIAL_PLAN_NAME, isTrialCastOf, trialDaysLeftChipOf, trialGuaranteeRangeOf, trialPlanWarnOf, trialSettingsOf } from "@/lib/nox/cast/trial-flow"; // ★便 GV-C C-14f（GV-65・裁定396）: 体入の一括操作
 import { SHIFT_REQUEST_MODE_LABEL, mineSettingsOf } from "@/lib/nox/store/mine-settings"; // ★裁定337（0167）: シフト希望の方式のラベルと店の既定
-import { NOTE_PLAN_SWITCH, planSwitchErrJa, planSwitchValidate, planSwitchMinOf, bizMonthLabelOf } from "@/lib/nox/cast/plan-switch";
+import { NOTE_PLAN_SWITCH, planSwitchErrJa, planSwitchValidate, planSwitchMinOf, dateLessLabelOf } from "@/lib/nox/cast/plan-switch";
 import { mig0205On } from "@/lib/nox/rules-0175/flag"; // ★0205 v2 // ★裁定306-13（適用開始日の既定＝pay-rule の nextPeriodStartOf）
 import { QUOTA_FORM_EMPTY, QUOTA_KEYS, QUOTA_LABEL, QUOTA_UNIT, quotaArgsOf, quotaFormEquals, quotaFormOf, quotaMonthOptionsOf, type Quota, type QuotaForm, cardAxesOf, cardFmt, type CardAxis } from "@/lib/nox/mine/quota"; // ★0160（裁定326-3・便 M2-2）: 今月のノルマ（set_cast_quota）
 import { errJa } from "@/lib/nox/errors"; // ★裁定467（M-126）: 利用者向けの文言は辞書 1 本
@@ -448,7 +448,7 @@ export default function CastsBoard({
     if (!castId) return;
     let alive = true;
     void supabase.from("shifts").select("date, start_hm, end_hm, status")
-      .eq("cast_id", castId).gte("date", jstToday())
+      .eq("cast_id", castId).gte("date", today) // ★相談役 11/24 4:10 の判断 1: 次のシフト＝営業日の今日から（0:00〜締めの時刻も今夜のシフトを出す）
       .order("date").limit(1)
       .then(({ data }) => { if (alive) setNextShift(((data ?? [])[0] as typeof nextShift) ?? null); });
     return () => { alive = false; };
@@ -660,11 +660,12 @@ export default function CastsBoard({
     const amount = amountKeyOf(ruleForm.rule) ? Number(ruleForm.amount.replace(/[,，¥￥\s]/g, "")) : null;
     const ov = overridesWithRule(a.ov, ruleForm.rule, amountKeyOf(ruleForm.rule) ? (Number.isFinite(amount as number) ? (amount as number) : null) : null);
     if (!ov.ok) { setRuleMsg({ kind: "error", text: ov.err }); return; }
+    const ruleFromLabel = ruleEffectLabelOf(c.id); // ★0205 v2: 保存の前に効く月を決める（保存で行が変わる前）
     setBusy(true); setRuleMsg(null);
     const { error } = await supabase.rpc("set_cast_plan", { p_cast_id: c.id, p_plan_id: a.planId, p_overrides: ov.overrides, p_valid_from: null });
     setBusy(false);
     if (error) { setRuleMsg({ kind: "error", text: error.message.includes("period finalized") ? "今月の給与はもう確定済みのため、報酬型を変えられません" : rpcErrJa(error.message) }); return; } // ★0205 v2: 日付なしで今月が確定済み＝period finalized（今の DB は出さない）
-    setRuleMsg({ kind: "success", text: `報酬型を「${payRuleLabelOf(ruleForm.rule, c.employment ?? null)}」にしました${mig0205On() ? `（${bizMonthLabelOf(today)}分から）` : ""}` }); // ★0205 v2: 日付なし＝営業日の月の 1 日から（前の月の下書きは変わらない）
+    setRuleMsg({ kind: "success", text: `報酬型を「${payRuleLabelOf(ruleForm.rule, c.employment ?? null)}」にしました${ruleFromLabel ? `（${ruleFromLabel}）` : ""}` }); // ★0205 v2: 日付なし＝営業日の月の 1 日から（前の月の下書きは変わらない）・予約してある人はその月
     setRuleForm(null);
     await loadPlans();
   }
@@ -834,6 +835,8 @@ export default function CastsBoard({
   const rankNameOf = (c: CastLogin) => (c.rank_id ? ranks.find((r) => r.id === c.rank_id)?.name ?? null : null);
   const planNameOf = (id: string) => { const a = castPlanOf[id]; return a ? plansById[a.planId]?.name ?? null : null; };
   // ★N4-2（裁定282-3）: 保証時給の残りが 7 日以内なら印（純関数・0151 未適用でも cast_plan に保証行が無ければ null）
+  // ★0205 v2（相談役 11/24 4:10 の ■3）: 報酬型の保存（日付なし）で効き始める月の文＝開いた行の開始日と営業日の今日（set_cast_plan 版 2 と同じ決まり）・旗 false は null
+  const ruleEffectLabelOf = (id: string): string | null => mig0205On() ? dateLessLabelOf(today, (planRowsOf[id] ?? []).find((r) => r.valid_to === null)?.valid_from ?? null, (planRowsOf[id] ?? []).reduce<string | null>((m, r) => (r.valid_to && (!m || r.valid_to > m) ? r.valid_to : m), null)) : null;
   const guaBadgeOf = (id: string) => guaranteeBadgeOf(guaranteeStateOf(planRowsOf[id] ?? [], today));
   const selCast = sel?.kind === "cast" ? loginCasts.find((c) => c.id === sel.id) ?? null : null;
   // ★GV-3（便 N1013b B-8）: 店の制度「ノルマ」の ON/OFF（sys_norms・欠損＝ON）＝今月のノルマの入力口の出し分け
@@ -1494,6 +1497,7 @@ export default function CastsBoard({
                             <MoneyInput value={ruleForm.amount} disabled={busy} onChange={(v) => setRuleForm({ ...ruleForm, amount: v })} style={input} width={140} ariaLabel="報酬型の額" /></label>
                         )}
                         <button style={btnGold} disabled={busy} onClick={() => void saveRule(selCast)}>保存する</button>
+                        {ruleEffectLabelOf(selCast.id) && <span style={{ fontSize: 12, color: "var(--sub)" }} data-rule-effect="1">{ruleEffectLabelOf(selCast.id)}効きます</span>}{/* ★0205 v2（相談役 11/24 4:10 の ■3）: 効く月の名前 */}
                         <button style={btnGhost} disabled={busy} onClick={() => { setRuleForm(null); setRuleMsg(null); }}>やめる</button>
                       </div>
                     )}

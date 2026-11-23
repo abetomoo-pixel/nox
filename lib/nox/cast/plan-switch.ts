@@ -22,6 +22,20 @@ export function planSwitchMinOf(runs: { period: string; period_end: string | nul
 }
 /** ★0205 v2: 営業日（YYYY-MM-DD）の月の見出し＝「2026 年 11 月」（日付なしで保存したときに効く月） */
 export const bizMonthLabelOf = (bizDate: string): string => `${Number(bizDate.slice(0, 4))} 年 ${Number(bizDate.slice(5, 7))} 月`;
+/** ★0205 v2（相談役 11/24 4:10 の ■3）: 日付なしで保存したときに効き始める日＝set_cast_plan 版 2 と同じ決まり。
+ *  月の 1 日＝営業日の月の 1 日。開いた行がそれ以降に始まる（プランの変更を予約してある人）＝その行の開始日（その場で上書き）。
+ *  それより前＝月の 1 日（前の月の末日で閉じる）。開いた行が無い＝月の 1 日（閉じた行が月にかかるときはその翌日）。 */
+export function dateLessFromOf(bizTodayYmd: string, openFrom: string | null | undefined, lastClosedTo?: string | null): string {
+  const month1 = `${bizTodayYmd.slice(0, 7)}-01`;
+  if (openFrom) return openFrom >= month1 ? openFrom : month1;
+  if (lastClosedTo) { const d = new Date(`${lastClosedTo}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + 1); const n = d.toISOString().slice(0, 10); return n > month1 ? n : month1; }
+  return month1;
+}
+/** ★0205 v2: 効く月の文＝今月なら「今月（2026 年 11 月）分から」・先の月なら「2026 年 12 月分から」 */
+export function dateLessLabelOf(bizTodayYmd: string, openFrom: string | null | undefined, lastClosedTo?: string | null): string {
+  const from = dateLessFromOf(bizTodayYmd, openFrom, lastClosedTo);
+  return from.slice(0, 7) === bizTodayYmd.slice(0, 7) ? `今月（${bizMonthLabelOf(from)}）分から` : `${bizMonthLabelOf(from)}分から`;
+}
 
 /** 送信前の検査（二層目は RPC）: プラン必須・日付形・過去日不可・確定済みの期は不可（runStatus＝その月の payroll_runs.status・無ければ null）。
  *  ★0205 v2: minFrom を渡したとき（旗 mig0205On）は「今日より前」でなく「最後に確定した期の翌日より前」を断る（null＝下限なし）。 */

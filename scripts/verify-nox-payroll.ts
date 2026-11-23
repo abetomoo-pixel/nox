@@ -412,7 +412,7 @@ async function main() {
         eN0?.message ?? eN1?.message ?? JSON.stringify(r1));
       // 過去日拒否
       const { error: ePast } = await owner.rpc("set_cast_plan", { p_cast_id: cph, p_plan_id: planH1, p_overrides: {}, p_valid_from: "2020-01-01" });
-      check("mig0116 ★過去日は 'bad valid_from'", !!ePast && ePast.message.includes("bad valid_from"), ePast?.message ?? "通ってしまった");
+      check("mig0116 ★過去日は断る（'bad valid_from'＝開いた行の開始日以前・0205 版 2 は確定済みの期なら 'period finalized'）", !!ePast && /bad valid_from|period finalized/.test(ePast.message), ePast?.message ?? "通ってしまった");
       // 現在行 valid_from 以前（同日）拒否
       const curFrom = (r0?.[0]?.valid_from as string);
       const { error: eSame } = await owner.rpc("set_cast_plan", { p_cast_id: cph, p_plan_id: planH1, p_overrides: {}, p_valid_from: curFrom });

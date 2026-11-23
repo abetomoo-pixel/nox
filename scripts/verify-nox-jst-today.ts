@@ -78,7 +78,7 @@ const SITES: [string, string, Kind, "B" | "C", string][] = [
   ["app/mine/wishes/wish-form.tsx", "const today = jstToday();", "day", "C", "シフト希望の今日（迷う所＝替えていない）"],
   ["app/(manage)/analytics/analytics-board.tsx", "const thisMonth = jstThisMonth();", "month", "C", "分析の今月"],
   ["app/(manage)/casts/casts-board.tsx", "const month = jstThisMonth();", "month", "C", "キャストの今月（出勤日数・ノルマの月）"],
-  ["app/(manage)/casts/casts-board.tsx", ".gte(\"date\", jstToday())", "day", "C", "次のシフト（迷う所＝替えていない）"],
+  ["app/(manage)/casts/casts-board.tsx", ".gte(\"date\", today)", "biz", "C", "次のシフト（営業日＝相談役 11/24 4:10 の判断 1）"],
   ["app/(manage)/casts/casts-board.tsx", "const calToday = jstToday();", "day", "C", "キャストの今期の時給の今日"],
   ["app/(manage)/customers/customers-board.tsx", "const thisMonth = jstThisMonth();", "month", "C", "顧客の今月"],
   ["app/(manage)/customers/customers-board.tsx", "const today = jstToday();", "day", "C", "顧客の誕生日の今日"],
@@ -95,7 +95,7 @@ const SITES: [string, string, Kind, "B" | "C", string][] = [
   ["components/ui/date-picker.tsx", "(todayYmd ?? jstToday())", "day", "C", "日付の選び方の最初の月"],
 ];
 check("B 所の数＝27", SITES.length === 27, SITES.length);
-check("B 営業日の所＝8（判断 3 の営業日の今日）", SITES.filter((x) => x[2] === "biz").length === 8);
+check("B 営業日の所＝9（判断 3 の 8 か所＋11/24 4:10 の判断 1 の次のシフト）", SITES.filter((x) => x[2] === "biz").length === 9);
 const EXPR: Record<Kind, string> = { biz: "bizToday(cut)", day: "jstToday()", month: "jstThisMonth()", plus14: "jstTodayPlus(14)" };
 const CALL: Record<Kind, string> = { biz: "bizToday(", day: "jstToday()", month: "jstThisMonth()", plus14: "jstTodayPlus(14)" };
 const UTC_OLD: Record<Kind, string> = { biz: "new Date().toISOString().slice(0, 10)", day: "new Date().toISOString().slice(0, 10)", month: "new Date().toISOString().slice(0, 7)", plus14: "new Date(Date.now() + 14 * 86400_000).toISOString().slice(0, 10)" };
@@ -106,8 +106,8 @@ for (const [f, anchor, kind, cls, name] of SITES) {
   const body = norm(src(f));
   check(`B ${name}：書き方がある（${f}）`, body.includes(anchor), anchor);
   check(`B ${name}：部品を import している`, /from "@\/lib\/nox\/jst-today"/.test(body));
-  // 発行日の 2 か所（キャストの詳細）は today＝上の営業日の今日を渡す
-  if (!anchor.startsWith("dateDefault={issueDateDefaultOf(today)")) check(`B ${name}：書き方に部品の呼び出しがある`, anchor.includes(CALL[kind]), anchor);
+  // 発行日の 2 か所と次のシフト（キャストの詳細）は today＝上の営業日の今日を渡す
+  if (!anchor.startsWith("dateDefault={issueDateDefaultOf(today)") && anchor !== ".gte(\"date\", today)") check(`B ${name}：書き方に部品の呼び出しがある`, anchor.includes(CALL[kind]), anchor);
   for (const [cut, kk] of CUTS) {
     const sameAll = TIMES.every((t) => at(t.iso, () => evalExpr(EXPR[kind], cut)) === want(kind, t, kk));
     check(`B ${name}（${cls}・${kind === "biz" ? "営業日" : "暦"}・締め ${cut}）：10 の時刻で営業日／暦を返す`, sameAll);

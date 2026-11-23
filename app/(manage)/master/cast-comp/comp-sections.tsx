@@ -13,7 +13,7 @@ import Modal from "@/components/ui/modal"; // ★2026-11-20 夕（相談役 ⑧A
 import { DAY_RULE_NOTE, DAY_RULE_OPTS, DED_KIND_CAST_OPTS, DED_PER_NOTE, DED_PER_OPTS_0195, dedAmountLabelOf, dedKindCastLabelOf, dedTargetLabelOf, dedUnitLabelOf } from "@/lib/nox/payroll/deduction-labels"; // ★0195（M-73）
 import { mig0195On, mig0205On } from "@/lib/nox/rules-0175/flag"; // ★0195・★0205 v2
 import { bizToday, cutoffHmOf } from "@/lib/nox/jst-today"; // ★0205 v2: 営業日の今日（店の締めの時刻）
-import { bizMonthLabelOf } from "@/lib/nox/cast/plan-switch"; // ★0205 v2
+import { dateLessLabelOf } from "@/lib/nox/cast/plan-switch"; // ★0205 v2
 import { ResponsiveTable, SegmentTabs } from "@/components/ui/responsive-kit"; // ★裁定382（GV-B W-1）・373（W-3）
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
@@ -85,7 +85,7 @@ export function productBackErrOf(mode: ProductBackMode, rate: number, fixed: num
 }
 export type CastRow = { id: string; name: string };
 // overrides_json: 数値4キー＋方式2キー（string）＋率2キー＝mig0086 の8キー
-export type CastPlan = { cast_id: string; plan_id: string; overrides_json: Record<string, number | string> };
+export type CastPlan = { cast_id: string; plan_id: string; overrides_json: Record<string, number | string>; valid_from?: string | null /* ★0205 v2: 開いた行の開始日（日付なしで効く月の文） */ };
 // ★mig0114/0115（C1 §6-4 UI 段）: 追加コンポーネント（書き手は set_comp_component＝owner のみ）
 export type CompRow = {
   id: string; kind: string; mode: string; amount: number | null; rate: number | null;
@@ -231,7 +231,7 @@ export function useCompData(storeId: string, onError?: (m: string) => void) {
       supabase.from("comp_plans").select("*").order("name"), // ★裁定339（便 X-13d-1・X-13-23）: from は表名だけ（0153 便で列名が from に混入→PostgREST PGRST205 404→plans が常に空だった）
       supabase.from("casts").select("id, name").eq("is_active", true).order("name"),
       // ★mig0114: 期間化後は現在行のみ（valid_to is null）。履歴行が生まれる挙動段の前に必須の追随。
-      supabase.from("cast_plan").select("cast_id, plan_id, overrides_json").is("valid_to", null),
+      supabase.from("cast_plan").select("cast_id, plan_id, overrides_json, valid_from").is("valid_to", null), // ★0205 v2: valid_from（日付なしで効く月の文）
       supabase.from("cast_norms").select("id, cast_id, period, days_target, dohan_target, sales_target, shimei_target").order("period"),
       supabase.from("deductions").select("id, name, amount, per, is_active, kind, basis_confirmed_at, basis_note, day_rule").order("name"), // ★裁定98 ★0195: +day_rule
       supabase.from("custom_back_defs").select("id, name, basis, value, cond_json, is_active").order("name"),
@@ -605,7 +605,8 @@ export function AssignTab({ plans, casts, castPlans, isManagerUp, setMsg, reload
     void supabase.from("stores").select("settings_json").eq("id", storeId).maybeSingle().then(({ data }) => setBizCutoff(cutoffHmOf((data as { settings_json?: unknown } | null)?.settings_json)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storeId]);
-  const emptyDateLabel = mig0205On() ? `今月（${bizMonthLabelOf(bizToday(bizCutoff))}）分から` : null;
+  // ★0205 v2（相談役 11/24 4:10 の ■3）: 効く月はキャストごと（プランの変更を予約してある人＝その月・月の 1 日の 0:00〜締め＝営業日の月）
+  const emptyDateLabelOf = (cid: string): string | null => mig0205On() ? dateLessLabelOf(bizToday(bizCutoff), cpOf(cid)?.valid_from ?? null) : null;
   const progressOf = (cid: string) => {
     const sales = progress?.get(cid) ?? 0;
     const target = (norms ?? []).find((n) => n.cast_id === cid && n.period === ym)?.sales_target ?? 0;
@@ -678,7 +679,7 @@ export function AssignTab({ plans, casts, castPlans, isManagerUp, setMsg, reload
     const validFrom = rowDate[cid] ?? "";
     // ★mig0116: p_valid_from＝空なら null 明示（現在行の上書き）・指定日なら履歴生成（裁定101 補正2）。
     const { error } = await supabase.rpc("set_cast_plan", { p_cast_id: cid, p_plan_id: pid, p_overrides: overrides, p_valid_from: validFrom || null });
-    setMsg(error ? compErrJa(error.message) : validFrom ? `割当を保存しました（${validFrom} から適用・履歴生成）` : emptyDateLabel ? `割当を保存しました（${emptyDateLabel}）` : "割当を保存しました");
+    setMsg(error ? compErrJa(error.message) : validFrom ? `割当を保存しました（${validFrom} から適用・履歴生成）` : emptyDateLabelOf(cid) ? `割当を保存しました（${emptyDateLabelOf(cid)}）` : "割当を保存しました");
     if (!error) {
       setRowDate((m) => ({ ...m, [cid]: "" }));
       setOpenOv(null);
@@ -759,7 +760,7 @@ export function AssignTab({ plans, casts, castPlans, isManagerUp, setMsg, reload
                   <td>
                     {isManagerUp ? (
                       <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                        <DatePicker value={rowDate[c.id] ?? ""} onChange={(v) => setRowDate((m) => ({ ...m, [c.id]: v }))} width={140} ariaLabel={emptyDateLabel ? `適用日（空＝${emptyDateLabel}）` : "適用日（空＝今すぐ）"} placeholder={emptyDateLabel ?? "今すぐ"} />{/* ★M-82: 空＝今すぐ（いまの設定を上書き）・指定＝その日から適用 */}
+                        <DatePicker value={rowDate[c.id] ?? ""} onChange={(v) => setRowDate((m) => ({ ...m, [c.id]: v }))} width={emptyDateLabelOf(c.id) ? 250 : 140} ariaLabel={emptyDateLabelOf(c.id) ? `適用日（空＝${emptyDateLabelOf(c.id)}）` : "適用日（空＝今すぐ）"} placeholder={emptyDateLabelOf(c.id) ?? "今すぐ"} />{/* ★M-82: 空＝今すぐ（いまの設定を上書き）・指定＝その日から適用 */}
                         {cp && (
                           <button type="button" onClick={() => void toggleHist(c.id)} title="適用履歴（期間つき・読み取りのみ）"
                             style={{ ...t.btnGhost, ...t.btnSm, border: histOpen === c.id ? "1px solid var(--gold)" : t.btnGhost.border }}>

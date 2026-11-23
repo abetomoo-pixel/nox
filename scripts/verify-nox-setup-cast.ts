@@ -151,7 +151,7 @@ async function main() {
       await admin.from("punches").insert([{ org_id: orgId, store_id: storeId, cast_id: ids[kind], punched_at: `${today}T20:00:00+09:00`, type: "in", source: "manager" }, { org_id: orgId, store_id: storeId, cast_id: ids[kind], punched_at: `${next}T01:00:00+09:00`, type: "out", source: "manager" }]);
     }
     const { data: cp } = await admin.from("cast_plan").select("cast_id, valid_from").in("cast_id", Object.values(ids));
-    check(`(C) プランの開始日＝登録した日（${today}・今月の途中）＝下書きは「期の中で最も早い行」で当月に効く`, (cp ?? []).length === 2 && (cp ?? []).every((r) => (r.valid_from as string) >= `${period}-01` && (r.valid_from as string) <= today), cp);
+    check(`(C) プランの開始日＝今月（営業日の月）の 1 日（${period}-01）＝0205 版 2 の日付なし（相談役 11/24 4:10 の ■4）・0:00〜締めの時刻も営業日の月`, (cp ?? []).length === 2 && (cp ?? []).every((r) => (r.valid_from as string) === `${period}-01`), cp);
     const win = await resolvePayrollWindow(admin as SupabaseClient, storeId, period);
     const col = await collectPeriod(admin as SupabaseClient, manager as SupabaseClient, storeId, win);
     const raw = (k: "委託" | "雇用") => col.casts.find((c) => c.castId === ids[k]);
