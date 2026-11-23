@@ -1,5 +1,8 @@
 import MasterBoard from "./master-board";
 import { managePageGate } from "@/lib/nox/nav/page-gate";
+import { createClient } from "@/lib/supabase/server";
+import { currentStoreIdOf } from "@/lib/nox/store/current-server"; // ★0203（12:00 の ■2-a）
+import { mig0203On } from "@/lib/nox/rules-0175/flag";
 
 export const dynamic = "force-dynamic";
 
@@ -16,5 +19,6 @@ export const dynamic = "force-dynamic";
 // MasterBoard が client で取得する（従来どおり）＝ここでの取得はゼロになった。
 export default async function MasterPage() {
   await managePageGate(); // ★教訓142（2026-11-11）: 柵（キャストの入場・規約・初期設定）はページの先頭で＝画面の移動でも効く
-  return <MasterBoard />;
+  const storeId = mig0203On() ? await currentStoreIdOf(await createClient()) : null; // ★0203（12:00 の ■2-a）: 今見ている店（旗 false＝今のまま）
+  return <MasterBoard storeId={storeId} />;
 }

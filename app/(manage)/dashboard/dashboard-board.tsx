@@ -1,5 +1,6 @@
 "use client";
 import { mig0203On } from "@/lib/nox/rules-0175/flag"; // ★0203
+import { ALL_STORES_NO_RANKING } from "@/lib/nox/store/current"; // ★0203（12:00 の ■2-c）
 
 // ホームのボード（E5）。読取専用＝書込 RPC なし（承認操作は DrinkClaimQueue 内で完結）。
 // KPI の材料はすべて既存可視面：attendance（staff も可視＝台帳#24）・daily_reports（締め済み実績）・
@@ -172,6 +173,7 @@ export default function DashboardBoard({ storeId, storeName, cutoff, casts, shor
   const castName = (id: string) => casts.find((c) => c.id === id)?.name ?? "?";
   const present = atts.filter((a) => PRESENT.has(a.status));
   const dohanToday = atts.filter((a) => a.status === "dohan").length;
+  const allStoresView = mig0203On() && isOwner && stores.length > 1 && !curStoreId; // ★0203（12:00 の ■2-c）: ホームの「全店（合計）」
   const honMonth = ranking.reduce((a, r) => a + r.hon_count, 0);
 
   // 段H2: 今日のシフト概況＝S-1 と同一導出（確定数＋必要人数＋3色の充足判定）。
@@ -362,8 +364,9 @@ export default function DashboardBoard({ storeId, storeName, cutoff, casts, shor
           {isManagerUp && <SegSelect value={rankAxis} onChange={(v) => setRankAxis(v as RankAxis)} options={[["sales", RANK_AXIS_LABEL.sales], ["nom", "本指名件数"]] as const} ariaLabel="ランキングの軸" />}{/* ★2026-11-16 夜: スタッフは本指名件数だけ＝切替を出さない */}
           {isManagerUp && <Link href="/analytics" className="nox-link" style={{ marginLeft: "auto", fontSize: 11, whiteSpace: "nowrap" }}>分析へ ›</Link>/* ★M-169: 分析は店長以上だけ＝見られない役割にはリンクを出さない */}
         </div>
-        {!rankLoaded && <div data-rank-loading="1"><Loading /></div>}
-        {rankLoaded && rankAxis === "sales" && salesRanking.length === 0 && <p style={{ fontSize: 12.5, color: "var(--v2-muted)", margin: 0 }}>データがありません（按分売上のある伝票なし）</p>}
+        {allStoresView && <p style={{ fontSize: 12.5, color: "var(--v2-muted)", margin: 0 }} data-rank-all="1">{ALL_STORES_NO_RANKING}</p>}{/* ★0203（12:00 の ■2-c）: 全店ではランキングを出さない（店ごとの関数）＝「データがありません」と出さない */}
+        {!allStoresView && !rankLoaded && <div data-rank-loading="1"><Loading /></div>}
+        {!allStoresView && rankLoaded && rankAxis === "sales" && salesRanking.length === 0 && <p style={{ fontSize: 12.5, color: "var(--v2-muted)", margin: 0 }}>データがありません（按分売上のある伝票なし）</p>}
         {rankAxis === "sales" && salesRanking.map((r) => (
           <div key={r.castId} className="nox-rk" data-rank-axis="sales">
             <span className={`nox-medal ${r.rank === 1 ? "g1" : r.rank === 2 ? "g2" : r.rank === 3 ? "g3" : "gx"}`}>{r.rank}</span>
@@ -372,7 +375,7 @@ export default function DashboardBoard({ storeId, storeName, cutoff, casts, shor
             <span className="pt num">¥{r.sales.toLocaleString()}・本指名 {r.hon}</span>
           </div>
         ))}
-        {rankLoaded && rankAxis === "nom" && ranking.length === 0 && <p style={{ fontSize: 12.5, color: "var(--v2-muted)", margin: 0 }}>データがありません</p>}
+        {!allStoresView && rankLoaded && rankAxis === "nom" && ranking.length === 0 && <p style={{ fontSize: 12.5, color: "var(--v2-muted)", margin: 0 }}>データがありません</p>}
         {rankAxis === "nom" && ranking.map((r) => (
           <div key={r.cast_id} className="nox-rk">
             {/* 段F の .nox-medal を再利用（1/2/3 は金銀銅・4位以降は neutral） */}

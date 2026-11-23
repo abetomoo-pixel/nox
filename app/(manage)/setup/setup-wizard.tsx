@@ -29,7 +29,7 @@ import { mig0190On, mig0191On, mig0197On, mig0202bOn } from "@/lib/nox/rules-017
 import type { ProductRow } from "@/lib/nox/setup/template-plan";
 import { mig0203On } from "@/lib/nox/rules-0175/flag"; // ★0203（■2-b）
 import { STORE_COPY_LABEL, STORE_COPY_NEVER, STORE_COPY_PARTS, storeCopyErrJa, type StoreCopyPart } from "@/lib/nox/ops/store-add";
-import { applyCopyToPlan, copyPartsOf, stripOrgLevelKeys } from "@/lib/nox/setup/copy-plan";
+import { applyCopyToPlan, copiedPlanIdsOf, copyPartsOf, stripOrgLevelKeys } from "@/lib/nox/setup/copy-plan";
 
 const DRAFT_KEY = (storeId: string) => `nox.setup.v5.draft.${storeId}`;
 const card: React.CSSProperties = t.card;
@@ -120,6 +120,7 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
   const [staleBy, setStaleBy] = useState<string | null>(null);
   const [assisted, setAssisted] = useState<unknown>(null);
   const [copyParts, setCopyParts] = useState<StoreCopyPart[]>(() => copyPartsOf(copy?.parts)); // ★0203（■2-b）
+  const copiedPlansRef = useRef<{ basic: string | null; trial: string | null } | null>(null); // ★12:00 の ■2-b
 
   // ── 自動保存（localStorage・店ごと）: 復元は hydration 後・変更ごとに保存・完了で消す ──
   useEffect(() => {
@@ -238,8 +239,9 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
     if (run.running || !S.type) return;
     // ★0203（■2-b）: 1 店目から写す＝最初に写して、写した群の段を飛ばす（写せなければ止める）
     if (copy && copyParts.length > 0 && mig0203On()) {
-      const { error: ce } = await supabase.rpc("store_copy_settings", { p_src: copy.from, p_dst: store.id, p_parts: copyParts });
+      const { data: cd, error: ce } = await supabase.rpc("store_copy_settings", { p_src: copy.from, p_dst: store.id, p_parts: copyParts });
       if (ce && !/not empty/.test(ce.message)) { setRun({ running: false, done: 0, total: planAll.steps.length, failedAt: 0, error: storeCopyErrJa(ce.message), completed: false, log: [] }); return; }
+      if (!ce) copiedPlansRef.current = copiedPlanIdsOf(cd); // ★12:00 の ■2-b: 写したプランは ID の付け替えの対応で結ぶ（途中で止まってやり直すときも同じ画面の間は覚えておく）
     }
     const steps0 = copy && mig0203On() ? applyCopyToPlan(planAll.steps, copyParts) : planAll.steps;
     const steps = mig0203On() && multiStore ? stripOrgLevelKeys(steps0) : steps0; // ★0203（■2-c）: 2 店以上の会社は支払日を店で書かない
@@ -248,6 +250,7 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
     if (!r.ok) { setRun({ running: false, done: r.at ?? 0, total: steps.length, failedAt: r.at ?? 0, error: r.error ?? "失敗", completed: false, log: r.log }); return; }
     const basic = r.created["comp_0"], trial = r.created["comp_1"];
     let ids2 = { basic: typeof basic === "string" ? basic : null, trial: typeof trial === "string" ? trial : null };
+    if (!ids2.basic && copiedPlansRef.current) ids2 = copiedPlansRef.current; // ★12:00 の ■2-b: 写したときは名前で探さない
     if (!ids2.basic) { const { data } = await supabase.from("comp_plans").select("id, name").eq("store_id", store.id); const rows = (data ?? []) as { id: string; name: string }[]; ids2 = { basic: rows.find((x) => x.name === "基本プラン")?.id ?? rows[0]?.id ?? null, trial: rows.find((x) => x.name === "体験入店")?.id ?? null }; }
     setPlanIds(ids2);
     try { window.localStorage.removeItem(DRAFT_KEY(store.id)); } catch { /* noop */ }

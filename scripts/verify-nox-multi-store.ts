@@ -8,12 +8,12 @@
  */
 import fs from "node:fs";
 import pg from "pg";
-import { needsSetupOf, pendingSetupStoresOf, pickCurrentStore, storeSwitchShownOf } from "../lib/nox/store/current";
-import { applyCopyToPlan, copyPartsOf, stripOrgLevelKeys } from "../lib/nox/setup/copy-plan";
+import { ALL_STORES_NO_RANKING, needsSetupOf, pendingSetupStoresOf, pickCurrentStore, storeSwitchShownOf } from "../lib/nox/store/current";
+import { applyCopyToPlan, copiedPlanIdsOf, copyPartsOf, stripOrgLevelKeys } from "../lib/nox/setup/copy-plan";
 import { storeAddErrJa, storeCopyErrJa, STORE_COPY_PARTS } from "../lib/nox/ops/store-add";
 import { MIG_0203_APPLIED } from "../lib/nox/rules-0175/flag";
 import { pgTx } from "./fixtures-pgtx";
-import type { V5Step } from "../lib/nox/setup/v5";
+import { monthStartJstOf, type V5Step } from "../lib/nox/setup/v5";
 
 let pass = 0; const fails: string[] = [];
 const check = (label: string, ok: boolean, detail?: unknown) => { if (ok) pass++; else fails.push(`${label}${detail !== undefined ? `: ${JSON.stringify(detail)}` : ""}`); };
@@ -31,10 +31,22 @@ check("(1) 案内：2 店以上の owner で、済んだ店があり、前の店
 const steps: V5Step[] = [
   { key: "p", group: "settings", label: "", rpc: "set_store_profile", args: { p_store_id: "x", p_patch: { biz_type: "cabaret", sys_hourly: true, norm_axes: {}, pay_day: 25, receipt_tel: "1" } } },
   { key: "h", group: "hours", label: "", rpc: "set_store_business_hours", args: {} }, { key: "r", group: "pricing", label: "", rpc: "set_pricing_rule", args: {} },
-  { key: "c", group: "comp", label: "", rpc: "set_comp_plan", args: {} }, { key: "d", group: "done", label: "", rpc: "set_store_profile", args: { p_store_id: "x", p_patch: { setup_done: true } } },
+  { key: "c", group: "comp", label: "", rpc: "set_comp_plan", args: {} }, { key: "d", group: "done", label: "", rpc: "set_store_profile", args: { p_store_id: "x", p_patch: { setup_done: true, slide_apply: "next", settlement_presets: [] } } },
+  { key: "o", group: "overrides", label: "", argsOf: "product_overrides" } as V5Step, { key: "q", group: "products", label: "", rpc: "set_product", args: {} },
 ];
 const a1 = applyCopyToPlan(steps, ["pricing", "hours"]);
-check("(1) 写しの計画：写した群（pricing・hours）の段は飛ばす・ほかはそのまま・写さなければ同じ", a1.map((s) => s.key).join(",") === "p,c,d" && applyCopyToPlan(steps, []).length === steps.length);
+check("(1) 写しの計画：写した群（pricing・hours）の段は飛ばす・ほかはそのまま・写さなければ同じ", a1.map((s) => s.key).join(",") === "p,c,d,o,q" && applyCopyToPlan(steps, []).length === steps.length);
+const pd = (xs: V5Step[]) => (xs.find((s) => s.key === "d")?.args?.p_patch ?? {}) as Record<string, unknown>;
+check("(1) ★12:00 の ■2-d 商品を写したら、商品の段と雛形のバックで上書きする段（overrides）も飛ばす", applyCopyToPlan(steps, ["products"]).map((s) => s.key).join(",") === "p,h,r,c,d");
+check("(1) ★12:00 の ■2-d 完了の段は写した鍵を上書きしない（待遇＝slide_apply を外す・店舗設定＝精算の既定を外す・setup_done は残す）",
+  JSON.stringify(pd(applyCopyToPlan(steps, ["comp", "settings"]))) === JSON.stringify({ setup_done: true }) && JSON.stringify(Object.keys(pd(applyCopyToPlan(steps, ["comp"])))) === JSON.stringify(["setup_done", "settlement_presets"])
+  && JSON.stringify(Object.keys(pd(applyCopyToPlan(steps, ["settings"])))) === JSON.stringify(["setup_done", "slide_apply"]) && JSON.stringify(Object.keys(pd(applyCopyToPlan(steps, ["pricing"])))) === JSON.stringify(["setup_done", "slide_apply", "settlement_presets"]));
+// ★12:00 の ■2-b: 写したプランは ID の付け替えの対応で結ぶ（1 店目で名前を変えてあっても同じ所）
+const plansR = [{ src: "a", dst: "A", active: true, name: "時給プラン（改名）" }, { src: "b", dst: "B", active: false, name: "体験入店" }, { src: "c", dst: "C", active: true, name: "基本プラン" }, { src: "d", dst: "D", active: true, name: "新人" }];
+check("(1) ★12:00 の ■2-b 結ぶ先＝既定のプランの写し／無ければ最初に作った有効なプラン・体験入店＝その次の有効なプラン（名前は見ない）",
+  JSON.stringify(copiedPlanIdsOf({ plans: plansR, default_src: null })) === JSON.stringify({ basic: "A", trial: "C" }) && JSON.stringify(copiedPlanIdsOf({ plans: plansR, default_src: "c" })) === JSON.stringify({ basic: "C", trial: "A" })
+  && JSON.stringify(copiedPlanIdsOf({ plans: [{ src: "a", dst: "A" }], default_src: "zz" })) === JSON.stringify({ basic: "A", trial: null }) && copiedPlanIdsOf({ plans: [] }) === null && copiedPlanIdsOf(null) === null);
+check("(1) ★11/23 契約区分の開始日＝今月の 1 日（JST・月末の夜は翌月）", monthStartJstOf(new Date("2026-11-23T03:00:00Z")) === "2026-11-01" && monthStartJstOf(new Date("2026-11-30T16:00:00Z")) === "2026-12-01" && monthStartJstOf(new Date("2026-11-30T14:59:00Z")) === "2026-11-01");
 const a2 = applyCopyToPlan(steps, ["comp"]);
 const p2 = (a2.find((s) => s.key === "p")?.args?.p_patch ?? {}) as Record<string, unknown>;
 check("(1) 待遇だけ写す＝店舗設定の段から制度の鍵（sys_*）と待遇の鍵を外す・ほかの鍵は残す", !("sys_hourly" in p2) && !("norm_axes" in p2) && p2.receipt_tel === "1" && p2.biz_type === "cabaret" && !a2.some((s) => s.key === "c"));
@@ -50,6 +62,21 @@ const mig = src("supabase/migrations/0203_multi_store.sql");
 const bodyLines = mig.split(/\r?\n/).map((l) => l.trim());
 check("(2) 0203 の起草＝begin／commit は 1 つずつ・関数 5 本・ops_store_add は 4 ロール revoke → service_role", bodyLines.filter((l) => l === "begin;").length === 1 && bodyLines.filter((l) => l === "commit;").length === 1 && (mig.match(/^CREATE OR REPLACE FUNCTION public\./gm) ?? []).length === 5
   && mig.includes("revoke all on function public.ops_store_add(uuid, uuid, text, text, uuid, text[]) from public, anon, authenticated, service_role;") && mig.includes("grant execute on function public.ops_store_add(uuid, uuid, text, text, uuid, text[]) to service_role;"));
+check("(2) ★12:00 の ■2-b 画面は写しの対応で結ぶ（名前で探すのは写していないときだけ）・関数はプランの対応を作った順で返す",
+  src("app/(manage)/setup/setup-wizard.tsx").includes("if (!ce) copiedPlansRef.current = copiedPlanIdsOf(cd);") && src("app/(manage)/setup/setup-wizard.tsx").indexOf("if (!ids2.basic && copiedPlansRef.current) ids2 = copiedPlansRef.current;") > 0
+  && src("app/(manage)/setup/setup-wizard.tsx").indexOf("if (!ids2.basic && copiedPlansRef.current) ids2 = copiedPlansRef.current;") < src("app/(manage)/setup/setup-wizard.tsx").indexOf('rows.find((x) => x.name === "基本プラン")')
+  && mig.includes("order by c.created_at, c.id), '[]'::jsonb)") && mig.includes("'plans', v_plans,") && src("lib/nox/setup/v5.ts").includes("p_valid_from: monthStartJstOf(new Date())"));
+const stockPage = src("app/(manage)/master/stock/page.tsx"), stockBoard = src("app/(manage)/master/stock/stock-board.tsx"), mPage = src("app/(manage)/master/page.tsx"), mBoard = src("app/(manage)/master/master-board.tsx"), q = src("lib/nox/master/queries.ts");
+check("(2) ★12:00 の ■2-a 在庫＝商品・現在庫・カテゴリ・履歴を今見ている店で（旗 false＝null＝今のまま）",
+  stockPage.includes("const storeId = mig0203On() ? await currentStoreIdOf(supabase) : null;") && stockPage.includes("fetchProducts(supabase, storeId),") && stockPage.includes("fetchStockTotals(supabase, storeId),") && stockPage.includes("storeId={storeId}")
+  && stockBoard.includes("fetchProductCategories(supabase, storeId)") && stockBoard.includes('if (storeId) q = q.eq("store_id", storeId);') && stockBoard.includes("fetchProducts(supabase, storeId), fetchStockTotals(supabase, storeId)")
+  && q.includes('p_store_id: mig0203On() && storeId ? storeId : null'));
+check("(2) ★12:00 の ■2-a マスタのボード＝商品・カテゴリ・席・紹介料の未払の件数を今見ている店で（旗 false＝null）",
+  mPage.includes("const storeId = mig0203On() ? await currentStoreIdOf(await createClient()) : null;") && mPage.includes("<MasterBoard storeId={storeId} />")
+  && mBoard.includes("fetchProducts(supabase, storeId), fetchProductCategories(supabase, storeId)") && mBoard.includes('(storeId ? sq.eq("store_id", storeId) : sq)') && mBoard.includes('(storeId ? rq.eq("store_id", storeId) : rq)'));
+check("(2) ★12:00 の ■2-c ホームの全店＝ランキングの枠に「全店ではランキングを出しません」の 1 行（データがありませんと出さない）",
+  ALL_STORES_NO_RANKING === "全店ではランキングを出しません" && src("app/(manage)/dashboard/dashboard-board.tsx").includes("{allStoresView && <p") && src("app/(manage)/dashboard/dashboard-board.tsx").includes("const allStoresView = mig0203On() && isOwner && stores.length > 1 && !curStoreId;")
+  && (src("app/(manage)/dashboard/dashboard-board.tsx").match(/!allStoresView && rankLoaded/g) ?? []).length === 2);
 check("(2) 写しは LINE・位置（IP）・端末を写さない（列と鍵）", !/line_config\s*=\s*s\./.test(mig) && !/punch_allow_ip\s*=\s*s\./.test(mig) && mig.includes("v_never_keys text[] := array['setup_done','biz_type','contract_ack','contract_ack_rev','cast_register_device','kiosk_features','line_notify'];"));
 
 // (3) DB（読むだけ）
@@ -68,6 +95,9 @@ async function dbPart() {
       const c = await countA2(await uid(email));
       check(`(3) ${label}（A1）に A2 の行が 1 つも出ない（${T.length} 表）`, Object.values(c).every((v) => v === "0" || v.startsWith("err:permission denied")), c);
     }
+    // ★12:00 の判断 3: 2 店以上の会社は店の支払日がそろっている（set_store_profile の pay_day の道は閉じていない＝起票142・ずれたらここで赤）
+    const pdr = await tx.q<{ name: string; n: number; d: number; pds: string }>("select o.name, count(*)::int n, count(distinct coalesce(s.pay_day, -1))::int d, string_agg(coalesce(s.pay_day::text, 'null'), ',' order by s.name) pds from public.orgs o join public.stores s on s.org_id = o.id group by o.id, o.name having count(*) >= 2");
+    check(`(3) 2 店以上の会社（${pdr.length} 社）は店の支払日がそろっている`, pdr.length >= 1 && pdr.every((r) => r.d === 1), pdr);
     const oc = await countA2(await uid("nox-verify-owner-a@example.com"));
     check("(3) owner は A2 も見える（会社の全店＝今見ている店で画面が絞る）", Number(oc.seats) > 0 || Number(oc.casts) > 0 || Number(oc.store_business_hours) >= 0, oc);
   } finally { await db.query("rollback").catch(() => undefined); await db.end(); }

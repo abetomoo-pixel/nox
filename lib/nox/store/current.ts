@@ -26,3 +26,6 @@ export function pendingSetupStoresOf(a: { flag: boolean; role: string | null; st
   if (a.stores.every((s) => !s.setupDone)) return [];
   return a.stores.filter((s) => !s.setupDone).map((s) => ({ id: s.id, name: s.name }));
 }
+
+/** ★0203（12:00 の ■2-c）: ホームの「全店（合計）」ではランキングを出さない（店ごとの関数）＝その 1 行 */
+export const ALL_STORES_NO_RANKING = "全店ではランキングを出しません";

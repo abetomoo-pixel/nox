@@ -19,7 +19,7 @@ import {
 //   ★設定値／計算／権限／履歴は不変（カードと検索＝表示のみ・オーナー限定の表示は維持）。
 type Seat = { id: string; name: string; kind: string | null; sort_order: number; is_active: boolean };
 
-export default function MasterBoard() {
+export default function MasterBoard({ storeId = null }: { /** ★0203（12:00 の ■2-a）: オーナーの今見ている店（旗 false＝null＝今のまま） */ storeId?: string | null } = {}) {
   const supabase = createClient();
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -34,8 +34,9 @@ export default function MasterBoard() {
 
   const load = useCallback(async () => {
     try {
-      const [ps, cats] = await Promise.all([fetchProducts(supabase), fetchProductCategories(supabase)]);
-      const { data: ss, error: se } = await supabase.from("seats").select("id, name, kind, sort_order, is_active").order("sort_order");
+      const [ps, cats] = await Promise.all([fetchProducts(supabase, storeId), fetchProductCategories(supabase, storeId)]);
+      const sq = supabase.from("seats").select("id, name, kind, sort_order, is_active").order("sort_order");
+      const { data: ss, error: se } = await (storeId ? sq.eq("store_id", storeId) : sq); // ★0203（12:00 の ■2-a）: 件数も今見ている店
       if (se) throw se;
       setProducts(ps);
       setCategories(cats);
@@ -45,7 +46,8 @@ export default function MasterBoard() {
       setHubState("error"); // ★Z152: 失敗は「—」＋「取得できませんでした」（0 を描かない）
     }
     // ★U-2／Z152: 紹介者の未払件数は主取得と独立（失敗しても他の件数は出る）
-    const { count: ur, error: re } = await supabase.from("referral_payouts").select("id", { count: "exact", head: true }).eq("status", "unpaid");
+    const rq = supabase.from("referral_payouts").select("id", { count: "exact", head: true }).eq("status", "unpaid");
+    const { count: ur, error: re } = await (storeId ? rq.eq("store_id", storeId) : rq); // ★0203（12:00 の ■2-a）
     if (re) { setRefState("error"); } else { setUnpaidRef(ur ?? 0); setRefState("ok"); }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

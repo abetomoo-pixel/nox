@@ -56,7 +56,7 @@ const src = (p: string) => fs.readFileSync(p, "utf8");
   check("b2(5-1) M-173 スタッフのシフト希望＝取得が終わるまで「読み込み中」（枠なし・本人分 0 行を出さない）",
     ss.includes('data-staff-wish-loading="1"') && ss.includes("setLoaded(true);") && ss.includes('{loaded ? shifts.filter((s) => s.staff_id === myMid).length : "—"}'));
   const db = src("app/(manage)/dashboard/dashboard-board.tsx");
-  check("b2(5-2) M-173 ホームのランキング＝取得の前に「データがありません」を出さない", db.includes('data-rank-loading="1"') && db.includes('{rankLoaded && rankAxis === "nom" && ranking.length === 0'));
+  check("b2(5-2) M-173 ホームのランキング＝取得の前に「データがありません」を出さない", db.includes('data-rank-loading="1"') && db.includes('rankLoaded && rankAxis === "nom" && ranking.length === 0') /* ★0203（12:00 の ■2-c）: 前に !allStoresView && が付いた（全店ではランキングの 1 行） */);
   check("b2(5-3) M-174 ◯×は押すとその場で保存の説明・枠の時刻・保存の印", ss.includes("◯×は押すとその場で保存されます（提出のボタンはありません）") && ss.includes('data-wish-pattern-time="1"') && ss.includes('data-wish-saved="1"'));
 }
 // (6) M-165〜M-168

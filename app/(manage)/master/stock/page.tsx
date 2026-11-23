@@ -4,6 +4,8 @@ import { getSessionRole } from "@/lib/nox/auth";
 import { fetchProducts, fetchStockTotals } from "@/lib/nox/master/queries";
 import StockBoard from "./stock-board";
 import { managePageGate } from "@/lib/nox/nav/page-gate";
+import { currentStoreIdOf } from "@/lib/nox/store/current-server"; // ★0203（12:00 の ■2-a）
+import { mig0203On } from "@/lib/nox/rules-0175/flag";
 
 export const dynamic = "force-dynamic";
 
@@ -24,15 +26,17 @@ export default async function MasterStockPage() {
   if (!isManagerUp) redirect("/dashboard");
 
   const supabase = await createClient();
+  const storeId = mig0203On() ? await currentStoreIdOf(supabase) : null; // ★0203（12:00 の ■2-a）: 今見ている店（旗 false＝今のまま）
   const [products, stock, usersRes] = await Promise.all([
-    fetchProducts(supabase),
-    fetchStockTotals(supabase),
+    fetchProducts(supabase, storeId),
+    fetchStockTotals(supabase, storeId),
     supabase.from("users").select("id, name"),
   ]);
 
   return (
     <StockBoard
       isManagerUp={isManagerUp}
+      storeId={storeId}
       initial={{ products, stock }}
       users={(usersRes.data ?? []) as { id: string; name: string }[]}
     />

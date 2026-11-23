@@ -6,7 +6,7 @@
 -- ★4 store_copy_settings（authenticated・owner だけ・1 店目→2 店目・part＝pricing／products／comp／settings／hours・写し先のその part は空であること・ID を付け替え・1 トランザクション・監査 1 行）
 --     写さない＝キャスト・スタッフ・顧客・ボトル・売掛・伝票・勤怠・給与・日報・Wi-Fi と位置（punch_allow_ip／punch_lat／punch_lng／punch_radius_m）・端末・LINE（line_config／line_monthly_limit）・臨時の日・必要人数・席
 -- ★5 notice_create_at／notice_create_targets_at（店を指定してお知らせ＝owner は会社の店・manager は自店だけ。中身は notice_create（0088）／notice_create_targets（0200）と同じ）
--- お金の計算の式（pay.ts・payroll の計算・源泉）には触れない。締め日は月末のまま（period_bounds 不変）。既存の関数は作り直さない（表 0・関数 +6）。
+-- お金の計算の式（pay.ts・payroll の計算・源泉）には触れない。締め日は月末のまま（period_bounds 不変）。既存の関数は作り直さない（表 0・関数 +5）。
 -- 翻訳元: ops_org_create（0202a）・notice_create（0088）・notice_create_targets（0200）・本番の列の一覧（2026-11-22 読取）。
 -- 検証クエリ（貼った後・先頭は貼り先証明）:
 --   select 'nox-project-proof', count(*) from public.orgs;
@@ -118,6 +118,7 @@ declare
   v_never_keys text[] := array['setup_done','biz_type','contract_ack','contract_ack_rev','cast_register_device','kiosk_features','line_notify'];   -- 店ごとの印・端末・LINE
   v_sj jsonb;
   v_def text;
+  v_plans jsonb := '[]'::jsonb;   -- ★12:00 の ■2-b
 begin
   if v_org is null then raise exception 'forbidden'; end if;
   if not public.billing_writable_of(v_org) then raise exception 'billing locked'; end if;
@@ -235,9 +236,15 @@ begin
     v_n := v_n || jsonb_build_object('settings_keys', (select count(*) from jsonb_object_keys(v_sj)));
   end if;
 
+  -- ★12:00 の ■2-b: 待遇のプランの付け替えの対応（作った順＝初期設定の「基本プラン」→「体験入店」の順）と 1 店目の既定のプラン＝画面はこの ID で結ぶ（名前で探さない）
+  if 'comp' = any(v_parts) then
+    v_plans := (select coalesce(jsonb_agg(jsonb_build_object('src', c.id, 'dst', m.new, 'active', c.is_active) order by c.created_at, c.id), '[]'::jsonb)
+                from public.comp_plans c join _nox_copy_map m on m.old = c.id where c.store_id = p_src);
+  end if;
   perform public.audit_log_write('store_copy_settings', 'stores:' || p_dst::text, null,
     jsonb_build_object('src', p_src, 'parts', to_jsonb(v_parts), 'counts', v_n), p_dst);
-  return jsonb_build_object('parts', to_jsonb(v_parts), 'counts', v_n);
+  return jsonb_build_object('parts', to_jsonb(v_parts), 'counts', v_n, 'plans', v_plans,
+    'default_src', case when 'comp' = any(v_parts) then coalesce(v_s.settings_json->'default_plan_id', 'null'::jsonb) else 'null'::jsonb end);
 end $function$;
 revoke execute on function public.store_copy_settings(uuid, uuid, text[]) from public, anon;
 grant execute on function public.store_copy_settings(uuid, uuid, text[]) to authenticated;

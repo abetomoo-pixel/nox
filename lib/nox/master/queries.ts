@@ -64,8 +64,8 @@ export async function fetchProductCosts(
  *   （owner=org全体／manager・staff=自店／cast=0行）。店で絞る呼び出しは現状存在しない。
  * 在庫ログが1件も無い商品は行が返らない＝呼び出し側は従来どおり `?? 0` で埋める。
  */
-export async function fetchStockTotals(sb: SupabaseClient): Promise<Record<string, number>> {
-  const { data } = await sb.rpc("product_stock_totals", { p_store_id: null });
+export async function fetchStockTotals(sb: SupabaseClient, storeId?: string | null): Promise<Record<string, number>> {
+  const { data } = await sb.rpc("product_stock_totals", { p_store_id: mig0203On() && storeId ? storeId : null }); // ★0203（12:00 の ■2-a）: オーナーの今見ている店（旗 false＝今のまま＝null）
   const stock: Record<string, number> = {};
   for (const r of (data ?? []) as { product_id: string; qty: number }[]) stock[r.product_id] = r.qty;
   return stock;

@@ -55,8 +55,9 @@ const fmtAt = (iso: string) => iso.replace("T", " ").slice(0, 19);
 
 export type StockInitial = { products: Product[]; stock: Record<string, number> };
 
-export default function StockBoard({ isManagerUp, initial, users }: {
+export default function StockBoard({ isManagerUp, initial, users, storeId = null }: {
   isManagerUp: boolean; initial: StockInitial; users: { id: string; name: string }[];
+  /** ★0203（12:00 の ■2-a）: オーナーの今見ている店（旗 false＝null＝今のまま） */ storeId?: string | null;
 }) {
   const supabase = createClient();
   const [products, setProducts] = useState<Product[]>(initial.products);
@@ -77,7 +78,7 @@ export default function StockBoard({ isManagerUp, initial, users }: {
   const [categories, setCategories] = useState<MasterCategory[]>([]);
   const [busy, setBusy] = useState(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { void fetchProductCategories(supabase).then(setCategories); }, []);
+  useEffect(() => { void fetchProductCategories(supabase, storeId).then(setCategories); }, []);
 
   // 履歴（/audit 同型ページング＋商品絞り込み）
   const [logs, setLogs] = useState<StockLog[]>([]);
@@ -93,6 +94,7 @@ export default function StockBoard({ isManagerUp, initial, users }: {
       .order("at", { ascending: false })
       .range(p * PAGE, p * PAGE + PAGE); // 1件余分に取って次ページ有無を判定（/audit 同型）
     if (productId) q = q.eq("product_id", productId);
+    if (storeId) q = q.eq("store_id", storeId); // ★0203（12:00 の ■2-a）: 履歴も今見ている店だけ（旗 false は storeId＝null）
     const { data } = await q;
     const rows = (data ?? []) as StockLog[];
     setHasMore(rows.length > PAGE);
@@ -106,7 +108,7 @@ export default function StockBoard({ isManagerUp, initial, users }: {
   const userName = (id: string | null) => (id && users.find((u) => u.id === id)?.name) ?? (id ? id.slice(0, 8) : "—");
 
   async function reloadStock() {
-    const [ps, st] = await Promise.all([fetchProducts(supabase), fetchStockTotals(supabase)]);
+    const [ps, st] = await Promise.all([fetchProducts(supabase, storeId), fetchStockTotals(supabase, storeId)]);
     setProducts(ps);
     setStock(st);
   }
