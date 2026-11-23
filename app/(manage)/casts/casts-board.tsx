@@ -3,7 +3,7 @@
 // キャスト管理ボード（F3d 体入採用 UI・モック「体入・採用管理」＋「新規キャスト登録」準拠）。
 // 操作は全て RPC 経由＝trial_register/trial_update/trial_hire/trial_reject／cast_create。
 // 真の防御は trials RLS（owner/manager 限定）＋各 RPC ゲート（UI は操作面）。
-import { jstToday, jstThisMonth } from "@/lib/nox/jst-today"; // ★起票145: JST の今日・今月（UTC だと 0:00〜9:00 が JST の昨日）
+import { jstToday, jstThisMonth, bizToday, cutoffHmOf } from "@/lib/nox/jst-today"; // ★起票145: JST の今日・今月（UTC だと 0:00〜9:00 が JST の昨日）
 import { mig0201fOn } from "@/lib/nox/rules-0175/flag"; // ★0201f
 import { MYNUMBER_DISCARD_NOTE_0201F, MYNUMBER_IN_SERVICE_LABEL, MYNUMBER_LAST_PAY_YEAR_LABEL } from "@/lib/nox/mynumber/discard-text";
 import { LoadMoreBar, useLoadMore } from "@/components/ui/load-more"; // ★便 M5b M-60
@@ -176,7 +176,9 @@ export default function CastsBoard({
   useEffect(() => { setProfEdit(false); setProfName(""); setProfJoined(""); }, [sel]);
   const [showAdd, setShowAdd] = useState(false);
   // ★裁定490（12 点の 1・6・8＝B2-1・2026-11-16）: 「体入を追加」の開始日（既定＝今日・必須）と、店の既定のプランが無い店で選ぶプラン
-  const [trialAdd, setTrialAdd] = useState<{ start: string; planId: string | null }>({ start: jstToday(), planId: null });
+  // ★起票145 の訂正（相談役 11/24 2:20）: 勤務と給与期の「今日」＝営業日（店の締めの時刻で切り替わる日・既定 06:00）
+  const bizCutoff = cutoffHmOf(stores.find((st) => st.id === (myStoreId || stores[0]?.id))?.settings_json);
+  const [trialAdd, setTrialAdd] = useState<{ start: string; planId: string | null }>(() => ({ start: bizToday(bizCutoff), planId: null }));
   // 月次2数値（相談役メモ②）＝現物確認の結果★どちらも新規 RPC なしで取れる:
   //   今月指名＝既存 get_cast_ranking（cast_id 付きで hon/jonai/dohan を返す・dashboard と同じ呼び方）
   //   今月出勤＝attendance を月範囲で引いて cast_id 別に数える（(cast_id,date) UNIQUE ゆえ行数＝日数）
@@ -220,7 +222,7 @@ export default function CastsBoard({
   const [guaRpc, setGuaRpc] = useState<"unknown" | "ok" | "missing">("unknown");
   const [guaForm, setGuaForm] = useState<{ mode: "new" | "extend"; amount: string; start: string; end: string } | null>(null);
   const [guaMsg, setGuaMsg] = useState<{ kind: MessageKind; text: string } | null>(null);
-  const today = jstToday(); // 次回シフト（casts#6）と同じ日付の取り方
+  const today = bizToday(bizCutoff); // ★起票145 の訂正: 営業日の今日＝待遇プラン・契約区分の既定の開始日・本採用・本入店日・保証・日付の下限・プランの今の行・前借りと日払いの発行日（暦の今日は次回シフト・カレンダーなどの表示だけ）
   // ★0160（裁定326-3・便 M2-2）: 今月のノルマ＝cast_quotas（店×cast×月初 date・4 項目・NULL＝目標なし）。月は今月／翌月（month と同じ取り方）・保存は set_cast_quota（owner／manager 自店）
   const [quotaMonth, setQuotaMonth] = useState<string>(`${month}-01`);
   const [quotaCur, setQuotaCur] = useState<QuotaForm>(QUOTA_FORM_EMPTY);
@@ -906,7 +908,7 @@ export default function CastsBoard({
           ))}
         </div>
       </div>
-      <AddButton testId="cast-add" onClick={() => setShowAdd((v) => !v)}>＋ {filter === "trial" ? "体入を追加" : "キャスト登録"}</AddButton>{/* ★便 M5b M-55: 一覧の上・中央・主ボタン（大） */}
+      <AddButton testId="cast-add" onClick={() => { if (!showAdd) setTrialAdd((x) => ({ ...x, start: bizToday(bizCutoff) })); setShowAdd((v) => !v); }}>＋ {filter === "trial" ? "体入を追加" : "キャスト登録"}</AddButton>{/* ★便 M5b M-55: 一覧の上・中央・主ボタン（大） */}
       {/* ★裁定374（GV-B W-4）: 絞り込みチップ＝待遇プラン／ノルマ（達成・進行中・未達）／時給の段・並び替え＝名前・時給・達成率（既存 state の再形＋当月の実績 1 本） */}
       {filter !== "trial" && (
         <div className="nox-ctoolbar" data-w4-filters="1" style={{ gap: 8, flexWrap: "wrap", margin: "0 0 10px" }}>
@@ -1312,13 +1314,13 @@ export default function CastsBoard({
               <div style={{ marginTop: 12, marginBottom: 12 }}>
                 <h3 style={{ ...secTitle, margin: "0 0 6px" }}>前借り（貸付）／送り実費</h3>
                 <AdvanceOkuriForm storeId={selCast.store_id} casts={[]} castId={selCast.id} castName={selCast.name}
-                  dateDefault={issueDateDefaultOf(jstToday())}
+                  dateDefault={issueDateDefaultOf(today)}
                   okuriMode={okuriOf(selCast.store_id).mode} okuriBase={okuriOf(selCast.store_id).base} />
               </div>
               {/* ★0156（裁定309-6／309 追補2・便 V-4）: 日払いの発行（このキャストに固定・owner／manager＝page が他ロールを redirect 済み）。源泉は月次と同式（日数 1）でプレビュー・雇用は 0＋注記 */}
               <div style={{ marginTop: 12, marginBottom: 12 }}>
                 <h3 style={{ ...secTitle, margin: "0 0 6px" }}>日払いの発行</h3>
-                <DailyPayForm castId={selCast.id} castName={selCast.name} storeId={selCast.store_id} dateDefault={issueDateDefaultOf(jstToday())} />{/* ★便 L-3-2: storeId＝過徴収 warn の当期プレビュー */}
+                <DailyPayForm castId={selCast.id} castName={selCast.name} storeId={selCast.store_id} dateDefault={issueDateDefaultOf(today)} />{/* ★便 L-3-2: storeId＝過徴収 warn の当期プレビュー */}
               </div>
               {/* ★0160（裁定326-3・便 M2-2）: 今月のノルマ（本指名／場内／同伴／売上・月単位＝今月／翌月・空欄＝目標なし）＝set_cast_quota。
                   キャストのマイページに「実績／目標・達成率」で出る（目標が無い項目は出ない）。owner／manager のみ（page.tsx が他ロールを redirect 済み）。 */}
@@ -1499,6 +1501,7 @@ export default function CastsBoard({
                         <label style={lbl}>適用開始（給与期の初日）<br /><DatePicker value={empForm.from} disabled={busy} onChange={(v) => setEmpForm({ ...empForm, from: v })} width={150} ariaLabel="適用開始" /></label>{/* ★M-82 */}
                         <button style={btnGold} disabled={busy} onClick={() => void saveEmployment(selCast)}>変更する</button>
                         <button style={btnGhost} disabled={busy} onClick={() => { setEmpForm(null); setEmpMsg(null); }}>やめる</button>
+                        <p style={{ flexBasis: "100%", fontSize: 12, color: "var(--champ)", margin: "2px 0 0" }} data-emp-tax-note="1">税の設定（源泉の区分）も見直してください。</p>{/* ★相談役 11/24 2:20 の判断 7: 契約区分を変える画面に 1 行だけ */}
                       </div>
                     )}
                     {empMsg && <Message kind={empMsg.kind} onDismiss={() => setEmpMsg(null)}>{empMsg.text}</Message>}

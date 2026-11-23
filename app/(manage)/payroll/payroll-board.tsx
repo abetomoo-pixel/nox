@@ -1,6 +1,6 @@
 "use client";
 
-import { jstToday, jstThisMonth } from "@/lib/nox/jst-today"; // ★起票145: JST の今日・今月（UTC だと 0:00〜9:00 が JST の昨日）
+import { jstThisMonth, bizToday, cutoffHmOf } from "@/lib/nox/jst-today"; // ★起票145: JST の今日・今月（UTC だと 0:00〜9:00 が JST の昨日）
 import { useCallback, useEffect, useRef, useState } from "react";
 import Loading from "@/components/ui/loading"; // ★M-135: 読み込み中の表示の共通部品
 import Link from "next/link"; // ★便 SH-UI-c C-2 ③
@@ -242,16 +242,17 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
     setOpenBal((ob ?? []) as { cast_id: string; cast_name: string; open_total: number; n: number; oldest_on: string }[]);
     // ★M-123（裁定464 付帯①・0198 のフラグ便）: 貸付台帳（view cast_loans・直近 30 件）と「同意未」（cast_plan → comp_plans.advance_loan_agreed）
     if (mig0198On()) {
-      const [{ data: ll }, { data: cp }] = await Promise.all([
+      const [{ data: ll }, { data: cp }, { data: stc }] = await Promise.all([
         supabase.from("cast_loans").select("id, cast_id, cast_name, biz_date, amount, repaid, remaining, status, ack_method, note").eq("store_id", storeId).order("biz_date", { ascending: false }).limit(30),
         supabase.from("cast_plan").select("cast_id, plan_id, valid_from, valid_to").eq("store_id", storeId),
+        supabase.from("stores").select("settings_json").eq("id", storeId).maybeSingle(), // ★起票145 の訂正: 同意の判定は営業日の今日（締めの時刻はここで読む＝店の読み込みの順に依らない）
       ]);
       const plans = (cp ?? []) as CastPlanRow[];
       const planIds = [...new Set(plans.map((p) => p.plan_id))];
       const { data: cps } = planIds.length ? await supabase.from("comp_plans").select("id, advance_loan_agreed").in("id", planIds) : { data: [] };
       const agreedByPlan: Record<string, boolean | null> = Object.fromEntries(((cps ?? []) as { id: string; advance_loan_agreed: boolean | null }[]).map((p) => [p.id, p.advance_loan_agreed]));
       setLoanLedger((ll ?? []) as LoanRow[]);
-      setLoanAgreed(loanAgreedMapOf(plans, agreedByPlan, jstToday()));
+      setLoanAgreed(loanAgreedMapOf(plans, agreedByPlan, bizToday(cutoffHmOf((stc as { settings_json?: unknown } | null)?.settings_json))));
     } else { setLoanLedger(null); setLoanAgreed({}); }
     setSum4(null);
     setUnpaid(null); setPrevNet(null);
@@ -1200,7 +1201,7 @@ ${md.message}（入れずに確定すると控除 0 のまま確定します）`
                     {/* ★裁定300-2（2026-09-25）: 前借り／送り実費の入口（このキャスト・この期に固定・確定後は読取のみ）＝共通部品・既存 RPC。発行後はプレビュー再計算（advanceDeduct／okuriDeduct に反映）。残高は 0156 */}
                     <p style={{ fontSize: 11.5, fontWeight: 800, color: "var(--champ)", margin: "10px 0 2px" }}>前借り（貸付）／送り実費{adjEditable ? "" : "（確定済み・読取のみ）"}</p>
                     <AdvanceOkuriForm storeId={storeId} casts={[]} castId={r.castId} castName={r.castName}
-                      dateDefault={issueDateDefaultOf(jstToday(), `${period}-01`, periodEndOf(period))}
+                      dateDefault={issueDateDefaultOf(bizToday(cutoffHm), `${period}-01`, periodEndOf(period))}
                       readOnly={!adjEditable} onIssued={() => { void preview(); }} />
                     {/* ★便 X-6: 右寄せ（パネル内の他ボタンと揃える）・≤900px は全幅（.nox-actions.end） */}
                     <div className="nox-actions" style={{ marginTop: 10 }}>{/* ★X-13-25（便 X-13d-2a）: 中央寄せ＝共通 .nox-actions（他画面の閉じる行と同じ） */}
