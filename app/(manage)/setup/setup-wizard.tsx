@@ -24,6 +24,7 @@ import { assistedMarksOf } from "@/lib/nox/ops/assist";
 import {
   CSV_HEADER, PIN_RE, V5_STEPS, V5_TYPES, WD, applyType, buildV5Plan, castPlanOf, clone, genPin, kindVal, menuCount, normRule, parseCsv, rebuildBack, seatNames, slideTiersFor, v5CheckSelectorOf, v5Checks, v5DefaultState, v5TypeName, v5ZeroPriceItems,
   type V5Cast, type V5Ctx, type V5Rule, type V5State, type V5Step, type V5Type, ROUND_MODE_LABEL, TIME_MODE_LABEL, cardFeePctOf, payDayOf, trialDaysOf, cashRateOf, cashFloatOf, autoConfirmHoursOf, svcVipOf, okuriBaseOf, okuriFlatBaseMissingOf, RATE_SLIDE_TIERS_LATER, PAY_RATE_TIERS_HREF, RATE_SLIDE_BASE_UNTIL_TIERS, OKURI_FLAT_BASE_LABEL, OKURI_FLAT_BASE_REQUIRED, CAST_REGISTER_SETUP_NOTE } from "@/lib/nox/setup/v5";
+import { castStepFailTextOf } from "@/lib/nox/setup/cast-errors"; // ★起票143（■1-c）
 import { mig0190On, mig0191On, mig0197On, mig0202bOn } from "@/lib/nox/rules-0175/flag"; // ★0190／0191 のフラグ true 便: 器が入った項目は「後で（マスタから）」を出さない
 import type { ProductRow } from "@/lib/nox/setup/template-plan";
 
@@ -93,6 +94,8 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
   const [castMsg, setCastMsg] = useState<string | null>(null);
   const [dowMsg, setDowMsg] = useState<string | null>(null); // ★M-144 ③: 定休日を足したとき料金ルールから外した名前の 1 行
   const [castBusy, setCastBusy] = useState(false);
+  // ★起票143（相談役 11/23 16:40 の ■1-d）: 途中で止まった人＝作れた段（キャストの行など）の結果と済んだ段。押し直したら続きから（同じ名前の行を二重に作らない・この画面を開いている間）
+  const pendingCastRef = useRef<Map<string, { created: Record<string, unknown>; done: Set<string> }>>(new Map());
   const [newCat, setNewCat] = useState("");
   // ★便 M6 メニューテンプレート（業態×価格帯）＝選んだテンプレート・割りもの無料・全体の価格 ±%
   const [tplPick, setTplPick] = useState("");
@@ -178,7 +181,7 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
   const planAll = useMemo(() => buildV5Plan(S, ctx), [S, ctx]);
 
   // ── 実行（この内容で始める）＝計画を順に・route は fetch・useResult は直前の結果を差す・guard は既存データで skip ──
-  async function runSteps(steps: V5Step[], opts: { onIssued?: (x: Issued) => void }): Promise<{ ok: boolean; created: Record<string, unknown>; error?: string; at?: number; log: string[] }> {
+  async function runSteps(steps: V5Step[], opts: { onIssued?: (x: Issued) => void; created0?: Record<string, unknown>; skipKeys?: ReadonlySet<string> }): Promise<{ ok: boolean; created: Record<string, unknown>; error?: string; at?: number; log: string[] }> {
     const c = { seats: counts.seats, products: counts.products, plans: counts.plans, rules: counts.rules };
     try {
       const [{ count: s }, { count: p }, { count: pl }, { count: ru }] = await Promise.all([
@@ -187,9 +190,10 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
       c.seats = s ?? 0; c.products = p ?? 0; c.plans = pl ?? 0; c.rules = ru ?? 0;
     } catch { /* 件数が読めなければ props の値 */ }
     const guardOk = (st: V5Step) => st.guard === "seats_empty" ? c.seats === 0 : st.guard === "products_empty" ? c.products === 0 : st.guard === "plans_empty" ? c.plans === 0 : st.guard === "rules_empty" ? c.rules === 0 : true;
-    const created: Record<string, unknown> = {}; const log: string[] = [];
+    const created: Record<string, unknown> = { ...(opts.created0 ?? {}) }; const log: string[] = []; // ★起票143（■1-d）: 押し直し＝作れた段の結果を引き継ぐ
     for (let i = 0; i < steps.length; i++) {
       const st = steps[i];
+      if (opts.skipKeys?.has(st.key)) { log.push(`skip: ${st.label}（前に済んだ段）`); continue; } // ★起票143（■1-d）: 済んだ段は飛ばして続きから
       if (!guardOk(st)) { log.push(`skip: ${st.label}（既存データあり＝二重投入しない）`); continue; }
       try {
         if (st.api) {
@@ -241,8 +245,15 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
   async function addCast(c: V5Cast) {
     setCastBusy(true); setCastMsg(null);
     const steps = castPlanOf(c, store.id, planIds, S.payroll.okuriMode === "fixed");
-    const r = await runSteps(steps, {});
-    if (!r.ok) { setCastMsg(`${c.g} の登録に失敗: ${r.error}`); setCastBusy(false); return false; }
+    const resume = pendingCastRef.current.get(c.g);
+    const r = await runSteps(steps, { created0: resume?.created, skipKeys: resume?.done });
+    if (!r.ok) { // ★起票143（■1-c）: だれの・どの段で止まったかを日本語で 1 行（英字の理由を出さない）。作れた段は覚えて、押し直したら続きから
+      const at = r.at ?? 0; const st = steps[at];
+      const madeCast = typeof r.created[`cast_${c.g}`] === "string";
+      if (madeCast) pendingCastRef.current.set(c.g, { created: r.created, done: new Set([...(resume?.done ?? []), ...steps.slice(0, at).map((x) => x.key)]) });
+      setCastMsg(castStepFailTextOf(c.g, st?.label ?? "登録", st?.rpc ?? null, r.error, madeCast)); setCastBusy(false); return false;
+    }
+    pendingCastRef.current.delete(c.g);
     let inv = false;
     const castId = r.created[`cast_${c.g}`];
     if (c.inv && c.mail?.trim() && typeof castId === "string") {
@@ -741,7 +752,7 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
                 <label style={{ display: "flex", gap: 10, alignItems: "center", alignSelf: "end", minHeight: 48 }}><input type="checkbox" checked={f.invite} onChange={(e) => up((s) => { s.castForm.invite = e.target.checked; })} style={{ width: 22, height: 22 }} /><span>メールがあれば招待を送る</span></label>
               </div>
               <p style={note}>体験入店を選ぶと、待遇プランは「体験入店」（時給 ¥{yen(S.pay.trial)}・{S.pay.trialDays} 日）になります。源泉の区分は契約区分から既定で入ります（業務委託＝{S.payroll.whtCast === "hostess" ? "ホステス報酬" : "対象外"}・雇用＝給与）。生年月日は 18 歳の確認に使います（必須）。</p>
-              {castMsg && <Message kind={/失敗/.test(castMsg) ? "error" : "success"}>{castMsg}</Message>}
+              {castMsg && <Message kind={/失敗|止まりました/.test(castMsg) ? "error" : "success"}>{castMsg}</Message>}
               <div className="nox-actions" style={{ marginTop: 8 }}><button type="button" style={{ ...t.btnGold }} disabled={castBusy || !f.g.trim() || !f.birthday} data-addcast="1" onClick={() => void addCast({ g: f.g.trim(), n: f.n, st: f.st, kind: f.kind, plan: f.st === "体入" ? "体験入店" : f.plan, tel: f.tel, mail: f.mail, pin: PIN_RE.test(f.pin) ? f.pin : genPin(), dist: f.dist, inv: f.invite && !!f.mail.trim(), birthday: f.birthday }).then((ok) => { if (ok) up((s) => { s.castForm = { ...s.castForm, g: "", n: "", st: "在籍", plan: "基本プラン", tel: "", mail: "", pin: "", dist: "mid", birthday: "" }; }); })}>{castBusy ? "登録中…" : "登録して次の人へ"}</button></div>
             </section>
           ) : (
@@ -759,7 +770,7 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
                   <tbody>{S.csvRows.map((r, i) => <tr key={i}><td style={t.td}>{r.err ? <span className="nox-stpill warn">{r.err}</span> : "✓"}</td>{r.c.map((v, j) => <td key={j} style={t.td}>{v}</td>)}</tr>)}</tbody></table></div>
                 <div className="nox-actions" style={{ marginTop: 8 }}><button type="button" style={t.btnGold} disabled={castBusy} data-importcsv="1" onClick={() => void importCsv()}>{S.csvRows.filter((r) => !r.err).length} 人を登録する</button></div>
               </>)}
-              {castMsg && <Message kind={/失敗/.test(castMsg) ? "error" : "success"}>{castMsg}</Message>}
+              {castMsg && <Message kind={/失敗|止まりました/.test(castMsg) ? "error" : "success"}>{castMsg}</Message>}
             </section>
           )}
           <section style={{ ...card, marginTop: 10 }} data-setup-cast-list={S.casts.length}>

@@ -438,11 +438,14 @@ export function buildV5Plan(S: V5State, ctx: V5Ctx): { steps: V5Step[]; deferred
   return { steps, deferred };
 }
 
+/** ★起票143: 契約区分の開始日＝今月の 1 日（JST・set_cast_employment は給与期の初日だけ受ける） */
+export const monthStartJstOf = (now: Date): string => new Date(now.getTime() + 9 * 3600_000).toISOString().slice(0, 8) + "01";
+
 /** 完了画面＝キャスト 1 人の登録計画（cast_create→区分→プラン→PIN→送り距離・招待は route） */
-export function castPlanOf(c: V5Cast, storeId: string, planIds: { basic: string | null; trial: string | null }, okuriFixed: boolean): V5Step[] {
+export function castPlanOf(c: V5Cast, storeId: string, planIds: { basic: string | null; trial: string | null }, okuriFixed: boolean, now: Date = new Date()): V5Step[] {
   const out: V5Step[] = []; const k = `cast_${c.g}`;
   out.push({ key: k, group: "cast", label: `キャスト ${c.g}`, rpc: "cast_create", args: { p_store_id: storeId, p_name: c.g, p_birthday: c.birthday || null, p_real_name: c.n?.trim() || null, p_kind: c.st === "体入" ? "体入" : null } });
-  out.push({ key: `${k}_emp`, group: "cast", label: `${c.g} の契約区分（${c.kind}）`, rpc: "set_cast_employment", useResult: { from: k, as: "p_cast_id" }, args: { p_employment: c.kind === "雇用" ? "雇用" : "委託", p_valid_from: new Date().toISOString().slice(0, 10) } });
+  out.push({ key: `${k}_emp`, group: "cast", label: `${c.g} の契約区分（${c.kind}）`, rpc: "set_cast_employment", useResult: { from: k, as: "p_cast_id" }, args: { p_employment: c.kind === "雇用" ? "雇用" : "委託", p_valid_from: monthStartJstOf(now) } }); // ★起票143（相談役 11/23 16:40 の ■1-a）: 今月の 1 日（JST）＝使い始めた最初の月を登録した契約区分で計算する（DB は給与期の初日だけ受ける＝今日だと 1 日以外は bad valid_from）
   const pid = c.st === "体入" || c.plan === "体験入店" ? planIds.trial : planIds.basic;
   if (pid) out.push({ key: `${k}_plan`, group: "cast", label: `${c.g} の待遇プラン（${c.st === "体入" || c.plan === "体験入店" ? "体験入店" : "基本プラン"}）`, rpc: "set_cast_plan", useResult: { from: k, as: "p_cast_id" }, args: { p_plan_id: pid, p_overrides: {} } });
   out.push({ key: `${k}_pin`, group: "cast", label: `${c.g} の PIN`, rpc: "set_cast_pin", useResult: { from: k, as: "p_cast_id" }, args: { p_pin: (mig0191On() ? PIN_RE : /^\d{4}$/).test(c.pin) ? c.pin : genPin() } });   // ★0191 ★3
