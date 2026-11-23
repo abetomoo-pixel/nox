@@ -50,5 +50,15 @@ check("E collect は旗のときだけ cast_employment を読む", /if \(mig0206
 check("E collect は employmentByCastOf で期首を win.periodStart・期末を win.periodEnd に渡す", col.includes("win.periodStart, win.periodEnd);\n") || col.includes("win.periodStart, win.periodEnd);\r\n"));
 check("E 旗は false（案・本番は未適用）", MIG_0206_APPLIED === false);
 
+// (F) 版 2（相談役 11/24 2:20 の判断 5）: 懲戒の減給の判定も期首の区分（同じ純関数の決まり）
+const ap = fs.readFileSync("lib/nox/payroll/auto-penalty.ts", "utf8");
+check("F auto-penalty は旗のときだけ cast_employment を読み、employmentAtPeriodOf で期首の区分を選ぶ", /if \(mig0206On\(\)\) \{[\s\S]*?from\("cast_employment"\)[\s\S]*?emp = employmentAtPeriodOf\(rows, ps, pe, emp\);/.test(ap));
+check("F auto-penalty は雇用なら自動の控除を作らない（判定は emp＝期首の区分）", ap.includes('if (emp === "雇用") return { kind: "skipped", why: "employee" };'));
+const mig = fs.readFileSync("docs/tmp/0206/0206_cast_employment.sql", "utf8");
+check("F 0206 版 2 の payroll_adjustment_add は期首に有効な行→期の中で最も早い行→casts.employment の順（collect と同じ決まり）",
+  /v_emp := coalesce\(\s*\(select e\.employment from public\.cast_employment e\s*where e\.cast_id = p_cast_id and e\.valid_from <= v_ps and \(e\.valid_to is null or e\.valid_to >= v_ps\)/.test(mig) && /e\.valid_from > v_ps and e\.valid_from <= v_pe/.test(mig) && /v_emp\);/.test(mig));
+// 1 月から雇用の人＝11 月・12 月の期は委託（懲戒の減給は断る）・1 月は雇用（純関数で同じ）
+for (const [k, want] of [["2026-11", "委託"], ["2026-12", "委託"], ["2027-01", "雇用"]] as const) check(`F 懲戒の減給の判定に使う区分 ${k}＝${want}`, employmentAtPeriodOf(toKoyo, ...P[k], "雇用") === want);
+
 if (fails.length) { console.error(`verify:nox-emp-history NG (${fails.length} fails / ${pass} pass)`); for (const f of fails) console.error("  ✗ " + f); process.exit(1); }
 console.log(`verify:nox-emp-history OK (${pass} checks)`);
