@@ -3,6 +3,7 @@
 // ★0154 D4（2026-09-24・裁定293 追補1）: 「精算調整を登録」（委託のみ・裁定265 型モーダル）。
 //   ひな形（store の settlement_presets）と額を初期表示・額は変更可 → payroll_adjustment_add(source='settlement'・basis＝ひな形の文・target＝当日の shift)。
 //   run＝当期（営業日の月）の draft を探す（無ければ「当期の給与が未作成です」）。runId を渡されたときはそれを使う（給与明細から）。
+import { jstToday } from "@/lib/nox/jst-today"; // ★起票145: JST の今日・今月（UTC だと 0:00〜9:00 が JST の昨日）
 import { useEffect, useState } from "react";
 import Loading from "@/components/ui/loading"; // ★M-135: 読み込み中の表示の共通部品
 import MoneyInput from "@/components/ui/money-input"; // ★便 X-11-6: 金額欄の共通部品（数字のみ・3 桁区切り・右に「円」）
@@ -41,7 +42,7 @@ export default function SettlementModal({ storeId, castId, castName, biz, shiftI
       const first = list.find((p) => p.target === target) ?? list[0];
       if (first) { setCode(first.code); setAmount(String(first.amount)); }
       if (runId) { setRun({ id: runId, status: "draft" }); return; }
-      const period = (biz ?? new Date().toISOString().slice(0, 10)).slice(0, 7);
+      const period = (biz ?? jstToday()).slice(0, 7);
       const { data: r } = await supabase.from("payroll_runs").select("id, status").eq("store_id", storeId).eq("period", period).maybeSingle();
       if (alive) setRun(r ? { id: r.id as string, status: r.status as string } : null);
     })();

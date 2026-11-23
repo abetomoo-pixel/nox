@@ -8,6 +8,7 @@
 // 掘り起こし＝休眠込み時のみ「来店が古い順」ソート（クライアント側 sort・RPC の既定順は触らない。
 // 来店なし（last_visit null）は掘り起こし対象外に近いため末尾に置く）。可視スコープは RPC CTE が担保＝
 // cast は RPC 側で true でも休眠不可視（段23-3 実測）・UI でもトグルを出さない（canDormant 一次ガード）。
+import { jstToday, jstThisMonth, jstTodayPlus } from "@/lib/nox/jst-today"; // ★起票145: JST の今日・今月（UTC だと 0:00〜9:00 が JST の昨日）
 import { LoadMoreBar, useLoadMore } from "@/components/ui/load-more"; // ★便 M5b M-60
 import Loading from "@/components/ui/loading"; // ★M-135: 読み込み中の表示の共通部品
 import { useRowFlash } from "@/lib/nox/ui/use-row-flash"; // ★M-135: 保存した行を一瞬強調
@@ -325,7 +326,7 @@ export default function CustomersBoard({
   const highCount = rows.filter((r) => r.churn_tier === "high").length;
   const midCount = rows.filter((r) => r.churn_tier === "mid").length;
   // 段U2 KPI: いずれも rows（customer_list_summary の返り）からの再掲＝新規取得も新規集計もしない。
-  const thisMonth = new Date().toISOString().slice(0, 7);
+  const thisMonth = jstThisMonth();
   const monthVisited = rows.filter((r) => r.last_visit && r.last_visit.slice(0, 7) === thisMonth).length;
   const bottleTotal = rows.reduce((a, r) => a + (r.active_bottles ?? 0), 0);
   const selRow = sel ? rows.find((r) => r.customer_id === sel) ?? null : null;
@@ -729,8 +730,8 @@ export default function CustomersBoard({
                   </p>
                 : dBottles.map((b) => {
                     // E8-3 #7: 期限接近ハイライト（超過=bad・14日以内=gold2）
-                    const today = new Date().toISOString().slice(0, 10);
-                    const soon = new Date(Date.now() + 14 * 86400_000).toISOString().slice(0, 10);
+                    const today = jstToday();
+                    const soon = jstTodayPlus(14);
                     const expTone = b.expires_on
                       ? (b.expires_on < today ? "var(--bad)" : b.expires_on <= soon ? "var(--gold2)" : "var(--v2-muted)")
                       : null;

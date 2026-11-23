@@ -4,6 +4,7 @@
 //   300-1: キャスト選択は共通 picker（裁定259）・金額／日付／メモ／発行は 1 段のフォーム行（.nox-issue-row・≤899px は 1 列＝M5 の型）。
 //   300-2: castId を渡すとキャスト固定（picker は出さない）・readOnly（確定後）は入口を出さず注記のみ。
 //   メッセージは裁定281 の型（Message・同じカード内・×で消す）。
+import { jstToday } from "@/lib/nox/jst-today"; // ★起票145: JST の今日・今月（UTC だと 0:00〜9:00 が JST の昨日）
 import { useEffect, useState } from "react";
 import MoneyInput from "@/components/ui/money-input"; // ★便 X-11-6: 金額欄の共通部品（数字のみ・3 桁区切り・右に「円」）
 import Picker from "@/components/nox/picker";
@@ -82,7 +83,7 @@ function IssueRow({ kind, storeId, casts, castId, castName, dateDefault, disable
       const plans = (cp ?? []) as CastPlanRow[]; const ids = [...new Set(plans.map((p) => p.plan_id))];
       const { data: cps } = ids.length ? await sb.from("comp_plans").select("id, advance_loan_agreed").in("id", ids) : { data: [] };
       if (!alive) return;
-      const map = loanAgreedMapOf(plans, Object.fromEntries(((cps ?? []) as { id: string; advance_loan_agreed: boolean | null }[]).map((p) => [p.id, p.advance_loan_agreed])), new Date().toISOString().slice(0, 10));
+      const map = loanAgreedMapOf(plans, Object.fromEntries(((cps ?? []) as { id: string; advance_loan_agreed: boolean | null }[]).map((p) => [p.id, p.advance_loan_agreed])), jstToday());
       setLoanAgreed(loanAgreedOf(map, loanCast));
     })();
     return () => { alive = false; };

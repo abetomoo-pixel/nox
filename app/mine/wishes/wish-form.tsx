@@ -6,6 +6,7 @@
 //   営業時間＝cast は store_business_hours を読めない（RLS パターン2）ため一括既定 20:00〜26:00（従来と同値）＋日別の上書き。
 //   提出＝選択日を昇順に既存 shift_wish_submit を逐次（新 RPC なし・非原子）。失敗は rpcErrJa で和文・赤で残し再提出可（裁定281 の型）。
 //   取り下げ＝既存 shift_wish_withdraw（WithdrawButton）のまま。締切超過は案内のみ（裁定43）。1 日 1 枠は DB の部分 unique が守る。
+import { jstToday } from "@/lib/nox/jst-today"; // ★起票145: JST の今日・今月（UTC だと 0:00〜9:00 が JST の昨日）
 import TimeInput from "@/components/ui/time-input"; // ★便 M5b M-51: 時刻欄の共通部品（時計アイコン・時と分を選ぶ・翌の表示）
 import { useCallback, useEffect, useState } from "react";
 import { hmLabelOf, hmRangeErrorOf } from "@/lib/nox/time/hhmm"; // ★裁定318（便 X-9-2）: 時刻入力の共通部品（blur で HH:MM に正規化）
@@ -39,7 +40,7 @@ const btnLight: React.CSSProperties = { ...t.btnGhost, ...t.btnSm };
 export default function WishForm({ mode = "shift" }: { mode?: WishMode }) {
   const needsTimes = wishNeedsTimes(mode);
   const router = useRouter();
-  const today = new Date().toISOString().slice(0, 10);
+  const today = jstToday();
   const [periods, setPeriods] = useState<OpenPeriod[] | null>(null); // ★N5: null＝RPC 未適用（0151 手貼り前）＝案内も活性化も出ない
   const [month, setMonth] = useState(today.slice(0, 7));
   useYmQuery(month, setMonth); // ★306-1／306-4: ?ym と同期

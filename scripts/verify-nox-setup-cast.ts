@@ -20,6 +20,7 @@ import { castStepErrJa, castStepFailTextOf, CAST_STEP_UNKNOWN } from "../lib/nox
 import { resolvePayrollWindow } from "../lib/nox/payroll/window";
 import { collectPeriod } from "../lib/nox/payroll/collect";
 import { computePayrollDraft } from "../lib/nox/payroll/core";
+import { bizDateOf } from "../lib/nox/biz-date";
 
 const env = loadEnvOrExit(["SUPABASE_DB_URL", "NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "SUPABASE_SECRET_KEY", "SEED_PASSWORD"]);
 let pass = 0; const fails: string[] = [];
@@ -126,7 +127,11 @@ async function main() {
   try {
     const { data: pl } = await admin.from("comp_plans").select("id, base").eq("store_id", storeId).eq("is_active", true).order("created_at").limit(1).single();
     const planId = pl!.id as string, base = pl!.base as number;
-    const now = new Date(); const today = new Date(now.getTime() + 9 * 3600_000).toISOString().slice(0, 10);
+    // ★2026-11-24（f0 の 2 本目が 0:14 に赤）: 勤務の日は「営業日の今日」（店の締めの時刻で切る）。下書きは営業日の今日より後の日を数えない（anomaly.ts）＝暦の JST の今日だと 0:00〜締めの時刻は翌日扱いで 0 円になる。
+    const now = new Date();
+    const calToday = new Date(now.getTime() + 9 * 3600_000).toISOString().slice(0, 10);
+    const { cutoffHm } = await resolvePayrollWindow(admin as SupabaseClient, storeId, calToday.slice(0, 7));
+    const today = bizDateOf(now.toISOString(), cutoffHm);
     const next = new Date(Date.parse(`${today}T00:00:00Z`) + 86400_000).toISOString().slice(0, 10);
     const period = today.slice(0, 7);
     const ids: Record<string, string> = {};

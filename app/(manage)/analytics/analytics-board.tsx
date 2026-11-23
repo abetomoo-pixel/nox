@@ -17,6 +17,7 @@
 //   #1 4ビュー切替（サマリー/売上/キャスト/顧客）＝既存セクションの再配置＋新規は既存経路の直読のみ。
 //   ★時刻粒度の集計（カテゴリ5分類・時間帯・ヒートマップ・コホート）は集計経路が未提供のため
 //     プレースホルダ（製品文言）に留める。DB・RPC は不触。
+import { jstThisMonth } from "@/lib/nox/jst-today"; // ★起票145: JST の今日・今月（UTC だと 0:00〜9:00 が JST の昨日）
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import Loading from "@/components/ui/loading"; // ★M-135: 読み込み中の表示の共通部品
 import PageHead from "@/components/ui/page-head";
@@ -138,7 +139,7 @@ export default function AnalyticsBoard({
   stores: Store[]; casts: Cast[]; isOwner: boolean;
 }) {
   const [storeId, setStoreId] = useState(stores[0]?.id ?? "");
-  const thisMonth = new Date().toISOString().slice(0, 7);
+  const thisMonth = jstThisMonth();
   const [period, setPeriod] = useState(thisMonth);
   const [sales, setSales] = useState<SalesRow[]>([]);
   const [ranking, setRanking] = useState<RankRow[]>([]);

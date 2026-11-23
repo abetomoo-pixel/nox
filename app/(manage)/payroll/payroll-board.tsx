@@ -1,5 +1,6 @@
 "use client";
 
+import { jstToday, jstThisMonth } from "@/lib/nox/jst-today"; // ★起票145: JST の今日・今月（UTC だと 0:00〜9:00 が JST の昨日）
 import { useCallback, useEffect, useRef, useState } from "react";
 import Loading from "@/components/ui/loading"; // ★M-135: 読み込み中の表示の共通部品
 import Link from "next/link"; // ★便 SH-UI-c C-2 ③
@@ -112,7 +113,7 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
 }) {
   const supabase = createClient();
   const [storeId, setStoreId] = useState(initialStoreId && stores.some((s) => s.id === initialStoreId) ? initialStoreId : (stores[0]?.id ?? ""));
-  const [period, setPeriod] = useState(initialPeriod ?? new Date().toISOString().slice(0, 7));
+  const [period, setPeriod] = useState(initialPeriod ?? jstThisMonth());
   const [rows, setRows] = useState<Row[] | null>(null);
   const [blockers, setBlockers] = useState<Blocker[]>([]);
   const [warnings, setWarnings] = useState<Warning[]>([]); // ★裁定98
@@ -250,7 +251,7 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
       const { data: cps } = planIds.length ? await supabase.from("comp_plans").select("id, advance_loan_agreed").in("id", planIds) : { data: [] };
       const agreedByPlan: Record<string, boolean | null> = Object.fromEntries(((cps ?? []) as { id: string; advance_loan_agreed: boolean | null }[]).map((p) => [p.id, p.advance_loan_agreed]));
       setLoanLedger((ll ?? []) as LoanRow[]);
-      setLoanAgreed(loanAgreedMapOf(plans, agreedByPlan, new Date().toISOString().slice(0, 10)));
+      setLoanAgreed(loanAgreedMapOf(plans, agreedByPlan, jstToday()));
     } else { setLoanLedger(null); setLoanAgreed({}); }
     setSum4(null);
     setUnpaid(null); setPrevNet(null);
@@ -1199,7 +1200,7 @@ ${md.message}（入れずに確定すると控除 0 のまま確定します）`
                     {/* ★裁定300-2（2026-09-25）: 前借り／送り実費の入口（このキャスト・この期に固定・確定後は読取のみ）＝共通部品・既存 RPC。発行後はプレビュー再計算（advanceDeduct／okuriDeduct に反映）。残高は 0156 */}
                     <p style={{ fontSize: 11.5, fontWeight: 800, color: "var(--champ)", margin: "10px 0 2px" }}>前借り（貸付）／送り実費{adjEditable ? "" : "（確定済み・読取のみ）"}</p>
                     <AdvanceOkuriForm storeId={storeId} casts={[]} castId={r.castId} castName={r.castName}
-                      dateDefault={issueDateDefaultOf(new Date().toISOString().slice(0, 10), `${period}-01`, periodEndOf(period))}
+                      dateDefault={issueDateDefaultOf(jstToday(), `${period}-01`, periodEndOf(period))}
                       readOnly={!adjEditable} onIssued={() => { void preview(); }} />
                     {/* ★便 X-6: 右寄せ（パネル内の他ボタンと揃える）・≤900px は全幅（.nox-actions.end） */}
                     <div className="nox-actions" style={{ marginTop: 10 }}>{/* ★X-13-25（便 X-13d-2a）: 中央寄せ＝共通 .nox-actions（他画面の閉じる行と同じ） */}

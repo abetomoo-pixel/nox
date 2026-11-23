@@ -5,6 +5,7 @@
 //   金額＝payslips 凍結値（breakdown_json.pay.gross＋Σextras・net）を list.ts で足すだけ＝サーバ再計算なし（golden 6 値不変）。
 //   B4 部品の写し: KPI 4 枚（H18）・nox-seg 切替（H20）・印刷隔離 nox-printpage（H37）・変更履歴（H39・owner 限定）・状態バッジ（既存 nox-runbadge）。
 //   裁定238: 「明細へ」＝.nox-link（遷移）／「支払済みにする」＝実行（青塗り＝t.btnGold）／CSV・印刷＝補助（ghost）／店舗別・月別＝(4) 切替（nox-seg）。
+import { jstThisMonth } from "@/lib/nox/jst-today"; // ★起票145: JST の今日・今月（UTC だと 0:00〜9:00 が JST の昨日）
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Loading from "@/components/ui/loading"; // ★M-135: 読み込み中の表示の共通部品
 import { fmtPeriodYM } from "@/lib/nox/payroll/view"; // ★N3 AV-1（2026-09-24）: 期は YYYY/M
@@ -43,7 +44,7 @@ export default function PayrollList({ stores, isOwner }: { stores: Store[]; isOw
   const [msg, setMsg] = useState("");
   const [view, setView] = useState<"store" | "period">("store"); // (4) 切替＝nox-seg（B4 H20 写し・裁定238-a）
   const [storeSel, setStoreSel] = useState(stores[0]?.id ?? "");
-  const [periodSel, setPeriodSel] = useState(new Date().toISOString().slice(0, 7));
+  const [periodSel, setPeriodSel] = useState(jstThisMonth());
   const [busy, setBusy] = useState(false); // CSV／支払済み化の pending（連打ガード＝裁定 B5-7）
   const [payPick, setPayPick] = useState<ListRow | null>(null); // 支払済み化の確認ダイアログ（§3.3）
   const [payMsg, setPayMsg] = useState("");
@@ -95,7 +96,7 @@ export default function PayrollList({ stores, isOwner }: { stores: Store[]; isOw
   useEffect(() => { void load(); }, [load]);
 
   // ★X-13-14（便 X-13a）: 月別の期間候補＝当月＋過去 12 か月（run の有無に関わらず選択可）＋ run のある期間・確定済み（finalized／paid）に ✓ の印
-  const currentYm = new Date().toISOString().slice(0, 7);
+  const currentYm = jstThisMonth();
   const periods = useMemo(() => periodCandidatesOf(currentYm, (rows ?? []).map((r) => r.period), 12), [rows, currentYm]);
   const finalizedPeriods = useMemo(() => finalizedPeriodsOf(rows ?? []), [rows]);
   // ★X-13-12（便 X-13a）: 空状態の導線＝「先月のプレビューを開く」（期間選択付き・既定＝先月・店舗は選択中の店舗）

@@ -1,5 +1,6 @@
 "use client";
 
+import { jstToday, jstThisMonth } from "@/lib/nox/jst-today"; // ★起票145: JST の今日・今月（UTC だと 0:00〜9:00 が JST の昨日）
 import { hmLabelOf } from "@/lib/nox/time/hhmm"; // ★便 M5b M-51 追補: 日をまたぐ時刻は「翌02:00」
 import SegSelect from "@/components/ui/seg-select"; // ★M-82（裁定452・教訓133）: 固定の選択肢はボタン群
 import DatePicker from "@/components/ui/date-picker"; // ★M-82（裁定452・教訓133）: 日付は共通のピッカー
@@ -333,7 +334,7 @@ export default function ReportBoard({
       .order("created_at", { ascending: false });
     setRecvs((data ?? []) as unknown as Recv[]);
     // E8-2 #12: 今月回収 KPI（ar_collections 当月 biz_date 合算・表示専用）
-    const ym = new Date().toISOString().slice(0, 7);
+    const ym = jstThisMonth();
     const { data: ar } = await supabase.from("ar_collections")
       .select("amount").eq("store_id", storeId)
       .gte("biz_date", `${ym}-01`).lt("biz_date", `${monthAfter(ym)}-01`); // ★#66: 月末 lte -31 → 翌月 1 日 lt
@@ -830,7 +831,7 @@ export default function ReportBoard({
       {/* B6 売掛タブ（案7-A・owner/manager のみ・post-launch で C3 仕訳画面へ移設）。文言はモック現物（教訓D）。 */}
       {tab === "ar" && isManagerUp && (() => {
         // E8-2 #12: KPI＝残高（mig0092 残高式）/今月回収/期限超過/件数。期日ソートは due 昇順（null は末尾）。
-        const today = new Date().toISOString().slice(0, 10);
+        const today = jstToday();
         const balance = recvs.reduce((a, r) => a + remainOf(r), 0);
         const overdue = recvs.filter((r) => r.due && r.due < today).length;
         // ★B2-b（D40）: client フィルタ＝期限超過（due<today）／今月発生（created_at の営業日月＝裁定204）／一部回収（collected>0）。

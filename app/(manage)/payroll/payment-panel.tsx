@@ -7,6 +7,7 @@
 //   「支払状況を表示」の下に履歴一覧（当期間の payment_records・日付降順・cast 名・金額・方法・メモ・記録者＝users.name）。
 //   行の「支払済」数字を押すとその cast の履歴だけに絞る（もう一度押すと全員）。
 //   Y-5: この部品は /payroll（page.tsx が owner／manager 以外を redirect）にだけ載る＝cast／staff は未描画。
+import { jstToday } from "@/lib/nox/jst-today"; // ★起票145: JST の今日・今月（UTC だと 0:00〜9:00 が JST の昨日）
 import { useCallback, useState } from "react";
 import MoneyInput from "@/components/ui/money-input"; // ★便 X-11-6: 金額欄の共通部品（数字のみ・3 桁区切り・右に「円」）
 import { createClient } from "@/lib/supabase/client";
@@ -75,7 +76,7 @@ export default function PaymentPanel({ storeId, period }: { storeId: string; per
     const raw = amt[castId] ?? String(remaining);
     const amount = Number(raw);
     if (!Number.isInteger(amount) || amount <= 0) { setMsg("支払額は正の整数で入力してください。"); return; }
-    const paidAt = pdate[castId] || new Date().toISOString().slice(0, 10);
+    const paidAt = pdate[castId] || jstToday();
     // cast 単位の冪等キー。応答を受け取れるまで同一キーを再利用（応答喪失→再送でも DB 側 on conflict/replay で二重挿入なし）。
     // 応答（成功/4xx/5xx）を受け取れたら帰結確定＝キーを回転（意図的な同額の再記録を許容）。
     const idemKey = idemKeys[castId] ?? crypto.randomUUID();

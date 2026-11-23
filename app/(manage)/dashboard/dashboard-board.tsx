@@ -12,6 +12,7 @@
 //     他画面（shift-board / notices-board）と同じ列・同じ RLS を通る読取。
 //   ★予想人件費（段S-2）はホームには出さない（モックにも無い＝店長は /shift で見る）。
 //   ★cast ロールは page.tsx が /mine へ戻すため本ボードに到達しない（対象外）。
+import { jstToday } from "@/lib/nox/jst-today"; // ★起票145: JST の今日・今月（UTC だと 0:00〜9:00 が JST の昨日）
 import { hmLabelOf } from "@/lib/nox/time/hhmm"; // ★便 M5b M-51 追補: 日をまたぐ時刻は「翌02:00」
 import { NavIcon } from "@/components/ui/nav-icons"; // ★306-16
 import { useCallback, useEffect, useState } from "react";
@@ -136,7 +137,7 @@ export default function DashboardBoard({ storeId, storeName, cutoff, casts, shor
     for (const r of (gp ?? []) as Record<string, unknown>[]) {
       (rowsOf[r.cast_id as string] ??= []).push({ valid_from: r.valid_from as string, valid_to: (r.valid_to as string | null) ?? null, overrides_json: r.overrides_json });
     }
-    const calToday = new Date().toISOString().slice(0, 10);
+    const calToday = jstToday();
     setGuaNotices(guaranteeNoticesOf(casts.filter((c) => !sid || c.store_id === sid).map((c) => ({ name: c.name, rows: rowsOf[c.id] ?? [] })), calToday));
     const reports = (rs ?? []) as ReportRow[];
     setAtts((at ?? []) as Att[]);

@@ -3,6 +3,7 @@
 // ★便 A M-67（2026-11-04・教訓133 追記）: 日付入力の共通部品＝押して選ぶカレンダー（月送り・営業日基準＝定休日は薄く・今日に印）。ネイティブの date は使わない。
 //   見た目は時刻の部品（TimeInput＝.nox-time／.nox-time-btn／.nox-time-pop）と同じ殻＝新トークン 0。値は "YYYY-MM-DD"（空＝未入力）・min／max の外は押せない。
 //   closedDows（0=日..6=土）を渡すと定休日を薄く「休」（押せるかは isDisabled で決める＝既定は押せる）。
+import { jstToday } from "@/lib/nox/jst-today"; // ★起票145: JST の今日・今月（UTC だと 0:00〜9:00 が JST の昨日）
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { daysInMonthOf } from "@/lib/nox/month"; // ★x13h(1-2): 末日は lib/nox/month
 
@@ -31,7 +32,7 @@ export default function DatePicker({ value, onChange, min, max, disabled, ariaLa
   testId?: string;
 }) {
   const [open, setOpen] = useState(false);
-  const base = /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : (todayYmd ?? new Date().toISOString().slice(0, 10));
+  const base = /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : (todayYmd ?? jstToday());
   const [ym, setYm] = useState<[number, number]>([Number(base.slice(0, 4)), Number(base.slice(5, 7))]);
   const box = useRef<HTMLSpanElement>(null);
   useEffect(() => {

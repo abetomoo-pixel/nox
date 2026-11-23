@@ -1,3 +1,4 @@
+import { jstToday } from "../jst-today";
 // ★0188（裁定433・2026-10-29・MIG_0188_APPLIED の client）: 源泉の税率表（運営側・店ごとではない）の TS 鏡＝DB を知らない純関数。
 //   正本＝public.withholding_rates（0188 ★1・authenticated は SELECT だけ・行の追加は mig）。ここは「同じ 6 行」の写し＝明細・プレビュー・CSV・シミュの係数が
 //   支払日で行を選ぶ（裁定433 ①＝計算期間ではなく支払った日）。率は 2 世代とも 1021 bp＝golden 不変（2027-01-01 の行は内訳だけ違う）。
@@ -39,7 +40,7 @@ export function withholdingRateOf(kind: WithholdingRateKind, payDate?: string | 
   for (const r of WITHHOLDING_RATES) if (r.kind === kind && r.validFrom <= d && (!hit || r.validFrom > hit.validFrom)) hit = r;
   return hit;
 }
-const todayYmd = (): string => { const t = new Date(); return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`; };
+const todayYmd = (): string => jstToday(); // ★起票145: サーバ（UTC）でも JST の今日で行を選ぶ（前はサーバの時刻帯の今日＝Vercel では UTC）
 
 /** withholding_calc の鏡＝整数（bigint 相当の安全域＝課税額は 2^53 未満の整数）・行が無ければ null（RPC は 'no withholding rate'） */
 export function withholdingCalcOf(kind: WithholdingRateKind | "manual" | "none" | null | undefined, taxable: number, days: number, payDate?: string | null): number | null {

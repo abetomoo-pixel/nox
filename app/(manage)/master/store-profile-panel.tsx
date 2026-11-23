@@ -7,6 +7,7 @@
 //   読みは stores の直読（RLS 越し・owner は org 全店／manager は自店 1 件）。キー無しは既定（''／false）に倒す。
 //   保存後は同じ select で再取得して現値を表示。エラーは storeProfileErrJa で日本語へ。
 //   配置＝保存ボタンは .nox-actions で中央（裁定244）・トグルは切替＝例外。
+import { jstToday } from "@/lib/nox/jst-today"; // ★起票145: JST の今日・今月（UTC だと 0:00〜9:00 が JST の昨日）
 import { mig0201fOn } from "@/lib/nox/rules-0175/flag"; // ★0201f
 import { MYNUMBER_RETENTION_DEFAULT, mynumberRetentionValidOf } from "@/lib/nox/mynumber/discard-text";
 import { UnitBox } from "@/components/ui/unit-input"; // ★便 M5b M-50
@@ -445,7 +446,7 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
           <>
             <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
               <span style={{ fontSize: 13 }}>現在: <b>{PAY_TIME_BASIS_LABEL[tb.current]}</b></span>
-              {payTimeBasisApplyNoteOf(tb, new Date().toISOString().slice(0, 10)) && <span style={{ fontSize: 12, color: "var(--champ)", fontWeight: 700 }}>{payTimeBasisApplyNoteOf(tb, new Date().toISOString().slice(0, 10))}</span>}
+              {payTimeBasisApplyNoteOf(tb, jstToday()) && <span style={{ fontSize: 12, color: "var(--champ)", fontWeight: 700 }}>{payTimeBasisApplyNoteOf(tb, jstToday())}</span>}
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginTop: 8 }}>
               <SegSelect value={tbPick} onChange={(v) => setTbPick(v as PayTimeBasis)} options={[["punch", "実打刻"], ["shift", "確定シフトどおり"]]} />

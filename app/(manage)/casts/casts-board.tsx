@@ -3,6 +3,7 @@
 // キャスト管理ボード（F3d 体入採用 UI・モック「体入・採用管理」＋「新規キャスト登録」準拠）。
 // 操作は全て RPC 経由＝trial_register/trial_update/trial_hire/trial_reject／cast_create。
 // 真の防御は trials RLS（owner/manager 限定）＋各 RPC ゲート（UI は操作面）。
+import { jstToday, jstThisMonth } from "@/lib/nox/jst-today"; // ★起票145: JST の今日・今月（UTC だと 0:00〜9:00 が JST の昨日）
 import { mig0201fOn } from "@/lib/nox/rules-0175/flag"; // ★0201f
 import { MYNUMBER_DISCARD_NOTE_0201F, MYNUMBER_IN_SERVICE_LABEL, MYNUMBER_LAST_PAY_YEAR_LABEL } from "@/lib/nox/mynumber/discard-text";
 import { LoadMoreBar, useLoadMore } from "@/components/ui/load-more"; // ★便 M5b M-60
@@ -175,13 +176,13 @@ export default function CastsBoard({
   useEffect(() => { setProfEdit(false); setProfName(""); setProfJoined(""); }, [sel]);
   const [showAdd, setShowAdd] = useState(false);
   // ★裁定490（12 点の 1・6・8＝B2-1・2026-11-16）: 「体入を追加」の開始日（既定＝今日・必須）と、店の既定のプランが無い店で選ぶプラン
-  const [trialAdd, setTrialAdd] = useState<{ start: string; planId: string | null }>({ start: new Date().toISOString().slice(0, 10), planId: null });
+  const [trialAdd, setTrialAdd] = useState<{ start: string; planId: string | null }>({ start: jstToday(), planId: null });
   // 月次2数値（相談役メモ②）＝現物確認の結果★どちらも新規 RPC なしで取れる:
   //   今月指名＝既存 get_cast_ranking（cast_id 付きで hon/jonai/dohan を返す・dashboard と同じ呼び方）
   //   今月出勤＝attendance を月範囲で引いて cast_id 別に数える（(cast_id,date) UNIQUE ゆえ行数＝日数）
   const [rankOf, setRankOf] = useState<Record<string, { hon: number; jonai: number; dohan: number }>>({});
   const [attDaysOf, setAttDaysOf] = useState<Record<string, number>>({});
-  const month = new Date().toISOString().slice(0, 7);
+  const month = jstThisMonth();
   // E8-5 casts#2: ランク絞り込み（T2）。プルダウン新設禁止＝チップ（ボタン）で行う。
   //   "" = 全ランク／"none" = ランクなし／それ以外 = rank_id。
   const [rankFilter, setRankFilter] = useState<string>("");
@@ -219,7 +220,7 @@ export default function CastsBoard({
   const [guaRpc, setGuaRpc] = useState<"unknown" | "ok" | "missing">("unknown");
   const [guaForm, setGuaForm] = useState<{ mode: "new" | "extend"; amount: string; start: string; end: string } | null>(null);
   const [guaMsg, setGuaMsg] = useState<{ kind: MessageKind; text: string } | null>(null);
-  const today = new Date().toISOString().slice(0, 10); // 次回シフト（casts#6）と同じ日付の取り方
+  const today = jstToday(); // 次回シフト（casts#6）と同じ日付の取り方
   // ★0160（裁定326-3・便 M2-2）: 今月のノルマ＝cast_quotas（店×cast×月初 date・4 項目・NULL＝目標なし）。月は今月／翌月（month と同じ取り方）・保存は set_cast_quota（owner／manager 自店）
   const [quotaMonth, setQuotaMonth] = useState<string>(`${month}-01`);
   const [quotaCur, setQuotaCur] = useState<QuotaForm>(QUOTA_FORM_EMPTY);
@@ -443,7 +444,7 @@ export default function CastsBoard({
     if (!castId) return;
     let alive = true;
     void supabase.from("shifts").select("date, start_hm, end_hm, status")
-      .eq("cast_id", castId).gte("date", new Date().toISOString().slice(0, 10))
+      .eq("cast_id", castId).gte("date", jstToday())
       .order("date").limit(1)
       .then(({ data }) => { if (alive) setNextShift(((data ?? [])[0] as typeof nextShift) ?? null); });
     return () => { alive = false; };
@@ -792,7 +793,7 @@ export default function CastsBoard({
   const rankHit = (c: CastLogin) =>
     rankFilter === "" || (rankFilter === "none" ? !c.rank_id : c.rank_id === rankFilter);
   // ★裁定374（GV-B W-4）: 今期の時給＝プレビューの PayResult から（currentWageOf）・達成状況＝/mine と同じ cardAxesOf（個別＞プラン既定＞なし・採用軸だけ）
-  const calToday = new Date().toISOString().slice(0, 10);
+  const calToday = jstToday();
   const salesByCast = sumCastSales(w4.sales);
   const wageOf = (c: CastLogin): CurrentWage | null => { const pv = w4.pay[c.id]; if (!pv) return null; const a = castPlanOf[c.id]; const pl = a ? (plansById[a.planId] as unknown as { slide_period?: unknown; slide_apply?: unknown } | undefined) : undefined; return currentWageOf(pv.pay as never, { planName: pv.planName || (a ? plansById[a.planId]?.name : null) || null, slidePeriod: pl?.slide_period, slideApply: pl?.slide_apply ?? null, today: calToday, planBase: a ? plansById[a.planId]?.base ?? null : null, rows: planRowsOf[c.id] ?? [] /* ★便 P174 T-5（GV-55／56）: wageNowOf で時給・接尾・保証を 1 本に */ }); };
   const normAxesOfCast = (c: CastLogin): CardAxis[] => {
@@ -1311,13 +1312,13 @@ export default function CastsBoard({
               <div style={{ marginTop: 12, marginBottom: 12 }}>
                 <h3 style={{ ...secTitle, margin: "0 0 6px" }}>前借り（貸付）／送り実費</h3>
                 <AdvanceOkuriForm storeId={selCast.store_id} casts={[]} castId={selCast.id} castName={selCast.name}
-                  dateDefault={issueDateDefaultOf(new Date().toISOString().slice(0, 10))}
+                  dateDefault={issueDateDefaultOf(jstToday())}
                   okuriMode={okuriOf(selCast.store_id).mode} okuriBase={okuriOf(selCast.store_id).base} />
               </div>
               {/* ★0156（裁定309-6／309 追補2・便 V-4）: 日払いの発行（このキャストに固定・owner／manager＝page が他ロールを redirect 済み）。源泉は月次と同式（日数 1）でプレビュー・雇用は 0＋注記 */}
               <div style={{ marginTop: 12, marginBottom: 12 }}>
                 <h3 style={{ ...secTitle, margin: "0 0 6px" }}>日払いの発行</h3>
-                <DailyPayForm castId={selCast.id} castName={selCast.name} storeId={selCast.store_id} dateDefault={issueDateDefaultOf(new Date().toISOString().slice(0, 10))} />{/* ★便 L-3-2: storeId＝過徴収 warn の当期プレビュー */}
+                <DailyPayForm castId={selCast.id} castName={selCast.name} storeId={selCast.store_id} dateDefault={issueDateDefaultOf(jstToday())} />{/* ★便 L-3-2: storeId＝過徴収 warn の当期プレビュー */}
               </div>
               {/* ★0160（裁定326-3・便 M2-2）: 今月のノルマ（本指名／場内／同伴／売上・月単位＝今月／翌月・空欄＝目標なし）＝set_cast_quota。
                   キャストのマイページに「実績／目標・達成率」で出る（目標が無い項目は出ない）。owner／manager のみ（page.tsx が他ロールを redirect 済み）。 */}

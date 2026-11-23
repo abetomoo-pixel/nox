@@ -10,6 +10,7 @@
 // ボトル明細/登録・客×cast クロスはスコープ外（裁定済み）。
 // ボトルは件数のみ（bottle_keeps の SELECT は can_register 軸＝crm 軸の明細経路が現状無い）。
 // churn tier の再判定はしない（しきい値は RPC 側の責務）＝詳細は days_since 数値のみ。
+import { jstToday, jstThisMonth } from "@/lib/nox/jst-today"; // ★起票145: JST の今日・今月（UTC だと 0:00〜9:00 が JST の昨日）
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Loading from "@/components/ui/loading"; // ★M-135: 読み込み中の表示の共通部品
 import { lastVisitRelOf } from "@/lib/nox/register/customer-candidates"; // ★便 GV-C C-8（GV-50）
@@ -89,8 +90,8 @@ export default function CustomerDetail({
     if (error) { setMsg(`キープの更新に失敗: ${rpcErrJa(error.message)}`); return; }
     setMsg("キープを更新しました"); setKeepEdit(null); await load();
   }
-  const [salesFrom, setSalesFrom] = useState(() => new Date().toISOString().slice(0, 7) + "-01");
-  const [salesTo, setSalesTo] = useState(() => new Date().toISOString().slice(0, 10));
+  const [salesFrom, setSalesFrom] = useState(() => jstThisMonth() + "-01");
+  const [salesTo, setSalesTo] = useState(() => jstToday());
   const [sales, setSales] = useState<SalesRow | null | undefined>(undefined); // ★0153 D2（undefined＝未取得・null＝期間内 0）
   const [salesErr, setSalesErr] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
