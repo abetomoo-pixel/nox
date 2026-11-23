@@ -29,6 +29,8 @@ import { matchPunches } from "../punch-match";
 import { bizDateOf } from "../biz-date";
 import { anomalyFlagsOf, punchCountsUpToOf, shiftHoursUpToOf } from "./anomaly"; // ★X-13-27（便 X-13d-2a）: 未来日の確定シフトは不整合に数えない・★裁定342（便 P169）: 日数・当欠・シフト時間も今日まで
 import { salesBasisOf, salesRpcOf, salesBackDefaultOffOf } from "./sales-basis"; // ★2026-11-18 夜（相談役 ③）
+import { mig0206On } from "../rules-0175/flag"; // ★0206（起票146 案）
+import { employmentByCastOf } from "./employment-at"; // ★0206（起票146 案）
 import { mig0201qOn } from "../rules-0175/flag"; // ★0201q
 
 import { castPts } from "../pay"; // ★N3b: 前月 pts＝当月と同じ式
@@ -858,6 +860,13 @@ export async function collectPeriod(
     rankIdById.set(c.id, c.rank_id ?? null);
     employmentById.set(c.id, c.employment ?? null);
     calcPeriodById.set(c.id, calcPeriodOf(win, c.joined_on, c.left_on));
+  }
+  // ★0206（起票146 案・旗 MIG_0206_APPLIED＝false のあいだは読まない＝今と 1 バイト同じ）: 契約区分は期首に有効な履歴の行（無ければ期の中で最も早い行・履歴が無い人は casts.employment）
+  if (mig0206On()) {
+    const { data: empRows, error: eE } = await admin.from("cast_employment").select("cast_id, employment, valid_from, valid_to").in("cast_id", [...targetIds]).lte("valid_from", win.periodEnd);
+    if (eE) throw new Error(`cast_employment: ${eE.message}`);
+    const picked = employmentByCastOf(((castRows ?? []) as unknown as { id: string; employment: "委託" | "雇用" | null }[]), (empRows ?? []) as { cast_id: string; employment: string; valid_from: string; valid_to: string | null }[], win.periodStart, win.periodEnd);
+    for (const [cid, emp] of picked) employmentById.set(cid, emp);
   }
 
   const casts: CastRaw[] = [];

@@ -292,3 +292,11 @@ export const MIG_0205_APPLIED = true; // ★相談役 11/24 4:10 の ■1：0205
 let override0205: boolean | null = null;
 export function mig0205On(): boolean { return override0205 ?? MIG_0205_APPLIED; }
 export function __set0205ForTest(v: boolean | null): void { override0205 = v; }
+
+/** ★0206（起票146 案・相談役 11/23 23:10 の ■2＝案まで・枝 emp-history-1124 だけ・main に入れない）: 契約区分の履歴 cast_employment。
+ *  true のとき給与の集め（collect）は、期首に有効な契約区分の行を読む（無ければ期の中で最も早い行・履歴が無い人は casts.employment＝今と同じ）。
+ *  false＝今と同じ（casts.employment を読む）。本番は未適用。 */
+export const MIG_0206_APPLIED = false;
+let override0206: boolean | null = null;
+export function mig0206On(): boolean { return override0206 ?? MIG_0206_APPLIED; }
+export function __set0206ForTest(v: boolean | null): void { override0206 = v; }

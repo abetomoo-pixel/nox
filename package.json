@@ -208,6 +208,7 @@
     "verify:nox-setup-cast": "tsx scripts/verify-nox-setup-cast.ts",
     "verify:nox-jst-today": "tsx scripts/verify-nox-jst-today.ts",
     "verify:nox-0205-screens": "tsx scripts/verify-nox-0205-screens.ts",
+    "verify:nox-emp-history": "tsx scripts/verify-nox-emp-history.ts",
     "verify:nox-setup375": "tsx scripts/verify-nox-setup375.ts",
     "verify:nox-special-shift": "tsx scripts/verify-nox-special-shift.ts",
     "verify:nox-assist-line": "tsx scripts/verify-nox-assist-line.ts",
