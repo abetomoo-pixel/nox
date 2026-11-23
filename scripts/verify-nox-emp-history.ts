@@ -48,7 +48,7 @@ check("D cast 別：a は 12 月 委託・b（履歴なし）は今の委託・c
 const col = fs.readFileSync("lib/nox/payroll/collect.ts", "utf8");
 check("E collect は旗のときだけ cast_employment を読む", /if \(mig0206On\(\)\) \{\s*const \{ data: empRows[^\n]*from\("cast_employment"\)/.test(col));
 check("E collect は employmentByCastOf で期首を win.periodStart・期末を win.periodEnd に渡す", col.includes("win.periodStart, win.periodEnd);\n") || col.includes("win.periodStart, win.periodEnd);\r\n"));
-check("E 旗は false（案・本番は未適用）", MIG_0206_APPLIED === false);
+check("E 旗は true（0206 版 2 を適用した後の便）", MIG_0206_APPLIED === true);
 
 // (F) 版 2（相談役 11/24 2:20 の判断 5）: 懲戒の減給の判定も期首の区分（同じ純関数の決まり）
 const ap = fs.readFileSync("lib/nox/payroll/auto-penalty.ts", "utf8");

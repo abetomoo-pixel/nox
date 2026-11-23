@@ -19,7 +19,7 @@ type R = { ok: true; rows: Row[] } | { ok: false; err: string };
 const errOf = (x: R) => (x.ok ? "ok" : x.err);
 const src = (p: string) => fs.readFileSync(p, "utf8");
 const J = (x: unknown) => JSON.stringify(x);
-const FN = 478 /* ★0202a（2026-11-21 12:06 CC 適用）: 455→463 */ /* ★0202b（2026-11-21 21:57 CC 適用）: 463→478・124→126 */ /* ★0201s（2026-11-19 06:41 CC 適用）: 454→455 */ /* ★0201q（2026-11-18 16:53 手貼り）: 451→454 */ /* ★0201n（2026-11-18 手貼り）: 450→451 */ /* ★0201m（2026-11-16 手貼り）: 449→450 */ /* ★0201d（2026-11-13 夜 手貼り）: 447→449 */ /* ★0201i（2026-11-13 夕 手貼り）: 442→447 */ /* ★0201g（作り直し 4・手貼りの後）: 440→442 */, TB = 126 /* ★0202a: 122→124 */ /* ★0201i: 121→122 */; // ★0201c／h／e（2026-11-12 手貼り・+9＝0201c 3・0201e 6）: 431→440 // ★0201（2026-11-11 手貼り・+4＝punch_self_impl／set_store_manager_punch／staff_pin_self_set／cast_pin_self_set）: 427→431   // 0200 の後（0201 の手貼りで張り替える）
+const FN = 478 /* ★0202a（2026-11-21 12:06 CC 適用）: 455→463 */ /* ★0202b（2026-11-21 21:57 CC 適用）: 463→478・124→126 */ /* ★0201s（2026-11-19 06:41 CC 適用）: 454→455 */ /* ★0201q（2026-11-18 16:53 手貼り）: 451→454 */ /* ★0201n（2026-11-18 手貼り）: 450→451 */ /* ★0201m（2026-11-16 手貼り）: 449→450 */ /* ★0201d（2026-11-13 夜 手貼り）: 447→449 */ /* ★0201i（2026-11-13 夕 手貼り）: 442→447 */ /* ★0201g（作り直し 4・手貼りの後）: 440→442 */, TB = 127 /* ★0206（2026-11-24 CC 適用）: 126→127＝表 cast_employment */ /* ★0202a: 122→124 */ /* ★0201i: 121→122 */; // ★0201c／h／e（2026-11-12 手貼り・+9＝0201c 3・0201e 6）: 431→440 // ★0201（2026-11-11 手貼り・+4＝punch_self_impl／set_store_manager_punch／staff_pin_self_set／cast_pin_self_set）: 427→431   // 0200 の後（0201 の手貼りで張り替える）
 
 // (1)
 check("0200(1-1) MIG_0200_APPLIED=true（2026-11-10 手貼り・verify 32 行一致）・override", (MIG_0200_APPLIED as boolean) === true && mig0200On() === true);
@@ -69,7 +69,7 @@ check("0200(1-3) gen-demo の鏡（scripts/demo/rules-0175-flag.mjs）も true",
       const Lb = mb.toString("utf8").split("\n");
       check("0200(3b-1) 0200b 収蔵＝sha16 961bd94c784f1d81・143 行・begin;／commit; 1 回ずつ・lock_timeout", sha === "961bd94c784f1d81" && Lb.length === 144 && Lb.filter((l) => l === "begin;").length === 1 && Lb.filter((l) => l === "commit;").length === 1 && Lb[Lb.indexOf("begin;") + 1] === "set local lock_timeout = '10s';", { sha, n: Lb.length });
       const rb = (await pc.query(src("docs/tmp/0200b_verify.sql"))).rows as { k: string; v: string }[];
-      const expB = [String(FN) /* ★0201: 427→431 */, "126" /* ★0202a: 122→124 */ /* ★0202b（2026-11-21 21:57 CC 適用）: 463→478・124→126 */ /* ★0201i */, "85" /* ★0201i */, "92" /* ★0201i */, "yes", "0/0/1"];
+      const expB = [String(FN) /* ★0201: 427→431 */, "127" /* ★0206（2026-11-24 CC 適用）: 126→127＝表 cast_employment */ /* ★0202a: 122→124 */ /* ★0202b（2026-11-21 21:57 CC 適用）: 463→478・124→126 */ /* ★0201i */, "85" /* ★0201i */, "92" /* ★0201i */, "yes", "0/0/1"];
       check("0200(3b-2) 0200b の検証 7 行＝期待どおり（貼り先証明＋427／121／84／91／yes／0/0/1）", rb.length === 7 && rb.slice(1).every((r, i) => r.v === expB[i]), rb.map((r) => r.v));
       const md = (await pc.query(`select left(md5(replace(prosrc, chr(13), '')), 8) m, prosrc from pg_proc where pronamespace='public'::regnamespace and proname='demo_org_reset'`)).rows[0] as { m: string; prosrc: string };
       const strip = md.prosrc.replace(/--[^\n]*/g, "");

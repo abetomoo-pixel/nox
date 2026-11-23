@@ -23,7 +23,7 @@ async function main() {
   try {
     await db.query("begin read only");
     const n = (await db.query("select (select count(*) from pg_proc where pronamespace='public'::regnamespace)::int f, (select count(*) from pg_tables where schemaname='public')::int t")).rows[0];
-    check("q(1) 関数 455・表 122（★0201q 2026-11-18 16:53・★0201s 2026-11-19 06:41 で 454→455）", n.f === 478 && n.t === 126 /* ★0202a（2026-11-21）: 455→463・122→124 */ /* ★0202b（2026-11-21 21:57 CC 適用）: 463→478・124→126 */, n);
+    check("q(1) 関数 455・表 122（★0201q 2026-11-18 16:53・★0201s 2026-11-19 06:41 で 454→455）", n.f === 478 && n.t === 127 /* ★0206（2026-11-24 CC 適用）: 126→127＝表 cast_employment */ /* ★0202a（2026-11-21）: 455→463・122→124 */ /* ★0202b（2026-11-21 21:57 CC 適用）: 463→478・124→126 */, n);
     const ssp = (await db.query("select prosrc from pg_proc where pronamespace='public'::regnamespace and proname='set_store_profile'")).rows[0].prosrc as string;
     check("q(2) set_store_profile の白名単に sales_basis・sales_back_default_off（'bad sales_basis'）・reward_axis も残る", ssp.includes("'sales_basis','sales_back_default_off'") && ssp.includes("bad sales_basis") && ssp.includes("bad reward_axis"));
     const fx = (await db.query("select proname, prosecdef, proconfig::text cfg, proacl::text acl, has_function_privilege('anon', oid, 'execute') a, has_function_privilege('authenticated', oid, 'execute') u from pg_proc where pronamespace='public'::regnamespace and proname in ('cast_sales_aggregate_subtotal','get_cast_sales_subtotal','set_store_line_extra') order by 1")).rows as { proname: string; prosecdef: boolean; cfg: string; acl: string; a: boolean; u: boolean }[];
