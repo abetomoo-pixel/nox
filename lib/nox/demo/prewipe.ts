@@ -14,6 +14,7 @@ export const DEMO_PREWIPE_TABLES: readonly string[] = [
   "plan_event_bonuses", "plan_norm_tiers", "plan_rate_bands", "punch_corrections", "punch_round_consents", "setup_drafts",
   "shift_period_needs", "slide_decisions", "staff_attendance_days", "staff_attendance_locks", "staff_invites",   // ★0200 ★8（2026-11-10 手貼り）: staff_labor_confirmed は c_wipe へ（支払い記録 → 確定額の順で DB が消す）＝ここから外す
   "staff_sensitive", "store_special_days",
+  "cast_employment",   // ★0206 版 2（2026-11-24 08:05 適用）: 契約区分の履歴（casts の削除で連鎖して消えるが、store_id→stores は no action＝wipe の前に route が先に消す・DDL なし・入れ直しのデモには行が無い＝今の値で計算）
 ];
 /** org_id が無く、端末（kiosk_devices）経由で消す表 */
 export const DEMO_PREWIPE_BY_DEVICE: readonly string[] = ["kiosk_qr_keys"];

@@ -517,6 +517,8 @@ async function main() {
     try {
       await db.query(`update public.casts set employment='委託' where id=$1`, [castAId]);
       await db.query(`update public.casts set employment='雇用' where id=$1`, [castBId]);
+      // ★0206 版 2（2026-11-24 08:05 適用）: payroll_adjustment_add は期首に有効な cast_employment の行で区分を見る＝この tx の中だけ履歴を消し「履歴が無い人＝今の値（casts.employment）」の形で確かめる（ROLLBACK で戻る）
+      await db.query("delete from public.cast_employment where cast_id = any($1::uuid[])", [[castAId, castBId]]);
       const runIds: Record<string, string> = {};
       for (const [per, stt] of [["2098-05", "paid"], ["2098-06", "finalized"], ["2098-07", "paid"], ["2098-09", "draft"]]) {
         runIds[per] = (await t.one<{ id: string }>(`insert into public.payroll_runs (org_id, store_id, period, status, period_start, period_end, created_by) values ($1,$2,$3,$4,($3||'-01')::date,(($3||'-01')::date + interval '1 month' - interval '1 day')::date,$5) returning id`, [st.org_id, st.id, per, stt, owner.id])).id;
