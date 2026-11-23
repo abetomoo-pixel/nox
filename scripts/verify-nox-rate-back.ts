@@ -424,7 +424,7 @@ async function main() {
       manager.rpc("set_cast_plan", { p_cast_id: rbOv, p_plan_id: planRate, p_overrides: overrides });
     const { error: eA1 } = await callAssign({ honBackMode: "rate", honBackRate: 40 });
     check("段45-4 override 正系: {honBackMode:'rate', honBackRate:40} ペアは許可", !eA1, eA1?.message);
-    const { data: cpRow } = await admin.from("cast_plan").select("overrides_json").eq("cast_id", rbOv).single();
+    const { data: cpRow } = await admin.from("cast_plan").select("overrides_json").eq("cast_id", rbOv).is("valid_to", null).single(); // ★0205 版 2: 開いた行を見る（日付なしの保存で行が割れることがある）
     check("段45-4 override 保存内容: ペアがそのまま overrides_json に載る",
       JSON.stringify(cpRow?.overrides_json) === JSON.stringify({ honBackMode: "rate", honBackRate: 40 }), JSON.stringify(cpRow?.overrides_json));
     const { error: eA2 } = await callAssign({ honBackMode: "per_count", honBack: 1200 });

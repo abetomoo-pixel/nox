@@ -1,5 +1,6 @@
 import { errJa } from "@/lib/nox/errors"; // ★裁定467（M-126）: 利用者向けの文言は辞書 1 本
 import { mig0205On } from "@/lib/nox/rules-0175/flag"; // ★0205 v2
+import { monthLastDayOf } from "@/lib/nox/month";
 // ★裁定306-13（2026-09-25）: /casts 詳細「待遇・バック」の待遇プラン切替＝純関数（DB を知らない）。
 //   候補＝店の有効な comp_plans・適用開始日の既定＝次の給与期の初日（給与期＝月）・過去日不可・確定済み（finalized／paid）の期は不可・
 //   既存 RPC set_cast_plan(p_cast_id, p_plan_id, p_overrides, p_valid_from)＝上書き（overrides_json）はそのまま渡す＝維持。
@@ -12,8 +13,7 @@ export const NOTE_PLAN_SWITCH = "上書きは維持されます（個別の上�
 export function planSwitchMinOf(runs: { period: string; period_end: string | null }[]): string | null {
   let last: string | null = null;
   for (const r of runs) {
-    const [y, m] = r.period.split("-").map(Number);
-    const end = r.period_end ?? `${r.period}-${String(new Date(Date.UTC(y, m, 0)).getUTCDate()).padStart(2, "0")}`;
+    const end = r.period_end ?? monthLastDayOf(r.period); // 月末＝lib/nox/month（x13h の柵）
     if (last === null || end > last) last = end;
   }
   if (last === null) return null;

@@ -2250,7 +2250,7 @@ async function main() {
       p_cast_id: castIdA, p_plan_id: planAId, p_overrides: { honBack: 4500 },
     });
     check("F2a set_cast_plan 成功（manager）", !eScp && cpid === castIdA, eScp?.message);
-    const { data: cpRow } = await m.from("cast_plan").select("plan_id, overrides_json").eq("cast_id", castIdA).single();
+    const { data: cpRow } = await m.from("cast_plan").select("plan_id, overrides_json").eq("cast_id", castIdA).is("valid_to", null).single(); // ★0205 版 2: 自分の行は 1 つとは限らない＝開いた行（今月の 1 日から）を見る
     check("F2a cast_plan 行実在（plan_id・overrides 反映）",
       cpRow?.plan_id === planAId && JSON.stringify(cpRow?.overrides_json) === JSON.stringify({ honBack: 4500 }),
       JSON.stringify(cpRow));
@@ -2367,8 +2367,9 @@ async function main() {
     const { data: cPlans } = await c.from("comp_plans").select("id");
     check("F2a D1a: castA1a comp_plans = 自プランのみ（1行・廃止プラン不可視）",
       (cPlans ?? []).length === 1 && cPlans?.[0]?.id === planAId, `got ${(cPlans ?? []).length}`);
-    const { data: cCp } = await c.from("cast_plan").select("cast_id");
-    check("F2a castA1a cast_plan = 自分の1行", (cCp ?? []).length === 1 && cCp?.[0]?.cast_id === castIdA, `got ${(cCp ?? []).length}`);
+    const { data: cCp } = await c.from("cast_plan").select("cast_id, valid_to");
+    // ★0205 版 2（2026-11-24 04:37 適用）: 日付なしの保存は前の月の末日で閉じて今月の 1 日から新しい行（前の月の下書きを変えない）＝自分の行は 1 つとは限らない。見るのは「自分の行だけ・開いた行は 1 つ」
+    check("F2a castA1a cast_plan = 自分の行だけ（開いた行 1）", (cCp ?? []).length >= 1 && (cCp ?? []).every((r) => r.cast_id === castIdA) && (cCp ?? []).filter((r) => r.valid_to === null).length === 1, `got ${JSON.stringify(cCp)}`);
     const { data: cPc } = await c.from("penalty_config").select("id");
     check("F2a castA1a penalty_config 可視（パターン3）", (cPc ?? []).length === 1, `got ${(cPc ?? []).length}`);
     await c.auth.signOut();
