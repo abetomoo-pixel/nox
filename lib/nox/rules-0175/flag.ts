@@ -284,3 +284,11 @@ export const MIG_0202F_APPLIED = true; // ★2026-11-22 03:02:33 本番適用（
 let override0202f: boolean | null = null;
 export function mig0202fOn(): boolean { return override0202f ?? MIG_0202F_APPLIED; }
 export function __set0202fForTest(v: boolean | null): void { override0202f = v; }
+
+/** ★0205 v2（起票145／147・相談役 11/24 2:20 の ■2・2026-11-24 起草・試走 36 件・本番は未適用）: 勤務と給与期の「今日」を営業日（biz_date_of）に・set_cast_plan の案 A（日付なし＝営業日の月の 1 日から・下限＝最後に確定した期の翌日）。
+ *  true＝待遇の割当の日付の欄の空を「今月（YYYY 年 M 月）分から」・報酬型の保存の文に「（YYYY 年 M 月分から）」・プラン切替の日付の下限を最後に確定した期の翌日に。false＝今のまま（今日以降・空＝今すぐ）。
+ *  枝 night1124-0205v2 だけ（push しない）。0205 の適用と検証の後の便で true にする。 */
+export const MIG_0205_APPLIED = false;
+let override0205: boolean | null = null;
+export function mig0205On(): boolean { return override0205 ?? MIG_0205_APPLIED; }
+export function __set0205ForTest(v: boolean | null): void { override0205 = v; }

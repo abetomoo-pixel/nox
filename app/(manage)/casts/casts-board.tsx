@@ -60,7 +60,8 @@ import { sumCastSales, type CastSalesRow } from "@/lib/nox/payroll/cast-sales"; 
 import { NORM_AXIS_LABEL, hasOverride, normAxesOf, normTargetsOf, planDefaultQuotaOf, quotaKeysOfAxes, resolveQuotaOf, shimeiScopeOf, resolveNormTargetsOf } from "@/lib/nox/store/norm-axes"; // ★裁定347／GV-2（0171・便 P171）: 継承・上書き・採用軸 // ★GV-3（便 N1013b B-8）: sys_norms OFF＝今月のノルマの入力口を出さない
 import { TRIAL_KIND, TRIAL_PLAN_NAME, isTrialCastOf, trialDaysLeftChipOf, trialGuaranteeRangeOf, trialPlanWarnOf, trialSettingsOf } from "@/lib/nox/cast/trial-flow"; // ★便 GV-C C-14f（GV-65・裁定396）: 体入の一括操作
 import { SHIFT_REQUEST_MODE_LABEL, mineSettingsOf } from "@/lib/nox/store/mine-settings"; // ★裁定337（0167）: シフト希望の方式のラベルと店の既定
-import { NOTE_PLAN_SWITCH, planSwitchErrJa, planSwitchValidate } from "@/lib/nox/cast/plan-switch"; // ★裁定306-13（適用開始日の既定＝pay-rule の nextPeriodStartOf）
+import { NOTE_PLAN_SWITCH, planSwitchErrJa, planSwitchValidate, planSwitchMinOf, bizMonthLabelOf } from "@/lib/nox/cast/plan-switch";
+import { mig0205On } from "@/lib/nox/rules-0175/flag"; // ★0205 v2 // ★裁定306-13（適用開始日の既定＝pay-rule の nextPeriodStartOf）
 import { QUOTA_FORM_EMPTY, QUOTA_KEYS, QUOTA_LABEL, QUOTA_UNIT, quotaArgsOf, quotaFormEquals, quotaFormOf, quotaMonthOptionsOf, type Quota, type QuotaForm, cardAxesOf, cardFmt, type CardAxis } from "@/lib/nox/mine/quota"; // ★0160（裁定326-3・便 M2-2）: 今月のノルマ（set_cast_quota）
 import { errJa } from "@/lib/nox/errors"; // ★裁定467（M-126）: 利用者向けの文言は辞書 1 本
 
@@ -207,6 +208,7 @@ export default function CastsBoard({
   // ★裁定306-13: 待遇プランの切替（候補＝店の有効な comp_plans・適用開始日＝次の給与期の初日が既定・過去日不可・確定済みの期は不可・既存 RPC set_cast_plan＝上書きは維持）
   const [activePlans, setActivePlans] = useState<{ id: string; name: string }[]>([]);
   const [planForm, setPlanForm] = useState<{ planId: string | null; from: string } | null>(null);
+  const [planMin, setPlanMin] = useState<string | null>(null); // ★0205 v2（旗 mig0205On）: 切替の日付の下限＝最後に確定した期の翌日（無ければ null＝下限なし）・「変更」を開くときに確定した回を 1 回読む
   const [planMsg, setPlanMsg] = useState<{ kind: "error" | "success" | "warn" | "info"; text: string } | null>(null);
   const [plansById, setPlansById] = useState<Record<string, {
     name: string; base: number; hon_back: number; jonai_back: number; dohan_back: number;
@@ -661,8 +663,8 @@ export default function CastsBoard({
     setBusy(true); setRuleMsg(null);
     const { error } = await supabase.rpc("set_cast_plan", { p_cast_id: c.id, p_plan_id: a.planId, p_overrides: ov.overrides, p_valid_from: null });
     setBusy(false);
-    if (error) { setRuleMsg({ kind: "error", text: rpcErrJa(error.message) }); return; }
-    setRuleMsg({ kind: "success", text: `報酬型を「${payRuleLabelOf(ruleForm.rule, c.employment ?? null)}」にしました` });
+    if (error) { setRuleMsg({ kind: "error", text: error.message.includes("period finalized") ? "今月の給与はもう確定済みのため、報酬型を変えられません" : rpcErrJa(error.message) }); return; } // ★0205 v2: 日付なしで今月が確定済み＝period finalized（今の DB は出さない）
+    setRuleMsg({ kind: "success", text: `報酬型を「${payRuleLabelOf(ruleForm.rule, c.employment ?? null)}」にしました${mig0205On() ? `（${bizMonthLabelOf(today)}分から）` : ""}` }); // ★0205 v2: 日付なし＝営業日の月の 1 日から（前の月の下書きは変わらない）
     setRuleForm(null);
     await loadPlans();
   }
@@ -671,7 +673,7 @@ export default function CastsBoard({
     if (!planForm) return;
     setPlanMsg(null);
     const { data: run } = await supabase.from("payroll_runs").select("status").eq("store_id", c.store_id).eq("period", planForm.from.slice(0, 7)).maybeSingle();
-    const err = planSwitchValidate({ planId: planForm.planId, from: planForm.from, today, runStatus: (run?.status as string | undefined) ?? null });
+    const err = planSwitchValidate({ planId: planForm.planId, from: planForm.from, today, runStatus: (run?.status as string | undefined) ?? null, ...(mig0205On() ? { minFrom: planMin } : {}) }); // ★0205 v2: 旗のときは下限＝最後に確定した期の翌日（今日より前でも、確定していない期なら選べる）
     if (err) { setPlanMsg({ kind: "error", text: err }); return; }
     setBusy(true);
     const { error } = await supabase.rpc("set_cast_plan", { p_cast_id: c.id, p_plan_id: planForm.planId, p_overrides: planSwitchOverridesOf(planRowsOf[c.id]), p_valid_from: planForm.from }); // ★M-153: 開いた行の上書きを白名単で絞る（保証行の guarantee・保証の base を持ち込まない）
@@ -1434,7 +1436,8 @@ export default function CastsBoard({
                 return (
                   <>
                     <div className="nox-frow"><span className="k">待遇プラン</span><span className="v" style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>{p.name}{ovCount > 0 && <span style={{ fontSize: 11, color: "var(--gold2)" }}>個別上書きあり</span>}
-                      {!planForm && <button style={btnGhost} disabled={busy} onClick={() => { setPlanMsg(null); setPlanForm({ planId: a!.planId, from: planSwitchFromOf(nextPeriodStartOf(today), planRowsOf[selCast.id]) }); /* ★M-153: 開いた行（保証の後の戻し行）の開始以前だと bad valid_from＝その翌日以降を既定に */ }}>変更</button>}{/* ★306-13 */}
+                      {!planForm && <button style={btnGhost} disabled={busy} onClick={() => { setPlanMsg(null); setPlanForm({ planId: a!.planId, from: planSwitchFromOf(nextPeriodStartOf(today), planRowsOf[selCast.id]) }); /* ★M-153: 開いた行（保証の後の戻し行）の開始以前だと bad valid_from＝その翌日以降を既定に */
+                        if (mig0205On()) { setPlanMin(null); void supabase.from("payroll_runs").select("period, period_end").eq("store_id", selCast.store_id).in("status", ["finalized", "paid"]).then(({ data }) => setPlanMin(planSwitchMinOf((data ?? []) as { period: string; period_end: string | null }[]))); } /* ★0205 v2: 下限＝最後に確定した期の翌日 */ }}>変更</button>}{/* ★306-13 */}
                     </span></div>
                     {/* ★裁定143（v3.1 K35）: 「保証時給」→「通常時給（プラン基本）」＝comp_plans.base（＋overrides.base）を指す語へ。
                         モックの「入店時給保証」（K33・第2期）と語を衝突させない。値・経路は不変。 */}
@@ -1452,11 +1455,11 @@ export default function CastsBoard({
                   <Picker dense items={activePlans.map((p) => ({ id: p.id, label: p.name }))} value={planForm.planId} onPick={(id) => setPlanForm({ ...planForm, planId: id })} disabled={busy} placeholder="プランを検索" empty="（有効なプランがありません）" />
                   {(() => { const w = trialPlanWarnOf(selCast.kind, activePlans.find((p) => p.id === planForm.planId)?.name); return w ? <Message kind="warn" style={{ margin: "8px 0 0" }}>{w}</Message> : null; })()}{/* ★GV-C C-14f（裁定396）: 在籍キャストへの体験入店は警告 */}
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end", marginTop: 12 }}>
-                    <label style={lbl}>適用開始日（既定＝次の給与期の初日）<br /><DatePicker value={planForm.from} min={today} disabled={busy} onChange={(v) => setPlanForm({ ...planForm, from: v })} width={160} ariaLabel="適用開始日" /></label>{/* ★M-82 */}
+                    <label style={lbl}>適用開始日（既定＝次の給与期の初日）<br /><DatePicker value={planForm.from} min={mig0205On() ? planMin : today} disabled={busy} onChange={(v) => setPlanForm({ ...planForm, from: v })} width={160} ariaLabel="適用開始日" /></label>{/* ★M-82 */}
                     <button style={btnGold} disabled={busy} onClick={() => void savePlan(selCast)}>切り替える</button>
                     <button style={btnGhost} disabled={busy} onClick={() => { setPlanForm(null); setPlanMsg(null); }}>やめる</button>
                   </div>
-                  <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "8px 0 0" }}>{NOTE_PLAN_SWITCH} 過去の日付と確定済みの給与期には適用できません。</p>
+                  <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "8px 0 0" }}>{NOTE_PLAN_SWITCH} {mig0205On() ? "確定済みの給与期には適用できません（確定していない期なら、今日より前の日付も選べます）。" : "過去の日付と確定済みの給与期には適用できません。"}</p>
                 </div>
               )}
               {planMsg && <Message kind={planMsg.kind} onDismiss={() => setPlanMsg(null)}>{planMsg.text}</Message>}

@@ -11,7 +11,9 @@ import { useCallback, useEffect, useState } from "react";
 import SegSelect from "@/components/ui/seg-select";
 import Modal from "@/components/ui/modal"; // ★2026-11-20 夕（相談役 ⑧A）: 自由設計のバックの編集は中央の窓
 import { DAY_RULE_NOTE, DAY_RULE_OPTS, DED_KIND_CAST_OPTS, DED_PER_NOTE, DED_PER_OPTS_0195, dedAmountLabelOf, dedKindCastLabelOf, dedTargetLabelOf, dedUnitLabelOf } from "@/lib/nox/payroll/deduction-labels"; // ★0195（M-73）
-import { mig0195On } from "@/lib/nox/rules-0175/flag"; // ★0195
+import { mig0195On, mig0205On } from "@/lib/nox/rules-0175/flag"; // ★0195・★0205 v2
+import { bizToday, cutoffHmOf } from "@/lib/nox/jst-today"; // ★0205 v2: 営業日の今日（店の締めの時刻）
+import { bizMonthLabelOf } from "@/lib/nox/cast/plan-switch"; // ★0205 v2
 import { ResponsiveTable, SegmentTabs } from "@/components/ui/responsive-kit"; // ★裁定382（GV-B W-1）・373（W-3）
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
@@ -195,7 +197,8 @@ export function compErrJa(msg: string | undefined): string {
   if (msg.includes("bad basis note")) return "確認内容は 400 字以内で入力してください";
   if (msg.includes("bad kind")) return "控除種別が不正です";
   // ★#77（mig0116 set_cast_plan）: 'bad valid_from'＝過去日（< 今日）または現在行の適用開始日以前
-  if (msg.includes("bad valid_from")) return "適用開始日は今日以降で、現在の適用開始日より後の日付にしてください";
+  if (msg.includes("period finalized")) return "確定済みの給与期には適用できません（確定した期の次の日以降を指定してください）"; // ★0205 v2: set_cast_plan の新しい語（今の DB は出さない）
+  if (msg.includes("bad valid_from")) return mig0205On() ? "適用開始日は、現在の適用開始日より後の日付にしてください" : "適用開始日は今日以降で、現在の適用開始日より後の日付にしてください";
   if (msg.includes("bad overrides")) return "上書き値が不正です（0 以上の整数・方式と値はペア）";
   // ★mig0134（裁定113）: 商品販売バック3方式の pair/範囲
   if (msg.includes("bad product_back_mode")) return "商品販売バックの方式が不正です";
@@ -595,6 +598,14 @@ export function AssignTab({ plans, casts, castPlans, isManagerUp, setMsg, reload
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storeId]);
   const showProgress = !!storeId && !!norms;
+  // ★0205 v2（旗 mig0205On）: 日付の欄の空＝営業日の月の 1 日から（set_cast_plan 案 A）。店の締めの時刻を 1 回読む（無し・読めない＝06:00）
+  const [bizCutoff, setBizCutoff] = useState<string>("06:00");
+  useEffect(() => {
+    if (!mig0205On() || !storeId) return;
+    void supabase.from("stores").select("settings_json").eq("id", storeId).maybeSingle().then(({ data }) => setBizCutoff(cutoffHmOf((data as { settings_json?: unknown } | null)?.settings_json)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storeId]);
+  const emptyDateLabel = mig0205On() ? `今月（${bizMonthLabelOf(bizToday(bizCutoff))}）分から` : null;
   const progressOf = (cid: string) => {
     const sales = progress?.get(cid) ?? 0;
     const target = (norms ?? []).find((n) => n.cast_id === cid && n.period === ym)?.sales_target ?? 0;
@@ -667,7 +678,7 @@ export function AssignTab({ plans, casts, castPlans, isManagerUp, setMsg, reload
     const validFrom = rowDate[cid] ?? "";
     // ★mig0116: p_valid_from＝空なら null 明示（現在行の上書き）・指定日なら履歴生成（裁定101 補正2）。
     const { error } = await supabase.rpc("set_cast_plan", { p_cast_id: cid, p_plan_id: pid, p_overrides: overrides, p_valid_from: validFrom || null });
-    setMsg(error ? compErrJa(error.message) : validFrom ? `割当を保存しました（${validFrom} から適用・履歴生成）` : "割当を保存しました");
+    setMsg(error ? compErrJa(error.message) : validFrom ? `割当を保存しました（${validFrom} から適用・履歴生成）` : emptyDateLabel ? `割当を保存しました（${emptyDateLabel}）` : "割当を保存しました");
     if (!error) {
       setRowDate((m) => ({ ...m, [cid]: "" }));
       setOpenOv(null);
@@ -748,7 +759,7 @@ export function AssignTab({ plans, casts, castPlans, isManagerUp, setMsg, reload
                   <td>
                     {isManagerUp ? (
                       <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                        <DatePicker value={rowDate[c.id] ?? ""} onChange={(v) => setRowDate((m) => ({ ...m, [c.id]: v }))} width={140} ariaLabel="適用日（空＝今すぐ）" placeholder="今すぐ" />{/* ★M-82: 空＝今すぐ（いまの設定を上書き）・指定＝その日から適用 */}
+                        <DatePicker value={rowDate[c.id] ?? ""} onChange={(v) => setRowDate((m) => ({ ...m, [c.id]: v }))} width={140} ariaLabel={emptyDateLabel ? `適用日（空＝${emptyDateLabel}）` : "適用日（空＝今すぐ）"} placeholder={emptyDateLabel ?? "今すぐ"} />{/* ★M-82: 空＝今すぐ（いまの設定を上書き）・指定＝その日から適用 */}
                         {cp && (
                           <button type="button" onClick={() => void toggleHist(c.id)} title="適用履歴（期間つき・読み取りのみ）"
                             style={{ ...t.btnGhost, ...t.btnSm, border: histOpen === c.id ? "1px solid var(--gold)" : t.btnGhost.border }}>
