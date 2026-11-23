@@ -124,7 +124,11 @@ check("(2) ★版 2 の ■3 体験入店は写したとき結ばない＝完了
 check("(2) ★版 2 画面は写した後の 2 店目の登録番号と領収書の下の文を読んで、領収書の段に渡す（住所と電話は 2 店目の入力）", src("app/(manage)/setup/setup-wizard.tsx").includes("applyCopyToPlan(planAll.steps, copyParts, copiedReceiptRef.current)") && src("app/(manage)/setup/setup-wizard.tsx").includes("copiedReceiptRef.current = { invoice_reg_no:"));
 
 check("(1) ★版 3 打刻の強制・制限の方式・勤務時間の丸め（鍵と列）は写さない・対の値を写さない 5 つに印（端末・同意・シフト）", ["punch_enforce", "punch_restrict_mode", "punch_round_unit", "punch_round_mode"].every((k) => STORE_SETTING_KEYS[k]?.part === null && STORE_COLUMNS[k]?.part === null)
-  && ["punch_methods", "contract_ack", "sys_cast_register", "cast_register_scope", "punch_require_shift"].every((k) => !!STORE_SETTING_KEYS[k]?.needs && STORE_SETTING_KEYS[k]?.part !== null) && !/punch_(enforce|restrict_mode|round_unit|round_mode) = s./.test(mig));
+  && ["punch_methods", "sys_cast_register", "cast_register_scope"].every((k) => !!STORE_SETTING_KEYS[k]?.needs && STORE_SETTING_KEYS[k]?.part !== null) && !/punch_(enforce|restrict_mode|round_unit|round_mode) = s./.test(mig));
+check("(1) ★版 4 シフトの無い打刻（鍵と列）・契約の確認を出す（鍵）は写さない（2 店目は「許す」「出さない」で始まる）・印は 3 つ（打刻の方法・キャストのレジ使用・会計できる卓）",
+  STORE_SETTING_KEYS.punch_require_shift?.part === null && STORE_COLUMNS.punch_require_shift?.part === null && STORE_SETTING_KEYS.contract_ack?.part === null
+  && Object.entries(STORE_SETTING_KEYS).filter(([, v]) => !!v.needs && v.part !== null).map(([k]) => k).sort().join(",") === "cast_register_scope,punch_methods,sys_cast_register"
+  && !/punch_require_shift = s./.test(mig) && !/'contract_ack'/.test(mig) && !/'punch_require_shift'/.test(mig));
 
 // (3) DB（読むだけ）
 async function dbPart() {

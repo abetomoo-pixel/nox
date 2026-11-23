@@ -72,7 +72,7 @@ try {
       check("写し：店長は forbidden", !cpm.ok && /forbidden/.test(tx.errOf(cpm)), tx.errOf(cpm));
       await tx.q("update stores set settings_json = coalesce(settings_json, '{}'::jsonb) || '{\"zz_unknown_key\": 1, \"line_notify\": {\"x\": 1}, \"receipt_address\": \"1 店目の住所\"}'::jsonb, punch_lat = 35.0, trade_name = '1 店目の屋号' where id = $1", [A1.id]);
       // ★版 3: 1 店目＝店の端末だけ・強制・勤務時間の丸め 15 分（鍵と列）＝写さないことを見る（この試走の中だけ）
-      await tx.q("update stores set punch_restrict_mode = 'tablet', punch_enforce = true, punch_round_unit = 15, punch_round_mode = 'store_favor', punch_require_shift = 'warn', settings_json = coalesce(settings_json, '{}'::jsonb) || $2::jsonb where id = $1", [A1.id, JSON.stringify({ punch_restrict_mode: "tablet", punch_enforce: true, punch_round_unit: 15, punch_round_mode: "store_favor", punch_require_shift: "warn" })]);
+      await tx.q("update stores set punch_restrict_mode = 'tablet', punch_enforce = true, punch_round_unit = 15, punch_round_mode = 'store_favor', punch_require_shift = 'block', settings_json = coalesce(settings_json, '{}'::jsonb) || $2::jsonb where id = $1", [A1.id, JSON.stringify({ punch_restrict_mode: "tablet", punch_enforce: true, punch_round_unit: 15, punch_round_mode: "store_favor", punch_require_shift: "block", contract_ack: true, contract_ack_rev: "2026-11-01T00:00:00+09:00" })]);   // ★版 4: シフトの無い打刻は「止める」・契約の確認を出す
       const ghost = (await tx.one<{ g: string }>("select gen_random_uuid()::text g")).g;
       // 1 店目にランク 2 つ・指名料の行（ランクつき）・スライドのランクを入れる（NOX-VERIFY-A1 にはランクと料金の行が無い＝この試走の中だけ）
       const rkA = (await tx.q<{ id: string }>("insert into cast_ranks (org_id, store_id, name, sort_order, is_active) values ($1, $2, '試走ランク金', 1, true), ($1, $2, '試走ランク銀', 2, true) returning id", [A1.org_id, A1.id])).map((r) => r.id);
@@ -93,8 +93,12 @@ try {
       // ★版 3（■2-a・b）: 打刻の制限の方式・強制・丸めは写さない＝2 店目は制限なし・丸めない（1 分）で始まる・店の設定はそのまま保存できる（range required で止まらない）
       const pv = await tx.one<{ m: string; e: boolean; u: number; rm: string; sj: Record<string, unknown>; rs: string }>("select punch_restrict_mode m, punch_enforce e, punch_round_unit u, punch_round_mode rm, settings_json sj, punch_require_shift rs from stores where id = $1", [sid]);
       const save = await tx.as(owner, "select public.set_store_profile($1, $2::jsonb)", [sid, JSON.stringify({ show_open_status: true })]);
-      check("版 3 打刻の制限の方式・強制・丸めは写さない（列は既定のまま＝制限なし・丸めない 1 分・鍵も無い）・シフトの無い打刻は写す・2 店目の店の設定はそのまま保存できる",
-        pv.e === false && pv.u === 1 && pv.rm === "nearest" && pv.m !== "tablet" && !["punch_restrict_mode", "punch_enforce", "punch_round_unit", "punch_round_mode"].some((k) => k in (pv.sj ?? {})) && pv.rs === "warn" && save.ok, [pv, tx.errOf(save)]);
+      check("版 3 打刻の制限の方式・強制・丸めは写さない（列は既定のまま＝制限なし・丸めない 1 分・鍵も無い）・2 店目の店の設定はそのまま保存できる",
+        pv.e === false && pv.u === 1 && pv.rm === "nearest" && pv.m !== "tablet" && !["punch_restrict_mode", "punch_enforce", "punch_round_unit", "punch_round_mode"].some((k) => k in (pv.sj ?? {})) && save.ok, [pv, tx.errOf(save)]);
+      // ★版 4（相談役 11/23 21:20 の ■1）: 1 店目＝シフトの無い打刻は「止める」・契約の確認を出す → 2 店目は「許す」（off）・「出さない」（鍵が無い＝cast_contract_ack_needed は false）
+      const ackCast = (await tx.one<{ id: string | null }>("select (select id from casts where store_id = $1 limit 1)::text id", [sid])).id;
+      check("版 4 シフトの無い打刻・契約の確認を出すは写さない（2 店目は列 'off'＝許す・鍵 contract_ack も版も無い＝確認を出さない）",
+        pv.rs === "off" && !("punch_require_shift" in (pv.sj ?? {})) && !("contract_ack" in (pv.sj ?? {})) && !("contract_ack_rev" in (pv.sj ?? {})), { rs: pv.rs, ack: pv.sj?.contract_ack ?? null, ackCast });
       // ★版 2（■2-c）: 写した後の 2 店目の行（料金・商品・待遇・設定の jsonb を含む）に 1 店目の行の ID（ランク・カテゴリ・プラン・商品・店）が残っていない
       const srcIds = (await tx.q<{ id: string }>(`select id::text id from cast_ranks where store_id = $1 union all select id::text from pricing_categories where store_id = $1 union all select id::text from product_categories where store_id = $1
         union all select id::text from comp_plans where store_id = $1 union all select id::text from products where store_id = $1 union all select $1::text union all select $2::text`, [A1.id, ghost])).map((r) => r.id);

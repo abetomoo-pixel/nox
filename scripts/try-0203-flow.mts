@@ -53,7 +53,8 @@ try {
     return r.ok ? { ok: true as const, data: r.rows[0]?.r } : { ok: false as const, err: r.err };
   };
 
-  await tx.q("update stores set settings_json = coalesce(settings_json, '{}'::jsonb) || $1::jsonb where name = 'NOX-VERIFY-A1'", [JSON.stringify({ invoice_reg_no: "T1234567890123", receipt_footer: "1 店目の下の文" })]); // 写す値が空振りしないように（この試走の中だけ）
+  await tx.q("update stores set settings_json = coalesce(settings_json, '{}'::jsonb) || $1::jsonb where name = 'NOX-VERIFY-A1'", [JSON.stringify({ invoice_reg_no: "T1234567890123", receipt_footer: "1 店目の下の文" })]);
+  await tx.q("update stores set punch_require_shift = 'block', settings_json = settings_json || $1::jsonb where name = 'NOX-VERIFY-A1'", [JSON.stringify({ punch_require_shift: "block", contract_ack: true, contract_ack_rev: "2026-11-01T00:00:00+09:00" })]); // ★版 4: 1 店目はシフトの無い打刻を止める・契約の確認を出す（写さないことを見る） // 写す値が空振りしないように（この試走の中だけ）
   const A1 = await tx.one<{ id: string; org_id: string; sj: Record<string, unknown> }>("select id, org_id, settings_json sj from stores where name = 'NOX-VERIFY-A1'");
   const owner = { auth_user_id: (await tx.one<{ a: string }>("select auth_user_id a from users where email = 'nox-verify-owner-a@example.com'")).a };
   const op = (await tx.one<{ id: string } | undefined>("select auth_user_id id from ops_operators limit 1"))?.id;
@@ -120,8 +121,9 @@ try {
   check("3 写した商品の値段とバックは 1 店目のまま（雛形で上書きしない）", pb.d === 0, pb);
   const own = await tx.one<{ uv: boolean; addr: string | null; reg: string | null; foot: string | null; a1reg: string | null; a1foot: string | null }>("select d.use_vip uv, d.settings_json->>'receipt_address' addr, d.settings_json->>'invoice_reg_no' reg, d.settings_json->>'receipt_footer' foot, s.settings_json->>'invoice_reg_no' a1reg, s.settings_json->>'receipt_footer' a1foot from stores d, stores s where d.id = $1 and s.id = $2", [sid, A1.id]);
   check("3 版 2 店ごとの鍵は 2 店目の入力（VIP 席の有無・領収書の住所）・登録番号と下の文は 1 店目の写し", own.uv === (S.seats.vip > 0) && own.addr === "東京都" && own.reg === "T1234567890123" && own.a1reg === own.reg && own.foot === "1 店目の下の文" && own.a1foot === own.foot, own);
-  const rnd = await tx.one<{ u: number; m: string; e: boolean }>("select punch_round_unit u, punch_round_mode m, punch_enforce e from stores where id = $1", [sid]);
+  const rnd = await tx.one<{ u: number; m: string; e: boolean; rs: string; ack: string | null; a1rs: string; a1ack: string | null }>("select d.punch_round_unit u, d.punch_round_mode m, d.punch_enforce e, d.punch_require_shift rs, d.settings_json->>'contract_ack' ack, s.punch_require_shift a1rs, s.settings_json->>'contract_ack' a1ack from stores d, stores s where d.id = $1 and s.id = $2", [sid, A1.id]);
   check("3 版 3 2 店目は丸めない（1 分）で始まる（写さない・初期設定の既定も 1 分）・打刻の強制は 2 店目の入力（既定はソフト）", rnd.u === 1 && rnd.e === false, rnd);
+  check("3 版 4 シフトの無い打刻・契約の確認を出すは 2 店目の入力（写さない・既定は「許す」「出さない」）", rnd.rs === "off" && rnd.a1rs === "block" && rnd.a1ack === "true" && (rnd.ack ?? "false") === "false", rnd);
   const org = await tx.one<{ pd: number | null }>("select pay_day pd from orgs where id = $1", [A1.org_id]);
   const pds = await tx.q<{ pd: number | null }>("select distinct pay_day pd from stores where org_id = $1", [A1.org_id]);
   check("3 支払日は会社の値のまま（店で書かない）・会社の全店で同じ", pds.length === 1 && pds[0].pd === org.pd, { org: org.pd, stores: pds });
