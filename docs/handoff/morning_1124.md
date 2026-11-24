@@ -383,3 +383,182 @@
 4. **auto-penalty の期**：営業日の月で数えるか、給与の回の期（月の途中の締め）にそろえるか（■3）。
 5. **0205 と 0206 を当てる順と時期**：相談役が本体を読んでから、0203 より先に当てる（判断 4）。0205 を当てるのと同じ便で、枝 night1124-0205v2 の画面を main に入れて旗を true にする。0206 も同じ形で、枝 emp-history-1124 の 77c7eb28 を使う。
 6. 0203 版 4 は合図待ちのまま（触っていない）。
+
+---
+
+# 追記 2：相談役 11/24 4:10 の便（0205・0206 の適用）
+
+## 7-0. まとめ
+- **最初の問い**：03:32 の確かめは GitHub の API（commit の状態＝Vercel が GitHub に返す結果）で、鍵は git に保存してある GitHub の資格だった。Vercel の管理画面と Vercel の鍵は使っていない。それでも鍵を使ったのでやめ、今日から本番の画面を外から読む形に戻した（7-1）。
+- **0205 版 2**：**04:37:08 に適用**した。事前確認 9 行・本体 1 回・検証 9 行とも期待どおり。
+  - 画面 3 か所（旗 true）・効く月の文・次のシフトの営業日を main に入れた（f886ca58）。
+  - f0 2 連緑（245 段 9,231 件・ゴールデン不変）の後、08:05:08 に push した。**本番に入ったのは 08:07:12**（build の印が変わった時刻）。
+- **0206 版 2**：**08:05:18 に適用**した。事前確認 8 行と見るだけ 1 行・本体 1 回（66 行を入れた）・検証 10 行とも期待どおり。表は 126→127。
+  - 枝 emp-history-1124 を main へ（旗 true）。デモ 7 店の下書きは適用の前と後で 1 バイト同じ。
+  - f0 と push は 7-3 に書く。
+- **■4**：set_cast_plan の 4 つ・set_cast_employment と懲戒の減給・初期設定は全部通った（7-4）。
+- **0203 の事前確認と検証**：0206 の後の形（表 127）に直した。本体は変えていない（7-5）。
+- **★0205 を当てた時刻は相談役の指示とずれた**。
+  - 指示は「適用から push までを短く」だったが、04:37 に当て、push は 08:05 になった（3 時間 28 分）。
+  - 理由 1：■4 の「verify:nox-setup-cast が 0:00〜締めの時刻でも緑」は、今日は 06:00 までに当てないと確かめられない（04:37 に当てて 04:37:15 に緑）。
+  - 理由 2：f0 の 2 連（84 分）は 06:05 までに終わらず、06:40 の後に回した。
+  - その間に古い文（「空＝今すぐ」）のまま日付なしで保存すると、今月の 1 日から効く。ただ、開いた行を持つのは全部デモと検査用の会社の人で、本当の店の人はいない（2:20 の便の本番の読取で 66 人とも）。
+  - 判断としては「確かめを優先した」。間を短くする方がよかったなら、次から 06:40 の後に当てる。
+
+## 7-1. 最初の問いの答え（03:32 の確かめ方）
+- **使ったもの**：docs/tmp/deploy_wait.mjs。GitHub の API の「commit の状態」（Vercel が GitHub に返す success／pending）を 30 秒ごとに読んだ。
+- **鍵**：GitHub への認証は、git に保存してある GitHub の資格（git credential が返す GitHub のトークン）。**Vercel の管理画面と Vercel の鍵は使っていない**。
+- 鍵を使ったことには変わりないので、**やめた**。今日から**本番の画面を外から読む形**にした。鍵は使わない。
+  - 読む所：本番 https://noxapp.jp/login の HTML にある build の印（Next の RSC の "b"＝buildId・build ごとに変わる）。
+  - push の前に印を取り、変わるまで 30 秒ごとに読む（docs/tmp/live_wait_buildid.mjs）。
+  - 前に使っていた /demo のチャンクの指紋（live_wait_build.mjs）は使えなくなっていた。本番の所が noxapp.jp に移り、古い所（vercel.app）は 308 を返すため。
+- 今日の push（f886ca58）：08:05:08 に push した。印は 08:06:41 に FFSXRiK9uEvLAZuuzxHUj、08:07:12 に XLWP-1S_4dWOEvB3Tw_NZ（変わった）。
+
+## 7-2. 0205 版 2 の適用（■1）
+- 手順は 0202a〜f と同じ（docs/tmp/apply_1124.mjs 0205 --go）。ログは docs/tmp/apply_0205_1124.log。
+  - 指紋 3 つが相談役の文の全桁と一致 → 繋ぎ先の ref（hiqbfagmkrdpmlqhkmsu）とロール（postgres／postgres）→ ほかの CC の接続 0。
+  - 前の状態：関数 478・表 126。
+- **事前確認（9 行・全部期待どおり）**
+  1. nox-project-proof＝13
+  2. TimeZone＝UTC
+  3. biz_date_of_same true・biz_acl_same true
+  4. set_cast_plan same_as_drafted true・acl_same true
+  5. set_cast_guarantee true／true
+  6. withholding_rate_of true／true
+  7. customer_anonymize_candidates true／true
+  8. customer_list_summary true／true
+  9. fn_count_same true
+- **本体（1 回）**：BEGIN・SET・CREATE ×5・COMMIT（04:37:08）。
+- **検証（9 行・全部期待どおり）**
+  1. nox-project-proof＝13
+  2. set_cast_plan：no_utc・has_biz・acl_same・secdef_same・vol_same が全部 true
+  3. set_cast_guarantee：同じく全部 true
+  4. withholding_rate_of：no_utc・has_jst・acl_same・secdef_same・vol_same が全部 true
+  5. customer_anonymize_candidates：同じく全部 true
+  6. customer_list_summary：同じく全部 true
+  7. plan_month1・plan_finalized・plan_no_upsert・plan_inserts_with_date が全部 true
+  8. fn_count_same true
+  9. default_unchanged true
+- 後の状態：関数 478・表 126。set_cast_plan の md5 は 8bc9c488… → 2f332070b565d112b0a64e7e7d57c621。
+- **main**：枝 night1124-0205v2 を main に進めた（397e05c1・0dd1c69a）。f0 の直し 1 本（f886ca58）を足した。
+  - 画面 3 か所（旗 MIG_0205_APPLIED true）と、効く月の文（■3）。
+  - キャストの詳細の次のシフトを営業日の今日から（判断 1）。
+  - 検査：verify:nox-0205-screens 35 件を f0 の鎖に（245 段）。verify:nox-jst-today は 303 件。
+- **f0 の直し**（当てた後にわかった赤・直してから 2 連）
+  - rls（8 段目）：castA1a の cast_plan が 2 行になった。日付なしの保存が、前の月の末日で閉じて今月の 1 日から新しい行を作るため（版 2 の決まりどおり）。見る所を「自分の行だけ・開いた行は 1 つ」と「開いた行を読む」に直した。rate-back も開いた行を読む形に。
+  - x13h（127 段目）：月末の組み立て（翌月 0 日）を lib/nox/month の monthLastDayOf に寄せた（柵どおり）。
+  - 0188（151 段目）：withholding_rate_of の指紋の pin を 75a0f2c5 → f6c29e0f に（今日を暦の JST にしただけで、式と率は同じ）。
+  - 保証の検査の「今日」：営業日（biz_date_of）に。JST の 6:00〜9:00 は UTC の日付が前の日になり、0205 の後は保証の開始日が断られるため。
+  - 初期設定の検査：プランの開始日＝営業日の月の 1 日と厳しくした。
+  - 給与の検査の過去日：'bad valid_from' か 'period finalized'。
+- **f0（main・2 連緑）**：6:41:39〜7:23:30 と 7:23:30〜8:04:53。
+  - どちらも 245 段・9,231 件（f0_count）。pay 168・payroll 234・玲奈 5931／125802 は不変。
+  - ログは docs/tmp/f0_1124_k.log・f0_1124_l.log。赤の回は f0_1124_g／h／i と、残りの段だけの f0_1124_j_rest。
+  - 赤の回の「止めた suite」は suite が最後まで走って終わった（途中で止めていない）ので、掃除は走った。
+- **push 08:05:08（f886ca58）→ 本番 08:07:12**（build の印）。
+- **適用から push までの間**（04:37〜08:07）：画面の文は古いまま（「空＝今すぐ」）だった（7-0 の ★）。
+
+## 7-3. 0206 版 2 の適用（■2）
+- 手順は同じ（docs/tmp/apply_1124.mjs 0206 --go・■1 の push の後）。ログは docs/tmp/apply_0206_1124.log。
+  - 指紋 3 つが一致 → ref・ロール同じ → ほかの CC の接続 0 → 前の状態：関数 478・表 126。
+- **事前確認（8 行は期待どおり・1 行は見るだけ）**
+  1. nox-project-proof＝13
+  2. table_absent true
+  3. same_as_drafted true・acl_same true
+  4. no_valid_from true
+  5. no_audit true
+  6. casts_with_employment＝66（見るだけ）
+  7. adj_same_as_drafted true・adj_acl_same true
+  8. fn_count_same true
+- **本体（1 回）**：BEGIN・SET・CREATE ×5・ALTER・CREATE・REVOKE・GRANT・**INSERT 66**・CREATE ×2・COMMIT（08:05:18）。
+- **検証（10 行・全部期待どおり）**
+  1. nox-project-proof＝13
+  2. rls_on
+  3. one_select_policy
+  4. auth_select_only
+  5. anon_none
+  6. rows_match
+  7. no_mismatch
+  8. fn_writes_history・acl_same
+  9. adj_reads_history・adj_acl_same
+  10. fn_count_same
+- 後の状態：関数 478・**表 127**。payroll_adjustment_add の md5 は a53fc750… → 21506da518c99f0dd4a754dd4bc0b6d4。
+- **main**：枝 emp-history-1124 を main に進めた（d81a1c7f・b62f55aa・60e7b5d3・6d725dff）。
+  - 旗 MIG_0206_APPLIED true。表の数の pin 126→127（14 本 17 か所）。verify:nox-emp-history を f0 の鎖に（246 段）。
+- **デモの入れ直しの名簿**：demo_org_reset は変えていない（DB の関数なので、変えるなら mig になる）。
+  - 消す側：casts を消すと cast_employment も消える（on delete cascade）。名簿に足さなくても残らない。
+  - 入れる側：デモのデータに cast_employment は無い。入れ直したデモのキャストは履歴の行が無く、今の値で計算される＝今と同じ額。
+  - ★次の reset（明日の朝）の後に読んで報告する。今日の 08:05 の適用で 66 行を入れたので、デモの人も今は履歴の行を 1 つずつ持っている（明日の reset で前消しが消し、入れ直した人は行が無くなる）。
+- **旗 true の後のデモ 7 店の下書き**（今月 2026-11 と先月 2026-10・14 件）
+  - 適用の前 06:41（デモの reset の後・0206 の前）と、適用の後 08:06（旗 true・本当の表を読む）で比べた。
+  - **1 バイト同じ**：473,513 バイト・sha256 7b15ad18b8e6b47a6fbc9d4894fc7992b4621aebbbd359bea2732f9c9cc474ad。
+  - 置き場：docs/tmp/0206/drafts_before_0206_1124.json と drafts_after_0206_1124.json。
+- **f0 の直し**：payroll-adjust（50 段目）が赤になった。
+  - 原因：検査が casts.employment を直に書き換えて区分を作っていたが、0206 の後の payroll_adjustment_add は期首に有効な cast_employment の行を先に読む。
+  - 直し：その tx の中だけ、2 人の履歴の行を消して「履歴が無い人＝今の値」の形で確かめる（ROLLBACK で戻る）。
+- **f0 の直し（続き）**
+  - bend（180 段目）：auto-penalty の「雇用は自動の控除を作らない」の pin を、期首の区分（emp）で判定する形に。
+  - wipe-cover（242 段目）：新しい表 cast_employment が、デモの入れ直しの名簿のどこにも無かった。直しとして、route の前消しの名簿（lib/nox/demo/prewipe.ts の DEMO_PREWIPE_TABLES）に足した（DDL なし）。
+    - 赤の中身は 3 件：org_id を持つ表が名簿に無い・cast_employment.store_id→stores が no action・デモ 7 店に行がある（ACE 7／HOST 12／LILY 6／LUNA 15／MUSE 5／NEST 5／NOIR 8）。
+    - **これが相談役の言う「デモの reset の名簿」**だった。DB の demo_org_reset は変えていない。route が wipe の前に消すので、明日の朝の reset は落ちない（push が 10:22 に本番に入った＝明日の reset の前）。
+- **f0（main・2 連緑）**：8:52:15〜9:36:50 と 9:36:50〜10:19:48。
+  - どちらも 246 段・9,258 件。pay 168・payroll 234・玲奈 5931／125802 は不変。
+  - ログは docs/tmp/f0_1124_r.log・f0_1124_s.log。赤の回は f0_1124_m と、残りの段だけの o_rest・p_rest・q_rest。
+- **push 10:20:02（911646ab）→ 本番 10:22:35**（build の印 XLWP-1S_4dWOEvB3Tw_NZ → N7FA3XWr8tf4p3EWZ47iW）。
+
+## 7-4. 適用の後の確かめ（■4・読むだけと BEGIN … ROLLBACK）
+- **set_cast_plan**（NOX-VERIFY-A1・05:45 JST・A1 の営業日 11/23）：docs/tmp/check_after_0205_1124.txt
+  1. 日付なし（10/01 から A の人を B に）→ 通る。行は A 10/01〜10/31／B 11/01〜（前の月は A のまま）。
+  2. 今月の 1 日（11/01）→ 通る。
+  3. 前の月の 1 日（10/01・確定していない・9/01 から A の人）→ 通る。行は A 9/01〜9/30／B 10/01〜。
+  4. 確定済みの月（試走の中で 9 月を確定に・9/15）→ 'period finalized'。行は変わらない。
+  - ROLLBACK の後、試走の行 0・関数 478。
+- **set_cast_employment と懲戒の減給**（08:06 JST）：docs/tmp/check_after_0206_1124.txt
+  - 1 月から雇用 → 通る。行は委託 10/01〜12/31／雇用 2027-01-01〜。期首の区分は 11 月 委託・12 月 委託・1 月 雇用。
+  - 懲戒の減給は 11 月の期も 12 月の期も 'bad source for employment'（委託として断る）。
+  - ROLLBACK の後、試走の行 0・関数 478。
+- **初期設定のキャストの登録**：verify:nox-setup-cast を **04:37:15（A1 の締め 06:00 の前＝営業日 11/23）** に単独で流し、緑（19 件）。
+  - プランの開始日は営業日の月の 1 日（2026-11-01）ちょうどで、検査をそう厳しくした。
+  - その後の f0 では 06:41〜08:05 に通った（締めの後）。
+
+## 7-5. 0203 版 4 の事前確認と検証（0206 の後の形）
+- 本体は変えていない：0203_multi_store.sql 33,781 バイト・c9cc4ab4a7c55bf3825d4620b4be89896e986ae0ded61bfd71a045decd6037f0。
+- 直したのは表の数だけ（126→127）。事前確認の前提「関数 478・表 126」→「表 127」、検証の table count (expect 126) → (expect 127)。関数の数（478・後は 483）は変わらない。
+- 0205・0206 が書き直した関数（set_cast_plan・set_cast_guarantee・withholding_rate_of・顧客の 2 本・set_cast_employment・payroll_adjustment_add）は、0203 の本体にも事前確認にも出てこない。0203 が元にした関数の本文の比べは、そのまま効く。
+
+  | ファイル | バイト | sha256 |
+  |---|---|---|
+  | 0203_multi_store.sql（本体・版 4 のまま） | 33,781 | c9cc4ab4a7c55bf3825d4620b4be89896e986ae0ded61bfd71a045decd6037f0 |
+  | 0203_precheck.sql（事前確認・表 127） | 4,178 | 49c5490936476b0df3679561aaf85bab52dc6540d9f31f6913f30ee1a3ba0845 |
+  | 0203_verify.sql（検証・表 127） | 4,395 | a368b57bcff8d19ea36a90d251e9326b2ca3dc7bf309ef6a5a3ab9fe8443f1a7 |
+
+  - 前の版は docs/tmp/0203/0203_precheck_v4.sql・0203_verify_v4.sql。0203 は合図待ちのまま（判断 6）。
+
+## 7-6. ■3 画面の文（main f886ca58 まで・本番 08:07:12）
+- **効く月**：「今月分から」と決め打ちにせず、set_cast_plan 版 2 と同じ決まりで出す（lib/nox/cast/plan-switch.ts の dateLessFromOf・dateLessLabelOf）。
+  - 開いた行が先の月から始まる人（プランの変更を予約してある人）は、その月の名前（例「2026 年 12 月分から」）。
+  - 月の 1 日の 0:00〜締めの時刻は、営業日の月の名前（例 12/01 02:00 は「今月（2026 年 11 月）分から」）。
+- 待遇の割当（マスタ）：日付の欄の空の文と保存の文を、キャストごとに出す（開いた行の開始日を読む・店の締めの時刻）。
+- 報酬型：保存ボタンの横に「今月（2026 年 11 月）分から効きます」と出し、保存の文にも同じ月を出す。
+- プランの切替：日付の下限＝最後に確定した期の翌日。注記は「確定していない期なら、今日より前の日付も選べます」。
+- キャストの詳細の次のシフト：営業日の今日から（判断 1）。verify:nox-jst-today の表を直した（営業日 9 か所・303 件）。
+- **写し**：docs/tmp/shots_1124_0205/（375 と 1024 の 4 枚ずつ）。手元の dev（枝 night1124-0205v2・旗 true）・本番の DB・NOX-VERIFY-A1 のオーナー。
+  - 1_assign_empty：割当の日付の欄（空＝今月（2026 年 11 月）分から）。375 では文がはみ出したので、欄を 250 に広げてから撮った。
+  - 2_rule_effect：報酬型のボタンの横（今月（2026 年 11 月）分から効きます）。
+  - 2b_rule_saved：保存の文（報酬型を「時間報酬」にしました（今月（2026 年 11 月）分から））。
+  - 3_plan_switch：切替の注記。
+  - **教訓160 の形**：ブラウザの側で GET／HEAD 以外は既定で止め、通したのはログインとセッションの延長だけ。
+    - 止めたもの（全部）：POST /api/kiosk/person-end・rpc auth_role・auth_org_id・line_push_month_summary・get_cast_ranking・get_cast_sales・POST /api/payroll/preview・rpc set_cast_guarantee（保証の有無の確かめ）・cast_mynumber_discard_candidates・deduction_rule_casts_get・set_cast_plan・dev の stack-frames。
+    - set_cast_plan は止めた上で、ブラウザの中で成功の形を返した（保存の文を見るため・本番には届かない）。
+    - 読むだけの rpc も止めたので、売上の進み・順位・給与の試算の欄は空のまま写っている。
+    - 台本：docs/tmp/shots_1124_0205.mjs、ログ：log_375.txt・log_1024.txt。
+
+## 7-7. 判断が要る所（進めずに並べる）
+1. **0205 を当てた時刻**（7-0 の ★）：確かめ（0:00〜締めの setup-cast）を優先して 04:37 に当て、push まで 3 時間 28 分かかった。次から「間を短く」を優先するか。
+2. **自分の行が月ごとに増える**：日付なしの保存のたびに、開いた行が前の月の初めより前なら行が割れる（版 2 の決まりどおり）。
+   - 検査用の castA1a は f0 のたびに（月が変わるごとに）行が 1 つ増える。数えて困る所は無い（検査は「自分の行だけ・開いた行 1」に直した）。
+   - 画面の「履歴」の一覧も、月ごとに 1 行増える。
+3. **デモの入れ直しの名簿**：route の前消し（DEMO_PREWIPE_TABLES）に足した。DB の demo_org_reset の c_wipe に移すなら mig 1 本（0198 ★5 と同じ形）。今は要らない。
+4. **0206 の後、検査が casts.employment を直に書き換えて区分を作る所**：payroll-adjust は tx の中で履歴を消す形にした。ほかの検査が同じ形で増えたら、set_cast_employment を通す形に寄せるか。
+5. 起票に残す：自動の控除の期間（営業日の月）と DB（給与の回の期）のずれ（判断 4・月末締めの間は起きない）。
+6. 0203 版 4 は合図待ち（事前確認と検証は表 127 に合わせた）。
