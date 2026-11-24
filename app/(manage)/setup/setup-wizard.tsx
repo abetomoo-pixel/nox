@@ -637,7 +637,7 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
 
       {/* ── 6 スタッフ ── */}
       {S.step === 5 && (
-        <><div className="nox-setup-head" data-setup-head="1"><h2>スタッフ</h2><p>店長・ホール・キッチンなど、キャスト以外で働く人です。あとで招待メールを送ってログインしてもらいます。</p></div>
+        <><div className="nox-setup-head" data-setup-head="1"><h2>スタッフ</h2><p>店長・ホール・キッチンなど、キャスト以外で働く人です。ログイン ID と初期パスワードは完了画面に出すので、本人に渡してください（あとからスタッフ管理で、本人がパスワードを決める招待リンクも出せます）。</p></div>
           <section className="nox-cardtop" style={card}>
           <h3 style={h3}>スタッフの登録</h3>
           {S.staff.map((st, i) => (
@@ -769,7 +769,7 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
           <section className="nox-cardtop" style={{ ...card, textAlign: "center", padding: "28px 20px" }}>
             <div style={{ fontSize: 34, color: "var(--ok)" }}>✓</div>
             <h2 style={{ ...secTitle, fontSize: 18, margin: "6px 0 4px" }}>初期設定が完了しました</h2>
-            <p style={note}>続けてキャストを登録しましょう。あとからでも登録できます。店の端末では本人を選んで PIN、スマホでは招待メールからログインします。</p>
+            <p style={note}>続けてキャストを登録しましょう。あとからでも登録できます。店の端末では本人を選んで PIN、スマホではこの画面に出すログイン ID（メール）と初期パスワードでログインします。</p>
             {issued.length > 0 && (<div style={{ textAlign: "left", marginTop: 10 }} data-setup-issued={issued.length}><Message kind="warn">発行したログイン ID と初期パスワード（この画面だけ・印刷して渡してください）</Message>
               <ul style={{ fontSize: 12.5, margin: "6px 0 0", paddingLeft: 18 }}>{issued.map((x, i) => <li key={i}>{x.kind === "device" ? "店の端末" : x.kind === "staff" ? "スタッフ" : "キャスト"} {x.name}：ID <code>{x.login}</code>／初期パスワード <code>{x.password}</code></li>)}</ul></div>)}
           </section>
@@ -791,10 +791,10 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
                 <div><span style={t.fieldLabel}>契約区分</span><br /><SegSelect value={f.kind} onChange={(v) => up((s) => { s.castForm.kind = v; })} options={[["業務委託", "業務委託"], ["雇用", "雇用"]] as const} ariaLabel="契約区分" /></div>
                 <Field label="待遇プラン"><SegSelect value={f.plan} onChange={(v) => up((s) => { s.castForm.plan = v; })} options={[["基本プラン", "基本プラン"], ["体験入店", "体験入店"]] as const} ariaLabel="待遇プラン" /></Field>
                 <Field label="電話"><Text value={f.tel} onChange={(v) => up((s) => { s.castForm.tel = v; })} width="100%" ariaLabel="電話" /></Field>
-                <Field label="メール（ログインの招待に使います）"><Text value={f.mail} onChange={(v) => up((s) => { s.castForm.mail = v; })} width="100%" ariaLabel="メール" /></Field>
+                <Field label="メール（スマホのログイン ID に使います）"><Text value={f.mail} onChange={(v) => up((s) => { s.castForm.mail = v; })} width="100%" ariaLabel="メール" /></Field>
                 <Field label="PIN（店の端末で本人を選んだ後に入れる・4〜6 桁）"><Text value={f.pin} onChange={(v) => up((s) => { s.castForm.pin = v.replace(/\D/g, "").slice(0, 6); })} placeholder="空なら自動で振ります" width="100%" ariaLabel="PIN" /></Field>
                 {S.payroll.okuriMode === "fixed" && <div><span style={t.fieldLabel}>送りの距離区分</span><br /><SegSelect value={f.dist} onChange={(v) => up((s) => { s.castForm.dist = v; })} options={[["near", "近"], ["mid", "中"], ["far", "遠"]] as const} ariaLabel="送りの距離区分" /></div>}
-                <label style={{ display: "flex", gap: 10, alignItems: "center", alignSelf: "end", minHeight: 48 }}><input type="checkbox" checked={f.invite} onChange={(e) => up((s) => { s.castForm.invite = e.target.checked; })} style={{ width: 22, height: 22 }} /><span>メールがあれば招待を送る</span></label>
+                <label style={{ display: "flex", gap: 10, alignItems: "center", alignSelf: "end", minHeight: 48 }}><input type="checkbox" checked={f.invite} onChange={(e) => up((s) => { s.castForm.invite = e.target.checked; })} style={{ width: 22, height: 22 }} /><span>メールがあればログイン ID と初期パスワードを出す</span></label>
               </div>
               <p style={note}>体験入店を選ぶと、待遇プランは「体験入店」（時給 ¥{yen(S.pay.trial)}・{S.pay.trialDays} 日）になります。源泉の区分は契約区分から既定で入ります（業務委託＝{S.payroll.whtCast === "hostess" ? "ホステス報酬" : "対象外"}・雇用＝給与）。生年月日は 18 歳の確認に使います（必須）。</p>
               {castMsg && <Message kind={/失敗|止まりました/.test(castMsg) ? "error" : "success"}>{castMsg}</Message>}
@@ -805,7 +805,7 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
               <h3 style={h3}>CSV で一括登録</h3>
               <p style={lead}>今の名簿を表計算ソフトで CSV にして取り込みます。1 行目は見出しです。</p>
               <div><span style={t.fieldLabel}>列（この順番）</span><div style={{ ...input, width: "100%", fontFamily: "ui-monospace, monospace", fontSize: 13 }}>{CSV_HEADER}</div></div>
-              <p style={note}>在籍区分＝在籍／体入、契約区分＝業務委託／雇用、待遇プラン＝基本プラン／体験入店（空なら在籍区分から自動）、PIN＝4〜6 桁（空なら自動で振る）、送り距離＝近／中／遠（空なら中）。メールがある人には招待を送ります。生年月日は登録後にキャスト画面で入れます（CSV の 9 列に無いため）。</p>
+              <p style={note}>在籍区分＝在籍／体入、契約区分＝業務委託／雇用、待遇プラン＝基本プラン／体験入店（空なら在籍区分から自動）、PIN＝4〜6 桁（空なら自動で振る）、送り距離＝近／中／遠（空なら中）。メールがある人には、ログイン ID（メール）と初期パスワードをこの画面に出します（メールは送りません）。生年月日は登録後にキャスト画面で入れます（CSV の 9 列に無いため）。</p>
               <div className="nox-actions" style={{ marginTop: 8 }}>
                 <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} onClick={() => { void navigator.clipboard?.writeText(CSV_HEADER); setCastMsg("見出し行をコピーしました"); }}>見出し行をコピー</button>
                 <label style={{ ...t.btnGhost, ...t.btnSm, display: "inline-flex", alignItems: "center", cursor: "pointer" }}>CSV ファイルを選ぶ<input type="file" accept=".csv,text/csv" style={{ display: "none" }} onChange={(e) => { const fl = e.target.files?.[0]; if (!fl) return; const rd = new FileReader(); rd.onload = () => setS((s) => ({ ...s, csvRows: parseCsv(String(rd.result)) })); rd.readAsText(fl, "UTF-8"); }} /></label>
