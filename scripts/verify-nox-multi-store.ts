@@ -92,7 +92,7 @@ check("(2) 0203 の起草＝begin／commit は 1 つずつ・関数 5 本・ops_
 check("(2) ★12:00 の ■2-b 画面は写しの対応で結ぶ（名前で探すのは写していないときだけ）・関数はプランの対応を作った順で返す",
   src("app/(manage)/setup/setup-wizard.tsx").includes("if (!ce) copiedPlansRef.current = copiedPlanIdsOf(cd);") && src("app/(manage)/setup/setup-wizard.tsx").indexOf("if (!ids2.basic && copiedPlansRef.current) {") > 0
   && src("app/(manage)/setup/setup-wizard.tsx").indexOf("if (!ids2.basic && copiedPlansRef.current) {") < src("app/(manage)/setup/setup-wizard.tsx").indexOf('rows.find((x) => x.name === "基本プラン")')
-  && mig.includes("order by c.created_at, c.id), '[]'::jsonb)") && mig.includes("'plans', v_plans,") && src("lib/nox/setup/v5.ts").includes("p_valid_from: monthStartJstOf(new Date())"));
+  && mig.includes("order by c.created_at, c.id), '[]'::jsonb)") && mig.includes("'plans', v_plans,") && src("lib/nox/setup/v5.ts").includes("p_valid_from: monthStartJstOf(now)"));
 const stockPage = src("app/(manage)/master/stock/page.tsx"), stockBoard = src("app/(manage)/master/stock/stock-board.tsx"), mPage = src("app/(manage)/master/page.tsx"), mBoard = src("app/(manage)/master/master-board.tsx"), q = src("lib/nox/master/queries.ts");
 check("(2) ★12:00 の ■2-a 在庫＝商品・現在庫・カテゴリ・履歴を今見ている店で（旗 false＝null＝今のまま）",
   stockPage.includes("const storeId = mig0203On() ? await currentStoreIdOf(supabase) : null;") && stockPage.includes("fetchProducts(supabase, storeId),") && stockPage.includes("fetchStockTotals(supabase, storeId),") && stockPage.includes("storeId={storeId}")
@@ -119,7 +119,7 @@ check("(2) ★版 2 ランク＝写し先に有れば名前で結ぶ・結べな
   && mig.includes("if exists (select 1 from public.orgs where id = v_org and is_demo) then raise exception 'forbidden (demo)'; end if;") && src("app/(manage)/master/store-profile-panel.tsx").includes("if (pe && /forbidden \\(demo\\)/.test(pe.message) && orgPay !== null) ({ error: pe } = await setStoreProfile({ pay_day: orgPay }));"));
 check("(2) ★版 2 の ■3 体験入店は写したとき結ばない＝完了の画面でオーナーが選ぶ（選ばずに体入を登録すると行を作る前に止める）",
   src("app/(manage)/setup/setup-wizard.tsx").includes('data-setup-trial-pick="1"') && src("app/(manage)/setup/setup-wizard.tsx").includes("if (isTrial && trialChoices && !planIds.trial && !trialPick) {")
-  && src("app/(manage)/setup/setup-wizard.tsx").indexOf("if (isTrial && trialChoices && !planIds.trial && !trialPick) {") < src("app/(manage)/setup/setup-wizard.tsx").indexOf("const steps = castPlanOf(c, store.id, { basic: planIds.basic, trial: planIds.trial ?? (trialPick || null) }"));
+  && src("app/(manage)/setup/setup-wizard.tsx").indexOf("if (isTrial && trialChoices && !planIds.trial && !trialPick) {") < src("app/(manage)/setup/setup-wizard.tsx").indexOf("const steps = castPlanOf(c, store.id, { ...planIds, trial: planIds.trial ?? (trialPick || null) }"));
 
 check("(2) ★版 2 画面は写した後の 2 店目の登録番号と領収書の下の文を読んで、領収書の段に渡す（住所と電話は 2 店目の入力）", src("app/(manage)/setup/setup-wizard.tsx").includes("applyCopyToPlan(planAll.steps, copyParts, copiedReceiptRef.current)") && src("app/(manage)/setup/setup-wizard.tsx").includes("copiedReceiptRef.current = { invoice_reg_no:"));
 
