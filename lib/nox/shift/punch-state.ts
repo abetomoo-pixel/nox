@@ -24,10 +24,11 @@ export function punchButtonsOf(state: PunchState): { inEnabled: boolean; outEnab
 export function punchButtonsShownOf(state: PunchState): { in: boolean; out: boolean } {
   return { in: state === "none", out: state === "open" };
 }
-/** ★起票158 の 1: 端末（キオスク）のスタッフ＝今日の最後の打刻（kiosk_staff_list の last_kind）から。キャストは状態を持たない＝両方（null） */
+/** ★起票158 の 1: 端末（キオスク）のスタッフ＝今日の最後の打刻（kiosk_staff_list の last_kind）から。出勤中（最後が in）＝退勤だけ・それ以外＝出勤だけ
+ *  （スタッフは同じ日に何回でも出勤し直せる＝staff_punch は最後が out なら in を通す＝退勤の後も出勤を出す）。キャストは状態を持たない＝両方（known＝false） */
 export function kioskButtonsShownOf(lastKind: string | null | undefined, known: boolean): { in: boolean; out: boolean } {
   if (!known) return { in: true, out: true };
-  return lastKind === "in" ? { in: false, out: true } : lastKind === "out" ? { in: false, out: false } : { in: true, out: false };
+  return lastKind === "in" ? { in: false, out: true } : { in: true, out: false };
 }
 
 /** 補助文（出勤中は見出し横の「出勤中 HH:MM〜」＝punchHeadOf） */

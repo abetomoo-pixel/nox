@@ -332,7 +332,7 @@ export default function KioskPage() {
             {/* ★M-154（2026-11-11）: PIN 入力は共通部品（スタッフでログインと同じ）＝マスク表示・丸は入力した数だけ */}
             <PinPad value={pin} onChange={setPin} max={pinMax()} label={pinMax() === 6 ? "PIN（4〜6 桁）" : "PIN（4 桁）"} />
             {(() => { const sb = kioskButtonsShownOf(target.lastKind, !!target.staff); return (/* ★起票158 の 1（2026-11-24 夜）: スタッフは今日の打刻で「出勤」か「退勤」の 1 つ（キャストは状態を読めない＝両方・決めてほしい点） */
-            <div className={sb.in && sb.out ? "nox-pinpad-go two" : "nox-pinpad-go"} data-kiosk-shown={sb.in && sb.out ? "both" : sb.in ? "in" : sb.out ? "out" : "none"}>
+            <div className={sb.in && sb.out ? "nox-pinpad-go two" : "nox-pinpad-go"} data-kiosk-shown={sb.in && sb.out ? "both" : sb.in ? "in" : "out"}>
               {sb.in && <button disabled={!pinOk(pin) || busy} onClick={() => void startIn()}
                 style={{ ...t.btnGold, opacity: pinOk(pin) ? 1 : 0.4 }}>{/* ★便 D M-103: pick ルールがあれば先に聞く（0196 まで従来どおり） */}
                 出勤
@@ -341,7 +341,6 @@ export default function KioskPage() {
                 style={{ ...t.btnGold, background: "var(--primary-fill)", borderColor: "var(--primary-fill)", color: "#fff", opacity: pinOk(pin) ? 1 : 0.4 }}>
                 退勤
               </button>}
-              {!sb.in && !sb.out && <p style={{ textAlign: "center", fontSize: 13, color: "var(--sub)", margin: 0 }} data-kiosk-done="1">本日は退勤済みです。修正は店長にご連絡ください</p>}
             </div>); })()}
             <button onClick={backToSelect} style={{ ...t.btnGhost, ...t.btnSm, marginTop: 16, width: "100%" }}>もどる</button>
           </div>
