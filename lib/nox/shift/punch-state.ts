@@ -20,6 +20,16 @@ export function punchButtonsOf(state: PunchState): { inEnabled: boolean; outEnab
   return { inEnabled: state === "none", outEnabled: state === "open", okuriEnabled: state === "open" };
 }
 
+/** ★起票158 の 1（2026-11-24 夜・相談役 N1）: 出すボタン＝出勤していないときは「出勤」だけ・出勤中は「退勤」だけ・退勤済みはどちらも出さない（押せないボタンを並べない） */
+export function punchButtonsShownOf(state: PunchState): { in: boolean; out: boolean } {
+  return { in: state === "none", out: state === "open" };
+}
+/** ★起票158 の 1: 端末（キオスク）のスタッフ＝今日の最後の打刻（kiosk_staff_list の last_kind）から。キャストは状態を持たない＝両方（null） */
+export function kioskButtonsShownOf(lastKind: string | null | undefined, known: boolean): { in: boolean; out: boolean } {
+  if (!known) return { in: true, out: true };
+  return lastKind === "in" ? { in: false, out: true } : lastKind === "out" ? { in: false, out: false } : { in: true, out: false };
+}
+
 /** 補助文（出勤中は見出し横の「出勤中 HH:MM〜」＝punchHeadOf） */
 export const PUNCH_STATE_NOTE: Record<PunchState, string | null> = {
   none: "出勤打刻がありません",

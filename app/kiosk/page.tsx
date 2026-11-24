@@ -7,6 +7,7 @@
 // フロー: name-select（源氏名グリッド・PIN 未設定はグレーアウト）→ PIN pad（4桁マスク）→
 //   出勤/退勤 大ボタン → 結果表示（ok=名前+時刻／wrong_pin=残回数非表示でシンプル／locked=解除時刻）→
 //   数秒で name-select へ自動復帰。
+import { kioskButtonsShownOf } from "@/lib/nox/shift/punch-state"; // ★起票158 の 1
 import { useCallback, useEffect, useRef, useState } from "react";
 import Loading from "@/components/ui/loading"; // ★M-135: 読み込み中の表示の共通部品
 import { PUNCH_STORE_OFF_NOTE } from "@/lib/nox/shift/punch-mode"; // ★便 E（0197 用）
@@ -31,7 +32,7 @@ import PinPad from "@/components/nox/pin-pad"; // ★M-154: PIN 入力の共通�
 import { useIsDemo } from "@/lib/nox/demo/context"; // ★夜便レーン 1（2026-11-11）: デモの端末だけ名前の下に PIN
 import { demoPinOf } from "@/lib/nox/demo/pin";
 import KioskPersonEntry from "@/components/nox/kiosk-person-entry"; // ★便 E（0196 用）: スタッフでログイン（PIN） // ★便 M5 M-49: 端末のセッションを控えて /login?kiosk=1
-type KRow = { cast_id: string; cast_name: string; has_pin: boolean; staff?: boolean }; // ★便 P174 T-6（355）: staff＝true は cast_id に membership_id（スタッフ群）
+type KRow = { cast_id: string; cast_name: string; has_pin: boolean; staff?: boolean; /** ★起票158 の 1: スタッフ＝今日の最後の打刻（kiosk_staff_list の last_kind）・キャストは無い（状態を持たない＝両方出す） */ lastKind?: string | null }; // ★便 P174 T-6（355）: staff＝true は cast_id に membership_id（スタッフ群）
 type SRow = { membership_id: string; user_name: string; role: string; has_pin: boolean; last_kind: string | null; last_at: string | null }; // ★便 P174 T-6: kiosk_staff_list（0174 ★5）
 type Phase = "loading" | "login" | "denied" | "select" | "pin" | "okuri" | "dayded" | "result"; // ★便 D M-103: dayded＝出勤時の「今日の控除」（0196 まで出ない）
 type PunchResult =
@@ -298,7 +299,7 @@ export default function KioskPage() {
             {!storePunchOff && group === "staff" && staffs.length > 0 ? (
               <div className="nox-kioskgrid" data-kiosk-grid="staff">
                 {staffs.map((m) => (
-                  <button key={m.membership_id} onClick={() => pick({ cast_id: m.membership_id, cast_name: m.user_name, has_pin: m.has_pin, staff: true })} disabled={!m.has_pin}
+                  <button key={m.membership_id} onClick={() => pick({ cast_id: m.membership_id, cast_name: m.user_name, has_pin: m.has_pin, staff: true, lastKind: m.last_kind })} disabled={!m.has_pin}
                     style={{ ...bigBtn, opacity: m.has_pin ? 1 : 0.35, cursor: m.has_pin ? "pointer" : "not-allowed" }}>
                     <span style={{ display: "flex", justifyContent: "center", marginBottom: 6 }}><CastAvatar name={m.user_name} url={photoUrls.operators[m.membership_id]} size={44} variant="flat" /></span>{/* ★便 M5 M-42 */}
                     {m.user_name}
@@ -330,16 +331,18 @@ export default function KioskPage() {
             <p style={{ textAlign: "center", fontSize: 17, fontWeight: 800, margin: "0 0 4px" }}>{target.cast_name}</p>
             {/* ★M-154（2026-11-11）: PIN 入力は共通部品（スタッフでログインと同じ）＝マスク表示・丸は入力した数だけ */}
             <PinPad value={pin} onChange={setPin} max={pinMax()} label={pinMax() === 6 ? "PIN（4〜6 桁）" : "PIN（4 桁）"} />
-            <div className="nox-pinpad-go two">
-              <button disabled={!pinOk(pin) || busy} onClick={() => void startIn()}
+            {(() => { const sb = kioskButtonsShownOf(target.lastKind, !!target.staff); return (/* ★起票158 の 1（2026-11-24 夜）: スタッフは今日の打刻で「出勤」か「退勤」の 1 つ（キャストは状態を読めない＝両方・決めてほしい点） */
+            <div className={sb.in && sb.out ? "nox-pinpad-go two" : "nox-pinpad-go"} data-kiosk-shown={sb.in && sb.out ? "both" : sb.in ? "in" : sb.out ? "out" : "none"}>
+              {sb.in && <button disabled={!pinOk(pin) || busy} onClick={() => void startIn()}
                 style={{ ...t.btnGold, opacity: pinOk(pin) ? 1 : 0.4 }}>{/* ★便 D M-103: pick ルールがあれば先に聞く（0196 まで従来どおり） */}
                 出勤
-              </button>
-              <button disabled={!pinOk(pin) || busy} onClick={() => void startOut()}
+              </button>}
+              {sb.out && <button disabled={!pinOk(pin) || busy} onClick={() => void startOut()}
                 style={{ ...t.btnGold, background: "var(--primary-fill)", borderColor: "var(--primary-fill)", color: "#fff", opacity: pinOk(pin) ? 1 : 0.4 }}>
                 退勤
-              </button>
-            </div>
+              </button>}
+              {!sb.in && !sb.out && <p style={{ textAlign: "center", fontSize: 13, color: "var(--sub)", margin: 0 }} data-kiosk-done="1">本日は退勤済みです。修正は店長にご連絡ください</p>}
+            </div>); })()}
             <button onClick={backToSelect} style={{ ...t.btnGhost, ...t.btnSm, marginTop: 16, width: "100%" }}>もどる</button>
           </div>
         )}

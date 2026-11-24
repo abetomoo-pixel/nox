@@ -12,7 +12,7 @@ import Toast from "@/components/ui/toast";
 import { rpcErrJa } from "@/lib/nox/ui/rpc-err";
 import { okuriSelfPlanOf, okuriResultTextOf, OKURI_PENDING_NOTE } from "@/lib/nox/shift/okuri-self";
 import { okuriOutTextOf, type OkuriMode } from "@/lib/nox/shift/okuri-mode"; // ★裁定414（S-4）: 方式の 1 文
-import { PUNCH_STATE_NOTE, punchButtonsOf, type PunchState } from "@/lib/nox/shift/punch-state";
+import { PUNCH_STATE_NOTE, punchButtonsOf, punchButtonsShownOf, type PunchState } from "@/lib/nox/shift/punch-state";
 import { PUNCH_PENDING_EVENT, punchStateAfterOf, punchStateShownOf } from "@/lib/nox/shift/punch-pending"; // ★2026-11-13（相談役【3】a）: 打刻の直後に古い状態を見せない
 
 // ★裁定326 追補3（便 M1-4・2026-09-30）: 3 状態（未出勤／出勤中／退勤済み）は page.tsx が当日営業日の自分の打刻から punchStateOf で導き state を渡す（新規 fetch 0）。
@@ -38,6 +38,7 @@ export default function PunchActions({ okuriMode = "flat", okuriBase = null, sta
   const [optimistic, setOptimistic] = useState<{ from: PunchState; to: PunchState } | null>(null);
   const [refreshing, startRefresh] = useTransition();
   const shown = punchStateShownOf(state, optimistic);
+  const shownBtn = punchButtonsShownOf(shown); // ★起票158 の 1
   useEffect(() => { if (!refreshing) { setOptimistic(null); window.dispatchEvent(new CustomEvent(PUNCH_PENDING_EVENT, { detail: false })); } }, [refreshing]);
   const btn = punchButtonsOf(shown);
   const note = PUNCH_STATE_NOTE[shown];
@@ -112,13 +113,14 @@ export default function PunchActions({ okuriMode = "flat", okuriBase = null, sta
           ))}
         </div>
       )}
-      <div className="nox-punchrow">
-        <button className="nox-punchbtn" style={{ ...(btn.inEnabled ? t.btnGold : t.btnGhost), padding: 16, fontSize: 15, opacity: busy || !btn.inEnabled ? 0.55 : 1 }} disabled={busy || !btn.inEnabled} onClick={() => punch("in")} aria-disabled={!btn.inEnabled}>
+      {/* ★起票158 の 1（2026-11-24 夜）: 出勤していないときは「出勤」だけ・出勤中は「退勤」だけ（退勤済みはどちらも出さない＝補助文だけ） */}
+      <div className="nox-punchrow" data-punch-shown={shownBtn.in ? "in" : shownBtn.out ? "out" : "none"}>
+        {shownBtn.in && <button className="nox-punchbtn" style={{ ...(btn.inEnabled ? t.btnGold : t.btnGhost), padding: 16, fontSize: 15, opacity: busy || !btn.inEnabled ? 0.55 : 1 }} disabled={busy || !btn.inEnabled} onClick={() => punch("in")} aria-disabled={!btn.inEnabled}>
           出勤
-        </button>
-        <button className="nox-punchbtn" style={{ ...(btn.outEnabled ? t.btnGold : t.btnGhost), padding: 16, fontSize: 15, opacity: busy || !btn.outEnabled ? 0.55 : 1 }} disabled={busy || !btn.outEnabled} onClick={() => punch("out")} aria-disabled={!btn.outEnabled}>
+        </button>}
+        {shownBtn.out && <button className="nox-punchbtn" style={{ ...(btn.outEnabled ? t.btnGold : t.btnGhost), padding: 16, fontSize: 15, opacity: busy || !btn.outEnabled ? 0.55 : 1 }} disabled={busy || !btn.outEnabled} onClick={() => punch("out")} aria-disabled={!btn.outEnabled}>
           退勤
-        </button>
+        </button>}
       </div>
       {needReason && <PunchReason type={needReason} value={reason} onChange={setReason} busy={busy} onSubmit={() => punch(needReason)} />/* ★0201（裁定474）: ハードの店で範囲外・位置が取れない＝理由を書けば打刻できる */}
       {note && <p className="nox-pstate" style={{ marginTop: 8 }}>{note}</p>}

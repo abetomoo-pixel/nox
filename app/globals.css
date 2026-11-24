@@ -1059,6 +1059,8 @@ body {
 .nox-me .sub { font-size: 11.5px; color: var(--v2-muted); }
 /* 打刻（モック .punchrow/.pstate） */
 .nox-punchrow { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.nox-punchrow[data-punch-shown="in"], .nox-punchrow[data-punch-shown="out"] { grid-template-columns: 1fr; } /* ★起票158 の 1（2026-11-24 夜）: ボタンが 1 つのときは全幅 */
+.nox-punchrow[data-punch-shown="none"] { display: none; }
 .nox-pstate { font-size: 12px; color: var(--v2-muted); margin-top: 8px; }
 /* 今月の報酬 見込み（モック .pay/.paysub/.ps）＝既存 breakdown のカード化 */
 .nox-paysub { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
