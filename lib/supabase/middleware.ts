@@ -1,6 +1,7 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { DEMO_UNTIL_COOKIE, demoSessionExpired, isDemoAuthUserId, isDemoSessionExemptPath } from "@/lib/nox/demo/session";
+import { loginNextOf } from "@/lib/nox/support/grant-entry"; // ★起票152
 
 type CookieToSet = { name: string; value: string; options: CookieOptions };
 
@@ -60,6 +61,8 @@ export async function updateSession(request: NextRequest) {
   if (!user && isProtected) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
+    const next = loginNextOf(path, request.nextUrl.search); // ★起票152（2026-11-24）: マスタの中のパスだけ、ログインの後に戻る先を ?next= で渡す（ほかは今のまま＝クエリを付けない）
+    if (next) url.search = `?next=${encodeURIComponent(next)}`; // 付けないときは今のまま（元のクエリを残す）
     return NextResponse.redirect(url);
   }
 

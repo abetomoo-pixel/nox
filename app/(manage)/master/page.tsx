@@ -2,7 +2,9 @@ import MasterBoard from "./master-board";
 import { managePageGate } from "@/lib/nox/nav/page-gate";
 import { createClient } from "@/lib/supabase/server";
 import { currentStoreIdOf } from "@/lib/nox/store/current-server"; // ★0203（12:00 の ■2-a）
-import { mig0203On } from "@/lib/nox/rules-0175/flag";
+import { mig0202bOn, mig0203On } from "@/lib/nox/rules-0175/flag";
+import { getSessionRole } from "@/lib/nox/auth";
+import { supportCardShownOf } from "@/lib/nox/support/grant-entry"; // ★起票152
 
 export const dynamic = "force-dynamic";
 
@@ -20,5 +22,14 @@ export const dynamic = "force-dynamic";
 export default async function MasterPage() {
   await managePageGate(); // ★教訓142（2026-11-11）: 柵（キャストの入場・規約・初期設定）はページの先頭で＝画面の移動でも効く
   const storeId = mig0203On() ? await currentStoreIdOf(await createClient()) : null; // ★0203（12:00 の ■2-a）: 今見ている店（旗 false＝今のまま）
-  return <MasterBoard storeId={storeId} />;
+  // ★起票152（2026-11-24）: 「店舗・運用」に「サポート許可」のカード＝オーナーだけ・デモの会社には出さない（タブを出す条件と同じ）
+  const { role } = await getSessionRole();
+  let showSupport = false;
+  if (mig0202bOn() && role === "owner") {
+    const supabase = await createClient();
+    const { data: orgId } = await supabase.rpc("auth_org_id");
+    const { data: orgRow } = orgId ? await supabase.from("orgs").select("is_demo").eq("id", orgId as string).maybeSingle() : { data: null };
+    showSupport = !!orgId && supportCardShownOf({ flag: true, role, isDemo: orgRow?.is_demo === true });
+  }
+  return <MasterBoard storeId={storeId} showSupport={showSupport} />;
 }

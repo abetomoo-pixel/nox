@@ -9,8 +9,12 @@ export function assistGateOf(o: { onboarding_state: string; is_demo?: boolean; s
   if (o.is_demo) return { ok: false, reason: "デモの会社には代行で書けません" };
   if (o.onboarding_state !== "done") return { ok: true, reason: null };
   if (o.support_until && new Date(o.support_until).getTime() > now.getTime()) return { ok: true, reason: null };
-  return { ok: false, reason: "導入完了の後で、サポート許可がありません（オーナーに店の設定でサポート許可を出してもらってください）" };
+  return { ok: false, reason: NO_SUPPORT_GRANT_REASON };
 }
+/** ★起票152（2026-11-24）: 導入完了の後でサポート許可が無いときの理由（この理由のときだけ、オーナーへ送る URL とコピーのボタンを出す） */
+export const NO_SUPPORT_GRANT_REASON = "導入完了の後で、サポート許可がありません（オーナーに店の設定でサポート許可を出してもらってください）";
+/** ★起票152: /ops の会社の詳細でオーナーへ送る URL を出すか（デモ・導入中・許可の間は出さない） */
+export const supportUrlShownOf = (g: AssistGate | null | undefined): boolean => !!g && !g.ok && g.reason === NO_SUPPORT_GRANT_REASON;
 
 /** LINE 連携の 4 段（line_config の鍵の有無だけを見る＝値は読まない・画面に出さない） */
 export type LineStep = { key: "public" | "secret" | "token" | "verify"; name: string; done: boolean; note: string };

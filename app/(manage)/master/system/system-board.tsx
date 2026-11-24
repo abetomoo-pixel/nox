@@ -20,8 +20,8 @@ import * as th from "@/lib/nox/ui/theme"; // ★便 M3 M-28 ①
 
 export type SystemTab = { key: string; label: string; node: React.ReactNode };
 
-export default function SystemBoard({ tabs }: { tabs: SystemTab[] }) {
-  const [cur, setCur] = useState(tabs[0]?.key ?? "");
+export default function SystemBoard({ tabs, initialKey = null }: { tabs: SystemTab[]; /** ★起票152: ?tab=support で開いたときの最初のタブ（無い・null＝先頭＝今のまま） */ initialKey?: string | null }) {
+  const [cur, setCur] = useState(initialKey && tabs.some((t) => t.key === initialKey) ? initialKey : (tabs[0]?.key ?? ""));
   const active = tabs.find((t) => t.key === cur) ?? tabs[0];
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -30,6 +30,11 @@ export default function SystemBoard({ tabs }: { tabs: SystemTab[] }) {
   //   **どのタブを開くか**を決める。ブラウザ既定の hash スクロールはタブが未選択のうちは
   //   対象が DOM に無く効かないため、選択してから自前で scrollIntoView する。
   //   hashchange も拾う＝同じページに居るまま別カードのリンクを踏んでも切り替わる。
+  // ★起票152: ?tab=support で開いたときもパネルまで寄せる（#hash と同じ着地）
+  useEffect(() => {
+    if (initialKey && tabs.some((t) => t.key === initialKey)) requestAnimationFrame(() => panelRef.current?.scrollIntoView({ block: "start" }));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   useEffect(() => {
     const keys = new Set(tabs.map((t) => t.key));
     const apply = () => {

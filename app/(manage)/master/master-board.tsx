@@ -6,6 +6,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { hubCountOf, hubStatusOf, type HubLoadState } from "@/lib/nox/ui/hub-count"; // ★Z152: 取得前は「—」・失敗は「取得できませんでした」
 import { MASTER_NAV, masterSearchHit, type MasterNavPage } from "@/lib/nox/master/nav";
+import { SUPPORT_CARD, supportCardHitOf } from "@/lib/nox/support/grant-entry"; // ★起票152
 import {
   fetchProducts, fetchProductCategories,
   type MasterProduct as Product, type MasterCategory as Category,
@@ -19,7 +20,7 @@ import {
 //   ★設定値／計算／権限／履歴は不変（カードと検索＝表示のみ・オーナー限定の表示は維持）。
 type Seat = { id: string; name: string; kind: string | null; sort_order: number; is_active: boolean };
 
-export default function MasterBoard({ storeId = null }: { /** ★0203（12:00 の ■2-a）: オーナーの今見ている店（旗 false＝null＝今のまま） */ storeId?: string | null } = {}) {
+export default function MasterBoard({ storeId = null, showSupport = false }: { /** ★0203（12:00 の ■2-a）: オーナーの今見ている店（旗 false＝null＝今のまま） */ storeId?: string | null; /** ★起票152: 「店舗・運用」にサポート許可のカード（オーナー・デモでない） */ showSupport?: boolean } = {}) {
   const supabase = createClient();
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -103,7 +104,8 @@ export default function MasterBoard({ storeId = null }: { /** ★0203（12:00 �
       {/* ★MC1: 4 パネル × 9 入口（aaa .section + .grid + .card）。クリックで入口の先頭タブへ・カード内のチップで各タブへ。 */}
       {MASTER_NAV.map((g) => {
         const pages = g.pages.filter((p) => masterSearchHit(p, hubSearch));
-        if (pages.length === 0) return null;
+        const supportHere = g.key === "store" && showSupport && supportCardHitOf(hubSearch); // ★起票152
+        if (pages.length === 0 && !supportHere) return null;
         return (
           <section key={g.key} className="nox-sec" id={`master-${g.key}`}>
             <div className="nox-sechead">
@@ -129,11 +131,25 @@ export default function MasterBoard({ storeId = null }: { /** ★0203（12:00 �
                   </Link>
                 );
               })}
+              {supportHere && (/* ★起票152: サポート許可（オーナーだけ・デモの会社には出さない）＝スタッフ・システムのサポート許可のタブを開く */
+                <Link key={SUPPORT_CARD.href} href={SUPPORT_CARD.href} className="nox-fcard" data-hub-support="1">
+                  <div className="top">
+                    <div className="count">運営</div>
+                    <span className="status mute">管理者</span>
+                  </div>
+                  <h3><span className="nox-cardtitle">{SUPPORT_CARD.label}</span><span className="nox-cardchev" aria-hidden="true" style={{ color: "var(--primary)" }}>›</span></h3>
+                  <p className="nox-carddesc" data-hub-desc="1">{SUPPORT_CARD.desc}</p>
+                  <div className="foot">
+                    <span className="status mute">● 管理者だけ</span>
+                    <span className="link">管理する →</span>
+                  </div>
+                </Link>
+              )}
             </div>
           </section>
         );
       })}
-      {MASTER_NAV.every((g) => g.pages.every((p) => !masterSearchHit(p, hubSearch))) && (
+      {MASTER_NAV.every((g) => g.pages.every((p) => !masterSearchHit(p, hubSearch))) && !(showSupport && supportCardHitOf(hubSearch)) && (
         <p style={{ fontSize: 12.5, color: "var(--sub)", marginTop: 16 }}>該当する設定がありません。「商品」「ノルマ」「店舗情報」など、別の設定名で検索してください。</p>
       )}
     </div>

@@ -8,9 +8,30 @@ import { useRouter } from "next/navigation";
 import * as t from "@/lib/nox/ui/theme";
 import { Message } from "@/components/ui/toast";
 import { OpsProgressCard } from "../../ops-progress";
+import { supportUrlShownOf } from "@/lib/nox/ops/assist"; // ★起票152
+import { SUPPORT_GRANT_URL } from "@/lib/nox/support/grant-entry"; // ★起票152
 import { fmtJst, inviteLabelOf, kindLabelOf, lineLabelOf, onboardingLabelOf, opsErrJa, routeLabelOf, ROUTE_FIELD_NOTE, setupLabelOf, type OpsOrgRow } from "@/lib/nox/ops/labels";
 
-export type OpsLogRow = { id: string; at: string; who: string; action: string; before: unknown; after: unknown; reason: string | null };
+/** ★起票152（2026-11-24）: サポート許可が無いときに、オーナーへ送る URL（場所を指すだけ＝トークンや鍵は入れない）とコピーのボタン。コピーは端末の中だけ（通信なし） */
+function SupportUrlBox() {
+  const [copied, setCopied] = useState<"ok" | "ng" | null>(null);
+  async function copy() {
+    try { await navigator.clipboard.writeText(SUPPORT_GRANT_URL); setCopied("ok"); } catch { setCopied("ng"); }
+  }
+  return (
+    <div data-ops-support-url="1" style={{ marginTop: 10 }}>
+      <p style={{ ...t.sub, fontSize: 12.5, margin: "0 0 6px", lineHeight: 1.7 }}>この URL をオーナーへ送ってください。ログインの後に、サポート許可の画面がそのまま開きます。</p>
+      <input readOnly value={SUPPORT_GRANT_URL} aria-label="オーナーへ送る URL" onFocus={(e) => e.currentTarget.select()}
+        style={{ ...t.input, width: "100%", maxWidth: "100%", boxSizing: "border-box", fontSize: 12.5 }} />
+      <div className="nox-actions" style={{ marginTop: 8 }}>
+        <button type="button" style={t.btnGhost} onClick={() => void copy()} data-ops-support-copy="1">URL をコピー</button>
+      </div>
+      {copied && <div style={{ marginTop: 6 }}><Message kind={copied === "ok" ? "success" : "error"}>{copied === "ok" ? "コピーしました" : "コピーできませんでした（上の欄から選んでコピーしてください）"}</Message></div>}
+    </div>
+  );
+}
+
+export type OpsLogRow ={ id: string; at: string; who: string; action: string; before: unknown; after: unknown; reason: string | null };
 const ACTION_LABEL: Record<string, string> = { "ops.org.create": "作成", "ops.agency_code": "経路", "ops.onboarding": "導入", "ops.org.reinvite": "招待の出し直し" };
 const brief = (v: unknown): string => (v == null ? "—" : typeof v === "object" ? Object.entries(v as Record<string, unknown>).map(([k, x]) => `${k}: ${x ?? "—"}`).join("・") : String(v));
 
@@ -43,6 +64,7 @@ export default function OrgDetail({ row, logs, nowIso, assist, stores }: { row: 
           <h2 style={h2}>導入を代行する</h2>
           <p style={{ ...t.sub, fontSize: 12.5, margin: "0 0 10px", lineHeight: 1.7 }}>初期設定の下書き・LINE 連携・キャストの仮の登録を、1 歩ずつ代わりに入れます（確定はオーナー）。</p>
           {assist.ok ? <div className="nox-actions"><Link href={`/ops/orgs/${row.org_id}/assist`} style={{ ...t.btnGold, textDecoration: "none" }}>導入を代行する</Link></div> : <Message kind="warn">{assist.reason}</Message>}
+          {supportUrlShownOf(assist) && <SupportUrlBox />}
         </section>)}
 
       <section style={sec} aria-label="オーナー">

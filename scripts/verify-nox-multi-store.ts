@@ -99,7 +99,7 @@ check("(2) ★12:00 の ■2-a 在庫＝商品・現在庫・カテゴリ・履�
   && stockBoard.includes("fetchProductCategories(supabase, storeId)") && stockBoard.includes('if (storeId) q = q.eq("store_id", storeId);') && stockBoard.includes("fetchProducts(supabase, storeId), fetchStockTotals(supabase, storeId)")
   && q.includes('p_store_id: mig0203On() && storeId ? storeId : null'));
 check("(2) ★12:00 の ■2-a マスタのボード＝商品・カテゴリ・席・紹介料の未払の件数を今見ている店で（旗 false＝null）",
-  mPage.includes("const storeId = mig0203On() ? await currentStoreIdOf(await createClient()) : null;") && mPage.includes("<MasterBoard storeId={storeId} />")
+  mPage.includes("const storeId = mig0203On() ? await currentStoreIdOf(await createClient()) : null;") && mPage.includes("<MasterBoard storeId={storeId} showSupport={showSupport} />") /* ★起票152（2026-11-24）: サポート許可のカード */
   && mBoard.includes("fetchProducts(supabase, storeId), fetchProductCategories(supabase, storeId)") && mBoard.includes('(storeId ? sq.eq("store_id", storeId) : sq)') && mBoard.includes('(storeId ? rq.eq("store_id", storeId) : rq)'));
 check("(2) ★12:00 の ■2-c ホームの全店＝ランキングの枠に「全店ではランキングを出しません」の 1 行（データがありませんと出さない）",
   ALL_STORES_NO_RANKING === "全店ではランキングを出しません" && src("app/(manage)/dashboard/dashboard-board.tsx").includes("{allStoresView && <p") && src("app/(manage)/dashboard/dashboard-board.tsx").includes("const allStoresView = mig0203On() && isOwner && stores.length > 1 && !curStoreId;")

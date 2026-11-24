@@ -11,6 +11,8 @@ import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 
 import { Message } from "@/components/ui/toast";
+import { safeNextOf } from "@/lib/nox/support/grant-entry"; // ★起票152
+
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -48,6 +50,9 @@ export default function LoginPage() {
     if (fromKiosk && !kioskPersonAllowedOf(role as string | null)) { setError(KIOSK_PERSON_DENY); setBusy(false); window.setTimeout(() => void leaveKioskPersonLogin(supabase), 1500); return; } // ★便 M5 M-49: 店長以上だけ
     // ★2026-11-22（相談役 14:10 の 1）: 読み直す移動にする。router.replace（読み直さない移動）だと、/dashboard の殻（(manage) の layout）が /setup へ戻したとき、
     //   次の /setup でも同じ殻を使い回し、殻がまた /setup へ戻す＝くり返して白い画面（地 #fafafa だけ）で止まった（初期設定が途中の店のオーナー・店長・スタッフ）。メールのリンク（set-password）と同じ形。
+    // ★起票152（2026-11-24）: ?next=（middleware がマスタの中のパスだけ付ける）があれば、キャスト以外はそこへ戻る＝同じサイトのマスタの中だけ（safeNextOf）・読み直す移動
+    const nextTo = role === "cast" ? null : safeNextOf(new URLSearchParams(window.location.search).get("next"));
+    if (nextTo) { window.location.replace(nextTo); return; }
     window.location.replace(role === "cast" ? "/mine" : "/dashboard");
   }
 

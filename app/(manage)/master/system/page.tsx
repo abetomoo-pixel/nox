@@ -11,6 +11,7 @@ const isOwner0194 = (role: string | null | undefined): boolean => role === "owne
 import SensitiveTaxPanel from "../sensitive-tax-panel";
 import SupportGrantPanel from "@/components/nox/support-grant-panel"; // ★枝 night1121-ops-v2（0202b 版 4・旗の後ろ）
 import { mig0202bOn } from "@/lib/nox/rules-0175/flag";
+import { SUPPORT_TAB_KEY, supportMissingNoteOf } from "@/lib/nox/support/grant-entry"; // ★起票152: ?tab=support で開く・無いときの 1 行
 import Link from "next/link"; // ★裁定330（便 MC2）: 機能の公開は店舗設定 ＞ 利用機能へ（案内行のリンク）
 import MasterPageHead from "../master-page-head";
 import SystemBoard, { type SystemTab } from "./system-board";
@@ -39,7 +40,7 @@ export const dynamic = "force-dynamic";
 //   allStores（端末・PIN の店舗列）／stores 先頭（printer の storeId と settings_json）／
 //   casts（機密・税務パネルの対象一覧）。
 //   ★products / product_categories / stock / seats はこのページが描かないので取らない。
-export default async function MasterSystemPage() {
+export default async function MasterSystemPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
   await managePageGate(); // ★教訓142（2026-11-11）: 柵（キャストの入場・規約・初期設定）はページの先頭で＝画面の移動でも効く
   const { role } = await getSessionRole();
   const isManagerUp = role === "owner" || role === "manager";
@@ -142,12 +143,18 @@ export default async function MasterSystemPage() {
       stores={(allStores ?? []) as { id: string; name: string }[]} isOwner={isOwner} isManager={role === "manager"} />, // ★F193-4: 店長にも機密の入力欄（0193）
   });
   // ★枝 night1121-ops-v2（0202b 版 4・旗 MIG_0202B_APPLIED の後ろ）: オーナーだけ「サポート許可」（1／3／7 日・取り消し）と「導入完了にする」
+  let ownerDemo = false; // ★起票152: デモの会社のオーナーが URL で開いたときの 1 行の出し分け
   if (mig0202bOn() && role === "owner") {
     const { data: orgId } = await supabase.rpc("auth_org_id");
     const { data: orgRow } = orgId ? await supabase.from("orgs").select("is_demo").eq("id", orgId as string).maybeSingle() : { data: null };
+    ownerDemo = orgRow?.is_demo === true;
     if (orgId && orgRow?.is_demo !== true) tabs.push(   // デモの会社には出さない（関数も forbidden (demo)・reset で戻らない）
      { key: "support", label: "◇ サポート許可", node: <SupportGrantPanel orgId={orgId as string} /> });
   }
+
+  // ★起票152（2026-11-24）: 直通の URL（/master/system?tab=support）で開いたとき＝サポート許可のタブを最初に開く。オーナー以外（店長）・デモの会社は今の決まりのままタブを出さず 1 行
+  const requestedTab = (await searchParams).tab ?? null;
+  const supportNote = supportMissingNoteOf({ requestedTab, hasSupportTab: tabs.some((x) => x.key === SUPPORT_TAB_KEY), role: role ?? null, isDemo: ownerDemo });
 
   return (
     <div className="nox-mv1">
@@ -177,7 +184,8 @@ export default async function MasterSystemPage() {
           <div className="nox-kpi2-s">{printerOn ? "レシート印刷が使えます" : "レシート印刷は使いません"}</div>
         </div>
       </div>
-      <SystemBoard tabs={tabs} />
+      {supportNote && <p data-support-note="1" style={{ fontSize: 13, color: "var(--ink)", fontWeight: 700, margin: "0 0 12px", textAlign: "center" }}>{supportNote}</p>}
+      <SystemBoard tabs={tabs} initialKey={requestedTab === SUPPORT_TAB_KEY && tabs.some((x) => x.key === SUPPORT_TAB_KEY) ? SUPPORT_TAB_KEY : null} />
     </div>
   );
 }

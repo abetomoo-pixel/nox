@@ -1556,7 +1556,7 @@ body {
 /* ── 機能カード（aaa .grid/.card/.icon/.count/.card-footer）─────────── */
 .nox-grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
 @media (max-width: 900px) { .nox-grid3 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 641px) { .nox-grid3 { grid-template-columns: 1fr; } }
+@media (max-width: 641px) { .nox-grid3 { grid-template-columns: minmax(0, 1fr); } } /* ★起票152（2026-11-24）: 1fr だと 1 行の説明（nowrap）が列を広げて 375 で右がはみ出した（店舗設定のタブの一覧）＝2・3 列と同じ minmax(0, 1fr) */
 .nox-fcard {
   background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 18px;
   min-height: 174px; display: flex; flex-direction: column;
