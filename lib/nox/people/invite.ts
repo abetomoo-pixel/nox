@@ -30,7 +30,7 @@ export const LOGIN_METHOD_DEFAULT: LoginMethod = "invite";
 export const loginEmailLabelOf = (m: LoginMethod): string => (m === "invite" ? "メールアドレス（必須）" : "メールアドレス（任意）");
 export const LOGIN_METHOD_NOTE: Record<LoginMethod, string> = {
   password: "ログインIDと初期パスワードを登録直後に 1 回だけ表示します（メール未入力なら ID を自動発行）。",
-  invite: `メールアドレス宛の招待リンク（${INVITE_DAYS} 日有効）を表示します。本人がリンクを開いてパスワードを決めるとログインできます（それまで Auth は作りません）。`,
+  invite: `メールアドレス宛の招待リンク（${INVITE_DAYS} 日有効）を表示します。本人がリンクを開いてパスワードを決めるとログインできます。`,
 };
 /** 登録モーダルの入力検査（route／RPC と同じ上限） */
 export function inviteFormErrorOf(f: { name: string; email: string; method: LoginMethod }): string | null {
