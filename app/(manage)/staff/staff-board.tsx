@@ -32,7 +32,7 @@ import { resolveOrgId } from "@/lib/nox/cast-photo";
 import { photoActionLabelOf, removeUserPhoto, signUserPhotos, uploadUserPhoto } from "@/lib/nox/staff-photo";
 import { mig0183On, mig0190On, rules0175On } from "@/lib/nox/rules-0175/flag"; // ★追補 3 R-8 // ★便 M-9（0183） // ★0190（裁定436 ①c）: 在籍解除の失効（route）
 import { ownerOnlyNoteOf, roleChangeTargetsOf, roleChangeTextOf, roleLabelOf, rolePillKindOf, staffListRolesOf } from "@/lib/nox/rules-0175/roles";
-import { INVITE_STATE_LABEL, LOGIN_METHOD_NOTE, LOGIN_METHOD_OPTIONS, inviteErrJa, inviteExpiryTextOf, inviteFormErrorOf, inviteStateOf, type LoginMethod } from "@/lib/nox/people/invite"; // ★便 ON-3（0176 ★2 I-1）: 登録→招待の 2 段
+import { INVITE_STATE_LABEL, LOGIN_METHOD_DEFAULT, LOGIN_METHOD_NOTE, LOGIN_METHOD_OPTIONS, loginEmailLabelOf, inviteErrJa, inviteExpiryTextOf, inviteFormErrorOf, inviteStateOf, type LoginMethod } from "@/lib/nox/people/invite"; // ★便 ON-3（0176 ★2 I-1）: 登録→招待の 2 段
 import { liffBindUrlOf, siteOriginOf } from "@/lib/nox/line/liff-endpoint";
 import LineBindLink from "@/components/nox/line-bind-link"; // ★2026-11-16 夜（N6）: 招待リンクの QR
 import ContractChip from "@/components/nox/contract-chip"; // ★便 D M-99 // ★便 ON-3（0176 ★1 401）: LINE 連携のリンク
@@ -114,7 +114,7 @@ export default function StaffBoard({
   const [aResult, setAResult] = useState<CreateResult | null>(null);
   const [copied, setCopied] = useState(false);
   // ★便 ON-3（0176 ★2 I-1）: ログインの方法（初期パスワード＝従来／招待リンク＝本人がパスワードを決める）・招待の結果・招待中の一覧・LINE 連携
-  const [aMethod, setAMethod] = useState<LoginMethod>("password");
+  const [aMethod, setAMethod] = useState<LoginMethod>(LOGIN_METHOD_DEFAULT); // ★起票157: 既定は招待リンク（おすすめ）
   const [aInvite, setAInvite] = useState<{ url: string; expires_at: string | null; email: string } | null>(null);
   const [aWork, setAWork] = useState<{ contract_kind: string; pay_kind: string; amount: string }>({ contract_kind: "parttime", pay_kind: "hourly", amount: "" }); // ★便 M3 M-20／M-21
   // ★便 M5 M-35（2026-10-30）: 初期設定 STEP 6 と同じ項目＝「シフトを組める」（staff のみ・ON のときだけ登録後に set_staff_perms＝can_shift true・他 5 フラグ false 明示）と
@@ -271,7 +271,7 @@ export default function StaffBoard({
   function openAdd() {
     setAName(""); setAEmail(""); setATel(""); setALine(""); setAStore(isOwner ? (stores[0]?.id ?? "") : myStoreId); // ★裁定381
     setARole("staff"); setAErr(null); setAResult(null); setCopied(false);
-    setAMethod("password"); setAInvite(null); // ★便 ON-3
+    setAMethod(LOGIN_METHOD_DEFAULT); setAInvite(null); // ★便 ON-3 ★起票157: 既定は招待リンク
     setAWork({ contract_kind: "parttime", pay_kind: "hourly", amount: "" }); // ★便 M3 M-20／M-21: 追加の時点で働き方
     setAShiftOk(false); setAPin(""); setAPinMark(0); // ★便 M5 M-35
     setAIdemKey(crypto.randomUUID()); // 送信意図ごとに1つ＝リトライは同キー（route が二重作成を止める）
@@ -615,15 +615,17 @@ export default function StaffBoard({
             {aInvite ? (/* ★便 ON-3（0176 ★2 I-1）: 招待リンク（1 回だけ表示・14 日） */
               <>
                 <h2 style={secTitle}>招待リンクを発行しました</h2>
-                <div style={{ display: "grid", gap: 6, marginBottom: 10 }} data-staff-invite-result="1">
+                {/* ★起票157（相談役 11/24 夜 N2）: リンクと「コピー」を大きく・「このリンクを本人に送ってください」 */}
+                <p style={{ fontSize: 16, fontWeight: 800, margin: "0 0 10px" }} data-staff-invite-send-note="1">このリンクを本人に送ってください</p>
+                <div style={{ display: "grid", gap: 10, marginBottom: 10 }} data-staff-invite-result="1">
+                  <div style={{ fontSize: 15, lineHeight: 1.6, wordBreak: "break-all", padding: "12px 14px", borderRadius: 10, border: "1px solid var(--line)", background: "var(--surface)", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }} data-staff-invite-url="1">{aInvite.url}</div>
+                  <button type="button" data-staff-invite-copy="1" style={{ ...t.btnGold, width: "100%", minHeight: 52, fontSize: 17 }} onClick={() => { void navigator.clipboard?.writeText(aInvite.url).then(() => setCopied(true)).catch(() => undefined); }}>{copied ? "コピーしました ✓" : "コピー"}</button>
                   <div style={t.bdRow}><span style={t.bdKey}>宛先</span><span style={{ ...t.bdVal, wordBreak: "break-all" }}>{aInvite.email}</span></div>
-                  <div style={t.bdRow}><span style={t.bdKey}>招待リンク</span><span style={{ ...t.bdVal, wordBreak: "break-all", fontSize: 12 }} data-staff-invite-url="1">{aInvite.url}</span></div>
                   {aInvite.expires_at && <div style={t.bdRow}><span style={t.bdKey}>有効期限</span><span style={t.bdVal}>{inviteExpiryTextOf(aInvite.expires_at)}</span></div>}
                 </div>
-                <p style={{ ...t.alert, marginBottom: 10 }}>このリンクは再表示できません。本人に送ってください（リンクを開いてパスワードを決めるとログインできます）。</p>
+                <p style={{ ...t.sub, lineHeight: 1.7, marginBottom: 10 }}>本人がリンクを開いてパスワードを決めるとログインできます。このリンクは再表示できません（LINE やメールに貼ってから閉じてください）。</p>
                 <div className="nox-actions" style={{ display: "flex", gap: 8 }}>
-                  <button style={btnGhost} onClick={() => { void navigator.clipboard?.writeText(aInvite.url).then(() => setCopied(true)).catch(() => undefined); }}>{copied ? "コピーしました ✓" : "リンクをコピー"}</button>
-                  <button style={btnGold} onClick={() => setAddOpen(false)}>閉じる</button>
+                  <button style={btnGhost} onClick={() => setAddOpen(false)}>閉じる</button>
                 </div>
               </>
             ) : !aResult ? (
@@ -637,16 +639,27 @@ export default function StaffBoard({
                     <span style={t.fieldLabel}>名前（必須）</span>
                     <input value={aName} onChange={(e) => setAName(e.target.value)} style={t.input} placeholder="例: 山田 太郎" />
                   </label>
-                  <label style={{ display: "grid", gap: 4 }}>
-                    <span style={t.fieldLabel}>メールアドレス（任意）</span>
-                    <input value={aEmail} onChange={(e) => setAEmail(e.target.value)} style={t.input}
-                      placeholder={aMethod === "invite" ? "招待リンクの宛先（必須）" : "入力したときだけログインIDに使います（未入力なら自動発行）"} type="email" />
-                  </label>
-                  {/* ★便 ON-3（0176 ★2 I-1）: ログインの方法＝初期パスワード（従来・即時）／招待リンク（本人がパスワードを決める・メール必須・Auth は受諾まで作らない） */}
-                  <label style={{ display: "grid", gap: 4 }} data-staff-login-method={aMethod}>
+                  {/* ★便 ON-3（0176 ★2 I-1）: ログインの方法＝招待リンク（本人がパスワードを決める・メール必須・Auth は受諾まで作らない）／初期パスワード（即時）
+                      ★起票157（相談役 11/24 夜 N2）: 縦に 2 枚のカード（上＝おすすめで既定）・名前の次に置き、メールの欄はその下（招待は必須・初期パスワードは任意） */}
+                  <div role="radiogroup" aria-label="ログインの方法" style={{ display: "grid", gap: 8 }} data-staff-login-method={aMethod}>
                     <span style={t.fieldLabel}>ログインの方法</span>
-                    <SegSelect value={aMethod} onChange={(v) => setAMethod(v as LoginMethod)} options={LOGIN_METHOD_OPTIONS} ariaLabel="ログインの方法" />
-                    <span style={{ ...t.sub, lineHeight: 1.6 }}>{LOGIN_METHOD_NOTE[aMethod]}</span>
+                    {LOGIN_METHOD_OPTIONS.map(([v, label]) => {
+                      const on = aMethod === v;
+                      return (
+                        <button key={v} type="button" role="radio" aria-checked={on} data-staff-login-card={v} onClick={() => setAMethod(v)}
+                          style={{ textAlign: "left", display: "grid", gap: 4, padding: "12px 14px", borderRadius: 12, cursor: "pointer", border: on ? "2px solid var(--gold)" : "1px solid var(--line)", background: "var(--surface)", color: "var(--ink)" }}>
+                          <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 15, fontWeight: 800 }}>
+                            <span aria-hidden="true" style={{ width: 16, height: 16, borderRadius: 8, border: on ? "5px solid var(--gold)" : "2px solid var(--sub)", boxSizing: "border-box", flex: "0 0 auto" }} />{label}
+                          </span>
+                          <span style={{ ...t.sub, fontSize: 12.5, lineHeight: 1.6 }}>{LOGIN_METHOD_NOTE[v]}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <label style={{ display: "grid", gap: 4 }}>
+                    <span style={t.fieldLabel} data-staff-email-label={aMethod}>{loginEmailLabelOf(aMethod)}</span>
+                    <input value={aEmail} onChange={(e) => setAEmail(e.target.value)} style={t.input} required={aMethod === "invite"}
+                      placeholder={aMethod === "invite" ? "リンクの宛先（本人のメール）" : "入れたときだけログインIDに使います（空なら自動で作ります）"} type="email" />
                   </label>
                   {/* ★裁定381（GV-B W-10）→★0172（便 P172）: 電話・LINE ID は staff_create の p_tel／p_line_id で保存。契約区分は staff_contracts（器のみ＝書込 RPC は次便）＝注記 */}
                   <label style={{ display: "grid", gap: 4 }}>

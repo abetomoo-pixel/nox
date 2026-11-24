@@ -22,7 +22,12 @@ export function inviteExpiryTextOf(expiresAt: string): string {
 }
 
 export type LoginMethod = "password" | "invite";
-export const LOGIN_METHOD_OPTIONS = [["password", "初期パスワードを発行（今すぐ使える）"], ["invite", "招待リンク（本人がパスワードを決める）"]] as const;
+// ★起票157（相談役 11/24 夜 N2）: 縦に 2 枚のカード・上がおすすめで既定（リンクを送って本人が決める）。並びは画面の上から
+export const LOGIN_METHOD_OPTIONS = [["invite", "リンクを送って本人が決める（おすすめ）"], ["password", "その場でパスワードを渡す"]] as const;
+/** ★起票157: 既定のログインの方法＝招待リンク */
+export const LOGIN_METHOD_DEFAULT: LoginMethod = "invite";
+/** ★起票157: メールの欄のラベル＝招待は必須・初期パスワードは任意 */
+export const loginEmailLabelOf = (m: LoginMethod): string => (m === "invite" ? "メールアドレス（必須）" : "メールアドレス（任意）");
 export const LOGIN_METHOD_NOTE: Record<LoginMethod, string> = {
   password: "ログインIDと初期パスワードを登録直後に 1 回だけ表示します（メール未入力なら ID を自動発行）。",
   invite: `メールアドレス宛の招待リンク（${INVITE_DAYS} 日有効）を表示します。本人がリンクを開いてパスワードを決めるとログインできます（それまで Auth は作りません）。`,

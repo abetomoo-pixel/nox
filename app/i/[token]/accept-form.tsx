@@ -1,9 +1,11 @@
 "use client";
 
 // ★便 ON-3（2026-10-26・0176 ★2＝I-1）: 招待の受諾フォーム＝本人がパスワードを決める（8〜72 字・2 回）→ POST /api/staff/invite/accept → 成功＝cookie 付きで /dashboard へ。
-//   公開面（白地）＝アプリのテーマ外。エラーは route の語を日本語に（inviteErrJa）。
+//   ★起票157（相談役 11/24 夜 N2）: 白地 → アプリの暗いテーマ（/auth/set-password と同じ t.input／t.fieldLabel／t.btnGold・エラーは Message）。論理と data-invite-* は不変。エラーは route の語を日本語に（inviteErrJa）。
 import { useState } from "react";
 import { INVITE_PASSWORD_MIN, inviteErrJa, invitePasswordErrorOf } from "@/lib/nox/people/invite";
+import * as t from "@/lib/nox/ui/theme";
+import { Message } from "@/components/ui/toast";
 
 export default function AcceptForm({ token, email }: { token: string; email: string }) {
   const [pw, setPw] = useState("");
@@ -11,7 +13,6 @@ export default function AcceptForm({ token, email }: { token: string; email: str
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
-  const input: React.CSSProperties = { width: "100%", boxSizing: "border-box", fontSize: 15, padding: "10px 12px", border: "1px solid #cfd0d6", borderRadius: 9, background: "#fff", color: "#1a1a1a" };
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -28,20 +29,19 @@ export default function AcceptForm({ token, email }: { token: string; email: str
   }
 
   return (
-    <form onSubmit={submit} style={{ display: "grid", gap: 10 }} data-invite-form="1">
-      <label style={{ display: "grid", gap: 4, fontSize: 12.5, color: "#555" }}>ログインID（メールアドレス）
-        <input value={email} readOnly style={{ ...input, background: "#f3f3f6" }} />
+    <form onSubmit={submit} style={{ display: "grid", gap: 12 }} data-invite-form="1">
+      <label style={{ display: "grid", gap: 5 }}><span style={t.fieldLabel}>ログインID（メールアドレス）</span>
+        <input value={email} readOnly style={{ ...t.input, color: "var(--sub)" }} />
       </label>
-      <label style={{ display: "grid", gap: 4, fontSize: 12.5, color: "#555" }}>パスワード（{INVITE_PASSWORD_MIN} 文字以上）
-        <input type="password" value={pw} onChange={(e) => setPw(e.target.value)} autoComplete="new-password" minLength={INVITE_PASSWORD_MIN} required style={input} data-invite-pw="1" />
+      <label style={{ display: "grid", gap: 5 }}><span style={t.fieldLabel}>パスワード（{INVITE_PASSWORD_MIN} 文字以上）</span>
+        <input type="password" value={pw} onChange={(e) => setPw(e.target.value)} autoComplete="new-password" minLength={INVITE_PASSWORD_MIN} required style={t.input} data-invite-pw="1" />
       </label>
-      <label style={{ display: "grid", gap: 4, fontSize: 12.5, color: "#555" }}>パスワード（確認）
-        <input type="password" value={pw2} onChange={(e) => setPw2(e.target.value)} autoComplete="new-password" minLength={INVITE_PASSWORD_MIN} required style={input} />
+      <label style={{ display: "grid", gap: 5 }}><span style={t.fieldLabel}>パスワード（確認）</span>
+        <input type="password" value={pw2} onChange={(e) => setPw2(e.target.value)} autoComplete="new-password" minLength={INVITE_PASSWORD_MIN} required style={t.input} />
       </label>
-      {/* 公開面（白地・アプリのテーマ外）＝Message 部品は使わず role=alert の div（verify-nox-messages の対象は <p>／<span>） */}
-      {err && <div role="alert" style={{ margin: 0, fontSize: 13, color: "#b3261e", fontWeight: 700 }}>{err}</div>}
-      {done && <div role="status" style={{ margin: 0, fontSize: 13, color: "#1b7f3a", fontWeight: 700 }}>{done}</div>}
-      <button type="submit" disabled={busy || !!done} data-invite-submit="1" style={{ minHeight: 48, fontSize: 15, fontWeight: 800, borderRadius: 10, border: 0, background: "#1a1a1a", color: "#fff", opacity: busy ? 0.6 : 1 }}>
+      {err && <Message kind="error" style={{ margin: 0 }}>{err}</Message>}
+      {done && <Message kind="success" style={{ margin: 0 }}>{done}</Message>}
+      <button type="submit" disabled={busy || !!done} data-invite-submit="1" style={{ ...t.btnGold, width: "100%", minHeight: 48, marginTop: 6, fontSize: 15, opacity: busy ? 0.7 : 1 }}>
         {busy ? "登録中…" : "パスワードを決めて登録する"}
       </button>
     </form>
