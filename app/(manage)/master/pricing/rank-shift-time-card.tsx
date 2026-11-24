@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import TimeInput from "@/components/ui/time-input";
+import { Message } from "@/components/ui/toast";
 import { rankShiftHmOf, rankShiftTimeErrJa, rankShiftTimeOf } from "@/lib/nox/shift/rank-time";
 
 type Row = { id: string; name: string; shift_start_min: number | null; shift_end_min: number | null };
@@ -52,7 +53,7 @@ export default function RankShiftTimeCard({ storeId, version }: { storeId: strin
               <TimeInput value={v.end} onChange={(x) => set("end", x)} ariaLabel={`${r.name}の出勤の終了`} width={110} after={v.start || undefined} />
               <button type="button" disabled={busy !== null} onClick={() => void save(r)} style={{ padding: "8px 14px", borderRadius: 8, border: "1px solid var(--line)", background: "var(--surface)", fontWeight: 700 }}>保存</button>
               {(v.start || v.end) && <button type="button" disabled={busy !== null} onClick={() => setVals((p) => ({ ...p, [r.id]: { start: "", end: "" } }))} style={{ padding: "8px 10px", borderRadius: 8, border: "none", background: "transparent", color: "var(--sub)" }}>空にする</button>}
-              {msg?.id === r.id && <span role="status" style={{ fontSize: 12, color: msg.bad ? "var(--bad)" : "var(--ok)" }}>{msg.text}</span>}
+              {msg?.id === r.id && <Message kind={msg.bad ? "error" : "success"} style={{ margin: 0, fontSize: 12 }}>{msg.text}</Message>}
             </div>
           );
         })}
