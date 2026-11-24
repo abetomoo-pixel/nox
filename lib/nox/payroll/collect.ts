@@ -37,7 +37,7 @@ import { castPts } from "../pay"; // ★N3b: 前月 pts＝当月と同じ式
 import { trialRangeOf, trialRawOf, trialTouchesOf, trialWageOf, inTrialRange, type TrialRange } from "./trial"; // ★裁定490（0201l の後の結線）: 体入の期間・体入の時給・バック「なし」の除外
 import { trialStoreTermsOf } from "../cast/trial-terms";
 import { noShiftHoursOf } from "./no-shift";
-import { bandAmountAt, bandSegmentsOf, type BandSeg } from "./hourly-bands";
+import { bandAmountAt, bandSegmentsOf, bandWindowOf, type BandSeg } from "./hourly-bands";
 import { hourlyBandsOn } from "../rules-0175/flag"; // ★時間帯の時給（旗 HOURLY_BANDS_ON の後ろ）
 import { liftPunchAt } from "../punch-io"; // ★時間帯の時給: シフトの無い日の区間（0〜47 時）
 import type { RateBand } from "../rules-0175/canon"; // ★裁定501-8 // ★裁定490: 店の体入の条件（trial_wage・trial_back）
@@ -462,7 +462,7 @@ export async function loadPunch(admin: SupabaseClient, storeId: string, win: Pay
     for (const d of noShiftDates) { // ★時間帯の時給: noShiftHoursOf と同じ最初の in〜最後の out を 0〜47 時の分で
       const ps = raw.punches.filter((p) => bizDateOf(p.punched_at, win.cutoffHm) === d).map((p) => ({ t: new Date(p.punched_at).getTime(), at: p.punched_at, type: p.type })).sort((a, b) => a.t - b.t);
       const fi = ps.find((p) => p.type === "in"); const lo = [...ps].reverse().find((p) => p.type === "out" && fi && p.t > fi.t);
-      if (fi && lo) { const a = hm2minOf(liftPunchAt(fi.at, win.cutoffHm).hm), b = a + Math.round((lo.t - fi.t) / 60_000); if (b > a) noShiftWin.set(d, [a, b]); }
+      if (fi && lo) { const a = hm2minOf(liftPunchAt(fi.at, win.cutoffHm).hm), b = a + (lo.t - fi.t) / 60_000; if (b > a) noShiftWin.set(d, [a, b]); } // ★2026-11-25（M4 ア）: 長さは noShiftHoursOf と同じミリ秒の差（分に丸めない＝秒があっても時間と一致）
     }
     // ★便 E（0197 用＝裁定455 の 2）: 打刻しない店（punch_mode='store'）＝打刻が無い日は確定シフトの時間を実働・日数／遅刻／当欠は勤怠（attendance）で決める（今日まで）。フラグ false／'punch' は従来と 1 バイト同値
     if (punchModeOf((stR.data?.settings_json ?? null) as Record<string, unknown> | null) === "store") {
@@ -957,9 +957,10 @@ export async function collectPeriod(
         for (const d of daily) {
           if (!(d.hours > 0)) continue;
           const sw = p.win.shift.get(d.bizDate), pw = p.win.punch.get(d.bizDate), nw = p.win.noShift.get(d.bizDate);
-          const w = p.win.storeShift.has(d.bizDate) ? sw : (masters.payTimeBasis === "shift" && pw && sw ? sw : pw ?? nw);
+          const shiftHoursDefined = p.shiftHoursByDate[d.bizDate] !== undefined; // ★2026-11-25（M4 ア）: pay.ts の dailyBase と同じ条件（今日までの確定シフトの時間）
+          const w = bandWindowOf({ punch: pw, shift: sw, noShift: nw }, { storeShift: p.win.storeShift.has(d.bizDate), shiftBasis: masters.payTimeBasis === "shift", shiftHoursDefined });
           if (w) byDay[d.bizDate] = bandSegmentsOf(w[0], w[1], bands);
-          if (sw) { shiftByDay[d.bizDate] = bandSegmentsOf(sw[0], sw[1], bands); edges[d.bizDate] = [bandAmountAt(bands, sw[0]), bandAmountAt(bands, sw[1] - 1)]; }
+          if (sw && shiftHoursDefined) { shiftByDay[d.bizDate] = bandSegmentsOf(sw[0], sw[1], bands); edges[d.bizDate] = [bandAmountAt(bands, sw[0]), bandAmountAt(bands, sw[1] - 1)]; }
         }
         return Object.keys(byDay).length ? { hourlyBands: { byDay, shiftByDay, edges } } : {};
       })(),

@@ -30,6 +30,15 @@ export function bandSegmentsOf(fromMin: number, toMin: number, bands: readonly R
   return segs;
 }
 
+/** ★2026-11-25（相談役 M4 ア）: その日を帯で切る区間＝pay.ts がその日の時間に使う区間と同じ物（区間の長さ＝今の勤務時間）。
+ *  打刻しない店の日（確定シフトで時間を決めた日）＝シフト／勤務時間の基準が shift で、今日までの確定シフトの時間がある日＝シフト（無ければ null＝帯で切らない＝今の時給のまま）／
+ *  それ以外＝打刻（最初の in〜最後の out）か、シフトの無い日の打刻。区間が取れない日は null（ウ＝帯なしの時給で計算＝今と同じ）。 */
+export function bandWindowOf(w: { punch?: [number, number]; shift?: [number, number]; noShift?: [number, number] }, o: { storeShift: boolean; shiftBasis: boolean; shiftHoursDefined: boolean }): [number, number] | null {
+  if (o.storeShift) return w.shift ?? null;
+  if (o.shiftBasis && o.shiftHoursDefined) return w.shift ?? null;   // pay.ts の dailyBase＝確定シフトの時間に置き換える日（"02:00" の書き方＝時間 0＝区間なし）
+  return w.punch ?? w.noShift ?? null;
+}
+
 /** その分の帯の時給（無ければ null＝基本） */
 export const bandAmountAt = (bands: readonly RateBand[], minuteOfDay: number): number | null => {
   const v = bandValueOf(hourlyBandsOf(bands), "hourly", minuteOfDay);
