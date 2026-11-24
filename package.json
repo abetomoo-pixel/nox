@@ -265,7 +265,8 @@
     "verify:nox-ops-contrast": "tsx scripts/verify-nox-ops-contrast.ts",
     "verify:nox-shop-contrast": "tsx scripts/verify-nox-shop-contrast.ts",
     "verify:nox-assist-contrast": "tsx scripts/verify-nox-assist-contrast.ts",
-    "verify:nox-punch-buttons": "tsx scripts/verify-nox-punch-buttons.ts"
+    "verify:nox-punch-buttons": "tsx scripts/verify-nox-punch-buttons.ts",
+    "verify:nox-rank-shift-time": "tsx scripts/verify-nox-rank-shift-time.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.6.1",

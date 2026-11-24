@@ -64,12 +64,13 @@ function rpcErrJa(msg: string | undefined): string {
 }
 
 export default function DayAddPanel({
-  date, casts, photoUrls, bhRows, assignedCastIds, onSaved, onDirtyChange, wishes = [], closed = false, availByCast = {}, availTimeByCast = {},
+  date, casts, photoUrls, bhRows, assignedCastIds, onSaved, onDirtyChange, wishes = [], closed = false, availByCast = {}, availTimeByCast = {}, rankTimeByCast = {},
 }: {
   /** ★便 A M-65: 基本の働き方（cast_id → 曜日 → 可／不可／相談）＝不可は赤「不可」・相談は黄「相談」（希望が優先） */
   availByCast?: Record<string, Partial<Record<number, Avail>>>;
   /** ★M-91: cast_id → 曜日 → 時刻の制限（from_min／to_min） */
   availTimeByCast?: Record<string, Partial<Record<number, { from: number; to: number }>>>;
+  /** ★0208: cast_id → ランクの既定の出勤の時刻（旗 MIG_0208_APPLIED の後ろ・無い人はキーなし） */ rankTimeByCast?: Record<string, { from: number; to: number }>;
   date: string;
   casts: Cast[];
   photoUrls: Map<string, string>;
@@ -128,7 +129,7 @@ export default function DayAddPanel({
     setMsg(null);
     const st = stateOf(c.id);
     // ★便 A M-65 (a) → ★M-91: 不可（休み希望・基本の働き方の曜日が不可）は「それでも登録」＝理由必須（まとめて追加と同じ・確認ダイアログはやめた）。初期時間＝希望 → 基本の働き方の時刻 → 営業時間
-    const span = initialSpanOf(st.wish, availTimeByCast[c.id]?.[dow] ?? null, preset ?? null, [FALLBACK_START, FALLBACK_END]);
+    const span = initialSpanOf(st.wish, availTimeByCast[c.id]?.[dow] ?? null, preset ?? null, [FALLBACK_START, FALLBACK_END], rankTimeByCast[c.id] ?? null); // ★0208: ランクの時刻
     setRows((prev) => prev.some((r) => r.castId === c.id)
       ? prev.filter((r) => r.castId !== c.id)
       : [...prev, { castId: c.id, start: span.start, end: span.end, err: null, needReason: st.why === "wish_off" || st.why === "avail_ng" || st.why === "unavail_day", reason: "" }]); /* ★裁定501-6: 出勤不可の登録も理由必須（保存の前に） */

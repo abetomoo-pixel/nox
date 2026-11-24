@@ -8,7 +8,7 @@
 import { hmLabelOf } from "@/lib/nox/time/hhmm"; // ★便 M5b M-51 追補: 日をまたぐ時刻は「翌02:00」
 import DatePicker from "@/components/ui/date-picker"; // ★M-82（裁定452・教訓133）: 日付は共通のピッカー
 import { REGISTER_DAY_GRANT_LABEL, REGISTER_DAY_GRANT_NOTE, storeDecidesPunchOf } from "@/lib/nox/shift/punch-mode"; // ★便 E（0197 用）
-import { mig0196On, mig0197On, mig0198On, mig0201On, mig0201dOn, mig0201uOn } from "@/lib/nox/rules-0175/flag";
+import { mig0196On, mig0197On, mig0198On, mig0201On, mig0201dOn, mig0201uOn, mig0208On } from "@/lib/nox/rules-0175/flag";
 import { punchMarksOf, type PunchMarkRow } from "@/lib/nox/punch/marks"; // ★0201（裁定474）: 勤怠の印
 import DayDedAfterPunch from "@/components/nox/day-ded-after-punch"; // ★0198（裁定461 ①・M-120）: 代行の出勤の直後の「今日の控除」 // ★便 E（0196 用）: staff の代行 ★0197: 今日だけ許可
 import TimeInput from "@/components/ui/time-input"; // ★便 M5b M-51: 時刻欄の共通部品（時計アイコン・時と分を選ぶ・翌の表示）
@@ -228,7 +228,8 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   // ★SD V2-2: 表示月の wishes 全 status（原型対比・4段フロー）／period／配置ルール
   const [wishAll, setWishAll] = useState<Wish[]>([]);
   const [availByCast, setAvailByCast] = useState<Record<string, Partial<Record<number, Avail>>>>({});
-  const [availTimeByCast, setAvailTimeByCast] = useState<Record<string, Partial<Record<number, { from: number; to: number }>>>>({}); // ★M-91: cast_id → 曜日 → 時刻の制限（from_min／to_min） // ★便 A M-65: cast_id → 曜日 → 可／不可／相談（availability＝membership か cast_id）
+  const [availTimeByCast, setAvailTimeByCast] = useState<Record<string, Partial<Record<number, { from: number; to: number }>>>>({});
+  const [rankTimeByCast, setRankTimeByCast] = useState<Record<string, { from: number; to: number }>>({}); // ★0208: cast_id → ランクの既定の出勤の時刻（旗の後ろ） // ★M-91: cast_id → 曜日 → 時刻の制限（from_min／to_min） // ★便 A M-65: cast_id → 曜日 → 可／不可／相談（availability＝membership か cast_id）
   const [specialDays, setSpecialDays] = useState<ShiftSpecialDayRow[]>([]); // ★便 A M-75: 特別営業日／臨時休業（定休日の判定）★2026-11-22（相談役 14:10 の 3）: 料金と必要人数の曜日（price_dow）と時刻も読む
   const [periods, setPeriods] = useState<Period[]>([]);
   // ★便 T-1: 既定日付と重なり判定は「表示月」ではなく店の全期間で見る（periods は表示月に重なる分だけ）
@@ -557,6 +558,13 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
         if (r.avail !== "ng" && r.from_min !== null && r.to_min !== null) (outT[cid] ??= {})[r.dow] = { from: r.from_min, to: r.to_min };
       }
       setAvailByCast(out); setAvailTimeByCast(outT);
+      if (mig0208On()) { // ★0208（旗の後ろ）: ランクの既定の出勤の時刻＝casts.rank_id → cast_ranks の 2 列（無いランクはキーなし）
+        const [{ data: cr }, { data: rk }] = await Promise.all([supabase.from("casts").select("id, rank_id").eq("store_id", storeId), supabase.from("cast_ranks").select("id, shift_start_min, shift_end_min").eq("store_id", storeId)]);
+        const timeOf = new Map(((rk ?? []) as { id: string; shift_start_min: number | null; shift_end_min: number | null }[]).filter((r) => r.shift_start_min !== null && r.shift_end_min !== null).map((r) => [r.id, { from: r.shift_start_min as number, to: r.shift_end_min as number }]));
+        const rt: Record<string, { from: number; to: number }> = {};
+        for (const c of (cr ?? []) as { id: string; rank_id: string | null }[]) { const t0 = c.rank_id ? timeOf.get(c.rank_id) : undefined; if (t0) rt[c.id] = t0; }
+        setRankTimeByCast(rt);
+      }
       const { data: sd } = await supabase.from("store_special_days").select(mig0201dOn() ? "day, kind, price_dow, open_hm, close_hm" : "day, kind, open_hm, close_hm").eq("store_id", storeId).gte("day", addDays(bizToday, -7)).lte("day", addDays(bizToday, 62));
       setSpecialDays((sd ?? []) as unknown as ShiftSpecialDayRow[]);
     }
@@ -2754,7 +2762,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
         <Modal onClose={() => setTodayAdd(false)} maxWidth={560}>
           <h3 style={{ ...t.cardTitle, margin: "0 0 8px" }} data-today-add-head={todayDate}>{Number(todayDate.slice(5, 7))}/{Number(todayDate.slice(8, 10))}（{DOW[dowOf(todayDate)]}）に追加配置</h3>
           <p style={{ ...t.sub, margin: "0 0 8px" }}>{todayDate === bizToday ? "今日のシフトに入っている人は出ません。出勤不可の人は理由を入れると登録できます。保存すると確定のシフトになり、今日のタブの行で「出勤」を押せます。" : "この日のシフトに入っている人は出ません。出勤不可の人は理由を入れると登録できます。保存すると確定のシフトになり、その日のタブに出ます。"}</p>
-          <DayAddPanel date={todayDate} casts={casts} photoUrls={photoUrls} bhRows={bhRows} wishes={wishAll} closed={isClosedForAdd(todayDate)} availByCast={availByCast} availTimeByCast={availTimeByCast} /* ★M-91 */
+          <DayAddPanel date={todayDate} casts={casts} photoUrls={photoUrls} bhRows={bhRows} wishes={wishAll} closed={isClosedForAdd(todayDate)} availByCast={availByCast} availTimeByCast={availTimeByCast} rankTimeByCast={rankTimeByCast} /* ★M-91 */
             assignedCastIds={shiftsOn(todayDate).map((s) => s.cast_id)}
             onSaved={async () => { setMsg(`${Number(todayDate.slice(5, 7))}/${Number(todayDate.slice(8, 10))} に追加配置しました（確定）`); setTodayAdd(false); await load(); }} onDirtyChange={() => {}} />
         </Modal>
@@ -2762,7 +2770,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
       {isManagerUp && (
         <ShiftAddForm
           casts={casts} photoUrls={photoUrls} initialCast={addCast} bhRows={bhRows}
-          initialDate={addDate} initialStatus={addStatus} availByCast={availByCast} /* ★便 A M-65 (b) */ availTimeByCast={availTimeByCast} /* ★M-91 */
+          initialDate={addDate} initialStatus={addStatus} availByCast={availByCast} /* ★便 A M-65 (b) */ availTimeByCast={availTimeByCast} rankTimeByCast={rankTimeByCast} /* ★M-91 */
           needs={needs} assignedByDate={assignedByDate} /* ★裁定245-6: 不足 n の材料（staffing_needs と日別配置数） */
           open={addModal} onClose={() => setAddModal(false)}
           onSaved={() => { setMsg("シフトを保存しました"); void load(); }}
@@ -2837,7 +2845,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                 ShiftAddForm へ送る旧導線（裁定44-4）は撤去＝キャスト起点はウィザード「＋ キャスト別にまとめて追加」へ。
                 ★status は planned（仮シフトの面＝これから組む段）＝今日タブの confirmed とは意図が違う。 */}
             {isManagerUp && (
-              <DayAddPanel date={selDate} casts={casts} photoUrls={photoUrls} bhRows={bhRowsForDayOf(selDate, bhRows, specialDays)} wishes={wishAll} closed={isClosedDay(selDate)} availByCast={availByCast} availTimeByCast={availTimeByCast} /* ★2026-11-16（A-6）: 日のセルの割当にも基本の働き方（相談・不可・時刻）＝今日の追加配置と同じ */
+              <DayAddPanel date={selDate} casts={casts} photoUrls={photoUrls} bhRows={bhRowsForDayOf(selDate, bhRows, specialDays)} wishes={wishAll} closed={isClosedDay(selDate)} availByCast={availByCast} availTimeByCast={availTimeByCast} rankTimeByCast={rankTimeByCast} /* ★2026-11-16（A-6）: 日のセルの割当にも基本の働き方（相談・不可・時刻）＝今日の追加配置と同じ */
                 assignedCastIds={shiftsOn(selDate).map((s) => s.cast_id)}
                 onSaved={async () => { setMsg("配置を保存しました"); await load(); }}
                 onDirtyChange={setDayDirty} />
@@ -2920,7 +2928,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                   {isClosedDay(selDate) ? (
                     <button type="button" className="nox-addc" disabled style={{ opacity: 0.45 }} title="この日は定休日です">＋ キャストを追加（定休日）</button>
                   ) : (
-                    <DayAddPanel date={selDate} casts={casts} photoUrls={photoUrls} bhRows={bhRowsForDayOf(selDate, bhRows, specialDays)} wishes={wishAll} closed={isClosedDay(selDate)} availByCast={availByCast} availTimeByCast={availTimeByCast} /* ★2026-11-16（A-6）: 日のセルの割当にも基本の働き方（相談・不可・時刻）＝今日の追加配置と同じ */
+                    <DayAddPanel date={selDate} casts={casts} photoUrls={photoUrls} bhRows={bhRowsForDayOf(selDate, bhRows, specialDays)} wishes={wishAll} closed={isClosedDay(selDate)} availByCast={availByCast} availTimeByCast={availTimeByCast} rankTimeByCast={rankTimeByCast} /* ★2026-11-16（A-6）: 日のセルの割当にも基本の働き方（相談・不可・時刻）＝今日の追加配置と同じ */
                       assignedCastIds={shiftsOn(selDate).map((s) => s.cast_id)}
                       onSaved={async () => { setMsg("確定シフトに追加しました"); await load(); }}
                       onDirtyChange={setDayDirty} />
@@ -2959,7 +2967,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                 裁定42 の confirmed は「当日その場で足すのは もう入る人」が根拠＝今日タブ限定なので
                 ここには当たらない。★裁定121: 追加はこの面で完結（DayAddPanel＝割当面と共通・ShiftAddForm へ送らない）。 */}
             {isManagerUp && (
-              <DayAddPanel date={selDate} casts={casts} photoUrls={photoUrls} bhRows={bhRowsForDayOf(selDate, bhRows, specialDays)} wishes={wishAll} closed={isClosedDay(selDate)} availByCast={availByCast} availTimeByCast={availTimeByCast} /* ★2026-11-16（A-6）: 日のセルの割当にも基本の働き方（相談・不可・時刻）＝今日の追加配置と同じ */
+              <DayAddPanel date={selDate} casts={casts} photoUrls={photoUrls} bhRows={bhRowsForDayOf(selDate, bhRows, specialDays)} wishes={wishAll} closed={isClosedDay(selDate)} availByCast={availByCast} availTimeByCast={availTimeByCast} rankTimeByCast={rankTimeByCast} /* ★2026-11-16（A-6）: 日のセルの割当にも基本の働き方（相談・不可・時刻）＝今日の追加配置と同じ */
                 assignedCastIds={shiftsOn(selDate).map((s) => s.cast_id)}
                 onSaved={async () => { setMsg("配置を保存しました"); await load(); }}
                 onDirtyChange={setDayDirty} />
