@@ -390,6 +390,10 @@ kiosk_provision（新規 kiosk の追加＝拡大操作）
 ### A25. 0201q（1 本・2026-11-18 16:53 本番適用（Agoora 手貼り・検証 11 行一致）・規則A形でゲート内蔵）
 - 0201q LINE の公開してよい値の追加（相談役 ②）: set_store_line_extra（owner／自店 manager・set_store_line_config と同じ 'billing locked'）
 （対象 211→**212**・live 実測＝billing locked の関数 **212**）
+
+### A26. 0203 版 4（4 本・2026-11-24 11:21:19 本番適用（Agoora が認めて CC が適用・検証 18 行とも期待値）・規則A形でゲート内蔵）
+- 0203 2 号店の段 1・段 2: set_org_pay_day（会社の支払日・owner）／store_copy_settings（1 店目から写す・owner）／notice_create_at／notice_create_targets_at（店を指定してお知らせ）＝どれも冒頭の二重防御の後に課金の述語で 'billing locked'（A25 と同じ形）
+（対象 212→**216**・live 実測＝billing locked の関数 **216**）
 ## B. 除外（99本）
 
 ### B(a) 構造除外＝authenticated 実行不可（service/内部・28本）→ ゲート不要（B7 回避型(1)）
@@ -647,6 +651,10 @@ staff_deactivate / kiosk_deactivate
 - 運用除外（オーナーの許可と導入の状態＝お金を動かさない・デモの会社は関数が止める）: support_grant_set／support_grant_revoke／set_agency_assist／onboarding_done_by_owner／cast_provisional_discard
 - 中で A を呼ぶ（本登録＝中で呼ぶキャストの作成が A のゲート済み＝止まっている会社ではそこで止まる）: cast_provisional_promote
 （除外 251→**266**・全数 463→**478**（0202b ＋15＝B +15）。0202c は作り直し 4 本＝数は変わらない）
+
+### B(ak). 0203 版 4 新設の除外（1本・2026-11-24・0203 の本番適用＝CC が適用の後の検査の張り替えで収載）
+- 構造除外（B(a) と同列＝service_role 専用・authenticated 実行不可＝運営コンソールの店を足す route から admin で呼ぶ・会社をまたぐ運営の操作＝B(ai) の ops_org_create と同じ）: ops_store_add
+（除外 266→**267**・全数 478→**483**（0203 ＋5＝A +4（A26）・B +1）。既存の関数は作り直していない）
 
 ## C. kiosk 腕を持つ対象（実装注意・18本）
 A1 の check_open / check_add_line / check_remove_line / check_add_seat / check_remove_seat /
