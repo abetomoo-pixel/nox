@@ -1024,7 +1024,7 @@ export function DeductionTab({ deductions, isManagerUp, storeId, setMsg, reload,
         <>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
             <span style={note}>{id ? "編集中" : "新規"}</span>
-            <span style={{ display: "inline-grid", gap: 4 }}><input placeholder="名称（送り代等）" value={name} onChange={(e) => setName(e.target.value)} style={{ ...input, width: 150 }} aria-label="控除の名称" />{requiredNoteOf(name, "名称") && <span data-ded-name-required="1" style={{ fontSize: 11.5, color: "var(--bad)" }}>{requiredNoteOf(name, "名称")}</span>}</span>{/* ★裁定467（M-126）: 入力不足は RPC の前に止める */}
+            <span style={{ display: "inline-grid", gap: 4 }}><input placeholder="例: 送り代" value={name} onChange={(e) => setName(e.target.value)} style={{ ...input, width: 150 }} aria-label="控除の名称" />{requiredNoteOf(name, "名称") && <span data-ded-name-required="1" style={{ fontSize: 11.5, color: "var(--bad)" }}>{requiredNoteOf(name, "名称")}</span>}</span>{/* ★裁定467（M-126）: 入力不足は RPC の前に止める */}
             {mig0195On() ? (/* ★0195 M-73 ②④: 種別＝実費／その他の 2 択（ボタン群）・既存行の従来の種別は「（従来）」の 1 つを足して値を保つ */
               <label style={{ fontSize: 12 }}>種別<br />
                 <SegSelect value={kind} onChange={(v) => setKind(v)} ariaLabel="種別" wrap

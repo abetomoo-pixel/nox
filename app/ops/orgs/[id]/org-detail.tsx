@@ -2,13 +2,14 @@
 import AddStorePanel from "./add-store-panel"; // ★0203（■2-a）
 // ★運営コンソール 版 1（夜便 2026-11-20 N5）: テナントの詳細の節（画面の案 §5）。ボタンは中央・結果の文は押したボタンの近く・保存の後は画面を読み直す（router.refresh）。
 //   版 1 に入れないもの：「リンクを出す」（判断 8）・「導入中に戻す」（cannot reopen）・版 2 の代行（初期設定・LINE・サポート許可・店舗の停止）。
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import * as t from "@/lib/nox/ui/theme";
 import { Message } from "@/components/ui/toast";
 import { OpsProgressCard } from "../../ops-progress";
 import { supportUrlShownOf } from "@/lib/nox/ops/assist"; // ★起票152
+import { opsContractOf, opsContractRowsOf, opsLogLineOf, opsStoreSetupLineOf, OPS_CONTRACT_NOT_SHOWN, type OpsBilling, type OpsStoreSetup } from "@/lib/nox/ops/view"; // ★起票153・154
 import { SUPPORT_GRANT_URL } from "@/lib/nox/support/grant-entry"; // ★起票152
 import { fmtJst, inviteLabelOf, kindLabelOf, lineLabelOf, onboardingLabelOf, opsErrJa, routeLabelOf, ROUTE_FIELD_NOTE, setupLabelOf, type OpsOrgRow } from "@/lib/nox/ops/labels";
 
@@ -35,7 +36,7 @@ export type OpsLogRow ={ id: string; at: string; who: string; action: string; be
 const ACTION_LABEL: Record<string, string> = { "ops.org.create": "作成", "ops.agency_code": "経路", "ops.onboarding": "導入", "ops.org.reinvite": "招待の出し直し" };
 const brief = (v: unknown): string => (v == null ? "—" : typeof v === "object" ? Object.entries(v as Record<string, unknown>).map(([k, x]) => `${k}: ${x ?? "—"}`).join("・") : String(v));
 
-export default function OrgDetail({ row, logs, nowIso, assist, stores }: { row: OpsOrgRow; logs: OpsLogRow[]; nowIso: string; /** ★0203（■2-a）: 店を追加（旗の後ろ・null＝出さない） */ stores?: { id: string; name: string; setupDone: boolean }[] | null; /** ★枝 night1121-ops-v2（0202b 版 4・旗の後ろ）: 導入を代行する（書けるかと理由） */ assist?: { ok: boolean; reason: string | null } | null }) {
+export default function OrgDetail({ row, logs, nowIso, assist, stores, storeSetups, billing }: { /** ★起票153 */ storeSetups?: OpsStoreSetup[] | null; /** ★起票154 */ billing?: OpsBilling | null; row: OpsOrgRow; logs: OpsLogRow[]; nowIso: string; /** ★0203（■2-a）: 店を追加（旗の後ろ・null＝出さない） */ stores?: { id: string; name: string; setupDone: boolean }[] | null; /** ★枝 night1121-ops-v2（0202b 版 4・旗の後ろ）: 導入を代行する（書けるかと理由） */ assist?: { ok: boolean; reason: string | null } | null }) {
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
   const [out, setOut] = useState<{ at: string; ok: boolean; text: string } | null>(null);
@@ -53,19 +54,43 @@ export default function OrgDetail({ row, logs, nowIso, assist, stores }: { row: 
   const sec: React.CSSProperties = { ...t.card, marginBottom: 12 };
   const h2: React.CSSProperties = { ...t.cardTitle, margin: "0 0 8px" };
   const agencyLogs = logs.filter((l) => l.action === "ops.agency_code").slice(0, 5);
+  const [openAdd, setOpenAdd] = useState(false); // ★起票153: 「店を追加」と「経路」はボタンで開く
+  const [openRoute, setOpenRoute] = useState(false);
+  const contract = opsContractOf(row, billing ?? null, new Date(nowIso));
   return (
     <div data-ops-detail={row.org_id} style={{ maxWidth: 760, margin: "0 auto" }}>
       <h1 style={{ fontSize: 18, margin: "0 0 12px", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>{row.org_name}<span className="nox-stpill">{kindLabelOf(row)}</span></h1>
-      {/* ★2026-11-21 夜（2c）: 導入の状況を一番上へ（次にすること＋項目ごとの札）。now はサーバの時刻（描画のずれを作らない） */}
-      <OpsProgressCard row={row} now={new Date(nowIso)} />
-      {stores && <AddStorePanel orgId={row.org_id} stores={stores} />}{/* ★0203（■2-a）: 店を追加 */}
-      {assist && (/* ★枝 night1121-ops-v2: 導入を代行する（書けないときは理由を 1 行） */
-        <section style={sec} aria-label="導入を代行する" data-ops-assist-entry={assist.ok ? "1" : "0"}>
-          <h2 style={h2}>導入を代行する</h2>
-          <p style={{ ...t.sub, fontSize: 12.5, margin: "0 0 10px", lineHeight: 1.7 }}>初期設定の下書き・LINE 連携・キャストの仮の登録を、1 歩ずつ代わりに入れます（確定はオーナー）。</p>
-          {assist.ok ? <div className="nox-actions"><Link href={`/ops/orgs/${row.org_id}/assist`} style={{ ...t.btnGold, textDecoration: "none" }}>導入を代行する</Link></div> : <Message kind="warn">{assist.reason}</Message>}
-          {supportUrlShownOf(assist) && <SupportUrlBox />}
-        </section>)}
+      {/* ★起票153（2026-11-24）: 順番＝導入の状況 → 契約 → オーナー → 代行 → 記録。導入の状況には店名（どの店の話か）と「導入完了にする」 */}
+      <OpsProgressCard row={row} now={new Date(nowIso)} storeLines={(storeSetups ?? []).map(opsStoreSetupLineOf)}>
+        <div style={{ marginTop: 12, paddingTop: 10, borderTop: "1px solid var(--line)" }} aria-label="導入" data-ops-onboarding="1">
+          <p style={{ margin: 0, fontSize: 13 }}>導入：{onboardingLabelOf(row.onboarding_state)}{row.onboarding_done_at ? `（${fmtJst(row.onboarding_done_at)}）` : ""}</p>
+          {row.onboarding_state === "onboarding" && (
+            <>
+              <div className="nox-actions" style={{ marginTop: 10 }}>
+                <button type="button" style={t.btnGold} disabled={!!busy} data-ops-done="1"
+                  onClick={() => { if (window.confirm("導入完了にします。完了の後は導入中に戻せません。よろしいですか")) void post("onboarding", `/api/ops/orgs/${row.org_id}/onboarding`, {}, "導入完了にしました"); }}>
+                  {busy === "onboarding" ? "保存中…" : "導入完了にする"}
+                </button>
+              </div>
+              {msgAt("onboarding")}
+            </>
+          )}
+        </div>
+      </OpsProgressCard>
+
+      {/* ★起票154（2026-11-24）: 契約＝DB にある値だけ（デモ・検証用・テスターは対象外） */}
+      <section style={sec} aria-label="契約" data-ops-contract-card={contract.tone}>
+        <h2 style={h2}>契約</h2>
+        <p style={{ margin: "0 0 8px" }}><span className={contract.tone === "ok" ? "nox-stpill ok" : contract.tone === "warn" ? "nox-stpill warn" : contract.tone === "bad" ? "nox-stpill bad" : "nox-stpill"} style={{ fontSize: 13 }}>{contract.label}</span></p>
+        {!contract.outOfScope && (
+          <>
+            <dl style={{ display: "grid", gridTemplateColumns: "max-content 1fr", gap: "4px 12px", margin: 0, fontSize: 13 }}>
+              {opsContractRowsOf(row, billing ?? null).map(([k, v]) => <Fragment key={k}><dt style={t.sub}>{k}</dt><dd style={{ margin: 0 }}>{v}</dd></Fragment>)}
+            </dl>
+            <p style={{ ...t.sub, fontSize: 11.5, margin: "8px 0 0" }}>{OPS_CONTRACT_NOT_SHOWN}</p>
+          </>
+        )}
+      </section>
 
       <section style={sec} aria-label="オーナー">
         <h2 style={h2}>オーナー</h2>
@@ -83,45 +108,53 @@ export default function OrgDetail({ row, logs, nowIso, assist, stores }: { row: 
         ) : row.owner_accepted ? <p style={{ ...t.sub, fontSize: 12, margin: "6px 0 0" }}>パスワードを忘れたときは、本人がログインの画面の「パスワードを忘れた」から</p> : null}
       </section>
 
-      <section style={sec} aria-label="経路">
-        <h2 style={h2}>経路</h2>
-        <p style={{ margin: "0 0 8px", fontSize: 13 }}>今：{routeLabelOf(row.agency_code)}</p>
-        <label style={{ display: "grid", gap: 4 }}><span style={t.fieldLabel}>紹介コード</span><input value={code} maxLength={40} onChange={(e) => setCode(e.target.value)} style={t.input} aria-label="紹介コード" /></label>
-        <p data-ops-route-note="1" style={{ ...t.sub, fontSize: 11.5, margin: "4px 0 0" }}>{ROUTE_FIELD_NOTE}</p>
-        <div className="nox-actions" style={{ marginTop: 10 }}>
-          <button type="button" style={t.btnGold} disabled={!!busy || code === (row.agency_code ?? "")} onClick={() => void post("agency", `/api/ops/orgs/${row.org_id}/agency`, { code }, "経路を保存しました")}>{busy === "agency" ? "保存中…" : "保存"}</button>
-          <button type="button" style={t.btnGhost} disabled={!!busy || !row.agency_code}
-            onClick={() => { if (window.confirm("経路を外して直販にします。よろしいですか")) void post("agency", `/api/ops/orgs/${row.org_id}/agency`, { code: null }, "経路を外しました（直販）"); }}>外す（直販にする）</button>
-        </div>
-        {msgAt("agency")}
-        {agencyLogs.length > 0 && (
-          <ul style={{ margin: "10px 0 0", padding: 0, listStyle: "none", fontSize: 12 }}>
-            {agencyLogs.map((l) => <li key={l.id} style={{ ...t.sub, fontSize: 12 }}>{fmtJst(l.at)}・{l.who}・{brief(l.before)} → {brief(l.after)}</li>)}
-          </ul>
-        )}
-      </section>
+      {assist && (/* ★枝 night1121-ops-v2: 導入を代行する（書けないときは理由を 1 行） */
+        <section style={sec} aria-label="導入を代行する" data-ops-assist-entry={assist.ok ? "1" : "0"}>
+          <h2 style={h2}>導入を代行する</h2>
+          <p style={{ ...t.sub, fontSize: 12.5, margin: "0 0 10px", lineHeight: 1.7 }}>初期設定の下書き・LINE 連携・キャストの仮の登録を、1 歩ずつ代わりに入れます（確定はオーナー）。</p>
+          {assist.ok ? <div className="nox-actions"><Link href={`/ops/orgs/${row.org_id}/assist`} style={{ ...t.btnGold, textDecoration: "none" }}>導入を代行する</Link></div> : <Message kind="warn">{assist.reason}</Message>}
+          {supportUrlShownOf(assist) && <SupportUrlBox />}
+        </section>)}
 
-      <section style={sec} aria-label="導入">
-        <h2 style={h2}>導入</h2>
-        <p style={{ margin: 0, fontSize: 13 }}>{onboardingLabelOf(row.onboarding_state)}{row.onboarding_done_at ? `（${fmtJst(row.onboarding_done_at)}）` : ""}</p>
-        {row.onboarding_state === "onboarding" && (
-          <>
-            <div className="nox-actions" style={{ marginTop: 10 }}>
-              <button type="button" style={t.btnGold} disabled={!!busy} data-ops-done="1"
-                onClick={() => { if (window.confirm("導入完了にします。完了の後は導入中に戻せません。よろしいですか")) void post("onboarding", `/api/ops/orgs/${row.org_id}/onboarding`, {}, "導入完了にしました"); }}>
-                {busy === "onboarding" ? "保存中…" : "導入完了にする"}
-              </button>
-            </div>
-            {msgAt("onboarding")}
-          </>
-        )}
-      </section>
+      {/* ★起票153: 店を追加・経路＝ボタンで開く（畳む） */}
+      <div className="nox-actions" style={{ margin: "0 0 12px" }} data-ops-more="1">
+        {stores && <button type="button" style={openAdd ? t.btnGold : t.btnGhost} aria-expanded={openAdd} onClick={() => setOpenAdd((v) => !v)} data-ops-open-add="1">店を追加</button>}
+        <button type="button" style={openRoute ? t.btnGold : t.btnGhost} aria-expanded={openRoute} onClick={() => setOpenRoute((v) => !v)} data-ops-open-route="1">経路（{routeLabelOf(row.agency_code)}）</button>
+      </div>
+      {stores && openAdd && <div style={{ marginBottom: 12 }}><AddStorePanel orgId={row.org_id} stores={stores} /></div>}{/* ★0203（■2-a）: 店を追加 */}
+      {openRoute && (
+        <section style={sec} aria-label="経路">
+          <h2 style={h2}>経路</h2>
+          <p style={{ margin: "0 0 8px", fontSize: 13 }}>今：{routeLabelOf(row.agency_code)}</p>
+          <label style={{ display: "grid", gap: 4 }}><span style={t.fieldLabel}>紹介コード</span><input value={code} maxLength={40} onChange={(e) => setCode(e.target.value)} style={t.input} aria-label="紹介コード" /></label>
+          <p data-ops-route-note="1" style={{ ...t.sub, fontSize: 11.5, margin: "4px 0 0" }}>{ROUTE_FIELD_NOTE}</p>
+          <div className="nox-actions" style={{ marginTop: 10 }}>
+            <button type="button" style={t.btnGold} disabled={!!busy || code === (row.agency_code ?? "")} onClick={() => void post("agency", `/api/ops/orgs/${row.org_id}/agency`, { code }, "経路を保存しました")}>{busy === "agency" ? "保存中…" : "保存"}</button>
+            <button type="button" style={t.btnGhost} disabled={!!busy || !row.agency_code}
+              onClick={() => { if (window.confirm("経路を外して直販にします。よろしいですか")) void post("agency", `/api/ops/orgs/${row.org_id}/agency`, { code: null }, "経路を外しました（直販）"); }}>外す（直販にする）</button>
+          </div>
+          {msgAt("agency")}
+          {agencyLogs.length > 0 && (
+            <ul style={{ margin: "10px 0 0", padding: 0, listStyle: "none", fontSize: 12 }}>
+              {agencyLogs.map((l) => <li key={l.id} style={{ ...t.sub, fontSize: 12 }}>{opsLogLineOf(l)}</li>)}
+            </ul>
+          )}
+        </section>
+      )}
 
+      {/* ★起票153: 運営の記録＝日本語の 1 行（内部の名前と値は押すと開く） */}
       <section style={sec} aria-label="運営の記録">
         <h2 style={h2}>運営の記録</h2>
         {logs.length === 0 ? <p style={{ ...t.sub, fontSize: 12, margin: 0 }}>まだありません</p> : (
-          <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "grid", gap: 4, fontSize: 12 }}>
-            {logs.map((l) => <li key={l.id}>{fmtJst(l.at)}・{l.who}・{ACTION_LABEL[l.action] ?? l.action}・{brief(l.before)} → {brief(l.after)}</li>)}
+          <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "grid", gap: 6, fontSize: 13 }}>
+            {logs.map((l) => (
+              <li key={l.id} data-ops-log={l.action}>
+                <details>
+                  <summary style={{ cursor: "pointer", lineHeight: 1.6 }}>{opsLogLineOf(l)}</summary>
+                  <p style={{ ...t.sub, fontSize: 11.5, margin: "4px 0 0 14px", overflowWrap: "anywhere" }}>{l.action}・{brief(l.before)} → {brief(l.after)}</p>
+                </details>
+              </li>
+            ))}
           </ul>
         )}
       </section>

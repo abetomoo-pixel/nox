@@ -9,7 +9,7 @@ export function OpsStepPill({ state }: { state: OpsStepState }) {
 }
 
 /** 詳細の一番上のカード */
-export function OpsProgressCard({ row, now }: { row: OpsOrgRow; now: Date }) {
+export function OpsProgressCard({ row, now, storeLines, children }: { row: OpsOrgRow; now: Date; /** ★起票153（2026-11-24）: どの店の話か（「2店舗目代行店：初期設定 未着手」） */ storeLines?: string[]; children?: React.ReactNode }) {
   const items = opsProgressOf(row, now);
   return (
     <section style={{ ...t.card, marginBottom: 12 }} aria-label="導入の状況" data-ops-progress="1">
@@ -25,11 +25,17 @@ export function OpsProgressCard({ row, now }: { row: OpsOrgRow; now: Date }) {
           </li>
         ))}
       </ul>
+      {storeLines && storeLines.length > 0 && (
+        <ul style={{ margin: "12px 0 0", padding: 0, listStyle: "none", display: "grid", gap: 4 }} data-ops-store-lines={storeLines.length}>
+          {storeLines.map((l) => <li key={l} style={{ fontSize: 13.5, color: "var(--ink)", fontWeight: 700 }}>{l}</li>)}
+        </ul>
+      )}
       <dl style={{ display: "grid", gridTemplateColumns: "max-content 1fr", gap: "4px 12px", margin: "12px 0 0", fontSize: 13 }}>
         <dt style={t.sub}>店の数</dt><dd style={{ margin: 0 }}>{row.store_count}</dd>
         <dt style={t.sub}>最後に使われた時刻</dt><dd style={{ margin: 0 }}>{fmtLast(row.last_used_at)}</dd>
         <dt style={t.sub}>お試しの期限</dt><dd style={{ margin: 0 }}>{row.kind === "tester" ? "期限なし" : row.kind === "trial" ? fmtDay(row.trial_ends_at) : "—"}</dd>
       </dl>
+      {children}
     </section>
   );
 }

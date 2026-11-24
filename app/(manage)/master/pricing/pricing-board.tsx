@@ -1404,15 +1404,17 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
                         </td>
                         <td data-label="本指名料" style={{ textAlign: "right" }}>
                           <MoneyInput value={vals.hon}
-                            placeholder={isDefault ? `基本 ${yen(store.hon_fee)}` : "既定を適用"}
+                            placeholder={isDefault ? (store.hon_fee ?? 0).toLocaleString("ja-JP") : "既定"} /* ★起票156（2026-11-24）: 欄の中の薄い文字は数字だけ（「基本 ¥3,000」が欄からはみ出していた）＝説明は欄の外 */
                             onChange={(v) => setRankVals((p) => ({ ...p, [row.key]: { ...vals, hon: v } }))}
                             style={{ ...input, textAlign: "right" }} width={110} ariaLabel="本指名料" />
+                          {isDefault && vals.hon === "" && <small style={{ display: "block", fontSize: 10.5, color: "var(--sub)", marginTop: 2 }} data-rank-default-note="1">基本の額を使います</small>}
                         </td>
                         <td data-label="場内指名料" style={{ textAlign: "right" }}>
                           <MoneyInput value={vals.jonai}
-                            placeholder={isDefault ? `基本 ${yen(store.jonai_fee)}` : "既定を適用"}
+                            placeholder={isDefault ? (store.jonai_fee ?? 0).toLocaleString("ja-JP") : "既定"} /* ★起票156（2026-11-24）: 欄の中の薄い文字は数字だけ（「基本 ¥3,000」が欄からはみ出していた）＝説明は欄の外 */
                             onChange={(v) => setRankVals((p) => ({ ...p, [row.key]: { ...vals, jonai: v } }))} ariaLabel="場内指名料"
                             style={{ ...input, width: 110, textAlign: "right" }} />
+                          {isDefault && vals.jonai === "" && <small style={{ display: "block", fontSize: 10.5, color: "var(--sub)", marginTop: 2 }} data-rank-default-note="1">基本の額を使います</small>}
                         </td>
                         <td className="col-state" data-label="状態">
                           {rank ? (
@@ -1456,7 +1458,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
             </div>
             <div style={{ display: "flex", gap: 8, marginTop: 10, alignItems: "center" }}>
               <input value={newRankName} onChange={(e) => setNewRankName(e.target.value)}
-                placeholder="新しいランク名（例: S）" style={{ ...input, width: 180 }} />
+                placeholder="ランク名（例: S）" style={{ ...input, width: 180 }} />
               <button type="button" style={btnLight} disabled={busy || !newRankName.trim()}
                 onClick={() => void addRank()}>＋ ランクを追加</button>
             </div>

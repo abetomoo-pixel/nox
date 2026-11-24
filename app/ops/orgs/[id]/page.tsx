@@ -8,6 +8,7 @@ import OpsShell from "../../ops-shell";
 import { mig0202bOn, mig0203On } from "@/lib/nox/rules-0175/flag";
 import { assistGateOf } from "@/lib/nox/ops/assist";
 import OrgDetail, { type OpsLogRow } from "./org-detail";
+import type { OpsBilling, OpsStoreSetup } from "@/lib/nox/ops/view"; // ★起票153・154
 
 export const dynamic = "force-dynamic";
 
@@ -35,9 +36,18 @@ export default async function OpsOrgPage({ params }: { params: Promise<{ id: str
   }
   // ★0203（■2-a）: 店を追加＝会社の店の一覧（デモは出さない）
   let stores: { id: string; name: string; setupDone: boolean }[] | null = null;
-  if (mig0203On()) {
-    const [{ data: org }, { data: st }] = await Promise.all([admin.from("orgs").select("is_demo").eq("id", id).maybeSingle(), admin.from("stores").select("id, name, settings_json").eq("org_id", id).order("name")]);
-    stores = org?.is_demo === true ? null : ((st ?? []) as { id: string; name: string; settings_json: Record<string, unknown> | null }[]).map((r) => ({ id: r.id, name: r.name, setupDone: r.settings_json?.setup_done === true }));
-  }
-  return <OpsShell name={op.name}><OrgDetail row={row} logs={logRows} nowIso={new Date().toISOString()} assist={assist} stores={stores} /></OpsShell>;
+  // ★起票153（2026-11-24）: 導入の状況に「どの店の話か」＝店ごとの初期設定（済み／途中 STEP n／未着手）＝下書きの STEP を読む（読むだけ）
+  const [{ data: orgRow }, { data: stAll }, { data: drafts }, { data: bill }] = await Promise.all([
+    admin.from("orgs").select("is_demo").eq("id", id).maybeSingle(),
+    admin.from("stores").select("id, name, settings_json, created_at").eq("org_id", id).order("created_at"),
+    admin.from("setup_drafts").select("store_id, data").eq("org_id", id),
+    admin.from("org_billing").select("status, trial_ends_at, current_period_end, quantity, cancel_at_period_end, stripe_customer_id, stripe_subscription_id").eq("org_id", id).maybeSingle(),
+  ]);
+  const stepOf = new Map(((drafts ?? []) as { store_id: string; data: { S?: { step?: unknown } } | null }[]).map((d) => [d.store_id, typeof d.data?.S?.step === "number" ? (d.data.S.step as number) : null]));
+  const storeSetups: OpsStoreSetup[] = ((stAll ?? []) as { id: string; name: string; settings_json: Record<string, unknown> | null }[]).map((r) => ({ id: r.id, name: r.name, setupDone: r.settings_json?.setup_done === true, draftStep: stepOf.get(r.id) ?? null }));
+  if (mig0203On()) stores = orgRow?.is_demo === true ? null : storeSetups.map((s) => ({ id: s.id, name: s.name, setupDone: s.setupDone })).sort((a, b) => a.name.localeCompare(b.name, "ja"));
+  // ★起票154（2026-11-24）: 契約のカード＝org_billing にある値だけ（キーの有無だけ＝Stripe の ID は画面に出さない）
+  const b = bill as { status: string | null; trial_ends_at: string | null; current_period_end: string | null; quantity: number | null; cancel_at_period_end: boolean | null; stripe_customer_id: string | null; stripe_subscription_id: string | null } | null;
+  const billing: OpsBilling | null = b ? { status: b.status, trial_ends_at: b.trial_ends_at, current_period_end: b.current_period_end, quantity: b.quantity, cancel_at_period_end: b.cancel_at_period_end, has_customer: !!b.stripe_customer_id, has_subscription: !!b.stripe_subscription_id } : null;
+  return <OpsShell name={op.name}><OrgDetail row={row} logs={logRows} nowIso={new Date().toISOString()} assist={assist} stores={stores} storeSetups={storeSetups} billing={billing} /></OpsShell>;
 }

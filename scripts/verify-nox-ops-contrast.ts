@@ -107,8 +107,9 @@ try {
     const iP = det.indexOf('data-ops-progress="1"'), iO = det.indexOf('aria-label="オーナー"');
     check("c(7-5) 詳細：導入の状況のカードが一番上（オーナーより前）・次にすることの 1 行・項目 5 つ・導入の状況は 1 つだけ",
       iP > 0 && iO > iP && det.includes('data-ops-next="1"') && (det.match(/data-ops-step="/g) ?? []).length === 5 && (det.match(/aria-label="導入の状況"/g) ?? []).length === 1, `progress ${iP}・owner ${iO}`);
-    check("c(7-6) 一覧：会社ごとに札（表とカードの両方＝3 社 × 2）・札は 5 項目ずつ",
-      (list.match(/data-ops-pills="/g) ?? []).length === 6 && (list.match(/data-ops-pill="/g) ?? []).length === 30);
+    { const nRow = (list.match(/data-ops-row="/g) ?? []).length; // ★起票153（2026-11-24）: 一覧は 5 つの札をやめて「次にすること」と進み具合（n／5）・契約の列（5 つの内訳は詳細で）
+      check("c(7-6) 一覧：会社ごとに進み具合（n／5）と次にすること・契約の札（表とカードで同じ社数）・5 項目の札は一覧に出さない",
+        nRow > 0 && (list.match(/data-ops-progress-sum="\d\/5"/g) ?? []).length === nRow && (list.match(/data-ops-contract="/g) ?? []).length === nRow && (list.match(/data-ops-card="/g) ?? []).length === nRow && !list.includes("data-ops-pill="), `rows ${nRow}`); }
   }
 
   // c(1)〜c(3) 画面

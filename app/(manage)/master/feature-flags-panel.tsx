@@ -137,7 +137,7 @@ export default function FeatureFlagsPanel({ stores }: { stores: Store[] }) {
       </ResponsiveTable>
       <div style={{ marginTop: 10 }}>
         <FieldStack label="理由（任意）" note="次の切替に添えて監査へ記録します。">{/* ★裁定382: ラベル上・入力下 */}
-          <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="例: 9月からスタッフシフトを試験運用" style={{ ...inp, width: "100%", maxWidth: 360 }} maxLength={200} />
+          <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="例: 9月から試験運用" style={{ ...inp, width: "100%", maxWidth: 360 }} maxLength={200} />
         </FieldStack>
       </div>
       {msg && <Message kind={msg.kind === "ok" ? "success" : "error"} style={{ margin: "10px 0 0" }}>{msg.text}</Message>}{/* ★裁定281（便 AB） */}

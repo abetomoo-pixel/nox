@@ -90,7 +90,7 @@ export default function MasterBoard({ storeId = null, showSupport = false }: { /
       <PageHead eyebrow="MASTER SETTINGS" title="マスタ"
         desc="店舗の料金・席・営業・報酬・端末など、全画面が参照する設定です。入出庫や在庫履歴の確認は営業メニューの「在庫」で行います。"
         right={<><input className="nox-search" value={hubSearch} onChange={(e) => setHubSearch(e.target.value)}
-          placeholder="設定を検索（商品・バック・端末など）" aria-label="設定を検索" /></>} />
+          placeholder="設定を検索（商品・端末など）" aria-label="設定を検索" /></>} />
 
       {/* aaa .summary＝KPI ステートカード（すべて実在件数。★MC1: 発注推奨は在庫画面へ） */}
       <section className="nox-summary">

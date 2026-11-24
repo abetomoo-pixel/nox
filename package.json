@@ -214,6 +214,7 @@
     "verify:nox-assist-line": "tsx scripts/verify-nox-assist-line.ts",
     "verify:nox-multi-store": "tsx scripts/verify-nox-multi-store.ts",
     "verify:nox-support-entry": "tsx scripts/verify-nox-support-entry.ts",
+    "probe:input-overflow": "node scripts/probe-input-overflow.mjs",
     "verify:nox-0191": "tsx scripts/verify-nox-0191.ts",
     "verify:nox-s3": "tsx scripts/verify-nox-s3.ts",
     "verify:nox-m5c": "tsx scripts/verify-nox-m5c.ts",

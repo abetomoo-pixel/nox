@@ -328,8 +328,8 @@ export default function AuditBoard({ users, stores }: {
           </select>
           <input type="date" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)}
             aria-label="日付で絞り込み" style={{ ...t.input, width: "auto", padding: "6px 9px", fontSize: 12 }} />
-          <input value={targetQ} onChange={(e) => setTargetQ(e.target.value)} placeholder="操作・卓名・領収書番号・キャスト名で探す"
-            style={{ ...t.input, width: 180, padding: "6px 9px", fontSize: 12 }} />
+          <input value={targetQ} onChange={(e) => setTargetQ(e.target.value)} placeholder="操作・卓・名前で探す" aria-label="操作・卓名・領収書番号・キャスト名で探す"
+            style={{ ...t.input, width: 220, maxWidth: "100%", padding: "6px 9px", fontSize: 12 }} />{/* ★起票156（2026-11-24）: 欄の中の文字が欄の幅を超えていた＝薄い文字を短く・欄を広く（中身は aria-label に） */}
           {(kindFilter || dateFilter || targetQ) && (
             <button style={{ ...t.btnGhost, ...t.btnSm }}
               onClick={() => { setKindFilter(""); setDateFilter(""); setTargetQ(""); }}>絞り込み解除</button>

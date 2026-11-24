@@ -40,7 +40,7 @@ export default function StoreRules0175Panel({ settings, payDay = null, onPatch, 
             <option value="">締め曜日なし（月払い）</option>
             {DOW_LABEL.map((d, i) => <option key={i} value={i}>{d}曜締め</option>)}
           </select>
-          <input type="number" min={0} max={31} value={cyc.payDaysAfter ?? ""} disabled={readOnly || busy || cyc.weekCloseDow === null} aria-label="締めから支払までの日数" placeholder="日数" style={{ ...t.input, width: 64 }}
+          <input type="number" min={0} max={31} value={cyc.payDaysAfter ?? ""} disabled={readOnly || busy || cyc.weekCloseDow === null} aria-label="締めから支払までの日数" placeholder="日数" style={{ ...t.input, width: 76 }}
             onChange={(e) => void onPatch({ [STORE_KEYS_0175.payDaysAfter]: e.target.value === "" ? null : Number(e.target.value) }, "支払までの日数を変更")} />
         </span>
       </div>

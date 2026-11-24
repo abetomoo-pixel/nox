@@ -1377,6 +1377,17 @@ body {
 @media (max-width: 641px) {
   .nox-tb { padding: 0 14px; }
 }
+/* ★2026-11-24（相談役の便【2】）: 店が 2 つ以上のオーナーの上部バー（店の切り替えがある）＝狭い幅で 🔔 と ⚙ が画面の外に出ていた（0203 の後・375）。
+   切り替えを縮められるようにし（選んだ店名は省略の … ）、狭い幅ではロゴの店名と「店」の字を出さない。🔔・⚙・登録名の並びは変えない。切り替えの無い会社は 1 字も変わらない（:has で切り替えがあるときだけ） */
+.nox-tb .nox-store-switch { min-width: 0; flex: 0 1 auto; }
+.nox-tb .nox-store-switch select { min-width: 0; max-width: 100% !important; text-overflow: ellipsis; }
+@media (max-width: 899px) {
+  .nox-tb:has(.nox-store-switch) .nox-tb-brand small { display: none; }
+  .nox-tb:has(.nox-store-switch) .nox-store-switch > span { display: none; }
+  .nox-tb:has(.nox-store-switch) .nox-store-switch { flex: 1 1 0; }
+  .nox-tb:has(.nox-store-switch) .nox-store-switch select { width: 100%; max-width: 200px !important; }
+  .nox-tb:has(.nox-store-switch) .acts .nox-userchip { max-width: 24vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}
 
 /* ★夜間便 N4（2026-09-24・裁定275 追補2）: ヘッダー右の口（歯車・「登録名｜役割」）＝既存トークンのみ。ヘッダー左ロゴの店舗名（small）。
    選択中の下タブ＝アイコン＋上辺の線＋太字。メニュー／設定の一覧型の行＝アイコン＋説明＋「›」（.nox-navsheet-i を継承）。 */
@@ -2072,6 +2083,7 @@ body {
 .nox-stpill { font-size: 10.5px; font-weight: 800; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--v2-line); color: var(--v2-muted); white-space: nowrap; }
 .nox-stpill.ok   { color: var(--ok); border-color: rgba(127, 199, 155, .45); }
 .nox-stpill.warn { color: var(--gold2); border-color: rgba(201, 162, 74, .45); }
+.nox-stpill.bad  { color: var(--bad); border-color: rgba(229, 115, 115, .5); } /* ★起票154（2026-11-24）: 支払い遅れ・停止・期限切れ */
 .nox-stpill.ng   { color: var(--bad); border-color: rgba(217, 138, 138, .45); }
 
 /* ── UI刷新v2 段N（ナビ再編）── presentation-only 2026-07-27 ──

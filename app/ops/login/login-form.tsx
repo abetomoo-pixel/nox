@@ -2,6 +2,7 @@
 // ★運営コンソール 版 1（夜便 2026-11-20 N5）: 運営者のログインの欄（ボタンは中央）。
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link"; // ★起票155 の 1
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import { Message } from "@/components/ui/toast";
@@ -40,6 +41,8 @@ export default function OpsLoginForm() {
             <button type="submit" style={{ ...t.btnGold, minWidth: 160 }} disabled={busy}>{busy ? "確認中…" : "ログイン"}</button>
           </div>
         </form>
+        {/* ★起票155 の 1（2026-11-24・相談役の便【3】）: パスワードを忘れた＝今ある /auth/forgot の道（決めた後は invite-accept の dest が運営者を /ops/login へ戻す＝/auth/forgot の側は運営者を見ない＝ops-contrast c(5-3)） */}
+        <p style={{ textAlign: "center", marginTop: 14, fontSize: 12.5 }}><Link href="/auth/forgot" className="nox-link" data-ops-login-forgot="1">パスワードをお忘れの方</Link></p>
       </div>
     </main>
   );

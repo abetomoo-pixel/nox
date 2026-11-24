@@ -416,7 +416,7 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
               {mig0191On() && (on("opsPay") || on("opsTax") || on("opsReg")) && (/* ★■8: 割合と締め日＝給与・源泉区分＝税と請求・釣銭準備金＝レジ */ /* ★0191 ★1（便 OB-2 ⑤・2026-10-30）: 初期設定 v5 の器＝店設定 5 キーの編集口（白名単＝set_store_profile）。指名区分ごとの割合（%の商品の場内／フリーは本指名の率×この割合・商品ごとの個別率が優先）・源泉区分の既定（新規のキャスト／スタッフの初期値＝人ごとに給与の画面で変えられる）・釣銭準備金（日報の締めの既定）・締め日 */
                 <div style={{ minWidth: 0, gridColumn: "1 / -1" }} data-store-0191="1">
                   {on("opsPay") && <><span style={label}>指名の区分ごとの割合（%の商品のバック＝本指名の率 × この割合）</span>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(96px, 1fr))", gap: 8 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 8 }}>{/* ★起票156: 375 で 3 列だと欄が 43px＝「100」が入らない */}
                     {([["hon", "本指名"], ["jonai", "場内指名"], ["free", "フリー"]] as const).map(([k, l]) => (
                       <label key={k} style={{ display: "grid", gap: 3 }}><span style={{ ...t.sub, fontSize: 11.5 }}>{l}</span>
                         <UnitBox post="%" width="100%"><input type="number" min={0} max={100} step={1} inputMode="numeric" value={form.kind_back[k]} disabled={busy} onChange={(e) => setForm((f) => ({ ...f, kind_back: { ...f.kind_back, [k]: e.target.value } }))} style={input} aria-label={`${l}の割合`} /></UnitBox></label>

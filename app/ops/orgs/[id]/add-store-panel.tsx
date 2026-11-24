@@ -6,6 +6,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import * as t from "@/lib/nox/ui/theme";
 import { Message } from "@/components/ui/toast";
+import { addStoreBlockedOf } from "@/lib/nox/ops/view"; // ★起票153
 import { STORE_COPY_LABEL, STORE_COPY_NEVER, STORE_COPY_PARTS, type StoreCopyPart } from "@/lib/nox/ops/store-add";
 
 const BIZ: ReadonlyArray<readonly [string, string]> = [["cabaret", "キャバクラ"], ["girlsbar", "ガールズバー"], ["snack", "スナック"], ["lounge", "ラウンジ"], ["bar", "バー"], ["host", "ホストクラブ"]];
@@ -19,6 +20,7 @@ export default function AddStorePanel({ orgId, stores }: { orgId: string; stores
   const [parts, setParts] = useState<StoreCopyPart[]>([...STORE_COPY_PARTS]);
   const [busy, setBusy] = useState(false);
   const [out, setOut] = useState<{ ok: boolean; text: string } | null>(null);
+  const blocked = addStoreBlockedOf({ name, biz, from, parts: parts.length }); // ★起票153: 押せない理由（無ければ null）＝前と同じ条件
   const toggle = (p: StoreCopyPart) => setParts((xs) => (xs.includes(p) ? xs.filter((x) => x !== p) : [...xs, p]));
   async function add() {
     setBusy(true); setOut(null);
@@ -49,7 +51,8 @@ export default function AddStorePanel({ orgId, stores }: { orgId: string; stores
           <p style={{ ...t.sub, fontSize: 11.5, margin: 0 }}>{STORE_COPY_NEVER}写した後は店ごとに別々です。</p>
         </div>
       )}
-      <div className="nox-actions"><button type="button" style={t.btnGold} disabled={busy || !name.trim() || !biz || (!!from && parts.length === 0)} onClick={() => void add()} data-ops-add-store-btn="1">{busy ? "足しています…" : "店を追加"}</button></div>
+      <div className="nox-actions"><button type="button" style={t.btnGold} disabled={busy || !!blocked} onClick={() => void add()} data-ops-add-store-btn="1">{busy ? "足しています…" : "店を追加"}</button></div>
+      {blocked && !busy && <p style={{ ...t.sub, fontSize: 12, margin: 0, textAlign: "center" }} data-ops-add-store-why="1">{blocked}</p>}{/* ★起票153（2026-11-24）: 押せない理由をボタンの近くに 1 行 */}
       {out && <Message kind={out.ok ? "success" : "error"}>{out.text}</Message>}
     </section>
   );

@@ -116,7 +116,7 @@ export default function IncentivePanel({ storeId, casts, initialDate, cutoff }: 
       <div style={{ marginBottom: 8 }}>
         <input
           value={reason} onChange={(e) => setReason(e.target.value)} maxLength={200}
-          placeholder="理由（任意・200字まで。例: 週末増員 / イベント協力）"
+          placeholder="理由（任意・例: 週末増員）"
           style={{ ...input, width: "100%", maxWidth: 420 }}
         />
       </div>

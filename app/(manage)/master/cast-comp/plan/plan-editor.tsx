@@ -431,7 +431,7 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
         <SecHead title="基本・保証" keys={["name", "base", "active"]} section="基本給・保証" desc="時給と保証条件を設定します。" />
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end", marginBottom: 10 }}>
           <label style={lbl}>プラン名
-            <input placeholder="プラン名" value={draft.name} onChange={(e) => d({ name: e.target.value })} style={{ ...t.input, width: 170 }} disabled={!isOwner} /></label>
+            <input placeholder="プラン名" value={draft.name} onChange={(e) => d({ name: e.target.value })} style={{ ...t.input, width: 240, maxWidth: "100%" }} disabled={!isOwner} /></label>
           <label style={lbl}>基本時給
             <MoneyInput value={draft.base} onChange={(v) => d({ base: Number(v || 0) })} style={t.input} width={120} disabled={!isOwner} ariaLabel="基本時給" /></label>
           <label style={{ ...lbl, flexDirection: "row", alignItems: "center", paddingBottom: 9 }}>
