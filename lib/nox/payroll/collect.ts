@@ -36,7 +36,11 @@ import { mig0201qOn } from "../rules-0175/flag"; // ★0201q
 import { castPts } from "../pay"; // ★N3b: 前月 pts＝当月と同じ式
 import { trialRangeOf, trialRawOf, trialTouchesOf, trialWageOf, inTrialRange, type TrialRange } from "./trial"; // ★裁定490（0201l の後の結線）: 体入の期間・体入の時給・バック「なし」の除外
 import { trialStoreTermsOf } from "../cast/trial-terms";
-import { noShiftHoursOf } from "./no-shift"; // ★裁定501-8 // ★裁定490: 店の体入の条件（trial_wage・trial_back）
+import { noShiftHoursOf } from "./no-shift";
+import { bandAmountAt, bandSegmentsOf, type BandSeg } from "./hourly-bands";
+import { hourlyBandsOn } from "../rules-0175/flag"; // ★時間帯の時給（旗 HOURLY_BANDS_ON の後ろ）
+import { liftPunchAt } from "../punch-io"; // ★時間帯の時給: シフトの無い日の区間（0〜47 時）
+import type { RateBand } from "../rules-0175/canon"; // ★裁定501-8 // ★裁定490: 店の体入の条件（trial_wage・trial_back）
 import { monthsInRange, prevMonthOf, lastDayOf, periodKeysInRange, periodRangeOfKey, prevPeriodKeyOf, slidePeriodOf, slideBasisOf, slideBasisValueOf, slideRankIncludedOf, type SlideBasis, type SlidePeriod, type SlideTotals } from "./slide"; // ★N3b（裁定288）・★裁定338（0168・便 P168）
 import type { PayrollWindow as _PW } from "./window";
 const addDaysYmd = (ymd: string, n: number) => { const [y, mo, d] = ymd.split("-").map(Number); return new Date(Date.UTC(y, mo - 1, d + n)).toISOString().slice(0, 10); }; // ★N3b
@@ -411,7 +415,7 @@ export async function loadPunch(admin: SupabaseClient, storeId: string, win: Pay
     (dohanDatesByCast.get(r.cast_id) ?? dohanDatesByCast.set(r.cast_id, new Set()).get(r.cast_id)!).add(bizDateOf(ck.started_at, win.cutoffHm));
   }
 
-  const result = new Map<string, { noShiftHours: Map<string, number>; noShiftDates: string[]; days: number; lateN: number; absentN: number; anomalyCount: number; missingOutDates: string[]; hoursByDate: Map<string, number>; shiftHoursByDate: Record<string, number>; attendanceDays: number; shortfallDays: ShortfallDay[] }>();
+  const result = new Map<string, { noShiftHours: Map<string, number>; noShiftDates: string[]; days: number; lateN: number; absentN: number; anomalyCount: number; missingOutDates: string[]; hoursByDate: Map<string, number>; shiftHoursByDate: Record<string, number>; attendanceDays: number; shortfallDays: ShortfallDay[]; /** ★時間帯の時給: 働いた区間（営業日の分 0〜47 時）＝打刻の日・シフトの区間・シフトの無い日・打刻しない店でシフトの時間にした日 */ win: { punch: Map<string, [number, number]>; shift: Map<string, [number, number]>; noShift: Map<string, [number, number]>; storeShift: Set<string> } }>();
   // 受給者判定（確認1・裁定）: final∈{ok,late}（確定シフトがある日に出勤）＝raw のみ（no_shift/absent）は含めない。
   const recipientsByDate = new Map<string, string[]>();
   const todayBiz = bizDateOf(new Date().toISOString(), win.cutoffHm); // ★X-13-27: 営業日の今日（store の cutoff）
@@ -420,6 +424,8 @@ export async function loadPunch(admin: SupabaseClient, storeId: string, win: Pay
     const built = buildMatchInput({ cutoffHm: win.cutoffHm, shifts: raw.shifts, attendance: attWithDohan, punches: raw.punches });
     const m = matchPunches({ ...built, config: { close: win.closeHm, lateGraceMin: grace.lateGrace, earlyGraceMin: grace.earlyGrace, overGraceMin: grace.overGrace } });
     const hoursByDate = new Map<string, number>();
+    const punchWin = new Map<string, [number, number]>(), shiftWin = new Map<string, [number, number]>(), noShiftWin = new Map<string, [number, number]>(), storeShift = new Set<string>(); // ★時間帯の時給
+    for (const sh of raw.shifts) { const a = hm2minOf(sh.start_hm), b = hm2minOf(sh.end_hm); if (b > a) shiftWin.set(sh.date, [a, b]); } // 時間＝end − start と同じ読み方（end ≦ start は 0＝区間なし）
     let anomalyCount = 0;
     const missingOutDates: string[] = []; // ★N3 AV-4: 退勤の記録が無い勤務（in はあり out が無い営業日・表示のみ）
     // ★裁定342（便 P169）: 日数・遅刻・当欠は営業日の今日までの日だけ（未来日の確定シフトは数えない＝純関数 punchCountsUpToOf・旧 m.lateN／m.absentN は未来日を含んでいた）
@@ -435,6 +441,7 @@ export async function loadPunch(admin: SupabaseClient, storeId: string, win: Pay
     const shortfallDays: ShortfallDay[] = [];
     for (const d of m.days) {
       hoursByDate.set(d.bizDate, dayWorkedHours(d));
+      { const ia = d.raw.in.type === "ok" || d.raw.in.type === "late" ? d.raw.in.act : null, oa = d.raw.out.type === "ok" || d.raw.out.type === "early" || d.raw.out.type === "over" ? d.raw.out.out : null; if (ia && oa && hm2minOf(oa) > hm2minOf(ia)) punchWin.set(d.bizDate, [hm2minOf(ia), hm2minOf(oa)]); } // ★時間帯の時給: dayWorkedHours と同じ in／out
       const sh = shiftByDate.get(d.bizDate), sid = raw.shiftIds.get(d.bizDate);
       if (sh && sid) shortfallDays.push({ bizDate: d.bizDate, shiftId: sid, startHm: sh.start_hm, endHm: sh.end_hm,
         inHm: d.raw.in.type === "ok" || d.raw.in.type === "late" ? d.raw.in.act : null,
@@ -452,6 +459,11 @@ export async function loadPunch(admin: SupabaseClient, storeId: string, win: Pay
     const noShiftDates = [...new Set(raw.punches.filter((p) => p.type === "in").map((p) => bizDateOf(p.punched_at, win.cutoffHm)))].filter((d) => !shiftDates.has(d) && d <= todayBiz).sort();
     // ★裁定431 ⑥（Agoora 確定 10/26）: シフト無し出勤の日の打刻時間（その営業日の最初の in〜最後の out）＝雇用だけ時給に入れる（委託は従来どおり時給なし）
     const noShiftHours = noShiftHoursOf(raw.punches, noShiftDates, win.cutoffHm); // ★裁定501-8: 純関数に切り出した（式は同じ）
+    for (const d of noShiftDates) { // ★時間帯の時給: noShiftHoursOf と同じ最初の in〜最後の out を 0〜47 時の分で
+      const ps = raw.punches.filter((p) => bizDateOf(p.punched_at, win.cutoffHm) === d).map((p) => ({ t: new Date(p.punched_at).getTime(), at: p.punched_at, type: p.type })).sort((a, b) => a.t - b.t);
+      const fi = ps.find((p) => p.type === "in"); const lo = [...ps].reverse().find((p) => p.type === "out" && fi && p.t > fi.t);
+      if (fi && lo) { const a = hm2minOf(liftPunchAt(fi.at, win.cutoffHm).hm), b = a + Math.round((lo.t - fi.t) / 60_000); if (b > a) noShiftWin.set(d, [a, b]); }
+    }
     // ★便 E（0197 用＝裁定455 の 2）: 打刻しない店（punch_mode='store'）＝打刻が無い日は確定シフトの時間を実働・日数／遅刻／当欠は勤怠（attendance）で決める（今日まで）。フラグ false／'punch' は従来と 1 バイト同値
     if (punchModeOf((stR.data?.settings_json ?? null) as Record<string, unknown> | null) === "store") {
       const attBy = new Map(raw.att.map((a) => [a.date, a.status]));
@@ -459,11 +471,11 @@ export async function loadPunch(admin: SupabaseClient, storeId: string, win: Pay
       const offDay = (d: string) => { const st = attBy.get(d); return st === "absent" || st === "off"; };
       const attended = storeModeAttendedDatesOf(upTo, attBy, todayBiz); // ★0197 フラグ便（裁定456 の 18）: 出勤した日＝確定シフトの日で 当欠／休み でない日
       days = attended.length; lateN = upTo.filter((s) => attBy.get(s.date) === "late").length; absentN = upTo.filter((s) => attBy.get(s.date) === "absent").length;
-      for (const s of upTo) if ((hoursByDate.get(s.date) ?? 0) === 0 && !offDay(s.date)) hoursByDate.set(s.date, Math.max(0, (hm2minOf(s.end_hm) - hm2minOf(s.start_hm)) / 60));
+      for (const s of upTo) if ((hoursByDate.get(s.date) ?? 0) === 0 && !offDay(s.date)) { hoursByDate.set(s.date, Math.max(0, (hm2minOf(s.end_hm) - hm2minOf(s.start_hm)) / 60)); storeShift.add(s.date); }
       // ★0197 フラグ便（裁定456 の 18）: 出勤インセンティブの受給者判定＝確定シフトのある日を出勤扱い（当欠／休みは除く・打刻の final ok／late で既に入っている日は重複させない）
       for (const d of attended) { const list = recipientsByDate.get(d) ?? recipientsByDate.set(d, []).get(d)!; if (!list.includes(cid)) list.push(cid); }
     }
-    result.set(cid, { noShiftHours, noShiftDates, days, lateN, absentN, anomalyCount, missingOutDates, hoursByDate, shiftHoursByDate, attendanceDays, shortfallDays });
+    result.set(cid, { noShiftHours, noShiftDates, days, lateN, absentN, anomalyCount, missingOutDates, hoursByDate, shiftHoursByDate, attendanceDays, shortfallDays, win: { punch: punchWin, shift: shiftWin, noShift: noShiftWin, storeShift } });
   }
   // pooled 端数 +1 の順序を確定させるため cast_id 昇順にソート
   for (const [d, list] of recipientsByDate) recipientsByDate.set(d, list.sort());
@@ -744,6 +756,16 @@ export async function collectPeriod(
     loadAvgDailyWage(admin, storeId, win.period), // ★裁定98-C: 平均賃金（直近3確定期）
   ]);
   const { byCast: punchByCast, recipientsByDate } = await loadPunch(admin, storeId, win, grace);
+  // ★時間帯の時給（旗 HOURLY_BANDS_ON＝false の間は読まない＝今と 1 バイト同じ）: プランの時給の帯（plan_rate_bands target 'hourly'・有効な行）
+  const hourlyBandsByPlan = new Map<string, RateBand[]>();
+  if (hourlyBandsOn()) {
+    const planIds = [...new Set([...castPlanByCast.values()].map((x) => x.planId))];
+    if (planIds.length) {
+      const { data: hb, error: eHb } = await admin.from("plan_rate_bands").select("plan_id, target, from_min, to_min, value_amount, value_rate, priority").in("plan_id", planIds).eq("target", "hourly").eq("is_active", true);
+      if (eHb) throw new Error(`plan_rate_bands: ${eHb.message}`);
+      for (const b of (hb ?? []) as (RateBand & { plan_id: string })[]) (hourlyBandsByPlan.get(b.plan_id) ?? hourlyBandsByPlan.set(b.plan_id, []).get(b.plan_id)!).push({ target: b.target, from_min: b.from_min, to_min: b.to_min, value_amount: b.value_amount, value_rate: b.value_rate, priority: b.priority });
+    }
+  }
 
   // sales を cast 別に集計＋日次
   // ★裁定346（便 N1013b）: 期間合計は純関数 sumCastSales（ランキングの売上軸・/mine ノルマ進捗と同じ関数）＝値は従来の合算と同一。日次は従来どおりここで積む
@@ -928,6 +950,19 @@ export async function collectPeriod(
       ...(p && p.shortfallDays.length ? { shortfallDays: p.shortfallDays } : {}), // ★324-3（便 L-2-4）: 確定シフトがある日だけ
       ...(calcPeriodById.has(cid) ? { calcPeriod: calcPeriodById.get(cid) } : {}), // ★0154 D6
       plan: planEff, // ★裁定343: 対象外は段なし（base のまま）
+      ...(() => { // ★時間帯の時給：プランに帯があり、個別の時給の上書き（override.base）が無い人だけ（上書きが勝つ＝帯を使わない）。体入の日は pay.ts が帯を使わない
+        const bands = cp ? hourlyBandsByPlan.get(cp.planId) : undefined;
+        if (!bands || bands.length === 0 || !p || (cp?.override && typeof (cp.override as { base?: unknown }).base === "number")) return {};
+        const byDay: Record<string, BandSeg[]> = {}, shiftByDay: Record<string, BandSeg[]> = {}, edges: Record<string, [number | null, number | null]> = {};
+        for (const d of daily) {
+          if (!(d.hours > 0)) continue;
+          const sw = p.win.shift.get(d.bizDate), pw = p.win.punch.get(d.bizDate), nw = p.win.noShift.get(d.bizDate);
+          const w = p.win.storeShift.has(d.bizDate) ? sw : (masters.payTimeBasis === "shift" && pw && sw ? sw : pw ?? nw);
+          if (w) byDay[d.bizDate] = bandSegmentsOf(w[0], w[1], bands);
+          if (sw) { shiftByDay[d.bizDate] = bandSegmentsOf(sw[0], sw[1], bands); edges[d.bizDate] = [bandAmountAt(bands, sw[0]), bandAmountAt(bands, sw[1] - 1)]; }
+        }
+        return Object.keys(byDay).length ? { hourlyBands: { byDay, shiftByDay, edges } } : {};
+      })(),
       override: cp?.override,
       ...(slideBasisByCast.has(cid) && !excluded ? { slideBasis: slideBasisByCast.get(cid) as "hon_count" | "dohan_count", ...(slideDailyBasisByCast.has(cid) ? { slideDailyBasis: slideDailyBasisByCast.get(cid) } : {}) } : {}), // ★裁定343: 件数基準（daily は営業日ごとの件数）
       ...(rankIds.length ? { slideScope: { basis: basisX, rankIds, castRankId, excluded } } : {}), // ★裁定343: 対象ランク（非空のときだけ）

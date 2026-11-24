@@ -283,8 +283,10 @@ export async function computePayrollDraft(
     // ★324-3／324-4（便 L-2-4）: 'shift' の店＝営業日ごとの不足分（遅刻＝猶予あり・早上がり＝猶予なし）×その日の時給（pay.wdays の hourly＝保証時給込み）
     if (masters.payTimeBasis === "shift" && c.shortfallDays?.length) {
       const hourlyByDate: Record<string, number> = {};
+      const edgeRatesByDate: Record<string, [number, number]> = {}; // ★時間帯の時給（帯のある日だけ・無ければ空＝従来と同じ式）
       for (const w of pay.wdays) hourlyByDate[`${period}-${String(w.d).padStart(2, "0")}`] = w.hourly;
-      const sfRows = shortfallRowsOf({ days: c.shortfallDays, hourlyByDate, lateGraceMin: masters.lateGraceMin ?? LATE_GRACE_MIN_DEFAULT, employment: c.employment ?? null });
+      for (const w of pay.wdays) if (w.edgeRates) edgeRatesByDate[`${period}-${String(w.d).padStart(2, "0")}`] = w.edgeRates;
+      const sfRows = shortfallRowsOf({ days: c.shortfallDays, hourlyByDate, lateGraceMin: masters.lateGraceMin ?? LATE_GRACE_MIN_DEFAULT, employment: c.employment ?? null, ...(Object.keys(edgeRatesByDate).length ? { edgeRatesByDate } : {}) });
       shortfall.push({ castId: c.castId, rows: sfRows });
     }
     // ★便 X13-I I-5（裁定410 追補）: ノルマ未達の減額の提案（検知が有効・採用軸・未達だけ）。委託＝提案額／雇用＝91 条キャップ（平均賃金なし＝算定不能・就業規則の定めなし＝出さない）。既に適用済み（理由が「ノルマ未達（」の調整行）なら applied

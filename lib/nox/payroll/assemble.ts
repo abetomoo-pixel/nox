@@ -38,6 +38,8 @@ export type CastRaw = {
   honShimeiAmt: number;
   jonaiShimeiAmt: number;
   daily: { bizDate: string; sales: number; hours: number }[];
+  /** ★時間帯の時給（旗 HOURLY_BANDS_ON の後ろ・帯のあるプランで上書きの無い人だけ）: 営業日→帯で切った区切り・シフトの区間で切った区切り・シフトの開始と終了の時刻の帯の額 */
+  hourlyBands?: { byDay: Record<string, import("./hourly-bands").BandSeg[]>; shiftByDay: Record<string, import("./hourly-bands").BandSeg[]>; edges: Record<string, [number | null, number | null]> };
   productBack: { drink: number; champ: number; bottle: number };
   calculatedBack: number; // ★裁定113: Σ check_cast_backs.calculated_back_amount（null=0・collect が必ず格納）
   pointProducts: number;
@@ -274,6 +276,11 @@ export function buildPayInput(
     // ★裁定490（0201l の後の結線）: 体入の日（日番号→体入の時給）とバック「なし」の除外。trial が無ければキーを足さない＝従来と 1 バイト同値（golden 不変）
     ...(raw.trial && raw.trial.dates.length ? { trialWageByDay: Object.fromEntries(raw.trial.dates.map((d) => [dayNum(d), raw.trial!.wage])) } : {}),
     ...(raw.trial?.exclude ? { trialBackExclude: raw.trial.exclude } : {}),
+    ...(raw.hourlyBands ? { // ★時間帯の時給（無い人はキーを足さない＝従来と 1 バイト同値）
+      hourlyBandsByDay: Object.fromEntries(Object.entries(raw.hourlyBands.byDay).map(([k, v]) => [dayNum(k), v])),
+      hourlyBandsShiftByDay: Object.fromEntries(Object.entries(raw.hourlyBands.shiftByDay).map(([k, v]) => [dayNum(k), v])),
+      hourlyBandEdgesByDay: Object.fromEntries(Object.entries(raw.hourlyBands.edges).map(([k, v]) => [dayNum(k), v])),
+    } : {}),
     productBack: raw.productBack,
     calculatedBack: raw.calculatedBack, // ★裁定113
     pointProducts: raw.pointProducts,

@@ -15,7 +15,8 @@ import { roundYen, roundPt1, floorYen, withholding1021Of } from "./money";
 import { canonApplyOf, canonNextWageOf, canonOutcomeOf, type CanonCtx, type CanonOutcome, type NextWage } from "./rules-0175/canon"; // ★便 P175-prep P-5（裁定418）: フラグ true のときだけ collect が input.rules0175 を渡す
 import { adjustOf, effectiveAdjustmentsOf, type AdjustmentRow } from "./payroll/adjust"; // 裁定258／264: run 別調整控除（純関数・roundYen は money.ts）
 import { autoWithholdingOf, effectiveWithholdingOf, employeeDeductionLinesOf, employeeDeductionsTotalOf, type EmployeeDeductionRow, type WithholdingKind } from "./payroll/withholding-kind"; // ★裁定432: 源泉区分と控除の入れ方
-import { bonusOf, bonusTiersOf } from "./bonus-tiers"; // ★便 P173 T-2（起票110）: 達成ボーナスの多段（純関数）
+import { bonusOf, bonusTiersOf } from "./bonus-tiers";
+import { bandHourlyOf, type BandSeg } from "./payroll/hourly-bands"; // ★時間帯の時給（枝 hourly-bands-1124・旗 HOURLY_BANDS_ON＝false の間は collect が渡さない＝1 バイト同値） // ★便 P173 T-2（起票110）: 達成ボーナスの多段（純関数）
 
 // ── 型 ────────────────────────────────────────────────────────
 
@@ -105,6 +106,8 @@ export type WageDay = {
   basis: WageBasis;
   trial?: boolean; // ★裁定490（2026-11-13）: 体入の時給を当てた日（無い日はキーを持たない＝従来と同値）
   gua?: boolean; // ★便 PR-1 R-2（裁定416）: 保証行が効いた日（basis の「保証」は基本時給の日にも付く＝区間の区分はこの印で分ける）
+  bands?: true; // ★時間帯の時給を当てた日（hourly は日の加重平均＝表示用・額は帯ごと）。無い日はキーを持たない＝従来と同値
+  edgeRates?: [number, number]; // ★不足の控除＝シフトの開始・終了の時刻の帯の時給（帯のある日だけ）
 };
 
 // ★夜間便 N3（裁定287-5・2026-09-18）: キャスト個別・期限つきの保証時給（cast_plan.overrides_json.guarantee=true の行）を営業日単位で base に当てる。
@@ -141,6 +144,7 @@ export type WageDetail = {
   guarantee?: GuaranteeDetail; // ★N3: 保証が効いた日があるときだけ
   slideBasis?: SlideBasisDetail; // ★N3b: 'next' のときだけ
   trial?: TrialDetail; // ★裁定490: 体入の日があるときだけ
+  bands?: { days: number; hours: number; pay: number }; // ★時間帯の時給：帯を当てた日があるときだけ
 };
 
 export type MetricKey =
@@ -266,6 +270,10 @@ export type PayInput = {
   // ★裁定490（2026-11-13 Agoora 確定・案 B）: 体入の日（d→体入の時給）。その日の時給＝体入の時給（保証の日は max(保証, 体入の時給)）・売上スライドとポイントスライドは使わない（R）。
   //   未指定・空＝従来と 1 バイト同値（golden 5931／125802・5170／117241 不変）
   trialWageByDay?: Record<number, number>;
+  // ★時間帯の時給（枝 hourly-bands-1124）: 日番号→帯で切った区切り（働いた区間＝打刻・勤務時間の基準・打刻しない店に合わせて collect が作る）。無い日・未指定＝従来と 1 バイト同値
+  hourlyBandsByDay?: Record<number, BandSeg[]>;
+  hourlyBandsShiftByDay?: Record<number, BandSeg[]>; // shift_guarantee＝確定シフトの区間で切った区切り（打刻で切った額と高い方）
+  hourlyBandEdgesByDay?: Record<number, [number | null, number | null]>; // 不足の控除＝シフトの開始・終了の時刻の帯の額（null＝帯なし）
   // ★裁定490-4: バック「なし」のとき、体入の日の分を各バック（指名・商品・売上歩合・自由設計）から引く。ボーナスは対象外。未指定＝引かない
   trialBackExclude?: TrialBackExclude;
   // ★裁定98: sanction 二層ガードの文脈。employment 未設定（null/undefined）で sanction 行がある cast は
@@ -330,6 +338,7 @@ export type PayResult = {
   guarantee?: GuaranteeDetail; // ★N3: 保証が効いた cast だけ（breakdown_json に凍結される）
   slideBasis?: SlideBasisDetail; // ★N3b: 'next' の店だけ（breakdown_json に凍結される）
   trial?: TrialDetail; // ★裁定490: 体入の日がある cast だけ（breakdown_json に凍結される）
+  bands?: { days: number; hours: number; pay: number }; // ★時間帯の時給を当てた日がある cast だけ
   honBack: number;
   jonaiBack: number;
   dohanBack: number;
@@ -454,7 +463,9 @@ export function wageDetail(
   spans?: GuaranteeSpan[],
   slideByDay?: Record<number, { month: string; sales: number; pts: number }>,   // ★N3b: 'next'＝前月合計で段判定（無い日は日次）
   trialByDay?: Record<number, number>,   // ★裁定490: 体入の日（d→体入の時給）
+  bandOpt?: { byDay?: Record<number, BandSeg[]>; shiftByDay?: Record<number, BandSeg[]>; pickMax?: boolean; edgesByDay?: Record<number, [number | null, number | null]> }, // ★時間帯の時給
 ): WageDetail {
+  let bDays = 0, bHoursT = 0, bPayT = 0; // ★時間帯の時給の集計（帯を当てた日だけ）
   let gHours = 0, gPay = 0, bHours = 0, bPay = 0, gAny = false;
   let tDays = 0, tHours = 0, tPay = 0; // ★裁定490
   const sbMonths = new Map<string, SlideBasisMonth>();
@@ -474,6 +485,24 @@ export function wageDetail(
     const base = gBase !== undefined ? Math.max(gBase, eplan.base || 0) : (eplan.base || 0);   // ★N3: 保証期間の日は max(保証額, 基本)＝minimum 相当（287-3）   // ★N3: 保証期間の日は max(保証額, 基本)＝minimum 相当（287-3）
     // ★裁定490（2026-11-13 Agoora 確定）: 体入の日＝体入の時給で置き換える（max にしない）・保証の日は max(保証, 体入の時給)・スライドは使わない（R）
     const tw = trialByDay?.[r.d];
+    // ★時間帯の時給：帯の区切りがある日（体入の日は使わない）＝区切りごとに max(段, 保証, 帯の額 ?? 基本)・額 0 は 0。shift_guarantee は打刻で切った額とシフトで切った額の高い方
+    const segs = tw === undefined ? bandOpt?.byDay?.[r.d] : undefined;
+    if (segs) {
+      const slideMax = Math.max(bySales, byPts), base0 = eplan.base || 0;
+      const payOfSegs = (xs: BandSeg[]) => xs.reduce((a, x) => a + bandHourlyOf(x.amount, slideMax, base0, gBase) * x.minutes / 60, 0);
+      const hoursOfSegs = (xs: BandSeg[]) => xs.reduce((a, x) => a + x.minutes, 0) / 60;
+      let dPay = payOfSegs(segs), dHours = hoursOfSegs(segs);
+      const alt = bandOpt?.pickMax ? bandOpt.shiftByDay?.[r.d] : undefined;
+      if (alt && payOfSegs(alt) > dPay) { dPay = payOfSegs(alt); dHours = hoursOfSegs(alt); }
+      const dHourly = dHours > 0 ? roundYen(dPay / dHours) : 0;
+      if (gBase !== undefined) { gAny = true; gHours += dHours; gPay += dPay; } else { bHours += dHours; bPay += dPay; }
+      bDays += 1; bHoursT += dHours; bPayT += dPay;
+      const basisB: WageBasis = slideMax > 0 && slideMax >= base && bySales >= byPts ? "売上" : slideMax > 0 && slideMax >= base ? "ポイント" : "保証";
+      weighted += dPay; hours += dHours; wbasis[basisB] = (wbasis[basisB] || 0) + 1;
+      const ed = bandOpt?.edgesByDay?.[r.d];
+      wdays.push({ d: r.d, sales: r.sales, pts: dayPts, hours: dHours, hourly: dHourly, basis: basisB, ...(gBase !== undefined ? { gua: true } : {}), bands: true, ...(ed ? { edgeRates: [bandHourlyOf(ed[0], slideMax, base0, gBase), bandHourlyOf(ed[1], slideMax, base0, gBase)] as [number, number] } : {}) });
+      continue;
+    }
     const hourly = tw !== undefined ? (gBase !== undefined ? Math.max(gBase, tw) : tw) : Math.max(bySales, byPts, base);
     if (tw !== undefined) { tDays += 1; tHours += r.hours; tPay += hourly * r.hours; }
     if (gBase !== undefined) { gAny = true; gHours += r.hours; gPay += hourly * r.hours; } else { bHours += r.hours; bPay += hourly * r.hours; }
@@ -496,6 +525,7 @@ export function wageDetail(
     ...(gAny ? { guarantee: { spans: spans ?? [], baseHours: roundPt1(bHours), basePay: roundYen(bPay), guaHours: roundPt1(gHours), guaPay: roundYen(gPay) } } : {}),
     ...(sbMonths.size > 0 ? { slideBasis: { apply: "next" as const, months: [...sbMonths.values()] } } : {}),
     ...(tDays > 0 ? { trial: { days: tDays, hours: roundPt1(tHours), pay: roundYen(tPay), backNone: false } } : {}),   // ★裁定490: 体入の日がある cast だけ
+    ...(bDays > 0 ? { bands: { days: bDays, hours: roundPt1(bHoursT), pay: roundYen(bPayT) } } : {}),   // ★時間帯の時給を当てた日がある cast だけ
     wHours: roundPt1(hours),
     wbasis,
     wdays,
@@ -681,9 +711,9 @@ export function payOf(input: PayInput): PayResult {
     ? dailyBase.map((r) => ({ ...r, hours: Math.max(r.hours, input.shiftHoursByDay?.[r.d] ?? 0) }))
     : dailyBase;
   const wd0 = rule === "shift_guarantee"
-    ? wageDetail(dailyEff, eplan, castPts(cast, input.pointProducts), cast.sales, input.guaranteeByDay, input.guaranteeSpans, input.slideByDay, input.trialWageByDay)
+    ? wageDetail(dailyEff, eplan, castPts(cast, input.pointProducts), cast.sales, input.guaranteeByDay, input.guaranteeSpans, input.slideByDay, input.trialWageByDay, input.hourlyBandsByDay ? { byDay: input.hourlyBandsByDay, shiftByDay: input.hourlyBandsShiftByDay, pickMax: true, edgesByDay: input.hourlyBandEdgesByDay } : undefined)
     : null;
-  const wd = wageDetail(dailyBase, eplan, castPts(cast, input.pointProducts), cast.sales, input.guaranteeByDay, input.guaranteeSpans, input.slideByDay, input.trialWageByDay); // ★N3／N3b（★324-2: 'shift' は dailyBase＝確定シフト時間・'punch' は input.daily と同一参照）
+  const wd = wageDetail(dailyBase, eplan, castPts(cast, input.pointProducts), cast.sales, input.guaranteeByDay, input.guaranteeSpans, input.slideByDay, input.trialWageByDay, input.hourlyBandsByDay ? { byDay: input.hourlyBandsByDay, edgesByDay: input.hourlyBandEdgesByDay } : undefined); // ★N3／N3b（★324-2: 'shift' は dailyBase＝確定シフト時間・'punch' は input.daily と同一参照）
   let payRule: PayRuleDetail | undefined;
   let timePayRule = wd.timePay;
   if (rule === "shift_guarantee" && wd0) {
@@ -919,6 +949,7 @@ export function payOf(input: PayInput): PayResult {
     wdays: wd.wdays,
     ...(wd.guarantee ? { guarantee: wd.guarantee } : {}), // ★N3: 保証が効いた cast だけキーを持つ（凍結の互換）
     ...(wd.slideBasis ? { slideBasis: wd.slideBasis } : {}), // ★N3b: 'next' の店だけ
+    ...((wd0 ?? wd).bands ? { bands: (wd0 ?? wd).bands } : {}), // ★時間帯の時給を当てた日がある cast だけ（無い cast はキーを持たない＝凍結の形も 1 バイト同じ）
     ...(wd.trial || tx ? { trial: { ...(wd.trial ?? { days: 0, hours: 0, pay: 0 }), backNone: !!tx } } : {}), // ★裁定490: 体入の日がある cast だけ（無い cast は従来と 1 バイト同値）
     honBack,
     jonaiBack,
