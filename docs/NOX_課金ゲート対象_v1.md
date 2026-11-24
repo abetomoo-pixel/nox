@@ -394,6 +394,10 @@ kiosk_provision（新規 kiosk の追加＝拡大操作）
 ### A26. 0203 版 4（4 本・2026-11-24 11:21:19 本番適用（Agoora が認めて CC が適用・検証 18 行とも期待値）・規則A形でゲート内蔵）
 - 0203 2 号店の段 1・段 2: set_org_pay_day（会社の支払日・owner）／store_copy_settings（1 店目から写す・owner）／notice_create_at／notice_create_targets_at（店を指定してお知らせ）＝どれも冒頭の二重防御の後に課金の述語で 'billing locked'（A25 と同じ形）
 （対象 212→**216**・live 実測＝billing locked の関数 **216**）
+
+### A27. 0208（1 本・2026-11-25 本番適用（Agoora が認めて CC が適用）・規則A形でゲート内蔵）
+- 0208 ランクの既定の出勤の時刻: set_cast_rank_shift_time（owner／自店の manager・ランクの書込と同じ柵）＝冒頭の二重防御の後に課金の述語で 'billing locked'（A 形）
+（対象 216→**217**・live 実測＝billing locked の関数 **217**）
 ## B. 除外（99本）
 
 ### B(a) 構造除外＝authenticated 実行不可（service/内部・28本）→ ゲート不要（B7 回避型(1)）
@@ -655,6 +659,11 @@ staff_deactivate / kiosk_deactivate
 ### B(ak). 0203 版 4 新設の除外（1本・2026-11-24・0203 の本番適用＝CC が適用の後の検査の張り替えで収載）
 - 構造除外（B(a) と同列＝service_role 専用・authenticated 実行不可＝運営コンソールの店を足す route から admin で呼ぶ・会社をまたぐ運営の操作＝B(ai) の ops_org_create と同じ）: ops_store_add
 （除外 266→**267**・全数 478→**483**（0203 ＋5＝A +4（A26）・B +1）。既存の関数は作り直していない）
+
+### B(al). 0207 新設の除外（3本・2026-11-25・0207 の本番適用＝CC が適用の後の検査の張り替えで収載）
+- 構造除外（B(a) と同列＝service_role 専用・authenticated 実行不可＝運営コンソールの route から admin で呼ぶ・運営の操作＝B(ai) の ops_* と同じ）: ops_support_request／ops_support_request_withdraw
+- 閉じるだけの除外（オーナーが運営の頼みを「今は出さない」で閉じる＝お金・店のデータを作らない・支払いが止まった会社でも運営への返事は止めない＝サポート許可の取り消しと同じ考え）: support_request_dismiss
+（除外 267→**270**・全数 483→**487**（0207 ＋3＝B +3・0208 ＋1＝A +1（A27））。既存の関数は作り直していない）
 
 ## C. kiosk 腕を持つ対象（実装注意・18本）
 A1 の check_open / check_add_line / check_remove_line / check_add_seat / check_remove_seat /

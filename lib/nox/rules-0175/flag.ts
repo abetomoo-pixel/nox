@@ -310,7 +310,7 @@ export function __set0203ForTest(v: boolean | null): void { override0203 = v; }
 
 /** ★0208（出勤の時刻の段＝ランクの既定の出勤の時刻・相談役 11/24 夜 N6・枝 shift-rank-time-1124・起草と試走まで・本番は未適用）。
  *  true＝シフトを作るときの初期値に「ランクの時刻」（希望 → 人の基本の働き方 → ランクの時刻 → 営業時間 → 既定）・マスタのランクに時刻の欄。false＝今のまま（列が無い本番で読まない）。 */
-export const MIG_0208_APPLIED = false;
+export const MIG_0208_APPLIED = true; // ★相談役 11/25 朝の便 M2：0208 を CC が適用した後で true（適用の時刻は台帳）
 let override0208: boolean | null = null;
 export function mig0208On(): boolean { return override0208 ?? MIG_0208_APPLIED; }
 export function __set0208ForTest(v: boolean | null): void { override0208 = v; }
@@ -321,3 +321,9 @@ export const HOURLY_BANDS_ON = false;
 let overrideHourlyBands: boolean | null = null;
 export function hourlyBandsOn(): boolean { return overrideHourlyBands ?? HOURLY_BANDS_ON; }
 export function __setHourlyBandsForTest(v: boolean | null): void { overrideHourlyBands = v; }
+
+/** ★0207（運営からのサポートの依頼＝ベル・相談役 11/25 朝の便 M1 で CC が適用）。true＝/ops の会社の詳細に「サポート許可を頼む」・オーナーの要承認（🔔 と HOME のカード）に 1 行。false＝今のまま（表の無い本番で読まない） */
+export const MIG_0207_APPLIED = true; // ★相談役 11/25 朝の便 M1：0207 を CC が適用した後で true（適用の時刻は台帳）
+let override0207: boolean | null = null;
+export function mig0207On(): boolean { return override0207 ?? MIG_0207_APPLIED; }
+export function __set0207ForTest(v: boolean | null): void { override0207 = v; }

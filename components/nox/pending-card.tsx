@@ -13,6 +13,8 @@ import { Message } from "@/components/ui/toast";
 import ReasonModal from "@/components/nox/reason-modal"; // ★裁定443 18-⑦: 却下の理由は Modal（申請の内容を見せる・window.prompt は使わない）
 import { APPROVAL_STATUS_LABEL, RESERVATION_OVERDUE_MARK, approvalLineOf, bellLabelOf, rejectReasonOkOf, reservationLineOf, type PendingSummary } from "@/lib/nox/home/pending";
 import ReservationDecide from "@/components/nox/reservation-decide"; // ★M-117: 予約の承認待ち（レジ › 予約と同じ部品）
+import { SUPPORT_GRANT_PATH } from "@/lib/nox/support/grant-entry"; // ★0207
+import { supportAskErrJa, supportAskLineOf } from "@/lib/nox/support/support-ask"; // ★0207
 import { errJa } from "@/lib/nox/errors"; // ★裁定467（M-126）: 利用者向けの文言は辞書 1 本
 
 export const PENDING_CARD_ID = "pending-card";
@@ -50,6 +52,16 @@ export default function PendingCard({ storeId, role }: { storeId: string; role: 
     await load();
   }
 
+  // ★0207（相談役 11/25 朝の便 M3）: 運営からのサポート許可の頼み＝「今は出さない」で閉じる（オーナーだけ・押しただけで許可にはしない）
+  async function dismissSupportAsk() {
+    setBusy("support-ask"); setMsg(null);
+    const { error } = await supabase.rpc("support_request_dismiss");
+    setBusy(null);
+    if (error) { setMsg(`処理できませんでした: ${supportAskErrJa(error.message)}`); return; }
+    setMsg("今は出さないにしました（運営が頼み直すと、また届きます）");
+    await load();
+  }
+
   if (role === "staff") {
     const mine = data?.mine ?? [];
     return (
@@ -84,6 +96,16 @@ export default function PendingCard({ storeId, role }: { storeId: string; role: 
       {msg && <div style={{ marginTop: 6 }}><Message kind={/できません|入力して/.test(msg) ? "error" : "success"}>{msg}</Message></div>}
       {data && !none && open && (
         <ul style={{ margin: "8px 0 0", paddingLeft: 0, listStyle: "none" }}>
+          {data.supportAsk && (() => { const l = supportAskLineOf(data.supportAsk); return (/* ★0207: 運営からのサポート許可の頼み＝先頭・押すとサポート許可の画面（日数はオーナーが選ぶ）・今は出さない */
+            <li className="nox-pending-row" data-pending-support-ask={data.supportAsk.id}>
+              <span className="nox-pending-l1"><span className="nox-stpill" style={{ marginRight: 6 }}>サポート許可</span>{l.head}</span>
+              <span className="nox-pending-l2"><span style={t.sub}>{l.sub ?? "運営が代わりに設定を入れるための許可です"}</span>
+                <span className="nox-pending-acts">
+                  <Link href={SUPPORT_GRANT_PATH} style={{ ...t.btnGold, ...t.btnSm, textDecoration: "none" }} data-pending-support-open="1">サポート許可を開く</Link>
+                  <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} disabled={busy === "support-ask"} onClick={() => void dismissSupportAsk()} data-pending-support-dismiss="1">今は出さない</button>
+                </span>
+              </span>
+            </li>); })()}
           {(data.reservations ?? []).map((r) => { const l = reservationLineOf(r); return (/* ★M-117（2026-11-06・便 F）: 予約の承認待ち＝先頭・1 件 1 行（種別・日時・客名・人数・担当・申請元）・時刻超過は印・承認／却下＝レジ › 予約と同じ部品 */
             <li key={r.id} className="nox-pending-row" data-pending-reservation={r.id} data-pending-overdue={l.overdue ? "1" : "0"}>
               <span className="nox-pending-l1"><span className="nox-stpill" style={{ marginRight: 6 }}>予約の申請</span>{l.overdue && <span className="nox-stpill" style={{ marginRight: 6, color: "var(--bad)", borderColor: "var(--bad)" }} data-pending-overdue-mark="1">{RESERVATION_OVERDUE_MARK}</span>}{l.head}</span>

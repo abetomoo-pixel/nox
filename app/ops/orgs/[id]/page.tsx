@@ -5,7 +5,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requireOperatorPage } from "@/lib/nox/ops/require-operator";
 import type { OpsOrgRow } from "@/lib/nox/ops/labels";
 import OpsShell from "../../ops-shell";
-import { mig0202bOn, mig0203On } from "@/lib/nox/rules-0175/flag";
+import { mig0202bOn, mig0203On, mig0207On } from "@/lib/nox/rules-0175/flag";
+import { supportAskShownOf, type SupportAskRow } from "@/lib/nox/support/support-ask"; // ★0207
 import { assistGateOf } from "@/lib/nox/ops/assist";
 import OrgDetail, { type OpsLogRow } from "./org-detail";
 import type { OpsBilling, OpsStoreSetup } from "@/lib/nox/ops/view"; // ★起票153・154
@@ -49,5 +50,14 @@ export default async function OpsOrgPage({ params }: { params: Promise<{ id: str
   // ★起票154（2026-11-24）: 契約のカード＝org_billing にある値だけ（キーの有無だけ＝Stripe の ID は画面に出さない）
   const b = bill as { status: string | null; trial_ends_at: string | null; current_period_end: string | null; quantity: number | null; cancel_at_period_end: boolean | null; stripe_customer_id: string | null; stripe_subscription_id: string | null } | null;
   const billing: OpsBilling | null = b ? { status: b.status, trial_ends_at: b.trial_ends_at, current_period_end: b.current_period_end, quantity: b.quantity, cancel_at_period_end: b.cancel_at_period_end, has_customer: !!b.stripe_customer_id, has_subscription: !!b.stripe_subscription_id } : null;
-  return <OpsShell name={op.name}><OrgDetail row={row} logs={logRows} nowIso={new Date().toISOString()} assist={assist} stores={stores} storeSetups={storeSetups} billing={billing} /></OpsShell>;
+  // ★0207（相談役 11/25 朝の便 M3）: 開いている頼み（頼みの後に許可が出ていれば済んだもの＝出さない）
+  let supportAsk: SupportAskRow | null = null;
+  if (mig0207On()) {
+    const [{ data: req }, { data: lastGrant }] = await Promise.all([
+      admin.from("ops_support_requests").select("id, requested_at, message").eq("org_id", id).is("closed_at", null).maybeSingle(),
+      admin.from("ops_support_grants").select("granted_at").eq("org_id", id).order("granted_at", { ascending: false }).limit(1).maybeSingle(),
+    ]);
+    supportAsk = supportAskShownOf(req as SupportAskRow | null, (lastGrant?.granted_at as string | undefined) ?? null);
+  }
+  return <OpsShell name={op.name}><OrgDetail supportAsk={supportAsk} row={row} logs={logRows} nowIso={new Date().toISOString()} assist={assist} stores={stores} storeSetups={storeSetups} billing={billing} /></OpsShell>;
 }

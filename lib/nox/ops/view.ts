@@ -65,6 +65,8 @@ export function opsLogWhatOf(l: Pick<OpsLogLike, "action" | "before" | "after">)
     case "ops.agency_code": return a.agency_code ? `経路を代理店（${str(a.agency_code)}）に` : `経路を直販に（前は ${b.agency_code ? `代理店（${str(b.agency_code)}）` : "直販"}）`;
     case "ops.org.reinvite": return `オーナーに招待をもう一度送った（${str(a.owner_email)}）`;
     case "ops.onboarding": return a.onboarding_state === "done" ? "導入完了にした" : `導入の状態を「${str(a.onboarding_state)}」に`;
+    case "ops.support_request": return `オーナーにサポート許可を頼んだ${a.message ? `（ひとこと：${str(a.message)}）` : ""}`; // ★0207
+    case "ops.support_request_withdraw": return "サポート許可の頼みを取り下げた"; // ★0207
     case "ops.operator.seed": return "運営者を登録した";
     case "ops.agency_assist": return "代理店の代行の許可を変えた";
     case "onb.setup_draft": return `代行：初期設定の下書きを保存（STEP ${typeof a.step === "number" ? a.step + 1 : str(a.step)}）`;

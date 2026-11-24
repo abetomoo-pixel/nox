@@ -20,7 +20,7 @@ export const DEMO_PREWIPE_TABLES: readonly string[] = [
 export const DEMO_PREWIPE_BY_DEVICE: readonly string[] = ["kiosk_qr_keys"];
 /** org_id を持つが消さない表（users と同じく残す＝demo_entries は /demo の入場ログ・member_profiles は users の属性） */
 //   ★0202a（2026-11-21 本番適用）: ops_audit_logs は運営の監査（会社をまたぐ・会社を消すと org_id が null で残る）＝デモの wipe では消さない（デモの会社には運営の操作を許さない＝行は出来ない）
-export const DEMO_KEEP_EXTRA: readonly string[] = ["demo_entries", "member_profiles", "ops_audit_logs", "ops_support_grants", "cast_provisionals"]; // ★0202b（2026-11-21 21:57 適用）: デモの会社では作れない（オーナーの窓口は forbidden (demo)・代行は onb_can_write がデモを止める）＝消す名簿に要らない
+export const DEMO_KEEP_EXTRA: readonly string[] = ["demo_entries", "member_profiles", "ops_audit_logs", "ops_support_grants", "cast_provisionals", "ops_support_requests" /* ★0207（2026-11-25）: 運営の頼み＝デモの会社では関数が断る＝行は 0 */]; // ★0202b（2026-11-21 21:57 適用）: デモの会社では作れない（オーナーの窓口は forbidden (demo)・代行は onb_can_write がデモを止める）＝消す名簿に要らない
 
 export type PrewipeResult = { ok: true; deleted: Record<string, number> } | { ok: false; table: string; error: string; deleted: Record<string, number> };
 

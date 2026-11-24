@@ -11,6 +11,8 @@ import { OpsProgressCard } from "../../ops-progress";
 import { supportUrlShownOf } from "@/lib/nox/ops/assist"; // ★起票152
 import { opsContractOf, opsContractRowsOf, opsLogLineOf, opsStoreSetupLineOf, OPS_CONTRACT_NOT_SHOWN, type OpsBilling, type OpsStoreSetup } from "@/lib/nox/ops/view"; // ★起票153・154
 import { SUPPORT_GRANT_URL } from "@/lib/nox/support/grant-entry"; // ★起票152
+import { SUPPORT_ASK_MESSAGE_MAX, supportAskMessageErrOf, supportAskSentLineOf, type SupportAskRow } from "@/lib/nox/support/support-ask"; // ★0207
+import { mig0207On } from "@/lib/nox/rules-0175/flag"; // ★0207
 import { fmtJst, inviteLabelOf, kindLabelOf, lineLabelOf, onboardingLabelOf, opsErrJa, routeLabelOf, ROUTE_FIELD_NOTE, setupLabelOf, type OpsOrgRow } from "@/lib/nox/ops/labels";
 
 /** ★起票152（2026-11-24）: サポート許可が無いときに、オーナーへ送る URL（場所を指すだけ＝トークンや鍵は入れない）とコピーのボタン。コピーは端末の中だけ（通信なし） */
@@ -32,11 +34,51 @@ function SupportUrlBox() {
   );
 }
 
+/** ★0207（相談役 11/25 朝の便 M3）: オーナーにサポート許可を頼む（ひとこと 200 字まで）・頼み済みなら取り下げ。押しただけで許可にはしない（オーナーが日数を選んで出す） */
+function SupportAskBox({ orgId, ask }: { orgId: string; ask: SupportAskRow | null }) {
+  const router = useRouter();
+  const [msg, setMsg] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [out, setOut] = useState<{ ok: boolean; text: string } | null>(null);
+  async function send(action: "ask" | "withdraw") {
+    if (action === "ask") { const v = supportAskMessageErrOf(msg); if (v) { setOut({ ok: false, text: v }); return; } }
+    if (action === "withdraw" && !window.confirm("頼みを取り下げます。オーナーの要承認から消えます。よろしいですか")) return;
+    setBusy(true); setOut(null);
+    const r = await fetch(`/api/ops/orgs/${orgId}/support-ask`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(action === "ask" ? { action, message: msg } : { action }) });
+    const j = (await r.json().catch(() => ({}))) as { error?: string };
+    setBusy(false);
+    if (!r.ok) { setOut({ ok: false, text: j.error ?? "うまくいきませんでした" }); return; }
+    setOut({ ok: true, text: action === "ask" ? "オーナーの要承認に届けました（許可はオーナーが日数を選んで出します）" : "頼みを取り下げました" });
+    if (action === "ask") setMsg("");
+    router.refresh();
+  }
+  return (
+    <div data-ops-support-ask={ask ? "sent" : "none"} style={{ marginTop: 12, paddingTop: 10, borderTop: "1px solid var(--line)" }}>
+      {ask ? (
+        <>
+          <p style={{ margin: 0, fontSize: 13 }} data-ops-support-ask-sent="1">{supportAskSentLineOf(ask)}</p>
+          <p style={{ ...t.sub, fontSize: 12, margin: "4px 0 0" }}>オーナーが許可を出すか「今は出さない」を押すと消えます。</p>
+          <div className="nox-actions" style={{ marginTop: 8 }}><button type="button" style={t.btnGhost} disabled={busy} onClick={() => void send("withdraw")} data-ops-support-withdraw="1">{busy ? "送信中…" : "頼みを取り下げる"}</button></div>
+        </>
+      ) : (
+        <>
+          <p style={{ ...t.sub, fontSize: 12.5, margin: "0 0 6px", lineHeight: 1.7 }}>オーナーの要承認（🔔）に「サポート許可を頼む」を 1 行届けます。押しただけでは許可になりません。</p>
+          <label style={{ display: "grid", gap: 4 }}><span style={t.fieldLabel}>ひとこと（任意・{SUPPORT_ASK_MESSAGE_MAX} 字まで）</span>
+            <textarea value={msg} onChange={(e) => setMsg(e.target.value)} rows={2} maxLength={SUPPORT_ASK_MESSAGE_MAX} style={{ ...t.input, width: "100%", boxSizing: "border-box", resize: "vertical" }} aria-label="ひとこと" data-ops-support-ask-msg="1" placeholder="例：LINE 連携の設定を代わりに入れます" />
+          </label>
+          <div className="nox-actions" style={{ marginTop: 8 }}><button type="button" style={t.btnGold} disabled={busy} onClick={() => void send("ask")} data-ops-support-ask-send="1">{busy ? "送信中…" : "サポート許可を頼む"}</button></div>
+        </>
+      )}
+      {out && <div style={{ marginTop: 6 }}><Message kind={out.ok ? "success" : "error"}>{out.text}</Message></div>}
+    </div>
+  );
+}
+
 export type OpsLogRow ={ id: string; at: string; who: string; action: string; before: unknown; after: unknown; reason: string | null };
 const ACTION_LABEL: Record<string, string> = { "ops.org.create": "作成", "ops.agency_code": "経路", "ops.onboarding": "導入", "ops.org.reinvite": "招待の出し直し" };
 const brief = (v: unknown): string => (v == null ? "—" : typeof v === "object" ? Object.entries(v as Record<string, unknown>).map(([k, x]) => `${k}: ${x ?? "—"}`).join("・") : String(v));
 
-export default function OrgDetail({ row, logs, nowIso, assist, stores, storeSetups, billing }: { /** ★起票153 */ storeSetups?: OpsStoreSetup[] | null; /** ★起票154 */ billing?: OpsBilling | null; row: OpsOrgRow; logs: OpsLogRow[]; nowIso: string; /** ★0203（■2-a）: 店を追加（旗の後ろ・null＝出さない） */ stores?: { id: string; name: string; setupDone: boolean }[] | null; /** ★枝 night1121-ops-v2（0202b 版 4・旗の後ろ）: 導入を代行する（書けるかと理由） */ assist?: { ok: boolean; reason: string | null } | null }) {
+export default function OrgDetail({ row, logs, nowIso, assist, stores, storeSetups, billing, supportAsk }: { /** ★0207 */ supportAsk?: SupportAskRow | null; /** ★起票153 */ storeSetups?: OpsStoreSetup[] | null; /** ★起票154 */ billing?: OpsBilling | null; row: OpsOrgRow; logs: OpsLogRow[]; nowIso: string; /** ★0203（■2-a）: 店を追加（旗の後ろ・null＝出さない） */ stores?: { id: string; name: string; setupDone: boolean }[] | null; /** ★枝 night1121-ops-v2（0202b 版 4・旗の後ろ）: 導入を代行する（書けるかと理由） */ assist?: { ok: boolean; reason: string | null } | null }) {
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
   const [out, setOut] = useState<{ at: string; ok: boolean; text: string } | null>(null);
@@ -114,6 +156,7 @@ export default function OrgDetail({ row, logs, nowIso, assist, stores, storeSetu
           <p style={{ ...t.sub, fontSize: 12.5, margin: "0 0 10px", lineHeight: 1.7 }}>初期設定の下書き・LINE 連携・キャストの仮の登録を、1 歩ずつ代わりに入れます（確定はオーナー）。</p>
           {assist.ok ? <div className="nox-actions"><Link href={`/ops/orgs/${row.org_id}/assist`} style={{ ...t.btnGold, textDecoration: "none" }}>導入を代行する</Link></div> : <Message kind="warn">{assist.reason}</Message>}
           {supportUrlShownOf(assist) && <SupportUrlBox />}
+          {supportUrlShownOf(assist) && mig0207On() && <SupportAskBox orgId={row.org_id} ask={supportAsk ?? null} />}{/* ★0207: サポート許可を頼む・取り下げ */}
         </section>)}
 
       {/* ★起票153: 店を追加・経路＝ボタンで開く（畳む） */}

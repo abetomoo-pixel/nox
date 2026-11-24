@@ -3,6 +3,8 @@
 //   (2) 入力の判定＝DB の CHECK と 'bad time' と同じ線（24 時以降に始まる段は断る・終了が開始以前は翌日・両方空＝外す）
 //   (3) 配線＝旗 false の既定・旗の後ろでだけ読む・作成済みのシフトを書き換える呼び出しが無い
 import fs from "node:fs";
+import pg from "pg";
+import { pgTx } from "./fixtures-pgtx";
 import { initialSpanOf } from "../lib/nox/shift/half-hour";
 import { rankShiftTimeOf, rankShiftHmOf, rankShiftTimeErrJa } from "../lib/nox/shift/rank-time";
 import { MIG_0208_APPLIED, mig0208On } from "../lib/nox/rules-0175/flag";
@@ -48,7 +50,7 @@ ok("(2-12) 分→欄の値", rankShiftHmOf(1560) === "26:00" && rankShiftHmOf(nu
 ok("(2-13) 英語の理由は日本語に", /24 時以降/.test(rankShiftTimeErrJa("bad time")) && !/[a-z]{4}/.test(rankShiftTimeErrJa("forbidden")));
 
 // (3) 配線
-ok("(3-1) 旗は false が既定", MIG_0208_APPLIED === false && mig0208On() === false);
+ok("(3-1) 旗は true（★0208 を 2026-11-25 に CC が適用した後）", (MIG_0208_APPLIED as boolean) === true && mig0208On() === true);
 const board = fs.readFileSync("app/(manage)/shift/shift-board.tsx", "utf8");
 ok("(3-2) シフト表はランクの時刻を旗の後ろでだけ読む", /if \(mig0208On\(\)\) \{[^]*?cast_ranks[^]*?shift_start_min/.test(board));
 ok("(3-3) 追加の 2 つの道にランクの時刻を渡す", (board.match(/rankTimeByCast=\{rankTimeByCast\}/g) ?? []).length >= 2);
@@ -62,5 +64,30 @@ ok("(3-7) カードは RPC 1 本だけを呼ぶ（シフトの表に書かない
 const all = [board, panel, form, card].join("\n");
 ok("(3-8) 作成済みのシフトを書き換える呼び出しを足していない（一括で直す道なし）", !/rank[^\n]{0,80}(update_shift|shift_bulk|bulk_update)/i.test(all));
 
-if (fails.length) { console.error(fails.join("\n")); console.error(`verify:nox-rank-shift-time FAIL ${fails.length} / ${n}`); process.exit(1); }
-console.log(`verify:nox-rank-shift-time ALL PASS (${n} assertions)`);
+// (4) DB（本番・1 トランザクション・ROLLBACK）＝★0208 の関数の柵（ランクの書込と同じ＝オーナー／自店の店長だけ・anon は BLOCKED）
+async function db() {
+  const env = Object.fromEntries(fs.readFileSync(".env.local", "utf8").split(/\r?\n/).filter((l) => /^[A-Z_]+=/.test(l)).map((l) => { const i = l.indexOf("="); return [l.slice(0, i), l.slice(i + 1).replace(/^"|"$/g, "")]; }));
+  const c = new pg.Client({ connectionString: env.SUPABASE_DB_URL, ssl: { rejectUnauthorized: false }, application_name: "nox-verify-rank-shift-time" });
+  await c.connect();
+  const tx = pgTx(c);
+  try {
+    await c.query("begin");
+    const uid = async (email: string) => ({ auth_user_id: (await tx.one<{ a: string }>("select auth_user_id a from users where email = $1", [email])).a });
+    const owner = await uid("nox-verify-owner-a@example.com"), staff = await uid("nox-verify-staff-a1@example.com");
+    const A1 = await tx.one<{ id: string }>("select id from stores where name = 'NOX-VERIFY-A1'");
+    const mk = await tx.as(owner, "select public.set_cast_rank(null, $1, 'NOX-VERIFY ランクの時刻', true) id", [A1.id]);
+    const rid = mk.ok ? String(mk.rows[0].id) : "";
+    const s1 = await tx.as(owner, "select public.set_cast_rank_shift_time($1, 1200, 1560) id", [rid]);
+    const r1 = await tx.one<{ a: number | null; b: number | null }>("select shift_start_min a, shift_end_min b from cast_ranks where id = $1", [rid]);
+    ok("(4-1) オーナーは 20:00〜翌 2:00 を入れられる", mk.ok && s1.ok && r1.a === 1200 && r1.b === 1560, [tx.errOf(mk), tx.errOf(s1), r1]);
+    const f1 = await tx.as(staff, "select public.set_cast_rank_shift_time($1, 1200, 1560) id", [rid]);
+    const f2 = await tx.as("anon", "select public.set_cast_rank_shift_time($1, 1200, 1560) id", [rid]);
+    ok("(4-2) スタッフは forbidden・anon は BLOCKED", !f1.ok && /forbidden/.test(f1.err) && !f2.ok && /permission denied for function/.test(f2.err), [tx.errOf(f1), tx.errOf(f2)]);
+    const b1 = await tx.as(owner, "select public.set_cast_rank_shift_time($1, 1440, 1500) id", [rid]);
+    ok("(4-3) 24 時以降に始まる段は断る（bad time）", !b1.ok && /bad time/.test(b1.err), tx.errOf(b1));
+  } finally { await c.query("rollback").catch(() => undefined); await c.end(); }
+}
+db().then(() => {
+  if (fails.length) { console.error(fails.join("\n")); console.error(`verify:nox-rank-shift-time FAIL ${fails.length} / ${n}`); process.exit(1); }
+  console.log(`verify:nox-rank-shift-time ALL PASS (${n} assertions)`);
+}).catch((e) => { console.error(e); process.exit(1); });

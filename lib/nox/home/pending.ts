@@ -16,6 +16,8 @@ export type PendingSummary = {
   reservations?: PendingReservation[];
   /** ★M-170（2026-11-11 夜）: ドリンク申告の承認待ち（この人が処理できる分＝RLS が承認の権限と同じ形） */
   drinkClaims?: number;
+  /** ★0207（相談役 11/25 朝の便 M3）: 運営からのサポート許可の頼み（オーナーだけ・会社に 1 つ・頼みの後に許可が出ていれば null）＝ベルの数に +1 */
+  supportAsk?: { id: string; requested_at: string; message: string | null } | null;
   /** スタッフ＝自分の申請（最新 5 件） */
   mine?: PendingApproval[];
   total: number;

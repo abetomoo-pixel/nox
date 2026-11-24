@@ -8,6 +8,8 @@ import { bizDateOf } from "@/lib/nox/biz-date";
 import { computePayrollDraft } from "@/lib/nox/payroll/core";
 import { missingOutOf, pendingTotalOf, wishGroupsOf, type PendingApproval, type PendingProposal, type PendingReservation, type PendingSummary } from "@/lib/nox/home/pending";
 import { pendingReservationsOf } from "@/lib/nox/home/pending-reservations"; // ★M-117
+import { mig0207On } from "@/lib/nox/rules-0175/flag"; // ★0207
+import { supportAskCountOf, supportAskShownOf, type SupportAskRow } from "@/lib/nox/support/support-ask"; // ★0207
 
 type Rec = Record<string, unknown>;
 const one = <T,>(x: T | T[] | null | undefined): T | null => (Array.isArray(x) ? x[0] ?? null : x ?? null);
@@ -72,7 +74,18 @@ export async function GET(req: Request) {
     let reservations: PendingReservation[] = []; // ★M-117（2026-11-06・便 F）: 予約の承認待ち＝要承認の先頭・ベルの数に含める（今日タブと同じ取得）
     try { reservations = (await pendingReservationsOf(supabase, storeId)).pending; } catch { reservations = []; }
     const drinkClaims = await dcCount().catch(() => 0);
-    const out: PendingSummary = { approvals, wishes, proposals, missingOut, reservations, drinkClaims, total: pendingTotalOf({ approvals, wishes, missingOut, reservations, drinkClaims }) };
+    // ★0207（相談役 11/25 朝の便 M3）: 運営からのサポート許可の頼み＝オーナーだけ（RLS もオーナーだけ）・会社に 1 つ・頼みの後に許可が出ていれば出さない
+    let supportAsk: SupportAskRow | null = null;
+    if (role === "owner" && mig0207On()) {
+      try {
+        const [{ data: rq }, { data: lg }] = await Promise.all([
+          supabase.from("ops_support_requests").select("id, requested_at, message").is("closed_at", null).order("requested_at", { ascending: false }).limit(1).maybeSingle(),
+          supabase.from("ops_support_grants").select("granted_at").order("granted_at", { ascending: false }).limit(1).maybeSingle(),
+        ]);
+        supportAsk = supportAskShownOf(rq as SupportAskRow | null, (lg?.granted_at as string | undefined) ?? null);
+      } catch { supportAsk = null; }
+    }
+    const out: PendingSummary = { approvals, wishes, proposals, missingOut, reservations, drinkClaims, supportAsk, total: pendingTotalOf({ approvals, wishes, missingOut, reservations, drinkClaims }) + supportAskCountOf(supportAsk) };
     return NextResponse.json(out);
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
