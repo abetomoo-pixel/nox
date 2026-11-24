@@ -307,3 +307,10 @@ export const MIG_0203_APPLIED = true; // ★相談役 11/24 の便【4】：0203
 let override0203: boolean | null = null;
 export function mig0203On(): boolean { return override0203 ?? MIG_0203_APPLIED; }
 export function __set0203ForTest(v: boolean | null): void { override0203 = v; }
+
+/** ★時間帯の時給（2026-11-24 夕・相談役の便【9】＝docs/tmp/hourly_1124/plan.md の A・枝 hourly-bands-1124・mig なし＝0175 v2 の plan_rate_bands（target 'hourly'）を読むだけ）。
+ *  false の間は collect が帯を読まない＝給与の下書きは今と 1 バイト同じ。true にするのは相談役が見た後の便（main に入れる便とは別に決める）。 */
+export const HOURLY_BANDS_ON = false;
+let overrideHourlyBands: boolean | null = null;
+export function hourlyBandsOn(): boolean { return overrideHourlyBands ?? HOURLY_BANDS_ON; }
+export function __setHourlyBandsForTest(v: boolean | null): void { overrideHourlyBands = v; }

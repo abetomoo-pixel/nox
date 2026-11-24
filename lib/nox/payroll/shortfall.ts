@@ -19,6 +19,8 @@ export type ShortfallInput = {
   days: readonly ShortfallDay[];
   /** 営業日 → その日の時給（wageDetail の hourly＝保証時給適用中はその額） */
   hourlyByDate: Readonly<Record<string, number>>;
+  /** ★時間帯の時給（枝 hourly-bands-1124）: 帯のある日だけ＝[開始の時刻の帯の時給, 終了の時刻の帯の時給]（遅刻は開始・早上がりは終了の時給）。無い日は hourlyByDate（従来と 1 バイト同値） */
+  edgeRatesByDate?: Readonly<Record<string, readonly [number, number]>>;
   lateGraceMin: number;
   employment?: "委託" | "雇用" | null;
 };
@@ -51,7 +53,8 @@ export function shortfallRowsOf(input: ShortfallInput): ShortfallRow[] {
     const early = d.outHm ? (earlyLeaveMinutesOf(d.endHm, d.outHm) ?? 0) : 0;
     if (late <= 0 && early <= 0) continue;
     const hourly = input.hourlyByDate[d.bizDate] ?? 0;
-    const amount = roundYen((hourly * (late + early)) / 60);
+    const edge = input.edgeRatesByDate?.[d.bizDate];
+    const amount = edge ? roundYen((edge[0] * late + edge[1] * early) / 60) : roundYen((hourly * (late + early)) / 60);
     if (amount <= 0) continue;
     const basis = shortfallBasisOf(late, early);
     out.push({ biz_date: d.bizDate, target_shift_id: d.shiftId, minutes_late: late, minutes_early: early, amount, basis, reason: shortfallReasonOf(label, late, early) });

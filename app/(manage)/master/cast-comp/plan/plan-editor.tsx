@@ -20,7 +20,9 @@ import { isSectionOn, isSystemOn, pointSlideOn, salesSlideOn, slidesTabOnWithPay
 import { BONUS_TIER_MAX, bonusParamsOf, bonusTiersErrOf, bonusTiersLabel, bonusTiersOf, type BonusTier } from "@/lib/nox/bonus-tiers"; // ★便 P173 T-2（起票110）: 達成ボーナスの多段
 import { slideErrOf, slideToSave } from "@/lib/nox/comp/slide-rows"; // ★便 P174 T-1（裁定390）
 import PayRateTiersEditor from "./pay-rate-tiers-editor";
-import CommissionTiersEditor, { type CommissionTier } from "./commission-tiers-editor"; // ★0202f // ★2026-11-17 夜（相談役 Y3b）: 報酬率の段
+import CommissionTiersEditor, { type CommissionTier } from "./commission-tiers-editor";
+import HourlyBandsEditor from "./hourly-bands-editor"; // ★時間帯の時給
+import { hourlyBandsOn } from "@/lib/nox/rules-0175/flag"; // ★時間帯の時給 // ★0202f // ★2026-11-17 夜（相談役 Y3b）: 報酬率の段
 import type { PayRateTier } from "@/lib/nox/rules-0175/canon";
 import { rules0175On } from "@/lib/nox/rules-0175/flag"; // ★便 P175-prep P-3
 import { PLAN_AXIS_CONFIRM_TEXT, PLAN_REWARD_AXIS_LABEL, planAxisNeedsConfirmOf, planRewardAxisOf, planRewardAxisPatchOf, slideFieldsOf, STORE_AXIS_SHORT, type PlanRewardAxis } from "@/lib/nox/rules-0175/settings";
@@ -604,6 +606,8 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
           const pl = plans.find((x) => x.id === draft.id) as { commission_tiers?: CommissionTier[] | null } | undefined;
           return <CommissionTiersEditor planId={draft.id} tiers={pl?.commission_tiers} onErr={(m) => setSecErr((e) => ({ ...e, スライド: m }))} onSaved={async (m) => { setSecErr((e) => ({ ...e, スライド: "" })); setMsg(m); await reload(); }} />;
         })()}
+        {/* ★時間帯の時給（枝 hourly-bands-1124・旗 HOURLY_BANDS_ON の後ろ＝false の間は出さない）: owner だけ・保存済みプラン */}
+        {hourlyBandsOn() && draft.id && isOwner && <HourlyBandsEditor planId={draft.id} onErr={(m) => setSecErr((e) => ({ ...e, スライド: m }))} onSaved={async (m) => { setSecErr((e) => ({ ...e, スライド: "" })); setMsg(m); await reload(); }} />}
         {/* ★便 P174 T-4（裁定395・395 追補2）: 判定のタイミング＝詳細設定の奥（主表示は上の判定期間）。null＝店設定に従う・前期の実績（既定）・当期の累計（稀） */}
         <details data-slide-apply="1" style={{ margin: "0 0 8px", fontSize: 12, color: "var(--sub)" }}>
           <summary style={{ cursor: "pointer" }}>詳細設定（判定のタイミング: {SLIDE_APPLY_LABEL[effApply]}）</summary>
