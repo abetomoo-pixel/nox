@@ -307,3 +307,10 @@ export const MIG_0203_APPLIED = true; // ★相談役 11/24 の便【4】：0203
 let override0203: boolean | null = null;
 export function mig0203On(): boolean { return override0203 ?? MIG_0203_APPLIED; }
 export function __set0203ForTest(v: boolean | null): void { override0203 = v; }
+
+/** ★0208（出勤の時刻の段＝ランクの既定の出勤の時刻・相談役 11/24 夜 N6・枝 shift-rank-time-1124・起草と試走まで・本番は未適用）。
+ *  true＝シフトを作るときの初期値に「ランクの時刻」（希望 → 人の基本の働き方 → ランクの時刻 → 営業時間 → 既定）・マスタのランクに時刻の欄。false＝今のまま（列が無い本番で読まない）。 */
+export const MIG_0208_APPLIED = false;
+let override0208: boolean | null = null;
+export function mig0208On(): boolean { return override0208 ?? MIG_0208_APPLIED; }
+export function __set0208ForTest(v: boolean | null): void { override0208 = v; }

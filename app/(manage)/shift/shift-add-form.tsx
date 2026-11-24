@@ -99,7 +99,7 @@ function rpcErrJa(msg: string | undefined): string {
 const SKIP_JA: Record<string, string> = { closed: "定休日", duplicate: "既に登録あり", unavailable: "出勤不可（理由未入力）" };
 
 export default function ShiftAddForm({
-  casts, photoUrls, initialCast, bhRows, initialDate, initialStatus, open, onClose, onSaved, needs = [], assignedByDate = {}, availByCast = {}, availTimeByCast = {},
+  casts, photoUrls, initialCast, bhRows, initialDate, initialStatus, open, onClose, onSaved, needs = [], assignedByDate = {}, availByCast = {}, availTimeByCast = {}, rankTimeByCast = {},
 }: {
   /** 左ペイン CastPicker の母集団（裁定108: select 禁止＝Picker 維持） */
   casts: Cast[];
@@ -119,6 +119,7 @@ export default function ShiftAddForm({
   availByCast?: Record<string, Partial<Record<number, Avail>>>;
   /** ★M-91: cast_id → 曜日 → 時刻の制限 */
   availTimeByCast?: Record<string, Partial<Record<number, { from: number; to: number }>>>;
+  /** ★0208: cast_id → ランクの既定の出勤の時刻（旗の後ろ） */ rankTimeByCast?: Record<string, { from: number; to: number }>;
   open: boolean;
   onClose: () => void;
   /** 登録が成功したときだけ呼ばれる（親が load() を回す） */
@@ -222,6 +223,8 @@ export default function ShiftAddForm({
     if (w) return { start: w.start_hm, end: w.end_hm, src: "wish", wishId: w.id, wishStart: w.start_hm, wishEnd: w.end_hm };
     const at = selCast ? availTimeByCast[selCast.id]?.[dowOf(ymd)] ?? null : null; // ★M-91: 希望 → 基本の働き方の時刻 → 営業時間
     if (at) return { start: availHmOf(at.from), end: availHmOf(at.to), src: "new", override };
+    const rt = selCast ? rankTimeByCast[selCast.id] ?? null : null; // ★0208: 人の基本の働き方が無い曜日はランクの時刻
+    if (rt) return { start: availHmOf(rt.from), end: availHmOf(rt.to), src: "new", override };
     const h = hoursOf(ymd, bhRows);
     return { start: h ? h[0] : FALLBACK_START, end: h ? h[1] : FALLBACK_END, src: "new", override };
   };

@@ -77,10 +77,11 @@ export const availTimeBadgeOf = (t: AvailTime | null | undefined): string | null
 export const availTimeCellOf = (t: AvailTime | null | undefined): string | null => (t ? `${bandMinLabelOf(t.from)}〜${bandMinLabelOf(t.to % 1440)}` : null);
 /** 分 → 'HH:MM'（24 時以降はそのまま 25:00 の形＝シフトの start_hm／end_hm と同じ 0〜47 時） */
 export const availHmOf = (min: number): string => `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
-/** 選んだときの初期時間＝希望 → 基本の働き方の時刻 → 営業時間（preset）→ 既定 */
-export function initialSpanOf(wish: { start_hm: string; end_hm: string } | null | undefined, avail: AvailTime | null | undefined, preset: readonly [string, string] | null | undefined, fallback: readonly [string, string]): { start: string; end: string } {
+/** 選んだときの初期時間＝希望 → 基本の働き方の時刻 → ランクの時刻（★0208・無い＝今と同じ）→ 営業時間（preset）→ 既定 */
+export function initialSpanOf(wish: { start_hm: string; end_hm: string } | null | undefined, avail: AvailTime | null | undefined, preset: readonly [string, string] | null | undefined, fallback: readonly [string, string], rank?: AvailTime | null): { start: string; end: string } {
   if (wish) return { start: wish.start_hm.slice(0, 5), end: wish.end_hm.slice(0, 5) };
   if (avail) return { start: availHmOf(avail.from), end: availHmOf(avail.to) };
+  if (rank) return { start: availHmOf(rank.from), end: availHmOf(rank.to) }; // ★0208: ランクの時刻（人の基本の働き方が無い曜日だけ）
   if (preset) return { start: preset[0], end: preset[1] };
   return { start: fallback[0], end: fallback[1] };
 }
