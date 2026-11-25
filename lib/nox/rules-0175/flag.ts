@@ -327,3 +327,11 @@ export const MIG_0207_APPLIED = true; // ★相談役 11/25 朝の便 M1：0207 
 let override0207: boolean | null = null;
 export function mig0207On(): boolean { return override0207 ?? MIG_0207_APPLIED; }
 export function __set0207ForTest(v: boolean | null): void { override0207 = v; }
+
+/** ★0212（窓口の段 1・裁定426 の改め・相談役 11/25 の決め【D7】・枝 inquiry-1125・起草と試走まで・本番は未適用）。
+ *  true＝マスタ › 店舗・運用に「運営への問い合わせ」（/master/inquiry・オーナーと店長）・要承認（🔔）の「運営から」に返事の件数・/ops/inquiries（一覧・返事・状態・ポイント・取り消し・2 店目を足す）。
+ *  false＝今のまま（表と関数の無い本番で読まない・route は 404）。 */
+export const MIG_0212_APPLIED = false;
+let override0212: boolean | null = null;
+export function mig0212On(): boolean { return override0212 ?? MIG_0212_APPLIED; }
+export function __set0212ForTest(v: boolean | null): void { override0212 = v; }

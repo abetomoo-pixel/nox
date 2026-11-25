@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
+import { mig0212On } from "@/lib/nox/rules-0175/flag"; // ★0212
 
 export default function OpsShell({ name, children }: { name: string; children: React.ReactNode }) {
   const router = useRouter();
@@ -19,6 +20,7 @@ export default function OpsShell({ name, children }: { name: string; children: R
       <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "10px 16px", borderBottom: "1px solid var(--line)", flexWrap: "wrap" }}>
         <Link href="/ops" style={{ fontWeight: 800, fontSize: 15, color: "var(--v2-text, var(--ink))", textDecoration: "none" }}>NOX 運営</Link>
         <span style={{ display: "inline-flex", gap: 10, alignItems: "center", fontSize: 12.5 }}>
+          {mig0212On() && <Link href="/ops/inquiries" className="nox-link" data-ops-nav-inquiries="1">問い合わせ</Link>}{/* ★0212: 問い合わせの一覧 */}
           <span data-ops-operator="1">{name}</span>
           <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} onClick={() => void logout()}>ログアウト</button>
         </span>

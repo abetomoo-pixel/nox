@@ -2,7 +2,8 @@ import MasterBoard from "./master-board";
 import { managePageGate } from "@/lib/nox/nav/page-gate";
 import { createClient } from "@/lib/supabase/server";
 import { currentStoreIdOf } from "@/lib/nox/store/current-server"; // ★0203（12:00 の ■2-a）
-import { mig0202bOn, mig0203On } from "@/lib/nox/rules-0175/flag";
+import { mig0202bOn, mig0203On, mig0212On } from "@/lib/nox/rules-0175/flag";
+import { inquiryCardShownOf } from "@/lib/nox/inquiry/labels"; // ★0212
 import { getSessionRole } from "@/lib/nox/auth";
 import { supportCardShownOf } from "@/lib/nox/support/grant-entry"; // ★起票152
 
@@ -31,5 +32,6 @@ export default async function MasterPage() {
     const { data: orgRow } = orgId ? await supabase.from("orgs").select("is_demo").eq("id", orgId as string).maybeSingle() : { data: null };
     showSupport = !!orgId && supportCardShownOf({ flag: true, role, isDemo: orgRow?.is_demo === true });
   }
-  return <MasterBoard storeId={storeId} showSupport={showSupport} />;
+  const showInquiry = inquiryCardShownOf({ flag: mig0212On(), role }); // ★0212: 運営への問い合わせ（オーナーと店長・旗の後ろ）
+  return <MasterBoard storeId={storeId} showSupport={showSupport} showInquiry={showInquiry} />;
 }

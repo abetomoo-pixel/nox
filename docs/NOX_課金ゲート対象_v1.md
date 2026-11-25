@@ -665,6 +665,11 @@ staff_deactivate / kiosk_deactivate
 - 閉じるだけの除外（オーナーが運営の頼みを「今は出さない」で閉じる＝お金・店のデータを作らない・支払いが止まった会社でも運営への返事は止めない＝サポート許可の取り消しと同じ考え）: support_request_dismiss
 （除外 267→**270**・全数 483→**487**（0207 ＋3＝B +3・0208 ＋1＝A +1（A27））。既存の関数は作り直していない）
 
+### B(am). 0212 新設の除外（9本・**未適用＝枝 inquiry-1125 の起草**・数は当てた便で張り替える＝verify:nox-billing は live に無い名前を数えない）
+- 運用除外（店から運営への問い合わせ＝お金・店の業務のデータを作らない・支払いが止まった店こそ運営に聞ける・デモの会社は関数が止める＝support_grant_set と同じ考え）: inquiry_create／inquiry_reply／inquiry_mark_read／inquiry_mail_note
+- 構造除外（B(a) と同列＝service_role 専用・authenticated 実行不可＝運営コンソールの route から admin で呼ぶ・運営の操作＝B(ai) の ops_* と同じ）: ops_inquiry_reply／ops_inquiry_set_status／ops_inquiry_point_grant／ops_inquiry_point_revoke／ops_inquiry_store_add（中で B(ak) の ops_store_add を呼ぶ）
+（当てたとき：除外 +9・全数 +9（0211 の後なら 490→**499**）。既存の関数は作り直していない）
+
 ## C. kiosk 腕を持つ対象（実装注意・18本）
 A1 の check_open / check_add_line / check_remove_line / check_add_seat / check_remove_seat /
 check_move_seat / check_set_nominations / check_time_charge_apply / check_shimei_add / check_dohan_add /

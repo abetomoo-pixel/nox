@@ -269,6 +269,7 @@
     "verify:nox-punch-buttons": "tsx scripts/verify-nox-punch-buttons.ts",
     "verify:nox-rank-shift-time": "tsx scripts/verify-nox-rank-shift-time.ts",
     "verify:nox-support-ask": "tsx scripts/verify-nox-support-ask.ts",
+    "verify:nox-inquiry": "tsx scripts/verify-nox-inquiry.ts",
     "verify:nox-hourly-window": "tsx scripts/verify-nox-hourly-window.ts"
   },
   "dependencies": {

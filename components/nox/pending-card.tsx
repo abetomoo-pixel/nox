@@ -15,6 +15,7 @@ import { APPROVAL_STATUS_LABEL, RESERVATION_OVERDUE_MARK, approvalLineOf, bellLa
 import ReservationDecide from "@/components/nox/reservation-decide"; // ★M-117: 予約の承認待ち（レジ › 予約と同じ部品）
 import { SUPPORT_GRANT_PATH } from "@/lib/nox/support/grant-entry"; // ★0207
 import { supportAskErrJa, supportAskLineOf } from "@/lib/nox/support/support-ask"; // ★0207
+import { INQUIRY_PATH, inquiryReplyLineOf } from "@/lib/nox/inquiry/labels"; // ★0212
 import { errJa } from "@/lib/nox/errors"; // ★裁定467（M-126）: 利用者向けの文言は辞書 1 本
 
 export const PENDING_CARD_ID = "pending-card";
@@ -96,6 +97,13 @@ export default function PendingCard({ storeId, role }: { storeId: string; role: 
       {msg && <div style={{ marginTop: 6 }}><Message kind={/できません|入力して/.test(msg) ? "error" : "success"}>{msg}</Message></div>}
       {data && !none && open && (
         <ul style={{ margin: "8px 0 0", paddingLeft: 0, listStyle: "none" }}>
+          {(data.supportAsk || (data.inquiryReplies ?? 0) > 0) && (/* ★0212（窓口の段 1）: 運営からの 2 つ（サポート許可の頼み・問い合わせの返事）を小見出しの下に並べる */
+            <li className="nox-pending-sub" data-pending-ops-head="1" style={{ ...t.sub, fontSize: 11.5, fontWeight: 700, padding: "4px 0 2px" }}>運営から</li>)}
+          {(data.inquiryReplies ?? 0) > 0 && (/* ★0212: 問い合わせの返事の未読＝件数と行き先（開くと既読） */
+            <li className="nox-pending-row" data-pending-inquiry={data.inquiryReplies}>
+              <span className="nox-pending-l1"><span className="nox-stpill" style={{ marginRight: 6 }}>問い合わせ</span>{inquiryReplyLineOf(data.inquiryReplies ?? 0)}</span>
+              <span className="nox-pending-l2"><Link href={INQUIRY_PATH} className="nox-link" style={{ fontSize: 12 }} data-pending-inquiry-open="1">問い合わせを開く ›</Link></span>
+            </li>)}
           {data.supportAsk && (() => { const l = supportAskLineOf(data.supportAsk); return (/* ★0207: 運営からのサポート許可の頼み＝先頭・押すとサポート許可の画面（日数はオーナーが選ぶ）・今は出さない */
             <li className="nox-pending-row" data-pending-support-ask={data.supportAsk.id}>
               <span className="nox-pending-l1"><span className="nox-stpill" style={{ marginRight: 6 }}>サポート許可</span>{l.head}</span>

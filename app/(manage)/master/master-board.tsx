@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { hubCountOf, hubStatusOf, type HubLoadState } from "@/lib/nox/ui/hub-count"; // ★Z152: 取得前は「—」・失敗は「取得できませんでした」
 import { MASTER_NAV, masterSearchHit, type MasterNavPage } from "@/lib/nox/master/nav";
 import { SUPPORT_CARD, supportCardHitOf } from "@/lib/nox/support/grant-entry"; // ★起票152
+import { INQUIRY_CARD, inquiryCardHitOf } from "@/lib/nox/inquiry/labels"; // ★0212
 import {
   fetchProducts, fetchProductCategories,
   type MasterProduct as Product, type MasterCategory as Category,
@@ -20,7 +21,7 @@ import {
 //   ★設定値／計算／権限／履歴は不変（カードと検索＝表示のみ・オーナー限定の表示は維持）。
 type Seat = { id: string; name: string; kind: string | null; sort_order: number; is_active: boolean };
 
-export default function MasterBoard({ storeId = null, showSupport = false }: { /** ★0203（12:00 の ■2-a）: オーナーの今見ている店（旗 false＝null＝今のまま） */ storeId?: string | null; /** ★起票152: 「店舗・運用」にサポート許可のカード（オーナー・デモでない） */ showSupport?: boolean } = {}) {
+export default function MasterBoard({ storeId = null, showSupport = false, showInquiry = false }: { /** ★0212: 「店舗・運用」に運営への問い合わせのカード（オーナーと店長・旗の後ろ） */ showInquiry?: boolean; /** ★0203（12:00 の ■2-a）: オーナーの今見ている店（旗 false＝null＝今のまま） */ storeId?: string | null; /** ★起票152: 「店舗・運用」にサポート許可のカード（オーナー・デモでない） */ showSupport?: boolean } = {}) {
   const supabase = createClient();
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -105,7 +106,8 @@ export default function MasterBoard({ storeId = null, showSupport = false }: { /
       {MASTER_NAV.map((g) => {
         const pages = g.pages.filter((p) => masterSearchHit(p, hubSearch));
         const supportHere = g.key === "store" && showSupport && supportCardHitOf(hubSearch); // ★起票152
-        if (pages.length === 0 && !supportHere) return null;
+        const inquiryHere = g.key === "store" && showInquiry && inquiryCardHitOf(hubSearch); // ★0212
+        if (pages.length === 0 && !supportHere && !inquiryHere) return null;
         return (
           <section key={g.key} className="nox-sec" id={`master-${g.key}`}>
             <div className="nox-sechead">
@@ -145,11 +147,24 @@ export default function MasterBoard({ storeId = null, showSupport = false }: { /
                   </div>
                 </Link>
               )}
+              {inquiryHere && (/* ★0212: 運営への問い合わせ（オーナーと店長）＝/master/inquiry */
+                <Link key={INQUIRY_CARD.href} href={INQUIRY_CARD.href} className="nox-fcard" data-hub-inquiry="1">
+                  <div className="top">
+                    <div className="count">運営</div>
+                  </div>
+                  <h3><span className="nox-cardtitle">{INQUIRY_CARD.label}</span><span className="nox-cardchev" aria-hidden="true" style={{ color: "var(--primary)" }}>›</span></h3>
+                  <p className="nox-carddesc" data-hub-desc="1">{INQUIRY_CARD.desc}</p>
+                  <div className="foot">
+                    <span className="status mute">● 運営に送る</span>
+                    <span className="link">開く →</span>
+                  </div>
+                </Link>
+              )}
             </div>
           </section>
         );
       })}
-      {MASTER_NAV.every((g) => g.pages.every((p) => !masterSearchHit(p, hubSearch))) && !(showSupport && supportCardHitOf(hubSearch)) && (
+      {MASTER_NAV.every((g) => g.pages.every((p) => !masterSearchHit(p, hubSearch))) && !(showInquiry && inquiryCardHitOf(hubSearch)) && !(showSupport && supportCardHitOf(hubSearch)) && (
         <p style={{ fontSize: 12.5, color: "var(--sub)", marginTop: 16 }}>該当する設定がありません。「商品」「ノルマ」「店舗情報」など、別の設定名で検索してください。</p>
       )}
     </div>
