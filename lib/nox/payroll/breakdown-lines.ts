@@ -266,7 +266,10 @@ export function breakdownLinesOf(input: BreakdownInput): Breakdown {
   push("achievementBonus", p.normTarget?.source === "plan" ? `達成ボーナス（目標 ¥${p.normTarget.sales.toLocaleString()}＝プランの既定）` : "達成ボーナス", z(p.achievementBonus)); // ★裁定347 追補2: 既定から継承した目標は明細に出所を出す
   push("guaranteeAdd", "最低保証加算", z(p.guaranteeAdd));
   if (p.guaranteeDay && (p.guaranteeAdd ?? 0) > 0) push("guaranteeDay", `　日給 ${yen(p.guaranteeDay.perDay)} × 出勤 ${p.guaranteeDay.days} 日（${yen(p.guaranteeDay.floor)}）`, 0, { keepZero: true, sub: true, info: true }); // ★0202f: 補填の下に 1 行（額は上の行に入っている＝情報の行）
-  for (const [i, e] of (input.extras ?? []).entries()) push(`extra-${i}`, e.label ?? (e.kind === "attendance_bonus" ? "出勤ボーナス" : e.kind), z(e.amount));
+  for (const [i, e] of (input.extras ?? []).entries()) {
+    if (e.kind === "punch_round_note") { earn.push({ key: `extra-${i}`, label: e.label ?? "勤務時間は丸めて数えています", amount: 0, info: true, amountText: "" }); continue; } // ★0213（相談役 11/25 の便 E2）: 丸めの注記＝金額なしの 1 行
+    push(`extra-${i}`, e.label ?? (e.kind === "attendance_bonus" ? "出勤ボーナス" : e.kind), z(e.amount));
+  }
 
   const ded: BreakdownLine[] = [];
   const dpush = (key: string, label: string, amount: number) => { if (amount > 0) ded.push({ key, label: sysOn(sysK, systemOfLineKey(key)) ? label : `${label}（OFF の制度）`, amount }); }; // ★便 GV-C C-10: 控除は 0 の行は従来どおり出さない・OFF の制度は印

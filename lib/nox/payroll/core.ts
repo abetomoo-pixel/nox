@@ -4,6 +4,7 @@
 //   プレビューは既定 '委託' で試算しつつ blocker を警告返し。確定は blocker があれば route が 422（論点2）。
 
 import { slideBasisForPeriodOf, slideScopeFreezeOf } from "./slide"; // ★裁定338（0168・便 P168）・★裁定343（0170・便 W5-2b）
+import { punchRoundNoteExtraOf } from "./round-note"; // ★0213（相談役 11/25 の便 E2）
 import { normProposalOf, NORM_REASON_PREFIX, type NormProposal } from "./norm-proposal"; // ★便 X13-I I-5
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { payOf, type PayResult, type TaxMode } from "../pay";
@@ -219,7 +220,7 @@ export async function computePayrollDraft(
       if (!opts.previewDefaults) continue; // 確定は税区分必須（gate）＝行を作らない
       taxMode = "委託"; // プレビューのみ既定で試算表示（論点2）
     }
-    const extras = incentiveExtrasFor(c.castId); // #32 attendance_bonus（無ければ空）
+    const extras = [...incentiveExtrasFor(c.castId), ...(c.punchRoundNote ? [punchRoundNoteExtraOf(c.punchRoundNote)] : [])]; // #32 attendance_bonus（無ければ空）★0213（E2）: 丸めの注記（0 円）
 
     // F2e-2 三カテゴリ天引き（二段 payOf・L4 順序＝送り→前借り→売掛・共通 budget を順に消費）:
     //  1) 全0 で pay0 → available = pay0.net + Σextras（インセンティブ込みの手取り）
