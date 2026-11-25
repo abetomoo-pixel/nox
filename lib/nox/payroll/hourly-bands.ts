@@ -30,6 +30,13 @@ export function bandSegmentsOf(fromMin: number, toMin: number, bands: readonly R
   return segs;
 }
 
+/** ★0214（休憩・相談役 11/25 の D5）: 休憩で割った区間の並び（日の窓 dayWindowOf の segs）を帯で切って 1 つの並びに（隣の同じ額はまとめる）。区間が 1 つなら bandSegmentsOf と同じ */
+export function bandSegmentsOfSpans(spans: readonly (readonly [number, number])[], bands: readonly RateBand[]): BandSeg[] {
+  const out: BandSeg[] = [];
+  for (const [a, b] of spans) for (const s of bandSegmentsOf(a, b, bands)) { const last = out[out.length - 1]; if (last && last.amount === s.amount) last.minutes += s.minutes; else out.push({ ...s }); }
+  return out;
+}
+
 /** ★2026-11-25（相談役 M4 ア）: その日を帯で切る区間＝pay.ts がその日の時間に使う区間と同じ物（区間の長さ＝今の勤務時間）。
  *  打刻しない店の日（確定シフトで時間を決めた日）＝シフト／勤務時間の基準が shift で、今日までの確定シフトの時間がある日＝シフト（無ければ null＝帯で切らない＝今の時給のまま）／
  *  それ以外＝打刻（最初の in〜最後の out）か、シフトの無い日の打刻。区間が取れない日は null（ウ＝帯なしの時給で計算＝今と同じ）。 */

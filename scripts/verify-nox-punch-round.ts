@@ -27,7 +27,7 @@ ok("(1-13) 同意の文は BANZEN と同じ", PUNCH_ROUND_CONSENT_TEXT === "日�
 const page = fs.readFileSync("app/(manage)/master/store-profile/page.tsx", "utf8");
 const panel = fs.readFileSync("app/(manage)/master/punch-round-panel.tsx", "utf8");
 ok("(2-1) 店舗設定のシフトと打刻のタブに出す", page.includes('{tab === "shift" && <PunchRoundPanel stores={stores} isOwner={isOwner} />}'));
-ok("(2-2) 保存は set_store_profile の 1 本だけ・patch は純関数から", (panel.match(/\.rpc\(/g) ?? []).length === 1 && panel.includes('rpc("set_store_profile", { p_store_id: storeSel, p_patch: punchRoundPatchOf(form, consent) })'));
+ok("(2-2) 保存は旗 false＝set_store_profile・旗 true（0213）＝set_punch_round の 2 本だけ・引数は純関数から", (panel.match(/\.rpc\(/g) ?? []).length === 2 && panel.includes('rpc("set_punch_round", punchRoundArgsOf(storeSel, form, consent))') && panel.includes('rpc("set_store_profile", { p_store_id: storeSel, p_patch: punchRoundPatchOf(form, consent) })'));
 ok("(2-3) 同意の文とチェックは初期設定と同じ定数", panel.includes("{PUNCH_ROUND_CONSENT_TEXT}") && panel.includes("{PUNCH_ROUND_CONSENT_LABEL}"));
 ok("(2-4) オーナー以外は押せない・同意が要るときはチェックまで押せない", panel.includes("disabled={!isOwner || busy || !changed || (needConsent && !consent)}"));
 ok("(2-5) 遅刻の判定は丸める前の時刻のまま、と画面に書く", panel.includes("遅刻の判定は丸める前の時刻のままです"));

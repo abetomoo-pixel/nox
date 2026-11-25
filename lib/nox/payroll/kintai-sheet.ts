@@ -15,6 +15,8 @@ import type { Deduction, PayResult } from "../pay";
 import { dailyDeductionsOf, effectiveDeductionsOf, type DayDeductionRow, type DeductionOverride } from "./assemble"; // ★0195: 日計の「控除」列（給与と同じ式）
 import { loadDayDeductions, loadDeductionOverrides, loadDeductionRuleCasts } from "./collect"; // ★0195
 import { mig0195On } from "../rules-0175/flag"; // ★0195
+import { mig0213On, mig0214On } from "../rules-0175/flag"; // ★0213／0214
+import { EMPTY_DAY_ADJ, dayAdjOfSource, loadDayAdjSource } from "../punch/day-adj-load"; // ★0213／0214: 給与の collect と同じ読み方
 
 export type KintaiCast = {
   castId: string; castName: string; active: boolean;
@@ -87,6 +89,8 @@ export async function buildKintaiSheet(admin: SupabaseClient, managerClient: Sup
   for (const r of (claimsR.data ?? []) as Rec[]) { const d = bd(r); if (!d) continue; const x = ensure(r.cast_id as string, d); x.drink += num(r.back_amount); }
 
   const hm2minK = (hm: string): number => { const [h, m] = hm.split(":").map(Number); return h * 60 + m; };
+  // ★0213／0214（相談役 11/25）: 丸め・休憩＝給与の collect と同じ材料と同じ当て方（確定シフトどおり・打刻しない店は当てない）。旗 false＝読まない（null＝今のまま）
+  const dayAdjF = dayAdjOfSource(mig0213On() || mig0214On() ? await loadDayAdjSource(admin, storeId, win.periodStart, win.periodEnd) : EMPTY_DAY_ADJ, { payTimeBasis: basis, punchMode: punchModeOf((storeR.data?.settings_json ?? null) as Record<string, unknown> | null) });
   const casts: KintaiCast[] = ((castsR.data ?? []) as { id: string; name: string; is_active: boolean | null; employment?: string | null }[]).map((c) => {
     const rows = attendanceDayRowsOf({
       punches: ((punchR.data ?? []) as Rec[]).filter((p) => p.cast_id === c.id).map((p) => ({ id: p.id as string, punched_at: p.punched_at as string, type: p.type as "in" | "out", source: p.source as string, okuri: p.okuri as boolean | null })),
@@ -96,9 +100,10 @@ export async function buildKintaiSheet(admin: SupabaseClient, managerClient: Sup
       transports: ((trR.data ?? []) as Rec[]).filter((t) => t.cast_id === c.id).map((t) => ({ biz_date: t.biz_date as string, amount: t.amount as number, mode: (t.mode as string | null | undefined) ?? null, status: t.status as string })),
       cutoffHm: win.cutoffHm, closeHm: win.closeHm, grace, payTimeBasis: basis, todayBiz, periodStart: win.periodStart, periodEnd: win.periodEnd,
       punchMode: punchModeOf((storeR.data?.settings_json ?? null) as Record<string, unknown> | null), // ★便 E（0197 用＝裁定455 の 2）: 打刻しない店＝確定シフトの時間
+      dayAdj: (bd: string) => dayAdjF(c.id, bd), // ★0213／0214
     });
     // ★裁定431 ⑥（Agoora 確定 10/26）: 雇用はシフト無し出勤の日も打刻の時間（出〜退）を実働に＝給与（collect）と同じ。委託は従来どおり 0
-    /* ★裁定501-8（2026-11-16）: 委託も雇用も同じ＝シフト無し出勤の日は打刻の時間（給与の collect と同じ） */ for (const r of rows) if (!r.shift && r.inHm && r.outHm && r.hours === 0 && !r.cancelled) { const mins = hm2minK(r.outHm) - hm2minK(r.inHm); if (mins > 0) r.hours = Math.round((mins / 60) * 10) / 10; }
+    /* ★裁定501-8（2026-11-16）: 委託も雇用も同じ＝シフト無し出勤の日は打刻の時間（給与の collect と同じ） */ for (const r of rows) if (!r.shift && r.inHm && r.outHm && r.hours === 0 && !r.cancelled) { const mins = r.adj ? r.adj.workMin : hm2minK(r.outHm) - hm2minK(r.inHm) /* ★0213／0214: 丸め・休憩の日は日の窓の分 */; if (mins > 0) r.hours = Math.round((mins / 60) * 10) / 10; }
     const summary = attendanceSummaryOf(rows, todayBiz);
     const d = draftByCast.get(c.id);
     const frozen = frozenByCast.get(c.id) ?? null;

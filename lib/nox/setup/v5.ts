@@ -81,7 +81,7 @@ export type V5State = {
   payroll: { period: "month" | "half" | "daily"; close: string; payday: number; /** ★便 D 裁定455-3: 遅刻控除／当欠控除の額（settlement_presets の late／absent・0＝登録しない） */ lateAmt?: number; absentAmt?: number; whtCast: "hostess" | "none"; whtStaff: "none" | "other_204"; advance: boolean; settle: boolean; okuriMode: "fixed" | "actual" | "store" | "none"; /** ★2026-11-16（Agoora 確定 ■6-1）: 定額の店の「本人の退勤と店の端末から送りを記録するときの額」（最初は空＝null・入れないと先へ進めない） */ okuriFlatBase?: number | null; okuri: number; okuriTiers: [number, number, number]; mypage: "none" | "net" | "full" };
   staff: V5Staff[];
   shift: { mode: "want" | "off" | "store"; due: number; auto: number; need: number[] };
-  punch: { judge: "soft" | "hard"; how: "device" | "any" | "store" /* ★便 E（0197 用）: store＝打刻しない */; round: 1 | 5 | 15 | 30; gate: boolean; /** ★2026-11-24: 丸め（1 分より大きい）の同意（無い・false＝同意していない） */ consent?: boolean };
+  punch: { judge: "soft" | "hard"; how: "device" | "any" | "store" /* ★便 E（0197 用）: store＝打刻しない */; round: 1 | 5 | 10 | 15 | 30 /* ★0213: 店舗設定と同じ 5 つ */; gate: boolean; /** ★2026-11-24: 丸め（1 分より大きい）の同意（無い・false＝同意していない） */ consent?: boolean; /** ★0213（相談役 11/25）: 丸めの向き（無い＝四捨五入＝今の既定） */ roundMode?: "staff_favor" | "store_favor" | "nearest" };
   reg: { kiosk: boolean; castReg: "off" | "order" | "pay"; uri: boolean; staffDisc?: "approve" | "limit" | "no" };
   cardfee: number; cashOff: boolean; cashRate: number; cashBase: "total" | "subtotal";
   receipt: { name: string; tno: string; tadashi: string }; round: "round" | "floor" | "ceil";
@@ -327,7 +327,7 @@ export function buildV5Plan(S: V5State, ctx: V5Ctx): { steps: V5Step[]; deferred
     trial_guarantee_days: trialDaysOf(S), // ★2026-11-13 夜（相談役■2 d）
     shift_auto_confirm_hours: autoConfirmHoursOf(S), // ★2026-11-13 夜（相談役■2 d）
     punch_methods: { self: S.punch.how === "any", proxy: true, kiosk: true },
-    punch_round_unit: S.punch.round, punch_round_mode: "nearest",
+    punch_round_unit: S.punch.round, punch_round_mode: S.punch.roundMode ?? "nearest", // ★0213: 向きも選べる（既定は今と同じ四捨五入）
     ...(S.punch.round > 1 && S.punch.consent === true ? { punch_round_consent_version: PUNCH_ROUND_CONSENT_VERSION } : {}), // ★2026-11-24: 丸めの同意の版（丸め 1 分は送らない＝今のまま）
     kiosk_features: { punch: S.reg.kiosk, register: S.reg.kiosk, shift: S.reg.kiosk }, // ★2026-11-16（■6-4 は入れられない）: 在庫・日報のキーは set_store_profile の白名単が punch／register／shift だけ＝足すと 'bad kiosk_features' で保存が止まる（mig が要る＝報告）
     sys_cast_register: S.reg.castReg === "pay" ? 2 : S.reg.castReg === "order" ? 1 : 0,

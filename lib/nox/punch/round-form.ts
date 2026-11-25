@@ -40,8 +40,20 @@ export const punchRoundLineOf = (f: PunchRoundForm): string => (f.unit <= 1 ? "�
 /** RPC の英語の理由 → 日本語 */
 export function punchRoundErrJa(m: string): string {
   if (m.includes("consent required")) return "丸めを使うには、オーナーが同意にチェックしてください";
+  if (m.includes("consent outdated")) return "同意の文が新しくなりました。もう一度同意にチェックしてください"; // ★0213: 版が上がった（今の丸めは止めない・次の保存でチェック）
+  if (m.includes("not found")) return "店が見つかりません";
   if (m.includes("forbidden")) return "この設定はオーナーだけが変更できます";
   if (m.includes("billing locked")) return "ご契約の状態により保存できません";
   if (m.includes("bad punch_round")) return "丸めの単位か向きが正しくありません";
   return "保存できませんでした";
 }
+
+// ★0213（相談役 11/25 の D4）: set_punch_round（オーナーだけ・変えた営業日から効く）の引数・保存の文・履歴の 1 行・注記
+export const punchRoundArgsOf = (storeId: string, f: PunchRoundForm, consent: boolean): { p_store_id: string; p_unit: number; p_mode: PunchRoundMode; p_consent_version: string | null } =>
+  ({ p_store_id: storeId, p_unit: f.unit, p_mode: f.mode, p_consent_version: f.unit > 1 && consent ? PUNCH_ROUND_CONSENT_VERSION : null });
+const mdOf = (ymd: string): string => `${Number(ymd.slice(5, 7))}月${Number(ymd.slice(8, 10))}日`;
+export const punchRoundSavedMsgOf = (f: PunchRoundForm, r: { effective_from?: string } | null): string =>
+  `勤務時間の丸めを「${punchRoundLineOf(f)}」にしました${r?.effective_from ? `（${mdOf(r.effective_from)}の営業日から）` : ""}`;
+export const punchRoundHistoryLineOf = (h: { effective_from: string; unit: number; mode: PunchRoundMode }): string => `${mdOf(h.effective_from)}から ${punchRoundLineOf(h)}`;
+export const PUNCH_ROUND_EFFECT_NOTE = "変えた日の営業日から効きます。それより前の日は前の丸めのまま・確定済みの給与は変わりません。同じ日のうちに直したときは、その日の設定を上書きします。";
+export const PUNCH_ROUND_NOT_APPLIED_NOTE = "この店は勤務時間を確定シフトで決めている（または打刻しない）ので、丸めは効きません。";
