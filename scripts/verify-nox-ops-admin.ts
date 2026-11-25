@@ -61,7 +61,7 @@ check("(1-14) パスワードの道＝招待のリンク invite・再設定の�
 check("(1-15) 入口の判定は stale を渡さなければ今と同じ（旗 false の requireOperator）", opsGateOf({ hasUser: true, isOperator: true, aal: "aal2" }) === "ok" && opsGateOf({ hasUser: true, isOperator: true, aal: "aal1" }) === "mfa" && opsGateOf({ hasUser: true, isOperator: false, aal: "aal2", stale: true }) === "notfound");
 
 // ── (2) 配線 ──
-check("(2-1) 旗 MIG_0209_APPLIED は false（0209 は本番に未適用）・差し替え口がある", (MIG_0209_APPLIED as boolean) === false && mig0209On() === false && (() => { __set0209ForTest(true); const on = mig0209On(); __set0209ForTest(null); return on && !mig0209On(); })());
+check("(2-1) 旗 MIG_0209_APPLIED は true（★0209 を 2026-11-25 に CC が適用した後）・差し替え口がある", (MIG_0209_APPLIED as boolean) === true && mig0209On() === true && (() => { __set0209ForTest(false); const off = mig0209On(); __set0209ForTest(null); return !off && mig0209On(); })());
 const R = {
   add: "app/api/ops/operators/route.ts", invite: "app/api/ops/operators/[id]/invite/route.ts", active: "app/api/ops/operators/[id]/active/route.ts",
   role: "app/api/ops/operators/[id]/role/route.ts", reset: "app/api/ops/operators/[id]/mfa-reset/route.ts", pw: "app/api/ops/me/password/route.ts",

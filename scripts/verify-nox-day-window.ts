@@ -135,7 +135,7 @@ async function main() {
   ok("(6-4) 初期設定：店舗設定と同じ選び方（5 つの単位・向き 3 つ・既定は丸めない）", wiz.includes("options={PUNCH_ROUND_UNIT_OPTIONS}") && wiz.includes("options={PUNCH_ROUND_MODE_OPTIONS}") && v5.includes('punch_round_mode: S.punch.roundMode ?? "nearest"') && v5.includes('punch: { judge: "soft", how: "device", round: 1, gate: true }'));
   ok("(6-5) デモの名簿：新しい表は旗の後ろ（旗 false の間は表が無い＝消さない）", prewipe.includes('...(mig0213On() ? ["punch_round_rules"] : [])') && prewipe.includes('...(mig0214On() ? ["punch_breaks"] : [])'));
   ok("(6-6) 勤怠の表のセル：丸めた日は「20:07→20:15」・休憩の分", row.includes("roundedCellOf(r.inHm, r.adj.inRoundedHm, hm47Ja)") && row.includes("roundedCellOf(r.outHm, r.adj.outRoundedHm, hm47Ja)") && row.includes("data-kintai-break"));
-  ok("(6-7) 旗は false（本番に表が無い間）", flag.MIG_0213_APPLIED === false && flag.MIG_0214_APPLIED === false);
+  ok("(6-7) 旗＝0213 は true（★2026-11-25 に CC が適用した後）・0214 は false（休憩は本番に表が無い）", (flag.MIG_0213_APPLIED as boolean) === true && (flag.MIG_0214_APPLIED as boolean) === false);
 
   if (fails.length) { console.error(fails.join("\n")); console.error(`verify:nox-day-window FAIL ${fails.length} / ${n}`); process.exit(1); }
   console.log(`verify:nox-day-window ALL PASS (${n} assertions)`);

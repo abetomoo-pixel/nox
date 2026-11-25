@@ -343,7 +343,7 @@ export function __set0215ForTest(v: boolean | null): void { override0215 = v; }
 /** ★0213（起票159 勤務時間の丸めを給与に・相談役 11/25 の D4・枝 round-break-1125・起草と試走まで・本番は未適用）。
  *  true＝給与（collect）・勤怠の表・/mine が丸めの履歴（punch_round_rules＝変えた営業日から効く）を読んで時間を数える・店舗設定の丸めの欄は set_punch_round で書く。
  *  false＝今のまま（表の無い本番で読まない・丸めの欄は set_store_profile の 3 キー）＝給与の下書きは今と 1 バイト同じ。 */
-export const MIG_0213_APPLIED = false;
+export const MIG_0213_APPLIED = true; // ★相談役 11/25 の便 E2：0213 を CC が適用した後で true（適用の時刻は台帳）
 let override0213: boolean | null = null;
 export function mig0213On(): boolean { return override0213 ?? MIG_0213_APPLIED; }
 export function __set0213ForTest(v: boolean | null): void { override0213 = v; }
@@ -360,7 +360,7 @@ export function __set0214ForTest(v: boolean | null): void { override0214 = v; }
  *  true＝/ops/operators（管理者だけ＝運営者を足す・招待の出し直し・止める／戻す・役を変える・認証アプリのリセット）・/ops/me（自分のパスワードの変更）・
  *  requireOperator が認証アプリのリセットの後の古いセッションを通さない（opsSessionStaleOf）・invite-accept が運営者のパスワードの決め直しを運営の記録に残す。
  *  false＝今のまま（0209 の列と関数が無い本番で読まない・呼ばない）。0209 の適用と検証の後の便で true にする。 */
-export const MIG_0209_APPLIED = false;
+export const MIG_0209_APPLIED = true; // ★相談役 11/25 の便 E3：0209 を CC が適用した後で true（適用の時刻は台帳）
 let override0209: boolean | null = null;
 export function mig0209On(): boolean { return override0209 ?? MIG_0209_APPLIED; }
 export function __set0209ForTest(v: boolean | null): void { override0209 = v; }

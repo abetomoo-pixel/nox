@@ -402,6 +402,10 @@ kiosk_provision（新規 kiosk の追加＝拡大操作）
 ### A28. 0211（2 本・2026-11-25 11:13:41 本番適用（Agoora が認めて CC が適用・検証 19 行とも期待値）・規則A形でゲート内蔵）
 - 0211 スタッフの招待の続き: staff_invite_reissue（出し直し・前のリンクは無効・1 日 5 回）／staff_invite_mail_note（メールの結果の監査）＝冒頭の二重防御の後に課金の述語で 'billing locked'（A 形）
 （対象 217→**219**・live 実測＝billing locked の関数 **219**）
+
+### A29. 0213（1 本・2026-11-25 本番適用（Agoora が認めて CC が適用）・規則A形でゲート内蔵）
+- 0213 勤務時間の丸めの履歴: set_punch_round（オーナーだけ・同意の版）＝冒頭の二重防御の後に課金の述語で 'billing locked'（A 形）
+（対象 219→**220**・live 実測＝billing locked の関数 **220**）
 ## B. 除外（99本）
 
 ### B(a) 構造除外＝authenticated 実行不可（service/内部・28本）→ ゲート不要（B7 回避型(1)）
@@ -669,10 +673,15 @@ staff_deactivate / kiosk_deactivate / staff_invite_revoke（★0211（2026-11-25
 - 閉じるだけの除外（オーナーが運営の頼みを「今は出さない」で閉じる＝お金・店のデータを作らない・支払いが止まった会社でも運営への返事は止めない＝サポート許可の取り消しと同じ考え）: support_request_dismiss
 （除外 267→**270**・全数 483→**487**（0207 ＋3＝B +3・0208 ＋1＝A +1（A27））。既存の関数は作り直していない）
 
-### B(am). 0209 新設の除外（9本・2026-11-25 起草＝【D8】起票155 の 2・**本番は未適用**＝live に無い名は照合の対象外・0209 の本番適用の後の便で数を張り替える）
+### B(am). 0209 新設の除外（9本・2026-11-25 起草＝【D8】起票155 の 2・★2026-11-25 本番適用・0209 の本番適用の後の便で数を張り替える）
 - 構造除外（B(a) と同列＝service_role 専用・authenticated 実行不可＝運営コンソールの route から admin で呼ぶ・会社に付かない運営者の管理＝B(ai) の ops_* と同じ）: ops_operator_list／ops_operator_add／ops_operator_reinvite_logged／ops_operator_set_active／ops_operator_set_role／ops_operator_mfa_reset_logged／ops_operator_password_logged
 - 構造除外（B(a) と同列＝内部専用・4 ロール revoke）: ops_admin_ok／ops_admin_floor_guard（トリガ関数）
 （適用の後：除外 +9・全数 +9（0211 の後の数に足す）。A は変わらない＝p172 の billing locked の数も不変。既存の関数は作り直していない）
+★2026-11-25 本番適用（0213 の後）＝除外 272→**281**・全数 492→**501**
+
+### B(an). 0213 新設の除外（1本・2026-11-25・0213 の本番適用の後の検査の張り替えで収載）
+- 構造除外（トリガ関数＝店の丸めの 2 列が変わった時に履歴の表へ書く・直接は呼ばない）: punch_round_rules_track
+（除外 271→**272**・全数 490→**492**（0213 ＋2＝A +1（A29）・B +1））
 
 ## C. kiosk 腕を持つ対象（実装注意・18本）
 A1 の check_open / check_add_line / check_remove_line / check_add_seat / check_remove_seat /
