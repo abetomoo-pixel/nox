@@ -8,9 +8,9 @@
 
 | # | 項目 | 誰が | どこで | 期待値 | 状態 |
 |---|---|---|---|---|---|
-| 1 | mig 0001〜0206 が本番に適用済み（手貼りか CC の適用の検証行が期待値と全行一致・0201t と 0204 は未適用・0202d は起草していない・0207〜0209 は起草だけ） | Agoora（手貼り）／CC（適用＝0202a〜0202f は Agoora が認めた例外・突合） | Supabase › SQL Editor／docs/tmp/apply_0202*.log | 関数 483・表 127 | 済（2026-11-24 11:21:19＝0203 版 4 の検証 18 行一致・CC が適用（Agoora が認めた）・supabase/migrations に収蔵）・その前＝0205（11/24 04:37）・0206（11/24 08:05）・0202f（11/22 03:02:33・関数 478・表 126） |
-| 2 | client のフラグ＝lib/nox/rules-0175/flag.ts の MIG_*_APPLIED が本番の mig と一致（0183〜0206 true・0201t だけ false＝未適用・0204 は旗なし＝起草の側） | CC | verify:nox-0201 ほか（フラグの pin） | f0 緑 | 済（2026-11-24＝MIG_0203／0205／0206 true・main 760c6117 の時点）・枝の旗（MIG_0208・HOURLY_BANDS_ON）は false のまま main に入れていない |
-| 3 | f0 の基準線＝2 連緑（段数・件数・golden 5931／125802） | CC | docs/tmp/f0_*.log＋f0_count.cjs | 最新の 2 連緑と同じ段数・件数 | 済（2026-11-24 夜）＝760c6117 の f0 2 連（1 連目 248 段 9,312 件・golden 5931／125802・2 連目の数は朝の報告 morning_1125） |
+| 1 | mig 0001〜0208 が本番に適用済み（手貼りか CC の適用の検証行が期待値と全行一致・0201t と 0204 は未適用・0202d は起草していない・0209〜仮 0211 は起草だけ） | Agoora（手貼り）／CC（適用＝0202a〜0202f は Agoora が認めた例外・突合） | Supabase › SQL Editor／docs/tmp/apply_0202*.log | 関数 487・表 128 | 済（2026-11-25 06:46:50＝0208 の検証 10 行一致・その前 06:46:41＝0207 の検証 13 行一致・どちらも CC が適用（Agoora が認めた）・supabase/migrations に収蔵）・その前＝0203 版 4（11/24 11:21:19・関数 483・表 127） |
+| 2 | client のフラグ＝lib/nox/rules-0175/flag.ts の MIG_*_APPLIED が本番の mig と一致（0183〜0206 true・0201t だけ false＝未適用・0204 は旗なし＝起草の側） | CC | verify:nox-0201 ほか（フラグの pin） | f0 緑 | 済（2026-11-25＝MIG_0207／0208 true・main 94f7ee65）・HOURLY_BANDS_ON は false のまま（時間別の時給 A・相談役が見てから）・枝の旗は setup-consent-1124 だけ main の外 |
+| 3 | f0 の基準線＝2 連緑（段数・件数・golden 5931／125802） | CC | docs/tmp/f0_*.log＋f0_count.cjs | 最新の 2 連緑と同じ段数・件数 | 済（2026-11-25）＝94f7ee65 の f0 2 連緑（253 段 9,424 件・golden 5931／125802） |
 | 4 | 6 店 reset が noxapp.jp の route で 6/6 ok（Vault nox_demo_reset_url の host＝noxapp.jp） | CC | docs/tmp/on1_reset.mjs | muse／luna／noir／ace／lily／nest＝200 ok | 済（2026-11-09 19:42 ほか＝6/6・ACE の wipe 500 は M-122 で解消） |
 | 5 | 無人 reset（pg_cron 06:05〜・Vercel Cron 03:00／05:00）が翌朝 200 | CC（翌朝読取） | cron.job_run_details・net._http_response・Vercel Logs | status 200・6 店＋retry・expire-trials／billing-reminders 200 | 済（2026-11-10 CC 読取）＝06:05〜06:15 の 6 店（muse／luna／noir／ace／lily／nest）すべて pg_cron succeeded・http 200（count 1・retry false）・06:35 の retry 200・05:15 demo-entries-purge／06:20 shift-periods-close（closed 1）も 200＝M-122 の先掃除の後の初回無人 reset OK |
 | 6 | vercel.app → noxapp.jp の 308（旧 URL の GET が 308 で noxapp.jp に飛ぶ・/r/<token> の領収書 QR も） | Agoora（Vercel › Domains）／CC（curl） | Vercel › Settings › Domains／curl -I | `curl -I https://nox-kappa-eight.vercel.app/login` が 308・Location が noxapp.jp | **済（2026-11-11・Agoora 設定・CC 確認）**＝/login・/r/<token>（領収書の QR）・www.noxapp.jp がどれも 308 で https://noxapp.jp の同じパスへ・POST の /api も 308（メソッドと本文を保つ）。★外部の webhook（Stripe・LINE）は転送を追わないことが多い＝送り先は noxapp.jp で登録すること（Stripe は未設定・LINE は管理画面で確認）。DB 側の送り先（pg_cron＝Vault から読む・Vault の URL＝noxapp.jp）に旧住所なし。手順 10（Supabase の Redirect URLs から vercel.app/** を外す）は 1〜2 週後 |
@@ -72,7 +72,7 @@
 | 62 | mig 0203（店が 2 つの会社＝店の切り替え・会社の給料日・店を足す）版 4 | Agoora（認める）／CC（適用＝例外） | docs/tmp/apply_0203_1124.log | 関数 478→483・表 127 | **済（2026-11-24 11:21:19・検証 18 行一致・旗 true 1f32013f・本番 14:20:20）** |
 | 63 | mig 0205（JST の日付＝今日の取り違えの直し）と 0206（キャストの契約区分の履歴 cast_employment） | Agoora（認める）／CC（適用） | docs/tmp/apply_0205_1124.log／apply_0206_1124.log | 表 127 | **済（0205＝2026-11-24 04:37・0206＝08:05・旗 true・main 911646ab 本番 10:22:35）**・デモの reset の後の確かめ（cast_employment が 0 行）は 11/25 06:40 の後 |
 | 64 | mig 0204（0204a／0204b） | 相談役（合図） | docs/tmp/0204 | 期待値は docs/tmp/0204 の数（0203 の後に数え直し済み） | 未（起草と期待値の直しまで・適用しない） |
-| 65 | mig 0207（運営からのサポートの依頼＝ベル）・0208（ランクの出勤の時刻）・0209（運営者の管理） | 相談役（合図）／CC | docs/tmp/0207・0208・ops_admin_1124 | 各 verify の期待値 | 未（0207＝起草と試走 19 件・0208＝起草と試走・client は枝 shift-rank-time-1124・0209＝起草だけ＝試走は未） |
+| 65 | mig 0207（運営からのサポートの依頼＝ベル）・0208（ランクの出勤の時刻）・0209（運営者の管理）・0210（初回料金）・仮 0211（スタッフの招待の続き） | 相談役（合図）／CC | docs/tmp/0207・0208・ops_admin_1124 | 各 verify の期待値 | 0207＝**済（2026-11-25 06:46:41 適用・旗 true）**・0208＝**済（06:46:50 適用・旗 true）**・0209（運営者の管理）＝起草だけ・試走は未・0210（初回料金）＝案だけ・仮 0211（スタッフの招待の続き）＝起草と試走 28 件 |
 
 ## 使い方
 - 上から順に埋める。「未」の行は domain_switch.md §4 の手順番号と対応（6→手順 8・7→1・2・12→5・13→6・16→7）。
