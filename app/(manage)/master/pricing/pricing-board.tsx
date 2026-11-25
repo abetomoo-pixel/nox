@@ -1112,7 +1112,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
               区分は削除せず「停止」で運用します（過去の伝票が区分を参照しているため）。
             </p>
           </section>
-          {mig0210On() && <FirstVisitCard storeId={storeId} isOwner={isOwner} version={cats.length + rules.length} setMin={store.set_min} /> /* ★0210（起票140）: 初回料金の印と 2 つの選択（旗の後ろ） */}
+          {mig0210On() && <FirstVisitCard storeId={storeId} isOwner={isOwner} version={cats.length + rules.length} setMin={store.set_min} onChanged={() => { void reload(); void loadCats(); } /* ★相談役 11/25 の便 H2：印と 2 つの選択を変えたら表の側も読み直す（読み直すまで並べ替えの止めが古い行で判定され、当たらない並びが通った） */} /> /* ★0210（起票140）: 初回料金の印と 2 つの選択（旗の後ろ） */}
 
           <section className="nox-cardtop" style={{ ...card, marginBottom: 14 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "0 0 10px" }}>

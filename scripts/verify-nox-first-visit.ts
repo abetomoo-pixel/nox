@@ -238,6 +238,10 @@ ok("(8-4) ④注記（readers 27・36）：日報・分析・売上の基準に�
   && sbrSrc.includes('{SALES_BASIS_ROW_NOTE}{mig0210On() ? FIRST_VISIT_SALES_NOTE : ""}') && FIRST_VISIT_SALES_NOTE.includes("税・サ込みの額"));
 const flagSrc = fs.readFileSync("lib/nox/rules-0175/flag.ts", "utf8");
 ok("(8-5) ⑤R1 は税理士の確認済み（11/25）＝0210 を当てた便 H1 で true（旗の注）", (FIRST_VISIT_RECEIPT_R1 as boolean) === true && flagSrc.includes("税理士の確認済み（2026-11-25・R1 でよい）＝0210 を本番に当てる便で true にしてよい"));
+// (9) ★相談役 11/25 の便 H2（本番の画面の確かめで見つけた）: カードで印と 2 つの選択を変えた後、表の側（並べ替えの柵が読む cats／rules）も読み直す
+//      （直す前は読み直すまで古い行で判定され、印を付けた同じ画面で区分なしの行を初回の行より上へ並べ替えられた＝2026-11-26 01:10 本番の NOX-VERIFY-A1）
+ok("(9-1) カードは書いた後（エラーなし）に onChanged を呼ぶ（印・行の保存・売上に数える の 3 か所）・表は reload と loadCats で読み直す",
+  (cardSrc.match(/if \(!error\) onChanged\?\.\(\);/g) ?? []).length === 3 && boardSrc.includes("onChanged={() => { void reload(); void loadCats(); }"));
 
 if (fails.length) { console.error(fails.join("\n")); console.error(`verify:nox-first-visit NG ${fails.length}／${n}`); process.exit(1); }
 console.log(`verify:nox-first-visit OK ${n}`);

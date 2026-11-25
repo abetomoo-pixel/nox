@@ -16,7 +16,7 @@ const hmMin = (hm: unknown): number => { const m = /^([0-9]{1,2}):([0-9]{2})$/.e
 /** ★0210 v2: 案 R1（レシートの書き方）が税理士の答えの前＝税・サ込みを選べない理由 */
 const R1_WAIT_JA = "税・サ込みの額は、レシートの書き方を税理士に確かめている間は選べません";
 
-export default function FirstVisitCard({ storeId, isOwner, version, setMin }: { storeId: string; isOwner: boolean; version: number; setMin: number }) {
+export default function FirstVisitCard({ storeId, isOwner, version, setMin, onChanged }: { storeId: string; isOwner: boolean; version: number; setMin: number; onChanged?: () => void /* ★便 H2：書いた後に親（料金の表）を読み直す */ }) {
   const supabase = createClient();
   const [cats, setCats] = useState<Cat[]>([]);
   const [rules, setRules] = useState<Rule[]>([]);
@@ -47,6 +47,7 @@ export default function FirstVisitCard({ storeId, isOwner, version, setMin }: { 
     setBusy(false);
     setMsg(error ? { text: errOf(error.message), bad: true } : { text: on ? `「${c.name}」を初回料金の区分にしました` : `「${c.name}」の印を外しました`, bad: false });
     await load();
+    if (!error) onChanged?.();
   }
   async function saveRule(r: Rule) {
     const v = vals[r.id] ?? { pm: "base" as PriceMode, te: "extend" as TimeEnd };
@@ -60,6 +61,7 @@ export default function FirstVisitCard({ storeId, isOwner, version, setMin }: { 
     setBusy(false);
     setMsg(error ? { text: errOf(error.message), bad: true } : { text: "保存しました（これから開く卓から効きます）", bad: false });
     await load();
+    if (!error) onChanged?.();
   }
   async function saveInSales(on: boolean) {
     setBusy(true);
@@ -67,6 +69,7 @@ export default function FirstVisitCard({ storeId, isOwner, version, setMin }: { 
     setBusy(false);
     setMsg(error ? { text: errOf(error.message), bad: true } : { text: "保存しました", bad: false });
     await load();
+    if (!error) onChanged?.();
   }
 
   const fc = cats.find((c) => c.first_visit && c.is_active) ?? null;
