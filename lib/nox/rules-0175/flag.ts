@@ -334,8 +334,8 @@ let override0211: boolean | null = null;
 export function mig0211On(): boolean { return override0211 ?? MIG_0211_APPLIED; }
 export function __set0211ForTest(v: boolean | null): void { override0211 = v; }
 
-/** ★0215（起草だけ・相談役 11/25 の便 D1）: メール無しのスタッフの初期パスワードを店が出し直す（監査の関数 staff_password_reissue_note）。false＝出し直しのボタンを出さない（関数の無い本番で呼ばない）。 */
-export const MIG_0215_APPLIED = false;
+/** ★0215（相談役 11/25 の便 D1 で起草・F2 で CC が適用）: メール無しのスタッフの初期パスワードを店が出し直す（監査の関数 staff_password_reissue_note）。false＝出し直しのボタンを出さない（関数の無い本番で呼ばない）。 */
+export const MIG_0215_APPLIED = true; // ★相談役 11/25 の便 F2：0215 を CC が適用した後で true（2026-11-25 17:05:51）
 let override0215: boolean | null = null;
 export function mig0215On(): boolean { return override0215 ?? MIG_0215_APPLIED; }
 export function __set0215ForTest(v: boolean | null): void { override0215 = v; }
@@ -364,3 +364,11 @@ export const MIG_0209_APPLIED = true; // ★相談役 11/25 の便 E3：0209 を
 let override0209: boolean | null = null;
 export function mig0209On(): boolean { return override0209 ?? MIG_0209_APPLIED; }
 export function __set0209ForTest(v: boolean | null): void { override0209 = v; }
+
+/** ★0212（窓口の段 1・裁定426 の改め・相談役 11/25 の決め【D7】・枝 inquiry-1125・便 F1 で CC が適用）。
+ *  true＝マスタ › 店舗・運用に「運営への問い合わせ」（/master/inquiry・オーナーと店長）・要承認（🔔）の「運営から」に返事の件数・/ops/inquiries（一覧・返事・状態・ポイント・取り消し・2 店目を足す）。
+ *  false＝今のまま（表と関数の無い本番で読まない・route は 404）。 */
+export const MIG_0212_APPLIED = true; // ★相談役 11/25 の便 F1：0212 を CC が適用した後で true（2026-11-25 17:05:45）
+let override0212: boolean | null = null;
+export function mig0212On(): boolean { return override0212 ?? MIG_0212_APPLIED; }
+export function __set0212ForTest(v: boolean | null): void { override0212 = v; }

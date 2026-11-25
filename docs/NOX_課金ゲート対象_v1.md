@@ -683,6 +683,15 @@ staff_deactivate / kiosk_deactivate / staff_invite_revoke（★0211（2026-11-25
 - 構造除外（トリガ関数＝店の丸めの 2 列が変わった時に履歴の表へ書く・直接は呼ばない）: punch_round_rules_track
 （除外 271→**272**・全数 490→**492**（0213 ＋2＝A +1（A29）・B +1））
 
+### B(ao). 0212 新設の除外（9本・2026-11-25 17:05:45 本番適用（相談役 11/25 の便 F1・CC が適用・検証 24 行とも期待値））
+- 運用除外（店から運営への問い合わせ＝お金・店の業務のデータを作らない・支払いが止まった店こそ運営に聞ける・デモの会社は関数が止める＝support_grant_set と同じ考え）: inquiry_create／inquiry_reply／inquiry_mark_read／inquiry_mail_note
+- 構造除外（B(a) と同列＝service_role 専用・authenticated 実行不可＝運営コンソールの route から admin で呼ぶ・運営の操作＝B(ai) の ops_* と同じ）: ops_inquiry_reply／ops_inquiry_set_status／ops_inquiry_point_grant／ops_inquiry_point_revoke／ops_inquiry_store_add（中で B(ak) の ops_store_add を呼ぶ）
+（除外 281→**290**・全数 501→**510**。既存の関数は作り直していない）
+
+### B(ap). 0215 新設の除外（1本・2026-11-25 17:05:51 本番適用（相談役 11/25 の便 F2・0212 の後・検証 7 行とも期待値））
+- 運用除外（ログインの回復＝キャストのパスワードの再発行と同じ扱い・お金と店の業務のデータを作らない）: staff_password_reissue_note（メール無しのスタッフの初期パスワードの出し直しの柵と監査・パスワードは route が変える）
+（除外 290→**291**・全数 510→**511**）
+
 ## C. kiosk 腕を持つ対象（実装注意・18本）
 A1 の check_open / check_add_line / check_remove_line / check_add_seat / check_remove_seat /
 check_move_seat / check_set_nominations / check_time_charge_apply / check_shimei_add / check_dohan_add /

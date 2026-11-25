@@ -3,6 +3,7 @@
 //   詳細＝導入の状況（どの店の話か＝店名）→ 契約 → オーナー → 代行 → 記録。運営の記録は日本語の 1 行（中身は押すと開く）。
 //   契約は DB（org_billing・ops_org_list の kind）にある値だけ。月額・直近の請求の結果・支払い方法は Stripe に取りに行く作りが要る＝出さない（案まで）。
 import { fmtJst, opsProgressOf, opsNextStepOf, type OpsOrgRow } from "./labels";
+import { opsInquiryLogWhatOf } from "../inquiry/labels"; // ★0212
 
 // ── 一覧の絞り込み ──
 /** 既定＝通常とテスター（デモと検証用は「デモと検証用も出す」で出す） */
@@ -75,7 +76,7 @@ export function opsLogWhatOf(l: Pick<OpsLogLike, "action" | "before" | "after">)
     case "onb.line_verify": return `代行：LINE の連携を確かめた（${a.ok ? "通った" : "通らなかった"}）`;
     case "onb.cast_provisional_add": return `代行：キャストを仮に登録（${str(a.name)}）`;
     case "onb.cast_provisional_cancel": return "代行：キャストの仮の登録を取り消した";
-    default: return `記録（${l.action}）`;
+    default: return opsInquiryLogWhatOf(l.action, a) ?? `記録（${l.action}）`; // ★0212: 問い合わせの記録
   }
 }
 /** 1 行＝「11/24 14:31　Agoora　店を追加：2店舗目代行店（キャバクラ）」 */

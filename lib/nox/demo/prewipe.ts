@@ -5,7 +5,7 @@
 //   DB の c_wipe の直し（0198 ★5＝6 表）は手貼り待ち＝それまでも落ちないよう route（service role）が先に消す。DDL なし。
 //   表が増えたときは verify:nox-wipe-cover（pg 直結＝org_id を持つ全表が c_wipe∪c_keep∪PREWIPE∪KEEP_EXTRA に入っているか）が赤になる。
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { mig0213On, mig0214On } from "../rules-0175/flag"; // ★0213／0214
+import { mig0212On, mig0213On, mig0214On } from "../rules-0175/flag"; // ★0212／0213／0214
 
 /** org_id で消す表＝子から親へ（cast_rate_history → slide_decisions は set null・kiosk_qr_claims → kiosk_sessions／kiosk_devices／memberships は no action＝wipe の前に必ず消す） */
 export const DEMO_PREWIPE_TABLES: readonly string[] = [
@@ -17,6 +17,7 @@ export const DEMO_PREWIPE_TABLES: readonly string[] = [
   "staff_sensitive", "store_special_days",
   "cast_employment",   // ★0206 版 2（2026-11-24 08:05 適用）: 契約区分の履歴（casts の削除で連鎖して消えるが、store_id→stores は no action＝wipe の前に route が先に消す・DDL なし・入れ直しのデモには行が無い＝今の値で計算）
   ...(mig0213On() ? ["punch_round_rules"] : []),   // ★0213（相談役 11/25 の D4）: 丸めの履歴（stores の削除で連鎖して消えるが、名簿に載せる＝wipe-cover・旗 false の間は表が無い＝消さない）
+  ...(mig0212On() ? ["ops_point_entries", "ops_inquiry_messages", "ops_inquiries"] : []),   // ★0212（相談役 11/25 の便 F1：デモの入れ直しの名簿に）: ポイント → やりとり → 問い合わせ（子から親へ・デモの会社では関数が断る＝ふだんは 0 行）
   ...(mig0214On() ? ["punch_breaks"] : []),        // ★0214（D5）: 休憩（casts・memberships の削除で連鎖して消える・旗 false の間は表が無い）
 ];
 /** org_id が無く、端末（kiosk_devices）経由で消す表 */

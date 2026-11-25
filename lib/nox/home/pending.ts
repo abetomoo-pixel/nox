@@ -18,6 +18,8 @@ export type PendingSummary = {
   drinkClaims?: number;
   /** ★0207（相談役 11/25 朝の便 M3）: 運営からのサポート許可の頼み（オーナーだけ・会社に 1 つ・頼みの後に許可が出ていれば null）＝ベルの数に +1 */
   supportAsk?: { id: string; requested_at: string; message: string | null } | null;
+  /** ★0212（窓口の段 1）: 運営からの問い合わせの返事の未読（オーナーは会社の全部・店長は自店）＝ベルの数に足す */
+  inquiryReplies?: number;
   /** スタッフ＝自分の申請（最新 5 件） */
   mine?: PendingApproval[];
   total: number;

@@ -10,6 +10,8 @@ import { missingOutOf, pendingTotalOf, wishGroupsOf, type PendingApproval, type 
 import { pendingReservationsOf } from "@/lib/nox/home/pending-reservations"; // ★M-117
 import { mig0207On } from "@/lib/nox/rules-0175/flag"; // ★0207
 import { supportAskCountOf, supportAskShownOf, type SupportAskRow } from "@/lib/nox/support/support-ask"; // ★0207
+import { mig0212On } from "@/lib/nox/rules-0175/flag"; // ★0212
+import { inquiryReplyCountOf, inquiryUnreadCountOf, type InquiryReadLike } from "@/lib/nox/inquiry/labels"; // ★0212
 
 type Rec = Record<string, unknown>;
 const one = <T,>(x: T | T[] | null | undefined): T | null => (Array.isArray(x) ? x[0] ?? null : x ?? null);
@@ -85,7 +87,15 @@ export async function GET(req: Request) {
         supportAsk = supportAskShownOf(rq as SupportAskRow | null, (lg?.granted_at as string | undefined) ?? null);
       } catch { supportAsk = null; }
     }
-    const out: PendingSummary = { approvals, wishes, proposals, missingOut, reservations, drinkClaims, supportAsk, total: pendingTotalOf({ approvals, wishes, missingOut, reservations, drinkClaims }) + supportAskCountOf(supportAsk) };
+    // ★0212（窓口の段 1）: 運営からの返事の未読＝オーナーは会社の全部の店の分・店長は自店の分（RLS が絞る＝?store に関わらない）・ベルの数に足す
+    let inquiryReplies = 0;
+    if ((role === "owner" || role === "manager") && mig0212On()) {
+      try {
+        const { data: iq } = await supabase.from("ops_inquiries").select("last_from, last_at, store_read_at").eq("last_from", "ops").limit(500);
+        inquiryReplies = inquiryUnreadCountOf((iq ?? []) as InquiryReadLike[]);
+      } catch { inquiryReplies = 0; }
+    }
+    const out: PendingSummary = { approvals, wishes, proposals, missingOut, reservations, drinkClaims, supportAsk, inquiryReplies, total: pendingTotalOf({ approvals, wishes, missingOut, reservations, drinkClaims }) + supportAskCountOf(supportAsk) + inquiryReplyCountOf(inquiryReplies) };
     return NextResponse.json(out);
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });

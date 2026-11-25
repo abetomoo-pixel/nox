@@ -67,7 +67,7 @@ check("(4) カードはオーナーだけ・デモの会社と旗 false は出�
   supportCardShownOf({ flag: true, role: "owner", isDemo: false }) && !supportCardShownOf({ flag: true, role: "manager", isDemo: false }) && !supportCardShownOf({ flag: true, role: "owner", isDemo: true }) && !supportCardShownOf({ flag: false, role: "owner", isDemo: false }));
 const mp = src("app/(manage)/master/page.tsx"); const mb = src("app/(manage)/master/master-board.tsx");
 check("(4) マスタのトップ＝「店舗・運用」の群にだけカード（showSupport）・行き先は直通の URL と同じ",
-  mp.includes("<MasterBoard storeId={storeId} showSupport={showSupport} />") && mb.includes('const supportHere = g.key === "store" && showSupport && supportCardHitOf(hubSearch);')
+  mp.includes("<MasterBoard storeId={storeId} showSupport={showSupport} showInquiry={showInquiry} />") /* ★0212: 運営への問い合わせのカードの prop が増えた */ && mb.includes('const supportHere = g.key === "store" && showSupport && supportCardHitOf(hubSearch);')
   && mb.includes('href={SUPPORT_CARD.href} className="nox-fcard" data-hub-support="1"') && SUPPORT_CARD.href === SUPPORT_GRANT_PATH);
 check("(5) 検索＝「サポート」「代行」「許可」で当たる・関係ない語は当たらない・空は出す",
   supportCardHitOf("サポート") && supportCardHitOf("代行") && supportCardHitOf("許可") && supportCardHitOf("サポート許可") && supportCardHitOf("") && !supportCardHitOf("商品") && !supportCardHitOf("ノルマ") && !supportCardHitOf("席"));

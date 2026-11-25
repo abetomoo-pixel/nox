@@ -68,7 +68,7 @@ async function main() {
   check("(4-7) メール無しの人も自分で変えられる（プロフィールから /auth/change-password）", src("app/(manage)/staff/me/profile/page.tsx").includes('href="/auth/change-password"') && fs.existsSync("app/auth/change-password/page.tsx"));
   const wiz = src("app/(manage)/setup/setup-wizard.tsx");
   check("(4-8) 初期設定の文＝送っていない「招待メール」「招待済み」「招待に失敗」を言わない", !/招待メール|招待済み|招待に失敗/.test(wiz));
-  check("(4-9) 旗：0211 は true・0215（店の初期パスワードの出し直し＝監査の関数）は false の後ろ", (MIG_0211_APPLIED as boolean) === true && (MIG_0215_APPLIED as boolean) === false && src("app/api/staff/password-reissue/route.ts").includes("if (!mig0215On())") && src("app/(manage)/staff/staff-board.tsx").includes("{mig0215On() && !isDemo && sel.role === \"staff\""));
+  check("(4-9) 旗：0211 は true・0215（店の初期パスワードの出し直し＝監査の関数）も true（2026-11-25 17:05:51 適用・相談役 11/25 の便 F2）", (MIG_0211_APPLIED as boolean) === true && (MIG_0215_APPLIED as boolean) === true && src("app/api/staff/password-reissue/route.ts").includes("if (!mig0215On())") && src("app/(manage)/staff/staff-board.tsx").includes("{mig0215On() && !isDemo && sel.role === \"staff\""));
 
   // (5) ログインの道（読むだけ）
   const anonOf = () => createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, { auth: { autoRefreshToken: false, persistSession: false } });
@@ -115,6 +115,18 @@ async function main() {
       const v2 = await tx.as(owner, "select public.staff_invite_revoke($1) r", [iid]);
       const rr = await tx.as(owner, "select public.staff_invite_reissue($1, 'link') j", [iid]);
       check("(6-4) 取り消し＝2 回目は何もせず成功・取り消した招待は出し直せない（revoked か too many）", v1.ok && v2.ok && !rr.ok && /revoked|too many/.test(rr.err), [tx.errOf(v1), tx.errOf(v2), tx.errOf(rr)]);
+      // ★0215（2026-11-25 17:05:51 適用・相談役 11/25 の便 F2）: 店がメール無しのスタッフの初期パスワードを出し直す＝柵と監査（パスワードは route が変える・ここは同じ tx の合成スタッフ）
+      const A1o = await tx.one<{ org_id: string }>("select org_id from stores where id = $1", [A1.id]);
+      const uS = await tx.one<{ id: string }>("insert into users (org_id, auth_user_id, email, name, is_active) values ($1, gen_random_uuid(), $2, 'NOX-VERIFY 合成スタッフ', true) returning id", [A1o.org_id, `s-12345678@o-${A1o.org_id.replace(/-/g, "").slice(0, 8)}.nox.local`]);
+      const mS = await tx.one<{ id: string }>("insert into memberships (store_id, user_id, role, is_active) values ($1, $2, 'staff', true) returning id", [A1.id, uS.id]);
+      const p1 = await tx.as(owner, "select public.staff_password_reissue_note($1) a", [mS.id]);
+      const p2 = await tx.as(mgrA1, "select public.staff_password_reissue_note($1) a", [mS.id]);
+      const pB = await tx.as(mgrB1, "select public.staff_password_reissue_note($1) a", [mS.id]);
+      const pA = await tx.as("anon", "select public.staff_password_reissue_note($1) a", [mS.id]);
+      const mE = await tx.one<{ id: string }>("select m.id from memberships m join users u on u.id = m.user_id where u.email = 'nox-verify-staff-a1@example.com' and m.is_active limit 1");
+      const pE = await tx.as(owner, "select public.staff_password_reissue_note($1) a", [mE.id]);
+      const pN = await tx.one<{ n: number }>("select count(*)::int n from audit_logs where action = 'staff_password_reissue' and target = $1", [`memberships:${mS.id}`]);
+      check("(6-5) ★0215 初期パスワードの出し直し＝オーナーと自店の店長は通る（監査 2 行）・他社の店長は not found・anon は BLOCKED・メールのある人は has email", p1.ok && p2.ok && !pB.ok && /not found/.test(pB.err) && !pA.ok && /permission denied for function/.test(pA.err) && !pE.ok && /has email/.test(pE.err) && pN.n === 2, [tx.errOf(p1), tx.errOf(p2), tx.errOf(pB), tx.errOf(pA), tx.errOf(pE), pN]);
     } finally { await db.query("rollback").catch(() => undefined); }
   } finally { await db.end(); }
 

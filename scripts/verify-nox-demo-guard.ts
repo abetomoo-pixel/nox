@@ -46,6 +46,7 @@ const DENY_GUARDED: Record<string, string> = {
   "line/richmenu": "app/api/line/richmenu/route.ts", // ★2026-11-18 夜（相談役 ⑤）: LINE のリッチメニュー（外部へ書く）＝デモは 403
   "line/push": "app/api/line/push/route.ts", // ★便 ON-3: 外部送信＝デモ org は 204（送らない・台帳にも書かない）
   "line/notice": "app/api/line/notice/route.ts",
+  "inquiry": "app/api/inquiry/route.ts", // ★0212（窓口の段 1・旗の後ろ）: 店から運営への問い合わせ＝運営へメール（外部送信）＝デモ org は 403（RPC も forbidden (demo)）
   "auth/invite-accept": "app/api/auth/invite-accept/route.ts",
   "auth/retire": "app/api/auth/retire/route.ts", // ★0190 フラグ true 便（2026-10-30）: 退店の失効（ban／unban）＝owner／manager・デモ org は 403（demoGuardErr） // ★便 OB-2 ⑧（2026-10-29）: 招待で入ったオーナーのパスワード設定＝デモ auth／デモ org は 403・client は auth.updateUser を呼ばない // ★便 W-10 #21: お知らせの LINE＝デモ org は送らない（demo: true を返す・台帳にも書かない）
 };
@@ -75,7 +76,7 @@ const ALLOW = new Set<string>([
 ]);
 
 // D) 運営（★夜便 2026-11-20 N5・枝 night1120-ops-console）: 運営コンソールの道＝店の会社に属さない運営者だけ（requireOperatorApi＝getUser → ops_operators → aal2・旗 false は 404）。デモのユーザーは運営者の表に居ない＝404。
-const OPS = new Set<string>(["ops/operators", "ops/operators/[id]/invite", "ops/operators/[id]/active", "ops/operators/[id]/role", "ops/operators/[id]/mfa-reset", "ops/me/password" /* ★0209（起票155 の 2・2026-11-25）: 運営者の管理（管理者だけ・旗 MIG_0209_APPLIED の後ろ）と自分のパスワード */, "ops/orgs/[id]/support-ask" /* ★0207（2026-11-25）: サポート許可を頼む・取り下げ（運営専用） */, "ops/orgs/[id]/stores" /* ★0203（■2-a）: 店を追加（旗の後ろ） */, "ops/orgs", "ops/orgs/[id]/invite", "ops/orgs/[id]/agency", "ops/orgs/[id]/onboarding", "ops/orgs/[id]/assist" /* ★枝 night1121-ops-v2（0202b 版 4 の画面・旗 MIG_0202B_APPLIED の後ろ） */]);
+const OPS = new Set<string>(["ops/inquiries/[id]" /* ★0212（2026-11-25 17:05:45 適用）: 問い合わせの返事・状態・ポイント・取り消し・2 店目を足す（運営専用） */, "ops/operators", "ops/operators/[id]/invite", "ops/operators/[id]/active", "ops/operators/[id]/role", "ops/operators/[id]/mfa-reset", "ops/me/password" /* ★0209（起票155 の 2・2026-11-25）: 運営者の管理（管理者だけ・旗 MIG_0209_APPLIED の後ろ）と自分のパスワード */, "ops/orgs/[id]/support-ask" /* ★0207（2026-11-25）: サポート許可を頼む・取り下げ（運営専用） */, "ops/orgs/[id]/stores" /* ★0203（■2-a）: 店を追加（旗の後ろ） */, "ops/orgs", "ops/orgs/[id]/invite", "ops/orgs/[id]/agency", "ops/orgs/[id]/onboarding", "ops/orgs/[id]/assist" /* ★枝 night1121-ops-v2（0202b 版 4 の画面・旗 MIG_0202B_APPLIED の後ろ） */]);
 
 function walk(dir: string, out: string[]) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
