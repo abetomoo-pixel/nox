@@ -15,7 +15,7 @@ export default async function OpsHomePage() {
   const { data: bills } = await admin.from("org_billing").select("org_id, cancel_at_period_end, current_period_end");
   const billing = Object.fromEntries(((bills ?? []) as { org_id: string; cancel_at_period_end: boolean | null; current_period_end: string | null }[]).map((b) => [b.org_id, { cancel_at_period_end: b.cancel_at_period_end, current_period_end: b.current_period_end }]));
   return (
-    <OpsShell name={op.name}>
+    <OpsShell name={op.name} role={op.role}>
       {error ? <p role="alert" style={{ color: "var(--bad)" }}>一覧を読めませんでした</p> : <OrgList rows={(data ?? []) as OpsOrgRow[]} billing={billing} nowIso={new Date().toISOString()} />}
     </OpsShell>
   );

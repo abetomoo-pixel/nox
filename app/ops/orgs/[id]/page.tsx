@@ -59,5 +59,5 @@ export default async function OpsOrgPage({ params }: { params: Promise<{ id: str
     ]);
     supportAsk = supportAskShownOf(req as SupportAskRow | null, (lastGrant?.granted_at as string | undefined) ?? null);
   }
-  return <OpsShell name={op.name}><OrgDetail supportAsk={supportAsk} row={row} logs={logRows} nowIso={new Date().toISOString()} assist={assist} stores={stores} storeSetups={storeSetups} billing={billing} /></OpsShell>;
+  return <OpsShell name={op.name} role={op.role}><OrgDetail supportAsk={supportAsk} row={row} logs={logRows} nowIso={new Date().toISOString()} assist={assist} stores={stores} storeSetups={storeSetups} billing={billing} /></OpsShell>;
 }

@@ -355,3 +355,12 @@ export const MIG_0214_APPLIED = false;
 let override0214: boolean | null = null;
 export function mig0214On(): boolean { return override0214 ?? MIG_0214_APPLIED; }
 export function __set0214ForTest(v: boolean | null): void { override0214 = v; }
+
+/** ★0209（【D8】起票155 の 2＝運営者の管理・相談役 11/25 の決め・枝 ops-admin-1125・起草と試走まで・本番は未適用）。
+ *  true＝/ops/operators（管理者だけ＝運営者を足す・招待の出し直し・止める／戻す・役を変える・認証アプリのリセット）・/ops/me（自分のパスワードの変更）・
+ *  requireOperator が認証アプリのリセットの後の古いセッションを通さない（opsSessionStaleOf）・invite-accept が運営者のパスワードの決め直しを運営の記録に残す。
+ *  false＝今のまま（0209 の列と関数が無い本番で読まない・呼ばない）。0209 の適用と検証の後の便で true にする。 */
+export const MIG_0209_APPLIED = false;
+let override0209: boolean | null = null;
+export function mig0209On(): boolean { return override0209 ?? MIG_0209_APPLIED; }
+export function __set0209ForTest(v: boolean | null): void { override0209 = v; }

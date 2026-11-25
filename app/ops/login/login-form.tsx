@@ -8,7 +8,7 @@ import * as t from "@/lib/nox/ui/theme";
 import { Message } from "@/components/ui/toast";
 import { LOGIN_FAIL_TEXT } from "@/lib/nox/ops/labels";
 
-export default function OpsLoginForm() {
+export default function OpsLoginForm({ again = false }: { /** ★0209（起票155 の 2）: 今のセッションが使えなくなった（認証アプリのリセットの後など）＝もう一度ログイン */ again?: boolean } = {}) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -27,6 +27,7 @@ export default function OpsLoginForm() {
     <main className="nox-dark nox-ops" style={t.loginBg} data-ops-login="1">
       <div className="nox-lcardtop" style={t.lcard}>
         <h1 style={{ margin: "0 0 4px", textAlign: "center", fontSize: 20 }}>NOX 運営</h1>
+        {again && <div data-ops-login-again="1"><Message kind="info" style={{ margin: "8px 0 0" }}>もう一度ログインしてください（認証アプリのリセットのあとなど）</Message></div>}
         <form onSubmit={onSubmit}>
           <div style={{ marginTop: 14 }}>
             <label style={t.fieldLabel} htmlFor="ops-email">メール</label>
