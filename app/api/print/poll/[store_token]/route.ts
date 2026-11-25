@@ -13,6 +13,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { buildReceiptXml, type ReceiptLine, type ReceiptPayment } from "@/lib/nox/receipt";
 import { buildPrintEnvelope, EMPTY_POLL_RESPONSE } from "@/lib/nox/print-envelope";
 import { groupDueFull } from "@/lib/nox/check-calc"; // ★0152: 税設定＋客負担の紹介料込みの完全鏡像
+import { mig0210On } from "@/lib/nox/rules-0175/flag"; // ★0210（起票140）: 税・サ込みの行（all_in）は列のある本番でだけ読む
 
 export const dynamic = "force-dynamic";
 
@@ -66,7 +67,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ store_token: s
         .select("id, store_id, closed_at, nom_type, service_rate, round_unit, round_mode, business_tax_status, price_display, tax_rounding")
         .eq("id", c.check_id).single(),
       admin.from("check_lines")
-        .select("name_snapshot, qty, unit_price_snapshot, line_total, kind, sort_order, created_at, tax_category, fee_kind, block_no")
+        .select((mig0210On() ? "name_snapshot, qty, unit_price_snapshot, line_total, kind, sort_order, created_at, tax_category, fee_kind, block_no, all_in" : "name_snapshot, qty, unit_price_snapshot, line_total, kind, sort_order, created_at, tax_category, fee_kind, block_no") as "name_snapshot, qty, unit_price_snapshot, line_total, kind, sort_order, created_at, tax_category, fee_kind, block_no") // ★0210: 込みの行＝請求の鏡とレシートの書き方（案 R1）に渡す
         .eq("check_id", c.check_id).eq("pay_group", c.pay_group)
         .order("sort_order", { ascending: true }).order("created_at", { ascending: true }),
       admin.from("payments")

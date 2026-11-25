@@ -56,6 +56,8 @@ export type ReceiptLine = {
   // ★0152（裁定298-4）: 客負担の紹介料の合算先を選ぶための凍結値（省略可＝既存呼び出し不変）
   fee_kind?: string | null;
   block_no?: number | null;
+  /** ★0210（起票140）: 税・サ込みの行（初回料金のセット行）。省略＝false＝従来と 1 バイト同値 */
+  all_in?: boolean | null;
 };
 
 /** ★0152（裁定298-4／298-9）: 伝票の紹介（1 伝票 1 紹介）。burden='customer' の amount だけが請求に乗る＝初回セット行に合算して印字・紹介行は印字しない */
@@ -233,6 +235,27 @@ export function buildReceiptXml(input: ReceiptInput): string {
   line(sep);
 
   // ── 金額段 ──
+  // ★0210（起票140・案 R1＝税理士に聞く）: 税・サ込みの行がある伝票は、外税の店でも税込みの書き方＝通常分（小計・割引・サービス料・消費税と端数）→「税・サ込みの料金」→ 合計 →（内消費税10%）floor(合計×10/110) の 1 行。
+  //   請求の額は変えない（書き方だけ）。込みの行が無い伝票はこの分岐を通らない＝1 バイト同値。
+  const allIn = lines.filter((l) => l.kind !== "discount" && l.all_in).reduce((s2, l) => s2 + l.line_total, 0);
+  if (allIn > 0) {
+    const nl = lines.filter((l) => !(l.kind !== "discount" && l.all_in));
+    const grossN = nl.filter((l) => l.kind !== "discount").reduce((s2, l) => s2 + l.line_total, 0) + refAmt;
+    const netN = Math.max(0, grossN - discount);
+    const payFeeN = nl.filter((l) => l.kind !== "discount" && l.fee_kind === "pay_fee").reduce((s2, l) => s2 + l.line_total, 0);
+    const serviceN = netN > 0 ? Math.round(((netN - payFeeN) * serviceRate) / 100) : 0;
+    const adjN = groupDue + postDiscount - allIn - (grossN - discount) - serviceN; // 通常分の税（外税）と丸めの差＝合計から逆に出す（列の和が合計に一致）
+    line(padLine("小計(通常分)", yen(grossN)));
+    if (discount > 0) line(padLine("割引", `-${yen(discount)}`));
+    if (serviceRate > 0 && serviceN > 0) line(padLine(`サービス料(${serviceRate}%)`, yen(serviceN)));
+    if (adjN !== 0) line(padLine(isExcluded ? "消費税・端数調整" : "端数調整", yenSigned(adjN)));
+    line(padLine("税・サ込みの料金", yen(allIn)));
+    if (postDiscount > 0) line(padLine("割引(合計から)", `-${yen(postDiscount)}`));
+    t.push(`<text dw="true" dh="true"/>`);
+    line(padLine("合計", yen(groupDue)));
+    t.push(`<text dw="false" dh="false"/>`);
+    if (!isExempt) line(padLine("（内消費税10%）", yen(taxOf(groupDue, ts.tax_rounding))));
+  } else {
   line(padLine("小計", yen(gross)));
   if (discount > 0) line(padLine("割引", `-${yen(discount)}`));
   if (serviceRate > 0) line(padLine(`サービス料(${serviceRate}%)`, yen(service)));
@@ -247,6 +270,7 @@ export function buildReceiptXml(input: ReceiptInput): string {
   line(padLine("合計", yen(groupDue)));
   t.push(`<text dw="false" dh="false"/>`);
   if (!isExcluded && !isExempt) line(padLine("（内消費税10%）", yen(tax)));
+  }
   // ★exempt＝税額区分の記載なし（免税事業者は適格簡易請求書を発行できない＝T5・設計書 §4）
   line(sep);
 

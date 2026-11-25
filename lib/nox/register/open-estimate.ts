@@ -7,6 +7,7 @@ export type EstimateRule = {
   id: string; fee_kind: string; amount: number; duration_min: number | null; seat_kind: string | null;
   dow_mask: number | null; time_from_min: number | null; time_to_min: number | null; category_id: string | null;
   billing_unit: string | null; priority: number; created_at?: string | null; name?: string | null; tax_category?: string | null;
+  /** ★0210（起票140）: 額の持ち方（all_in＝税・サ込みのきっかりの額）。省略＝base＝今と同じ */ price_mode?: string | null;
 };
 export type EstimateStore = {
   set_fee: number; set_min: number; time_per: string; service_rate: number; round_unit: number; round_mode: string;
@@ -65,7 +66,7 @@ export function openEstimateOf(i: {
   const vipPer = (vr?.billing_unit ?? i.store.time_per) === "person" ? "person" : "table";
   const vip = vr && vr.amount > 0 ? { amount: vr.amount, per: vipPer as "person" | "table", qty: vipPer === "person" ? people : 1, name: "VIP 料金" } : null;
   const lines = [
-    { line_total: setUnit * setQty, kind: "charge", tax_category: picked?.tax_category ?? "taxable_10", fee_kind: "set" },
+    { line_total: setUnit * setQty, kind: "charge", tax_category: picked?.tax_category ?? "taxable_10", fee_kind: "set", all_in: picked?.price_mode === "all_in" }, // ★0210: 込みの行は見込みもきっかりの額
     ...(vip ? [{ line_total: vip.amount * vip.qty, kind: "charge", tax_category: vr?.tax_category ?? "taxable_10", fee_kind: "vip_charge" }] : []),
   ];
   const breakdown = dueBreakdownOf(lines, i.store);

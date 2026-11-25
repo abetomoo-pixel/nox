@@ -327,3 +327,11 @@ export const MIG_0207_APPLIED = true; // ★相談役 11/25 朝の便 M1：0207 
 let override0207: boolean | null = null;
 export function mig0207On(): boolean { return override0207 ?? MIG_0207_APPLIED; }
 export function __set0207ForTest(v: boolean | null): void { override0207 = v; }
+
+/** ★0210（起票140＝ホストの初回料金・相談役 11/25 の決め・枝 first-visit-1125・起草と試走まで・本番は未適用）。
+ *  true＝開卓の区分を register_open_categories で読む（スタッフ・キャスト・端末も初回を選べる）・初回の卓の札（10 分前に黄色）・時間で終わりの卓の延長の柵と切り替え・料金のマスタの「初回料金」の印と 2 つの選択。
+ *  false＝今のまま（列と関数が無い本番で読まない・呼ばない）。請求の鏡（groupDueFull／レシート）は all_in の行が無ければ今と 1 バイト同じ＝旗に依らない。 */
+export const MIG_0210_APPLIED = false;
+let override0210: boolean | null = null;
+export function mig0210On(): boolean { return override0210 ?? MIG_0210_APPLIED; }
+export function __set0210ForTest(v: boolean | null): void { override0210 = v; }

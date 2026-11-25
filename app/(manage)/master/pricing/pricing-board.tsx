@@ -1,7 +1,7 @@
 "use client";
 import TimeInput from "@/components/ui/time-input"; // ★便 M5b M-51: 時刻欄の共通部品（時計アイコン・時と分を選ぶ・翌の表示）
 import { UnitBox } from "@/components/ui/unit-input"; // ★便 M5b M-50
-import { rules0175On, mig0208On } from "@/lib/nox/rules-0175/flag"; // ★便 SH-UI-c2 C2-16 ③
+import { rules0175On, mig0208On, mig0210On } from "@/lib/nox/rules-0175/flag"; // ★便 SH-UI-c2 C2-16 ③
 import { payFeeRatesOf } from "@/lib/nox/register/p173"; // ★便 X13-G W-17: お客様に請求するカード手数料＝pay_fee_rates.card
 
 // 料金設定ボード（料金UIレーン C1）。
@@ -39,6 +39,7 @@ import Modal from "@/components/ui/modal";
 import MasterPageHead from "../master-page-head";
 import PricingPanel from "../pricing-panel";
 import RankShiftTimeCard from "./rank-shift-time-card"; // ★0208（N6）
+import FirstVisitCard from "./first-visit-card"; // ★0210（起票140）: 初回料金（旗の後ろ）
 import TimePricingPanel from "../time-pricing-panel";
 import StoreFlagToggle from "../store-flag-toggle"; // ★mig0144: ext_shimei_enabled／dohan_auto_hon のトグル（set_store_profile）
 import { mineSettingsErrJa, mineSettingsOf } from "@/lib/nox/store/mine-settings"; // ★0160（起票96・便 M4-4）: contract_ack（加盟店契約の確認の記録＝店設定 8 キー目）
@@ -1087,6 +1088,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
               区分は削除せず「停止」で運用します（過去の伝票が区分を参照しているため）。
             </p>
           </section>
+          {mig0210On() && <FirstVisitCard storeId={storeId} isOwner={isOwner} version={cats.length + rules.length} setMin={store.set_min} /> /* ★0210（起票140）: 初回料金の印と 2 つの選択（旗の後ろ） */}
 
           <section className="nox-cardtop" style={{ ...card, marginBottom: 14 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "0 0 10px" }}>

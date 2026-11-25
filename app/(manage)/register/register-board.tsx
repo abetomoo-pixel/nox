@@ -59,6 +59,8 @@ import { rpcErrJa as rpcErrJaCommon } from "@/lib/nox/ui/rpc-err"; // ★N2-2（
 import Toast, { Message } from "@/components/ui/toast"; // ★裁定281（便 U／AB）: メッセージ表示の共通部品
 import { errJa } from "@/lib/nox/errors";
 import { mig0201dOn } from "@/lib/nox/rules-0175/flag"; // ★0201d（裁定478）: 定休日の開卓＝臨時営業の問い
+import { mig0210On } from "@/lib/nox/rules-0175/flag"; // ★0210（起票140）: 初回料金（区分を全員が選ぶ・札・延長の柵と切り替え）
+import { canExtendOf, canSwitchToExtendOf, defaultOpenCategoryOf, firstVisitBadgeOf, firstVisitErrJa, overdueTablesOf, visitNoteOf, type FirstVisitTone } from "@/lib/nox/register/first-visit"; // ★0210
 import { specialOpenStepOf, priceDowChoicesOf, DOW_JA, SPECIAL_OPEN_ASK, SPECIAL_OPEN_DOW_ASK, SPECIAL_CLOSED_NOTE } from "@/lib/nox/business-hours-special"; // ★裁定467（M-126）: 利用者向けの文言は辞書 1 本
 type Seat = { id: string; name: string; kind: string | null; store_id: string };
 // 純増⑦（mig0063）: category_id でタイルをカテゴリ別に束ねる（未登録店は type 別へフォールバック）
@@ -85,6 +87,10 @@ type CheckRow = {
   round_mode: string;
   // ★116-UI（mig0128）: 区分の開栓時凍結名（旧伝票・区分なし開栓は null＝非表示）
   category_name?: string | null;
+  // ★0210（起票140）: 初回料金の開卓で凍結した 3 値（列の無い本番＝undefined＝今と同じ）
+  first_visit?: boolean | null;
+  set_price_mode?: string | null;
+  time_end?: string | null;
   // ★mig0129（裁定119）: 適用セットルール名の開栓時凍結（name null ルール/フォールバック/旧伝票=null＝非表示）
   set_rule_name?: string | null;
   // C4（mig0113）: 税設定の開栓時凍結3値（旧伝票キャッシュ対策で optional・欠落=既定と同値）
@@ -271,6 +277,7 @@ function timeErrJa(msg: string | undefined): string {
   if (msg.includes("not open")) return "この伝票は締められています（反映できません）";
   if (msg.includes("bad time settings")) return "店の時間料金設定が不正です（マスタで確認してください）";
   if (msg.includes("auto mode")) return "自動計算の店です（時間料金は会計タブで自動反映されます）"; // R-A3: check_extension_add の manual 専用ガード
+  { const fv = firstVisitErrJa(msg); if (fv) return fv; } // ★0210（起票140）: no extension・not end
   if (isBillingLocked(msg)) return BILLING_LOCKED_MSG;
   if (msg.includes("off duty")) return OFF_DUTY_STORE ? OFF_DUTY_TEXT_STORE : "出勤してからレジを開けます"; // ★0190（裁定436 ①a）: check_time_charge_apply／check_extension_add の打刻ゲート ★便 E（0197）
   if (msg.includes("forbidden")) return "権限がありません";
@@ -376,7 +383,7 @@ export default function RegisterBoard({
   // レジ時間UX R2: 主席 seat_id→時間スナップ（卓タイルの時間ステータス用）。checks 直 SELECT の列追加のみ
   //   （RLS は行スコープ＝列追加は素通り・段B started_at 追加と同じ presentation 扱い）。
   //   ★R-A4（0089）: 表示は両モード共通（スナップは manual 店も凍結済み）＝store の time_mode 取得は不要になった。
-  const [openTime, setOpenTime] = useState<Record<string, { setMin: number; extMin: number; timePer: string; people: number | null }>>({});
+  const [openTime, setOpenTime] = useState<Record<string, { setMin: number; extMin: number; timePer: string; people: number | null; firstVisit?: boolean; timeEnd?: string }>>({}); // ★0210: 初回の 2 値（旗の後ろで読む）
   // レジ時間UX R1: 開卓モーダル（フリー卓タップ→即 open を廃止・人数は任意＝空欄なら null 送信）
   const [openSeatTarget, setOpenSeatTarget] = useState<Seat | null>(null);
   const [openPeople, setOpenPeople] = useState("");
@@ -450,9 +457,18 @@ export default function RegisterBoard({
   //   1件以上=表示（sort 順）・既定=sort 最小・「指定なし」は置かない（「通常」を区分として作る運用）。
   //   取得は setRules と同型の owner/manager 直読（RLS select policy も owner/manager のみ＝
   //   staff/cast は 0行→セレクタ非表示→区分なし開栓＝現行同値・kiosk は本レーン対象外）。
-  const [openCats, setOpenCats] = useState<{ id: string; name: string }[]>([]);
+  const [openCats, setOpenCats] = useState<{ id: string; name: string; first_visit?: boolean | null }[]>([]);
   const [openCatSel, setOpenCatSel] = useState("");
   useEffect(() => {
+    if (mig0210On()) {
+      // ★0210（起票140・相談役 11/25）: 開卓できる人は全員が区分（初回料金）を選べる＝register_open_categories（スタッフ・キャスト・端末も・RLS は変えない）
+      let alive0210 = true;
+      void (async () => {
+        const { data } = await supabase.rpc("register_open_categories", { p_store_id: storeId });
+        if (alive0210) setOpenCats(((data ?? []) as { id: string; name: string; first_visit: boolean }[]).map((c) => ({ id: c.id, name: c.name, first_visit: c.first_visit })));
+      })();
+      return () => { alive0210 = false; };
+    }
     if (!isManagerUp) return;
     let alive = true;
     void (async () => {
@@ -465,6 +481,21 @@ export default function RegisterBoard({
     return () => { alive = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storeId, isManagerUp]);
+  // ★0210（起票140・相談役 11/25）: 来店の記録がある客で初回の区分を選んだら注意だけ（止めない）＝customers.last_visit_at（読めない役割は注意なし）
+  const [openCustLastVisit, setOpenCustLastVisit] = useState<string | null>(null);
+  useEffect(() => {
+    setOpenCustLastVisit(null);
+    if (!mig0210On() || !openCust) return;
+    let alive = true;
+    void (async () => {
+      const { data } = await supabase.from("customers").select("last_visit_at").eq("id", openCust.id).maybeSingle();
+      if (alive) setOpenCustLastVisit(((data as { last_visit_at?: string | null } | null)?.last_visit_at) ?? null);
+    })();
+    return () => { alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openCust?.id]);
+  // ★0210: 札の色（黄＝あと 10 分・赤＝時間）
+  const fvToneStyle = (tone: FirstVisitTone): React.CSSProperties => tone === "bad" ? { color: "var(--bad)", fontWeight: 700 } : tone === "warn" ? { color: "var(--warn, #e0b341)", fontWeight: 700 } : { color: "var(--v2-text)", fontWeight: 600 };
   // E8-1 ⑤: 「本日出勤」＝最終打刻が 'in' のキャスト（直近20h の punches・表示順とバッジのみの近似）。
   //   RLS は自店スコープ＝直 SELECT 可。金額・按分・RPC には一切関与しない。
   const [todayIds, setTodayIds] = useState<Set<string>>(new Set());
@@ -716,16 +747,17 @@ export default function RegisterBoard({
     // 段B 滞在タイマー: started_at を追加取得（クライアント直 SELECT の列追加＝presentation 扱い・RPC 非改変）。
     // 段R2: total も追加（席タイルの会計金額）。★列を1つ増やしただけで RPC も RLS も触っていない。
     // レジ時間UX R2: set_min/ext_min/time_per/people を列追加（卓タイルの超過バッジ用スナップ4値）
-    const { data } = await supabase.from("checks").select("id, seat_id, started_at, total, set_min, ext_min, time_per, people").eq("status", "open");
+    const { data } = await supabase.from("checks").select((mig0210On() ? "id, seat_id, started_at, total, set_min, ext_min, time_per, people, first_visit, time_end" : "id, seat_id, started_at, total, set_min, ext_min, time_per, people") as "id, seat_id, started_at, total, set_min, ext_min, time_per, people").eq("status", "open"); // ★0210: 初回の札の 2 値（旗の後ろ）
     const m: Record<string, string> = {};      // 主席 seat_id → checkId
     const pm: Record<string, string> = {};      // checkId → 主席 seat_id（ホスト名解決）
     const st: Record<string, string> = {};      // 主席 seat_id → started_at（席タイルの経過表示）
     const tt: Record<string, number> = {};      // checkId → total（席タイルの会計金額）
-    const ot: Record<string, { setMin: number; extMin: number; timePer: string; people: number | null }> = {};
+    const ot: Record<string, { setMin: number; extMin: number; timePer: string; people: number | null; firstVisit?: boolean; timeEnd?: string }> = {};
     for (const r of data ?? []) {
       m[r.seat_id as string] = r.id as string; pm[r.id as string] = r.seat_id as string;
       st[r.seat_id as string] = r.started_at as string; tt[r.id as string] = (r.total as number) ?? 0;
-      ot[r.seat_id as string] = { setMin: r.set_min as number, extMin: r.ext_min as number, timePer: r.time_per as string, people: (r.people as number | null) ?? null };
+      const r0210 = r as unknown as { first_visit?: boolean; time_end?: string };
+      ot[r.seat_id as string] = { setMin: r.set_min as number, extMin: r.ext_min as number, timePer: r.time_per as string, people: (r.people as number | null) ?? null, firstVisit: r0210.first_visit === true, timeEnd: r0210.time_end ?? "extend" };
     }
     setOpenTime(ot);
     // 段R2: 着卓キャスト（open 伝票の指名）＝席タイルの顔チップ。check_nominations の RLS は
@@ -791,7 +823,7 @@ export default function RegisterBoard({
     supabase.from("checks").select("*").eq("id", checkId).single(),
     /* ls */ supabase
       // back_snapshot＝キャストドリンク判定の凍結値（mig0070）。中身は back_exempt だけを見る。
-      .from("check_lines").select("id, kind, pay_group, name_snapshot, unit_price_snapshot, qty, line_total, back_snapshot, time_auto, fee_kind, cast_id, block_no, tax_category, customer_id, product_id, created_at") // ★0153: 注文者（同じ取得に同乗）
+      .from("check_lines").select((mig0210On() ? "id, kind, pay_group, name_snapshot, unit_price_snapshot, qty, line_total, back_snapshot, time_auto, fee_kind, cast_id, block_no, tax_category, customer_id, product_id, created_at, all_in" : "id, kind, pay_group, name_snapshot, unit_price_snapshot, qty, line_total, back_snapshot, time_auto, fee_kind, cast_id, block_no, tax_category, customer_id, product_id, created_at") as "id, kind, pay_group, name_snapshot, unit_price_snapshot, qty, line_total, back_snapshot, time_auto, fee_kind, cast_id, block_no, tax_category, customer_id, product_id, created_at") // ★0153: 注文者（同じ取得に同乗）・★0210: 税・サ込みの行（請求の鏡に渡す）
       .eq("check_id", checkId).order("sort_order"),
     // キャストドリンク: 確定済み（approved）の claim だけを引く。void/rejected は行に紐づけない。
     /* dcs */ supabase
@@ -1074,7 +1106,7 @@ export default function RegisterBoard({
     //   「何が始まるか」の明示）。nom_type は従来どおり 'free'＝指名は開栓後の指名タブで。
     setOpenPeople("");
     setOpenRuleSel(""); // R2-a: 卓を替えたら常に「自動」へ戻す（前回選択の持ち越し事故防止）
-    setOpenCatSel(openCats[0]?.id ?? ""); // ★116-UI（D2）: 既定=sort 最小の active 区分（0件は ""=無送信）
+    setOpenCatSel(mig0210On() ? defaultOpenCategoryOf(openCats) : (openCats[0]?.id ?? "")); // ★116-UI（D2）: 既定=sort 最小の active 区分（0件は ""=無送信）・★0210: 初回でない区分の一番上（初回しか無い店は区分なし）
     setOpenPeople("1"); // ★裁定352: ステッパーの既定 1
     setOpenCust(null); // ★便 GV-C C-2: 卓を替えたらお客様も空へ
     setSpAsk(null); setSpNote(null); // ★0201d
@@ -1527,8 +1559,23 @@ export default function RegisterBoard({
   //   R2-a（mig0098 R2-1）: ruleId 指定＝ext_menu_snap（開栓時凍結）から解決・省略＝既定スナップ。
   //   ★起票#48（裁定112 同乗）: backbar（テーブル情報行）にも複製＝from="bar" は文言を
   //     MSG_DETAIL（詳細共通の描画点）へ出す（会計タブに居なくても押下結果が見える）。
+  // ★0210（起票140・相談役 11/25）: 時間で終わりの初回の卓を「ふつうの料金で延長」に切り替える（店長以上・check_set_time_end）。切り替えた後の延長は開卓で凍結した延長の額
+  async function switchToExtend() {
+    if (!check || !mig0210On()) return;
+    if (!window.confirm("この卓を「ふつうの料金で延長」に切り替えます。セットの時間を過ぎた分から延長料金がかかります。よろしいですか？")) return;
+    const { error } = await supabase.rpc("check_set_time_end", { p_check_id: check.id });
+    if (error) { setMsg({ to: MSG_DETAIL, kind: "bad", text: timeErrJa(error.message) }); return; }
+    await loadCheck(check.id);
+    void loadOpenMap();
+    setMsg({ to: MSG_DETAIL, kind: "ok", text: "延長に切り替えました" });
+  }
   async function addExtension(ruleId?: string, from: "time" | "bar" = "time") {
     if (!check) return;
+    if (mig0210On() && !canExtendOf(check.time_end)) { // ★0210（起票140）: 時間で終わり・時間無制限の初回の卓は延長しない（権威は check_extension_add の no extension）
+      const text = timeErrJa("no extension");
+      if (from === "bar") setMsg({ to: MSG_DETAIL, kind: "bad", text }); else setTimeMsg(text);
+      return;
+    }
     if (dayBlocked()) return; // ★C層③: 締め済み日の先回り（RPC の関所が本体）
     if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止）
     setTimeMsg(null);
@@ -2013,8 +2060,13 @@ export default function RegisterBoard({
                 value={openCatSel} onChange={(e) => setOpenCatSel(e.target.value)}
                 style={{ ...t.input, fontSize: 15, width: "100%", maxWidth: 360, display: "block", marginTop: 8 }}
               >
-                {openCats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                {mig0210On() && openCats.some((c) => c.first_visit) && !openCats.some((c) => !c.first_visit) && <option value="">区分なし（ふつうの料金）</option>}
+                {openCats.map((c) => <option key={c.id} value={c.id}>{c.name}{mig0210On() && c.first_visit ? "（初回料金）" : ""}</option>)}
               </select>
+              {mig0210On() && (() => { // ★0210: 来店の記録がある客で初回＝注意 1 行（止めない）
+                const note = visitNoteOf({ categoryFirstVisit: !!openCats.find((c) => c.id === openCatSel)?.first_visit, lastVisitAt: openCustLastVisit });
+                return note ? <span data-first-visit-note="1" style={{ fontSize: 13, color: "var(--warn, #e0b341)", fontWeight: 700, display: "block", marginTop: 6 }}>{note}</span> : null;
+              })()}
               <span style={{ fontSize: 13, color: "var(--v2-muted)", display: "block", marginTop: 5 }}>
                 区分は開卓時に確定します。あとから変更はできません（変更は会計取消→再開卓）。
               </span>
@@ -2926,6 +2978,15 @@ export default function RegisterBoard({
           {/* レジ時間UX R2→R-A4（0089）: 時間ステータス常時表示＝両モード共通（凍結スナップは manual 店も
               保持済み）。凍結スナップ＋nowMs tick のクライアント計算＝表示専用・権威はサーバ。超過は --bad。 */}
           {check.status === "open" && (() => {
+            const fvb = mig0210On() ? firstVisitBadgeOf({ firstVisit: check.first_visit, timeEnd: check.time_end, startedAtMs: new Date(check.started_at).getTime(), nowMs, setMin: check.set_min }) : null;
+            if (fvb) return ( // ★0210（起票140）: 伝票の中も同じ札・時間で終わりの卓は店長以上が「延長に切り替える」
+              <span className="stay" data-first-visit-badge={fvb.tone} style={fvToneStyle(fvb.tone)}>
+                {fvb.label}
+                {canSwitchToExtendOf(check.time_end, isManagerUp) && (
+                  <button type="button" style={{ ...btnLight, marginLeft: 8, fontSize: 12.5 }} data-first-visit-switch="1" onClick={() => void switchToExtend()}>延長に切り替える</button>
+                )}
+              </span>
+            );
             const ts = timeStatusOf(new Date(check.started_at).getTime(), nowMs, check.set_min, check.ext_min);
             const next = new Date(ts.nextAtMs).toLocaleTimeString("ja-JP", { timeZone: "Asia/Tokyo", hour: "2-digit", minute: "2-digit" });
             return ts.inSet ? (
@@ -4143,6 +4204,15 @@ export default function RegisterBoard({
             使用中 <span className="num" style={{ color: "var(--v2-text)" }}>{Object.keys(openMap).length}</span> / {seats.length}卓
           </span>
         </h2>
+        {mig0210On() && (() => { // ★0210（起票140）: 時間の卓（時間で終わりの初回の卓で時間を過ぎた卓）＝押すとその卓
+          const od = overdueTablesOf(seats.filter((s) => openStarted[s.id] && openTime[s.id]).map((s) => ({ seat: s, firstVisit: openTime[s.id].firstVisit, timeEnd: openTime[s.id].timeEnd, startedAtMs: new Date(openStarted[s.id]).getTime(), setMin: openTime[s.id].setMin })), nowMs);
+          return od.length > 0 ? (
+            <div data-first-visit-overdue="1" style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, margin: "0 0 10px", color: "var(--bad)", fontWeight: 700, fontSize: 13.5 }}>
+              時間の卓 <span className="num">{od.length}</span>
+              {od.map((x) => <button key={x.seat.id} type="button" style={{ ...btnLight, fontSize: 12.5 }} onClick={() => void openSeat(x.seat)}>{x.seat.name}</button>)}
+            </div>
+          ) : null;
+        })()}
         {/* ★DP1 P2 b#9: フロアの卓グリッドはモック `.tables` の列数規約（8/4/2）へ＝`.floor` 修飾子。
             席選択モーダル（:1259）は素の .nox-seatgrid のまま＝狭い器に 8列を出さない。 */}
         <div className="nox-seatgrid floor">
@@ -4173,6 +4243,8 @@ export default function RegisterBoard({
                     {/* R-A4（0089）: 常時カウントダウン（両モード共通・凍結スナップのクライアント計算＝表示専用）。
                         セット内=「あとN分で延長」／超過=「延長N回目・次まであとN分」（--bad）。 */}
                     {openStarted[s.id] && openTime[s.id] && (() => {
+                      const fvb = mig0210On() ? firstVisitBadgeOf({ firstVisit: openTime[s.id].firstVisit, timeEnd: openTime[s.id].timeEnd, startedAtMs: new Date(openStarted[s.id]).getTime(), nowMs, setMin: openTime[s.id].setMin }) : null;
+                      if (fvb) return <div className="stay num" data-first-visit-badge={fvb.tone} style={fvToneStyle(fvb.tone)}>{fvb.label}</div>; // ★0210（起票140）: 初回の卓の札（10 分前に黄色・0 分で赤・無制限は数えない）
                       const ts = timeStatusOf(new Date(openStarted[s.id]).getTime(), nowMs, openTime[s.id].setMin, openTime[s.id].extMin);
                       const toNext = Math.max(0, Math.ceil((ts.nextAtMs - nowMs) / 60_000));
                       return ts.inSet ? (

@@ -4,7 +4,7 @@
 //   小計から＝税・サの前の小計（未入金分の比で按分＝事後承認 ③）×率を fee_kind 'pay_discount' の行（従来の割引行＝サ・税の前に効く）。
 //   入金ごとの上書き＝M-6 のカード手数料と同じ 4 択（店の率／率を指定／額を指定／なし）・なし・指定は店長以上（事後承認 ④）。
 //   権威は RPC（check_pay の p_disc_rate／p_disc_amount）＝ここは入金モーダルの表示と既定値（MIG_0187_APPLIED=false の間は UI も引数も出さない）。
-import { groupDueFull, roundAmount, type CheckDueSettings, type DueLine } from "@/lib/nox/check-calc";
+import { allInSumOf, groupDueFull, roundAmount, type CheckDueSettings, type DueLine } from "@/lib/nox/check-calc";
 import type { PayFeeMode } from "./pay-fee";
 
 export type PayDiscountKey = "cash" | "card" | "other";
@@ -73,17 +73,29 @@ export function payDiscountPreviewOf(i: {
     else if (rate > 0) {
       if (i.base === "subtotal") {
         // 小計から＝税・サの前の小計（割引済みの分を除く・手数料行を除く）× 未入金分の比 × 率（check_pay の v_dnet と同式・事後承認 ③）
-        const dnet = i.lines.filter((l) => l.kind !== "discount" && l.fee_kind !== "pay_fee").reduce((a, l) => a + l.line_total, 0)
+        const dnet = i.lines.filter((l) => l.kind !== "discount" && l.fee_kind !== "pay_fee" && !l.all_in).reduce((a, l) => a + l.line_total, 0) // ★0210: 込みの行は母数に入れない
           - i.lines.filter((l) => l.kind === "discount" && l.fee_kind !== "pay_discount_total").reduce((a, l) => a + l.line_total, 0);
         disc = Math.round(((Math.max(0, dnet) * balance) / Math.max(i.due, 1)) * rate / 100);
       } else {
-        disc = Math.round((balance * rate) / 100); // 合計から＝税・サ込みの残額×率（round）
+        const aEff = allInEffOf(i.lines, i.referralCustomer ?? 0);
+        disc = aEff > 0
+          ? Math.round(((Math.max(0, i.due - aEff) * balance) / Math.max(i.due, 1)) * rate / 100) // ★0210（相談役 11/25）: 支払方法の割引は込みの額に掛けない（check_pay 0210 と同式）
+          : Math.round((balance * rate) / 100); // 合計から＝税・サ込みの残額×率（round）
       }
     }
   }
   const feeKind = i.base === "subtotal" ? "pay_discount" : "pay_discount_total";
   const newDue = disc > 0 ? groupDueFull([...i.lines, { kind: "discount", fee_kind: feeKind, line_total: disc, tax_category: "taxable_10" }], i.settings, i.referralCustomer ?? 0) : i.due;
   return { key, mode: i.mode, base: i.base, rate, disc, newDue, newBalance: Math.max(0, newDue - i.paid), name: payDiscountLineNameOf(key, i.mode === "manual" ? null : rate, i.base), feeKind };
+}
+
+/** ★0210（起票140）: 込みの額（割引を引いた後）＝check_pay 0210 の v_aeff と同式（込みの行が無ければ 0） */
+export function allInEffOf(lines: readonly DueLine[], referralCustomer = 0): number {
+  const a = allInSumOf(lines);
+  if (a === 0) return 0;
+  const bxN = lines.filter((l) => l.kind !== "discount" && !l.all_in).reduce((x, l) => x + l.line_total, 0) + referralCustomer;
+  const disc = lines.filter((l) => l.kind === "discount" && l.fee_kind !== "pay_discount_total").reduce((x, l) => x + l.line_total, 0);
+  return Math.max(0, a - Math.max(0, disc - bxN));
 }
 
 /** 割引欄の 1 行「現金割引 ¥1,430（10%）」「現金割引 ¥0（なし）」「現金割引 ¥500（指定）」「現金割引 ¥715（指定 5%）」 */

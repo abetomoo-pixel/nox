@@ -123,14 +123,37 @@ export function taxRound(n: number, mode: string): number {
 // ★0152（裁定298-8／298-9・2026-09-25）: 0148 の referral 除外（kind 'referral' 行）は撤去＝kind は CHECK からも消えた。
 //   紹介料は check_referrals（1 伝票 1 紹介）で持ち、burden='customer' の amount だけを pay_group 'A' の小計と taxable_10 基底に加算する
 //   ＝DB check_group_due の v_ref と同じ 2 箇所。第 3 引数 referralCustomer（既定 0＝従来と 1 バイト同値）で呼び出し側が渡す。
-export type DueLine = { line_total: number; kind: string; tax_category?: string | null; fee_kind?: string | null /* ★0173（裁定393）: 'pay_fee'＝サ料の母数から除く */ };
+export type DueLine = { line_total: number; kind: string; tax_category?: string | null; fee_kind?: string | null /* ★0173（裁定393）: 'pay_fee'＝サ料の母数から除く */; all_in?: boolean | null /* ★0210（起票140）: 税・サ込みの行（初回料金のセット行）＝サ料・外税・店の丸めを掛けない */ };
 export type CheckDueSettings = CheckRoundSettings & {
   business_tax_status?: string | null; // checks の凍結値（省略/null=taxable）
   price_display?: string | null;       // 同（省略/null=tax_included）
   tax_rounding?: string | null;        // 同（省略/null=floor）
 };
 
+// ★0210（起票140・相談役 11/25）: 税・サ込みの行（all_in）の鏡＝DB check_group_due（0210）と同じ式。
+//   A＝込みの行の合計。A が 0 なら今の式（groupDueFullBase）そのまま＝1 バイト同じ。
+//   A があるとき：通常分（込みでない行）は今の式（サ料・外税・店の丸め）・割引は通常分から引き、超えた分だけ A から引く・
+//   「合計から」の割引（pay_discount_total）は最後に引き、もう一度丸めない（1,500 が崩れない）。
+export const allInSumOf = (lines: readonly DueLine[]): number => lines.filter((l) => l.kind !== "discount" && l.all_in).reduce((a, l) => a + l.line_total, 0);
+export type AllInSplit = { a: number; aEff: number; nLines: DueLine[]; post: number; nDue: number };
+/** 込みの行の分け方（A・割引の後の A・通常分の行・合計からの割引・通常分の請求）。A が 0 のときは呼ばない */
+export function allInSplitOf(lines: DueLine[], s: CheckDueSettings, referralCustomer = 0): AllInSplit {
+  const a = allInSumOf(lines);
+  const nLines = lines.filter((l) => !(l.kind !== "discount" && l.all_in));
+  const bxN = nLines.filter((l) => l.kind !== "discount").reduce((x, l) => x + l.line_total, 0) + referralCustomer;
+  const disc = nLines.filter((l) => l.kind === "discount" && l.fee_kind !== "pay_discount_total").reduce((x, l) => x + l.line_total, 0);
+  const post = nLines.filter((l) => l.kind === "discount" && l.fee_kind === "pay_discount_total").reduce((x, l) => x + l.line_total, 0);
+  const aEff = Math.max(0, a - Math.max(0, disc - bxN));
+  const nDue = groupDueFullBase(nLines.filter((l) => !(l.kind === "discount" && l.fee_kind === "pay_discount_total")), s, referralCustomer);
+  return { a, aEff, nLines, post, nDue };
+}
 export function groupDueFull(lines: DueLine[], s: CheckDueSettings, referralCustomer = 0): number {
+  if (allInSumOf(lines) === 0) return groupDueFullBase(lines, s, referralCustomer);
+  const x = allInSplitOf(lines, s, referralCustomer);
+  return Math.max(0, x.nDue + x.aEff - x.post);
+}
+/** 0210 より前の式（込みの行が無い伝票の請求）。★0210 の後もこの式は変えない＝込みの行が無い伝票は今と同じ */
+export function groupDueFullBase(lines: DueLine[], s: CheckDueSettings, referralCustomer = 0): number {
   const bx = lines.filter((l) => l.kind !== "discount").reduce((a, l) => a + l.line_total, 0) + referralCustomer; // ★0152: 客負担の紹介料を加算（DB v_bx）
   const disc = lines.filter((l) => l.kind === "discount" && l.fee_kind !== "pay_discount_total").reduce((a, l) => a + l.line_total, 0); // ★0187（便 CASH）: 「合計から」の割引（fee_kind 'pay_discount_total'）は小計から引かない＝最後に引く（DB v_disc と同式）
   const post = lines.filter((l) => l.kind === "discount" && l.fee_kind === "pay_discount_total").reduce((a, l) => a + l.line_total, 0); // ★0187: 「合計から」の割引（DB v_post）
@@ -158,8 +181,15 @@ const postOf = (pre: number, post: number, s: CheckRoundSettings): number => (po
 
 // ── ★便 X13-G W-14／W-15（2026-10-21）: 表示用の内訳＝groupDueFull と同じ式を分解しただけ（計算は変えない・合計は必ず groupDueFull と一致） ──
 //   外税＝小計（税抜）→ サービス料（税抜）→ 消費税（外税）→ 端数調整 → 合計（税込）。内税／免税＝合計（税込）と「うち消費税」（receipt の taxOf と同式＝floor(合計×10/110)）。
-export type DueBreakdown = { excluded: boolean; net: number; service: number; tax: number; rounding: number; due: number; payFee: number; postDiscount: number /* ★0187: 「合計から」の割引 */; postRounding: number /* ★0187: 引いてからもう一度丸めた差 */ };
+export type DueBreakdown = { excluded: boolean; net: number; service: number; tax: number; rounding: number; due: number; payFee: number; postDiscount: number /* ★0187: 「合計から」の割引 */; postRounding: number /* ★0187: 引いてからもう一度丸めた差 */; allIn?: number /* ★0210: 税・サ込みの額（割引を引いた後）＝込みの行がある伝票だけ */ };
 export function dueBreakdownOf(lines: DueLine[], s: CheckDueSettings, referralCustomer = 0): DueBreakdown {
+  if (allInSumOf(lines) > 0) {
+    // ★0210（起票140）: 込みの行がある伝票＝通常分の内訳（今の式）＋「税・サ込みの料金」の段＋合計からの割引（もう一度丸めない）
+    const x = allInSplitOf(lines, s, referralCustomer);
+    const n = dueBreakdownOf(x.nLines.filter((l) => !(l.kind === "discount" && l.fee_kind === "pay_discount_total")), s, referralCustomer);
+    const due = Math.max(0, x.nDue + x.aEff - x.post);
+    return { ...n, due, allIn: x.aEff, postDiscount: x.post, postRounding: 0, tax: n.excluded ? n.tax : (s.business_tax_status ?? "taxable") === "taxable" ? Math.floor((due * 10) / 110) : 0 };
+  }
   const due = groupDueFull(lines, s, referralCustomer);
   const post = lines.filter((l) => l.kind === "discount" && l.fee_kind === "pay_discount_total").reduce((a, l) => a + l.line_total, 0); // ★0187（便 CASH）: 「合計から」の割引
   const pre = post > 0 ? groupDueFull(lines.filter((l) => !(l.kind === "discount" && l.fee_kind === "pay_discount_total")), s, referralCustomer) : due; // 割引前の合計（丸め後）＝post 0 なら due
