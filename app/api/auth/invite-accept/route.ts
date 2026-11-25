@@ -9,6 +9,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { demoGuardErr } from "@/lib/nox/demo/guard";
 import { isDemoAuthUserId } from "@/lib/nox/demo/session";
 import { invitePasswordErrorOf } from "@/lib/nox/people/invite";
+import { mig0209On } from "@/lib/nox/rules-0175/flag";
+import { passwordViaOf, type OpsAmr } from "@/lib/nox/ops/operators";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -28,5 +30,12 @@ export async function POST(req: Request) {
   const { error } = await admin.auth.admin.updateUserById(user.id, { password });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   const { data: op } = await admin.from("ops_operators").select("auth_user_id").eq("auth_user_id", user.id).eq("is_active", true).maybeSingle();
+  // ★【D8】起票155 の 2（旗 MIG_0209_APPLIED の後ろ）: 運営者がリンク（招待・/auth/forgot の再設定）でパスワードを決めたことを運営の記録に残す（決めた後＝変えられた事実だけ・パスワードは渡さない）。
+  //   道はこのセッションの最初の認証の方法（AMR の invite／recovery）。記録が落ちてもパスワードはもう変わっている＝応答は変えない（応答の差を作らない）。
+  if (op && mig0209On()) {
+    const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+    const { error: le } = await admin.rpc("ops_operator_password_logged", { p_ops: user.id, p_via: passwordViaOf((aal?.currentAuthenticationMethods ?? []) as readonly OpsAmr[]) });
+    if (le) console.error("invite-accept: ops_operator_password_logged", le.message);
+  }
   return NextResponse.json({ ok: true, dest: op ? "/ops/login" : "/dashboard" });
 }

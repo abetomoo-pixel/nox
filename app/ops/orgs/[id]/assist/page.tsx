@@ -40,5 +40,5 @@ export default async function OpsAssistPage({ params }: { params: Promise<{ id: 
     provisionals: ((prov ?? []) as { id: string; name: string; created_who: string | null; created_at: string; promoted_at: string | null; discarded_at: string | null }[]),
     nowIso: new Date().toISOString(),
   };
-  return <OpsShell name={op.name}><AssistWizard {...props} /></OpsShell>;
+  return <OpsShell name={op.name} role={op.role}><AssistWizard {...props} /></OpsShell>;
 }

@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import { Message } from "@/components/ui/toast";
 import Loading from "@/components/ui/loading";
+import { mig0209On } from "@/lib/nox/rules-0175/flag";
 
 export type OpsMfaPhase = { kind: "loading" } | { kind: "enroll"; factorId: string; qr: string; secret: string } | { kind: "verify"; factorId: string } | { kind: "error"; text: string };
 
@@ -70,7 +71,7 @@ export default function OpsMfaForm({ initial }: { initial?: OpsMfaPhase }) {
             <div className="nox-actions" style={{ marginTop: 16 }}>
               <button type="submit" style={{ ...t.btnGold, minWidth: 160 }} disabled={busy}>{busy ? "確認中…" : phase.kind === "enroll" ? "登録する" : "確かめる"}</button>
             </div>
-            {phase.kind === "verify" && <p style={{ ...t.sub, fontSize: 11, textAlign: "center", marginTop: 12 }}>アプリを失くしたときは、Supabase の管理画面で登録を消してください（手順書）</p>}
+            {phase.kind === "verify" && <p style={{ ...t.sub, fontSize: 11, textAlign: "center", marginTop: 12 }}>{mig0209On() ? "アプリを失くしたときは、管理者に認証アプリのリセットを頼んでください" /* ★0209（起票155 の 2） */ : "アプリを失くしたときは、Supabase の管理画面で登録を消してください（手順書）"}</p>}
           </form>
         )}
       </div>

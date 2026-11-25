@@ -27,6 +27,9 @@ import OrgList from "../app/ops/org-list";
 import NewOrgFormView from "../app/ops/orgs/new/new-org-form";
 import OrgDetail, { type OpsLogRow } from "../app/ops/orgs/[id]/org-detail";
 import { daysAgoJa, opsNextStepOf, opsProgressOf, type OpsOrgRow } from "../lib/nox/ops/labels";
+import OperatorsBoard from "../app/ops/operators/operators-board"; // ★0209（起票155 の 2）: 運営者の管理と自分の設定の 2 画面
+import OpsMeForm from "../app/ops/me/me-form";
+import type { OpsOperatorLog, OpsOperatorRow } from "../lib/nox/ops/operators";
 
 (globalThis as { React?: unknown }).React = React; // tsx は tsconfig の jsx: preserve を古い形（React.createElement）で変換する＝部品の中の React を global で渡す
 let pass = 0, fail = 0;
@@ -51,6 +54,19 @@ const logs: OpsLogRow[] = [
   { id: "l1", at: "2026-11-21T05:41:16Z", who: "Agoora", action: "ops.org.create", before: null, after: { org_name: "TEST CLUB" }, reason: null },
   { id: "l2", at: "2026-11-21T05:42:00Z", who: "Agoora", action: "ops.agency_code", before: { agency_code: null }, after: { agency_code: "AG-001" }, reason: null },
 ];
+// ★0209: 運営者の見本（管理者 2・担当 1・招待中 1・止めた人 1）
+const opRow: OpsOperatorRow = { auth_user_id: "00000000-0000-4000-8000-0000000000a1", email: "admin@example.test", name: "Agoora", role: "ops_admin", is_active: true, created_at: "2026-11-21T06:56:00Z", created_by: null, stopped_at: null, stopped_by: null, mfa_reset_at: null, invited_at: null, email_confirmed_at: "2026-11-21T06:56:00Z", last_sign_in_at: "2026-11-25T01:00:00Z", mfa_verified: 1, is_self: true };
+const opRows: OpsOperatorRow[] = [
+  opRow,
+  { ...opRow, auth_user_id: "00000000-0000-4000-8000-0000000000a2", email: "admin2@example.test", name: "管理者 二人目", is_self: false, mfa_reset_at: "2026-11-25T02:00:00Z" },
+  { ...opRow, auth_user_id: "00000000-0000-4000-8000-0000000000a3", email: "support@example.test", name: "担当 A", role: "ops_support", is_self: false },
+  { ...opRow, auth_user_id: "00000000-0000-4000-8000-0000000000a4", email: "new@example.test", name: "担当 B（招待中）", role: "ops_support", is_self: false, email_confirmed_at: null, last_sign_in_at: null, mfa_verified: 0 },
+  { ...opRow, auth_user_id: "00000000-0000-4000-8000-0000000000a5", email: "stopped-very-long-address-for-375@example.test", name: "担当 C", role: "ops_support", is_active: false, is_self: false, stopped_at: "2026-11-24T00:00:00Z" },
+];
+const opLogs: OpsOperatorLog[] = [
+  { id: "o1", at: "2026-11-25T02:00:00Z", who: "Agoora", action: "ops.operator.mfa_reset", target: "管理者 二人目", before: { factors: 1 }, after: {}, reason: "スマホを替えた" },
+  { id: "o2", at: "2026-11-24T00:00:00Z", who: "Agoora", action: "ops.operator.stop", target: "担当 C", before: { is_active: true }, after: { is_active: false }, reason: null },
+];
 const NOW = "2026-11-24T03:00:00Z"; // 見本の今（導入完了 11/21 → 3 日前）
 const router = { back() {}, forward() {}, refresh() {}, push() {}, replace() {}, prefetch() {} };
 const wrap = (el: React.ReactElement) => renderToStaticMarkup(React.createElement(AppRouterContext.Provider, { value: router as never }, el));
@@ -62,6 +78,8 @@ const SCREENS: { key: string; html: string }[] = [
   { key: "new", html: wrap(React.createElement(OpsShell, { name: "Agoora", children: React.createElement(NewOrgFormView) })) },
   { key: "detail", html: wrap(React.createElement(OpsShell, { name: "Agoora", children: React.createElement(OrgDetail, { row: base, logs, nowIso: NOW }) })) },
   { key: "detail-done", html: wrap(React.createElement(OpsShell, { name: "Agoora", children: React.createElement(OrgDetail, { row: rows[1], logs, nowIso: NOW }) })) },
+  { key: "operators", html: wrap(React.createElement(OpsShell, { name: "Agoora", children: React.createElement(OperatorsBoard, { rows: opRows, logs: opLogs }) })) },
+  { key: "me", html: wrap(React.createElement(OpsShell, { name: "Agoora", children: React.createElement(OpsMeForm, { name: "Agoora", email: "admin@example.test", role: "ops_admin" }) })) },
 ];
 
 import { docOf, PROBE, type Probe } from "./contrast-probe";
