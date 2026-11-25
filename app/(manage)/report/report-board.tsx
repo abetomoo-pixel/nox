@@ -1,5 +1,6 @@
 "use client";
-import { mig0203On } from "@/lib/nox/rules-0175/flag"; // ★0203
+import { mig0203On, mig0210On } from "@/lib/nox/rules-0175/flag"; // ★0203・★0210 版 3（【G4】④）: 注記に初回料金の 1 文
+import { FIRST_VISIT_ALL_IN_NOTE } from "@/lib/nox/register/first-visit";
 
 import { jstToday, jstThisMonth } from "@/lib/nox/jst-today"; // ★起票145: JST の今日・今月（UTC だと 0:00〜9:00 が JST の昨日）
 import { hmLabelOf } from "@/lib/nox/time/hhmm"; // ★便 M5b M-51 追補: 日をまたぐ時刻は「翌02:00」
@@ -1185,7 +1186,7 @@ export default function ReportBoard({
                     <span className="num" style={{ fontSize: 11.5, width: 84, textAlign: "right", color: "var(--ink)" }}>{yen(v)}</span>
                   </div>
                 ))}
-                <p style={{ ...t.sub, fontSize: 10.5, margin: "2px 0 0" }}>カテゴリ別は明細（サ料前）・決済構成は入金額の比率です。</p>
+                <p style={{ ...t.sub, fontSize: 10.5, margin: "2px 0 0" }}>カテゴリ別は明細（サ料前）・決済構成は入金額の比率です。{mig0210On() ? `${FIRST_VISIT_ALL_IN_NOTE}（サ料前ではありません）。` : ""}</p>
               </div>
             </div>
           );

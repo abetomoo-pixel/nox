@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Message } from "@/components/ui/toast";
-import { PRICE_MODES, PRICE_MODE_LABEL, TIME_ENDS, TIME_END_LABEL, firstVisitErrJa, firstVisitShadowBlockOf, firstVisitShadowsOf, priceModeOf, setLineNameOf, timeEndOf, type PriceMode, type TimeEnd } from "@/lib/nox/register/first-visit";
+import { PRICE_MODES, PRICE_MODE_LABEL, TIME_ENDS, TIME_END_LABEL, firstVisitErrJa, firstVisitShadowBlockOf, firstVisitShadowsOf, firstVisitPartialShadowsOf, FIRST_VISIT_PARTIAL_NOTE_JA, priceModeOf, setLineNameOf, timeEndOf, type PriceMode, type TimeEnd } from "@/lib/nox/register/first-visit";
 import { firstVisitReceiptR1On } from "@/lib/nox/rules-0175/flag"; // ★0210 v2（【F5】）: 税・サ込みは案 R1 の旗の後ろ（税理士の答えが出るまで選べない）
 
 type Cat = { id: string; name: string; is_active: boolean; first_visit: boolean };
@@ -72,6 +72,7 @@ export default function FirstVisitCard({ storeId, isOwner, version, setMin }: { 
   const fc = cats.find((c) => c.first_visit && c.is_active) ?? null;
   const fr = fc ? rules.filter((r) => r.category_id === fc.id) : [];
   const shadowed = new Set(fc ? firstVisitShadowsOf(rules, [fc.id], cutMin, false).map((h) => h.ruleId) : []); // ★0210 v2: 当たらない並びの行（選択に依らず表示）
+  const partial = new Set(fc ? firstVisitPartialShadowsOf(rules, [fc.id], cutMin).map((h) => h.ruleId) : []); // ★0210 版 3（【G4】①）: 一部の場面で通常の料金が当たる行＝注意だけ（保存は通す）
   if (cats.length === 0) return null;
   return (
     <section className="nox-cardtop" data-first-visit-card="1" style={{ marginBottom: 14, padding: 14, border: "1px solid var(--line)", borderRadius: 12 }}>
@@ -112,6 +113,7 @@ export default function FirstVisitCard({ storeId, isOwner, version, setMin }: { 
                   伝票の行：「{setLineNameOf(min, v.pm)}」{v.pm === "all_in" ? `・1 名 ¥${r.amount.toLocaleString()} ちょうど（サービス料・消費税・端数の丸めを足さない）` : "・サービス料と税を足して丸める（今と同じ）"}
                   {v.te === "end" ? "・時間で終わり（延長しない・10 分前に黄色・店長以上が延長に切り替えられる）" : v.te === "unlimited" ? "・時間無制限（延長しない・終わらない）" : "・時間を過ぎると延長に移る"}
                 </div>
+                {!behind && partial.has(r.id) && <div style={{ fontSize: 12, color: "var(--sub)" }} data-first-visit-partial="1">{FIRST_VISIT_PARTIAL_NOTE_JA}</div>}
                 {behind && <div style={{ fontSize: 12, color: "var(--warn, #e0b341)", fontWeight: 700 }}>この行は区分なしのセット料金より下に並んでいて、開卓で当たりません。料金の表で上に移すまで、額の持ち方と時間の終わり方は保存できません。</div>}
                 <div><button type="button" disabled={busy} onClick={() => void saveRule(r)} style={{ padding: "8px 14px", borderRadius: 8, border: "1px solid var(--line)", background: "var(--surface)", fontWeight: 700 }}>保存</button></div>
               </div>

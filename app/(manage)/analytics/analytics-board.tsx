@@ -1,4 +1,6 @@
 "use client";
+import { mig0210On } from "@/lib/nox/rules-0175/flag"; // ★0210 版 3（相談役 11/25 の便 G【G4】④）: 注記に初回料金の 1 文（旗の後ろ）
+import { FIRST_VISIT_ALL_IN_NOTE } from "@/lib/nox/register/first-visit";
 
 // 分析ボード（F3b-A 塊3＋B-2 section3）。月セレクタ1つ＋店セレクタ（payroll の期間選択パターン流用）。
 // ①売上貢献＝get_cast_sales（日次・group due 按分ベース）をアプリ側で cast 合算→sales 降順。
@@ -867,7 +869,7 @@ export default function AnalyticsBoard({
                   </div>
                 ); })()}
                 <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "8px 0 0" }}>
-                  ※会計済み伝票の明細合計（サービス料・丸め前）＝締め済み日報の売上とは一致しません。
+                  ※会計済み伝票の明細合計（サービス料・丸め前）＝締め済み日報の売上とは一致しません。{mig0210On() ? `${FIRST_VISIT_ALL_IN_NOTE}（サービス料・丸め前ではありません）。` : ""}
                   値引き {yen(catSums.discount)} は別掲（5分類に含めていません）。
                   指名・その他のうち指名料は 本{yen(catSums.nomFee.hon)}・場内{yen(catSums.nomFee.jonai)}・同伴{yen(catSums.nomFee.dohan)}。
                 </p>
@@ -897,7 +899,7 @@ export default function AnalyticsBoard({
                 </div>
               );
             })()}
-            <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "8px 0 0" }}>明細ベース（サ料前・丸め前）。上の売上（決済ベース）とは一致しません。</p>
+            <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "8px 0 0" }}>明細ベース（サ料前・丸め前）。上の売上（決済ベース）とは一致しません。{mig0210On() ? `${FIRST_VISIT_ALL_IN_NOTE}（サ料前・丸め前ではありません）。` : ""}</p>
           </section>
 
           {/* ★B4-4（DP-R 監査の欠落解消）: モック nox-analytics-dashboard の「注目ポイント」カード。

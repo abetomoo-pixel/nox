@@ -10,7 +10,8 @@ import { groupDue, roundAmount, taxRound, groupDueFull, dueBreakdownOf, type Due
 import { buildReceiptXml, type ReceiptInput, type ReceiptLine } from "../lib/nox/receipt";
 import { payDiscountPreviewOf } from "../lib/nox/rules-0175/pay-discount";
 import { openEstimateOf, type EstimateRule } from "../lib/nox/register/open-estimate";
-import { firstVisitBadgeOf, setLineNameOf, canExtendOf, canSwitchToExtendOf, defaultOpenCategoryOf, visitNoteOf, overdueTablesOf, firstVisitErrJa, FIRST_VISIT_WARN_MIN, firstVisitShadowsOf, firstVisitShadowBlockOf, ruleCoversOf, FIRST_VISIT_SHADOW_JA, type ShadowRule } from "../lib/nox/register/first-visit";
+import { firstVisitBadgeOf, setLineNameOf, canExtendOf, canSwitchToExtendOf, defaultOpenCategoryOf, visitNoteOf, overdueTablesOf, firstVisitErrJa, FIRST_VISIT_WARN_MIN, firstVisitShadowsOf, firstVisitShadowBlockOf, ruleCoversOf, FIRST_VISIT_SHADOW_JA, firstVisitPartialShadowsOf, FIRST_VISIT_PARTIAL_NOTE_JA, FIRST_VISIT_ALL_IN_NOTE, type ShadowRule } from "../lib/nox/register/first-visit";
+import { FIRST_VISIT_SALES_NOTE } from "../lib/nox/payroll/sales-basis";
 import { MIG_0210_APPLIED, mig0210On, FIRST_VISIT_RECEIPT_R1, firstVisitReceiptR1On } from "../lib/nox/rules-0175/flag";
 import { STORE_SETTING_KEYS } from "../lib/nox/ops/store-copy-keys";
 import { roundYen } from "../lib/nox/money";
@@ -221,6 +222,22 @@ ok("(6-9) 版 2 の本体と同じ語（本体があるときだけ・main の�
 // (7) ★0210 版 2: 2 店目への写し＝待遇の部分で first_visit_in_sales（区分の印と 2 つの選択は料金の部分＝store_copy_settings の本体）
 ok("(7-1) 写す鍵の名簿：first_visit_in_sales は待遇（comp）", STORE_SETTING_KEYS.first_visit_in_sales?.part === "comp");
 ok("(7-2) 版 2 の本体の写し（本体があるときだけ）＝区分の first_visit・行の price_mode／time_end・鍵 first_visit_in_sales", sqlV2 === null || (sqlV2.includes("c.is_active, c.first_visit from public.pricing_categories c") && sqlV2.includes("r.vip_ext_amount, r.price_mode, r.time_end") && sqlV2.includes("'default_plan_id','first_visit_in_sales','kind_back_rate'")));
+
+// (8) ★0210 版 3（相談役 11/25 の便 G【G4】）
+ok("(8-1) ①一部の場面だけ区分なしの行が先に当たる並び（VIP 席だけ・時間帯の一部）＝止めない・注意の対象・すべて覆う並びは注意でなく柵",
+  firstVisitPartialShadowsOf([{ ...gN, seat_kind: "VIP" }, fF], ["fv"], CUT).length === 1 && firstVisitPartialShadowsOf([{ ...gN, time_from_min: 1200, time_to_min: 1320 }, fF], ["fv"], CUT).length === 1
+  && firstVisitPartialShadowsOf([gN, fF], ["fv"], CUT).length === 0 && firstVisitPartialShadowsOf([{ ...gN, seat_kind: "VIP" }, { ...fF, priority: 0 }], ["fv"], CUT).length === 0
+  && firstVisitShadowBlockOf([{ ...gN, seat_kind: "VIP" }, { ...fF, priority: 0 }], [{ ...gN, seat_kind: "VIP" }, fF], ["fv"], CUT) === null);
+ok("(8-2) ①料金のマスタのカード：一部の場面の並びは注意の 1 行（保存は通す）", cardSrc.includes("firstVisitPartialShadowsOf(rules, [fc.id], cutMin)") && cardSrc.includes('data-first-visit-partial="1"') && FIRST_VISIT_PARTIAL_NOTE_JA.includes("保存はできます"));
+ok("(8-3) ④料金のプレビュー（readers 34）：当たったセットの行が税・サ込みなら、セットの額にサ料と丸めを掛けない（旗の後ろ）",
+  boardSrc.includes("const allInSet = mig0210On() && !!setRow &&") && boardSrc.includes("const svc = Math.round(netN * store.service_rate / 100);") && boardSrc.includes(": Math.floor(withSvc / u) * u) + allInSet;"));
+const reportSrc = fs.readFileSync("app/(manage)/report/report-board.tsx", "utf8"), anaSrc = fs.readFileSync("app/(manage)/analytics/analytics-board.tsx", "utf8"), sbrSrc = fs.readFileSync("components/nox/sales-basis-rows.tsx", "utf8");
+const noteMark = "mig0210On() ? `${FIRST_VISIT_ALL_IN_NOTE}";
+ok("(8-4) ④注記（readers 27・36）：日報・分析・売上の基準に「初回料金は税・サ込みの額」の 1 文（旗の後ろ・旗 false の間は今の文のまま）",
+  FIRST_VISIT_ALL_IN_NOTE.includes("税・サ込みの額") && reportSrc.includes(noteMark) && anaSrc.split(noteMark).length - 1 === 2
+  && sbrSrc.includes('{SALES_BASIS_ROW_NOTE}{mig0210On() ? FIRST_VISIT_SALES_NOTE : ""}') && FIRST_VISIT_SALES_NOTE.includes("税・サ込みの額"));
+const flagSrc = fs.readFileSync("lib/nox/rules-0175/flag.ts", "utf8");
+ok("(8-5) ⑤R1 は税理士の確認済み（11/25）＝0210 を当てる便で true にしてよい・今は false のまま（旗の注）", FIRST_VISIT_RECEIPT_R1 === false && flagSrc.includes("税理士の確認済み（2026-11-25・R1 でよい）＝0210 を本番に当てる便で true にしてよい"));
 
 if (fails.length) { console.error(fails.join("\n")); console.error(`verify:nox-first-visit NG ${fails.length}／${n}`); process.exit(1); }
 console.log(`verify:nox-first-visit OK ${n}`);

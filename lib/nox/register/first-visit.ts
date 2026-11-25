@@ -107,6 +107,31 @@ export function firstVisitShadowsOf(rules: readonly ShadowRule[], firstVisitCatI
   }
   return out;
 }
+/** ★0210 版 3（相談役 11/25 の便 G【G4】①）: 一部の場面だけ区分なしの行が先に当たる（覆わないが重なる）初回の行＝保存は通して画面に注意を出す */
+export function rulesOverlapOf(a: ShadowRule, b: ShadowRule, cutMin: number): boolean {
+  if (a.seat_kind != null && b.seat_kind != null && a.seat_kind !== b.seat_kind) return false;
+  if (a.rank_id != null && b.rank_id != null && a.rank_id !== b.rank_id) return false;
+  if (a.dow_mask != null && b.dow_mask != null && (a.dow_mask & b.dow_mask) === 0) return false;
+  const [af, at] = winOf(a, cutMin), [bf, bt] = winOf(b, cutMin);
+  return Math.max(af, bf) < Math.min(at, bt);
+}
+/** 初回の区分の有効なセットの行のうち、すべての場面では負けない（覆われない）が、一部の場面で区分なしの行が先に当たる行（注意だけ・止めない） */
+export function firstVisitPartialShadowsOf(rules: readonly ShadowRule[], firstVisitCatIds: readonly string[], cutMin: number): ShadowHit[] {
+  const full = new Set(firstVisitShadowsOf(rules, firstVisitCatIds, cutMin, false).map((h) => h.ruleId));
+  const out: ShadowHit[] = [];
+  const gs = rules.filter((g) => g.is_active && g.fee_kind === "set" && g.category_id === null);
+  for (const f of rules) {
+    if (!f.is_active || f.fee_kind !== "set" || f.category_id === null || !firstVisitCatIds.includes(f.category_id) || full.has(f.id)) continue;
+    const g = gs.filter((x) => x.priority < f.priority && rulesOverlapOf(f, x, cutMin)).sort((a, b) => a.priority - b.priority)[0];
+    if (g) out.push({ ruleId: f.id, byRuleId: g.id });
+  }
+  return out;
+}
+/** 一部の場面で通常の料金が当たるときの注意（保存は通す） */
+export const FIRST_VISIT_PARTIAL_NOTE_JA = "一部の場面（VIP 席・曜日・時間帯など）では、区分なしのセット料金が先に当たり、初回料金になりません（保存はできます）";
+/** ★0210 版 3（【G4】④）: 明細の集計の注記に添える 1 文（初回料金は税・サ込みの額のまま入る） */
+export const FIRST_VISIT_ALL_IN_NOTE = "初回料金は税・サ込みの額のまま入ります";
+
 /** 止めたときの理由（1 行） */
 export const FIRST_VISIT_SHADOW_JA = "初回料金の区分のセット料金が、区分なしのセット料金より下に並んでいるため、開卓で当たりません。料金の表で初回の区分の行を上に移してから保存してください";
 /** 保存の前後で比べ、保存の後に新しく当たらなくなる初回の行があれば理由を返す（保存の前から当たらない行は、ここでは止めない＝並びを直す保存を通す） */

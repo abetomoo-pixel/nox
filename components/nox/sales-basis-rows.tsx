@@ -7,6 +7,8 @@ import OnOffSeg from "@/components/ui/on-off";
 import SegSelect from "@/components/ui/seg-select";
 import Modal from "@/components/ui/modal";
 import * as t from "@/lib/nox/ui/theme";
+import { mig0210On } from "@/lib/nox/rules-0175/flag"; // ★0210 版 3（相談役 11/25 の便 G【G4】④）: 小計に初回料金がどう入るか（旗の後ろ）
+import { FIRST_VISIT_SALES_NOTE } from "@/lib/nox/payroll/sales-basis";
 import { SALES_BASIS_CONFIRM_LINES_OF, SALES_BACK_DEFAULT_CONFIRM_LINES_OF, SALES_BASIS_CHOICE_LABEL, SALES_BASIS_ROW_NOTE, SALES_BACK_DEFAULT_ROW_NOTE, salesBasisOf, salesBackDefaultOffOf, type SalesBasis } from "@/lib/nox/payroll/sales-basis";
 
 type Pending = { kind: "basis"; next: SalesBasis } | { kind: "default_back"; nextUse: boolean };
@@ -33,7 +35,7 @@ export default function SalesBasisRows({ settings, onPatch, readOnly = false, bu
       <div style={row} data-sales-basis={basis}>
         <div style={{ minWidth: 0, flex: "1 1 260px" }}>
           <div className="nox-onoff-head" style={{ fontSize: 13, fontWeight: 800 }}>歩合・スライドの売上の基準</div>
-          <p className="nox-onoff-body" style={{ fontSize: 11.5, color: "var(--sub)", margin: "2px 0 0", lineHeight: 1.6 }}>{SALES_BASIS_ROW_NOTE}</p>
+          <p className="nox-onoff-body" style={{ fontSize: 11.5, color: "var(--sub)", margin: "2px 0 0", lineHeight: 1.6 }}>{SALES_BASIS_ROW_NOTE}{mig0210On() ? FIRST_VISIT_SALES_NOTE : ""}</p>
         </div>
         <SegSelect value={basis} disabled={readOnly || busy} ariaLabel="歩合・スライドの売上の基準"
           onChange={(v) => { if (v !== basis) setPending({ kind: "basis", next: v as SalesBasis }); }}

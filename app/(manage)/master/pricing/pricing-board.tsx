@@ -870,12 +870,15 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
     const units = store.time_per === "person" ? pvGuests : 1;
     const setAmount = setUnit * units;
     const net = setAmount + (dohanUnit != null ? dohanUnit * pvGuests : 0);
-    const svc = Math.round(net * store.service_rate / 100);
-    const withSvc = net + svc;
+    // ★0210 版 3（相談役 11/25 の便 G【G4】④・readers 34）: 当たったセットの行が税・サ込み（price_mode all_in）なら、セットの額にはサ料と丸めを掛けない＝DB check_group_due と同じ（旗の後ろ・行が無い本番では読まない）
+    const allInSet = mig0210On() && !!setRow && (rules.find((r) => r.id === setRow.rule_id) as { price_mode?: string } | undefined)?.price_mode === "all_in" ? setAmount : 0;
+    const netN = net - allInSet;
+    const svc = Math.round(netN * store.service_rate / 100);
+    const withSvc = netN + svc;
     const u = store.round_unit;
-    const total = store.round_mode === "up" ? Math.ceil(withSvc / u) * u
+    const total = (netN === 0 ? 0 : store.round_mode === "up" ? Math.ceil(withSvc / u) * u
       : store.round_mode === "round" ? Math.round(withSvc / u) * u
-      : Math.floor(withSvc / u) * u;
+      : Math.floor(withSvc / u) * u) + allInSet;
     const cardTax = pvPay === "card" ? Math.round(total * store.card_tax_rate / 100) : 0;
     setPvOut({
       setAmount, setMin, setSrc: setRow ? "rule" : "base", setRuleId: setRow?.rule_id ?? null, setUnit: setRow?.billing_unit ?? null,

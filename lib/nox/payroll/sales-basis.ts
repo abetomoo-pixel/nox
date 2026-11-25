@@ -14,6 +14,8 @@ export const salesBackDefaultOffOf = (settings: Record<string, unknown> | null |
 /** 切り替えのボタンの短い名前（375 の幅でも 1 行に収める） */
 export const SALES_BASIS_CHOICE_LABEL: Record<SalesBasis, string> = { due: "請求額", subtotal: "小計" };
 export const SALES_BASIS_ROW_NOTE = "歩合（売上の何％）とスライド（売上で時給の段が決まる）の判定に使う売上です。請求額＝お客様が払った額（税・サービス料込み）。小計＝サービス料を足す前の額です。税込みで値段を出しているお店は、税を含みます。"; // ★2026-11-20（相談役 ④）: 外税と内税で違わない書き方に・報酬率の母数の行は出さない（③）ので「別の設定」の文は外した
+/** ★0210 版 3（相談役 11/25 の便 G【G4】④）: 小計の基準でも、初回料金は税・サ込みの額のまま数える（店設定で数えない店もある）。旗 MIG_0210_APPLIED の後ろでだけ SALES_BASIS_ROW_NOTE の後に出す */
+export const FIRST_VISIT_SALES_NOTE = "初回料金は、小計でも税・サ込みの額のまま数えます（料金の設定で「数えない」にした店は数えません）。";
 export const SALES_BACK_DEFAULT_ROW_NOTE = "売上に応じて 3〜10％ の歩合を付ける、NOX の既定の表です。使わない店は、お店で決めた歩合（各種バック・報酬プラン）だけが付きます。";
 /** 売上の基準を切り替える前に出す文（from→to） */
 export function SALES_BASIS_CONFIRM_LINES_OF(from: SalesBasis, to: SalesBasis): string[] {

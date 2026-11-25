@@ -332,9 +332,9 @@ export function __set0207ForTest(v: boolean | null): void { override0207 = v; }
  *  true＝開卓の区分を register_open_categories で読む（スタッフ・キャスト・端末も初回を選べる）・初回の卓の札（10 分前に黄色）・時間で終わりの卓の延長の柵と切り替え・料金のマスタの「初回料金」の印と 2 つの選択。
  *  false＝今のまま（列と関数が無い本番で読まない・呼ばない）。請求の鏡（groupDueFull／レシート）は all_in の行が無ければ今と 1 バイト同じ＝旗に依らない。
  *  ★0210 v2（相談役 11/25 の便 F【F5】）true にする条件（全部そろってから）：
- *   ① 0210（v2）を本番に当て、検証の全行が期待値（関数・表の数の pin・課金ゲートの正本・grants・anon-guard の張り替えも済み）。
- *   ② 税理士の答え（T21・T22＝レシートの書き方 案 R1・込みの額の中のサ料・割引の超えの扱い）が出ている。
- *   ③ ② の答えに合わせて FIRST_VISIT_RECEIPT_R1 を決める（R1 でよい＝true／R2 など別の書き方＝レシートを直してから）。
+ *   ① 0210（版 3）を本番に当て、検証の全行が期待値（関数・表の数の pin・課金ゲートの正本・grants・anon-guard の張り替えも済み）。
+ *   ② 税理士の答え（T21・T22＝レシートの書き方 案 R1）＝★版 3（相談役 11/25 の便 G【G4】⑤）: 11/25 に税理士の確認済み（R1 でよい）。
+ *   ③ FIRST_VISIT_RECEIPT_R1 を 0210 を当てる便で true にする（今は false のまま）。
  *      FIRST_VISIT_RECEIPT_R1 が false の間は、料金のマスタで「税・サ込みのきっかりの額」を選べない（込みの行が新しく生まれない）。 */
 export const MIG_0210_APPLIED = false;
 let override0210: boolean | null = null;
@@ -342,7 +342,7 @@ export function mig0210On(): boolean { return override0210 ?? MIG_0210_APPLIED; 
 export function __set0210ForTest(v: boolean | null): void { override0210 = v; }
 
 /** ★0210 v2（相談役 11/25 の便 F【F5】）: レシートの書き方 案 R1（込みの行がある伝票は外税の店でも税込みの書き方・（内消費税10%）floor(合計×10/110) の 1 行）。
- *  true にする条件＝税理士の答え（T21・T22）が「R1 でよい」。答えが出るまで false＝本番に出さない。
+ *  ★版 3（相談役 11/25 の便 G【G4】⑤）: 税理士の確認済み（2026-11-25・R1 でよい）＝0210 を本番に当てる便で true にしてよい（MIG_0210_APPLIED を true にするのと同じ便）。今は false のまま。
  *  false の間：料金のマスタで「税・サ込みのきっかりの額」を選べない（込みの行が生まれない）・印刷のレシートは R1 の書き方を使わない（今の書き方）。
  *  MIG_0210_APPLIED を true にする条件の ③（上の注）。 */
 export const FIRST_VISIT_RECEIPT_R1 = false;
