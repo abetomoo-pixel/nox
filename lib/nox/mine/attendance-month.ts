@@ -5,8 +5,10 @@ import { buildMatchInput, dayWorkedHours, type PunchRow, type ShiftRow } from ".
 import { matchPunches } from "../punch-match";
 import { hm2min } from "../shift-time";
 import { storeModeHoursOf } from "../shift/punch-mode"; // ★0197 フラグ便（裁定456 の 17）
+import { dayWindowOf, type DayAdj } from "../punch/day-window"; // ★0213／0214: 給与と同じ日の窓
+import { min2hm } from "../shift-time";
 
-export type AttendanceDayRow = { bizDate: string; inHm: string | null; outHm: string | null; hours: number; statusJa?: string | null }; // ★0197 フラグ便（裁定456 の 17）: 打刻しない店の行は 当欠／休み／遅刻 の状態を添える
+export type AttendanceDayRow = { bizDate: string; inHm: string | null; outHm: string | null; hours: number; statusJa?: string | null; /** ★0213: 丸めた出／退（丸めの効いた日だけ） */ inRoundedHm?: string; outRoundedHm?: string; /** ★0214: 休憩の分（休憩のある日だけ） */ breakMin?: number }; // ★0197 フラグ便（裁定456 の 17）: 打刻しない店の行は 当欠／休み／遅刻 の状態を添える
 
 /** stores.settings_json.close_hm（既定 '25:00'＝payroll window と同じ） */
 export function closeHmOf(settingsJson: unknown): string {
@@ -15,7 +17,7 @@ export function closeHmOf(settingsJson: unknown): string {
 }
 
 /** 当月の打刻＋確定シフト → 営業日ごとの行（新しい日が先・打刻のある日だけ）。hours は dayWorkedHours（確定シフトの無い日・退勤なしは 0） */
-export function monthAttendanceRowsOf(input: { punches: PunchRow[]; shifts: ShiftRow[]; cutoffHm: string; closeHm: string }): AttendanceDayRow[] {
+export function monthAttendanceRowsOf(input: { punches: PunchRow[]; shifts: ShiftRow[]; cutoffHm: string; closeHm: string; /** ★0213／0214: 営業日 → 丸めと休憩（null＝今のまま） */ dayAdj?: (bizDate: string) => DayAdj | null }): AttendanceDayRow[] {
   const built = buildMatchInput({ punches: input.punches, shifts: input.shifts, attendance: [], cutoffHm: input.cutoffHm });
   const m = matchPunches({ shifts: built.shifts, punches: built.punches, attendance: [], config: { close: input.closeHm } });
   const rows: AttendanceDayRow[] = [];
@@ -24,7 +26,10 @@ export function monthAttendanceRowsOf(input: { punches: PunchRow[]; shifts: Shif
     if (ev.length === 0) continue;
     const sorted = [...ev].sort((a, b) => hm2min(a.at) - hm2min(b.at));
     const ins = sorted.filter((e) => e.kind === "in"), outs = sorted.filter((e) => e.kind === "out");
-    rows.push({ bizDate: d.bizDate, inHm: ins[0]?.at ?? null, outHm: outs.length > 0 ? outs[outs.length - 1].at : null, hours: dayWorkedHours(d) });
+    const inHm = ins[0]?.at ?? null, outHm = outs.length > 0 ? outs[outs.length - 1].at : null;
+    const adj = input.dayAdj?.(d.bizDate) ?? null; // ★0213／0214
+    const w = adj && inHm && outHm && dayWorkedHours(d) > 0 ? dayWindowOf(hm2min(inHm), hm2min(outHm), adj) : null;
+    rows.push({ bizDate: d.bizDate, inHm, outHm, hours: w ? w.workMin / 60 : dayWorkedHours(d), ...(w && adj?.rounding ? { inRoundedHm: min2hm(w.inMin), outRoundedHm: min2hm(w.outMin) } : {}), ...(w && w.breakMin > 0 ? { breakMin: w.breakMin } : {}) });
   }
   return rows.sort((a, b) => (a.bizDate < b.bizDate ? 1 : a.bizDate > b.bizDate ? -1 : 0));
 }

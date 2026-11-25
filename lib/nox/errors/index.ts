@@ -10,6 +10,7 @@ export const ERR_DICT: ReadonlyArray<readonly [RegExp, string]> = [
   [/^forbidden$/, "権限がありません"],
   [/^permission denied( for .*)?$/i, "権限がありません"],
   [/^billing locked$/, "ご契約の状態により、この操作は現在できません"],
+  [/^consent required$/, "勤務時間の丸めを使うには、オーナーが丸めの同意にチェックしてください（初期設定の STEP 7「勤務時間の丸め」）"], // ★2026-11-24（相談役の便【1】）
   [/^not found$|^not_found$/, "対象が見つかりません"],
   [/^invalid_input$/, "入力内容が正しくありません"],
   [/^bad args$/, "入力内容が正しくありません"],
