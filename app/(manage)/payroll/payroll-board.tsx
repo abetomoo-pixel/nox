@@ -29,7 +29,7 @@ import InvoicePanel from "./invoice-panel";
 import PaymentTaxPanel from "./payment-tax-panel";
 import Toast from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 import { exportPayrollCsvForRun, slipCastName } from "./export-csv"; // ★B5: CSV 出力と凍結名解決は月次一覧と共用
-import { missingOutSummaryOf, noShiftSummaryOf, frozenRowsOf, runSummaryOf } from "@/lib/nox/payroll/view"; // ★N3（週末バックログ 4）: 表示だけの純関数（警告文・凍結行）
+import { missingOutSummaryOf, openBreakSummaryOf, noShiftSummaryOf, frozenRowsOf, runSummaryOf } from "@/lib/nox/payroll/view"; // ★N3（週末バックログ 4）: 表示だけの純関数（警告文・凍結行）
 import SettlementModal from "@/components/nox/settlement-modal"; // ★0154 D4: 精算調整（委託・裁定293 追補1）
 import SanctionModal from "@/components/nox/sanction-modal";
 import NormProposals from "@/components/nox/norm-proposals"; // ★便 X13-I I-5: ノルマ未達の減額の提案
@@ -62,6 +62,7 @@ type Row = {
   normProposal?: NormProposal & { applied?: number }; // ★便 X13-I I-5（preview が返す・提案がある行だけ）
   castId: string; castName: string; net: number; taxMode: string; anomalyCount: number;
   missingOutDates?: string[]; // ★N3 AV-4: 退勤の記録が無い勤務の営業日（preview が返す・表示のみ）
+  openBreakDates?: string[]; // ★0214: 閉じていない休憩のまま退勤がある日（休憩開始〜退勤を休憩にした・表示のみ）
   noShiftDates?: string[]; // ★便 M-10: シフト無し出勤（時給なし）
   frozen?: true; // ★N3 AV-2: 確定済み run の凍結値（payslips）から作った行＝プレビュー（再計算）ではない
   arDeductTotal?: number; arCarriedTotal?: number;
@@ -872,6 +873,8 @@ ${md.message}（入れずに確定すると控除 0 のまま確定します）`
           {anomalyTotal > 0 && (
             <p style={{ fontSize: 12, color: "var(--bad)" }}>打刻の不整合（退勤の記録が無い等）: 計 <span style={t.num}>{anomalyTotal}</span> 件。確定は止まりませんが内容をご確認ください。</p>
           )}
+          {(() => { const ob = openBreakSummaryOf(rows); return ob && (/* ★0214（相談役 11/25 の D5）: 閉じ忘れの休憩＝要対応に 1 行（休憩開始から退勤までを休憩にした） */
+            <p className="nox-inset" style={{ padding: "8px 12px", marginBottom: 8, fontSize: 12.5, color: "var(--gold)" }} role="status" data-open-break={ob.count}>△ {ob.text}</p>); })()}
           {/* ★N3 AV-4（2026-09-24）: 退勤の記録が無い勤務＝既存の punches／attendance（preview の missingOutDates）から。一覧は折りたたみ・出勤板へのリンク */}
           {(() => {
             const mo = missingOutSummaryOf(rows);

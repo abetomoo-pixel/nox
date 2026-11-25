@@ -1,5 +1,7 @@
 "use client";
 import { mig0203On } from "@/lib/nox/rules-0175/flag"; // ★0203
+import { mig0213On, mig0214On } from "@/lib/nox/rules-0175/flag"; // ★0213／0214
+import { dayAdjOfSource, loadDayAdjSource } from "@/lib/nox/punch/day-adj-load"; // ★0213／0214
 import AllStoresMonth from "@/components/nox/all-stores-month"; // ★0203
 
 // A4 月報（裁定8 N1-b・裁定12）。会計 write RPC は叩かない・daily_report_aggregate 非改修。
@@ -154,7 +156,8 @@ export default function MonthReport({ stores, defaultStoreId, isManagerUp }: {
       const contracts = new Map(attachStaffAllowances((cc.data ?? []) as (StaffLaborContract & { membership_id: string })[], al as StaffAllowanceRow[] | null).map((c) => [c.membership_id, c]));
       const punches = (pp.data ?? []) as StaffPunch[];
       const absentOf = (mid: string) => new Set(((ab.data ?? []) as { membership_id: string; biz_date: string }[]).filter((x) => x.membership_id === mid).map((x) => x.biz_date));
-      const total = ((mm.data ?? []) as { id: string }[]).reduce((a, m) => a + staffLaborOf(contracts.get(m.id) ?? null, staffHoursOf(punches.filter((x) => x.membership_id === m.id)).map((d) => ({ bizDate: d.bizDate, minutes: d.minutes })), absentOf(m.id), bizDays).total, 0);
+      const adjF = mig0213On() || mig0214On() ? dayAdjOfSource(await loadDayAdjSource(supabase, storeId, start, end), {}) : null; // ★0213／0214: 給与と同じ丸めと休憩
+      const total = ((mm.data ?? []) as { id: string }[]).reduce((a, m) => a + staffLaborOf(contracts.get(m.id) ?? null, staffHoursOf(punches.filter((x) => x.membership_id === m.id), adjF ? (bd: string) => adjF(m.id, bd) : null).map((d) => ({ bizDate: d.bizDate, minutes: d.minutes })), absentOf(m.id), bizDays).total, 0);
       sl = { total, confirmed: ((lk.data ?? []) as unknown[]).length > 0 };
       if (mig0194On() && sl.confirmed) { // ★0194（裁定445 ④）: 確定後は凍結額（staff_labor_confirmed）を表示して再計算しない（凍結の行が無い＝0192 の確定だけの月は見込みの式）
         const { data: fr } = await supabase.from("staff_labor_confirmed").select("amount").eq("store_id", storeId).eq("period", period);

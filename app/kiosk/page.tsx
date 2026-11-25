@@ -7,7 +7,8 @@
 // フロー: name-select（源氏名グリッド・PIN 未設定はグレーアウト）→ PIN pad（4桁マスク）→
 //   出勤/退勤 大ボタン → 結果表示（ok=名前+時刻／wrong_pin=残回数非表示でシンプル／locked=解除時刻）→
 //   数秒で name-select へ自動復帰。
-import { kioskButtonsShownOf } from "@/lib/nox/shift/punch-state"; // ★起票158 の 1
+import { kioskBreakButtonsOf, BREAK_ACTION_LABEL, BREAK_DONE_LABEL, KIOSK_DONE_NOTE, type KioskPersonState } from "@/lib/nox/shift/punch-state"; // ★起票158 の 1 ★0214（休憩）
+import { mig0214On } from "@/lib/nox/rules-0175/flag"; // ★0214: 旗 false＝今のまま（状態を読まない・休憩のボタンを出さない）
 import { useCallback, useEffect, useRef, useState } from "react";
 import Loading from "@/components/ui/loading"; // ★M-135: 読み込み中の表示の共通部品
 import { PUNCH_STORE_OFF_NOTE } from "@/lib/nox/shift/punch-mode"; // ★便 E（0197 用）
@@ -32,11 +33,11 @@ import PinPad from "@/components/nox/pin-pad"; // ★M-154: PIN 入力の共通�
 import { useIsDemo } from "@/lib/nox/demo/context"; // ★夜便レーン 1（2026-11-11）: デモの端末だけ名前の下に PIN
 import { demoPinOf } from "@/lib/nox/demo/pin";
 import KioskPersonEntry from "@/components/nox/kiosk-person-entry"; // ★便 E（0196 用）: スタッフでログイン（PIN） // ★便 M5 M-49: 端末のセッションを控えて /login?kiosk=1
-type KRow = { cast_id: string; cast_name: string; has_pin: boolean; staff?: boolean; /** ★起票158 の 1: スタッフ＝今日の最後の打刻（kiosk_staff_list の last_kind）・キャストは無い（状態を持たない＝両方出す） */ lastKind?: string | null }; // ★便 P174 T-6（355）: staff＝true は cast_id に membership_id（スタッフ群）
+type KRow = { cast_id: string; cast_name: string; has_pin: boolean; staff?: boolean; /** ★起票158 の 1: スタッフ＝今日の最後の打刻（kiosk_staff_list の last_kind）・キャストは無い（状態を持たない＝両方出す） */ lastKind?: string | null; /** ★0214: 名前を押した時に読んだ状態（kiosk_break_state・旗 true だけ）。null＝読めていない＝今の出し分け */ kstate?: { state: KioskPersonState; breakEnabled: boolean } | null }; // ★便 P174 T-6（355）: staff＝true は cast_id に membership_id（スタッフ群）
 type SRow = { membership_id: string; user_name: string; role: string; has_pin: boolean; last_kind: string | null; last_at: string | null }; // ★便 P174 T-6: kiosk_staff_list（0174 ★5）
 type Phase = "loading" | "login" | "denied" | "select" | "pin" | "okuri" | "dayded" | "result"; // ★便 D M-103: dayded＝出勤時の「今日の控除」（0196 まで出ない）
 type PunchResult =
-  | { kind: "ok"; name: string; type: "in" | "out"; time: string; note?: string }
+  | { kind: "ok"; name: string; type: "in" | "out" | "break_start" | "break_end"; time: string; note?: string }
   | { kind: "ng"; message: string };
 
 const RESULT_MS = 4000; // 結果表示 → name-select 自動復帰
@@ -134,6 +135,30 @@ export default function KioskPage() {
   function pick(c: KRow) {
     if (!c.has_pin) return;
     setTarget(c); setPin(""); setPhase("pin");
+    if (mig0214On()) void (async () => { // ★0214（相談役 11/25 の D5）: 名前を押した時に「出勤中／休憩中」を読む（PIN の前・スタッフのタイルと同じ程度）＝キャストのボタンも出し分ける
+      const { data, error } = await supabase.rpc("kiosk_break_state", c.staff ? { p_cast_id: null, p_membership_id: c.cast_id } : { p_cast_id: c.cast_id, p_membership_id: null });
+      const j = (data ?? null) as { ok?: boolean; state?: KioskPersonState; break_enabled?: boolean } | null;
+      if (error || !j?.ok || !j.state) return;
+      setTarget((cur) => (cur && cur.cast_id === c.cast_id ? { ...cur, kstate: { state: j.state as KioskPersonState, breakEnabled: j.break_enabled === true } } : cur));
+    })();
+  }
+
+  /** ★0214: 端末の休憩（kiosk_break＝PIN の照合は打刻と同じ）。順序の拒否は rpcErrJa の和文 */
+  async function breakPunch(action: "start" | "end") {
+    if (!target || !pinOk(pin) || busy) return;
+    setBusy(true);
+    const { data, error } = await supabase.rpc("kiosk_break", target.staff ? { p_cast_id: null, p_membership_id: target.cast_id, p_pin: pin, p_action: action } : { p_cast_id: target.cast_id, p_membership_id: null, p_pin: pin, p_action: action });
+    setBusy(false);
+    const j = (data ?? null) as { ok?: boolean; reason?: string; at?: string; locked_until?: string } | null;
+    let r: PunchResult;
+    if (error) r = { kind: "ng", message: /confirmed/.test(error.message) ? "この月の勤怠は確定済みです（打刻の修正は店長以上に依頼してください）" : rpcErrJa(error.message) };
+    else if (j?.ok) r = { kind: "ok", name: target.cast_name, type: action === "start" ? "break_start" : "break_end", time: new Date(j.at ?? Date.now()).toLocaleTimeString("ja-JP", { timeZone: "Asia/Tokyo", hour: "2-digit", minute: "2-digit" }) };
+    else if (j?.reason === "wrong_pin") r = { kind: "ng", message: "PINが違います" };
+    else if (j?.reason === "locked") r = { kind: "ng", message: "ロック中です" };
+    else if (j?.reason === "no_pin") r = { kind: "ng", message: "PINが設定されていません（店に確認してください）" };
+    else r = { kind: "ng", message: "打刻できませんでした（選び直してください）" };
+    setResult(r); setPhase("result");
+    timerRef.current = setTimeout(backToSelect, RESULT_MS);
   }
 
   /** ★便 D M-103（保存は 0196 の kiosk_punch p_day_deductions）: 出勤＝pick ルールがある店は先に「今日の控除」を聞く（読取に失敗したら聞かずに従来どおり打刻）。0196 まで＝従来どおり */
@@ -331,8 +356,10 @@ export default function KioskPage() {
             <p style={{ textAlign: "center", fontSize: 17, fontWeight: 800, margin: "0 0 4px" }}>{target.cast_name}</p>
             {/* ★M-154（2026-11-11）: PIN 入力は共通部品（スタッフでログインと同じ）＝マスク表示・丸は入力した数だけ */}
             <PinPad value={pin} onChange={setPin} max={pinMax()} label={pinMax() === 6 ? "PIN（4〜6 桁）" : "PIN（4 桁）"} />
-            {(() => { const sb = kioskButtonsShownOf(target.lastKind, !!target.staff); return (/* ★起票158 の 1（2026-11-24 夜）: スタッフは今日の打刻で「出勤」か「退勤」の 1 つ（キャストは状態を読めない＝両方・決めてほしい点） */
-            <div className={sb.in && sb.out ? "nox-pinpad-go two" : "nox-pinpad-go"} data-kiosk-shown={sb.in && sb.out ? "both" : sb.in ? "in" : "out"}>
+            {(() => { const sb = kioskBreakButtonsOf(mig0214On() ? target.kstate ?? null : null, { staff: !!target.staff, lastKind: target.lastKind }); const nShown = [sb.in, sb.out, sb.breakStart, sb.breakEnd].filter(Boolean).length; return nShown === 0 ? <p style={{ ...t.sub, textAlign: "center", margin: "12px 0 0" }} data-kiosk-done="1">{KIOSK_DONE_NOTE}</p> : (/* ★0214: 状態が読めた端末は 出勤中＝休憩・退勤／休憩中＝休憩終了だけ（旗 false＝今のまま） *//* ★起票158 の 1（2026-11-24 夜）: スタッフは今日の打刻で「出勤」か「退勤」の 1 つ（キャストは状態を読めない＝両方・決めてほしい点） */
+            <div className={nShown >= 2 ? "nox-pinpad-go two" : "nox-pinpad-go"} data-kiosk-shown={sb.breakEnd ? "break_end" : sb.in && sb.out ? "both" : sb.breakStart ? "out_break" : sb.in ? "in" : "out"}>
+              {sb.breakEnd && <button disabled={!pinOk(pin) || busy} onClick={() => void breakPunch("end")} style={{ ...t.btnGold, opacity: pinOk(pin) ? 1 : 0.4 }} data-kiosk-break="end">{BREAK_ACTION_LABEL.end}</button>}
+              {sb.breakStart && <button disabled={!pinOk(pin) || busy} onClick={() => void breakPunch("start")} style={{ ...t.btnGhost, opacity: pinOk(pin) ? 1 : 0.4 }} data-kiosk-break="start">{BREAK_ACTION_LABEL.start}</button>}
               {sb.in && <button disabled={!pinOk(pin) || busy} onClick={() => void startIn()}
                 style={{ ...t.btnGold, opacity: pinOk(pin) ? 1 : 0.4 }}>{/* ★便 D M-103: pick ルールがあれば先に聞く（0196 まで従来どおり） */}
                 出勤
@@ -383,7 +410,7 @@ export default function KioskPage() {
             {result.kind === "ok" ? (
               <>
                 <p style={{ fontSize: 22, fontWeight: 900, color: "var(--champ)", margin: "6px 0" }}>
-                  {result.type === "in" ? "出勤" : "退勤"}しました
+                  {result.type === "break_start" ? BREAK_DONE_LABEL.start : result.type === "break_end" ? BREAK_DONE_LABEL.end : (result.type === "in" ? "出勤" : "退勤") + "しました"}{/* ★0214 */}
                 </p>
                 <p style={{ fontSize: 17, fontWeight: 700, margin: "0 0 4px" }}>{result.name} さん</p>
                 <p style={{ ...t.num, fontSize: 28, fontWeight: 700, margin: 0 }}>{result.time}</p>

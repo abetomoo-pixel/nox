@@ -29,7 +29,9 @@ import type { BusinessHourRow } from "@/lib/nox/business-hours";
 import { shiftMonthHrefOf } from "@/lib/nox/payroll/view";
 import { monthLastDayOf } from "@/lib/nox/month"; // ★便 M-10: この月のシフトを開く＝公開済みなら確定シフト・無ければ ③配置（同月）
 import { createClient } from "@/lib/supabase/client";
-import { mig0192On } from "@/lib/nox/rules-0175/flag"; // ★0192 M-38: 退勤の取消（punch_cancel_out）
+import { mig0192On, mig0214On } from "@/lib/nox/rules-0175/flag"; // ★0214
+import BreakEdit from "@/components/nox/break-edit"; // ★0214
+// // ★0192 M-38: 退勤の取消（punch_cancel_out）
 import { errJa } from "@/lib/nox/errors"; // ★裁定467（M-126）: 利用者向けの文言は辞書 1 本
 
 type Sheet = KintaiSheet;
@@ -244,7 +246,8 @@ export default function AttendanceBoard({ stores, initialStoreId, initialPeriod,
       {edit && sel && sheet && (
         <KintaiEdit storeId={storeId} castId={sel.castId} castName={sel.castName} row={edit.mode === "edit" ? edit.row : null}
           periodStart={sheet.periodStart} periodEnd={sheet.periodEnd} todayBiz={sheet.todayBiz} existingDates={visibleRowsOf(sel).map((r) => r.bizDate)}
-          onClose={() => setEdit(null)} onSaved={onSaved} />
+          onClose={() => setEdit(null)} onSaved={onSaved}
+          extra={mig0214On() && edit.mode === "edit" && edit.row.inHm ? <BreakEdit castId={sel.castId} bizDate={edit.row.bizDate} spans={edit.row.adj?.breaks} onSaved={onSaved} /> : undefined /* ★0214（D5）: 休憩の直し（店だけ） */} />
       )}
       {fix && sel && (/* ★便 M-14 ①: 退勤／出勤記録なし→時刻修正（今日タブと同じ部品・保存で再読込＝実働・時給分・日計を再計算） */
         <PunchCorrectionModal castId={sel.castId} castName={sel.castName} biz={fix.row.bizDate} kind={fix.kind}

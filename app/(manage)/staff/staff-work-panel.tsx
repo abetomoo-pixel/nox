@@ -5,6 +5,9 @@
 //   計算＝lib/nox/staff/pay.ts（雇用＝時給×実働＋固定手当・源泉 0＝税額表は器なし／委託＝時給×実働 or 日額×日数・源泉率は T11 待ち＝0）。
 //   書込（契約の登録・打刻の修正・確定）は器のみ＝RPC は次便・staff_payroll_runs への確定ボタンは置くが無効（第 2 期の注記）。
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { mig0213On, mig0214On } from "@/lib/nox/rules-0175/flag"; // ★0213／0214
+import { dayAdjOfSource, loadDayAdjSource } from "@/lib/nox/punch/day-adj-load"; // ★0213／0214
+import type { DayAdj } from "@/lib/nox/punch/day-window";
 import ContractChip from "@/components/nox/contract-chip"; // ★便 D M-99
 import Link from "next/link"; // ★便 M3 M-23 ②: 「日ごとの勤怠を開く」（給与 › 勤怠（スタッフ）へ）
 import BottomSheet, { useNarrow } from "@/components/ui/bottom-sheet"; // ★便 M3 M-23 ③: 390px＝シート化（C2-7 と同型）
@@ -50,6 +53,7 @@ export default function StaffWorkPanel({ scope, stores, daily = false, initialMe
   const [users, setUsers] = useState<Record<string, UserRow>>({});
   const [contracts, setContracts] = useState<Record<string, StaffContract>>({});
   const [punches, setPunches] = useState<StaffPunch[]>([]);
+  const [staffAdj, setStaffAdj] = useState<((mid: string, bd: string) => DayAdj | null) | null>(null); // ★0213／0214
   const [err, setErr] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [run, setRun] = useState<{ status: string } | null>(null);
@@ -91,6 +95,12 @@ export default function StaffWorkPanel({ scope, stores, daily = false, initialMe
     const { data: al } = mig0195On() ? await supabase.from("staff_allowances").select("membership_id, name, amount, sort").eq("is_active", true).order("sort") : { data: null }; // ★0195: 名称つきの固定手当＝見込み（staffPayOf）と確定（staffLaborRowOf の allowances）に
     setContracts(Object.fromEntries(attachStaffAllowances((cc.data ?? []) as StaffContract[], al as StaffAllowanceRow[] | null).map((c) => [c.membership_id, c])));
     setPunches((pp.data ?? []) as StaffPunch[]);
+    if (mig0213On() || mig0214On()) { // ★0213／0214（相談役 11/25）: 店ごとの丸めの履歴と休憩（スタッフは確定シフトの基準を持たない＝いつも当てる）。旗 false＝読まない
+      const storeIds = [...new Set(rows.map((m) => m.store_id))];
+      const fs = await Promise.all(storeIds.map(async (sid) => [sid, dayAdjOfSource(await loadDayAdjSource(supabase, sid, from, to), {})] as const));
+      const byStore = new Map(fs); const storeOfMem = new Map(rows.map((m) => [m.id, m.store_id]));
+      setStaffAdj(() => (mid: string, bd: string) => byStore.get(storeOfMem.get(mid) ?? "")?.(mid, bd) ?? null);
+    }
     if (scope === "store") { const { data: rr } = await supabase.from("staff_payroll_runs").select("status").eq("period", month).limit(1); setRun(((rr ?? []) as { status: string }[])[0] ?? null); }
     if (stores[0]?.id) { const { data: tb } = await supabase.rpc("biz_date_of", { p_store_id: stores[0].id, p_at: new Date().toISOString() }); if (typeof tb === "string") setTodayBiz(tb); } // ★便 M3 M-23: 営業日の今日（勤務中／退勤記録なしの判定）
     if (mig0192On() && scope === "store") { // ★0192 ★1: 区分と月の確定（RLS＝owner 全店／manager 自店）
@@ -124,12 +134,12 @@ export default function StaffWorkPanel({ scope, stores, daily = false, initialMe
     // 本人画面＝RLS で自分の membership 行だけが読める（memberships_select）＝scope "me" は読めた行をそのまま使う
     return mems.filter((m) => m.is_active).map((m) => {
       const c = contracts[m.id] ?? null;
-      const days = staffHoursOf(byMem.get(m.id) ?? []);
+      const days = staffHoursOf(byMem.get(m.id) ?? [], staffAdj ? (bd: string) => staffAdj(m.id, bd) : null);
       const kind = c && mig0183On() ? withholdingKindOf(w432.kind[m.id] ?? null, defaultWithholdingKindOf({ subject: "staff", contractKind: c.contract_kind })) : null; // ★裁定432
       return { m, name: users[m.user_id]?.name ?? "—", store: stores.find((s) => s.id === m.store_id)?.name ?? "—", contract: c, days, kind,
         pay: c ? staffPayOf(c, days, kind ? { kind, override: w432.ov[m.id] ?? null, deductions: w432.ded[m.id] ?? [] } : undefined) : null };
     }).sort((a, b) => a.store.localeCompare(b.store) || a.name.localeCompare(b.name));
-  }, [mems, users, contracts, punches, stores, w432]);
+  }, [mems, users, contracts, punches, stores, w432, staffAdj]);
   // ★便 M3 M-21: 働き方の欄＝雇用形態・給与の形・額＝staff_contract_set（0176・patch）。源泉区分は下の既存の欄（雇用形態から既定）
   const CONTRACT_KIND_OPTS = [["contractor", "業務委託"], ["parttime", "アルバイト・パート"], ["employee", "正社員"]] as const;
   const PAY_KIND_OPTS = [["hourly", "時給"], ["daily", "日給"], ["monthly", "月給"]] as const;
@@ -219,7 +229,7 @@ export default function StaffWorkPanel({ scope, stores, daily = false, initialMe
       {daily && dailyMem && (() => { /* ★便 M3 M-23 ①③: 1 人 1 か月の日ごとの勤怠＝キャストと同じ部品（KintaiHead／KintaiRow・withPay なし）＋時給分／日計（時給制だけ）・月給は — */
         const r = rows.find((x) => x.m.id === dailyMem); if (!r) return null;
         const statusOfMem = Object.fromEntries(Object.entries(dayStatus).filter(([key]) => key.startsWith(`${r.m.id}|`)).map(([key, v]) => [key.slice(r.m.id.length + 1), v])); // ★0192 ★1
-        const dayRows = staffDayRowsOf(punches.filter((p) => p.membership_id === r.m.id), todayBiz, statusOfMem);
+        const dayRows = staffDayRowsOf(punches.filter((p) => p.membership_id === r.m.id), todayBiz, statusOfMem, staffAdj ? (bd: string) => staffAdj(r.m.id, bd) : null);
         const att = mig0192On() && scope === "store"; // ★0192 ★1／M-38: 店の修正・確定・退勤の取消
         const paid = paidByStore[r.m.store_id] ?? null; // ★M-130: この店・この月の支払い記録（0200）
         // ★0200 フラグ便（2026-11-10）: 支払い済みの月は確定済みと同じに扱う（DB も 'paid period' で解除・再確定を拒む）。

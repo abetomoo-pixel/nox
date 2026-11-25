@@ -3,6 +3,7 @@
 //   名簿に無い鍵は写さない。SQL（0203 の store_copy_settings）の名簿はこのファイルと同じであること（検査 nox-multi-store が突き合わせる）。
 //   鍵を足したのに名簿に入れ忘れたら赤（検査が set_store_profile の白名単・本番の settings_json の鍵・コードの読取の鍵を全部この名簿と照らす）。
 import type { StoreCopyPart } from "@/lib/nox/ops/store-add";
+import { mig0214On } from "@/lib/nox/rules-0175/flag"; // ★0214
 
 /** needs＝★版 3（相談役 11/23 16:40 の ■2-c）: 対になる値（端末・同意・LINE・位置・シフト）を写さないのに、設定だけ写すもの＝表に印を付ける（移すかは相談役が決める） */
 export type CopyClass = { part: StoreCopyPart | null; why: string; needs?: string };
@@ -65,6 +66,7 @@ export const STORE_SETTING_KEYS: Readonly<Record<string, CopyClass>> = {
   payment_methods: { part: "settings", why: "支払い方法" }, punch_methods: { part: "settings", why: "打刻の方法", needs: "店の端末（キオスク）＝写さない。端末が無い間は本人と代理の打刻だけ使える" }, punch_enforce: { part: null, why: "★版 3 打刻の強制＝写さない（位置を写さないので、方式が位置のまま強制だけ写ると店の設定の保存が毎回 range required で止まる）" },
   punch_restrict_mode: { part: null, why: "★版 3 打刻の制限の方式＝写さない（Wi-Fi・位置の値を写さない＝2 店目は制限なしで始める・「店の端末だけ」を写すと端末の無い 2 店目で本人の打刻が全部止まる）" }, punch_require_shift: { part: null, why: "★版 4 シフトの無い打刻＝写さない（シフトは写さない＝「止める」を写すと 2 店目で最初のシフトを作るまで本人の出勤の打刻が止まる・2 店目は既定の「許す」（off）で始まる）" },
   punch_round_unit: { part: null, why: "★版 3 勤務時間の丸めの単位＝写さない（丸めは店ごとに同意を取る・同意の版は写さない＝2 店目は丸めない（1 分）で始まる）" }, punch_round_mode: { part: null, why: "★版 3 勤務時間の丸め方＝写さない（同上）" }, punch_mode: { part: "settings", why: "打刻する店かどうか" },
+  break_punch: { part: mig0214On() ? "settings" : null, why: "★0214（起票158 の 2・相談役 11/25 の D5）休憩の打刻を使う＝2 店目に写す（0214 の store_copy_settings が写す鍵に足す・旗 false の間は 0203 の名簿どおり写さない）" },
   pay_fee_rates: { part: "settings", why: "支払い手数料" }, pay_discount_rates: { part: "settings", why: "支払い割引" }, pay_discount_base: { part: "settings", why: "割引の基準" },
   cash_float_default: { part: "settings", why: "釣り銭の既定" }, register_window_before_min: { part: "settings", why: "レジの前の時間" }, register_window_after_min: { part: "settings", why: "レジの後の時間" },
   cast_register_scope: { part: "settings", why: "会計できる卓", needs: "キャストのレジ端末＝写さない（キャストのレジ使用と同じ）" }, duty_gate: { part: "settings", why: "出勤の柵（読まれていない鍵）" },

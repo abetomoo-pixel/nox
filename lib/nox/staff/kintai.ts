@@ -2,6 +2,7 @@
 //   対の作り方は lib/nox/staff/pay.ts staffHoursOf と同じ（in→out を順に対・out の無い日は open）＝サマリの出勤日数・実働と一致（suite で突合）。
 //   店の修正（punch_corrections）・遅刻／当欠・確定シフトはスタッフに器が無い＝null／false（打刻の修正＝0190／0191 へ）。
 import type { AttendanceDayRow } from "../payroll/attendance-sheet";
+import type { DayAdj } from "../punch/day-window"; // ★0213／0214
 import { staffHoursOf, type StaffContract, type StaffPunch } from "./pay";
 
 const JST = 9 * 3600_000;
@@ -26,11 +27,11 @@ export function staffHmToIso(bizDate: string, hm: string): string | null {
 }
 /** 1 人 1 か月の行（打刻のある営業日＋区分だけの日・日付順）。todayBiz＝営業日の今日（out の無い今日＝勤務中・過去＝退勤記録なし）。
  *  ★0192 ★1: status（営業日→区分）があれば 遅刻／当欠／早退 に反映（当欠は打刻が無くても行を出す） */
-export function staffDayRowsOf(punches: readonly StaffPunch[], todayBiz: string, status: Readonly<Record<string, StaffDayStatus>> = {}): AttendanceDayRow[] {
+export function staffDayRowsOf(punches: readonly StaffPunch[], todayBiz: string, status: Readonly<Record<string, StaffDayStatus>> = {}, dayAdj?: ((bizDate: string) => DayAdj | null) | null /* ★0213／0214 */): AttendanceDayRow[] {
   const byDate = new Map<string, StaffPunch[]>();
   for (const p of punches) (byDate.get(p.biz_date) ?? byDate.set(p.biz_date, []).get(p.biz_date)!).push(p);
   for (const d of Object.keys(status)) if (!byDate.has(d)) byDate.set(d, []);
-  const hours = new Map(staffHoursOf(punches).map((d) => [d.bizDate, d]));
+  const hours = new Map(staffHoursOf(punches, dayAdj).map((d) => [d.bizDate, d]));
   const out: AttendanceDayRow[] = [];
   for (const [bizDate, rows] of [...byDate.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
     const sorted = [...rows].sort((a, b) => Date.parse(a.punched_at) - Date.parse(b.punched_at));

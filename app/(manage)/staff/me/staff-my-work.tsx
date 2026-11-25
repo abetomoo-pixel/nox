@@ -3,6 +3,8 @@
 // ★0201e ★7（2026-11-12）: スタッフ本人の勤怠と日計（/staff/me）＝RPC staff_my_work（本人の分だけ・店の端末では金額を返さない）。
 //   月を選ぶ → 日ごとの出勤・退勤・実働・日計（時給制だけ）→ 月のまとめ（出勤日数・実働・見込み・確定・支払い済み）。読取だけ。
 import { useCallback, useEffect, useState } from "react";
+import { mig0213On, mig0214On } from "@/lib/nox/rules-0175/flag"; // ★0213／0214
+import { dayAdjOfSource, loadDayAdjSource } from "@/lib/nox/punch/day-adj-load"; // ★0213／0214
 import { createClient } from "@/lib/supabase/client";
 import Toast from "@/components/ui/toast";
 import * as t from "@/lib/nox/ui/theme";
@@ -28,7 +30,10 @@ export default function StaffMyWork({ storeId }: { storeId: string | null }) {
     if (storeId) { const { data: tb } = await supabase.rpc("biz_date_of", { p_store_id: storeId, p_at: new Date().toISOString() }); if (typeof tb === "string") todayBiz = tb; }
     const { data, error } = await supabase.rpc(STAFF_MY_WORK_RPC, { p_from: from, p_to: to });
     if (error) { setErr(rpcErrJa(error.message)); setView(null); return; }
-    setView(staffMyWorkViewOf(data, month, todayBiz));
+    // ★0213／0214（相談役 11/25）: 自分の店の丸めの履歴と自分の休憩（RLS）＝給与と同じ日の窓。旗 false＝読まない
+    const adjF = (mig0213On() || mig0214On()) && storeId ? dayAdjOfSource(await loadDayAdjSource(supabase, storeId, from, to), {}) : null;
+    const mid = (data && typeof data === "object" && typeof (data as { membership_id?: unknown }).membership_id === "string") ? (data as { membership_id: string }).membership_id : "";
+    setView(staffMyWorkViewOf(data, month, todayBiz, adjF && mid ? (bd: string) => adjF(mid, bd) : null));
   }, [month, storeId]);
   useEffect(() => { void load(); }, [load]);
 

@@ -19,8 +19,8 @@ ok("(2-4) 端末のキャスト＝状態を読めない＝両方", J(kioskButton
 
 const mine = fs.readFileSync("app/mine/punch-actions.tsx", "utf8"), kiosk = fs.readFileSync("app/kiosk/page.tsx", "utf8");
 ok("(3-1) マイページは出す印で出勤と退勤を出し分け", mine.includes("const shownBtn = punchButtonsShownOf(shown);") && mine.includes('{shownBtn.in && <button className="nox-punchbtn"') && mine.includes('{shownBtn.out && <button className="nox-punchbtn"'));
-ok("(3-2) 端末はスタッフにだけ今日の最後の打刻を渡す（キャストの行は lastKind なし）", kiosk.includes("staff: true, lastKind: m.last_kind })") && kiosk.includes("kioskButtonsShownOf(target.lastKind, !!target.staff)"));
-ok("(3-3) 端末のボタンは 1 つのとき全幅（two を外す）", kiosk.includes('className={sb.in && sb.out ? "nox-pinpad-go two" : "nox-pinpad-go"}'));
+ok("(3-2) 端末はスタッフにだけ今日の最後の打刻を渡す（キャストの行は lastKind なし）", kiosk.includes("staff: true, lastKind: m.last_kind })") && kiosk.includes("kioskBreakButtonsOf(mig0214On() ? target.kstate ?? null : null, { staff: !!target.staff, lastKind: target.lastKind })")); /* ★0214: 旗 false（状態なし）は kioskButtonsShownOf(target.lastKind, staff) と同じ＝verify:nox-breaks (1-5) */
+ok("(3-3) 端末のボタンは 1 つのとき全幅（two を外す）", kiosk.includes('className={nShown >= 2 ? "nox-pinpad-go two" : "nox-pinpad-go"}')); /* ★0214: 出すボタンの数で（休憩を足しても 1 つなら全幅） */
 
 if (fails.length) { console.error(fails.join("\n")); console.error(`verify:nox-punch-buttons FAIL ${fails.length} / ${n}`); process.exit(1); }
 console.log(`verify:nox-punch-buttons ALL PASS (${n} assertions)`);
