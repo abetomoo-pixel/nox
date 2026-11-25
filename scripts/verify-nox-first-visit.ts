@@ -10,7 +10,7 @@ import { groupDue, roundAmount, taxRound, groupDueFull, dueBreakdownOf, type Due
 import { buildReceiptXml, type ReceiptInput, type ReceiptLine } from "../lib/nox/receipt";
 import { payDiscountPreviewOf } from "../lib/nox/rules-0175/pay-discount";
 import { openEstimateOf, type EstimateRule } from "../lib/nox/register/open-estimate";
-import { firstVisitBadgeOf, setLineNameOf, canExtendOf, canSwitchToExtendOf, defaultOpenCategoryOf, visitNoteOf, overdueTablesOf, firstVisitErrJa, FIRST_VISIT_WARN_MIN, firstVisitShadowsOf, firstVisitShadowBlockOf, ruleCoversOf, FIRST_VISIT_SHADOW_JA, firstVisitPartialShadowsOf, FIRST_VISIT_PARTIAL_NOTE_JA, FIRST_VISIT_ALL_IN_NOTE, type ShadowRule } from "../lib/nox/register/first-visit";
+import { firstVisitBadgeOf, setLineNameOf, canExtendOf, canSwitchToExtendOf, extButtonsOf, defaultOpenCategoryOf, visitNoteOf, overdueTablesOf, firstVisitErrJa, FIRST_VISIT_WARN_MIN, firstVisitShadowsOf, firstVisitShadowBlockOf, ruleCoversOf, FIRST_VISIT_SHADOW_JA, firstVisitPartialShadowsOf, FIRST_VISIT_PARTIAL_NOTE_JA, FIRST_VISIT_ALL_IN_NOTE, type ShadowRule } from "../lib/nox/register/first-visit";
 import { FIRST_VISIT_SALES_NOTE } from "../lib/nox/payroll/sales-basis";
 import { MIG_0210_APPLIED, mig0210On, FIRST_VISIT_RECEIPT_R1, firstVisitReceiptR1On } from "../lib/nox/rules-0175/flag";
 import { STORE_SETTING_KEYS } from "../lib/nox/ops/store-copy-keys";
@@ -242,6 +242,17 @@ ok("(8-5) ⑤R1 は税理士の確認済み（11/25）＝0210 を当てた便 H1
 //      （直す前は読み直すまで古い行で判定され、印を付けた同じ画面で区分なしの行を初回の行より上へ並べ替えられた＝2026-11-26 01:10 本番の NOX-VERIFY-A1）
 ok("(9-1) カードは書いた後（エラーなし）に onChanged を呼ぶ（印・行の保存・売上に数える の 3 か所）・表は reload と loadCats で読み直す",
   (cardSrc.match(/if \(!error\) onChanged\?\.\(\);/g) ?? []).length === 3 && boardSrc.includes("onChanged={() => { void reload(); void loadCats(); }"));
+
+// (10) ★相談役 11/25 の便 I【I1】（起票166）: 時間で終わり・時間無制限の卓には延長のボタンを出さない・店長以上は「延長に切り替える」だけ（店の端末も同じ /register）
+const eb = (te: string | null, m: boolean, on = true) => JSON.stringify(extButtonsOf(te, m, on));
+const ebOf = (extend: boolean, switchToExtend: boolean) => JSON.stringify({ extend, switchToExtend });
+ok("(10-1) 出し分け＝extend は延長だけ・end は店長以上に切り替えだけ（スタッフは何も無い）・unlimited は何も無い・旗 false は今までどおり",
+  eb("extend", true) === ebOf(true, false) && eb(null, false) === ebOf(true, false) && eb("end", true) === ebOf(false, true) && eb("end", false) === ebOf(false, false)
+  && eb("unlimited", true) === ebOf(false, false) && eb("end", true, false) === ebOf(true, false));
+const regSrc = fs.readFileSync("app/(manage)/register/register-board.tsx", "utf8");
+ok("(10-2) レジ：延長・延長を追加・延長パターン・見積・延長のご案内（7 か所）が extBtn.extend の後ろ・会計タブの手動と自動の枠に「延長に切り替える」（extBtn.switchToExtend 2 か所）",
+  regSrc.includes("const extBtn = check ? extButtonsOf(check.time_end, isManagerUp, mig0210On())") && (regSrc.match(/{extBtn.extend && /g) ?? []).length === 7
+  && regSrc.includes("{!extBtn.extend ? (/* ★起票166") && regSrc.includes("{!extBtn.extend && (/* ★起票166") && (regSrc.match(/{extBtn.switchToExtend && <button/g) ?? []).length === 2);
 
 if (fails.length) { console.error(fails.join("\n")); console.error(`verify:nox-first-visit NG ${fails.length}／${n}`); process.exit(1); }
 console.log(`verify:nox-first-visit OK ${n}`);

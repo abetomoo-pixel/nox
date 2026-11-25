@@ -60,7 +60,7 @@ import Toast, { Message } from "@/components/ui/toast"; // ★裁定281（便 U�
 import { errJa } from "@/lib/nox/errors";
 import { mig0201dOn } from "@/lib/nox/rules-0175/flag"; // ★0201d（裁定478）: 定休日の開卓＝臨時営業の問い
 import { mig0210On } from "@/lib/nox/rules-0175/flag"; // ★0210（起票140）: 初回料金（区分を全員が選ぶ・札・延長の柵と切り替え）
-import { canExtendOf, canSwitchToExtendOf, defaultOpenCategoryOf, firstVisitBadgeOf, firstVisitErrJa, overdueTablesOf, visitNoteOf, type FirstVisitTone } from "@/lib/nox/register/first-visit"; // ★0210
+import { canExtendOf, canSwitchToExtendOf, extButtonsOf, timeEndOf, defaultOpenCategoryOf, firstVisitBadgeOf, firstVisitErrJa, overdueTablesOf, visitNoteOf, type FirstVisitTone } from "@/lib/nox/register/first-visit"; // ★0210
 import { specialOpenStepOf, priceDowChoicesOf, DOW_JA, SPECIAL_OPEN_ASK, SPECIAL_OPEN_DOW_ASK, SPECIAL_CLOSED_NOTE } from "@/lib/nox/business-hours-special"; // ★裁定467（M-126）: 利用者向けの文言は辞書 1 本
 type Seat = { id: string; name: string; kind: string | null; store_id: string };
 // 純増⑦（mig0063）: category_id でタイルをカテゴリ別に束ねる（未登録店は type 別へフォールバック）
@@ -1560,6 +1560,8 @@ export default function RegisterBoard({
   //   ★起票#48（裁定112 同乗）: backbar（テーブル情報行）にも複製＝from="bar" は文言を
   //     MSG_DETAIL（詳細共通の描画点）へ出す（会計タブに居なくても押下結果が見える）。
   // ★0210（起票140・相談役 11/25）: 時間で終わりの初回の卓を「ふつうの料金で延長」に切り替える（店長以上・check_set_time_end）。切り替えた後の延長は開卓で凍結した延長の額
+  // ★起票166（相談役 11/25 の便 I【I1】）: 時間で終わり・時間無制限の卓は延長のボタンを出さない（店長以上は「延長に切り替える」だけ）＝店の端末（同じ /register）も同じ
+  const extBtn = check ? extButtonsOf(check.time_end, isManagerUp, mig0210On()) : { extend: true, switchToExtend: false };
   async function switchToExtend() {
     if (!check || !mig0210On()) return;
     if (!window.confirm("この卓を「ふつうの料金で延長」に切り替えます。セットの時間を過ぎた分から延長料金がかかります。よろしいですか？")) return;
@@ -2999,14 +3001,14 @@ export default function RegisterBoard({
           })()}
           {/* ★便 X-8-7 (a)（裁定306 の型）: 2 段目＝延長／合計／伝票取消（／合算）。PC は display: contents＝従来の 1 行の並びのまま・≤899px は 100% 幅の 1 段（横はみ出し 0） */}
           <div className="nox-backbar-row2">
-          {extEstimatePatterns.length > 0 && (/* ★便 B M-70: 見積＝延長 1〜3 回後の合計（注文・指名・席タブからも同じ表をポップオーバー） */
+          {extBtn.extend && extEstimatePatterns.length > 0 && (/* ★便 B M-70: 見積＝延長 1〜3 回後の合計（注文・指名・席タブからも同じ表をポップオーバー） */
             <button type="button" style={btnLight} data-ext-estimate-open="1" onClick={() => setExtEstimateOpen(true)}>見積</button>
           )}
-          {mig0187On() && check.status === "open" && extGuideRows.length > 0 && (/* ★0187（便 EXT）: 延長のご案内（お客様向け全画面）＝延長パターンがある店だけ */
+          {extBtn.extend && mig0187On() && check.status === "open" && extGuideRows.length > 0 && (/* ★0187（便 EXT）: 延長のご案内（お客様向け全画面）＝延長パターンがある店だけ */
             <button type="button" style={btnLight} data-ext-guide-open="1" onClick={() => { setExtGuideConfirm(null); setExtGuide(true); }}>延長のご案内</button>
           )}
           {/* ★便 P173（裁定385 追補・0173）: 自動延長の店＝既定パターンを自動適用（選択は出さない）・切替は「延長パターン ▾」（snap 2 件以上）＝check_set_ext_rule（確定ブロックの差額引き直し） */}
-          {timeMode === "auto" && check.status === "open" && (check.ext_menu_snap?.length ?? 0) >= 2 && (() => {
+          {extBtn.extend && timeMode === "auto" && check.status === "open" && (check.ext_menu_snap?.length ?? 0) >= 2 && (() => {
             const menu = check.ext_menu_snap ?? [];
             const cur = rules0175On() ? extCurrentOf(menu, (check as { ext_rule_id?: string | null }).ext_rule_id ?? null, check.ext_min, check.ext_fee) : menu.find((m) => m.duration_min === check.ext_min && m.amount === check.ext_fee); // ★連続便 3 追補 P-10: 選択中＝checks.ext_rule_id（0175 v2 ★23）
             return (
@@ -3035,7 +3037,7 @@ export default function RegisterBoard({
               check_extension_add 呼び（会計タブと同一経路）・入金後 disabled。会計タブ側カードは残置。
               ★#48b: 分割型＝本体は既定延長（現行）・「▾」は ext_menu_snap（開栓時凍結）の一覧から選択
               →check_extension_add(p_rule_id)。snap null または1種のみは▾非表示。disabled は両方に適用。 */}
-          {timeMode === "manual" && check.status === "open" && (() => {
+          {extBtn.extend && timeMode === "manual" && check.status === "open" && (() => {
             const extDisabled = payments.length > 0;
             const menu = check.ext_menu_snap ?? [];
             const curExt = rules0175On() ? extCurrentOf(menu, (check as { ext_rule_id?: string | null }).ext_rule_id ?? null, check.ext_min, check.ext_fee) : null; // ★連続便 3 追補 P-10: パターン名の併記
@@ -3580,7 +3582,13 @@ export default function RegisterBoard({
                 延長 <span style={t.num}>{yen(timeCalc.ext_c)}</span> ＝ 合計 <span style={{ ...t.num, fontWeight: 700, color: "var(--v2-text)" }}>{yen(timeCalc.total)}</span>
               </p>
             )}
-            {extEstimatePatterns.length > 0 && (/* ★便 B M-70: 延長シミュレーション（自動店＝実時計の回数から・パターンごと） */
+            {!extBtn.extend && (/* ★起票166: 時間で終わり・時間無制限の卓＝延長のボタンは出さない・店長以上は時間で終わりの卓に「延長に切り替える」だけ */
+              <div className="nox-actions" data-ext-none="auto" style={{ flexDirection: "column", alignItems: "center", gap: 6, marginTop: 8 }}>
+                <p style={{ fontSize: 12, color: "var(--sub)", margin: 0 }}>{timeEndOf(check.time_end) === "unlimited" ? "初回料金（時間無制限）の卓です＝延長はありません" : "初回料金（時間で終わり）の卓です＝延長しません"}</p>
+                {extBtn.switchToExtend && <button type="button" style={btnDark} data-first-visit-switch="auto" onClick={() => void switchToExtend()}>延長に切り替える</button>}
+              </div>
+            )}
+            {extBtn.extend && extEstimatePatterns.length > 0 && (/* ★便 B M-70: 延長シミュレーション（自動店＝実時計の回数から・パターンごと） */
               <div style={{ marginTop: 10 }} data-ext-estimate-card="auto"><ExtEstimateTable patterns={extEstimatePatterns} startedAtMs={new Date(check.started_at).getTime()} units={check.time_per === "person" ? (check.people ?? 1) : 1} /></div>
             )}
             {timeMsg && <Toast msg={timeMsg} style={{ margin: "8px 0 0" }} />}
@@ -3607,7 +3615,12 @@ export default function RegisterBoard({
             {/* R2-a（mig0098 R2-1）: ext_menu_snap が2件以上ならメニューボタン群（開栓時凍結の label・
                 p_rule_id 結線）・1件以下は現行の単一ボタン（p_rule_id なし＝既定スナップ）。
                 units（person 制の人数倍）はサーバが掛ける＝表示も同倍で合わせる。 */}
-            {(check.ext_menu_snap?.length ?? 0) >= 2 ? (
+            {!extBtn.extend ? (/* ★起票166: 時間で終わり・時間無制限の卓＝延長のボタンは出さない・店長以上は時間で終わりの卓に「延長に切り替える」だけ */
+              <div className="nox-actions" data-ext-none="manual" style={{ flexDirection: "column", alignItems: "center", gap: 6, marginTop: 8 }}>
+                <p style={{ fontSize: 12, color: "var(--sub)", margin: 0 }}>{timeEndOf(check.time_end) === "unlimited" ? "初回料金（時間無制限）の卓です＝延長はありません" : "初回料金（時間で終わり）の卓です＝延長しません"}</p>
+                {extBtn.switchToExtend && <button type="button" style={btnDark} data-first-visit-switch="manual" onClick={() => void switchToExtend()}>延長に切り替える</button>}
+              </div>
+            ) : (check.ext_menu_snap?.length ?? 0) >= 2 ? (
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 {check.ext_menu_snap!.map((m) => {
                   const units = check.time_per === "person" ? (check.people ?? 1) : 1;
@@ -3628,10 +3641,10 @@ export default function RegisterBoard({
                 </button>
               </div>
             )}
-            {extEstimatePatterns.length > 0 && (/* ★便 B M-70: 延長シミュレーション（手動店＝追加済みの回数からの続き・パターンごと） */
+            {extBtn.extend && extEstimatePatterns.length > 0 && (/* ★便 B M-70: 延長シミュレーション（手動店＝追加済みの回数からの続き・パターンごと） */
               <div style={{ marginTop: 10 }} data-ext-estimate-card="manual"><ExtEstimateTable patterns={extEstimatePatterns} startedAtMs={new Date(check.started_at).getTime()} units={check.time_per === "person" ? (check.people ?? 1) : 1} /></div>
             )}
-            {mig0187On() && extGuideRows.length > 0 && (/* ★0187（便 EXT）: お客様に見せる全画面＝今の時間帯の延長時間を全部・タップで追加（確認 1 回）・主ボタン中央 */
+            {extBtn.extend && mig0187On() && extGuideRows.length > 0 && (/* ★0187（便 EXT）: お客様に見せる全画面＝今の時間帯の延長時間を全部・タップで追加（確認 1 回）・主ボタン中央 */
               <div className="nox-actions" style={{ marginTop: 8 }}><button type="button" style={btnLight} data-ext-guide-open="1" onClick={() => { setExtGuideConfirm(null); setExtGuide(true); }}>延長のご案内（お客様向け）</button></div>
             )}
             {/* R-1a 段2: 描画点＝時間料金（手動）カード。延長の**完了文言**（金額つき）。

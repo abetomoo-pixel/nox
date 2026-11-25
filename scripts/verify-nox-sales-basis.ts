@@ -9,6 +9,7 @@ import fs from "node:fs";
 import pg from "pg";
 import { salesBasisOf, salesRpcOf, salesBackDefaultOffOf, SALES_BASIS_LABEL } from "../lib/nox/payroll/sales-basis";
 import { breakdownLinesOf, SALES_BASIS_LINE } from "../lib/nox/payroll/breakdown-lines";
+import { RUN_ORG_NAMES } from "./fixtures-f0"; // ★相談役 11/25 の便 I【I4】
 let pass = 0;
 const fails: string[] = [];
 function check(label: string, ok: boolean, d?: unknown) { if (ok) pass++; else fails.push(`${label}${d !== undefined ? `: ${JSON.stringify(d)}` : ""}`); }
@@ -46,7 +47,8 @@ const c = new pg.Client({ connectionString: process.env.SUPABASE_DB_URL, ssl: { 
 await c.connect();
 try {
   await c.query("begin read only");
-  const st = (await c.query<{ name: string; settings_json: Record<string, unknown> | null }>("select name, settings_json from public.stores order by name")).rows;
+  // ★相談役 11/25 の便 I【I4】: 段 3 の通しの会社（NOX-RUN-HOST＝ホストの初期設定で鍵が入る）は外す（名前で）
+  const st = (await c.query<{ name: string; settings_json: Record<string, unknown> | null }>("select s.name, s.settings_json from public.stores s join public.orgs o on o.id = s.org_id where not (o.name = any($1::text[])) order by s.name", [RUN_ORG_NAMES])).rows;
   const keyed = st.filter((s) => s.settings_json && ("sales_basis" in s.settings_json || "sales_back_default_off" in s.settings_json));
   const plain = st.filter((s) => !keyed.includes(s));
   check("sb(3-1) 鍵の無い店は今までと同じ経路（get_cast_sales・既定の売上歩合を止めない）", plain.every((s) => salesRpcOf(salesBasisOf(s.settings_json, true)) === "get_cast_sales" && !salesBackDefaultOffOf(s.settings_json, true)), plain.map((s) => s.name));

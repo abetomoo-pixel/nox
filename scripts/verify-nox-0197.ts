@@ -9,6 +9,7 @@
 import fs from "node:fs";
 import pg from "pg";
 import { MIG_0197_APPLIED, mig0197On, __set0197ForTest } from "../lib/nox/rules-0175/flag";
+import { RUN_ORG_NAMES } from "./fixtures-f0"; // ★相談役 11/25 の便 I【I4】
 import { REGISTER_WINDOW_DEFAULT, inRegisterWindowOf, punchModeOf, registerWindowErrorOf, registerWindowOf, storeModeAttendedDatesOf } from "../lib/nox/shift/punch-mode";
 import { ATTENDANCE_MONTH_NOTE_STORE, monthAttendanceRowsStoreOf } from "../lib/nox/mine/attendance-month";
 let pass = 0; const fails: string[] = [];
@@ -62,7 +63,7 @@ async function main(): Promise<void> {
         (select prosrc like '%punch_mode%' and prosrc like '%register_window_before_min%' from pg_proc where pronamespace='public'::regnamespace and proname='set_store_profile') spw,
         (select prosrc like '%''store''%' from pg_proc where pronamespace='public'::regnamespace and proname='on_duty_of') odb,
         (select prosrc like '%billing locked%' from pg_proc where pronamespace='public'::regnamespace and proname='register_day_grant_set') gated,
-        (select count(*)::int from public.stores where settings_json->>'punch_mode'='store') pm`)).rows[0];
+        (select count(*)::int from public.stores s join public.orgs o on o.id = s.org_id where s.settings_json->>'punch_mode'='store' and not (o.name = any($1::text[]))) pm`, [RUN_ORG_NAMES])).rows[0]; // ★便 I【I4】: 通しの会社（NOX-RUN-HOST）は外す
       check("0197(4-1) live＝関数 419・表 120・register_day_grant_set 1 本・register_day_grants は RLS 有効・policy 1・authenticated=SELECT だけ・anon なし・unique（store,kind,subject,date）", before.f === 522 /* ★0210 版 3（2026-11-25 22:39 CC 適用）: 518→522・表 133 のまま */ /* ★0214 版 2（2026-11-25 19:48 CC 適用）: 511→518・132→133 */ /* ★0212・0215（2026-11-25 17:05 CC 適用）: 501→511・129→132 */  /* ★0213・0209（2026-11-25 CC 適用）: 490→501・128→129 */ /* ★0211（2026-11-25 11:13:41 CC 適用）: 487→490 */ /* ★0207・0208（2026-11-25 CC 適用）: 483→487・127→128 */ /* ★0203 版 4（2026-11-24 11:21:19 CC 適用）: 478→483 */ /* ★0202a（2026-11-21 12:06 CC 適用）: 455→463 */ /* ★0202b（2026-11-21 21:57 CC 適用）: 463→478・124→126 */ /* ★0201s（2026-11-19 06:41 CC 適用）: 454→455 */ /* ★0201q（2026-11-18 16:53 手貼り）: 451→454 */ /* ★0201n（2026-11-18 手貼り）: 450→451 */ /* ★0201m（2026-11-16 手貼り）: 449→450 */ /* ★0201d（2026-11-13 夜 手貼り）: 447→449 */ /* ★0201i（2026-11-13 夕 手貼り）: 442→447 */ /* ★0201g（作り直し 4・手貼りの後）: 440→442 */ /* ★0201c／h／e（2026-11-12）: 431→440 */ /* ★0201（2026-11-11 手貼り・+4＝punch_self_impl／set_store_manager_punch／staff_pin_self_set／cast_pin_self_set）: 427→431 */ /* ★0200（2026-11-10 手貼り・+6−1＝notice_create_targets 6 引数／staff_labor_mark_paid／unmark_paid／auth_register_access／auth_cast_check_allowed／kiosk_person_active_of／kiosk_person_touch・set_store_cast_register drop）: 422→427 */ /* ★0198（2026-11-09 手貼り・+3＝cast_loan_grant／cast_loan_repay／cast_day_applied_of）: 419→422 */ && before.t === 133 /* ★0214 版 2: 132→133 */ /* ★0212（2026-11-25 17:05）: 129→132 */  /* ★0213（2026-11-25）: 128→129＝表 punch_round_rules */ /* ★0207（2026-11-25）: 127→128＝表 ops_support_requests */ /* ★0206（2026-11-24 CC 適用）: 126→127＝表 cast_employment */ /* ★0202a: 122→124 */ /* ★0201i: 121→122 */ /* ★0200: 表 120→121＝staff_labor_payments */ && r.n1 === 1 && r.rls === true && r.pol === 1 && r.tg === "authenticated=SELECT" && r.uq === 1, J({ before, r }));
       // ★0197 フラグ便の読取（2026-11-06）: on_duty_of は 0190 で内部専用（4 ロール revoke・client は呼ばない・assert_on_duty から呼ぶ）。0197 の起草が ACL ヘルパーで authenticated に grant してしまった＝追補（revoke）の手貼りまでこの行は赤＝verify:nox-0190 の「内部 3 本」と同じ指摘。
       check("0197(4-2) ACL＝set_store_profile／register_day_grant_set は authenticated 可・on_duty_of は内部専用（authenticated 不可＝0190 のまま）・anon は 3 本とも不可・白名単 3 キー・'store' の分岐・register_day_grant_set はゲート内蔵（A18）", r.acl3 === "false/false,true/false,true/false" /* proname 順＝on_duty_of（内部）・register_day_grant_set・set_store_profile */ && r.spw === true && r.odb === true && r.gated === true, J(r));
@@ -125,7 +126,7 @@ async function main(): Promise<void> {
         check("0197(5-22) punch_mode 'punch'＝最後の打刻が in なら true（従来）", (await duty()) === true);
       } finally { await pc.query("rollback"); }
       const after = await cntQ();
-      const left = (await pc.query(`select (select count(*)::int from public.casts where name like 'NOX-VERIFY-0197s-%') c, (select count(*)::int from public.register_day_grants) g, (select count(*)::int from public.stores where settings_json->>'punch_mode'='store') pm`)).rows[0];
+      const left = (await pc.query(`select (select count(*)::int from public.casts where name like 'NOX-VERIFY-0197s-%') c, (select count(*)::int from public.register_day_grants) g, (select count(*)::int from public.stores s join public.orgs o on o.id = s.org_id where s.settings_json->>'punch_mode'='store' and not (o.name = any($1::text[]))) pm`, [RUN_ORG_NAMES])).rows[0]; // ★便 I【I4】: 通しの会社（NOX-RUN-HOST）は外す
       check("0197(5-23) ROLLBACK＝DB 変更 0（関数 419・表 120・試走の行なし・punch_mode='store' の店は本番に 0）", after.f === before.f && after.t === before.t && left.c === 0 && left.pm === 0, J({ after, left }));
     } finally { await pc.end(); }
   } else console.log("(4)(5) skipped: SUPABASE_DB_URL なし");

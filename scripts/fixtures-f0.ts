@@ -42,6 +42,10 @@ export const STORE_A1 = "NOX-VERIFY-A1";
 export const STORE_A2 = "NOX-VERIFY-A2";
 export const STORE_B1 = "NOX-VERIFY-B1";
 
+/** ★相談役 11/25 の便 I【I4】: 段 3 の通しの会社（本番に通しの記録として行を残す・is_demo は false）。本番の全店を見る検査で「デモと NOX-VERIFY の外は 0」を見る所は、この名前の会社を外す。
+ *  f0 の走行中（印 F0_RUNNING）は通しをしない（表ぜんぶの前と後の件数を比べる検査が、通しの書込で赤になるため＝audit-sweep・daily-pay・punch-sequence ほか）。 */
+export const RUN_ORG_NAMES: readonly string[] = ["NOX-RUN-HOST"];
+
 export type FixtureUserKey =
   | "ownerA" | "managerA1" | "staffA1" | "staffRegOnA1" | "staffRegOffA1" | "staffCrmOnA1"
   | "castA1a" | "castA1b" | "managerB1";

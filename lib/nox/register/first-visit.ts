@@ -40,6 +40,13 @@ export function firstVisitBadgeOf(i: { firstVisit: boolean | null | undefined; t
 export const canExtendOf = (timeEnd: TimeEnd | string | null | undefined): boolean => timeEndOf(timeEnd) === "extend";
 /** 「ふつうの料金で延長に切り替える」を出すか（店長以上・時間で終わりの卓だけ＝check_set_time_end） */
 export const canSwitchToExtendOf = (timeEnd: TimeEnd | string | null | undefined, isManagerUp: boolean): boolean => isManagerUp && timeEndOf(timeEnd) === "end";
+/** ★起票166（相談役 11/25 の便 I【I1】）: 伝票の延長まわりのボタンの出し分け（レジ＝店の端末も同じ /register）。
+ *  時間で終わり・時間無制限の卓は延長のボタン（延長・延長を追加・延長パターン・見積・延長のご案内）を出さない＝押して no extension で断られる形をなくす。
+ *  店長以上には時間で終わりの卓に「延長に切り替える」だけを出す。切り替えた後（extend）は今までどおり。旗 false の間は今までどおり（延長は出す・切り替えは出さない）。 */
+export function extButtonsOf(timeEnd: TimeEnd | string | null | undefined, isManagerUp: boolean, on: boolean): { extend: boolean; switchToExtend: boolean } {
+  if (!on) return { extend: true, switchToExtend: false };
+  return { extend: canExtendOf(timeEnd), switchToExtend: canSwitchToExtendOf(timeEnd, isManagerUp) };
+}
 
 /** レジの上の「時間の卓 N」＝時間で終わりの初回の卓のうち赤（時間を過ぎた）の卓 */
 export function overdueTablesOf<T extends { firstVisit?: boolean | null; timeEnd?: string | null; startedAtMs: number; setMin: number }>(checks: readonly T[], nowMs: number): T[] {

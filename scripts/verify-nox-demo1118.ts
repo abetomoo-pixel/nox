@@ -10,6 +10,7 @@
 import fs from "node:fs";
 import { PROFILES, SLIDES, EXTRA_CASTS, PAY_RATE_DEMO, TRIAL, BIZ_TYPE_OF, billRoundOf, ROUND_UNIT_OF, MONTH_GROSS_TARGET, HOST_PLAN, HOST_TIERS, HOST_ALLOWANCE, HOST_COMMISSION_BASIS, hostCommissionDefsOf, hostStoreSettingsOf, HOST_COMMISSION_TIERS_ON, hostCommissionTiersOf } from "./demo/profiles.mjs";
 import { payRateTierOf, directionOf } from "../lib/nox/rules-0175/canon";
+import { DEMO_HOST_ORG, DEMO_HOST_FIRST_VISIT, DEMO_HOST_HOURLY_PLAN, DEMO_HOST_RANK_TIMES, demoOrgName } from "../lib/nox/demo/seed"; // ★相談役 11/25 の便 I【I3】
 let pass = 0;
 const fails: string[] = [];
 function check(label: string, ok: boolean, d?: unknown) { if (ok) pass++; else fails.push(`${label}${d !== undefined ? `: ${JSON.stringify(d)}` : ""}`); }
@@ -154,6 +155,25 @@ for (const c of Object.keys(want)) {
   check("d(8-1) buildPayload は DEMO_USERS に店の鍵が無いと消す前に止まる（役割の写像と payload の組み立ての前）", g > 0 && g < seed.indexOf("const built = buildPayloadFromRecording(orgId, bizDate, rec, userIdByRole);") && g > seed.indexOf("const envMap = parseDemoUsers(process.env.DEMO_USERS);"));
   const cron = fs.readFileSync("app/api/cron/demo-reset/route.ts", "utf8");
   check("d(8-2) cron の reset は組み立ての失敗で runDemoReset（wipe）を呼ばずに次の店へ", /if \(!built\.ok\) \{ await markFailed\(admin, orgId, built\.error\);.*continue; \}\r?\n\s*const r = await runDemoReset\(admin, orgId, built\.payload\);/.test(cron));
+}
+
+// d(9) ★相談役 11/25 の便 I【I3】（案 A＝入れ直しの後処理で足す・payload は変えない・mig なし）: 公開デモ CLUB VESPER（NOX-DEMO-HOST）の 4 つの見本
+{
+  const fv = DEMO_HOST_FIRST_VISIT, hp = DEMO_HOST_HOURLY_PLAN, rt = DEMO_HOST_RANK_TIMES;
+  check("d(9-1) 初回料金＝区分「初回」・1 名 2,000 円・60 分・税・サ込み（all_in）・時間で終わり（end）・並び 100（種のセットと同じ＝区分の行が先）・売上に数える鍵は入れない（既定）",
+    DEMO_HOST_ORG === demoOrgName("host") && fv.categoryName === "初回" && fv.amount === 2000 && fv.durationMin === 60 && fv.priceMode === "all_in" && fv.timeEnd === "end" && fv.priority === 100 && fv.billingUnit === "person");
+  check("d(9-2) 時間帯の時給＝新しいプラン「VESPER 新人（時間帯）」（VESPER 新人を写す・人 0）・帯 18:00〜21:00 1,500 円／21:00〜26:00 2,000 円（重ならない）",
+    hp.name === "VESPER 新人（時間帯）" && hp.copyOf === "VESPER 新人" && J(hp.bands) === J([{ from_min: 1080, to_min: 1260, value_amount: 1500 }, { from_min: 1260, to_min: 1560, value_amount: 2000 }]) && hp.bands[0].to_min <= hp.bands[1].from_min);
+  check("d(9-3) ランクの出勤の時刻＝上のランク（標準）20:00〜25:00・新人のランク（足す）18:00〜25:00", rt.upper.name === "標準" && rt.upper.start === 1200 && rt.upper.end === 1500 && rt.rookie.name === "新人" && rt.rookie.start === 1080 && rt.rookie.end === 1500);
+  const sd = fs.readFileSync("lib/nox/demo/seed.ts", "utf8");
+  const iCanon = sd.indexOf("  out.canon = await demoCanonBandsFor("), iHost = sd.indexOf("  out.host = await demoHostSamplesFor(admin, orgId)"), iPay = sd.indexOf("  out.payroll = await finalizePrevMonthForDemo(");
+  check("d(9-4) 後処理の順＝帯（canon）の後・先月の確定の前（凍結の明細と DB をそろえる）・失敗しても reset は成功扱い（.catch）", iCanon > 0 && iCanon < iHost && iHost < iPay && sd.includes("out.host = await demoHostSamplesFor(admin, orgId).catch("));
+  const fn = sd.slice(sd.indexOf("export async function demoHostSamplesFor("), sd.indexOf("/** ★便 NR-1 B⑤: 店の定休日"));
+  check("d(9-5) 会社は NOX-DEMO-HOST だけ・4 つはそれぞれ旗の後ろ（0210・HOURLY_BANDS_ON・0208・0214）・人を動かさない（キャストの rank_id・プランの割当を書かない）・休憩の行を入れない",
+    fn.includes("!== DEMO_HOST_ORG) return out;") && ["if (mig0210On()) {", "if (hourlyBandsOn()) {", "if (mig0208On()) {", "if (mig0214On()) {"].every((x) => fn.includes(x)) && !/from("casts")/.test(fn) && !/punch_breaks/.test(fn) && !/cast_plan|plan_id: .*cast/.test(fn));
+  const host = pay("host");
+  check("d(9-6) payload は変えない（host.json：区分 0・ランク 1（標準）・プラン 3・写し元「VESPER 新人」がある・店の鍵に break_punch なし）",
+    (host.pricing_categories ?? []).length === 0 && host.cast_ranks.length === 1 && host.cast_ranks[0].name === "標準" && host.comp_plans.length === 3 && host.comp_plans.some((p) => p.name === "VESPER 新人") && !("break_punch" in ((host.stores[0].settings_json ?? {}) as Row)));
 }
 
 if (fails.length) { console.error(`✗ verify:nox-demo1118 失敗 ${fails.length}（成功 ${pass}）`); for (const f of fails) console.error(" - " + f); process.exit(1); }

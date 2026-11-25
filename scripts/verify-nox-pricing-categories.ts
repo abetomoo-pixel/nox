@@ -16,6 +16,7 @@
  * fixture: NOX-VERIFY-pc* 命名・finally 後始末（golden 不触・pricing_rules は読むだけ）。
  */
 import { createClient } from "@supabase/supabase-js";
+import { RUN_ORG_NAMES } from "./fixtures-f0"; // ★相談役 11/25 の便 I【I4】
 import { Client } from "pg";
 import { FIXTURE_USERS, STORE_A1, STORE_B1, loadEnvOrExit } from "./fixtures-f0";
 
@@ -175,8 +176,9 @@ async function main() {
     // ══ (g) pricing_rules.category_id 全 null（挙動不変の器確認）══
     {
       const { rows } = await db.query(
-        `select count(*)::int as total, count(category_id)::int as nonnull from public.pricing_rules`);
-      check("pc(g1) ★pricing_rules.category_id は全行 null（0127 時点＝resolve 挙動不変）",
+        `select count(*)::int as total, count(r.category_id)::int as nonnull from public.pricing_rules r join public.orgs o on o.id = r.org_id where not o.is_demo and not (o.name = any($1::text[]))`, [RUN_ORG_NAMES]);
+      // ★相談役 11/25 の便 I（【I3】【I4】）: 0210 の後は区分を使う店がある＝デモ（CLUB VESPER の初回料金の見本）と段 3 の通しの会社（NOX-RUN-HOST）は外す
+      check("pc(g1) ★pricing_rules.category_id は全行 null（0127 時点＝resolve 挙動不変・デモと通しの会社は外す）",
         rows[0].nonnull === 0, JSON.stringify(rows[0]));
     }
   } finally {

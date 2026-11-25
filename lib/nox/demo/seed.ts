@@ -21,6 +21,7 @@ import { randomUUID } from "node:crypto";
 import { computePayrollDraft } from "../payroll/core";
 import { payslipsOfDraft } from "../payroll/finalize-payslips";
 import { prevPeriodOf } from "../payroll/list-periods";
+import { mig0208On, mig0210On, mig0214On, hourlyBandsOn } from "../rules-0175/flag"; // ★相談役 11/25 の便 I【I3】（VESPER の見本）
 
 export const DEMO_STORES = ["muse", "luna", "noir", "ace", "lily", "nest", "host"] as const; // ★Y2c（2026-11-17 夜）: 7 店目＝ホスト（架空 CLUB VESPER）
 export type DemoStore = (typeof DEMO_STORES)[number];
@@ -229,7 +230,7 @@ export async function runDemoReset(admin: SupabaseClient, orgId: string, payload
 }
 
 export type DemoFinalizeStore = { store: string; status: "finalized" | "skipped" | "failed"; castCount?: number; ms: number; reason?: string };
-export type AfterResetResult = { lane?: { availability: number; terms: number; vipChecks: number; reason?: string }; /* ★裁定451 ①／454（デモデータ便） */ canon?: { plans: number; bands: number; tiers: number; reason?: string }; closedDays?: { stores: number; shifts: number; wishes: number; reason?: string }; photos: { casts: number; users: number }; payroll: { period: string; stores: DemoFinalizeStore[]; ms: number; reason?: string }; fine?: { status: "added" | "skipped" | "failed"; reason?: string; ms: number } };
+export type AfterResetResult = { lane?: { availability: number; terms: number; vipChecks: number; reason?: string }; /* ★裁定451 ①／454（デモデータ便） */ canon?: { plans: number; bands: number; tiers: number; reason?: string }; closedDays?: { stores: number; shifts: number; wishes: number; reason?: string }; photos: { casts: number; users: number }; payroll: { period: string; stores: DemoFinalizeStore[]; ms: number; reason?: string }; fine?: { status: "added" | "skipped" | "failed"; reason?: string; ms: number }; host?: DemoHostSamplesResult };
 
 /**
  * 再生後の後処理（裁定276-4）:
@@ -277,6 +278,9 @@ export async function afterResetHooks(admin: SupabaseClient, orgId: string, _biz
   // ★2026-11-17（相談役 5・demo-frozen）: 帯と W 別規定は前月の締めの前に入れる（旧＝締めの後＝MUSE の凍結に同伴の帯のバックが入らず、計算し直した値と 2,087／4,574／8,567 円ずれた）
   // ★便 ON-2（裁定418 CANON 型・2026-10-26）: reward_axis='pay_rate' のプラン（デモ MUSE）に同伴バックの時間帯（plan_rate_bands）と W 別規定（plan_norm_tiers）を入れる＝c_load に無い表（0175 v2 の新表）
   out.canon = await demoCanonBandsFor(admin, orgId).catch((e) => ({ plans: 0, bands: 0, tiers: 0, reason: e instanceof Error ? e.message : String(e) }));
+  // ★相談役 11/25 の便 I【I3】（案 A）: 公開デモ CLUB VESPER（NOX-DEMO-HOST）に 4 つの見本（初回料金・時間帯の時給のプラン・ランクの出勤の時刻・休憩の打刻 ON）を入れる。
+  //   先月の確定の前（凍結の明細と DB から計算し直した額をそろえる）。人のお金は 1 円も動かさない（帯のプランは人 0・新人のランクは人 0・休憩の行は入れない）。失敗しても reset は成功扱い。
+  out.host = await demoHostSamplesFor(admin, orgId).catch((e) => ({ firstVisit: 0, plans: 0, bands: 0, ranks: 0, breakPunch: false, reason: e instanceof Error ? e.message : String(e) }));
   out.payroll = await finalizePrevMonthForDemo(admin, orgId, _bizDate).catch((e) => ({ period: prevPeriodOf(_bizDate.slice(0, 7)), stores: [], ms: 0, reason: e instanceof Error ? e.message : String(e) }));
   // ★便 SH-UI-c2 C2-5（2026-10-23）: デモ ACE のひなの＝当月の遅刻の日に罰金 1 件（遅刻 ¥2,000＝店設定の精算プリセット「遅刻」と同額・source settlement・target_shift_id＝その日の確定シフト）
   //   payload には入れない（payroll_runs は正規経路＝payroll_run_create で当月の draft run を作り payroll_adjustment_add）。他の 5 店は無し。失敗しても reset は成功扱い（fine.status に理由）。
@@ -305,6 +309,71 @@ export async function demoCanonBandsFor(admin: SupabaseClient, orgId: string): P
   const { error: eB } = await admin.from("plan_rate_bands").insert(bands); if (eB) throw new Error(`plan_rate_bands: ${eB.message}`);
   const { error: eT } = await admin.from("plan_norm_tiers").insert(tiers); if (eT) throw new Error(`plan_norm_tiers: ${eT.message}`);
   out.bands = bands.length; out.tiers = tiers.length;
+  return out;
+}
+
+/** ★相談役 11/25 の便 I【I3】（案 A＝入れ直しの後処理で足す・payload は変えない・mig なし）: 公開デモ CLUB VESPER（NOX-DEMO-HOST）の 4 つの見本の値。検査（verify:nox-demo-host-samples）が pin する。 */
+export const DEMO_HOST_ORG = "NOX-DEMO-HOST";
+/** 初回料金：区分「初回」（印 first_visit）・セットの行 1 名 2,000 円・60 分・税・サ込み（all_in）・時間で終わり（end）。売上には数える（店の鍵 first_visit_in_sales は入れない＝既定）。並びは種のセットの行と同じ 100＝同じ並びなら区分の行が先（区分なしの行に覆われない） */
+export const DEMO_HOST_FIRST_VISIT = { categoryName: "初回", sort: 900, ruleName: "初回", amount: 2000, durationMin: 60, priceMode: "all_in", timeEnd: "end", priority: 100, billingUnit: "person", taxCategory: "taxable_10" } as const;
+/** 時間帯の時給：新しいプラン（人 0）＝「VESPER 新人」を写して名前だけ変える・帯 18:00〜21:00 1,500 円／21:00〜26:00 2,000 円（営業日の分） */
+export const DEMO_HOST_HOURLY_PLAN = { name: "VESPER 新人（時間帯）", copyOf: "VESPER 新人", bands: [{ from_min: 1080, to_min: 1260, value_amount: 1500 }, { from_min: 1260, to_min: 1560, value_amount: 2000 }] } as const;
+/** ランクの出勤の時刻：上のランク（種の「標準」）20:00〜25:00・新人のランク（足す・人 0＝今のキャストのランクは変えない）18:00〜25:00。作成済みのシフトは変えない（時刻はこれから作るシフトの初期値だけ） */
+export const DEMO_HOST_RANK_TIMES = { upper: { name: "標準", start: 1200, end: 1500 }, rookie: { name: "新人", sortOrder: 2, start: 1080, end: 1500 } } as const;
+export type DemoHostSamplesResult = { firstVisit: number; plans: number; bands: number; ranks: number; breakPunch: boolean; reason?: string };
+export async function demoHostSamplesFor(admin: SupabaseClient, orgId: string): Promise<DemoHostSamplesResult> {
+  const out: DemoHostSamplesResult = { firstVisit: 0, plans: 0, bands: 0, ranks: 0, breakPunch: false };
+  const { data: org } = await admin.from("orgs").select("name").eq("id", orgId).maybeSingle();
+  if ((org as { name?: string } | null)?.name !== DEMO_HOST_ORG) return out;
+  const { data: st, error: eSt } = await admin.from("stores").select("id, settings_json").eq("org_id", orgId).order("created_at").limit(1).maybeSingle();
+  if (eSt || !st) throw new Error(`stores: ${eSt?.message ?? "店が無い"}`);
+  const storeId = (st as { id: string }).id;
+  // 1. 初回料金（旗 0210 の後ろ）
+  if (mig0210On()) {
+    const fv = DEMO_HOST_FIRST_VISIT;
+    const { data: old } = await admin.from("pricing_categories").select("id").eq("store_id", storeId).eq("name", fv.categoryName);
+    const oldIds = ((old ?? []) as { id: string }[]).map((r) => r.id);
+    if (oldIds.length) { await admin.from("pricing_rules").delete().in("category_id", oldIds); await admin.from("pricing_categories").delete().in("id", oldIds); }
+    const { data: cat, error: eC } = await admin.from("pricing_categories").insert({ org_id: orgId, store_id: storeId, name: fv.categoryName, sort: fv.sort, is_active: true, first_visit: true }).select("id").single();
+    if (eC || !cat) throw new Error(`pricing_categories: ${eC?.message}`);
+    const { error: eR } = await admin.from("pricing_rules").insert({ org_id: orgId, store_id: storeId, fee_kind: "set", seat_kind: null, dow_mask: null, time_from_min: null, time_to_min: null, rank_id: null,
+      amount: fv.amount, duration_min: fv.durationMin, priority: fv.priority, is_active: true, name: fv.ruleName, tax_category: fv.taxCategory, category_id: (cat as { id: string }).id, billing_unit: fv.billingUnit, is_default_ext: false, price_mode: fv.priceMode, time_end: fv.timeEnd });
+    if (eR) throw new Error(`pricing_rules: ${eR.message}`);
+    out.firstVisit = 1;
+  }
+  // 2. 時間帯の時給（旗 HOURLY_BANDS_ON の後ろ）＝新しいプラン（人 0）に帯 2 つ
+  if (hourlyBandsOn()) {
+    const hp = DEMO_HOST_HOURLY_PLAN;
+    const { data: olds } = await admin.from("comp_plans").select("id").eq("org_id", orgId).eq("name", hp.name);
+    const oldPlanIds = ((olds ?? []) as { id: string }[]).map((r) => r.id);
+    if (oldPlanIds.length) { await admin.from("plan_rate_bands").delete().in("plan_id", oldPlanIds); await admin.from("comp_plans").delete().in("id", oldPlanIds); }
+    const { data: src, error: eS } = await admin.from("comp_plans").select("*").eq("org_id", orgId).eq("name", hp.copyOf).maybeSingle();
+    if (eS || !src) throw new Error(`comp_plans（${hp.copyOf}）: ${eS?.message ?? "無い"}`);
+    const row = { ...(src as Record<string, unknown>) }; delete row.id; delete row.created_at; delete row.updated_at; row.name = hp.name;
+    const { data: np, error: eP } = await admin.from("comp_plans").insert(row).select("id, store_id").single();
+    if (eP || !np) throw new Error(`comp_plans insert: ${eP?.message}`);
+    out.plans = 1;
+    const bands = hp.bands.map((b, i) => ({ org_id: orgId, store_id: (np as { store_id: string }).store_id, plan_id: (np as { id: string }).id, target: "hourly", from_min: b.from_min, to_min: b.to_min, value_amount: b.value_amount, value_rate: null, priority: 100 + i, is_active: true }));
+    const { error: eB } = await admin.from("plan_rate_bands").insert(bands); if (eB) throw new Error(`plan_rate_bands: ${eB.message}`);
+    out.bands = bands.length;
+  }
+  // 3. ランクの出勤の時刻（旗 0208 の後ろ）＝上のランク（標準）に時刻・新人のランクを足す（人 0）
+  if (mig0208On()) {
+    const rt = DEMO_HOST_RANK_TIMES;
+    const { data: up, error: eU } = await admin.from("cast_ranks").update({ shift_start_min: rt.upper.start, shift_end_min: rt.upper.end }).eq("store_id", storeId).eq("name", rt.upper.name).select("id");
+    if (eU) throw new Error(`cast_ranks update: ${eU.message}`);
+    await admin.from("cast_ranks").delete().eq("store_id", storeId).eq("name", rt.rookie.name);
+    const { error: eI } = await admin.from("cast_ranks").insert({ org_id: orgId, store_id: storeId, name: rt.rookie.name, sort_order: rt.rookie.sortOrder, is_active: true, shift_start_min: rt.rookie.start, shift_end_min: rt.rookie.end });
+    if (eI) throw new Error(`cast_ranks insert: ${eI.message}`);
+    out.ranks = (up?.length ?? 0) + 1;
+  }
+  // 4. 休憩の打刻 ON（旗 0214 の後ろ）＝店の鍵 break_punch だけ（休憩の行は入れない）
+  if (mig0214On()) {
+    const sj = { ...(((st as { settings_json?: Record<string, unknown> | null }).settings_json) ?? {}), break_punch: true };
+    const { error: eJ } = await admin.from("stores").update({ settings_json: sj }).eq("id", storeId);
+    if (eJ) throw new Error(`stores settings_json: ${eJ.message}`);
+    out.breakPunch = true;
+  }
   return out;
 }
 
