@@ -1,9 +1,15 @@
-// verify:nox-breaks（★0214 起票158 の 2 休憩の打刻・相談役 11/25 の D5）— DB に触れない純関数と配線の照合。DB の動き（順序・柵・PIN・直し）は docs/tmp/break_1125/try-0214.mts（BEGIN … ROLLBACK）。
+// verify:nox-breaks（★0214 起票158 の 2 休憩の打刻・相談役 11/25 の D5・版 2＝F4）— 純関数と配線の照合＋DB は旗 MIG_0214_APPLIED が true のときだけ（BEGIN … ROLLBACK）。DB の動き（順序・柵・PIN・直し）の全部は docs/tmp/break_1125/v2/try-0214.mts。
 //   (1) ボタンの出し分け（端末＝名前を押した時の状態・/mine）＝出勤中は「休憩」「退勤」・休憩中は「休憩終了」だけ・使わない店は「休憩」を出さない・読めないときは今のまま
 //   (2) スタッフの時間（中抜けの対ごとに休憩を引く・丸め）・旗 false（dayAdj なし）は今の式
 //   (3) 店の直し（行の止め・ISO）・要対応の 1 行・断りの和文
 //   (4) 配線（端末・/mine・店舗設定・勤怠の表の直し・給与の要対応・写す鍵・デモの名簿）
+//   (5) ★版 2 DB（旗 true のときだけ・NOX_SKIP_DB=1 で飛ばす）：前の営業日の閉じ忘れの休憩がある人（キャストとスタッフ）が今日の出勤 → 休憩 → 休憩終了 → 退勤を通せる
 import fs from "node:fs";
+import pg from "pg";
+import { randomUUID } from "node:crypto";
+import { pgTx } from "./fixtures-pgtx";
+import { dayAdjOfSource } from "../lib/nox/punch/day-adj-load";
+import { dayWindowOf } from "../lib/nox/punch/day-window";
 import { kioskBreakButtonsOf, kioskButtonsShownOf, mineBreakButtonsOf, minePunchStateOf, punchButtonsOf } from "../lib/nox/shift/punch-state";
 import { staffHoursOf } from "../lib/nox/staff/pay";
 import { breakEditErrOf, breakSetRowsOf, breakEditRowsOf } from "../lib/nox/punch/break-edit";
@@ -36,10 +42,17 @@ const hB = staffHoursOf(P, () => ({ rounding: null, breaks: [{ startMin: 21 * 60
 ok("(2-2) 休憩は対ごとの窓で引く（30 分＋15 分＝202 分）", hB[0].minutes === 202, hB);
 const hR = staffHoursOf(P, () => ({ rounding: { unit: 15, mode: "staff_favor" }, breaks: [] }));
 ok("(2-3) 丸め（15 分・働く人に有利）は対ごとに出勤と退勤を丸める（20:00〜22:00・23:00〜25:15＝255 分）", hR[0].minutes === 255, hR);
+// ★版 2（F4）: 閉じ忘れの休憩は「その営業日」だけに効く（次の営業日に漏れない）・その日に退勤があれば休憩開始〜退勤を休憩にして要対応（openBreak）
+const atD = (d: string, h: number, m: number) => new Date(Date.parse(`${d}T00:00:00+09:00`) + (h * 60 + m) * 60_000).toISOString();
+const srcOB = { rules: [], breaks: [{ castId: "c1", membershipId: null, bizDate: "2026-11-20", startedAt: atD("2026-11-20", 23, 0), endedAt: null }, { castId: "c1", membershipId: null, bizDate: "2026-11-21", startedAt: atD("2026-11-21", 22, 0), endedAt: atD("2026-11-21", 22, 30) }] };
+const adjOB = dayAdjOfSource(srcOB, {});
+const wPrev = dayWindowOf(20 * 60, 25 * 60, adjOB("c1", "2026-11-20")), wToday = dayWindowOf(20 * 60, 25 * 60, adjOB("c1", "2026-11-21"));
+ok("(2-4) ★版 2 前の営業日の閉じ忘れはその日だけ（休憩開始 23:00〜退勤 25:00＝120 分・要対応）・次の日は自分の休憩だけ（30 分・要対応なし）", J(adjOB("c1", "2026-11-21")?.breaks) === J([{ startMin: 22 * 60, endMin: 22 * 60 + 30 }]) && !!wPrev && wPrev.breakMin === 120 && wPrev.openBreak && !!wToday && wToday.breakMin === 30 && !wToday.openBreak, { wPrev, wToday });
 
 // ── (3) 直し・要対応・和文 ──
 ok("(3-1) 直しの行の止め：形・逆・重なり・理由・10 回まで", breakEditErrOf([{ start: "22:00", end: "22:30" }], "忘れ") === null && breakEditErrOf([{ start: "2200", end: "22:30" }], "x") !== null && breakEditErrOf([{ start: "22:30", end: "22:00" }], "x") !== null
   && breakEditErrOf([{ start: "22:00", end: "23:00" }, { start: "22:30", end: "23:30" }], "x") === "休憩の時間が重なっています" && breakEditErrOf([], " ") === "直す理由を入れてください" && breakEditErrOf(Array.from({ length: 11 }, () => ({ start: "22:00", end: "22:10" })), "x") !== null);
+ok("(3-1b) ★版 2 店の直しは終了が必須（空の終了は止める＝休憩中のまま残す直しは作らない）", breakEditErrOf([{ start: "22:00", end: "" }], "閉じ忘れ") !== null && breakEditErrOf([{ start: "22:00", end: "22:15" }], "閉じ忘れ") === null);
 ok("(3-2) 直しの行は営業日の 0〜47 時から ISO（翌 1:30 は 25:30）・初期値は勤怠の表の休憩（終了なしは空）", J(breakSetRowsOf("2026-11-20", [{ start: "25:00", end: "25:30" }])) === J([{ started_at: "2026-11-20T16:00:00.000Z", ended_at: "2026-11-20T16:30:00.000Z" }]) && J(breakEditRowsOf([["22:00", null]])) === J([{ start: "22:00", end: "" }]), breakSetRowsOf("2026-11-20", [{ start: "25:00", end: "25:30" }]));
 const ob = openBreakSummaryOf([{ castName: "A", openBreakDates: ["2026-11-03"] }, { castName: "B" }]);
 ok("(3-3) 要対応の 1 行（閉じ忘れの休憩＝休憩開始から退勤まで）・無ければ null", !!ob && ob.count === 1 && ob.text.includes("A 11/3") && openBreakSummaryOf([{ castName: "B", openBreakDates: [] }]) === null);
@@ -51,11 +64,58 @@ const src = (p: string) => fs.readFileSync(p, "utf8");
 const kiosk = src("app/kiosk/page.tsx"), act = src("app/mine/punch-actions.tsx"), mine = src("app/mine/page.tsx"), prof = src("app/(manage)/master/store-profile/page.tsx"), panel = src("app/(manage)/master/break-punch-panel.tsx");
 const board = src("app/(manage)/payroll/attendance-board.tsx"), pboard = src("app/(manage)/payroll/payroll-board.tsx"), wiz = src("app/(manage)/setup/setup-wizard.tsx"), v5 = src("lib/nox/setup/v5.ts");
 ok("(4-1) 端末：旗 true だけ名前を押した時に kiosk_break_state を読む・休憩は kiosk_break（PIN）", kiosk.includes('if (mig0214On()) void (async () => {') && kiosk.includes('supabase.rpc("kiosk_break_state"') && kiosk.includes('supabase.rpc("kiosk_break"') && kiosk.includes("kioskBreakButtonsOf(mig0214On() ? target.kstate ?? null : null"));
-ok("(4-2) /mine：本人の休憩は break_self（位置の判定なし）・店の鍵と自分の閉じていない休憩は旗の後ろ", act.includes('rpc("break_self", { p_action: action })') && mine.includes("mig0214On() && ((myStore?.settings_json ?? {}) as Record<string, unknown>).break_punch === true") && mine.includes('.from("punch_breaks").select("id").eq("cast_id"'));
+ok("(4-2) /mine：本人の休憩は break_self（位置の判定なし）・店の鍵と自分の閉じていない休憩は旗の後ろ", act.includes('rpc("break_self", { p_action: action })') && mine.includes("mig0214On() && ((myStore?.settings_json ?? {}) as Record<string, unknown>).break_punch === true") && mine.includes('.from("punch_breaks").select("id").eq("cast_id", meCast.id as string).eq("biz_date", bizToday).is("ended_at", null)'));   // ★版 2: 今日の営業日の休憩だけ（前の営業日の閉じ忘れで「休憩終了」だけにしない）
 ok("(4-3) 店舗設定だけ（初期設定には出さない）・旗の後ろ・保存は set_break_punch", prof.includes("{tab === \"shift\" && mig0214On() && <BreakPunchPanel") && panel.includes('rpc("set_break_punch", { p_store_id: storeSel, p_on: on })') && !/break_punch|休憩の打刻/.test(wiz + v5));
 ok("(4-4) 勤怠の表の日の直しに休憩（店だけ・旗の後ろ）・給与の画面に要対応の 1 行", board.includes('extra={mig0214On() && edit.mode === "edit" && edit.row.inHm ? <BreakEdit') && pboard.includes("openBreakSummaryOf(rows)"));
 ok("(4-5) 2 店目に写す鍵：旗 false の間は 0203 の名簿どおり写さない（0214 が store_copy_settings に足す）", "break_punch" in STORE_SETTING_KEYS && STORE_SETTING_KEYS.break_punch.part === (flag.MIG_0214_APPLIED ? "settings" : null));
 ok("(4-6) 旗は false（本番に表が無い間）", flag.MIG_0214_APPLIED === false);
 
-if (fails.length) { console.error(fails.join("\n")); console.error(`verify:nox-breaks FAIL ${fails.length} / ${n}`); process.exit(1); }
-console.log(`verify:nox-breaks ALL PASS (${n} assertions)`);
+// ── (5) ★版 2 DB（旗 MIG_0214_APPLIED が true のときだけ・BEGIN … ROLLBACK＝残留 0・NOX_SKIP_DB=1 で飛ばす） ──
+//   前の営業日に出勤（退勤なし）と閉じていない休憩がある人が、今日の出勤 → 休憩 → 休憩終了 → 退勤を通せる（キャスト＝端末の kiosk_punch／kiosk_break・スタッフ＝staff_punch／kiosk_break）。
+//   試走の中の now() は 1 つ＝前の営業日の打刻は now() − 1 日。端末は試走の中だけ作る（ROLLBACK で消える）。
+async function dbPart() {
+  if (!flag.MIG_0214_APPLIED) { console.log("  (5) DB の段は旗 MIG_0214_APPLIED が false の間は飛ばす"); return; }
+  const url = process.env.NOX_SKIP_DB === "1" ? undefined : (process.env.SUPABASE_DB_URL ?? (() => { try { const l = src(".env.local").split(/\r?\n/).find((x) => x.startsWith("SUPABASE_DB_URL=")); return l ? l.slice(16).replace(/^"|"$/g, "") : undefined; } catch { return undefined; } })());
+  if (!url) { console.log("  (5) DB の段は飛ばす"); return; }
+  const db = new pg.Client({ connectionString: url, application_name: "nox-verify-breaks" }); await db.connect();
+  try {
+    await db.query("begin");
+    const tx = pgTx(db);
+    const A1 = await tx.storeA1();
+    const owner = await tx.uidOf("ownerA"), castU = await tx.uidOf("castA1a"), staffU = await tx.uidOf("staffA1");
+    const cid = (await tx.castOf(A1.id, castU.id))!;
+    const mem = (await tx.one<{ id: string }>("select id from memberships where user_id = $1 and store_id = $2", [staffU.id, A1.id])).id;
+    const devUid = randomUUID();
+    await tx.q("insert into kiosk_devices (org_id, store_id, auth_user_id, is_active) values ($1, $2, $3, true)", [A1.org_id, A1.id, devUid]);
+    const dev = { auth_user_id: devUid };
+    await tx.q("delete from cast_pin where cast_id = $1", [cid]);
+    await tx.q("insert into cast_pin (cast_id, org_id, store_id, pin_hash) values ($1, $2, $3, extensions.crypt('1234', extensions.gen_salt('bf')))", [cid, A1.org_id, A1.id]);
+    await tx.q("delete from staff_pin where membership_id = $1", [mem]);
+    await tx.q("insert into staff_pin (membership_id, org_id, store_id, pin_hash) values ($1, $2, $3, extensions.crypt('1234', extensions.gen_salt('bf')))", [mem, A1.org_id, A1.id]);
+    const on = await tx.as({ auth_user_id: owner.auth_user_id }, "select public.set_break_punch($1, true) v", [A1.id]);
+    const bd = (await tx.one<{ d: string }>("select public.biz_date_of($1, now())::text d", [A1.id])).d;
+    const bdPrev = (await tx.one<{ d: string }>("select public.biz_date_of($1, now() - interval '1 day')::text d", [A1.id])).d;
+    await tx.q("delete from punch_breaks where cast_id = $1 or membership_id = $2", [cid, mem]);
+    await tx.q("delete from punches where cast_id = $1 and punched_at >= now() - interval '4 days' and public.biz_date_of(store_id, punched_at) between $2::date - 1 and $2::date", [cid, bd]);
+    await tx.q("delete from staff_punches where membership_id = $1 and biz_date between $2::date - 1 and $2::date", [mem, bd]);
+    await tx.q("delete from staff_attendance_locks where store_id = $1 and period in (to_char($2::date, 'YYYY-MM'), to_char($2::date - 1, 'YYYY-MM'))", [A1.id, bd]);
+    await tx.q("insert into punches (org_id, store_id, cast_id, type, punched_at, source) values ($1, $2, $3, 'in', now() - interval '1 day', 'kiosk')", [A1.org_id, A1.id, cid]);
+    await tx.q("insert into staff_punches (membership_id, org_id, store_id, biz_date, kind, punched_at, source, created_by) values ($1, $2, $3, $4::date, 'in', now() - interval '1 day', 'kiosk', null)", [mem, A1.org_id, A1.id, bdPrev]);
+    await tx.q("insert into punch_breaks (org_id, store_id, cast_id, membership_id, biz_date, started_at, source) values ($1, $2, $3, null, $5::date, now() - interval '1 day' + interval '1 minute', 'self'), ($1, $2, null, $4, $5::date, now() - interval '1 day' + interval '1 minute', 'kiosk')", [A1.org_id, A1.id, cid, mem, bdPrev]);
+    ok("(5-0) 準備：休憩を使う店にした・前の営業日は今の 1 日前", on.ok && bdPrev < bd, { on: tx.errOf(on), bd, bdPrev });
+    const jo = (r: Awaited<ReturnType<typeof tx.call>>) => (r.ok ? (r.rows[0]?.j as Record<string, unknown>)?.ok === true : false);
+    const steps = async (label: string, calls: [string, unknown[]][]) => { const errs: string[] = []; for (const [sql, ps] of calls) { const r = await tx.as(dev, sql, ps); if (!jo(r)) errs.push(`${sql.slice(14, 40)} ${r.ok ? JSON.stringify(r.rows[0]) : r.err}`); } ok(label, errs.length === 0, errs); };
+    await steps("(5-1) キャスト：前の営業日の閉じ忘れがあっても 出勤 → 休憩 → 休憩終了 → 退勤 が通る", [
+      ["select public.kiosk_punch($1, '1234', 'in', null, null) j", [cid]], ["select public.kiosk_break($1, null, '1234', 'start') j", [cid]],
+      ["select public.kiosk_break($1, null, '1234', 'end') j", [cid]], ["select public.kiosk_punch($1, '1234', 'out', null, null) j", [cid]]]);
+    await steps("(5-2) スタッフ：前の営業日の閉じ忘れがあっても 出勤 → 休憩 → 休憩終了 → 退勤 が通る", [
+      ["select public.staff_punch($1, '1234', 'in') j", [mem]], ["select public.kiosk_break(null, $1, '1234', 'start') j", [mem]],
+      ["select public.kiosk_break(null, $1, '1234', 'end') j", [mem]], ["select public.staff_punch($1, '1234', 'out') j", [mem]]]);
+    const left = await tx.one<{ prev: number; today: number }>("select count(*) filter (where biz_date = $3::date)::int prev, count(*) filter (where biz_date = $4::date)::int today from punch_breaks where (cast_id = $1 or membership_id = $2) and ended_at is null", [cid, mem, bdPrev, bd]);
+    ok("(5-3) 今日の休憩は閉じた・前の営業日の閉じ忘れ 2 行はそのまま（店の直しで閉じる）", left.prev === 2 && left.today === 0, left);
+  } finally { await db.query("rollback").catch(() => undefined); await db.end(); }
+}
+void dbPart().then(() => {
+  if (fails.length) { console.error(fails.join("\n")); console.error(`verify:nox-breaks FAIL ${fails.length} / ${n}`); process.exit(1); }
+  console.log(`verify:nox-breaks ALL PASS (${n} assertions)`);
+}, (e) => { console.error(`verify:nox-breaks ERROR ${(e as Error).message}`); process.exit(1); });
