@@ -11,7 +11,7 @@ import { pgTx } from "./fixtures-pgtx";
 import { dayAdjOfSource } from "../lib/nox/punch/day-adj-load";
 import { dayWindowOf } from "../lib/nox/punch/day-window";
 import { kioskBreakButtonsOf, kioskButtonsShownOf, mineBreakButtonsOf, minePunchStateOf, punchButtonsOf } from "../lib/nox/shift/punch-state";
-import { staffHoursOf } from "../lib/nox/staff/pay";
+import { staffHoursOf, staffOpenBreakDatesOf } from "../lib/nox/staff/pay";
 import { breakEditErrOf, breakSetRowsOf, breakEditRowsOf } from "../lib/nox/punch/break-edit";
 import { openBreakSummaryOf } from "../lib/nox/payroll/view";
 import { rpcErrJa } from "../lib/nox/ui/rpc-err";
@@ -52,6 +52,11 @@ ok("(2-4) ★版 2 前の営業日の閉じ忘れはその日だけ（休憩開�
 // ── (3) 直し・要対応・和文 ──
 ok("(3-1) 直しの行の止め：形・逆・重なり・理由・10 回まで", breakEditErrOf([{ start: "22:00", end: "22:30" }], "忘れ") === null && breakEditErrOf([{ start: "2200", end: "22:30" }], "x") !== null && breakEditErrOf([{ start: "22:30", end: "22:00" }], "x") !== null
   && breakEditErrOf([{ start: "22:00", end: "23:00" }, { start: "22:30", end: "23:30" }], "x") === "休憩の時間が重なっています" && breakEditErrOf([], " ") === "直す理由を入れてください" && breakEditErrOf(Array.from({ length: 11 }, () => ({ start: "22:00", end: "22:10" })), "x") !== null);
+// ★G3（相談役 11/25）: スタッフの閉じ忘れの休憩＝キャストと同じ見方（休憩開始〜その対の退勤を休憩）・同じ要対応の 1 行
+const hO = staffHoursOf(P, () => ({ rounding: null, breaks: [{ startMin: 21 * 60, endMin: null }] }));
+ok("(2-5) ★G3 スタッフの閉じ忘れの休憩は休憩開始〜その対の退勤（20:00〜21:00＋23:00〜25:07＝187 分・中抜けの後の対は休憩にしない）・その日に印・無い日はキーなし（旗 false の今と同じ形）", hO[0].minutes === 187 && hO[0].openBreak === true && J(staffOpenBreakDatesOf(hO)) === J(["2026-11-20"]) && !("openBreak" in h0[0]) && !("openBreak" in hB[0]) && staffOpenBreakDatesOf(hB).length === 0, hO);
+const obS = openBreakSummaryOf([{ castName: "スタッフA", openBreakDates: staffOpenBreakDatesOf(hO) }]);
+ok("(2-6) ★G3 スタッフの要対応の 1 行はキャストの給与の画面と同じ文（名前 月/日）", !!obS && obS.count === 1 && obS.text === openBreakSummaryOf([{ castName: "スタッフA", openBreakDates: ["2026-11-20"] }])!.text && obS.text.startsWith("休憩の終了の打刻が無い日が 1 件") && obS.text.includes("スタッフA 11/20"), obS);
 ok("(3-1b) ★版 2 店の直しは終了が必須（空の終了は止める＝休憩中のまま残す直しは作らない）", breakEditErrOf([{ start: "22:00", end: "" }], "閉じ忘れ") !== null && breakEditErrOf([{ start: "22:00", end: "22:15" }], "閉じ忘れ") === null);
 ok("(3-2) 直しの行は営業日の 0〜47 時から ISO（翌 1:30 は 25:30）・初期値は勤怠の表の休憩（終了なしは空）", J(breakSetRowsOf("2026-11-20", [{ start: "25:00", end: "25:30" }])) === J([{ started_at: "2026-11-20T16:00:00.000Z", ended_at: "2026-11-20T16:30:00.000Z" }]) && J(breakEditRowsOf([["22:00", null]])) === J([{ start: "22:00", end: "" }]), breakSetRowsOf("2026-11-20", [{ start: "25:00", end: "25:30" }]));
 const ob = openBreakSummaryOf([{ castName: "A", openBreakDates: ["2026-11-03"] }, { castName: "B" }]);
@@ -68,6 +73,8 @@ ok("(4-2) /mine：本人の休憩は break_self（位置の判定なし）・店
 ok("(4-3) 店舗設定だけ（初期設定には出さない）・旗の後ろ・保存は set_break_punch", prof.includes("{tab === \"shift\" && mig0214On() && <BreakPunchPanel") && panel.includes('rpc("set_break_punch", { p_store_id: storeSel, p_on: on })') && !/break_punch|休憩の打刻/.test(wiz + v5));
 ok("(4-4) 勤怠の表の日の直しに休憩（店だけ・旗の後ろ）・給与の画面に要対応の 1 行", board.includes('extra={mig0214On() && edit.mode === "edit" && edit.row.inHm ? <BreakEdit') && pboard.includes("openBreakSummaryOf(rows)"));
 ok("(4-5) 2 店目に写す鍵：旗 false の間は 0203 の名簿どおり写さない（0214 が store_copy_settings に足す）", "break_punch" in STORE_SETTING_KEYS && STORE_SETTING_KEYS.break_punch.part === (flag.MIG_0214_APPLIED ? "settings" : null));
+const swp = src("app/(manage)/staff/staff-work-panel.tsx");
+ok("(4-7) ★G3 店の画面のスタッフの時間の所に要対応の 1 行（店の画面だけ・旗 true だけ・キャストと同じ openBreakSummaryOf）", swp.includes('{scope === "store" && mig0214On() && (() => { const ob = openBreakSummaryOf(rows.map((r) => ({ castName: r.name, openBreakDates: staffOpenBreakDatesOf(r.days) })));') && swp.includes("data-staff-open-break={ob.count}") && swp.split("openBreakSummaryOf(").length === 2);
 ok("(4-6) 旗は false（本番に表が無い間）", flag.MIG_0214_APPLIED === false);
 
 // ── (5) ★版 2 DB（旗 MIG_0214_APPLIED が true のときだけ・BEGIN … ROLLBACK＝残留 0・NOX_SKIP_DB=1 で飛ばす） ──

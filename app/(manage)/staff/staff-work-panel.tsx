@@ -23,7 +23,8 @@ import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import { ResponsiveTable } from "@/components/ui/responsive-kit";
 import { Message } from "@/components/ui/toast";
-import { attachStaffAllowances, staffContractLineOf, hmOf, staffHoursOf, staffMonthRangeOf, staffPayOf, type StaffAllowanceRow, type StaffContract, type StaffPunch } from "@/lib/nox/staff/pay"; // ★0195: attachStaffAllowances
+import { attachStaffAllowances, staffContractLineOf, hmOf, staffHoursOf, staffMonthRangeOf, staffOpenBreakDatesOf, staffPayOf, type StaffAllowanceRow, type StaffContract, type StaffPunch } from "@/lib/nox/staff/pay"; // ★0195: attachStaffAllowances ★0214（G3）: staffOpenBreakDatesOf
+import { openBreakSummaryOf } from "@/lib/nox/payroll/view"; // ★0214（G3）: キャストの給与の画面と同じ要対応の 1 行
 import { mig0183On, mig0188On, mig0192On, mig0194On, mig0195On } from "@/lib/nox/rules-0175/flag"; // ★裁定432（0183 ★4）・★0192 ★1／M-38: スタッフ勤怠の修正・確定・退勤の取消 ★0194: 確定額の凍結
 import { effectivePayKindOf } from "@/lib/nox/staff/work"; // ★M-90
 import { mig0200On } from "@/lib/nox/rules-0175/flag"; // ★M-130（裁定471・0200）: 支払い済み
@@ -226,6 +227,8 @@ export default function StaffWorkPanel({ scope, stores, daily = false, initialMe
           </table>
         </ResponsiveTable>
       )}
+      {scope === "store" && mig0214On() && (() => { const ob = openBreakSummaryOf(rows.map((r) => ({ castName: r.name, openBreakDates: staffOpenBreakDatesOf(r.days) }))); return ob && (/* ★0214（相談役 11/25 の G3）: スタッフの閉じ忘れの休憩＝要対応に 1 行（キャストの給与の画面と同じ文・同じ見方）。旗 false は出さない */
+        <p className="nox-inset" style={{ padding: "8px 12px", margin: "8px 0", fontSize: 12.5, color: "var(--gold)" }} role="status" data-staff-open-break={ob.count}>△ {ob.text}</p>); })()}
       {daily && dailyMem && (() => { /* ★便 M3 M-23 ①③: 1 人 1 か月の日ごとの勤怠＝キャストと同じ部品（KintaiHead／KintaiRow・withPay なし）＋時給分／日計（時給制だけ）・月給は — */
         const r = rows.find((x) => x.m.id === dailyMem); if (!r) return null;
         const statusOfMem = Object.fromEntries(Object.entries(dayStatus).filter(([key]) => key.startsWith(`${r.m.id}|`)).map(([key, v]) => [key.slice(r.m.id.length + 1), v])); // ★0192 ★1
