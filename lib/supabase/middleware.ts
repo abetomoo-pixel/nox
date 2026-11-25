@@ -1,4 +1,5 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
+import { mustChangeRedirectOf } from "@/lib/nox/auth/must-change"; // ★0211 の便（D1）
 import { NextResponse, type NextRequest } from "next/server";
 import { DEMO_UNTIL_COOKIE, demoSessionExpired, isDemoAuthUserId, isDemoSessionExemptPath } from "@/lib/nox/demo/session";
 import { loginNextOf } from "@/lib/nox/support/grant-entry"; // ★起票152
@@ -64,6 +65,17 @@ export async function updateSession(request: NextRequest) {
     const next = loginNextOf(path, request.nextUrl.search); // ★起票152（2026-11-24）: マスタの中のパスだけ、ログインの後に戻る先を ?next= で渡す（ほかは今のまま＝クエリを付けない）
     if (next) url.search = `?next=${encodeURIComponent(next)}`; // 付けないときは今のまま（元のクエリを残す）
     return NextResponse.redirect(url);
+  }
+
+  // ★0211 の便（相談役 11/25 D1）: 初期パスワードで入った人（app_metadata.must_change_password）は、画面の道ではパスワードの変更へ（API・認証・公開面・端末・運営は止めない）。印の無い人は何も変わらない
+  const mustTo = user ? mustChangeRedirectOf(user, path, request.nextUrl.search) : null;
+  if (mustTo) {
+    const url = request.nextUrl.clone();
+    const [p, q] = mustTo.split("?");
+    url.pathname = p; url.search = q ? `?${q}` : "";
+    const redirect = NextResponse.redirect(url);
+    for (const c of response.cookies.getAll()) redirect.cookies.set(c);
+    return redirect;
   }
 
   return response;

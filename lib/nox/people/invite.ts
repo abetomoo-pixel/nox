@@ -66,5 +66,10 @@ export function inviteErrJa(msg: string): string {
   if (/forbidden/.test(msg)) return "権限がありません";
   if (/bad token/.test(msg)) return INVITE_NOT_FOUND;
   if (/user exists/.test(msg)) return "このログインはすでに登録されています";
+  // ★0211（相談役 11/25 の便 D1）: 出し直し・取り消し
+  if (/too many/.test(msg)) return "今日はこれ以上出し直せません（1 つの招待につき 1 日 5 回まで・明日またお試しください）";
+  if (/revoked/.test(msg)) return "この招待は取り消されています（新しく登録してください）";
+  if (/already accepted/.test(msg)) return "この招待はすでに使われています（一覧を読み直してください）";
+  if (/not found/.test(msg)) return "招待が見つかりません（一覧を読み直してください）";
   return msg;
 }

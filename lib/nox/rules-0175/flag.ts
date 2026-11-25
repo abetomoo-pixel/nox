@@ -317,7 +317,7 @@ export function __set0208ForTest(v: boolean | null): void { override0208 = v; }
 
 /** ★時間帯の時給（2026-11-24 夕・相談役の便【9】＝docs/tmp/hourly_1124/plan.md の A・枝 hourly-bands-1124・mig なし＝0175 v2 の plan_rate_bands（target 'hourly'）を読むだけ）。
  *  false の間は collect が帯を読まない＝給与の下書きは今と 1 バイト同じ。true にするのは相談役が見た後の便（main に入れる便とは別に決める）。 */
-export const HOURLY_BANDS_ON = false;
+export const HOURLY_BANDS_ON = true; // ★相談役 11/25 の便 D2：true にしてよい（ア〜ウの後）
 let overrideHourlyBands: boolean | null = null;
 export function hourlyBandsOn(): boolean { return overrideHourlyBands ?? HOURLY_BANDS_ON; }
 export function __setHourlyBandsForTest(v: boolean | null): void { overrideHourlyBands = v; }
@@ -327,3 +327,15 @@ export const MIG_0207_APPLIED = true; // ★相談役 11/25 朝の便 M1：0207 
 let override0207: boolean | null = null;
 export function mig0207On(): boolean { return override0207 ?? MIG_0207_APPLIED; }
 export function __set0207ForTest(v: boolean | null): void { override0207 = v; }
+
+/** ★0211（スタッフの招待の続き＝出し直し・取り消し・メールの結果の監査・相談役 11/25 の便 D1 で CC が適用）。true＝招待の一覧に出し直す・メールで送り直す・取り消す・期限切れ（30 日まで）。 */
+export const MIG_0211_APPLIED = true; // ★相談役 11/25 の便 D1：0211 を CC が適用した後で true（適用の時刻は台帳）
+let override0211: boolean | null = null;
+export function mig0211On(): boolean { return override0211 ?? MIG_0211_APPLIED; }
+export function __set0211ForTest(v: boolean | null): void { override0211 = v; }
+
+/** ★0215（起草だけ・相談役 11/25 の便 D1）: メール無しのスタッフの初期パスワードを店が出し直す（監査の関数 staff_password_reissue_note）。false＝出し直しのボタンを出さない（関数の無い本番で呼ばない）。 */
+export const MIG_0215_APPLIED = false;
+let override0215: boolean | null = null;
+export function mig0215On(): boolean { return override0215 ?? MIG_0215_APPLIED; }
+export function __set0215ForTest(v: boolean | null): void { override0215 = v; }

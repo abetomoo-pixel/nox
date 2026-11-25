@@ -39,6 +39,9 @@ const DENY_GUARDED: Record<string, string> = {
   "kiosk/provision": "app/api/kiosk/provision/route.ts",
   "print/jobs": "app/api/print/jobs/route.ts",
   "staff/invite": "app/api/staff/invite/route.ts", // ★便 ON-3（0176 ★2 I-1）: 登録→招待＝staff/create と同じ柵（裁定273-6）
+  "staff/invite/reissue": "app/api/staff/invite/reissue/route.ts", // ★0211（2026-11-25 D1）: 招待の出し直し・メールの送り直し＝staff/invite と同じ柵
+  "me/password": "app/api/me/password/route.ts", // ★0211 の便（D1）: 本人のパスワードの変更＝デモの auth とデモ org は 403（共用のパスワードを変えさせない）
+  "staff/password-reissue": "app/api/staff/password-reissue/route.ts", // ★0215（旗の後ろ）: 店がメール無しのスタッフの初期パスワードを出し直す
   "line/secret": "app/api/line/secret/route.ts", // ★便 ON-3（0176 ★1 401）: Vault へ書く＝デモは 403
   "line/richmenu": "app/api/line/richmenu/route.ts", // ★2026-11-18 夜（相談役 ⑤）: LINE のリッチメニュー（外部へ書く）＝デモは 403
   "line/push": "app/api/line/push/route.ts", // ★便 ON-3: 外部送信＝デモ org は 204（送らない・台帳にも書かない）
@@ -122,7 +125,7 @@ check("dg(5-3) /demo: noindex 維持（robots index:false・follow:false）・�
   const routes6 = files.map((f) => f.replace(/^app\/api\//, "").replace(/\/route\.ts$/, ""));
   const walk2 = (d: string): string[] => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk2(path.join(d, e.name)) : /\.tsx?$/.test(e.name) ? [path.join(d, e.name)] : []));
   const clientSrc = walk2("app").concat(walk2("components")).map((f) => fs.readFileSync(f, "utf8"));
-  check("dg(6-1) ①メール／パスワード変更: staff/update-email は柵 A・パスワード／メール変更の route は他に無い・client は auth.updateUser を呼ばない", "staff/update-email" in DENY_GUARDED && !routes6.some((r) => /password|email/.test(r) && r !== "staff/update-email") && !clientSrc.some((s) => /auth\.updateUser\(/.test(s)));
+  check("dg(6-1) ①メール／パスワード変更: staff/update-email は柵 A・パスワード／メール変更の route は全部柵 A・client は auth.updateUser を呼ばない", "staff/update-email" in DENY_GUARDED && routes6.filter((r) => /password|email/.test(r)).every((r) => r in DENY_GUARDED) /* ★0211 の便（2026-11-25 D1）: パスワードの route（me/password・staff/password-reissue）も柵 A＝全部 A に分類されていること */ && !clientSrc.some((s) => /auth\.updateUser\(/.test(s)));
   check("dg(6-2) ②org 削除・Auth 系（招待・スタッフ作成・キオスク発行）: org 削除 route なし・cast/invite／staff/create／kiosk/provision は柵 A", !routes6.some((r) => /org.*delete|delete.*org/.test(r)) && ["cast/invite", "staff/create", "kiosk/provision"].every((r) => r in DENY_GUARDED));
   const enter = fs.readFileSync("app/api/demo/enter/route.ts", "utf8");
   check("dg(6-3) ③外部送信（LINE／メール／Stripe）: メール送信の route なし・LINE は push／secret が柵 A（デモ 403／204）・session／bind／webhook はセッション無し（B）・billing 4 本は柵 A・stripe/webhook は B・demo/enter の magiclink は送信しない", !routes6.some((r) => /mail/.test(r) && r !== "staff/update-email") && ["line/push", "line/secret"].every((r) => r in DENY_GUARDED) && ["line/session", "line/bind", "line/webhook/[storeId]"].every((r) => DENY_NO_SESSION.has(r)) && /const demo = await demoGuardErr\(orgId as string\); if \(demo\) return new NextResponse\(null, \{ status: 204 \}\)/.test(fs.readFileSync("app/api/line/push/route.ts", "utf8")) && /if \(p\.isDemo\) return/.test(fs.readFileSync("lib/nox/line/server.ts", "utf8")) && ["billing/checkout", "billing/interval", "billing/portal", "billing/switch-to-card"].every((r) => r in DENY_GUARDED) && DENY_NO_SESSION.has("stripe/webhook") && !/sendEmail|inviteUserByEmail|signInWithOtp/.test(enter));

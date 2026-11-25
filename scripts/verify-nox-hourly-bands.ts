@@ -14,7 +14,7 @@ const B = (from: number, to: number, amount: number): RateBand => ({ target: "ho
 const TORA = [B(H(16), H(20), 1500), B(H(20), H(48), 1800)]; // 例：16〜20 時 1,500・20 時以降 1,800
 
 // (1) 区切り
-check("(1) 旗は false（main に入れても今と同じ）", HOURLY_BANDS_ON === false);
+check("(1) 旗は true（★相談役 11/25 の便 D2・帯の無い店は今と同じ＝ア〜ウ）", (HOURLY_BANDS_ON as boolean) === true);
 check("(1) 境をまたぐ勤務 19:00〜23:30＝1,500 の 60 分と 1,800 の 210 分", JSON.stringify(bandSegmentsOf(H(19), H(23, 30), TORA)) === JSON.stringify([{ minutes: 60, amount: 1500 }, { minutes: 210, amount: 1800 }]));
 check("(1) 日をまたぐ 23:00〜26:00（0〜47 時）＝1,800 の 180 分", JSON.stringify(bandSegmentsOf(H(23), H(26), TORA)) === JSON.stringify([{ minutes: 180, amount: 1800 }]));
 check("(1) 境ちょうど 20:00 の入りは 20 時以降の帯（from ≦ t ＜ to）", bandAmountAt(TORA, H(20)) === 1800 && bandAmountAt(TORA, H(19, 59)) === 1500);

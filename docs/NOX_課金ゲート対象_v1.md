@@ -398,6 +398,10 @@ kiosk_provision（新規 kiosk の追加＝拡大操作）
 ### A27. 0208（1 本・2026-11-25 本番適用（Agoora が認めて CC が適用）・規則A形でゲート内蔵）
 - 0208 ランクの既定の出勤の時刻: set_cast_rank_shift_time（owner／自店の manager・ランクの書込と同じ柵）＝冒頭の二重防御の後に課金の述語で 'billing locked'（A 形）
 （対象 216→**217**・live 実測＝billing locked の関数 **217**）
+
+### A28. 0211（2 本・2026-11-25 11:13:41 本番適用（Agoora が認めて CC が適用・検証 19 行とも期待値）・規則A形でゲート内蔵）
+- 0211 スタッフの招待の続き: staff_invite_reissue（出し直し・前のリンクは無効・1 日 5 回）／staff_invite_mail_note（メールの結果の監査）＝冒頭の二重防御の後に課金の述語で 'billing locked'（A 形）
+（対象 217→**219**・live 実測＝billing locked の関数 **219**）
 ## B. 除外（99本）
 
 ### B(a) 構造除外＝authenticated 実行不可（service/内部・28本）→ ゲート不要（B7 回避型(1)）
@@ -496,8 +500,8 @@ billing_writable_of / auth_org_billing_writable / nox_receipt_public /
 ### B(g) 印刷（1本・「出せる」原則の明文）
 print_enqueue[K]
 
-### B(h) セキュリティ/縮退専用（2本・B-補1）
-staff_deactivate / kiosk_deactivate
+### B(h) セキュリティ/縮退専用（3本・B-補1・★0211 で +1）
+staff_deactivate / kiosk_deactivate / staff_invite_revoke（★0211（2026-11-25）: 招待の取り消し＝送ったリンクを止める・支払いが止まった店でも止められる・2 回目は何もせず成功）
 
 ### B(i) 保留裁定による除外（10本・2026-08-17）
 | 関数 | 適用原理 |

@@ -291,7 +291,7 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
       const res = await fetch("/api/cast/invite", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ castId, action: "invite", email: c.mail.trim(), idemKey: crypto.randomUUID() }) });
       const j = (await res.json().catch(() => ({}))) as Record<string, unknown>;
       if (res.ok) { inv = true; if (typeof j.initial_password === "string") setIssued((xs) => [...xs, { kind: "cast", name: c.g, login: String(j.login_email ?? c.mail), password: j.initial_password as string }]); }
-      else setCastMsg(`${c.g} は登録しました。招待に失敗: ${String(j.error ?? res.status)}`);
+      else setCastMsg(`${c.g} は登録しました。ログイン ID と初期パスワードを出せませんでした（あとでキャストの画面から出せます）`); // ★起票157 の続き（11/25 D1）: 送らない「招待」でなく、今の作り＝ログイン ID と初期パスワードを画面に出す
     }
     const pinStep = steps.find((x) => x.key.endsWith("_pin")); const pin = String((pinStep?.args as { p_pin?: string } | undefined)?.p_pin ?? c.pin);
     setS((s) => ({ ...s, casts: [...s.casts, { ...c, pin, inv }] }));
@@ -820,7 +820,7 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
           )}
           <section style={{ ...card, marginTop: 10 }} data-setup-cast-list={S.casts.length}>
             <h3 style={h3}>登録したキャスト（{S.casts.length} 人）</h3>
-            {S.casts.length ? <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }} className="nox-pin-list">{S.casts.map((c, i) => <span key={i} className="nox-stpill">{c.g}・{c.st}・{c.kind}・PIN {c.pin}{c.inv ? "・招待済み" : ""}</span>)}</div> : <p style={note}>まだいません。</p>}
+            {S.casts.length ? <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }} className="nox-pin-list">{S.casts.map((c, i) => <span key={i} className="nox-stpill">{c.g}・{c.st}・{c.kind}・PIN {c.pin}{c.inv ? "・ログイン ID を出した" : ""}{/* ★起票157 の続き（11/25 D1）: 前の文（送っていない招待の印）を今の作りの文に */}</span>)}</div> : <p style={note}>まだいません。</p>}
             <div className="nox-actions" style={{ marginTop: 10 }}>
               <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} onClick={() => go(0)}>設定を見直す</button>
               {(S.casts.length > 0 || issued.length > 0) && <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} data-printpin="1" onClick={() => window.print()}>PIN の一覧を印刷</button>}
