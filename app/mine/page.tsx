@@ -185,6 +185,10 @@ export default async function MinePage({ searchParams }: { searchParams?: Promis
   const { data: ackNeeded } = pAck ? await pAck : { data: null };
   // ★便 M5 M-33: showContractAck は要約（termsLines＝出勤ノルマの目標 daysTargets を含む）の後で決める＝下の daysTargets の直後
   const ps = punchStateOf((todayPunches ?? []) as { type: string; punched_at: string }[]); // ★326 追補3: 当日営業日の自分の打刻 → 未出勤／出勤中／退勤済み
+  // ★0214（相談役 11/25 の D5）: 店が休憩の打刻を使うか（settings_json.break_punch）と、自分の閉じていない休憩（RLS＝自分の行）。旗 false＝読まない
+  //   ★0214 版 2（相談役 11/25 の F4）: 今日の営業日の休憩だけ（前の営業日の閉じ忘れで「休憩終了」だけにしない＝DB の break_seq_check と同じ見方）
+  const mineBreakOn = mig0214On() && ((myStore?.settings_json ?? {}) as Record<string, unknown>).break_punch === true;
+  const mineOnBreak = mig0214On() && meCast ? (((await supabase.from("punch_breaks").select("id").eq("cast_id", meCast.id as string).eq("biz_date", bizToday).is("ended_at", null).limit(1)).data ?? []).length > 0) : false;
   // ★便 SH-UI-c C-2 ④: 「今月の勤怠」＝給与と同じ計算の表（lib/nox/payroll/attendance-sheet・自分の行＝RLS）。送りは transport の自分の行（mode は 0177 後）
   const { data: mineTransport } = await pTransport;
   // ★便 SH-UI-c2 C2-3: 日別の算定給与＝店長の勤怠表と同じ builder（computePayrollDraft＝給与と同じ）。本人の cast で絞る・読めなければ従来の表（日計なし）
@@ -331,7 +335,7 @@ export default async function MinePage({ searchParams }: { searchParams?: Promis
         <h3>打刻{punchHeadOf(ps.state, ps.inAt) && <span className="num" style={{ marginLeft: "auto", fontSize: 12.5, fontWeight: 700, color: "var(--ok)" }}>{punchHeadOf(ps.state, ps.inAt)}</span>}</h3>{/* ★326 追補3: 出勤中は見出し横に「出勤中 HH:MM〜」 */}
         {/* ★0164（便 W5-2b）: 店設定 punch_methods.self が OFF の店は本人打刻のボタンを出さない（RPC punch_self は拒否しない＝UI の出し分けだけ・裁定要） */}
         {minePunchOff ? (<><p className="nox-pstate" data-cast-punch-off="1" style={{ margin: "0 0 6px" }}>出勤・退勤は店が記録します</p>{mig0198On() && mineDayDedApplied !== null && <p data-mine-day-ded-applied={String(mineDayDedApplied.length)} style={{ fontSize: 12.5, color: "var(--sub)", margin: "0 0 8px" }}>{dayDedAppliedTextOf(mineDayDedApplied)}</p>}</>) : opsProfileOf(myStore as Record<string, unknown> | undefined).punch_methods.self ? (
-        <PunchActions state={ps.state} okuriMode={okuriModeOf((myStore?.settings_json ?? {}) as Record<string, unknown>)} /* ★裁定414（S-4）: 4 方式＝'none' 以外で導線 */
+        <PunchActions state={ps.state} breakOn={mineBreakOn} onBreak={mineOnBreak} /* ★0214 */ okuriMode={okuriModeOf((myStore?.settings_json ?? {}) as Record<string, unknown>)} /* ★裁定414（S-4）: 4 方式＝'none' 以外で導線 */
           dayDedRules={mineDayDedRules} bizToday={bizToday} /* ★便 D M-103: 出勤時の「今日の控除」（0196 まで空） */ dayDedApplied={mineDayDedApplied} /* ★0198（裁定461 ②）: 表示だけ */
           okuriBase={typeof ((myStore?.settings_json ?? {}) as Record<string, unknown>).okuri_base_amount === "number" ? (((myStore?.settings_json ?? {}) as Record<string, unknown>).okuri_base_amount as number) : null} />
         ) : (

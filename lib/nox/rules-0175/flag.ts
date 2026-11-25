@@ -348,10 +348,10 @@ let override0213: boolean | null = null;
 export function mig0213On(): boolean { return override0213 ?? MIG_0213_APPLIED; }
 export function __set0213ForTest(v: boolean | null): void { override0213 = v; }
 
-/** ★0214（起票158 の 2 休憩の打刻・相談役 11/25 の D5・枝 round-break-1125・起草と試走まで・本番は未適用）。
+/** ★0214（起票158 の 2 休憩の打刻・相談役 11/25 の D5・枝 round-break-1125・版 2 を 2026-11-25 19:48:14 に本番適用（CC が適用・相談役 11/25 の便 G3）・旗 true）。
  *  true＝打刻の画面に「休憩」「休憩終了」（休憩を使う店だけ）・端末のキャストは名前を押した時に状態を読んでボタンを出し分ける・給与と勤怠の表が休憩（punch_breaks）を引く。
  *  false＝今のまま（表の無い本番で読まない・端末のキャストは「出勤」「退勤」の 2 つ）。 */
-export const MIG_0214_APPLIED = false;
+export const MIG_0214_APPLIED = true; // ★相談役 11/25 の便 G3：0214 版 2 の適用の後
 let override0214: boolean | null = null;
 export function mig0214On(): boolean { return override0214 ?? MIG_0214_APPLIED; }
 export function __set0214ForTest(v: boolean | null): void { override0214 = v; }

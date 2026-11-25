@@ -29,7 +29,7 @@ export type AttendanceDayRow = {
   /** 実打刻 出／退（0-47 域 HH:MM・翌表記は hm47Ja で） */
   inHm: string | null; outHm: string | null;
   /** ★0213／0214: 丸め・休憩が効いた日だけ（丸めた出／退＝丸めのある日だけ・休憩の分・時間に使った分・閉じていない休憩）。無い日はキーなし＝今と同じ */
-  adj?: { inRoundedHm?: string; outRoundedHm?: string; breakMin: number; workMin: number; openBreak: boolean };
+  adj?: { inRoundedHm?: string; outRoundedHm?: string; breakMin: number; workMin: number; openBreak: boolean; /** ★0214: その日の休憩（生の時刻・0〜47 時・終了なし＝null）＝店の直しの初期値 */ breaks?: [string, string | null][] };
   /** 店の修正（approved の punch_corrections） */
   corrections: { kind: "in" | "out"; by: string | null; at: string | null; before: string | null; after: string | null; reason: string }[];
   /** 遅刻／当欠／早退（final 遅刻・final 当欠・raw.out 早退） */
@@ -172,7 +172,7 @@ export function attendanceDayRowsOf(input: AttendanceSheetInput): AttendanceDayR
     if (shiftRel === "before" || shiftRel === "after") noteParts.push(SHIFT_RELATION_NOTE[shiftRel]); // ★便 M5 M-40 (x)
     rows.push({
       bizDate, shift: sh ? { start: sh.start_hm, end: sh.end_hm } : null, inHm, outHm, corrections: corr,
-      ...(wAdj ? { adj: { ...(adjD?.rounding ? { inRoundedHm: min2hm(wAdj.inMin), outRoundedHm: min2hm(wAdj.outMin) } : {}), breakMin: wAdj.breakMin, workMin: wAdj.workMin, openBreak: wAdj.openBreak } } : {}), // ★0213／0214
+      ...(wAdj ? { adj: { ...(adjD?.rounding ? { inRoundedHm: min2hm(wAdj.inMin), outRoundedHm: min2hm(wAdj.outMin) } : {}), breakMin: wAdj.breakMin, workMin: wAdj.workMin, openBreak: wAdj.openBreak, ...(adjD?.breaks.length ? { breaks: adjD.breaks.map((x) => [min2hm(x.startMin), x.endMin === null ? null : min2hm(x.endMin)] as [string, string | null]) } : {}) } } : {}), // ★0213／0214
       late: storeMode ? finalStore === "late" && !future : !!d && d.final.type === "late" && !future, absent: storeMode ? finalStore === "absent" && !future : !!d && d.final.type === "absent" && !future, early: !!d && d.raw.out.type === "early" && !future,
       contactAt: att && att.source === "self" && (att.status === "late" || att.status === "absent") ? jstHm(att.updated_at) : null,
       hours: hoursFinal, basis: storeMode && rawHours === 0 && hoursFinal > 0 ? "shift" : basis, okuri: { n: trs.length, modes: [...new Set(trs.map((t) => OKURI_MODE_LABEL[((t.mode ?? "actual") as OkuriMode)] ?? String(t.mode)))] },

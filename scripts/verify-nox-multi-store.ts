@@ -13,7 +13,7 @@ import { applyCopyToPlan, copiedPlanIdsOf, copyPartsOf, stripOrgLevelKeys } from
 import { STORE_COLUMNS, STORE_SETTING_KEYS, copyColumnsOf, copyKeysOf } from "../lib/nox/ops/store-copy-keys";
 import { MINE_SETTING_KEYS, MINE_SETTINGS_DEFAULT } from "../lib/nox/store/mine-settings";
 import { storeAddErrJa, storeCopyErrJa, STORE_COPY_PARTS } from "../lib/nox/ops/store-add";
-import { MIG_0203_APPLIED } from "../lib/nox/rules-0175/flag";
+import { MIG_0203_APPLIED, MIG_0214_APPLIED } from "../lib/nox/rules-0175/flag";
 import { pgTx } from "./fixtures-pgtx";
 import { applyType, buildV5Plan, monthStartJstOf, v5DefaultState, type V5Step } from "../lib/nox/setup/v5";
 
@@ -105,9 +105,11 @@ check("(2) ★12:00 の ■2-c ホームの全店＝ランキングの枠に「�
   ALL_STORES_NO_RANKING === "全店ではランキングを出しません" && src("app/(manage)/dashboard/dashboard-board.tsx").includes("{allStoresView && <p") && src("app/(manage)/dashboard/dashboard-board.tsx").includes("const allStoresView = mig0203On() && isOwner && stores.length > 1 && !curStoreId;")
   && (src("app/(manage)/dashboard/dashboard-board.tsx").match(/!allStoresView && rankLoaded/g) ?? []).length === 2);
 // ★版 2（■2-a）: SQL の名簿＝lib の名簿（写す鍵）・列の写し＝lib の列の名簿
-const sqlArr = (name: string): string[] => { const m = mig.match(new RegExp(name + String.raw`\s+text\[\]\s*:=\s*array\[([^\]]*)\]`)); return m ? [...m[1].matchAll(/'([a-z_0-9]+)'/g)].map((x) => x[1]).sort() : ["(none)"]; };
+// ★0214 版 2（2026-11-25 19:48 適用）: store_copy_settings の今の定義は 0214 の本体（休憩の鍵を足した）＝旗 true の間は 0214 と比べる
+const copyMig = (MIG_0214_APPLIED as boolean) ? src("supabase/migrations/0214_punch_breaks.sql") : mig;
+const sqlArr = (name: string): string[] => { const m = copyMig.match(new RegExp(name + String.raw`\s+text\[\]\s*:=\s*array\[([^\]]*)\]`)); return m ? [...m[1].matchAll(/'([a-z_0-9]+)'/g)].map((x) => x[1]).sort() : ["(none)"]; };
 const keyDiff = (["pricing", "comp", "settings", "hours"] as const).filter((pt) => JSON.stringify(sqlArr(`v_${pt}_keys`)) !== JSON.stringify(copyKeysOf(pt)));
-check("(2) ★版 2 SQL の写す鍵の名簿（料金・待遇・店舗設定・営業時間）は lib の名簿と同じ・除く鍵の名簿（v_never_keys）は無い", keyDiff.length === 0 && !mig.includes("v_never_keys"), keyDiff);
+check("(2) ★版 2 SQL の写す鍵の名簿（料金・待遇・店舗設定・営業時間）は lib の名簿と同じ・除く鍵の名簿（v_never_keys）は無い", keyDiff.length === 0 && !mig.includes("v_never_keys") && !copyMig.includes("v_never_keys"), keyDiff);
 const setCols = (part: string): string[] => { const body = part === "pricing" ? mig.slice(mig.indexOf("update public.stores d set hon_fee"), mig.indexOf("from public.stores s where s.id = p_src and d.id = p_dst;", mig.indexOf("update public.stores d set hon_fee")))
   : mig.slice(mig.indexOf("update public.stores d set settings_json = coalesce(d.settings_json, '{}'::jsonb) || v_sj,"), mig.indexOf("from public.stores s where s.id = p_src and d.id = p_dst;", mig.indexOf("update public.stores d set settings_json = coalesce(d.settings_json, '{}'::jsonb) || v_sj,")));
   return [...body.matchAll(/([a-z_]+) = s\.([a-z_]+)/g)].filter((m) => m[1] === m[2]).map((m) => m[1]).sort(); };

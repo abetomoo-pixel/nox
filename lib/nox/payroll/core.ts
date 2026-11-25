@@ -40,6 +40,7 @@ export type PreviewRow = {
   extras: Extra[]; // #32 出勤インセンティブの attendance_bonus 行（無ければ空）
   anomalyCount: number;
   missingOutDates: string[]; // ★N3 AV-4: 退勤の記録が無い勤務（表示のみ）
+  openBreakDates?: string[]; // ★0214: 閉じていない休憩のまま退勤がある日（ある cast だけ・表示のみ）
   noShiftDates?: string[]; // ★便 M-10: シフト無し出勤（時給なし・ある行だけ）
   calcPeriodStart?: string; calcPeriodEnd?: string; // ★0154 D6（294-8）: 計算期間（finalize が payslips.calc_period_* へ写す）
   taxMode: TaxMode;
@@ -299,7 +300,7 @@ export async function computePayrollDraft(
     const npApplied = (c.adjustments ?? []).filter((a) => a.reason.startsWith(NORM_REASON_PREFIX)).reduce((s, a) => s + (a.amount ?? 0), 0);
     rows.push({
       ...(np4 ? { normProposal: { ...np4, ...(npApplied > 0 ? { applied: npApplied } : {}) } } : {}),
-      castId: c.castId, castName: c.castName, net, pay, extras, anomalyCount: c.anomalyCount, missingOutDates: c.missingOutDates ?? [], taxMode,
+      castId: c.castId, castName: c.castName, net, pay, extras, anomalyCount: c.anomalyCount, missingOutDates: c.missingOutDates ?? [], ...(c.openBreakDates?.length ? { openBreakDates: c.openBreakDates } : {}) /* ★0214 */, taxMode,
       ...(c.noShiftDates?.length ? { noShiftDates: c.noShiftDates } : {}), // ★便 M-10
       ...(c.calcPeriod ? { calcPeriodStart: c.calcPeriod.start, calcPeriodEnd: c.calcPeriod.end } : {}), // ★0154 D6
       arDeducted, arCarried, arDeductTotal: arPlan.deduct, arCarriedTotal: arPlan.carriedTotal,

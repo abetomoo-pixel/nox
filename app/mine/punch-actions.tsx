@@ -12,7 +12,8 @@ import Toast from "@/components/ui/toast";
 import { rpcErrJa } from "@/lib/nox/ui/rpc-err";
 import { okuriSelfPlanOf, okuriResultTextOf, OKURI_PENDING_NOTE } from "@/lib/nox/shift/okuri-self";
 import { okuriOutTextOf, type OkuriMode } from "@/lib/nox/shift/okuri-mode"; // ★裁定414（S-4）: 方式の 1 文
-import { PUNCH_STATE_NOTE, punchButtonsOf, punchButtonsShownOf, type PunchState } from "@/lib/nox/shift/punch-state";
+import { PUNCH_STATE_NOTE, punchButtonsOf, punchButtonsShownOf, minePunchStateOf, mineBreakButtonsOf, BREAK_ACTION_LABEL, BREAK_DONE_LABEL, type PunchState } from "@/lib/nox/shift/punch-state";
+import { mig0214On } from "@/lib/nox/rules-0175/flag"; // ★0214（休憩）: 旗 false＝今のまま
 import { PUNCH_PENDING_EVENT, punchStateAfterOf, punchStateShownOf } from "@/lib/nox/shift/punch-pending"; // ★2026-11-13（相談役【3】a）: 打刻の直後に古い状態を見せない
 
 // ★裁定326 追補3（便 M1-4・2026-09-30）: 3 状態（未出勤／出勤中／退勤済み）は page.tsx が当日営業日の自分の打刻から punchStateOf で導き state を渡す（新規 fetch 0）。
@@ -24,7 +25,7 @@ import { PUNCH_PENDING_EVENT, punchStateAfterOf, punchStateShownOf } from "@/lib
 // ★裁定317（便 X-9-3）: cast 本人は送りの発行（transport_issue_bulk＝owner／manager のみ）を呼べない＝金額ダイアログは出さず、「あり」の打刻だけ残す（締め前モーダルに未発行として出る）。器は 0158。
 // ★0156（裁定309-9＝302-5・便 V-5）: okuri_mode='actual' の店だけ、退勤に「送り あり／なし」（既定なし）→ punch_self の p_okuri。
 //   'flat'／未設定の店は出さない（p_okuri を送らない＝RPC の既定＝null）。in 打刻は従来どおり 3 引数。
-export default function PunchActions({ okuriMode = "flat", okuriBase = null, state = "none", dayDedRules = [], bizToday = null, dayDedApplied = null }: { /** ★0198（裁定461 ②・M-120）: 店が付けた今日の控除（表示だけ・null＝出さない） */ dayDedApplied?: DayDedApplied[] | null; /** ★便 D M-103: 出勤時に聞く「その日に選ぶ」控除（0196 まで空） */ dayDedRules?: DayDedPickRule[]; bizToday?: string | null; /** ★裁定414: 店の送り方式（'none' 以外で「送り あり／なし」を出す） */ okuriMode?: OkuriMode; okuriBase?: number | null; state?: PunchState }) {
+export default function PunchActions({ okuriMode = "flat", okuriBase = null, state = "none", dayDedRules = [], bizToday = null, dayDedApplied = null, breakOn = false, onBreak = false }: { /** ★0214: 店が休憩の打刻を使う（settings_json.break_punch） */ breakOn?: boolean; /** ★0214: 今、閉じていない休憩がある（自分の punch_breaks） */ onBreak?: boolean; /** ★0198（裁定461 ②・M-120）: 店が付けた今日の控除（表示だけ・null＝出さない） */ dayDedApplied?: DayDedApplied[] | null; /** ★便 D M-103: 出勤時に聞く「その日に選ぶ」控除（0196 まで空） */ dayDedRules?: DayDedPickRule[]; bizToday?: string | null; /** ★裁定414: 店の送り方式（'none' 以外で「送り あり／なし」を出す） */ okuriMode?: OkuriMode; okuriBase?: number | null; state?: PunchState }) {
   const router = useRouter();
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -42,6 +43,19 @@ export default function PunchActions({ okuriMode = "flat", okuriBase = null, sta
   useEffect(() => { if (!refreshing) { setOptimistic(null); window.dispatchEvent(new CustomEvent(PUNCH_PENDING_EVENT, { detail: false })); } }, [refreshing]);
   const btn = punchButtonsOf(shown);
   const note = PUNCH_STATE_NOTE[shown];
+  // ★0214（相談役 11/25 の D5）: 出勤中＝「休憩」「退勤」・休憩中＝「休憩終了」だけ（位置の判定はしない＝break_self を直接）。旗 false＝出さない
+  const [breakLocal, setBreakLocal] = useState<boolean | null>(null);
+  useEffect(() => { if (!refreshing) setBreakLocal(null); }, [refreshing]);
+  const onBreakNow = mig0214On() && (breakLocal ?? onBreak) && shown === "open";
+  const brk = mineBreakButtonsOf(minePunchStateOf(shown, onBreakNow), mig0214On() && breakOn);
+  async function breakAction(action: "start" | "end") {
+    setBusy(true); setMsg(null);
+    const { error } = await createClient().rpc("break_self", { p_action: action });
+    setBusy(false);
+    setMsg(error ? rpcErrJa(error.message) : BREAK_DONE_LABEL[action]);
+    if (!error) setBreakLocal(action === "start");
+    startRefresh(() => router.refresh());
+  }
 
   async function punch(type: "in" | "out") {
     setBusy(true);
@@ -88,7 +102,7 @@ export default function PunchActions({ okuriMode = "flat", okuriBase = null, sta
     /* 段0R 第3陣: モック .punchrow＝2カラムの大ボタン（スマホの親指操作前提・16px/15px）。
        ★送る打刻 RPC も引数も文言も変えていない。★0156: actual 店のみ送りトグルを足す。★326 追補3: disabled は 3 状態（punchButtonsOf）で決める */
     <div>
-      {okuriActual && (
+      {okuriActual && !onBreakNow && (
         <div className="nox-seg nox-punchseg" role="group" aria-label="送り" style={{ marginBottom: 8, width: "fit-content", opacity: btn.okuriEnabled ? 1 : 0.5 }}>{/* ★M3-1: disabled は not-allowed・hover で色が変わらない（globals.css） */}
           <button type="button" className={!okuri ? "on" : ""} disabled={busy || !btn.okuriEnabled} onClick={() => setOkuri(false)}>送り なし</button>
           <button type="button" className={okuri ? "on" : ""} disabled={busy || !btn.okuriEnabled} onClick={() => setOkuri(true)}>送り あり</button>
@@ -114,14 +128,19 @@ export default function PunchActions({ okuriMode = "flat", okuriBase = null, sta
         </div>
       )}
       {/* ★起票158 の 1（2026-11-24 夜）: 出勤していないときは「出勤」だけ・出勤中は「退勤」だけ（退勤済みはどちらも出さない＝補助文だけ） */}
-      <div className="nox-punchrow" data-punch-shown={shownBtn.in ? "in" : shownBtn.out ? "out" : "none"}>
+      {brk.breakEnd ? (/* ★0214: 休憩中は「休憩終了」だけ */
+      <div className="nox-punchrow" data-punch-shown="break_end">
+        <button className="nox-punchbtn" style={{ ...t.btnGold, padding: 16, fontSize: 15, opacity: busy ? 0.55 : 1 }} disabled={busy} onClick={() => void breakAction("end")} data-mine-break="end">{BREAK_ACTION_LABEL.end}</button>
+      </div>) : (
+      <div className="nox-punchrow" data-punch-shown={shownBtn.in ? "in" : shownBtn.out ? (brk.breakStart ? "out_break" : "out") : "none"}>
+        {brk.breakStart && <button className="nox-punchbtn" style={{ ...t.btnGhost, padding: 16, fontSize: 15, opacity: busy ? 0.55 : 1 }} disabled={busy} onClick={() => void breakAction("start")} data-mine-break="start">{BREAK_ACTION_LABEL.start}</button>}
         {shownBtn.in && <button className="nox-punchbtn" style={{ ...(btn.inEnabled ? t.btnGold : t.btnGhost), padding: 16, fontSize: 15, opacity: busy || !btn.inEnabled ? 0.55 : 1 }} disabled={busy || !btn.inEnabled} onClick={() => punch("in")} aria-disabled={!btn.inEnabled}>
           出勤
         </button>}
         {shownBtn.out && <button className="nox-punchbtn" style={{ ...(btn.outEnabled ? t.btnGold : t.btnGhost), padding: 16, fontSize: 15, opacity: busy || !btn.outEnabled ? 0.55 : 1 }} disabled={busy || !btn.outEnabled} onClick={() => punch("out")} aria-disabled={!btn.outEnabled}>
           退勤
         </button>}
-      </div>
+      </div>)}
       {needReason && <PunchReason type={needReason} value={reason} onChange={setReason} busy={busy} onSubmit={() => punch(needReason)} />/* ★0201（裁定474）: ハードの店で範囲外・位置が取れない＝理由を書けば打刻できる */}
       {note && <p className="nox-pstate" style={{ marginTop: 8 }}>{note}</p>}
       <Toast msg={msg} />

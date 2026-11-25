@@ -53,7 +53,8 @@ export function dayDedRowsOf(rules: readonly DayDedRule[], initial: Readonly<Rec
   return changed ? rules.map((r) => ({ deduction_id: r.id, enabled: cur(r.id, r) })) : null;
 }
 
-export default function KintaiEdit({ storeId, castId, castName, row, periodStart, periodEnd, todayBiz, existingDates, onClose, onSaved }: {
+export default function KintaiEdit({ storeId, castId, castName, row, periodStart, periodEnd, todayBiz, existingDates, onClose, onSaved, extra }: {
+  /** ★0214: 日の編集の下に足す部品（休憩の直し＝旗 true のときだけ attendance-board が渡す） */ extra?: React.ReactNode;
   storeId?: string; castId: string; castName: string;
   /** null＝追加 */
   row: AttendanceDayRow | null;
@@ -206,6 +207,7 @@ export default function KintaiEdit({ storeId, castId, castName, row, periodStart
           {!add && !cancelMode && <button type="button" style={{ ...t.btnGhost, ...t.btnSm, color: "var(--bad)", borderColor: "var(--bad)" }} disabled={busy} onClick={() => setCancelMode(true)} data-kintai-cancel="1">取消…</button>}
           {cancelMode && <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} disabled={busy} onClick={() => setCancelMode(false)}>取消をやめる</button>}
         </div>
+        {extra}
       </div>
     </Modal>
   );

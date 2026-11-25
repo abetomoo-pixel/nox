@@ -85,3 +85,10 @@ export function runSummaryOf(slips: readonly { net: number; breakdown_json: { pa
 
 /** 表示用: 凍結行の控除計（adjust.ts の 1 本の式＝再計算ではなく凍結値の Σ） */
 export const frozenDeductionOf = (pay: PayrollCsvPay): number => totalDeductionsOf(pay);
+
+/** ★0214（起票158 の 2・相談役 11/25 の D5）: 閉じていない休憩のまま退勤がある日（休憩開始から退勤までを休憩にした）＝要対応の 1 行。無ければ null */
+export function openBreakSummaryOf(rows: readonly { castName: string; openBreakDates?: readonly string[] }[]): { count: number; text: string } | null {
+  const items: string[] = [];
+  for (const r of rows) for (const d of r.openBreakDates ?? []) items.push(`${r.castName} ${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`);
+  return items.length ? { count: items.length, text: `休憩の終了の打刻が無い日が ${items.length} 件あります（休憩の開始から退勤までを休憩にしました・勤怠の表で直せます）: ${items.join("・")}` } : null;
+}
