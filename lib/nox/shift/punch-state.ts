@@ -57,3 +57,29 @@ export function todayShiftLineOf(p: { shift: { start_hm: string; end_hm: string 
   if (diffMin > 0) { const r = Math.round(diffMin / 15) * 15; const h = Math.floor(r / 60), m = r % 60; return `今日の出勤 ${span}（あと ${h > 0 ? `${h} 時間` : ""}${h > 0 && m > 0 ? " " : ""}${m > 0 || h === 0 ? `${m} 分` : ""}）`; }
   return `今日の出勤 ${span}（開始から ${-diffMin} 分 経過）`;
 }
+
+// ★0214（起票158 の 2 休憩の打刻・相談役 11/25 の D5）: 休憩のボタンの出し分け（DB を知らない純関数）。
+//   出勤中＝「休憩」「退勤」・休憩中＝「休憩終了」だけ・未出勤＝「出勤」。休憩を使わない店は「休憩」を出さない（休憩中の人の「休憩終了」は OFF の後も出す）。
+/** 端末が名前を押した時に読む状態（kiosk_break_state）。none＝未出勤・on＝出勤中・break＝休憩中・done＝今日の最後が退勤 */
+export type KioskPersonState = "none" | "on" | "break" | "done";
+export type BreakButtons = { in: boolean; out: boolean; breakStart: boolean; breakEnd: boolean };
+/** 端末のボタン（旗 MIG_0214_APPLIED の後ろ）。st が null（読めない・旗 false）は今の出し分け（kioskButtonsShownOf）のまま。キャストは 1 営業日に 1 回だけ出勤（退勤の後は何も出さない）・スタッフは出勤し直せる */
+export function kioskBreakButtonsOf(st: { state: KioskPersonState; breakEnabled: boolean } | null, o: { staff: boolean; lastKind?: string | null }): BreakButtons {
+  if (!st) { const b = kioskButtonsShownOf(o.lastKind, o.staff); return { in: b.in, out: b.out, breakStart: false, breakEnd: false }; }
+  if (st.state === "break") return { in: false, out: false, breakStart: false, breakEnd: true };
+  if (st.state === "on") return { in: false, out: true, breakStart: st.breakEnabled, breakEnd: false };
+  if (st.state === "done") return { in: o.staff, out: false, breakStart: false, breakEnd: false };
+  return { in: true, out: false, breakStart: false, breakEnd: false };
+}
+/** 本人のスマホ（/mine）の状態に休憩中を足す：出勤中で閉じていない休憩がある＝break */
+export type MinePunchState = PunchState | "break";
+export const minePunchStateOf = (state: PunchState, openBreak: boolean): MinePunchState => (state === "open" && openBreak ? "break" : state);
+/** /mine のボタン：出勤中＝退勤・送り・休憩（使う店）／休憩中＝休憩終了だけ */
+export function mineBreakButtonsOf(state: MinePunchState, breakEnabled: boolean): { inEnabled: boolean; outEnabled: boolean; okuriEnabled: boolean; breakStart: boolean; breakEnd: boolean } {
+  if (state === "break") return { inEnabled: false, outEnabled: false, okuriEnabled: false, breakStart: false, breakEnd: true };
+  const b = punchButtonsOf(state);
+  return { ...b, breakStart: state === "open" && breakEnabled, breakEnd: false };
+}
+export const BREAK_ACTION_LABEL = { start: "休憩", end: "休憩終了" } as const;
+export const BREAK_DONE_LABEL = { start: "休憩に入りました", end: "休憩を終えました" } as const;
+export const KIOSK_DONE_NOTE = "本日は退勤済みです（修正は店にご連絡ください）";

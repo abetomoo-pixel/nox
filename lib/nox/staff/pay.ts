@@ -5,6 +5,7 @@
 //   staff_payroll_runs への確定は器のみ（第 2 期）。丸め＝円未満切捨（floorYen）。
 
 import { floorYen, withholding1021Of } from "../money"; // ★裁定431 ②
+import { dayWindowOf, minOfBizDay, type DayAdj } from "../punch/day-window"; // ★0213／0214
 import { monthRangeOf } from "../month"; // ★便 X13-H H-9: 暦月の日付は 1 か所で
 import { autoWithholdingOf, effectiveWithholdingOf, employeeDeductionLinesOf, WITHHOLDING_KIND_SHORT, type EmployeeDeductionRow, type WithholdingKind } from "../payroll/withholding-kind"; // ★裁定432
 
@@ -34,25 +35,34 @@ export type StaffPunch = { membership_id: string; biz_date: string; kind: "in" |
 export const STAFF_CONTRACT_LABEL: Record<StaffContractKind, string> = { employee: "正社員", parttime: "アルバイト", contractor: "業務委託" };
 export const isStaffEmployment = (k: StaffContractKind): boolean => k !== "contractor";
 
-export type StaffDayHours = { bizDate: string; minutes: number; open: boolean };
+export type StaffDayHours = { bizDate: string; minutes: number; open: boolean; /** ★0214（G3）: 閉じていない休憩のまま退勤がある日（休憩開始〜退勤を休憩にした）＝要対応。ある日だけ true（無い日はキーなし＝旗 false の今と同じ形） */ openBreak?: true };
 /** 営業日ごとに in→out を順に対にして実働分数（out の無い日は open＝0 分・out が先に来た行は無視） */
-export function staffHoursOf(punches: readonly StaffPunch[]): StaffDayHours[] {
+/** ★0213／0214（相談役 11/25）: dayAdj（営業日 → 丸めと休憩）がある日は、in→out の対ごとに日の窓（丸めてから休憩で割る＝キャストと同じ関数）で数える。null・無い日は今の式（ミリ秒の差の切り捨て）のまま */
+export function staffHoursOf(punches: readonly StaffPunch[], dayAdj?: ((bizDate: string) => DayAdj | null) | null): StaffDayHours[] {
   const byDate = new Map<string, StaffPunch[]>();
   for (const p of punches) (byDate.get(p.biz_date) ?? byDate.set(p.biz_date, []).get(p.biz_date)!).push(p);
   const out: StaffDayHours[] = [];
   for (const [bizDate, rows] of [...byDate.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
     const sorted = [...rows].sort((a, b) => Date.parse(a.punched_at) - Date.parse(b.punched_at));
-    let minutes = 0; let inAt: number | null = null; let open = false;
+    let minutes = 0; let inAt: number | null = null; let open = false; let openBreak = false;
+    const adj = dayAdj?.(bizDate) ?? null; let inIso: string | null = null;
     for (const p of sorted) {
       const ts = Date.parse(p.punched_at);
-      if (p.kind === "in") { inAt = ts; continue; }
-      if (inAt !== null) { minutes += Math.max(0, Math.floor((ts - inAt) / 60_000)); inAt = null; }
+      if (p.kind === "in") { inAt = ts; inIso = p.punched_at; continue; }
+      if (inAt !== null) {
+        if (adj && inIso) { const a0 = minOfBizDay(inIso, bizDate), b0 = minOfBizDay(p.punched_at, bizDate); const w = dayWindowOf(a0, b0, { ...adj, breaks: adj.breaks.filter((br) => br.endMin !== null || (br.startMin >= a0 && br.startMin < b0)) }); /* ★G3: 閉じていない休憩はその休憩が始まった対だけ（休憩開始〜その対の退勤）＝中抜けの後の対を丸ごと休憩にしない */ minutes += w ? w.workMin : 0; if (w?.openBreak) openBreak = true; } // ★0213／0214（G3: 閉じ忘れの休憩の日を印に）
+        else minutes += Math.max(0, Math.floor((ts - inAt) / 60_000));
+        inAt = null;
+      }
     }
     if (inAt !== null) open = true;
-    out.push({ bizDate, minutes, open });
+    out.push({ bizDate, minutes, open, ...(openBreak ? { openBreak: true as const } : {}) });
   }
   return out;
 }
+
+/** ★0214（相談役 11/25 の G3）: 閉じていない休憩のまま退勤がある営業日（キャストの openBreakDates と同じ見方＝人と営業日で束ね・休憩開始〜退勤を休憩） */
+export const staffOpenBreakDatesOf = (days: readonly StaffDayHours[]): string[] => days.filter((d) => d.openBreak).map((d) => d.bizDate).sort();
 
 export type StaffPayResult = {
   kind: StaffContractKind;

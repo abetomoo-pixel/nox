@@ -10,7 +10,10 @@ import MasterPageHead from "../master-page-head";
 import LineConfigPanel from "../line-config-panel"; // ★便 ON-3（0176 ★1 401）: LINE 連携と送信数
 import { systemUsageOf } from "@/lib/nox/store-systems";
 import { storeProfileTabOf } from "@/lib/nox/master/nav";
-import PunchRulesPanel from "../punch-rules-panel"; // ★0201（裁定474）: 打刻の設定
+import PunchRulesPanel from "../punch-rules-panel";
+import PunchRoundPanel from "../punch-round-panel"; // ★起票159 // ★0201（裁定474）: 打刻の設定
+import BreakPunchPanel from "../break-punch-panel"; // ★0214（起票158 の 2）: 休憩の打刻を使う
+import { mig0214On } from "@/lib/nox/rules-0175/flag"; // ★0214
 import { mig0201On, mig0201cOn } from "@/lib/nox/rules-0175/flag";
 import TrialTermsPanel from "../trial-terms-panel"; // ★0201c（裁定480）: 体験入店の条件（店の既定）
 import { managePageGate } from "@/lib/nox/nav/page-gate";
@@ -86,6 +89,8 @@ export default async function MasterStoreProfilePage({ searchParams }: { searchP
       {tab === "register" && <StoreProfilePanel stores={stores} isOwner={isOwner} sections={["regprof"]} />}
       {tab === "shift" && <StoreProfilePanel stores={stores} isOwner={isOwner} sections={["opsShift"]} />}
       {tab === "shift" && mig0201On() && <ManagerPunchPanel stores={stores} isOwner={isOwner} />}{/* ★■8: 店長の打刻の許可＝シフトと打刻 */}
+      {tab === "shift" && <PunchRoundPanel stores={stores} isOwner={isOwner} />}
+      {tab === "shift" && mig0214On() && <BreakPunchPanel stores={stores} isOwner={isOwner} />}{/* ★0214（相談役 11/25 の D5）: 休憩の打刻を使う（店舗設定だけ・オーナーだけ） */}{/* ★起票159（相談役 11/24 夜）: 勤務時間の丸めと同意（店ごと・set_store_profile の 3 キー＝DB 変更 0） */}
       {tab === "shift" && mig0201On() && <PunchRulesPanel stores={stores} isOwner={isOwner} />}{/* ★0201（裁定474）: 打刻の設定（判定・方法・位置・Wi-Fi・予定外） */}
       {tab === "shift" && <StoreProfilePanel stores={stores} isOwner={isOwner} sections={["shift"]} />}
       {tab === "shift" && isOwner && <FeatureFlagsPanel stores={stores} />}

@@ -66,7 +66,7 @@ const src = (p: string) => fs.readFileSync(p, "utf8");
   const pad = src("components/nox/pin-pad.tsx"), kp = src("app/kiosk/page.tsx"), up = src("components/nox/kiosk-unlock-pad.tsx"), css = src("app/globals.css");
   check("c201(5-1) M-154 PIN 入力の共通部品＝出退勤（/kiosk）と本人ログイン（KioskUnlockPad）が同じ PinPad・丸は入力した数だけ（薄い丸なし）・表示「PIN（4〜6 桁）」・金の枠のキーが横幅いっぱい 3 列・決定は横幅いっぱい",
     kp.includes("<PinPad value={pin} onChange={setPin}") && up.includes("<PinPad value={pin} onChange={setPin} />") && pad.includes("Array.from({ length: value.length }") && pad.includes("PIN（${PIN_MIN}〜${PIN_MAX} 桁）")
-    && css.includes(".nox-pinpad-keys { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; width: 100%; }") && css.includes("border: 1px solid var(--gold)") && kp.includes('<div className={sb.in && sb.out ? "nox-pinpad-go two" : "nox-pinpad-go"}') /* ★起票158 の 1（2026-11-24 夜）: 端末のスタッフはボタンが 1 つ＝全幅・キャストは 2 つ（two） */ && up.includes('<div className="nox-pinpad-go">')
+    && css.includes(".nox-pinpad-keys { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; width: 100%; }") && css.includes("border: 1px solid var(--gold)") && kp.includes('<div className={nShown >= 2 ? "nox-pinpad-go two" : "nox-pinpad-go"}') /* ★0214: 出すボタンの数で */ /* ★起票158 の 1（2026-11-24 夜）: 端末のスタッフはボタンが 1 つ＝全幅・キャストは 2 つ（two） */ && up.includes('<div className="nox-pinpad-go">')
     && !kp.includes("[0, 1, 2, 3].map") && !up.includes("[0, 1, 2, 3, 4, 5].map"));
   check("c201(5-2) PIN の桁＝4〜6 だけ決定できる", !pinReady("123") && pinReady("1234") && pinReady("123456") && !pinReady("1234567"));
 }

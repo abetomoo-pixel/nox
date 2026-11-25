@@ -162,7 +162,7 @@ ok("(3-5) 込みの行が無い伝票は今の書き方（小計・消費税(10%
 const x6 = buildReceiptXml({ store: { name: "VESPER", address: "", tel: "", reg_no: "T1234567890123", footer: "" }, check: { id: "11111111-2222-3333-4444-555555555555", closed_at: "2026-11-25T14:00:00Z", nom_type: "free" }, payGroup: "A", lines: rl1, payments: [], serviceRate: 30, groupDue: 4500, isReprint: false, taxSettings: taxIn(V) } as unknown as ReceiptInput);
 ok("(3-6) 案 R1 は渡したときだけ＝渡さない（旗 false）と「税・サ込みの料金」「小計(通常分)」の段は出ない", !x6.includes("税・サ込みの料金") && !x6.includes("小計(通常分)") && x6.includes("消費税(10%)"));
 const route0 = fs.readFileSync("app/api/print/poll/[store_token]/route.ts", "utf8");
-ok("(3-7) 旗 FIRST_VISIT_RECEIPT_R1 の既定は false・印刷は 2 つの旗がそろったときだけ \"r1\" を渡す", FIRST_VISIT_RECEIPT_R1 === false && firstVisitReceiptR1On() === false && route0.includes('allInLayout: mig0210On() && firstVisitReceiptR1On() ? "r1" : null'));
+ok("(3-7) 旗 FIRST_VISIT_RECEIPT_R1 は true（相談役 11/25 の便 H1）・印刷は 2 つの旗がそろったときだけ \"r1\" を渡す", (FIRST_VISIT_RECEIPT_R1 as boolean) === true && firstVisitReceiptR1On() === true && route0.includes('allInLayout: mig0210On() && firstVisitReceiptR1On() ? "r1" : null'));
 
 // (4) 札と柵
 const T0 = Date.parse("2026-11-25T12:00:00Z"), min = (m: number) => T0 + m * 60000;
@@ -183,7 +183,7 @@ const sqlNames = fs.existsSync("docs/tmp/first_visit_1125/0210_first_visit_price
 ok("(4-13) 行の名前と柵の語が 0210 の本体と同じ（本体があるときだけ・main の置き場）", sqlNames === null || (sqlNames.includes("'初回料金(' || v_smin || '分) 税・サ込'") && sqlNames.includes("raise exception 'no extension'") && sqlNames.includes("raise exception 'not end'") && sqlNames.includes("raise exception 'first visit exists'")));
 
 // (5) 配線
-ok("(5-1) 旗 MIG_0210_APPLIED の既定は false", MIG_0210_APPLIED === false && mig0210On() === false);
+ok("(5-1) 旗 MIG_0210_APPLIED は true（0210 版 3 の適用の後・相談役 11/25 の便 H1）", (MIG_0210_APPLIED as boolean) === true && mig0210On() === true);
 const board = fs.readFileSync("app/(manage)/register/register-board.tsx", "utf8");
 const rpcs = ["register_open_categories", "check_set_time_end"];
 ok("(5-2) レジの新しい関数は旗の後ろでだけ呼ぶ", rpcs.every((r) => { const i = board.indexOf(`"${r}"`); return i > 0 && /mig0210On\(\)/.test(board.slice(Math.max(0, i - 600), i)); }), rpcs.map((r) => board.indexOf(`"${r}"`)));
@@ -237,7 +237,7 @@ ok("(8-4) ④注記（readers 27・36）：日報・分析・売上の基準に�
   FIRST_VISIT_ALL_IN_NOTE.includes("税・サ込みの額") && reportSrc.includes(noteMark) && anaSrc.split(noteMark).length - 1 === 2
   && sbrSrc.includes('{SALES_BASIS_ROW_NOTE}{mig0210On() ? FIRST_VISIT_SALES_NOTE : ""}') && FIRST_VISIT_SALES_NOTE.includes("税・サ込みの額"));
 const flagSrc = fs.readFileSync("lib/nox/rules-0175/flag.ts", "utf8");
-ok("(8-5) ⑤R1 は税理士の確認済み（11/25）＝0210 を当てる便で true にしてよい・今は false のまま（旗の注）", FIRST_VISIT_RECEIPT_R1 === false && flagSrc.includes("税理士の確認済み（2026-11-25・R1 でよい）＝0210 を本番に当てる便で true にしてよい"));
+ok("(8-5) ⑤R1 は税理士の確認済み（11/25）＝0210 を当てた便 H1 で true（旗の注）", (FIRST_VISIT_RECEIPT_R1 as boolean) === true && flagSrc.includes("税理士の確認済み（2026-11-25・R1 でよい）＝0210 を本番に当てる便で true にしてよい"));
 
 if (fails.length) { console.error(fails.join("\n")); console.error(`verify:nox-first-visit NG ${fails.length}／${n}`); process.exit(1); }
 console.log(`verify:nox-first-visit OK ${n}`);

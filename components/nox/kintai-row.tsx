@@ -8,6 +8,7 @@ import { useState } from "react";
 import * as t from "@/lib/nox/ui/theme";
 import { BASIS_MARK, correctionTextOf, flagsTextOf, hm47Ja, kintaiOutCellOf, type AttendanceDayRow } from "@/lib/nox/payroll/attendance-sheet";
 import { backsDetailTextOf, yenCellOf } from "@/lib/nox/payroll/daily-pay";
+import { roundedCellOf } from "@/lib/nox/punch/day-window"; // ★0213
 import { hoursMinutesJaOf } from "@/lib/nox/mine/attendance-month"; // ★2026-11-13（相談役【3】b）: 時間は「◯ 時間 ◯ 分」
 
 export const KINTAI_HEADS = ["日付", "確定シフト", "出", "退", "店の修正", "遅刻・当欠・早退", "実働", "送り", "備考"] as const;
@@ -49,21 +50,21 @@ export default function KintaiRow({ r, withBy, onEdit, withPay = r.pay !== undef
         <td className="opt num" style={t.td}>{r.shift ? `${r.shift.start}–${hm47Ja(r.shift.end)}` : "—"}</td>
         <td className="num" style={t.td}>{r.missingIn ? (onFix
             ? <button type="button" className="nox-link" style={{ color: "var(--bad)", fontWeight: 700 }} data-kintai-fix="in" onClick={(e) => { e.stopPropagation(); onFix(r, "in"); }} title="出勤の時刻を入れる">出勤記録なし</button>
-            : <span style={{ color: "var(--bad)", fontWeight: 700 }}>出勤記録なし</span>) : hm47Ja(r.inHm)}{r.inHm && !r.shift && !r.cancelled && (/* ★便 M-10（確定 ⑧）→★便 M-14 ②: シフト無し出勤＝「シフトとして確定」（採用・確定のシフトを作って時給分を付ける） */
+            : <span style={{ color: "var(--bad)", fontWeight: 700 }}>出勤記録なし</span>) : (r.adj?.inRoundedHm && r.inHm ? <span data-kintai-rounded-in={r.adj.inRoundedHm}>{roundedCellOf(r.inHm, r.adj.inRoundedHm, hm47Ja)}</span> : hm47Ja(r.inHm))}{/* ★0213: 丸めた日は「20:07→20:15」 */}{r.inHm && !r.shift && !r.cancelled && (/* ★便 M-10（確定 ⑧）→★便 M-14 ②: シフト無し出勤＝「シフトとして確定」（採用・確定のシフトを作って時給分を付ける） */
           <span style={{ display: "block", fontSize: 10.5, fontWeight: 700, color: "var(--gold2)" }} data-kintai-no-shift={r.bizDate}>シフト無し出勤{onConfirmShift && <button type="button" className="nox-link" style={{ marginLeft: 4, fontSize: 10.5 }} onClick={(e) => { e.stopPropagation(); onConfirmShift(r); }} data-kintai-no-shift-confirm={r.bizDate}>シフトとして確定</button>}</span>
         )}</td>
         {(() => { const oc = kintaiOutCellOf(r); return (
         <td className="num" style={{ ...t.td, color: oc.kind === "missing" ? "var(--bad)" : oc.kind === "working" ? "var(--gold2)" : undefined, fontWeight: oc.kind === "plain" ? undefined : 700 }} data-kintai-out-kind={oc.kind}>
           {oc.kind === "missing" && onFix
             ? <button type="button" className="nox-link" style={{ color: "var(--bad)", fontWeight: 700 }} data-kintai-fix="out" onClick={(e) => { e.stopPropagation(); onFix(r, "out"); }} title="退勤の時刻を入れる">退勤記録なし</button>
-            : oc.text}
+            : oc.kind === "plain" && r.adj?.outRoundedHm && r.outHm ? <span data-kintai-rounded-out={r.adj.outRoundedHm}>{roundedCellOf(r.outHm, r.adj.outRoundedHm, hm47Ja)}</span> : oc.text}{/* ★0213 */}
         </td>); })()}
         <td className="opt" style={t.td}>{r.corrections.length > 0 ? (
           <details onClick={(e) => e.stopPropagation()} data-kintai-corr="1"><summary style={{ cursor: "pointer", color: "var(--champ)" }}>修正 {r.corrections.length} 件</summary>
             <ul style={{ margin: "4px 0 0", paddingLeft: 16, fontSize: 11.5 }}>{r.corrections.map((c, i) => <li key={i}>{correctionTextOf(c, withBy)}</li>)}</ul>
           </details>) : "—"}</td>
         <td className="opt" style={{ ...t.td, color: r.absent || r.late ? "var(--gold2)" : undefined }}>{flags || "—"}</td>
-        <td className="opt num" style={{ ...t.td, textAlign: "right", whiteSpace: "nowrap" }}>{hoursTxt}{r.hours > 0 && <span style={{ fontSize: 10.5, color: "var(--sub)", marginLeft: 4, whiteSpace: "nowrap" }} data-kintai-basis={r.basis}>{BASIS_MARK[r.basis]}</span>}</td>{/* ★便 A M-68: 「実打刻」の 3 文字はスマホ幅でも 1 行 */}
+        <td className="opt num" style={{ ...t.td, textAlign: "right", whiteSpace: "nowrap" }}>{hoursTxt}{r.adj && (r.adj.breakMin > 0 || r.adj.openBreak) && <span style={{ display: "block", fontSize: 10.5, color: r.adj.openBreak ? "var(--bad)" : "var(--sub)" }} data-kintai-break={r.adj.breakMin}>{r.adj.openBreak ? "休憩の終了なし（退勤まで休憩）" : `休憩 ${r.adj.breakMin} 分`}</span>}{/* ★0214 */}{r.hours > 0 && <span style={{ fontSize: 10.5, color: "var(--sub)", marginLeft: 4, whiteSpace: "nowrap" }} data-kintai-basis={r.basis}>{BASIS_MARK[r.basis]}</span>}</td>{/* ★便 A M-68: 「実打刻」の 3 文字はスマホ幅でも 1 行 */}
         <td className="opt" style={t.td}>{r.okuri.n > 0 ? `${r.okuri.n}${r.okuri.modes.length ? `（${r.okuri.modes.join("・")}）` : ""}` : "—"}</td>
         <td className="opt" style={{ ...t.td, fontSize: 12 }}>{r.note || "—"}</td>
         {withPay && (<>

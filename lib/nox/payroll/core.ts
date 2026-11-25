@@ -4,6 +4,7 @@
 //   プレビューは既定 '委託' で試算しつつ blocker を警告返し。確定は blocker があれば route が 422（論点2）。
 
 import { slideBasisForPeriodOf, slideScopeFreezeOf } from "./slide"; // ★裁定338（0168・便 P168）・★裁定343（0170・便 W5-2b）
+import { punchRoundNoteExtraOf } from "./round-note"; // ★0213（相談役 11/25 の便 E2）
 import { normProposalOf, NORM_REASON_PREFIX, type NormProposal } from "./norm-proposal"; // ★便 X13-I I-5
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { payOf, type PayResult, type TaxMode } from "../pay";
@@ -39,6 +40,7 @@ export type PreviewRow = {
   extras: Extra[]; // #32 出勤インセンティブの attendance_bonus 行（無ければ空）
   anomalyCount: number;
   missingOutDates: string[]; // ★N3 AV-4: 退勤の記録が無い勤務（表示のみ）
+  openBreakDates?: string[]; // ★0214: 閉じていない休憩のまま退勤がある日（ある cast だけ・表示のみ）
   noShiftDates?: string[]; // ★便 M-10: シフト無し出勤（時給なし・ある行だけ）
   calcPeriodStart?: string; calcPeriodEnd?: string; // ★0154 D6（294-8）: 計算期間（finalize が payslips.calc_period_* へ写す）
   taxMode: TaxMode;
@@ -219,7 +221,7 @@ export async function computePayrollDraft(
       if (!opts.previewDefaults) continue; // 確定は税区分必須（gate）＝行を作らない
       taxMode = "委託"; // プレビューのみ既定で試算表示（論点2）
     }
-    const extras = incentiveExtrasFor(c.castId); // #32 attendance_bonus（無ければ空）
+    const extras = [...incentiveExtrasFor(c.castId), ...(c.punchRoundNote ? [punchRoundNoteExtraOf(c.punchRoundNote)] : [])]; // #32 attendance_bonus（無ければ空）★0213（E2）: 丸めの注記（0 円）
 
     // F2e-2 三カテゴリ天引き（二段 payOf・L4 順序＝送り→前借り→売掛・共通 budget を順に消費）:
     //  1) 全0 で pay0 → available = pay0.net + Σextras（インセンティブ込みの手取り）
@@ -298,7 +300,7 @@ export async function computePayrollDraft(
     const npApplied = (c.adjustments ?? []).filter((a) => a.reason.startsWith(NORM_REASON_PREFIX)).reduce((s, a) => s + (a.amount ?? 0), 0);
     rows.push({
       ...(np4 ? { normProposal: { ...np4, ...(npApplied > 0 ? { applied: npApplied } : {}) } } : {}),
-      castId: c.castId, castName: c.castName, net, pay, extras, anomalyCount: c.anomalyCount, missingOutDates: c.missingOutDates ?? [], taxMode,
+      castId: c.castId, castName: c.castName, net, pay, extras, anomalyCount: c.anomalyCount, missingOutDates: c.missingOutDates ?? [], ...(c.openBreakDates?.length ? { openBreakDates: c.openBreakDates } : {}) /* ★0214 */, taxMode,
       ...(c.noShiftDates?.length ? { noShiftDates: c.noShiftDates } : {}), // ★便 M-10
       ...(c.calcPeriod ? { calcPeriodStart: c.calcPeriod.start, calcPeriodEnd: c.calcPeriod.end } : {}), // ★0154 D6
       arDeducted, arCarried, arDeductTotal: arPlan.deduct, arCarriedTotal: arPlan.carriedTotal,

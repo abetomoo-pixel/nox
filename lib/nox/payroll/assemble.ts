@@ -50,6 +50,8 @@ export type CastRaw = {
   absentN: number;
   anomalyCount: number; // out 欠損等 S8 anomaly のある日数（表示のみ・論点3）
   noShiftDates?: string[]; // ★便 M-10（2026-10-26）: シフト無し出勤の営業日（打刻 in あり・確定シフトなし・今日まで）＝時給なし・表示と要対応だけ
+  punchRoundNote?: { days: number; unit: number; mode: string }; // ★0213（相談役 11/25 の便 E2）: 丸めが効いた日の数と規則（明細の注記 1 行・0 円）
+  openBreakDates?: string[]; // ★0214（休憩・相談役 11/25 の D5）: 閉じていない休憩のまま退勤がある日（休憩開始〜退勤を休憩にした）。ある cast だけ・表示のみ
   missingOutDates?: string[]; // ★N3 AV-4（2026-09-24）: 退勤の記録が無い勤務の営業日（in あり・out なし・final ok|late）。表示のみ・fixture は省略＝従来と同値
   plan: CompPlan | null; // cast_plan 未設定なら null（core が blocker 化）
   override?: PlanOverride;

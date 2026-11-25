@@ -6,7 +6,8 @@
 // UI の出し分け（owner/manager・自店・自分の行）は利便のための表示制御＝真の防御は RPC ゲート（二重に守る）。
 import Staff0193 from "@/components/nox/staff-0193";
 import MoneyInput from "@/components/ui/money-input"; // ★M-155: 金額欄の共通部品
-import { mig0193On, mig0195On } from "@/lib/nox/rules-0175/flag"; // ★0193
+import { mig0193On, mig0195On, mig0211On, mig0215On } from "@/lib/nox/rules-0175/flag"; // ★0193 ★0211 ★0215
+import { INVITE_EXPIRED_SHOWN_DAYS, INVITE_REISSUE_NOTE, inviteMailResultLineOf } from "@/lib/nox/people/invite-mail"; // ★0211（D1）
 import { LoadMoreBar, useLoadMore } from "@/components/ui/load-more"; // ★便 M5b M-60
 import AddButton from "@/components/ui/add-button"; // ★便 M5b M-55
 export const STAFF_ADD_DEMO_NOTE = "デモ環境ではスタッフを追加できません（本番ではここから登録→招待まで進めます）"; // ★M-79（2026-11-04）
@@ -115,7 +116,7 @@ export default function StaffBoard({
   const [copied, setCopied] = useState(false);
   // ★便 ON-3（0176 ★2 I-1）: ログインの方法（初期パスワード＝従来／招待リンク＝本人がパスワードを決める）・招待の結果・招待中の一覧・LINE 連携
   const [aMethod, setAMethod] = useState<LoginMethod>(LOGIN_METHOD_DEFAULT); // ★起票157: 既定は招待リンク（おすすめ）
-  const [aInvite, setAInvite] = useState<{ url: string; expires_at: string | null; email: string } | null>(null);
+  const [aInvite, setAInvite] = useState<{ url: string; expires_at: string | null; email: string; name?: string; mail?: { status: "sent" | "skipped" | "failed"; reason?: string } | null; reissued?: boolean; leftToday?: number | null } | null>(null); // ★0211: メールの結果・出し直し
   const [aWork, setAWork] = useState<{ contract_kind: string; pay_kind: string; amount: string }>({ contract_kind: "parttime", pay_kind: "hourly", amount: "" }); // ★便 M3 M-20／M-21
   // ★便 M5 M-35（2026-10-30）: 初期設定 STEP 6 と同じ項目＝「シフトを組める」（staff のみ・ON のときだけ登録後に set_staff_perms＝can_shift true・他 5 フラグ false 明示）と
   //   PIN（4〜6 桁・任意＝入れたときだけ登録後に set_staff_pin）。結果モーダルに「PIN 発行済み（n 桁）／未発行」の 1 行（data-staff-pin-mark）
@@ -190,10 +191,10 @@ export default function StaffBoard({
     setUsers(map);
     // ★便 ON-3: 招待中（未受諾・期限内）と LINE 連携済み（line_links subject membership）＝RLS（owner 全店／manager 自店）
     const [{ data: inv }, { data: ll }] = await Promise.all([
-      supabase.from("staff_invites").select("id, store_id, email, name, role, expires_at, accepted_at").is("accepted_at", null).order("created_at", { ascending: false }).limit(100),
+      (mig0211On() ? supabase.from("staff_invites").select("id, store_id, email, name, role, expires_at, accepted_at").is("accepted_at", null).is("revoked_at", null).gt("expires_at", new Date(Date.now() - INVITE_EXPIRED_SHOWN_DAYS * 86_400_000).toISOString()) : supabase.from("staff_invites").select("id, store_id, email, name, role, expires_at, accepted_at").is("accepted_at", null)).order("created_at", { ascending: false }).limit(100), // ★0211: 取り消していない・期限切れは 30 日まで
       supabase.from("line_links").select("subject_id").eq("subject_kind", "membership"),
     ]);
-    setInvites(((inv ?? []) as typeof invites).filter((i) => inviteStateOf(i, Date.now()) === "ok"));
+    setInvites(((inv ?? []) as typeof invites).filter((i) => mig0211On() || inviteStateOf(i, Date.now()) === "ok")); // ★0211: 期限切れも出す（出し直せる）
     setLineLinked(new Set(((ll ?? []) as { subject_id: string }[]).map((x) => x.subject_id)));
     { // ★M-133: PIN の状態（店ごと・読めない店は行なし＝「未設定」と言わない＝チップは出さない）
       const ps: Record<string, StaffPinStatus> = {};
@@ -268,6 +269,40 @@ export default function StaffBoard({
     setBindUrl(liffBindUrlOf(siteOriginOf(window.location.origin), m.store_id, data)); // ★便 D M-102: site 固定
   }
 
+  // ★0211（相談役 11/25 の便 D1）: 出し直し（link／mail）・取り消し
+  async function reissueInvite(i: { id: string; email: string; name: string }, mode: "link" | "mail") {
+    if (!window.confirm(mode === "mail" ? `${i.email} に新しいリンクをメールで送ります。前のリンクは使えなくなります。` : "新しいリンクを出します。前のリンクは使えなくなります。")) return;
+    setBusy(true); setMsg(null);
+    try {
+      const res = await fetch("/api/staff/invite/reissue", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ inviteId: i.id, mode }) });
+      const b = (await res.json().catch(() => ({}))) as { url?: string; expires_at?: string | null; email?: string | null; name?: string | null; left_today?: number | null; mail?: { status: "sent" | "skipped" | "failed"; reason?: string } | null; error?: string };
+      if (!res.ok || !b.url) { setMsg(inviteErrJa(b.error ?? `出し直せませんでした（${res.status}）`)); return; }
+      setCopied(false); setAResult(null);
+      setAInvite({ url: b.url, expires_at: b.expires_at ?? null, email: b.email ?? i.email, name: b.name ?? i.name, mail: mode === "mail" ? b.mail ?? null : null, reissued: true, leftToday: b.left_today ?? null });
+      setAddOpen(true); await load();
+    } finally { setBusy(false); }
+  }
+  // ★0215（旗の後ろ）: メール無しのスタッフの初期パスワードを出し直す
+  const [pwOnce, setPwOnce] = useState<{ id: string; pw: string } | null>(null);
+  async function reissuePassword(membershipId: string) {
+    if (!window.confirm("新しい初期パスワードを出します。今のパスワードは使えなくなります。本人は最初のログインで自分のパスワードに変えます。")) return;
+    setBusy(true); setMsg(null); setPwOnce(null);
+    try {
+      const res = await fetch("/api/staff/password-reissue", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ membershipId }) });
+      const b = (await res.json().catch(() => ({}))) as { ok?: boolean; password?: string; error?: string };
+      if (!res.ok || !b.password) { setMsg(b.error === "has email" ? "メールを登録している人は、本人がログイン画面の「パスワードを忘れた方」から再設定します" : `出し直せませんでした（${res.status}）`); return; }
+      setPwOnce({ id: membershipId, pw: b.password });
+    } finally { setBusy(false); }
+  }
+  async function revokeInvite(i: { id: string; name: string }) {
+    if (!window.confirm(`${i.name}さんへの招待を取り消します。送ったリンクは使えなくなります。`)) return;
+    setBusy(true); setMsg(null);
+    const { error } = await supabase.rpc("staff_invite_revoke", { p_invite_id: i.id });
+    setBusy(false);
+    setMsg(error ? inviteErrJa(error.message) : `${i.name}さんへの招待を取り消しました`);
+    await load();
+  }
+
   function openAdd() {
     setAName(""); setAEmail(""); setATel(""); setALine(""); setAStore(isOwner ? (stores[0]?.id ?? "") : myStoreId); // ★裁定381
     setARole("staff"); setAErr(null); setAResult(null); setCopied(false);
@@ -288,7 +323,7 @@ export default function StaffBoard({
         const res = await fetch("/api/staff/invite", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: aName.trim(), email: aEmail.trim(), storeId: isOwner ? aStore : myStoreId, role: isOwner ? aRole : "staff" }) });
         const body = (await res.json()) as { url?: string; expires_at?: string | null; email?: string; error?: string };
         if (!res.ok || !body.url) setAErr(inviteErrJa(body.error ?? `招待に失敗しました（${res.status}）`));
-        else { setAInvite({ url: body.url, expires_at: body.expires_at ?? null, email: body.email ?? aEmail.trim() }); await load(); }
+        else { setAInvite({ url: body.url, expires_at: body.expires_at ?? null, email: body.email ?? aEmail.trim(), name: aName.trim(), mail: (body as { mail?: { status: "sent" | "skipped" | "failed"; reason?: string } | null }).mail ?? null }); await load(); }
       } catch (e) { setAErr((e as Error).message); } finally { setBusy(false); }
       return;
     }
@@ -492,6 +527,14 @@ export default function StaffBoard({
             <FieldStack label="LINE ID" htmlFor="staff-edit-line">
               <input id="staff-edit-line" placeholder="@line_id" maxLength={40} value={eLine} onChange={(e) => setELine(e.target.value)} style={{ ...t.input, width: "100%" }} data-staff-edit-line="1" />
             </FieldStack>
+            {mig0215On() && !isDemo && sel.role === "staff" && /@o-[0-9a-f]{8}.nox.local$/i.test(users[sel.user_id]?.email ?? "") && (isOwner || sel.store_id === myStoreId) && (/* ★0215（旗の後ろ・相談役 11/25 の便 D1）: メール無しのスタッフの初期パスワードを出し直す（最初のログインで変更を求める・監査） */
+              <FieldStack label="パスワード" htmlFor="staff-edit-pw-reissue">
+                <div style={{ display: "grid", gap: 6 }} data-staff-pw-reissue={sel.id}>
+                  <span style={{ fontSize: 12.5, color: "var(--sub)" }}>メールを登録していない人です。パスワードを忘れたときは、ここで新しい初期パスワードを出せます（本人は最初のログインで変えます）。</span>
+                  <button id="staff-edit-pw-reissue" type="button" style={btnGhost} disabled={busy} onClick={() => void reissuePassword(sel.id)}>初期パスワードを出し直す</button>
+                  {pwOnce && pwOnce.id === sel.id && <div style={t.bdRow} data-staff-pw-once="1"><span style={t.bdKey}>新しい初期パスワード（この 1 回だけ）</span><span style={{ ...t.bdVal, fontFamily: "ui-monospace, monospace", wordBreak: "break-all" }}>{pwOnce.pw}</span></div>}
+                </div>
+              </FieldStack>)}
             {/* ★便 ON-3（0176 ★1 401）: LINE 連携（line_links）＝紐付けのリンクを発行（line_bind_token_create 'membership'・7 日・1 回だけ）→ 本人が LINE で開く。デモは出さない */}
             <FieldStack label="LINE 連携" htmlFor="staff-edit-line-bind">
               <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }} data-staff-line-bind={lineLinked.has(sel.id) ? "linked" : "none"}>
@@ -603,10 +646,17 @@ export default function StaffBoard({
       {invites.length > 0 && (
         <section className="nox-panel" data-staff-invites={invites.length} style={{ marginBottom: 12 }}>
           <h3>招待中（{invites.length}）</h3>
-          <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 4, fontSize: 12.5 }}>
-            {invites.map((i) => <li key={i.id} data-staff-invite={i.id}><b>{i.name}</b>（{labelOf(i.role)}・{storeName(i.store_id)}）<span style={{ color: "var(--sub)" }}> {i.email}・{INVITE_STATE_LABEL[inviteStateOf(i, Date.now())]}・{inviteExpiryTextOf(i.expires_at)}</span></li>)}
+          <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 8, fontSize: 12.5 }}>
+            {invites.map((i) => <li key={i.id} data-staff-invite={i.id} style={{ display: "grid", gap: 6 }}><span><b>{i.name}</b>（{labelOf(i.role)}・{storeName(i.store_id)}）<span style={{ color: "var(--sub)" }}> {i.email}・{INVITE_STATE_LABEL[inviteStateOf(i, Date.now())]}・{inviteExpiryTextOf(i.expires_at)}</span></span>
+              {mig0211On() && !isDemo && (/* ★0211（相談役 11/25 の便 D1）: 出し直す（前のリンクは無効・期限は今から 14 日）・メールで送り直す・取り消す */
+                <span style={{ display: "flex", gap: 6, flexWrap: "wrap" }} data-staff-invite-acts={i.id}>
+                  <button type="button" style={btnGhost} disabled={busy} onClick={() => void reissueInvite(i, "link")} data-staff-invite-reissue={i.id}>リンクを出し直す</button>
+                  <button type="button" style={btnGhost} disabled={busy} onClick={() => void reissueInvite(i, "mail")} data-staff-invite-remail={i.id}>メールを送り直す</button>
+                  <button type="button" style={{ ...btnGhost, color: "var(--bad)" }} disabled={busy} onClick={() => void revokeInvite(i)} data-staff-invite-revoke={i.id}>取り消す</button>
+                </span>)}
+            </li>)}
           </ul>
-          <p style={{ ...t.sub, margin: "6px 0 0" }}>リンクは発行時に 1 回だけ表示されます。期限切れは再登録（同じメールで再発行）してください。</p>
+          <p style={{ ...t.sub, margin: "6px 0 0" }}>{mig0211On() ? `リンクは発行時に 1 回だけ表示されます。見つからないときは「リンクを出し直す」（前のリンクは使えなくなります）。${INVITE_REISSUE_NOTE}` : "リンクは発行時に 1 回だけ表示されます。期限切れは再登録（同じメールで再発行）してください。"}</p>
         </section>
       )}
       {/* 追加モーダル（Q-2・POST /api/staff/create） */}
@@ -614,7 +664,9 @@ export default function StaffBoard({
         <Modal onClose={() => !busy && !aResult && !aInvite && setAddOpen(false)}>
             {aInvite ? (/* ★便 ON-3（0176 ★2 I-1）: 招待リンク（1 回だけ表示・14 日） */
               <>
-                <h2 style={secTitle}>招待リンクを発行しました</h2>
+                <h2 style={secTitle}>{aInvite.reissued ? "招待リンクを出し直しました" : "招待リンクを発行しました"}</h2>
+                {(() => { const ml = inviteMailResultLineOf(aInvite.mail, { name: aInvite.name ?? "", email: aInvite.email }); return ml ? <Message kind={ml.kind} style={{ margin: "0 0 10px" }}>{ml.text}</Message> : null; })()}{/* ★0211: メールの結果（送れなくてもリンクで動く） */}
+                {aInvite.reissued && aInvite.leftToday != null && <p style={{ ...t.sub, margin: "0 0 8px" }} data-staff-invite-left={aInvite.leftToday}>前のリンクは使えなくなりました。今日はあと {aInvite.leftToday} 回出し直せます。</p>}
                 {/* ★起票157（相談役 11/24 夜 N2）: リンクと「コピー」を大きく・「このリンクを本人に送ってください」 */}
                 <p style={{ fontSize: 16, fontWeight: 800, margin: "0 0 10px" }} data-staff-invite-send-note="1">このリンクを本人に送ってください</p>
                 <div style={{ display: "grid", gap: 10, marginBottom: 10 }} data-staff-invite-result="1">

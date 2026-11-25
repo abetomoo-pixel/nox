@@ -38,6 +38,7 @@ export async function POST(req: Request) {
         taxMode: r.taxMode,
         anomalyCount: r.anomalyCount,
         missingOutDates: r.missingOutDates, // ★N3 AV-4: 退勤の記録が無い勤務（表示のみ）
+        ...(r.openBreakDates?.length ? { openBreakDates: r.openBreakDates } : {}), // ★0214: 休憩の終了なしの日（表示のみ）
         ...(r.noShiftDates?.length ? { noShiftDates: r.noShiftDates } : {}), // ★2026-11-17（相談役・通しの確かめ 20）: シフト無し出勤の日を下書きの画面にも渡す（旧＝渡していなかった＝確定前は印が一度も出なかった・計算は不変）
         breakdown: { pay: r.pay, extras: r.extras },
         arDeductTotal: r.arDeductTotal, // F2e-1 売掛天引き明細

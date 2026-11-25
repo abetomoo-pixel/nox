@@ -10,7 +10,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { INVITE_PASSWORD_MIN, invitePasswordErrorOf } from "@/lib/nox/people/invite";
-import { SET_PASSWORD_COPY, otpTypeOf, setPasswordErrJa, setPasswordFlowOf, type SetPasswordFlow } from "@/lib/nox/auth/set-password-copy";
+import { OPS_INVITE_COPY, SET_PASSWORD_COPY, otpTypeOf, setPasswordErrJa, setPasswordFlowOf, type SetPasswordFlow } from "@/lib/nox/auth/set-password-copy";
 import * as t from "@/lib/nox/ui/theme";
 import BrandLogo from "@/components/ui/brand-logo";
 import { Message } from "@/components/ui/toast";
@@ -24,6 +24,7 @@ export default function SetPasswordPage() {
   const [email, setEmail] = useState<string>("");
   const [pw, setPw] = useState(""); const [pw2, setPw2] = useState("");
   const [busy, setBusy] = useState(false); const [err, setErr] = useState<string | null>(null);
+  const [isOps, setIsOps] = useState(false); // ★0209 の便（E3）: 運営者への招待なら運営者向けの文
 
   // ★■K-2a（2026-11-12）: 開いただけでは token_hash を使わない（メールの安全確認が先に開いても合言葉が残る）＝「続ける」で verifyOtp。
   //   ①#access_token（implicit＝Supabase 側で使用済み）と ②?code（PKCE）は旧いリンクの形＝今までどおり読み込み時に受ける。
@@ -82,7 +83,9 @@ export default function SetPasswordPage() {
   }
 
   const body: React.CSSProperties = { ...t.sub, fontSize: 13.5, lineHeight: 1.7 };
-  const C = SET_PASSWORD_COPY[flow];
+  const C = flow === "invite" && isOps ? OPS_INVITE_COPY : SET_PASSWORD_COPY[flow];
+  // ★0209 の便（E3）: セッションができたら（ready）本人が運営者かを 1 回だけ聞く（本人のことだけ・読むだけ）
+  useEffect(() => { if (phase !== "ready" || flow !== "invite") return; let alive = true; void fetch("/api/auth/ops-self", { cache: "no-store" }).then((r) => r.json()).then((j: { ops?: boolean }) => { if (alive) setIsOps(j.ops === true); }).catch(() => undefined); return () => { alive = false; }; }, [phase, flow]);
   return (
     <main className="nox-dark" style={t.loginBg} data-set-password="1">
       <div className="nox-lcardtop" style={t.lcard}>

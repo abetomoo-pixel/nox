@@ -2,6 +2,7 @@
 //   本人の契約は staff の RLS では読めない＝RPC が本人の分だけ返す。店の端末の本人セッション中は金額を返さない（amounts_hidden）＝画面も金額を出さない。
 //   金額は既存の計算（lib/nox/staff/pay.ts の staffPayOf・kintai.ts の staffDayPayOf）をそのまま使う＝お金の式は変えない。
 import type { AttendanceDayRow } from "../payroll/attendance-sheet";
+import type { DayAdj } from "../punch/day-window"; // ★0213／0214
 import { STAFF_DAY_STATUS_LABEL, isStaffDayStatus, staffDayPayOf, staffDayRowsOf, staffPayHeadOf, type StaffDayStatus } from "./kintai";
 import { attachStaffAllowances, hmOf, staffHoursOf, staffPayOf, type StaffAllowanceRow, type StaffContract, type StaffPunch } from "./pay";
 import { STAFF_PAY_METHOD_LABEL, type StaffPayMethod } from "./labor-payment";
@@ -31,7 +32,7 @@ export type StaffMyWorkView = {
 };
 
 /** staff_my_work の返り → 画面の形（month＝'YYYY-MM'・todayBiz＝営業日の今日） */
-export function staffMyWorkViewOf(raw: unknown, month: string, todayBiz: string): StaffMyWorkView {
+export function staffMyWorkViewOf(raw: unknown, month: string, todayBiz: string, dayAdj?: ((bizDate: string) => DayAdj | null) | null /* ★0213／0214: 自分の丸めと休憩 */): StaffMyWorkView {
   const r = (raw && typeof raw === "object" ? raw : {}) as Raw;
   const mid = typeof r.membership_id === "string" ? r.membership_id : "";
   const hidden = r.amounts_hidden === true;
@@ -41,8 +42,8 @@ export function staffMyWorkViewOf(raw: unknown, month: string, todayBiz: string)
   const monthPunches = punches.filter((p) => p.biz_date.startsWith(month));
   const contractRaw = !hidden && r.contract && typeof r.contract === "object" ? ({ ...r.contract, membership_id: mid } as unknown as StaffContract) : null;
   const contract = contractRaw ? attachStaffAllowances([contractRaw], (r.allowances ?? []).map((a) => ({ membership_id: mid, name: a.name, amount: a.amount })) as StaffAllowanceRow[])[0] : null;
-  const rows = staffDayRowsOf(monthPunches, todayBiz, status).map((d) => ({ ...d, statusLabel: status[d.bizDate] ? STAFF_DAY_STATUS_LABEL[status[d.bizDate]] : null, dayPay: contract ? staffDayPayOf(contract, d) : null }));
-  const hours = staffHoursOf(monthPunches);
+  const rows = staffDayRowsOf(monthPunches, todayBiz, status, dayAdj).map((d) => ({ ...d, statusLabel: status[d.bizDate] ? STAFF_DAY_STATUS_LABEL[status[d.bizDate]] : null, dayPay: contract ? staffDayPayOf(contract, d) : null }));
+  const hours = staffHoursOf(monthPunches, dayAdj);
   const minutes = hours.reduce((s, d) => s + d.minutes, 0);
   const gross = contract ? staffPayOf(contract, hours).gross : null;
   const cf = (r.confirmed ?? []).find((c) => c.period === month) ?? null;

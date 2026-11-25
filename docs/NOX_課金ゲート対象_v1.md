@@ -398,6 +398,20 @@ kiosk_provision（新規 kiosk の追加＝拡大操作）
 ### A27. 0208（1 本・2026-11-25 本番適用（Agoora が認めて CC が適用）・規則A形でゲート内蔵）
 - 0208 ランクの既定の出勤の時刻: set_cast_rank_shift_time（owner／自店の manager・ランクの書込と同じ柵）＝冒頭の二重防御の後に課金の述語で 'billing locked'（A 形）
 （対象 216→**217**・live 実測＝billing locked の関数 **217**）
+
+### A28. 0211（2 本・2026-11-25 11:13:41 本番適用（Agoora が認めて CC が適用・検証 19 行とも期待値）・規則A形でゲート内蔵）
+- 0211 スタッフの招待の続き: staff_invite_reissue（出し直し・前のリンクは無効・1 日 5 回）／staff_invite_mail_note（メールの結果の監査）＝冒頭の二重防御の後に課金の述語で 'billing locked'（A 形）
+（対象 217→**219**・live 実測＝billing locked の関数 **219**）
+
+### A29. 0213（1 本・2026-11-25 本番適用（Agoora が認めて CC が適用）・規則A形でゲート内蔵）
+- 0213 勤務時間の丸めの履歴: set_punch_round（オーナーだけ・同意の版）＝冒頭の二重防御の後に課金の述語で 'billing locked'（A 形）
+（対象 219→**220**・live 実測＝billing locked の関数 **220**）
+### A30. 0214 版 2（2 本・2026-11-25 19:48:14 本番適用（相談役 11/25 の便 G3・CC が適用・検証 27 行とも期待値）・規則A形でゲート内蔵）
+- 0214 休憩の打刻: set_break_punch（オーナーだけ・店の設定「休憩の打刻を使う」）／break_set（店の直し＝休憩の行の入れ替え・終了必須・理由必須）＝冒頭の二重防御の後に課金の述語で 'billing locked'（A 形）
+### A31. 0210 版 3（3 本・2026-11-25 22:39:22 本番適用（相談役 11/25 の便 H1・CC が適用・検証 37 行とも期待値）・規則A形でゲート内蔵）
+- 0210 ホストの初回料金: set_pricing_category_first（区分の初回の印）／set_pricing_rule_first（セットの行の税・サ込みと時間で終わり）＝オーナーと自店の店長／check_set_time_end（時間で終わりの卓を延長に切り替える・店長以上）＝冒頭の二重防御の後に課金の述語で 'billing locked'（A 形）
+（対象 222→**225**・live 実測＝billing locked の関数 **225**）
+
 ## B. 除外（99本）
 
 ### B(a) 構造除外＝authenticated 実行不可（service/内部・28本）→ ゲート不要（B7 回避型(1)）
@@ -496,8 +510,8 @@ billing_writable_of / auth_org_billing_writable / nox_receipt_public /
 ### B(g) 印刷（1本・「出せる」原則の明文）
 print_enqueue[K]
 
-### B(h) セキュリティ/縮退専用（2本・B-補1）
-staff_deactivate / kiosk_deactivate
+### B(h) セキュリティ/縮退専用（3本・B-補1・★0211 で +1）
+staff_deactivate / kiosk_deactivate / staff_invite_revoke（★0211（2026-11-25）: 招待の取り消し＝送ったリンクを止める・支払いが止まった店でも止められる・2 回目は何もせず成功）
 
 ### B(i) 保留裁定による除外（10本・2026-08-17）
 | 関数 | 適用原理 |
@@ -664,6 +678,34 @@ staff_deactivate / kiosk_deactivate
 - 構造除外（B(a) と同列＝service_role 専用・authenticated 実行不可＝運営コンソールの route から admin で呼ぶ・運営の操作＝B(ai) の ops_* と同じ）: ops_support_request／ops_support_request_withdraw
 - 閉じるだけの除外（オーナーが運営の頼みを「今は出さない」で閉じる＝お金・店のデータを作らない・支払いが止まった会社でも運営への返事は止めない＝サポート許可の取り消しと同じ考え）: support_request_dismiss
 （除外 267→**270**・全数 483→**487**（0207 ＋3＝B +3・0208 ＋1＝A +1（A27））。既存の関数は作り直していない）
+
+### B(am). 0209 新設の除外（9本・2026-11-25 起草＝【D8】起票155 の 2・★2026-11-25 本番適用・0209 の本番適用の後の便で数を張り替える）
+- 構造除外（B(a) と同列＝service_role 専用・authenticated 実行不可＝運営コンソールの route から admin で呼ぶ・会社に付かない運営者の管理＝B(ai) の ops_* と同じ）: ops_operator_list／ops_operator_add／ops_operator_reinvite_logged／ops_operator_set_active／ops_operator_set_role／ops_operator_mfa_reset_logged／ops_operator_password_logged
+- 構造除外（B(a) と同列＝内部専用・4 ロール revoke）: ops_admin_ok／ops_admin_floor_guard（トリガ関数）
+（適用の後：除外 +9・全数 +9（0211 の後の数に足す）。A は変わらない＝p172 の billing locked の数も不変。既存の関数は作り直していない）
+★2026-11-25 本番適用（0213 の後）＝除外 272→**281**・全数 492→**501**
+
+### B(an). 0213 新設の除外（1本・2026-11-25・0213 の本番適用の後の検査の張り替えで収載）
+- 構造除外（トリガ関数＝店の丸めの 2 列が変わった時に履歴の表へ書く・直接は呼ばない）: punch_round_rules_track
+（除外 271→**272**・全数 490→**492**（0213 ＋2＝A +1（A29）・B +1））
+
+### B(ao). 0212 新設の除外（9本・2026-11-25 17:05:45 本番適用（相談役 11/25 の便 F1・CC が適用・検証 24 行とも期待値））
+- 運用除外（店から運営への問い合わせ＝お金・店の業務のデータを作らない・支払いが止まった店こそ運営に聞ける・デモの会社は関数が止める＝support_grant_set と同じ考え）: inquiry_create／inquiry_reply／inquiry_mark_read／inquiry_mail_note
+- 構造除外（B(a) と同列＝service_role 専用・authenticated 実行不可＝運営コンソールの route から admin で呼ぶ・運営の操作＝B(ai) の ops_* と同じ）: ops_inquiry_reply／ops_inquiry_set_status／ops_inquiry_point_grant／ops_inquiry_point_revoke／ops_inquiry_store_add（中で B(ak) の ops_store_add を呼ぶ）
+（除外 281→**290**・全数 501→**510**。既存の関数は作り直していない）
+
+### B(ap). 0215 新設の除外（1本・2026-11-25 17:05:51 本番適用（相談役 11/25 の便 F2・0212 の後・検証 7 行とも期待値））
+- 運用除外（ログインの回復＝キャストのパスワードの再発行と同じ扱い・お金と店の業務のデータを作らない）: staff_password_reissue_note（メール無しのスタッフの初期パスワードの出し直しの柵と監査・パスワードは route が変える）
+（除外 290→**291**・全数 510→**511**）
+
+### B(aq). 0214 版 2 新設の除外（5本・2026-11-25 19:48:14 本番適用（相談役 11/25 の便 G3・検証 27 行とも期待値））
+- 運用除外（休憩の打刻＝出勤・退勤の打刻と同じ扱い・課金が止まった会社でも通す＝相談役 11/25 の決め）: break_self／kiosk_break／break_proxy／kiosk_break_state（状態を読むだけ）
+- 構造除外（内部の順序の柵＝打刻の関数から呼ぶ・直接は呼ばない・4 ロール revoke）: break_seq_check
+（除外 291→**296**・全数 511→**518**（0214 ＋7＝A +2（A30）・B +5））
+
+### B(ar). 0210 版 3 新設の除外（1本・2026-11-25 22:39:22 本番適用（相談役 11/25 の便 H1・検証 37 行とも期待値））
+- 運用除外（開卓の区分を読むだけ＝開卓できる人と同じ判定・書かない）: register_open_categories
+（除外 296→**297**・全数 518→**522**（0210 ＋4＝A +3（A31）・B +1））
 
 ## C. kiosk 腕を持つ対象（実装注意・18本）
 A1 の check_open / check_add_line / check_remove_line / check_add_seat / check_remove_seat /

@@ -476,7 +476,7 @@ async function main() {
       // ★0153（裁定305）: 列集合＝customers 18（+4）／bottle_keeps 15（+2）／check_lines 21（+customer_id）／check_customers 8・kind CHECK 11 値
       const c153 = await db.query(`select table_name, count(*)::int n from information_schema.columns where table_schema='public' and table_name in ('customers','bottle_keeps','check_lines','check_customers') group by 1 order by 1`);
       const n153 = Object.fromEntries(c153.rows.map((r) => [r.table_name, r.n]));
-      check("G9 0153 列集合: customers 18／bottle_keeps 17（★0158: +check_line_id・★0175 +tag_label）／check_lines 22（★0175 +fee_rate）／check_customers 8", n153.customers === 18 && n153.bottle_keeps === 17 && n153.check_lines === 22 && n153.check_customers === 8, JSON.stringify(n153));
+      check("G9 0153 列集合: customers 18／bottle_keeps 17（★0158: +check_line_id・★0175 +tag_label）／check_lines 22（★0175 +fee_rate）／check_customers 8", n153.customers === 18 && n153.bottle_keeps === 17 && n153.check_lines === 23 /* ★0210 版 3（2026-11-25 22:39 CC 適用）: +all_in */ && n153.check_customers === 8, JSON.stringify(n153));
       const k153 = await db.query(`select pg_get_constraintdef(oid) d from pg_constraint where conname='check_lines_kind_check'`);
       check("G9 0153 check_lines_kind_check＝11 値（+keep_out）", (k153.rows[0]?.d as string).includes("'keep_out'") && ((k153.rows[0]?.d as string).match(/::text/g) || []).length === 11, k153.rows[0]?.d);
       // ★0155（裁定309-3）: cast_sensitive 11 列（+mynumber_deleted_at／mynumber_deleted_by／mynumber_deletion_method・別表なし）
@@ -1176,7 +1176,7 @@ async function main() {
       // ★mig0148（裁定272・2026-09-18）: check_add_referral（check_add_line の冒頭〜role 判定を逐語＝kiosk 腕あり）で 18→19・20→21・18→19。
       // ★mig0152（裁定298／299・2026-09-25）: check_add_referral を drop・check_referral_set／remove（同じ冒頭を逐語＝kiosk 腕あり）で 19→20・21→22・19→20。
       check("G31 register helper を使う会計RPC = 20本（0057 の12＋0084 shimei/dohan＋0089 extension＋0090 set_people＋0091 line_set_group＋0131 pricing_categories_for_register＋0152 check_referral_set／remove）",
-        reg.rows[0].n === 27 /* ★0201d（2026-11-13 夜）: register_special_open（端末の操作者が店長以上なら臨時営業を登録＝auth_kiosk_register_store_id で店を解決）で 26→27 */ /* ★0195（2026-11-05）: cast_day_deductions_set（kiosk 腕＝auth_kiosk_register_store_id で店を解決）で 25→26 */, `got ${reg.rows[0].n}`); // ★0194（裁定445 ③・2026-11-04）: kiosk_stock_levels（在庫タイルの読取＝auth_kiosk_register_store_id）で 24→25 // ★0190（裁定436）: assert_on_duty（kiosk 腕＝auth_kiosk_register_store_id で店を解決）で 23→24 // ★mig0173（裁定385 追補）: check_set_ext_rule（kiosk 腕）で 22→23 // ★mig0153（裁定305-7）: bottle_keep_out（kiosk 腕）で 20→21 // ★mig0155（裁定309-10）: kiosk_check_keeps（kiosk 腕・読取）で 21→22
+        reg.rows[0].n === 28 /* ★0210 版 3（2026-11-25 22:39）: register_open_categories（開卓の区分を読む・端末の店を auth_kiosk_register_store_id で解決）で 27→28 */ /* ★0201d（2026-11-13 夜）: register_special_open（端末の操作者が店長以上なら臨時営業を登録＝auth_kiosk_register_store_id で店を解決）で 26→27 */ /* ★0195（2026-11-05）: cast_day_deductions_set（kiosk 腕＝auth_kiosk_register_store_id で店を解決）で 25→26 */, `got ${reg.rows[0].n}`); // ★0194（裁定445 ③・2026-11-04）: kiosk_stock_levels（在庫タイルの読取＝auth_kiosk_register_store_id）で 24→25 // ★0190（裁定436）: assert_on_duty（kiosk 腕＝auth_kiosk_register_store_id で店を解決）で 23→24 // ★mig0173（裁定385 追補）: check_set_ext_rule（kiosk 腕）で 22→23 // ★mig0153（裁定305-7）: bottle_keep_out（kiosk 腕）で 20→21 // ★mig0155（裁定309-10）: kiosk_check_keeps（kiosk 腕・読取）で 21→22
       const op = await db.query(
         `select count(*)::int as n from pg_proc p join pg_namespace ns on ns.oid = p.pronamespace
          where ns.nspname = 'public' and p.prokind = 'f'
@@ -1184,7 +1184,7 @@ async function main() {
            and p.proname not in ('auth_kiosk_operator','kiosk_register_state','kiosk_check_detail')`,
       );
       check("G31 operator を使う関数 = 22本（write-arm 系 20＝0131 for_register・0152 check_referral_set／remove 込み＋audit_log_write＋drink_claims_on_line_delete）",
-        op.rows[0].n === 30 /* ★0201d（2026-11-13 夜）: register_special_open（端末の操作者＝auth_kiosk_operator の在籍を見る）で 29→30 */ /* ★0198（2026-11-09 ★6）: kiosk_punch が auth_kiosk_operator() を見る（p_day_deductions のゲート）で 28→29 */ /* ★0195: cast_day_deductions_set（操作担当＝auth_kiosk_operator）で 27→28 */, `got ${op.rows[0].n}`); // ★0194（裁定445 ③）: kiosk_stock_levels（操作担当の解除あり＝auth_kiosk_operator）で 26→27 // ★0190（裁定436）: assert_on_duty（auth_kiosk_operator＝操作担当の本人解決）で 25→26 // ★mig0173: check_set_ext_rule で 24→25 // ★mig0153: bottle_keep_out で 22→23 // ★mig0155: kiosk_check_keeps で 23→24
+        op.rows[0].n === 31 /* ★0210 版 3（2026-11-25 22:39）: register_open_categories（端末の操作者の在籍を見る）で 30→31 */ /* ★0201d（2026-11-13 夜）: register_special_open（端末の操作者＝auth_kiosk_operator の在籍を見る）で 29→30 */ /* ★0198（2026-11-09 ★6）: kiosk_punch が auth_kiosk_operator() を見る（p_day_deductions のゲート）で 28→29 */ /* ★0195: cast_day_deductions_set（操作担当＝auth_kiosk_operator）で 27→28 */, `got ${op.rows[0].n}`); // ★0194（裁定445 ③）: kiosk_stock_levels（操作担当の解除あり＝auth_kiosk_operator）で 26→27 // ★0190（裁定436）: assert_on_duty（auth_kiosk_operator＝操作担当の本人解決）で 25→26 // ★mig0173: check_set_ext_rule で 24→25 // ★mig0153: bottle_keep_out で 22→23 // ★mig0155: kiosk_check_keeps で 23→24
       const cv = await db.query(
         `select count(*)::int as n from pg_proc p join pg_namespace ns on ns.oid = p.pronamespace
          where ns.nspname = 'public' and p.prokind = 'f' and p.proname = 'check_void'
@@ -1197,7 +1197,7 @@ async function main() {
            and pg_get_functiondef(p.oid) ilike '%auth_kiosk_operator() is not null)) is not true then%'`,
       );
       check("G31 ★kiosk ゲート fail-closed = 20本が (OR連鎖) is not true 形（0058・0084・0089・0090・0091・0131・0152 も同形）",
-        fixed.rows[0].n === 23, `got ${fixed.rows[0].n}`); // ★mig0173: check_set_ext_rule（同形）で 22→23 // ★mig0153: bottle_keep_out（同形の OR 連鎖）で 20→21 // ★mig0155: kiosk_check_keeps（同形）で 21→22
+        fixed.rows[0].n === 24 /* ★0210 版 3: register_open_categories（同形）で 23→24 */, `got ${fixed.rows[0].n}`); // ★mig0173: check_set_ext_rule（同形）で 22→23 // ★mig0153: bottle_keep_out（同形の OR 連鎖）で 20→21 // ★mig0155: kiosk_check_keeps（同形）で 21→22
       const openGate = await db.query(
         `select count(*)::int as n from pg_proc p join pg_namespace ns on ns.oid = p.pronamespace
          where ns.nspname = 'public' and p.prokind = 'f'

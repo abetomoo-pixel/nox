@@ -1,16 +1,19 @@
 // ★運営コンソール 版 1（夜便 2026-11-20 N5・枝だけ・旗 MIG_0202A_APPLIED の後ろ）: 判定と表示の純関数（DB を知らない）。
 //   画面の案＝docs/tmp/console_ui_v1_1120.md・関数＝docs/tmp/0202a_ops_v1.sql（ops_org_list・ops_org_create・ops_org_set_agency_code・ops_onboarding_set・ops_invite_logged）。
 
-/** 入口の判定（requireOperator の純関数部分）：未ログイン→ログイン・運営者でない（店の人）→404・MFA 未（aal1）→MFA・aal2→通す */
-export type OpsGate = "login" | "notfound" | "mfa" | "ok";
-export function opsGateOf(o: { hasUser: boolean; isOperator: boolean; aal: string | null }): OpsGate {
+/** 入口の判定（requireOperator の純関数部分）：未ログイン→ログイン・運営者でない（店の人）→404・MFA 未（aal1）→MFA・aal2→通す
+ *  ★0209（起票155 の 2・旗 MIG_0209_APPLIED の後ろ）: stale＝今のセッションを使わせない（認証アプリのリセットの後・確認済みのアプリが無い aal2）→ relogin（ログインからやり直し）。
+ *  stale は lib/nox/ops/operators.ts の opsSessionStaleOf（旗 false の間は requireOperator が渡さない＝今と同じ）。 */
+export type OpsGate = "login" | "notfound" | "mfa" | "ok" | "relogin";
+export function opsGateOf(o: { hasUser: boolean; isOperator: boolean; aal: string | null; stale?: boolean }): OpsGate {
   if (!o.hasUser) return "login";
   if (!o.isOperator) return "notfound";
+  if (o.stale) return "relogin";
   return o.aal === "aal2" ? "ok" : "mfa";
 }
-/** API の返し（画面と同じ判定・API は動かさずに状態だけ返す）：未ログイン 401・運営者でない 404・MFA 未 403 */
+/** API の返し（画面と同じ判定・API は動かさずに状態だけ返す）：未ログイン 401・運営者でない 404・MFA 未 403・やり直し 401 */
 export function opsApiStatusOf(g: OpsGate): 401 | 404 | 403 | null {
-  return g === "login" ? 401 : g === "notfound" ? 404 : g === "mfa" ? 403 : null;
+  return g === "login" || g === "relogin" ? 401 : g === "notfound" ? 404 : g === "mfa" ? 403 : null;
 }
 
 /** 業態（6 つ＝相談役 11/20 18:12・ホストを足した） */

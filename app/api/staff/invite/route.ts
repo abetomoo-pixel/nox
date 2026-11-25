@@ -6,9 +6,12 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { demoGuardErr } from "@/lib/nox/demo/guard";
 import { inviteUrlOf } from "@/lib/nox/people/invite";
+import { siteOriginOf } from "@/lib/nox/line/liff-endpoint"; // ★0211: リンクの元は site（メールにも同じ値）
+import { sendInviteMail } from "@/lib/nox/people/invite-mail-server"; // ★0211（D1）: RPC の後にメール（鍵が無ければ skipped）
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 15; // ★0211: メールの 8 秒の持ち時間
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
 export async function POST(req: Request) {
@@ -31,12 +34,15 @@ export async function POST(req: Request) {
   if (!orgId) return NextResponse.json({ error: "forbidden" }, { status: 403 });
   const demo = await demoGuardErr(orgId as string); if (demo) return NextResponse.json(demo.body, { status: demo.status }); // ★裁定273-6: デモ org は招待不可
   const admin = createAdminClient();
-  const { data: store } = await admin.from("stores").select("org_id").eq("id", storeId).maybeSingle();
+  const { data: store } = await admin.from("stores").select("org_id, name").eq("id", storeId).maybeSingle();
   if (!store || store.org_id !== orgId) return NextResponse.json({ error: "forbidden store" }, { status: 403 });
 
   const { data, error } = await supabase.rpc("staff_invite_create", { p_store_id: storeId, p_email: email, p_name: name, p_role: role, p_contract: contract });
   if (error) return NextResponse.json({ error: error.message }, { status: /forbidden/.test(error.message) ? 403 : /email in use|invite exists/.test(error.message) ? 409 : 400 });
   const r = (data ?? {}) as { id?: string; token?: string; expires_at?: string };
   if (!r.id || !r.token) return NextResponse.json({ error: "invite failed" }, { status: 500 });
-  return NextResponse.json({ id: r.id, url: inviteUrlOf(new URL(req.url).origin, r.token), expires_at: r.expires_at ?? null, email, name, role });
+  const url = inviteUrlOf(siteOriginOf(new URL(req.url).origin), r.token);
+  // ★0211（相談役 11/25 の便 D1）: メールでも送る（送れなくても url は返す＝画面のリンクとコピーで動く）
+  const mail = await sendInviteMail(admin, supabase, { inviteId: r.id, kind: "create", orgId: orgId as string, email, name, storeName: (store.name as string | null) ?? null, url, expiresAt: r.expires_at ?? null, idemKey: `staff-invite/${r.id}/create` });
+  return NextResponse.json({ id: r.id, url, expires_at: r.expires_at ?? null, email, name, role, mail });
 }

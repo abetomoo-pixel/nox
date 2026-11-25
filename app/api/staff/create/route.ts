@@ -13,6 +13,7 @@
 //   ⑦ ★補償（§4-A）: RPC 失敗時は deleteUser で auth user を巻き戻す。補償自体の失敗は孤児残存を
 //      ログに残して握り潰さない（audit_log_write は内部専用＝route から呼べないため console.error）。
 import { NextResponse } from "next/server";
+import { MUST_CHANGE_META } from "@/lib/nox/auth/must-change"; // ★0211 の便（D1）
 import { randomInt, randomUUID } from "node:crypto";
 import { guardStaffCreate } from "@/lib/nox/staff/route-guard";
 
@@ -67,6 +68,7 @@ export async function POST(req: Request) {
           email: loginEmail,
           password,
           email_confirm: true,
+          app_metadata: MUST_CHANGE_META, // ★0211 の便（D1）: 初期パスワードで作った人＝最初のログインで変更を求める
         });
         if (!eCu && cu?.user) {
           created = cu.user.id;

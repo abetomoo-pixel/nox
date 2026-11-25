@@ -37,9 +37,12 @@ import { castPts } from "../pay"; // ★N3b: 前月 pts＝当月と同じ式
 import { trialRangeOf, trialRawOf, trialTouchesOf, trialWageOf, inTrialRange, type TrialRange } from "./trial"; // ★裁定490（0201l の後の結線）: 体入の期間・体入の時給・バック「なし」の除外
 import { trialStoreTermsOf } from "../cast/trial-terms";
 import { noShiftHoursOf } from "./no-shift";
-import { bandAmountAt, bandSegmentsOf, bandWindowOf, type BandSeg } from "./hourly-bands";
+import { bandAmountAt, bandSegmentsOf, bandSegmentsOfSpans, bandWindowOf, type BandSeg } from "./hourly-bands";
 import { hourlyBandsOn } from "../rules-0175/flag"; // ★時間帯の時給（旗 HOURLY_BANDS_ON の後ろ）
 import { liftPunchAt } from "../punch-io"; // ★時間帯の時給: シフトの無い日の区間（0〜47 時）
+import { mig0213On, mig0214On } from "../rules-0175/flag"; // ★0213（丸め）・0214（休憩）
+import { dayWindowOf, minOfBizDay } from "../punch/day-window"; // ★0213／0214: 日の窓（丸め・休憩・帯が同じ窓を読む）
+import { EMPTY_DAY_ADJ, dayAdjOfSource, loadDayAdjSource } from "../punch/day-adj-load"; // ★0213／0214
 import type { RateBand } from "../rules-0175/canon"; // ★裁定501-8 // ★裁定490: 店の体入の条件（trial_wage・trial_back）
 import { monthsInRange, prevMonthOf, lastDayOf, periodKeysInRange, periodRangeOfKey, prevPeriodKeyOf, slidePeriodOf, slideBasisOf, slideBasisValueOf, slideRankIncludedOf, type SlideBasis, type SlidePeriod, type SlideTotals } from "./slide"; // ★N3b（裁定288）・★裁定338（0168・便 P168）
 import type { PayrollWindow as _PW } from "./window";
@@ -398,6 +401,9 @@ export async function loadPunch(admin: SupabaseClient, storeId: string, win: Pay
     mig0197On() ? admin.from("stores").select("settings_json").eq("id", storeId).maybeSingle() : Promise.resolve({ data: null as { settings_json?: unknown } | null }), // ★便 E（0197 用）: punch_mode（フラグ false＝読まない）
   ]);
   for (const r of [shiftsR, attR, punchR, dohanR]) if (r.error) throw new Error(`打刻: ${r.error.message}`);
+  // ★0213／0214（相談役 11/25 の D4・D5）: 丸め（変えた営業日から）と休憩を時間に当てる＝実打刻の店だけ（確定シフトどおり・打刻しない店は当てない＝シフトの無い日も）。旗 false＝読まない（adjOf は常に null＝下の今の行をそのまま通る）
+  const adjSettings = (stR.data?.settings_json ?? null) as Record<string, unknown> | null;
+  const adjOf = dayAdjOfSource(mig0213On() || mig0214On() ? await loadDayAdjSource(admin, storeId, win.periodStart, win.periodEnd) : EMPTY_DAY_ADJ, { payTimeBasis: payTimeBasisOf(adjSettings, win.periodStart), punchMode: punchModeOf(adjSettings) });
   const byCast = new Map<string, { shifts: ShiftRow[]; shiftIds: Map<string, string>; att: AttendanceRow[]; punches: PunchRow[] }>();
   const ensure = (cid: string) => {
     let e = byCast.get(cid);
@@ -415,7 +421,7 @@ export async function loadPunch(admin: SupabaseClient, storeId: string, win: Pay
     (dohanDatesByCast.get(r.cast_id) ?? dohanDatesByCast.set(r.cast_id, new Set()).get(r.cast_id)!).add(bizDateOf(ck.started_at, win.cutoffHm));
   }
 
-  const result = new Map<string, { noShiftHours: Map<string, number>; noShiftDates: string[]; days: number; lateN: number; absentN: number; anomalyCount: number; missingOutDates: string[]; hoursByDate: Map<string, number>; shiftHoursByDate: Record<string, number>; attendanceDays: number; shortfallDays: ShortfallDay[]; /** ★時間帯の時給: 働いた区間（営業日の分 0〜47 時）＝打刻の日・シフトの区間・シフトの無い日・打刻しない店でシフトの時間にした日 */ win: { punch: Map<string, [number, number]>; shift: Map<string, [number, number]>; noShift: Map<string, [number, number]>; storeShift: Set<string> } }>();
+  const result = new Map<string, { noShiftHours: Map<string, number>; noShiftDates: string[]; days: number; lateN: number; absentN: number; anomalyCount: number; missingOutDates: string[]; hoursByDate: Map<string, number>; shiftHoursByDate: Record<string, number>; attendanceDays: number; shortfallDays: ShortfallDay[]; /** ★時間帯の時給: 働いた区間（営業日の分 0〜47 時）＝打刻の日・シフトの区間・シフトの無い日・打刻しない店でシフトの時間にした日 */ win: { punch: Map<string, [number, number]>; shift: Map<string, [number, number]>; noShift: Map<string, [number, number]>; storeShift: Set<string>; /** ★0214: 休憩で割った区間（丸め・休憩が効いた日だけ） */ punchSegs?: Map<string, [number, number][]>; noShiftSegs?: Map<string, [number, number][]> }; /** ★0214: 閉じていない休憩のまま退勤がある日（休憩開始〜退勤を休憩にした・要対応に 1 行） */ openBreakDates: string[]; roundNote: { days: number; unit: number; mode: string } | null }>();
   // 受給者判定（確認1・裁定）: final∈{ok,late}（確定シフトがある日に出勤）＝raw のみ（no_shift/absent）は含めない。
   const recipientsByDate = new Map<string, string[]>();
   const todayBiz = bizDateOf(new Date().toISOString(), win.cutoffHm); // ★X-13-27: 営業日の今日（store の cutoff）
@@ -439,9 +445,22 @@ export async function loadPunch(admin: SupabaseClient, storeId: string, win: Pay
     // ★324-3（便 L-2-4）: 確定シフトがある営業日の (shift id・開始／終了・in／out の HH:MM)＝shortfallRowsOf の入力（in なし＝無断欠勤は行にせず null で渡す）
     const shiftByDate = new Map(raw.shifts.map((sh) => [sh.date, sh]));
     const shortfallDays: ShortfallDay[] = [];
+    const punchSegs = new Map<string, [number, number][]>(), noShiftSegs = new Map<string, [number, number][]>(), openBreakDates: string[] = []; // ★0214
+    let roundNote: { days: number; unit: number; mode: string } | null = null; // ★0213（相談役 11/25 の便 E2）: 丸めが効いた日の数と規則（明細の注記 1 行）
+    const noteRound = (adj: { rounding: { unit: number; mode: string } | null } | null) => { if (adj?.rounding && adj.rounding.unit > 1) roundNote = { days: (roundNote?.days ?? 0) + 1, unit: adj.rounding.unit, mode: adj.rounding.mode }; };
     for (const d of m.days) {
+      const adj = adjOf(cid, d.bizDate); // ★0213／0214: 丸め・休憩の無い日は null＝今の 2 行のまま
+      if (!adj) {
       hoursByDate.set(d.bizDate, dayWorkedHours(d));
       { const ia = d.raw.in.type === "ok" || d.raw.in.type === "late" ? d.raw.in.act : null, oa = d.raw.out.type === "ok" || d.raw.out.type === "early" || d.raw.out.type === "over" ? d.raw.out.out : null; if (ia && oa && hm2minOf(oa) > hm2minOf(ia)) punchWin.set(d.bizDate, [hm2minOf(ia), hm2minOf(oa)]); } // ★時間帯の時給: dayWorkedHours と同じ in／out
+      } else { // ★0213／0214: 同じ in／out を日の窓（丸めてから休憩で割る）に＝時間と帯の区間が同じ窓
+        const ia = d.raw.in.type === "ok" || d.raw.in.type === "late" ? d.raw.in.act : null, oa = d.raw.out.type === "ok" || d.raw.out.type === "early" || d.raw.out.type === "over" ? d.raw.out.out : null;
+        const w = ia && oa ? dayWindowOf(hm2minOf(ia), hm2minOf(oa), adj) : null;
+        hoursByDate.set(d.bizDate, w ? w.workMin / 60 : 0);
+        if (w && w.outMin > w.inMin) { punchWin.set(d.bizDate, [w.inMin, w.outMin]); punchSegs.set(d.bizDate, w.segs); }
+        if (w?.openBreak) openBreakDates.push(d.bizDate);
+        if (w) noteRound(adj);
+      }
       const sh = shiftByDate.get(d.bizDate), sid = raw.shiftIds.get(d.bizDate);
       if (sh && sid) shortfallDays.push({ bizDate: d.bizDate, shiftId: sid, startHm: sh.start_hm, endHm: sh.end_hm,
         inHm: d.raw.in.type === "ok" || d.raw.in.type === "late" ? d.raw.in.act : null,
@@ -462,7 +481,9 @@ export async function loadPunch(admin: SupabaseClient, storeId: string, win: Pay
     for (const d of noShiftDates) { // ★時間帯の時給: noShiftHoursOf と同じ最初の in〜最後の out を 0〜47 時の分で
       const ps = raw.punches.filter((p) => bizDateOf(p.punched_at, win.cutoffHm) === d).map((p) => ({ t: new Date(p.punched_at).getTime(), at: p.punched_at, type: p.type })).sort((a, b) => a.t - b.t);
       const fi = ps.find((p) => p.type === "in"); const lo = [...ps].reverse().find((p) => p.type === "out" && fi && p.t > fi.t);
-      if (fi && lo) { const a = hm2minOf(liftPunchAt(fi.at, win.cutoffHm).hm), b = a + (lo.t - fi.t) / 60_000; if (b > a) noShiftWin.set(d, [a, b]); } // ★2026-11-25（M4 ア）: 長さは noShiftHoursOf と同じミリ秒の差（分に丸めない＝秒があっても時間と一致）
+      const adj = fi && lo ? adjOf(cid, d) : null; // ★0213／0214: 丸め・休憩のある日だけ分（秒は切り捨て）にして窓を作る
+      if (adj && fi && lo) { const w = dayWindowOf(minOfBizDay(fi.at, d), minOfBizDay(lo.at, d), adj); if (w && w.workMin > 0) { noShiftHours.set(d, w.workMin / 60); noteRound(adj); } else noShiftHours.delete(d); if (w && w.outMin > w.inMin) { noShiftWin.set(d, [w.inMin, w.outMin]); noShiftSegs.set(d, w.segs); } if (w?.openBreak) openBreakDates.push(d); }
+      else if (fi && lo) { const a = hm2minOf(liftPunchAt(fi.at, win.cutoffHm).hm), b = a + (lo.t - fi.t) / 60_000; if (b > a) noShiftWin.set(d, [a, b]); } // ★2026-11-25（M4 ア）: 長さは noShiftHoursOf と同じミリ秒の差（分に丸めない＝秒があっても時間と一致）
     }
     // ★便 E（0197 用＝裁定455 の 2）: 打刻しない店（punch_mode='store'）＝打刻が無い日は確定シフトの時間を実働・日数／遅刻／当欠は勤怠（attendance）で決める（今日まで）。フラグ false／'punch' は従来と 1 バイト同値
     if (punchModeOf((stR.data?.settings_json ?? null) as Record<string, unknown> | null) === "store") {
@@ -475,7 +496,7 @@ export async function loadPunch(admin: SupabaseClient, storeId: string, win: Pay
       // ★0197 フラグ便（裁定456 の 18）: 出勤インセンティブの受給者判定＝確定シフトのある日を出勤扱い（当欠／休みは除く・打刻の final ok／late で既に入っている日は重複させない）
       for (const d of attended) { const list = recipientsByDate.get(d) ?? recipientsByDate.set(d, []).get(d)!; if (!list.includes(cid)) list.push(cid); }
     }
-    result.set(cid, { noShiftHours, noShiftDates, days, lateN, absentN, anomalyCount, missingOutDates, hoursByDate, shiftHoursByDate, attendanceDays, shortfallDays, win: { punch: punchWin, shift: shiftWin, noShift: noShiftWin, storeShift } });
+    result.set(cid, { noShiftHours, noShiftDates, days, lateN, absentN, anomalyCount, missingOutDates, hoursByDate, shiftHoursByDate, attendanceDays, shortfallDays, win: { punch: punchWin, shift: shiftWin, noShift: noShiftWin, storeShift, ...(punchSegs.size ? { punchSegs } : {}), ...(noShiftSegs.size ? { noShiftSegs } : {}) }, openBreakDates: openBreakDates.sort(), roundNote });
   }
   // pooled 端数 +1 の順序を確定させるため cast_id 昇順にソート
   for (const [d, list] of recipientsByDate) recipientsByDate.set(d, list.sort());
@@ -945,6 +966,8 @@ export async function collectPeriod(
       absentN: p?.absentN ?? 0,
       anomalyCount: p?.anomalyCount ?? 0,
       missingOutDates: p?.missingOutDates ?? [], // ★N3 AV-4（表示のみ・fixture は省略可）
+      ...(p && p.roundNote ? { punchRoundNote: p.roundNote } : {}), // ★0213（E2）: 丸めが効いた人だけ（明細の注記）
+      ...(p && p.openBreakDates.length ? { openBreakDates: p.openBreakDates } : {}), // ★0214: 閉じていない休憩のまま退勤がある日（ある cast だけ・表示のみ）
       ...(p && p.noShiftDates.length ? { noShiftDates: p.noShiftDates } : {}), // ★便 M-10: シフト無し出勤（ある cast だけ＝凍結形・golden は不変）
       ...(p ? { shiftHoursByDate: p.shiftHoursByDate, attendanceDays: p.attendanceDays } : {}), // ★0154 D2
       ...(p && p.shortfallDays.length ? { shortfallDays: p.shortfallDays } : {}), // ★324-3（便 L-2-4）: 確定シフトがある日だけ
@@ -959,7 +982,8 @@ export async function collectPeriod(
           const sw = p.win.shift.get(d.bizDate), pw = p.win.punch.get(d.bizDate), nw = p.win.noShift.get(d.bizDate);
           const shiftHoursDefined = p.shiftHoursByDate[d.bizDate] !== undefined; // ★2026-11-25（M4 ア）: pay.ts の dailyBase と同じ条件（今日までの確定シフトの時間）
           const w = bandWindowOf({ punch: pw, shift: sw, noShift: nw }, { storeShift: p.win.storeShift.has(d.bizDate), shiftBasis: masters.payTimeBasis === "shift", shiftHoursDefined });
-          if (w) byDay[d.bizDate] = bandSegmentsOf(w[0], w[1], bands);
+          const segs = w && w === pw ? p.win.punchSegs?.get(d.bizDate) : w && w === nw ? p.win.noShiftSegs?.get(d.bizDate) : undefined; // ★0214: 休憩で割った区間（無ければ今の 1 区間）
+          if (w) byDay[d.bizDate] = segs ? bandSegmentsOfSpans(segs, bands) : bandSegmentsOf(w[0], w[1], bands);
           if (sw && shiftHoursDefined) { shiftByDay[d.bizDate] = bandSegmentsOf(sw[0], sw[1], bands); edges[d.bizDate] = [bandAmountAt(bands, sw[0]), bandAmountAt(bands, sw[1] - 1)]; }
         }
         return Object.keys(byDay).length ? { hourlyBands: { byDay, shiftByDay, edges } } : {};

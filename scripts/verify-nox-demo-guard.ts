@@ -39,10 +39,14 @@ const DENY_GUARDED: Record<string, string> = {
   "kiosk/provision": "app/api/kiosk/provision/route.ts",
   "print/jobs": "app/api/print/jobs/route.ts",
   "staff/invite": "app/api/staff/invite/route.ts", // ★便 ON-3（0176 ★2 I-1）: 登録→招待＝staff/create と同じ柵（裁定273-6）
+  "staff/invite/reissue": "app/api/staff/invite/reissue/route.ts", // ★0211（2026-11-25 D1）: 招待の出し直し・メールの送り直し＝staff/invite と同じ柵
+  "me/password": "app/api/me/password/route.ts", // ★0211 の便（D1）: 本人のパスワードの変更＝デモの auth とデモ org は 403（共用のパスワードを変えさせない）
+  "staff/password-reissue": "app/api/staff/password-reissue/route.ts", // ★0215（旗の後ろ）: 店がメール無しのスタッフの初期パスワードを出し直す
   "line/secret": "app/api/line/secret/route.ts", // ★便 ON-3（0176 ★1 401）: Vault へ書く＝デモは 403
   "line/richmenu": "app/api/line/richmenu/route.ts", // ★2026-11-18 夜（相談役 ⑤）: LINE のリッチメニュー（外部へ書く）＝デモは 403
   "line/push": "app/api/line/push/route.ts", // ★便 ON-3: 外部送信＝デモ org は 204（送らない・台帳にも書かない）
   "line/notice": "app/api/line/notice/route.ts",
+  "inquiry": "app/api/inquiry/route.ts", // ★0212（窓口の段 1・旗の後ろ）: 店から運営への問い合わせ＝運営へメール（外部送信）＝デモ org は 403（RPC も forbidden (demo)）
   "auth/invite-accept": "app/api/auth/invite-accept/route.ts",
   "auth/retire": "app/api/auth/retire/route.ts", // ★0190 フラグ true 便（2026-10-30）: 退店の失効（ban／unban）＝owner／manager・デモ org は 403（demoGuardErr） // ★便 OB-2 ⑧（2026-10-29）: 招待で入ったオーナーのパスワード設定＝デモ auth／デモ org は 403・client は auth.updateUser を呼ばない // ★便 W-10 #21: お知らせの LINE＝デモ org は送らない（demo: true を返す・台帳にも書かない）
 };
@@ -67,11 +71,12 @@ const ALLOW = new Set<string>([
   "punch/wifi", // ★0201（裁定474）: 店の Wi-Fi の登録（本人の auth で store_wifi_add＝owner／自店 manager・店設定＝デモ org も可）
   "kiosk/person-touch", // ★0200（相談役 11/10）: 本人セッションの heartbeat（last_seen_at だけ・service_role の RPC が端末の fp を照合・デモ org も可）
   "kiosk/person-session", "kiosk/person-end", // ★便 E（2026-11-05・0196 用＝裁定448 B 方式）: PIN の本人セッション＝端末の uid を読んで kiosk_person_claim（service_role・束縛と役割は RPC）→ magiclink→verifyOtp・終了＝kiosk_person_end＋サインアウト（デモ org も可・MIG_0196_APPLIED=false の間は 409）
+  "auth/ops-self", // ★0209 の便（2026-11-25 E3）: 本人が有効な運営者かの真偽だけ（読むだけ・パスワードを決める画面の文の分け）
   "kiosk/lock-notice", // ★0190 フラグ true 便 K-1（2026-10-30）: 端末アカウントの PIN ロックのお知らせ 1 行（kiosk_devices で端末を確かめる・notices に 1 行・デモ org も可＝06:05 の reset で消える）
 ]);
 
 // D) 運営（★夜便 2026-11-20 N5・枝 night1120-ops-console）: 運営コンソールの道＝店の会社に属さない運営者だけ（requireOperatorApi＝getUser → ops_operators → aal2・旗 false は 404）。デモのユーザーは運営者の表に居ない＝404。
-const OPS = new Set<string>(["ops/orgs/[id]/support-ask" /* ★0207（2026-11-25）: サポート許可を頼む・取り下げ（運営専用） */, "ops/orgs/[id]/stores" /* ★0203（■2-a）: 店を追加（旗の後ろ） */, "ops/orgs", "ops/orgs/[id]/invite", "ops/orgs/[id]/agency", "ops/orgs/[id]/onboarding", "ops/orgs/[id]/assist" /* ★枝 night1121-ops-v2（0202b 版 4 の画面・旗 MIG_0202B_APPLIED の後ろ） */]);
+const OPS = new Set<string>(["ops/inquiries/[id]" /* ★0212（2026-11-25 17:05:45 適用）: 問い合わせの返事・状態・ポイント・取り消し・2 店目を足す（運営専用） */, "ops/operators", "ops/operators/[id]/invite", "ops/operators/[id]/active", "ops/operators/[id]/role", "ops/operators/[id]/mfa-reset", "ops/me/password" /* ★0209（起票155 の 2・2026-11-25）: 運営者の管理（管理者だけ・旗 MIG_0209_APPLIED の後ろ）と自分のパスワード */, "ops/orgs/[id]/support-ask" /* ★0207（2026-11-25）: サポート許可を頼む・取り下げ（運営専用） */, "ops/orgs/[id]/stores" /* ★0203（■2-a）: 店を追加（旗の後ろ） */, "ops/orgs", "ops/orgs/[id]/invite", "ops/orgs/[id]/agency", "ops/orgs/[id]/onboarding", "ops/orgs/[id]/assist" /* ★枝 night1121-ops-v2（0202b 版 4 の画面・旗 MIG_0202B_APPLIED の後ろ） */]);
 
 function walk(dir: string, out: string[]) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -122,7 +127,7 @@ check("dg(5-3) /demo: noindex 維持（robots index:false・follow:false）・�
   const routes6 = files.map((f) => f.replace(/^app\/api\//, "").replace(/\/route\.ts$/, ""));
   const walk2 = (d: string): string[] => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk2(path.join(d, e.name)) : /\.tsx?$/.test(e.name) ? [path.join(d, e.name)] : []));
   const clientSrc = walk2("app").concat(walk2("components")).map((f) => fs.readFileSync(f, "utf8"));
-  check("dg(6-1) ①メール／パスワード変更: staff/update-email は柵 A・パスワード／メール変更の route は他に無い・client は auth.updateUser を呼ばない", "staff/update-email" in DENY_GUARDED && !routes6.some((r) => /password|email/.test(r) && r !== "staff/update-email") && !clientSrc.some((s) => /auth\.updateUser\(/.test(s)));
+  check("dg(6-1) ①メール／パスワード変更: staff/update-email は柵 A・パスワード／メール変更の route は全部柵 A（運営者の ops/me/password は運営の群）・client は auth.updateUser を呼ばない", "staff/update-email" in DENY_GUARDED && routes6.filter((r) => /password|email/.test(r)).every((r) => r in DENY_GUARDED || (r === "ops/me/password" && OPS.has(r))) /* ★0211 の便（D1）: me/password・staff/password-reissue は柵 A ★0209（起票155 の 2）: 運営者の自分のパスワード＝運営の群 */ && !clientSrc.some((s) => /auth\.updateUser\(/.test(s)));
   check("dg(6-2) ②org 削除・Auth 系（招待・スタッフ作成・キオスク発行）: org 削除 route なし・cast/invite／staff/create／kiosk/provision は柵 A", !routes6.some((r) => /org.*delete|delete.*org/.test(r)) && ["cast/invite", "staff/create", "kiosk/provision"].every((r) => r in DENY_GUARDED));
   const enter = fs.readFileSync("app/api/demo/enter/route.ts", "utf8");
   check("dg(6-3) ③外部送信（LINE／メール／Stripe）: メール送信の route なし・LINE は push／secret が柵 A（デモ 403／204）・session／bind／webhook はセッション無し（B）・billing 4 本は柵 A・stripe/webhook は B・demo/enter の magiclink は送信しない", !routes6.some((r) => /mail/.test(r) && r !== "staff/update-email") && ["line/push", "line/secret"].every((r) => r in DENY_GUARDED) && ["line/session", "line/bind", "line/webhook/[storeId]"].every((r) => DENY_NO_SESSION.has(r)) && /const demo = await demoGuardErr\(orgId as string\); if \(demo\) return new NextResponse\(null, \{ status: 204 \}\)/.test(fs.readFileSync("app/api/line/push/route.ts", "utf8")) && /if \(p\.isDemo\) return/.test(fs.readFileSync("lib/nox/line/server.ts", "utf8")) && ["billing/checkout", "billing/interval", "billing/portal", "billing/switch-to-card"].every((r) => r in DENY_GUARDED) && DENY_NO_SESSION.has("stripe/webhook") && !/sendEmail|inviteUserByEmail|signInWithOtp/.test(enter));

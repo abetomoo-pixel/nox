@@ -52,6 +52,9 @@ import { isSectionOn, type StoreSettings } from "@/lib/nox/store-systems"; // �
 import { mineSettingsOf } from "@/lib/nox/store/mine-settings";
 import { mineVisibilityOf, slipFootNoteOf, stripKintaiPay } from "@/lib/nox/mine/visibility"; // ★裁定491・492 // ★裁定326-8（便 M1-3）: mine_settings の出し分け（既存の自店読取に相乗り＝新規 fetch 0）
 import { punchHeadOf, punchStateOf, todayShiftLineOf } from "@/lib/nox/shift/punch-state";
+import { mig0213On, mig0214On } from "@/lib/nox/rules-0175/flag"; // ★0213／0214
+import { dayAdjOfSource, loadDayAdjSource } from "@/lib/nox/punch/day-adj-load"; // ★0213／0214
+import { punchModeOf } from "@/lib/nox/shift/punch-mode"; // ★0213／0214
 import { mig0201iOn } from "@/lib/nox/rules-0175/flag"; // ★0201i（裁定486）: ホームの件数（未確認・未回答）と出欠の予定
 import { noticeHomePendingTextOf, noticePendingCountOf, rsvpEventsOf, type MyResponse, type RsvpAnswer } from "@/lib/nox/notices/response";
 import { noticeVisibleToCastOf as noticeVisOf0201i } from "@/lib/nox/people/notify-text";
@@ -182,6 +185,10 @@ export default async function MinePage({ searchParams }: { searchParams?: Promis
   const { data: ackNeeded } = pAck ? await pAck : { data: null };
   // ★便 M5 M-33: showContractAck は要約（termsLines＝出勤ノルマの目標 daysTargets を含む）の後で決める＝下の daysTargets の直後
   const ps = punchStateOf((todayPunches ?? []) as { type: string; punched_at: string }[]); // ★326 追補3: 当日営業日の自分の打刻 → 未出勤／出勤中／退勤済み
+  // ★0214（相談役 11/25 の D5）: 店が休憩の打刻を使うか（settings_json.break_punch）と、自分の閉じていない休憩（RLS＝自分の行）。旗 false＝読まない
+  //   ★0214 版 2（相談役 11/25 の F4）: 今日の営業日の休憩だけ（前の営業日の閉じ忘れで「休憩終了」だけにしない＝DB の break_seq_check と同じ見方）
+  const mineBreakOn = mig0214On() && ((myStore?.settings_json ?? {}) as Record<string, unknown>).break_punch === true;
+  const mineOnBreak = mig0214On() && meCast ? (((await supabase.from("punch_breaks").select("id").eq("cast_id", meCast.id as string).eq("biz_date", bizToday).is("ended_at", null).limit(1)).data ?? []).length > 0) : false;
   // ★便 SH-UI-c C-2 ④: 「今月の勤怠」＝給与と同じ計算の表（lib/nox/payroll/attendance-sheet・自分の行＝RLS）。送りは transport の自分の行（mode は 0177 後）
   const { data: mineTransport } = await pTransport;
   // ★便 SH-UI-c2 C2-3: 日別の算定給与＝店長の勤怠表と同じ builder（computePayrollDraft＝給与と同じ）。本人の cast で絞る・読めなければ従来の表（日計なし）
@@ -207,11 +214,16 @@ export default async function MinePage({ searchParams }: { searchParams?: Promis
   })).filter((r) => !r.future && (r.inHm || r.shift || r.absent || r.corrections.length > 0 || r.okuri.n > 0 || (r.pay && r.pay.total !== 0))).reverse();
   const kintaiPay = vis.payHidden ? null : (kintaiBuilt?.casts[0]?.pay ?? null); // ★裁定492 // ★C2-3: 月のまとめ（本人）
   const kintaiSum = attendanceSummaryOf(kintaiRows, bizToday);
+  // ★0213／0214（相談役 11/25）: 本人の当月の勤怠も給与と同じ丸め・休憩（自店の丸めの履歴と自分の休憩＝RLS）。旗 false＝読まない
+  const mineDayAdj = (mig0213On() || mig0214On()) && myStore && meCast
+    ? ((f) => (bd: string) => f(meCast.id as string, bd))(dayAdjOfSource(await loadDayAdjSource(supabase, myStore.id as string, `${month}-01`, new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)).toISOString().slice(0, 10)), { payTimeBasis: payTimeBasisOf((myStore.settings_json ?? null) as Record<string, unknown> | null, `${month}-01`), punchMode: punchModeOf((myStore.settings_json ?? null) as Record<string, unknown> | null) }))
+    : null;
   // ★326-5: 当月の勤怠一覧（日付・出勤・退勤・実働＝dayWorkedHours・確定シフトのある日だけ時間が出る）と当日の出勤・退勤時刻
   const attRowsPunch = monthAttendanceRowsOf({
     punches: ((monthPunches ?? []) as { type: string; punched_at: string }[]).map((p) => ({ punched_at: p.punched_at, type: p.type as "in" | "out" })),
     shifts: monthConfirmedShifts.map((s) => ({ date: s.date, start_hm: s.start_hm, end_hm: s.end_hm })),
     cutoffHm: cutoff, closeHm: closeHmOf(myStore?.settings_json),
+    ...(mineDayAdj ? { dayAdj: mineDayAdj } : {}), // ★0213／0214
   });
   // ★0197 フラグ便（裁定456 の 17）: 打刻しない店（punch_mode='store'）＝確定シフトの日を出す（出＝開始・退＝終了・実働＝給与と同じ式・当欠／休みは — と状態）＝「給与は付くのに勤怠は 0 行」を見せない
   const mineStoreMode = storeDecidesPunchOf((myStore?.settings_json ?? {}) as Record<string, unknown>);
@@ -323,7 +335,7 @@ export default async function MinePage({ searchParams }: { searchParams?: Promis
         <h3>打刻{punchHeadOf(ps.state, ps.inAt) && <span className="num" style={{ marginLeft: "auto", fontSize: 12.5, fontWeight: 700, color: "var(--ok)" }}>{punchHeadOf(ps.state, ps.inAt)}</span>}</h3>{/* ★326 追補3: 出勤中は見出し横に「出勤中 HH:MM〜」 */}
         {/* ★0164（便 W5-2b）: 店設定 punch_methods.self が OFF の店は本人打刻のボタンを出さない（RPC punch_self は拒否しない＝UI の出し分けだけ・裁定要） */}
         {minePunchOff ? (<><p className="nox-pstate" data-cast-punch-off="1" style={{ margin: "0 0 6px" }}>出勤・退勤は店が記録します</p>{mig0198On() && mineDayDedApplied !== null && <p data-mine-day-ded-applied={String(mineDayDedApplied.length)} style={{ fontSize: 12.5, color: "var(--sub)", margin: "0 0 8px" }}>{dayDedAppliedTextOf(mineDayDedApplied)}</p>}</>) : opsProfileOf(myStore as Record<string, unknown> | undefined).punch_methods.self ? (
-        <PunchActions state={ps.state} okuriMode={okuriModeOf((myStore?.settings_json ?? {}) as Record<string, unknown>)} /* ★裁定414（S-4）: 4 方式＝'none' 以外で導線 */
+        <PunchActions state={ps.state} breakOn={mineBreakOn} onBreak={mineOnBreak} /* ★0214 */ okuriMode={okuriModeOf((myStore?.settings_json ?? {}) as Record<string, unknown>)} /* ★裁定414（S-4）: 4 方式＝'none' 以外で導線 */
           dayDedRules={mineDayDedRules} bizToday={bizToday} /* ★便 D M-103: 出勤時の「今日の控除」（0196 まで空） */ dayDedApplied={mineDayDedApplied} /* ★0198（裁定461 ②）: 表示だけ */
           okuriBase={typeof ((myStore?.settings_json ?? {}) as Record<string, unknown>).okuri_base_amount === "number" ? (((myStore?.settings_json ?? {}) as Record<string, unknown>).okuri_base_amount as number) : null} />
         ) : (
@@ -346,8 +358,8 @@ export default async function MinePage({ searchParams }: { searchParams?: Promis
                 {attRows.map((r) => (
                   <tr key={r.bizDate}>
                     <td className="num" style={tdL}>{mdLabelOf(r.bizDate)}</td>
-                    <td className="num" style={tdR}>{r.inHm ?? "—"}</td>
-                    <td className="num" style={tdR}>{r.outHm ?? "—"}</td>
+                    <td className="num" style={tdR}>{r.inHm ?? "—"}{r.inRoundedHm && r.inRoundedHm !== r.inHm ? <span style={{ fontSize: 11, color: "var(--sub)" }} data-mine-rounded-in={r.inRoundedHm}>（{r.inRoundedHm}）</span> : null}</td>{/* ★0213 */}
+                    <td className="num" style={tdR}>{r.outHm ?? "—"}{r.outRoundedHm && r.outRoundedHm !== r.outHm ? <span style={{ fontSize: 11, color: "var(--sub)" }} data-mine-rounded-out={r.outRoundedHm}>（{r.outRoundedHm}）</span> : null}</td>
                     <td className="num" style={tdR}>{hoursLabelOf(r.hours)}{r.statusJa ? <span style={{ fontSize: 11, color: "var(--sub)", marginLeft: 4 }} data-mine-att-status={r.statusJa}>{r.statusJa}</span> : null}</td>{/* ★0197 フラグ便（裁定456 の 17）: 打刻しない店の状態 */}
                   </tr>
                 ))}

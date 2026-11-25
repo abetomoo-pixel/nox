@@ -15,6 +15,7 @@
 //   同一ガード（owner/manager 自店）。updateUserById で新 PW を設定し一度だけ返す。
 //   auth 層のみの操作（DB 書込なし＝audit_log_write は内部専用で route から呼べない・Supabase auth ログに残る）。
 import { NextResponse } from "next/server";
+import { MUST_CHANGE_META } from "@/lib/nox/auth/must-change"; // ★0211 の便（D1）
 import { randomInt, randomUUID } from "node:crypto";
 import { guardCastInvite } from "@/lib/nox/cast/route-guard";
 
@@ -49,7 +50,7 @@ export async function POST(req: Request) {
       if (eU || !u) return NextResponse.json({ error: `lookup failed: ${eU?.message ?? "no user"}` }, { status: 500 });
       if (!u.is_active) return NextResponse.json({ error: "inactive user" }, { status: 409 });
       const password = genPassword();
-      const { error: eUpd } = await g.admin.auth.admin.updateUserById(u.auth_user_id as string, { password });
+      const { error: eUpd } = await g.admin.auth.admin.updateUserById(u.auth_user_id as string, { password, app_metadata: MUST_CHANGE_META }); // （GoTrue は app_metadata を足し合わせる）★0211 の便（D1）: 再発行した初期パスワード＝最初のログインで変更を求める
       if (eUpd) return NextResponse.json({ error: `password reset failed: ${eUpd.message}` }, { status: 500 });
       // initial_password はこのレスポンス一度だけ（DB に平文は残らない）
       return NextResponse.json({ login_email: u.email, initial_password: password });
@@ -89,6 +90,7 @@ export async function POST(req: Request) {
           email: loginEmail,
           password,
           email_confirm: true,
+          app_metadata: MUST_CHANGE_META, // ★0211 の便（D1）: 初期パスワードで作った人＝最初のログインで変更を求める
         });
         if (!eCu && cu?.user) {
           created = cu.user.id;

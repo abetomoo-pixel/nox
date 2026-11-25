@@ -19,7 +19,7 @@ type Copy = { title: string; confirm: string; confirmBtn: string; loading: strin
 export const SET_PASSWORD_COPY: Record<SetPasswordFlow, Copy> = {
   invite: {
     title: "NOX へようこそ",
-    confirm: "お店への招待を受けて、ログイン用のパスワードを決めます。",
+    confirm: "招待を受けて、ログイン用のパスワードを決めます。", // ★0209 の便（E3）: お店と運営者の両方が通る＝「お店への」を外した（運営者の文は下の OPS_INVITE_COPY）
     confirmBtn: "続ける",
     loading: "招待を確かめています…",
     ready: "ログイン用のパスワードを決めてください。決めたら、お店の初期設定に進みます。",
@@ -65,3 +65,14 @@ export function setPasswordErrJa(status: number, error: string | null | undefine
   if (/same|different from the old/i.test(e)) return "今のパスワードと同じです。別のパスワードにしてください。";
   return `設定できませんでした（${status}）。時間をおいて、もう一度お試しください。`;
 }
+
+/** ★0209 の便（相談役 11/25 の E3）: 運営者への招待の文（本人のセッションの後に /api/auth/ops-self で運営者と分かったときだけ・お店の文は今のまま） */
+export const OPS_INVITE_COPY: Copy = {
+  title: "NOX 運営コンソールへようこそ",
+  confirm: "招待を受けて、ログイン用のパスワードを決めます。",
+  confirmBtn: "続ける",
+  loading: "招待を確かめています…",
+  ready: "運営コンソールのログイン用のパスワードを決めてください。決めたら運営のログインに進み、認証アプリ（6 桁のコード）を登録します。",
+  submit: "パスワードを決めて運営のログインへ",
+  fail: "この招待のリンクは使えません（期限切れか、すでに使われています）。運営の管理者に再発行を依頼してください。",
+};

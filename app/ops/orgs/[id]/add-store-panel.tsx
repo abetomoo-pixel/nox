@@ -11,20 +11,22 @@ import { STORE_COPY_LABEL, STORE_COPY_NEVER, STORE_COPY_PARTS, type StoreCopyPar
 
 const BIZ: ReadonlyArray<readonly [string, string]> = [["cabaret", "キャバクラ"], ["girlsbar", "ガールズバー"], ["snack", "スナック"], ["lounge", "ラウンジ"], ["bar", "バー"], ["host", "ホストクラブ"]];
 
-export default function AddStorePanel({ orgId, stores }: { orgId: string; stores: { id: string; name: string; setupDone: boolean }[] }) {
+export default function AddStorePanel({ orgId, stores, initial, inquiryId }: { orgId: string; stores: { id: string; name: string; setupDone: boolean }[]; /** ★0212: 2 店舗目の依頼の中身を初期値に（運営は直してから押せる） */ initial?: { name: string; biz: string; from: string | null; parts: string[] } | null; /** ★0212: 依頼から足す（ops_inquiry_store_add＝2 回押しても店は 1 つ・依頼は対応済みに） */ inquiryId?: string | null }) {
   const router = useRouter();
   const ready = stores.filter((s) => s.setupDone);
-  const [name, setName] = useState("");
-  const [biz, setBiz] = useState("");
-  const [from, setFrom] = useState(ready[0]?.id ?? "");
-  const [parts, setParts] = useState<StoreCopyPart[]>([...STORE_COPY_PARTS]);
+  const [name, setName] = useState(initial?.name ?? "");
+  const [biz, setBiz] = useState(initial?.biz ?? "");
+  const [from, setFrom] = useState(initial ? (initial.from && ready.some((s) => s.id === initial.from) ? initial.from : "") : ready[0]?.id ?? "");
+  const [parts, setParts] = useState<StoreCopyPart[]>(initial ? STORE_COPY_PARTS.filter((p) => initial.parts.includes(p)) : [...STORE_COPY_PARTS]);
   const [busy, setBusy] = useState(false);
   const [out, setOut] = useState<{ ok: boolean; text: string } | null>(null);
   const blocked = addStoreBlockedOf({ name, biz, from, parts: parts.length }); // ★起票153: 押せない理由（無ければ null）＝前と同じ条件
   const toggle = (p: StoreCopyPart) => setParts((xs) => (xs.includes(p) ? xs.filter((x) => x !== p) : [...xs, p]));
   async function add() {
     setBusy(true); setOut(null);
-    const r = await fetch(`/api/ops/orgs/${orgId}/stores`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: name.trim(), bizType: biz, copyFrom: from || null, parts: from ? parts : [] }) });
+    const r = inquiryId
+      ? await fetch(`/api/ops/inquiries/${inquiryId}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "store_add", name: name.trim(), bizType: biz, copyFrom: from || null, parts: from ? parts : [] }) }) // ★0212
+      : await fetch(`/api/ops/orgs/${orgId}/stores`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: name.trim(), bizType: biz, copyFrom: from || null, parts: from ? parts : [] }) });
     const j = (await r.json().catch(() => ({}))) as { error?: string };
     setBusy(false);
     if (!r.ok) { setOut({ ok: false, text: j.error ?? "店を足せませんでした" }); return; }

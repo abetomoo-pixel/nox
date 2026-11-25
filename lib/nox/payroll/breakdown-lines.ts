@@ -20,6 +20,7 @@ export type BreakdownPayLike = {
   canon?: { pct: number | null; tierIdx: number | null; direction: "up" | "hold" | "assess"; applied: boolean; upAmount: number; payPct: number; streak: number; windowN: number } | null;
   payRule?: { rule?: string; guaranteedHours?: number; fixedAmount?: number; calcDays?: number; periodDays?: number; perShiftAmount?: number; shiftCount?: number } | null;
   guarantee?: { spans: { from: string; to: string | null; base: number }[]; baseHours: number; basePay: number; guaHours: number; guaPay: number } | null;
+  bands?: { days: number; hours: number; pay: number } | null; // ★時間帯の時給（相談役 11/25 の便 D2）: 帯を当てた日がある人だけ（凍結 pay にも入る）
   wdays?: { d: number; hours: number; hourly: number; basis: string; gua?: boolean }[]; // ★便 PR-1 R-2（裁定416）: 営業日ごとの時給＝区間行の元（凍結 pay にも入っている）
   slideBasis?: { apply?: string; provisional?: boolean; months: { month: string; prevMonth: string; sales: number; pts: number; salesWage: number; ptsWage: number }[]; basis?: string; scope?: { rankIds: string[]; castRankId: string | null; excluded: boolean } } | null;
   /** ★便 SH-UI-c2 C2-9: 段の判定（基本時給・売上／pt の段）＝凍結 pay にも plan／eplan が入っている */
@@ -214,6 +215,8 @@ export function breakdownLinesOf(input: BreakdownInput): Breakdown {
     push("guaBase", `　うち基本（${p.guarantee.baseHours}h）`, z(p.guarantee.basePay), { keepZero: true, sub: true });
     push("guaPay", `　うち保証 ${p.guarantee.spans.map((s) => `${md(s.from)}〜${s.to ? md(s.to) : ""} ${yen(s.base)}`).join("／")}（${p.guarantee.guaHours}h）`, z(p.guarantee.guaPay), { keepZero: true, sub: true });
   }
+  // ★時間帯の時給（相談役 11/25 の便 D2）: 帯を当てた日がある人だけ「うち時間帯の時給 n 日（h）」の補助行（時給の内数＝足す列に入れない）
+  if (p.bands && p.bands.days > 0) push("bands", `　うち時間帯の時給 ${p.bands.days} 日（${p.bands.hours}h）`, z(p.bands.pay), { keepZero: true, sub: true });
   // ★裁定343（0170・便 W5-2b）: 判定基準（件数）と対象（ランク）の印。対象外＝1 行「対象外」・daily＋件数＝営業日ごとの行を 1 行に畳む（件数は判定値）
   const sbBasis = p.slideBasis?.basis;
   const bLabel = sbBasis === "hon_count" ? "本指名" : sbBasis === "dohan_count" ? "同伴" : null;
@@ -263,7 +266,10 @@ export function breakdownLinesOf(input: BreakdownInput): Breakdown {
   push("achievementBonus", p.normTarget?.source === "plan" ? `達成ボーナス（目標 ¥${p.normTarget.sales.toLocaleString()}＝プランの既定）` : "達成ボーナス", z(p.achievementBonus)); // ★裁定347 追補2: 既定から継承した目標は明細に出所を出す
   push("guaranteeAdd", "最低保証加算", z(p.guaranteeAdd));
   if (p.guaranteeDay && (p.guaranteeAdd ?? 0) > 0) push("guaranteeDay", `　日給 ${yen(p.guaranteeDay.perDay)} × 出勤 ${p.guaranteeDay.days} 日（${yen(p.guaranteeDay.floor)}）`, 0, { keepZero: true, sub: true, info: true }); // ★0202f: 補填の下に 1 行（額は上の行に入っている＝情報の行）
-  for (const [i, e] of (input.extras ?? []).entries()) push(`extra-${i}`, e.label ?? (e.kind === "attendance_bonus" ? "出勤ボーナス" : e.kind), z(e.amount));
+  for (const [i, e] of (input.extras ?? []).entries()) {
+    if (e.kind === "punch_round_note") { earn.push({ key: `extra-${i}`, label: e.label ?? "勤務時間は丸めて数えています", amount: 0, info: true, amountText: "" }); continue; } // ★0213（相談役 11/25 の便 E2）: 丸めの注記＝金額なしの 1 行
+    push(`extra-${i}`, e.label ?? (e.kind === "attendance_bonus" ? "出勤ボーナス" : e.kind), z(e.amount));
+  }
 
   const ded: BreakdownLine[] = [];
   const dpush = (key: string, label: string, amount: number) => { if (amount > 0) ded.push({ key, label: sysOn(sysK, systemOfLineKey(key)) ? label : `${label}（OFF の制度）`, amount }); }; // ★便 GV-C C-10: 控除は 0 の行は従来どおり出さない・OFF の制度は印

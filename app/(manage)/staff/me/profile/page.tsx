@@ -39,7 +39,7 @@ export default async function StaffProfilePage() {
           <section className="nox-panel" style={sec} data-self-contact="1"><h3>連絡先（電話・連絡用メール）</h3><ContactForm contactEmail={(me?.contact_email as string | null) ?? null} phone={(me?.phone as string | null) ?? null} /></section>
           <section className="nox-panel" style={sec}><h3>住所・緊急連絡先</h3><SelfProfileFields row={prof ?? null} /></section>
           {mig0201On() && <section className="nox-panel" style={sec}><PinSelfCard kind="staff" /></section>}
-          <section className="nox-panel" style={sec} data-self-password="1"><h3>パスワード</h3><p style={{ fontSize: 12.5, margin: 0 }}>パスワードの変更は、ログアウトしてログイン画面の「パスワードを忘れた方」から行えます（登録のメールに再設定の案内が届きます）。<Link href="/auth/forgot" className="nox-link">パスワードの再設定へ ›</Link></p></section>
+          <section className="nox-panel" style={sec} data-self-password="1"><h3>パスワード</h3><p style={{ fontSize: 12.5, margin: 0 }}>今のパスワードを入れて、新しいパスワードに変えられます（メールを登録していない人もここから）。<Link href="/auth/change-password" className="nox-link" data-self-password-change="1">パスワードを変える ›</Link></p><p style={{ fontSize: 12, margin: "6px 0 0", color: "var(--sub)" }}>今のパスワードを忘れたときは、メールを登録している人はログイン画面の「パスワードを忘れた方」から（<Link href="/auth/forgot" className="nox-link">パスワードの再設定へ ›</Link>）。メールを登録していない人は、お店のオーナーか店長に初期パスワードの出し直しを頼んでください。</p></section>
           <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 14px" }} data-self-store-only="1">{selfProfileStoreOnlyNoteOf(role)}写真は右上の「自分の情報」から変更できます。</p>
         </>
       )}

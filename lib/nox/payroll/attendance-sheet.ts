@@ -14,6 +14,7 @@ import { hm2min, min2hm } from "../shift-time";
 import { OKURI_MODE_LABEL, type OkuriMode } from "../shift/okuri-mode";
 import { bizDateOf } from "../biz-date"; // ★便 SH-UI-c2 C2-2: 出／退の punch id（編集＝punch_correction_request の p_punch_id）
 import { DAILY_PAY_COLUMNS, dailyPayCellsOf, type DailyPayRow } from "./daily-pay"; // ★便 SH-UI-c2 C2-3: 日別の算定給与の列
+import { dayWindowOf, type DayAdj } from "../punch/day-window"; // ★0213／0214: 日の窓（丸め・休憩＝給与の collect と同じ関数）
 
 export type SheetPunch = PunchRow & { id?: string; source?: string | null; okuri?: boolean | null };
 export type SheetAttendance = AttendanceRow & { eta?: string | null; reason?: string | null; source?: string | null; updated_at?: string | null };
@@ -27,6 +28,8 @@ export type AttendanceDayRow = {
   shift: { start: string; end: string } | null;
   /** 実打刻 出／退（0-47 域 HH:MM・翌表記は hm47Ja で） */
   inHm: string | null; outHm: string | null;
+  /** ★0213／0214: 丸め・休憩が効いた日だけ（丸めた出／退＝丸めのある日だけ・休憩の分・時間に使った分・閉じていない休憩）。無い日はキーなし＝今と同じ */
+  adj?: { inRoundedHm?: string; outRoundedHm?: string; breakMin: number; workMin: number; openBreak: boolean; /** ★0214: その日の休憩（生の時刻・0〜47 時・終了なし＝null）＝店の直しの初期値 */ breaks?: [string, string | null][] };
   /** 店の修正（approved の punch_corrections） */
   corrections: { kind: "in" | "out"; by: string | null; at: string | null; before: string | null; after: string | null; reason: string }[];
   /** 遅刻／当欠／早退（final 遅刻・final 当欠・raw.out 早退） */
@@ -93,6 +96,8 @@ export type AttendanceSheetInput = {
   todayBiz: string;
   /** 期間（YYYY-MM-DD・両端含む）。渡せば期間の全日を行にする（打刻の無い日も）・無ければ打刻／シフトのある日だけ */
   periodStart?: string; periodEnd?: string;
+  /** ★0213／0214: 営業日 → その日の丸めと休憩（当てない店・何も無い日は null＝今のまま）。給与の collect と同じ dayAdjOfSource から */
+  dayAdj?: (bizDate: string) => DayAdj | null;
 };
 
 const ymdAdd = (ymd: string, n: number): string => { const d = new Date(`${ymd}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
@@ -142,7 +147,9 @@ export function attendanceDayRowsOf(input: AttendanceSheetInput): AttendanceDayR
     const sorted = [...ev].sort((a, b) => hm2min(a.at) - hm2min(b.at));
     const ins = sorted.filter((e) => e.kind === "in"), outs = sorted.filter((e) => e.kind === "out");
     const inHm = ins[0]?.at ?? null, outHm = outs.length > 0 ? outs[outs.length - 1].at : null;
-    const rawHours = d ? dayWorkedHours(d) : 0;
+    const adjD = input.dayAdj?.(bizDate) ?? null; // ★0213／0214
+    const wAdj = adjD && inHm && outHm ? dayWindowOf(hm2min(inHm), hm2min(outHm), adjD) : null;
+    const rawHours = d ? (wAdj && dayWorkedHours(d) > 0 ? wAdj.workMin / 60 : dayWorkedHours(d)) : 0;
     const sh = shiftByDate.get(bizDate) ?? null;
     // ★便 M5 M-40 (x)（2026-10-30）: 'shift' の置換は実打刻の窓が確定シフトの窓と重なる日だけ。シフト前に終わった打刻（16:28→16:40 vs 20:00 シフト）／シフト後に始まった打刻は実打刻のまま＋備考「シフト前」「シフト後」
     //   （複数シフトの日＝どれか 1 本と重なれば overlap）。※ pay.ts 624 の置換はそのまま＝給与側は別便（差分表に載せる）
@@ -165,6 +172,7 @@ export function attendanceDayRowsOf(input: AttendanceSheetInput): AttendanceDayR
     if (shiftRel === "before" || shiftRel === "after") noteParts.push(SHIFT_RELATION_NOTE[shiftRel]); // ★便 M5 M-40 (x)
     rows.push({
       bizDate, shift: sh ? { start: sh.start_hm, end: sh.end_hm } : null, inHm, outHm, corrections: corr,
+      ...(wAdj ? { adj: { ...(adjD?.rounding ? { inRoundedHm: min2hm(wAdj.inMin), outRoundedHm: min2hm(wAdj.outMin) } : {}), breakMin: wAdj.breakMin, workMin: wAdj.workMin, openBreak: wAdj.openBreak, ...(adjD?.breaks.length ? { breaks: adjD.breaks.map((x) => [min2hm(x.startMin), x.endMin === null ? null : min2hm(x.endMin)] as [string, string | null]) } : {}) } } : {}), // ★0213／0214
       late: storeMode ? finalStore === "late" && !future : !!d && d.final.type === "late" && !future, absent: storeMode ? finalStore === "absent" && !future : !!d && d.final.type === "absent" && !future, early: !!d && d.raw.out.type === "early" && !future,
       contactAt: att && att.source === "self" && (att.status === "late" || att.status === "absent") ? jstHm(att.updated_at) : null,
       hours: hoursFinal, basis: storeMode && rawHours === 0 && hoursFinal > 0 ? "shift" : basis, okuri: { n: trs.length, modes: [...new Set(trs.map((t) => OKURI_MODE_LABEL[((t.mode ?? "actual") as OkuriMode)] ?? String(t.mode)))] },
@@ -199,7 +207,10 @@ export const correctionTextOf = (c: AttendanceDayRow["corrections"][number], wit
 
 /** ②の列（CSV と印刷で同じ順） */
 export const SHEET_COLUMNS = ["日付", "確定シフト", "出勤", "退勤", "店の修正", "遅刻・当欠・早退", "実働h", "基準", "送り", "備考"] as const;
-export function sheetRowCellsOf(r: AttendanceDayRow, opts: { withBy?: boolean; withPay?: boolean } = {}): string[] {
+/** ★0213／0214（相談役 11/25）: 丸め・休憩を使う店の CSV だけ足す列（丸めない店・休憩の無い店の CSV は今と 1 バイト同じ） */
+export const SHEET_ADJ_COLUMNS = ["出勤（丸めた後）", "退勤（丸めた後）", "休憩（分）"] as const;
+export const sheetAdjCellsOf = (r: AttendanceDayRow): string[] => [hm47Ja(r.adj?.inRoundedHm ?? r.inHm), r.adj?.outRoundedHm ? hm47Ja(r.adj.outRoundedHm) : (r.outHm ? hm47Ja(r.outHm) : ""), r.adj && r.adj.breakMin > 0 ? String(r.adj.breakMin) : (r.adj?.openBreak ? "0（終了なし）" : "")];
+export function sheetRowCellsOf(r: AttendanceDayRow, opts: { withBy?: boolean; withPay?: boolean; withAdj?: boolean } = {}): string[] {
   const payCells = opts.withPay ? dailyPayCellsOf(r.pay) : []; // ★便 SH-UI-c2 C2-3: CSV・印刷用にも同じ列
   return [
     r.bizDate,
@@ -211,17 +222,19 @@ export function sheetRowCellsOf(r: AttendanceDayRow, opts: { withBy?: boolean; w
     r.hours > 0 ? BASIS_MARK[r.basis] : "",
     r.okuri.n > 0 ? `${r.okuri.n}${r.okuri.modes.length ? `（${r.okuri.modes.join("・")}）` : ""}` : "",
     r.cancelled ? `取消済み${r.note ? "・" + r.note : ""}` : r.note,
+    ...(opts.withAdj ? sheetAdjCellsOf(r) : []), // ★0213／0214
     ...payCells,
   ];
 }
 /** CSV（UTF-8 BOM・CRLF・②の列・見出し行＝店名・期間・氏名・出力日時） */
 export function attendanceCsvOf(meta: { storeName: string; period: string; castName: string; exportedAt: string }, rows: readonly AttendanceDayRow[], opts: { withPay?: boolean } = {}): string {
   const esc = (v: string) => (/[",\r\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
-  const cols = opts.withPay ? [...SHEET_COLUMNS, ...DAILY_PAY_COLUMNS] : [...SHEET_COLUMNS]; // ★便 SH-UI-c2 C2-3
+  const withAdj = rows.some((r) => !!r.adj); // ★0213／0214: 丸め・休憩が効いた日がある表だけ列を足す
+  const cols = [...SHEET_COLUMNS, ...(withAdj ? SHEET_ADJ_COLUMNS : []), ...(opts.withPay ? DAILY_PAY_COLUMNS : [])]; // ★便 SH-UI-c2 C2-3
   const lines = [
     `# ${meta.storeName} 勤怠 ${meta.period} ${meta.castName} 出力 ${meta.exportedAt}`,
     cols.join(","),
-    ...rows.map((r) => sheetRowCellsOf(r, { withPay: opts.withPay }).map(esc).join(",")),
+    ...rows.map((r) => sheetRowCellsOf(r, { withPay: opts.withPay, withAdj }).map(esc).join(",")),
   ];
   return "﻿" + lines.join("\r\n") + "\r\n";
 }

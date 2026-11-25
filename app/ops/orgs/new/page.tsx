@@ -7,5 +7,5 @@ export const dynamic = "force-dynamic";
 
 export default async function OpsNewOrgPage() {
   const op = await requireOperatorPage();
-  return <OpsShell name={op.name}><NewOrgFormView /></OpsShell>;
+  return <OpsShell name={op.name} role={op.role}><NewOrgFormView /></OpsShell>;
 }
