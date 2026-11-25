@@ -16,6 +16,7 @@ import { stripHolidaysFromV5Rules, stripNoticeOf } from "@/lib/nox/pricing/close
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { errJa } from "@/lib/nox/errors"; // ★2026-11-24
 import * as t from "@/lib/nox/ui/theme";
 import SegSelect from "@/components/ui/seg-select";
 import { Message } from "@/components/ui/toast";
@@ -23,6 +24,7 @@ import CastProvisionalsPanel from "@/components/nox/cast-provisionals-panel"; //
 import { assistedMarksOf } from "@/lib/nox/ops/assist";
 import {
   CSV_HEADER, PIN_RE, V5_STEPS, V5_TYPES, WD, applyType, buildV5Plan, castPlanOf, clone, genPin, kindVal, menuCount, normRule, parseCsv, rebuildBack, seatNames, slideTiersFor, v5CheckSelectorOf, v5Checks, v5DefaultState, v5TypeName, v5ZeroPriceItems,
+  PUNCH_ROUND_CONSENT_LABEL, PUNCH_ROUND_CONSENT_REQUIRED, PUNCH_ROUND_CONSENT_TEXT, punchRoundConsentMissingOf, // ★2026-11-24 丸めの同意
   type V5Cast, type V5Ctx, type V5Rule, type V5State, type V5Step, type V5Type, ROUND_MODE_LABEL, TIME_MODE_LABEL, cardFeePctOf, payDayOf, trialDaysOf, cashRateOf, cashFloatOf, autoConfirmHoursOf, svcVipOf, okuriBaseOf, okuriFlatBaseMissingOf, RATE_SLIDE_TIERS_LATER, PAY_RATE_TIERS_HREF, RATE_SLIDE_BASE_UNTIL_TIERS, OKURI_FLAT_BASE_LABEL, OKURI_FLAT_BASE_REQUIRED, CAST_REGISTER_SETUP_NOTE } from "@/lib/nox/setup/v5";
 import { castStepFailTextOf } from "@/lib/nox/setup/cast-errors"; // ★起票143（■1-c）
 import { mig0190On, mig0191On, mig0197On, mig0202bOn } from "@/lib/nox/rules-0175/flag"; // ★0190／0191 のフラグ true 便: 器が入った項目は「後で（マスタから）」を出さない
@@ -255,7 +257,7 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
     const steps = mig0203On() && multiStore ? stripOrgLevelKeys(steps0) : steps0; // ★0203（■2-c）: 2 店以上の会社は支払日を店で書かない
     setRun({ running: true, done: 0, total: steps.length, failedAt: null, error: null, completed: false, log: [] });
     const r = await runSteps(steps, { onIssued: (x) => setIssued((xs) => [...xs, x]) });
-    if (!r.ok) { setRun({ running: false, done: r.at ?? 0, total: steps.length, failedAt: r.at ?? 0, error: r.error ?? "失敗", completed: false, log: r.log }); return; }
+    if (!r.ok) { const st = steps[r.at ?? 0]; setRun({ running: false, done: r.at ?? 0, total: steps.length, failedAt: r.at ?? 0, error: `${st?.label ? `「${st.label}」で止まりました：` : ""}${errJa(r.error ?? null)}` /* ★2026-11-24（相談役の便【1】）: 英字の理由を日本語の 1 行に（どの段で・何をすればよいか） */, completed: false, log: r.log }); return; }
     const basic = r.created["comp_0"], trial = r.created["comp_1"];
     let ids2 = { basic: typeof basic === "string" ? basic : null, trial: typeof trial === "string" ? trial : null };
     if (!ids2.basic && copiedPlansRef.current) { // ★12:00 の ■2-b: 写したときは名前で探さない・★版 2（■3）: 体験入店は結ばない＝オーナーが選ぶ
@@ -317,12 +319,14 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
     ? (S.step === 0 && !type ? "お店のタイプを選んでください（「お店のタイプ」）"
       : S.step === 2 && !S.timeMode ? "「延長の付け方」で自動か手動を選んでください"
       : S.step === 4 && okuriFlatBaseMissingOf(S) ? `「${OKURI_FLAT_BASE_LABEL}」を入れてください`
+      : S.step === 6 && punchRoundConsentMissingOf(S) ? `${PUNCH_ROUND_CONSENT_REQUIRED}（「勤務時間の丸め」の下）`
       : null)
     : run.running ? null
       : !type ? "お店のタイプを選んでください（STEP 1「お店のタイプ」）"
       : !isOwner ? "初期設定はオーナーだけが始められます"
       : tplBlocked ? tplBlocked
       : okuriFlatBaseMissingOf(S) ? `「${OKURI_FLAT_BASE_LABEL}」を入れてください（STEP 5）`
+      : punchRoundConsentMissingOf(S) ? `${PUNCH_ROUND_CONSENT_REQUIRED}（STEP 7「勤務時間の丸め」）`
       : null;
 
   return (
@@ -683,7 +687,16 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
           {S.punch.how === "store" && <p style={note} data-setup-punch-store="1">{PUNCH_CHOICE_NOTE.store}</p>}</div>
           {S.punch.how === "any" && <div style={{ marginTop: 8 }}><span style={t.fieldLabel}>条件に合わないとき</span><SegSelect value={S.punch.judge} onChange={(v) => up((s) => { s.punch.judge = v as "soft" | "hard"; })} options={[["hard", "打刻させない"], ["soft", "打刻して記録だけ残す"]] as const} ariaLabel="条件に合わないとき" />{S.punch.judge === "hard" && <p style={note} data-setup-punch-hard="1">「打刻させない」は、店の位置か Wi-Fi を 店舗設定 › シフトと打刻 › 打刻の設定 で登録してから切り替えます（初期設定では「記録だけ残す」で始めます）</p>}</div>}
           {/* ★M-143（2026-11-10）: 「出勤していない人はレジを使えない」（duty_gate）は撤去＝裁定472 で例外が廃止（レジは常に出勤中だけ） */}
-          <div style={{ marginTop: 8 }}><span style={t.fieldLabel}>勤務時間の丸め</span><SegSelect value={String(S.punch.round)} onChange={(v) => up((s) => { s.punch.round = Number(v) as 1 | 5 | 15 | 30; })} options={[["1", "丸めない"], ["5", "5分"], ["15", "15分"], ["30", "30分"]] as const} ariaLabel="勤務時間の丸め" /></div>
+          <div style={{ marginTop: 8 }}><span style={t.fieldLabel}>勤務時間の丸め</span><SegSelect value={String(S.punch.round)} onChange={(v) => up((s) => { s.punch.round = Number(v) as 1 | 5 | 15 | 30; s.punch.consent = false; })} options={[["1", "丸めない"], ["5", "5分"], ["15", "15分"], ["30", "30分"]] as const} ariaLabel="勤務時間の丸め" /></div>
+          {S.punch.round > 1 && (/* ★2026-11-24（相談役の便【1】）: 丸め（1 分より大きい）は同意が必須＝set_store_profile が版の無い変更を断る（BANZEN と同じ文・版 v1） */
+            <div className="nox-inset" style={{ padding: "10px 12px", marginTop: 8 }} data-setup-round-consent="1">
+              <p style={{ ...note, margin: "0 0 8px" }}>{PUNCH_ROUND_CONSENT_TEXT}</p>
+              <label style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 12.5, cursor: "pointer" }}>
+                <input type="checkbox" checked={S.punch.consent === true} onChange={(e) => { const on = e.target.checked; up((s) => { s.punch.consent = on; }); }} style={{ width: 16, height: 16, marginTop: 2, flexShrink: 0 }} data-setup-round-consent-check="1" />
+                {PUNCH_ROUND_CONSENT_LABEL}
+              </label>
+              {!isOwner && <p style={{ ...note, margin: "6px 0 0" }}>同意はオーナーだけができます</p>}
+            </div>)}
         </section></>
       )}
 
@@ -835,8 +848,8 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
         <div className="nox-setup-foot" data-setup-foot="1"><div className="in">{nextWhy && <p className="why" data-setup-next-why="1" role="status">{nextWhy}</p>}
           <span className="pos num" data-setup-pos="1">{S.step + 1} / {V5_STEPS.length}</span>
           {S.step > 0 && <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} disabled={run.running} onClick={() => go(S.step - 1)}>戻る</button>}{/* 教訓122: 隠しボタンで幅を取らない（中央判定） */}
-          {S.step < 8 ? <button type="button" style={{ ...t.btnGold }} disabled={(S.step === 0 && !type) || (S.step === 2 && !S.timeMode) || (S.step === 4 && okuriFlatBaseMissingOf(S)) /* ★■6-1 */} onClick={next} data-setup-next="1">次へ：{V5_STEPS[S.step + 1]}</button>
-            : <button type="button" style={{ ...t.btnGold }} disabled={run.running || !type || !isOwner || !!tplBlocked || okuriFlatBaseMissingOf(S) /* ★■6-1: 段の番号から飛んでも始められない */} onClick={() => void execute()} data-setup-start="1">{run.error ? "続きから再実行" : "この内容で始める"}</button>}
+          {S.step < 8 ? <button type="button" style={{ ...t.btnGold }} disabled={(S.step === 0 && !type) || (S.step === 2 && !S.timeMode) || (S.step === 4 && okuriFlatBaseMissingOf(S)) /* ★■6-1 */ || (S.step === 6 && punchRoundConsentMissingOf(S)) /* ★2026-11-24 丸めの同意 */} onClick={next} data-setup-next="1">次へ：{V5_STEPS[S.step + 1]}</button>
+            : <button type="button" style={{ ...t.btnGold }} disabled={run.running || !type || !isOwner || !!tplBlocked || okuriFlatBaseMissingOf(S) /* ★■6-1: 段の番号から飛んでも始められない */ || punchRoundConsentMissingOf(S) /* ★2026-11-24 丸めの同意 */} onClick={() => void execute()} data-setup-start="1">{run.error ? "続きから再実行" : "この内容で始める"}</button>}
         </div></div>
       )}
     </div>
