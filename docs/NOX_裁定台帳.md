@@ -6066,6 +6066,46 @@ CC の処置＝M-130（下の節）。
 - 0209＝運営者の管理（起票155 の 2・起草 docs/tmp/ops_admin_1124/）・0210＝ホストの初回料金（起票140・案 docs/tmp/first_visit_1124/）・仮 0211＝スタッフの招待の続き（起票157・起草と試走 28 件 docs/tmp/staff_invite_1125/）。当てる直前に本番から数え直す。
 - 起票157 の続きの決め（相談役 11/25 朝）：メールで送る＝案 A（Resend・鍵 RESEND_API_KEY は Agoora が Vercel の Production に）・件名に店名なし・本文に店名・署名 NOX（株式会社レクソル）・reply-to support@noxapp.jp・出し直すと前のリンクは無効・期限は出し直しから 14 日・取り消すも作る・出し直しと送り直しは 1 つの招待につき 1 日 5 回まで・送った記録の表は作らない（監査）・受ける画面は暗いテーマのまま・初期パスワードの人は最初のログインで変更を求める・メール無しの人の道も案に・初期設定の「招待メール」の文 5 か所は直した（main）。
 
+## 次の番号（2026-11-26 未明・0210 版 3 の適用の後＝実測）＝次の起票は 167・次の教訓は 161・次の裁定は 507・次の M は M-195
+- 次の mig＝0216。本番は関数 522・表 133（0210 版 3 の検証の後）。
+
+## H1〜H4（相談役 11/25 の便 H）の記録
+- H1 0210 版 3（ホストの初回料金）：**2026-11-25 22:39:22 適用（CC が適用）**。指紋＝本体 7cd44bd6f7d82eb6e8208fdfdfba08edcb39f3fc5fb2eb13669ea2c91c14b632・事前確認 b5339ded…eb60・検証 7132e6f3…c2d4（数の行は 518／133＝当てるときの本番と同じで置き換えなし）。ログ docs/tmp/apply_0210_1125.log。
+  - 当てる前の読取：作り直す 10 本（check_group_due・check_group_subtotal・check_pay・check_open・check_time_charge_apply・check_extension_add・check_set_people・check_move_seat・set_store_profile・store_copy_settings）の本番の md5 が起草のときの 0210_md5.txt と 10 本とも同じ。事前確認は貼り先証明の 1 行（proof 13）だけ。本体は 1 回（BEGIN…COMMIT）。
+  - 検証 37 行とも期待値：proof 13・関数 522・表 133・新しい列 7（not null と既定）・既存の行の初回 0／base・extend 以外 0／伝票の既定以外 0／込みの明細 0・初回の unique 1・check 6・新しい関数 4 本 secdef・ACL（category_first・rule_first・open_categories・set_time_end＝postgres／authenticated／service_role）・anon 0・null guard 4・課金ゲート 3・監査 3・作り直しの印 10・込みの枝 1・開卓の凍結 3・終わりで延長しない 1・延長の柵 1・check_merge 不変・内部の関数の ACL postgres だけ・check_open／check_pay／set_store_profile／store_copy_settings の ACL 維持・pricing_categories と check_lines は authenticated SELECT・ポリシー 2・込みだけの伝票は丸めない 2・行の当たらない並びの柵 1・写しに初回 1。関数 518→522・表 133 のまま。
+  - デモの店の開いている伝票（is_demo の 7 店・36 本 37 組）の請求は当てる前（22:38:57）と後（22:39:28）で 37 組とも同じ（和 1,200,000・sha16 d72252e5e6af4ed9＝docs/tmp/first_visit_1125/v3/snap_open_demo.mjs）。
+  - 収蔵 supabase/migrations/0210_first_visit_price.sql（e080aff5・sha 一致）。枝 first-visit-1125 に main を merge（22c0c1e7）→ main を早送り。旗 MIG_0210_APPLIED＝true・FIRST_VISIT_RECEIPT_R1＝true（T21 は税理士の確認済み・T22 は専門家確認事項の 2026-11-25 追補に回答待ちで残す）。f0 の鎖の末尾に verify:nox-first-visit（262 段）。
+  - 検査の照合：関数 518→522（20 か所）・課金ゲートの正本に A31（set_pricing_category_first・set_pricing_rule_first・check_set_time_end＝対象 222→225）と B(ar)（register_open_categories＝除外 297）・billing 225／297／226・p172 の billing locked 225 と set_store_profile の md5 facdb136・grants の check_lines の列 23 と端末の腕 28／31／24・reopen の営業日の関所を呼ぶ関数 19→20 と v_chk 版 18→19（check_set_time_end）・store-systems の白名単 85→86（first_visit_in_sales）・0158／0199 の set_store_profile の md5 eced5fb3→facdb136（3d602a22）。
+  - f0 2 連緑＝3d602a22（262 段 9,768 件・00:19:39／01:04:04・golden 5931／125802）→ push 2026-11-26 01:04:21（98003297..3d602a22）→ 本番の印 iEc7NEH5… → CU-2ly60… → **RwqeZUS-CHEEvKLjZ_2ep（01:07:33）**。
+- H2 本番の画面の確かめ（NOX-VERIFY-A1・オーナーと店長の magiclink のセッション・パスワードは入れない・作って消した）：2026-11-26 01:11:49〜01:12:41 で 16 件とも OK（docs/tmp/walk_1125_h2.mts・写しは docs/tmp/walk_1125_h2/＝どれも本番の画面。レシートだけは本番の伝票のデータを印刷の関数 buildReceiptXml（R1）で文にした物＝R1 は画面に出ず印刷の経路だけ）。
+  | 画面 | 確かめた役 | 本番の写し | 結果 |
+  |---|---|---|---|
+  | 料金のマスタ › 料金適用ルール › 初回料金のカード：区分「H2 初回」に初回の印 | オーナー | m1_first_visit_mark | 本番の区分に印・「「H2 初回」を初回料金の区分にしました」 |
+  | 同：セットの行「税・サ込み」「時間で終わり」 | オーナー | m2_set_row_all_in_end | 行の名前「初回料金(60分) 税・サ込」・1 名 ¥1,500 ちょうど・一部の場面（VIP 席）の注意が出て保存は通る（行＝all_in・end） |
+  | 同：区分なしの「H2 通常」を初回の行より上へ並べ替え | オーナー | m3_shadow_blocked | 止まる・本番の並びは変わらない（★読み直した後。読み直す前は通った＝下の起票165 と直し c393d60b） |
+  | 同：料金プレビュー（区分 H2 初回・卓・1 名） | オーナー | m4_preview_all_in | セット ¥1,500・サービス料 ¥0・初回セット概算 ¥1,500（込みの額にサ料と丸めを掛けない） |
+  | 同：「税・サ込みの額をホストの報酬の売上に数える」 | オーナー | m5_in_sales_off | 外すと false・付けると true（店の設定 first_visit_in_sales）★置き場は料金のマスタの初回料金のカードの中（店舗設定の画面ではない） |
+  | レジ：開卓の窓で区分「H2 初回」 | オーナー | r1_open_modal_first_visit | 伝票は初回・時間で終わり・税・サ込み |
+  | レジ：伝票の明細 | オーナー | r2_check_first_visit_line | 「初回料金(60分) 税・サ込」¥1,500・合計 ¥1,500・うち消費税 ¥136 |
+  | レジ：10 分前（伝票の開始の時刻だけを 52 分前へ） | オーナー | r3_badge_warn_10min | 黄色の札「初回 あと 8 分で終了」と「延長に切り替える」 |
+  | レジ：時間を過ぎた（75 分） | オーナー | r4_time_over_no_extension | 赤の札「初回 時間です（15 分過ぎ）」・延長の追加は no extension で断られ延長の行 0 |
+  | レジ：延長に切り替える | 店長 | r5_manager_switch_button・r6_after_switch_extension | 伝票が extend に・延長 ¥2,000 が付く・請求 3,700（込み 1,500＋延長 2,000＋サ料 200） |
+  | 入金 → 会計 | 店長（RPC＝画面と同じ呼び方） | r7_paid | 現金 3,700・伝票 closed |
+  | レシート（R1） | ―（印刷の関数） | r8_receipt_r1.txt | 「税・サ込みの料金 ¥1,500」「合計 ¥3,700」「（内消費税10%）¥336」の 1 行 |
+  - 出なかった物・気づき：(1) 並べ替えの柵（下の起票165）。(2) 時間で終わりの卓にも「延長（¥2,000 / 30分）」のボタンが出る＝押すと DB が no extension で断る（起票166）。(3) 料金プレビューは「60分・卓単位」と出る（行は 1 名ごと）＝表示だけ・額は合う。
+  - 消した行：区分 2・料金の行 4・伝票 1（明細 2・入金 1）・店の設定の鍵 first_visit_in_sales（元の settings_json に戻した）＝残り 0（区分 0・行 0・開いている伝票 0・この伝票 0）。**残した行＝監査（操作の記録）79 行**（01:07〜01:13・台本を直しながら 6 回走らせた分を含む）：set_pricing_rule 28・set_pricing_category 18・set_store_profile 10・set_pricing_category_first 6・set_pricing_rule_first 5・off_duty_exempt 4・pricing_rule_reorder 2（読み直す前に通った並べ替え）・check_open／check_open_set_line／check_set_time_end／check_extension_add／check_pay／check_close 各 1。公開デモ CLUB VESPER には何も足していない。
+  - 直し c393d60b：カードで印と 2 つの選択（と売上に数える）を書いた後に、表の側（reload と loadCats）も読み直す・first-visit の pin (9-1)（60 件）。
+- H3 提案だけ（作らない）：docs/tmp/host_run_1125/demo_vesper_plan.md（デモ VESPER に初回料金・時間帯の時給・ランクの時刻・休憩の見本＝推し＝案 A：seed の入れ直しの後処理で足す・payload 不変・mig 不要・ホストのデモの入れ直しは 06:17＝cron nox-demo-reset-host）と docs/tmp/host_run_1125/host_run_script.md（段 3 のホストの通し＝新しい会社・営業の 1 日と月末・5 役割・残る行）。決めてほしい点は各ファイルの末尾（9 点と 10 点）。
+- H4 docs/demo/launch_gate.md を今の状態に（0207〜0215 の適用・旗・f0・行 66〜71 を足した）。直した行＝1・2・3・14・34・37（→済）・38・63（→済）・65 と新しい 66〜71。
+
+## 起票165（2026-11-26 起票・相談役 11/25 の便 H2 で見つけた・client は直した・**DB の側は記録だけ**）初回の行が当たらない並べ替えを DB が止めない
+- 0210 の柵は set_pricing_rule_first（行の 2 つの選択の保存）にだけある。pricing_rule_reorder（∧∨の並べ替え）は DB で止めない＝画面の柵（shadowGuard）だけ。
+- 画面の柵は表の側の cats／rules を読むが、初回料金のカードで印と 2 つの選択を変えても表の側は読み直さなかった＝同じ画面で区分なしの行を初回の行より上へ並べ替えられた（2026-11-26 01:10 本番の NOX-VERIFY-A1・写し docs/tmp/walk_1125_h2/m3_noreload_passed_0110.png）。直し c393d60b（カードが書いた後に表を読み直す）。
+- 残り：古い画面（別のタブ）からの並べ替えと RPC の直呼びは通る。止めるなら mig（pricing_rule_reorder に first visit shadowed の柵）。
+
+## 起票166（2026-11-26 起票・相談役 11/25 の便 H2・**記録だけ**）時間で終わりの卓にも延長のボタンが出る
+- 伝票が time_end='end' の間もレジの頭に「延長（¥2,000 / 30分）」が出る。押すと DB（check_extension_add）が no extension で断る＝お金は動かない。ボタンを隠すか、押したときの文を「時間で終わりの卓です（延長に切り替えると付けられます）」にするか。
+
 ## 次の番号（2026-11-25 夜・0214 版 2 の適用の後＝実測）＝次の起票は 165・次の教訓は 161・次の裁定は 507・次の M は M-195
 - 次の mig＝0216（0210 は版 3 を起草済み）。本番は関数 518・表 133。
 
