@@ -448,6 +448,8 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
         {useGuarantee && (
           <CompRows kind="guarantee_min" section="基本給・保証" comps={comps} isOwner={isOwner} onSave={saveComp} />
         )}
+        {/* ★時間帯の時給（旗 HOURLY_BANDS_ON の後ろ）: owner だけ・保存済みプラン。★2026-11-25 夜（相談役 11/25 の便 G1）: 置き場を「スライド・ポイント」の節から「基本・保証」の節へ＝基本時給の代わりの額なのでここで決める（スライドの節は基本・保証のタブでは隠れ、スライドを使わない店では節ごと出ない＝本番の CLUB VESPER で表が出なかった）。役・会社の種類・基本時給の値・幅では絞らない */}
+        {hourlyBandsOn() && draft.id && isOwner && <HourlyBandsEditor planId={draft.id} onErr={(m) => setSecErr((e) => ({ ...e, "基本給・保証": m }))} onSaved={async (m) => { setSecErr((e) => ({ ...e, "基本給・保証": "" })); setMsg(m); await reload(); }} />}
         {/* ★GV-63（便 P173）: 準備中チップ 3 つ（日給制・保証対象時間帯・保証判定単位）は撤去（押せないものを置かない＝教訓25） */}
         <SecSave title="基本・保証" keys={["name", "base", "active"]} section="基本給・保証" />
       </section>)}
@@ -606,8 +608,6 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
           const pl = plans.find((x) => x.id === draft.id) as { commission_tiers?: CommissionTier[] | null } | undefined;
           return <CommissionTiersEditor planId={draft.id} tiers={pl?.commission_tiers} onErr={(m) => setSecErr((e) => ({ ...e, スライド: m }))} onSaved={async (m) => { setSecErr((e) => ({ ...e, スライド: "" })); setMsg(m); await reload(); }} />;
         })()}
-        {/* ★時間帯の時給（枝 hourly-bands-1124・旗 HOURLY_BANDS_ON の後ろ＝false の間は出さない）: owner だけ・保存済みプラン */}
-        {hourlyBandsOn() && draft.id && isOwner && <HourlyBandsEditor planId={draft.id} onErr={(m) => setSecErr((e) => ({ ...e, スライド: m }))} onSaved={async (m) => { setSecErr((e) => ({ ...e, スライド: "" })); setMsg(m); await reload(); }} />}
         {/* ★便 P174 T-4（裁定395・395 追補2）: 判定のタイミング＝詳細設定の奥（主表示は上の判定期間）。null＝店設定に従う・前期の実績（既定）・当期の累計（稀） */}
         <details data-slide-apply="1" style={{ margin: "0 0 8px", fontSize: 12, color: "var(--sub)" }}>
           <summary style={{ cursor: "pointer" }}>詳細設定（判定のタイミング: {SLIDE_APPLY_LABEL[effApply]}）</summary>
