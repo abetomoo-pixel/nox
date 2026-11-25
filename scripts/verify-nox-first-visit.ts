@@ -4,13 +4,15 @@
 //   (3) レシート（案 R1）：込みの行があると税込みの書き方・列の和が合計・込みの行が無いと 1 バイト同じ
 //   (4) 札と柵：10 分前に黄色・0 分で赤・無制限は数えない・延長の柵と切り替え・既定の区分・来店の注意・行の名前
 //   (5) 配線：旗 false の既定・旗の後ろでだけ新しい関数を呼ぶ
+//   ★0210 版 2（相談役 11/25 の便 F【F5】）: (2-12〜14) 通常分が手数料だけなら丸めない・(3-6) 案 R1 は旗 FIRST_VISIT_RECEIPT_R1 の後ろ・(6) 当たらない並びの判定と保存の柵・(7) 2 店目への写しの鍵
 import fs from "node:fs";
 import { groupDue, roundAmount, taxRound, groupDueFull, dueBreakdownOf, type DueLine, type CheckDueSettings, type CheckRoundSettings, type DueBreakdown } from "../lib/nox/check-calc";
 import { buildReceiptXml, type ReceiptInput, type ReceiptLine } from "../lib/nox/receipt";
 import { payDiscountPreviewOf } from "../lib/nox/rules-0175/pay-discount";
 import { openEstimateOf, type EstimateRule } from "../lib/nox/register/open-estimate";
-import { firstVisitBadgeOf, setLineNameOf, canExtendOf, canSwitchToExtendOf, defaultOpenCategoryOf, visitNoteOf, overdueTablesOf, firstVisitErrJa, FIRST_VISIT_WARN_MIN } from "../lib/nox/register/first-visit";
-import { MIG_0210_APPLIED, mig0210On } from "../lib/nox/rules-0175/flag";
+import { firstVisitBadgeOf, setLineNameOf, canExtendOf, canSwitchToExtendOf, defaultOpenCategoryOf, visitNoteOf, overdueTablesOf, firstVisitErrJa, FIRST_VISIT_WARN_MIN, firstVisitShadowsOf, firstVisitShadowBlockOf, ruleCoversOf, FIRST_VISIT_SHADOW_JA, type ShadowRule } from "../lib/nox/register/first-visit";
+import { MIG_0210_APPLIED, mig0210On, FIRST_VISIT_RECEIPT_R1, firstVisitReceiptR1On } from "../lib/nox/rules-0175/flag";
+import { STORE_SETTING_KEYS } from "../lib/nox/ops/store-copy-keys";
 import { roundYen } from "../lib/nox/money";
 
 let n = 0; const fails: string[] = [];
@@ -137,9 +139,14 @@ ok("(2-10) 内訳＝通常分（2,000・サ 600・税 260・端数 140）＋税�
 const rules: EstimateRule[] = [{ id: "r1", fee_kind: "set", amount: 1500, duration_min: 60, seat_kind: null, dow_mask: null, time_from_min: null, time_to_min: null, category_id: "c1", billing_unit: "person", priority: -1, price_mode: "all_in" }];
 const est = openEstimateOf({ store: { set_fee: 0, set_min: 60, time_per: "table", ...V, service_rate: 30, round_unit: 1000, round_mode: "up" }, rules, seatKind: "卓", categoryId: "c1", people: 2, ruleId: null, now: new Date("2026-11-25T12:00:00Z") });
 ok("(2-11) 開卓の見込み＝税・サ込み 1,500×2 名＝3,000（きっかり）", est.breakdown.due === 3000 && est.setQty === 2, est.breakdown);
+// ★0210 版 2（【F5】の直し）: 込みの行がある伝票で通常分が手数料の行（pay_fee）だけなら、手数料に店の丸めを掛けない（DB check_group_due 版 2 の v_bx − v_pf ≤ 0）
+const fe = (t: number): DueLine => ({ kind: "charge", fee_kind: "pay_fee", line_total: t, tax_category: "taxable_10" });
+ok("(2-12) 外税の店：込み 1,500＋カード手数料 150（通常分は手数料だけ）＝150＋税 15＋1,500＝1,665（丸めない・版 1 なら 1,000＋1,500＝2,500）", groupDueFull([fv(1500), fe(150)], V) === 1665, groupDueFull([fv(1500), fe(150)], V));
+ok("(2-13) 内税の店（サ 20%・100 円の切り捨て）：込み 1,500＋手数料 150＝1,650（手数料にサ料なし・丸めない）", groupDueFull([fv(1500), fe(150)], { service_rate: 20, round_unit: 100, round_mode: "down" }) === 1650);
+ok("(2-14) 通常分に手数料以外の行があれば今と同じく丸める＝ドリンク 2,000＋手数料 300（2,300＋サ 600＋税 290＝3,190→4,000）＋1,500＝5,500", groupDueFull([fv(1500), dr(2000), fe(300)], V) === 5500, groupDueFull([fv(1500), dr(2000), fe(300)], V));
 
 // (3) レシート（案 R1）
-const rcpt = (lines: ReceiptLine[], due: number, s: CheckDueSettings) => buildReceiptXml({ store: { name: "VESPER", address: "", tel: "", reg_no: "T1234567890123", footer: "" }, check: { id: "11111111-2222-3333-4444-555555555555", closed_at: "2026-11-25T14:00:00Z", nom_type: "free" }, payGroup: "A", lines, payments: [], serviceRate: s.service_rate, groupDue: due, isReprint: false, taxSettings: taxIn(s) } as unknown as ReceiptInput);
+const rcpt = (lines: ReceiptLine[], due: number, s: CheckDueSettings) => buildReceiptXml({ store: { name: "VESPER", address: "", tel: "", reg_no: "T1234567890123", footer: "" }, check: { id: "11111111-2222-3333-4444-555555555555", closed_at: "2026-11-25T14:00:00Z", nom_type: "free" }, payGroup: "A", lines, payments: [], serviceRate: s.service_rate, groupDue: due, isReprint: false, taxSettings: taxIn(s), allInLayout: "r1" } as unknown as ReceiptInput); // ★版 2: R1 は呼び手が "r1" を渡したときだけ
 const rl1: ReceiptLine[] = [{ name_snapshot: "初回料金(60分) 税・サ込", qty: 1, unit_price_snapshot: 1500, line_total: 1500, kind: "time", fee_kind: "set", block_no: 0, tax_category: "taxable_10", all_in: true }, { name_snapshot: "ドリンク", qty: 1, unit_price_snapshot: 2000, line_total: 2000, kind: "custom", tax_category: "taxable_10" }];
 const x1 = rcpt(rl1, 4500, V);
 const yenOf = (label: string, xml: string) => { const m = new RegExp(label + "\\s+-?¥([\\d,]+)").exec(xml); return m ? Number(m[1].replace(/,/g, "")) : null; };
@@ -150,6 +157,11 @@ const x2 = rcpt([rl1[0], { name_snapshot: "割引", qty: 1, unit_price_snapshot:
 ok("(3-4) 割引 500（通常分 0）＝小計(通常分) 0・割引 -500・税・サ込み 1,500・合計 1,000（調整の行なし）", yenOf("小計\\(通常分\\)", x2) === 0 && yenOf("割引", x2) === 500 && !x2.includes("端数調整") && yenOf("合計", x2) === 1000);
 const x3 = rcpt([{ ...rl1[0], all_in: false, name_snapshot: "セット料金(60分)" }, rl1[1]], 5000, V);
 ok("(3-5) 込みの行が無い伝票は今の書き方（小計・消費税(10%)）", x3.includes("消費税(10%)") && !x3.includes("税・サ込みの料金") && !x3.includes("小計(通常分)"));
+// ★0210 版 2（【F5】）: 案 R1 は税理士の答えが出るまで本番に出さない＝旗 FIRST_VISIT_RECEIPT_R1（既定 false）の後ろ。呼び手が "r1" を渡さなければ今の書き方
+const x6 = buildReceiptXml({ store: { name: "VESPER", address: "", tel: "", reg_no: "T1234567890123", footer: "" }, check: { id: "11111111-2222-3333-4444-555555555555", closed_at: "2026-11-25T14:00:00Z", nom_type: "free" }, payGroup: "A", lines: rl1, payments: [], serviceRate: 30, groupDue: 4500, isReprint: false, taxSettings: taxIn(V) } as unknown as ReceiptInput);
+ok("(3-6) 案 R1 は渡したときだけ＝渡さない（旗 false）と「税・サ込みの料金」「小計(通常分)」の段は出ない", !x6.includes("税・サ込みの料金") && !x6.includes("小計(通常分)") && x6.includes("消費税(10%)"));
+const route0 = fs.readFileSync("app/api/print/poll/[store_token]/route.ts", "utf8");
+ok("(3-7) 旗 FIRST_VISIT_RECEIPT_R1 の既定は false・印刷は 2 つの旗がそろったときだけ \"r1\" を渡す", FIRST_VISIT_RECEIPT_R1 === false && firstVisitReceiptR1On() === false && route0.includes('allInLayout: mig0210On() && firstVisitReceiptR1On() ? "r1" : null'));
 
 // (4) 札と柵
 const T0 = Date.parse("2026-11-25T12:00:00Z"), min = (m: number) => T0 + m * 60000;
@@ -179,6 +191,36 @@ const card = fs.readFileSync("app/(manage)/master/pricing/first-visit-card.tsx",
 ok("(5-4) 料金のマスタ：印と 2 つの選択は set_pricing_category_first／set_pricing_rule_first・カードは旗の後ろ", /set_pricing_category_first/.test(card) && /set_pricing_rule_first/.test(card) && /mig0210On\(\)/.test(fs.readFileSync("app/(manage)/master/pricing/pricing-board.tsx", "utf8")));
 const route = fs.readFileSync("app/api/print/poll/[store_token]/route.ts", "utf8");
 ok("(5-5) 印刷はレシートに行の all_in を渡す（旗の後ろで列を読む）", /all_in/.test(route) && /mig0210On\(\)/.test(route));
+
+// (6) ★0210 版 2（相談役 11/25 の便 F【F5】の決め）: 当たらない並び＝区分なしの有効なセットの行が並びで上・条件が重なる → マスタの保存で止める
+const R = (o: Partial<ShadowRule> & { id: string }): ShadowRule => ({ fee_kind: "set", category_id: null, is_active: true, priority: 1, seat_kind: null, rank_id: null, dow_mask: null, time_from_min: null, time_to_min: null, price_mode: "base", time_end: "extend", ...o });
+const CUT = 360;
+const fF = R({ id: "f", category_id: "fv", priority: 2, price_mode: "all_in", time_end: "end" });
+const gN = R({ id: "g", priority: 1 });
+ok("(6-1) 区分なしの終日・全席の行が上（priority 1 < 2）＝初回の行の場面をすべて覆う＝当たらない", firstVisitShadowsOf([gN, fF], ["fv"], CUT).length === 1);
+ok("(6-2) 初回の行が上（priority 0）／同じ並び（区分の行が先）＝当たる", firstVisitShadowsOf([gN, { ...fF, priority: 0 }], ["fv"], CUT).length === 0 && firstVisitShadowsOf([gN, { ...fF, priority: 1 }], ["fv"], CUT).length === 0);
+ok("(6-3) 上の行が一部の場面だけ（VIP 席だけ・曜日の一部・時間帯の一部・ランク）＝残りの場面で当たる＝止めない（VIP の料金を別に持つ店）", firstVisitShadowsOf([{ ...gN, seat_kind: "VIP" }, fF], ["fv"], CUT).length === 0
+  && firstVisitShadowsOf([{ ...gN, dow_mask: 0b0000011 }, fF], ["fv"], CUT).length === 0
+  && firstVisitShadowsOf([{ ...gN, time_from_min: 1200, time_to_min: 1320 }, fF], ["fv"], CUT).length === 0
+  && firstVisitShadowsOf([{ ...gN, rank_id: "r1" }, fF], ["fv"], CUT).length === 0
+  && firstVisitShadowsOf([{ ...gN, seat_kind: "VIP" }, { ...fF, seat_kind: "VIP" }], ["fv"], CUT).length === 1 && firstVisitShadowsOf([{ ...gN, dow_mask: 0b0000111 }, { ...fF, dow_mask: 0b0000011 }], ["fv"], CUT).length === 1);
+ok("(6-4) 時間帯は営業日の切替で比べる（20:00〜翌 02:00 は翌 00:00〜01:00 を覆う・翌 01:00〜03:00 は覆わない）・停止中の行と別の区分の行は数えない", ruleCoversOf({ ...gN, time_from_min: 1200, time_to_min: 120 }, { ...fF, time_from_min: 0, time_to_min: 60 }, CUT)
+  && !ruleCoversOf({ ...gN, time_from_min: 1200, time_to_min: 120 }, { ...fF, time_from_min: 60, time_to_min: 180 }, CUT)
+  && firstVisitShadowsOf([{ ...gN, is_active: false }, fF], ["fv"], CUT).length === 0 && firstVisitShadowsOf([{ ...gN, category_id: "other" }, fF], ["fv"], CUT).length === 0);
+ok("(6-5) 2 つの選択が base／extend の行は柵の対象外（onlyChosen）・表示（onlyChosen=false）では数える", firstVisitShadowsOf([gN, { ...fF, price_mode: "base", time_end: "extend" }], ["fv"], CUT).length === 0 && firstVisitShadowsOf([gN, { ...fF, price_mode: "base", time_end: "extend" }], ["fv"], CUT, false).length === 1);
+ok("(6-6) 保存の柵：新しく当たらなくなる保存は止める・前から当たらない行は止めない（並びを直す保存を通す）・初回の区分が無ければ止めない",
+  firstVisitShadowBlockOf([gN, { ...fF, priority: 0 }], [gN, fF], ["fv"], CUT) === FIRST_VISIT_SHADOW_JA && firstVisitShadowBlockOf([gN, fF], [gN, fF], ["fv"], CUT) === null && firstVisitShadowBlockOf([gN, { ...fF, priority: 0 }], [gN, fF], [], CUT) === null
+  && firstVisitShadowBlockOf([gN, { ...fF, price_mode: "base", time_end: "extend" }], [gN, fF], ["fv"], CUT) === FIRST_VISIT_SHADOW_JA);
+ok("(6-7) DB の例外 first visit shadowed は同じ理由の日本語", firstVisitErrJa("first visit shadowed") === FIRST_VISIT_SHADOW_JA);
+const cardSrc = fs.readFileSync("app/(manage)/master/pricing/first-visit-card.tsx", "utf8"), boardSrc = fs.readFileSync("app/(manage)/master/pricing/pricing-board.tsx", "utf8");
+ok("(6-8) 料金のマスタ：カードの保存・帯の保存・帯の停止・並べ替えの前に柵を通す（理由を出して送らない）・税・サ込みは R1 の旗が false の間は選べない",
+  cardSrc.includes("firstVisitShadowBlockOf(rules,") && cardSrc.includes("if (block) { setMsg({ text: block, bad: true }); return; }") && cardSrc.includes("!firstVisitReceiptR1On()")
+  && (boardSrc.match(/shadowGuard\(/g) ?? []).length === 3 && boardSrc.includes("if (block) { setMErr(block); return; }") && (boardSrc.match(/if \(block\) \{ setMsg\(block\); return; \}/g) ?? []).length === 2);
+const sqlV2 = fs.existsSync("docs/tmp/first_visit_1125/v2/0210_first_visit_price.sql") ? fs.readFileSync("docs/tmp/first_visit_1125/v2/0210_first_visit_price.sql", "utf8") : null;
+ok("(6-9) 版 2 の本体と同じ語（本体があるときだけ・main の置き場）", sqlV2 === null || (sqlV2.includes("raise exception 'first visit shadowed'") && sqlV2.includes("if v_bx - v_pf <= 0 then return greatest(0, v_net + v_sv + v_tax + v_aeff - v_post)")));
+// (7) ★0210 版 2: 2 店目への写し＝待遇の部分で first_visit_in_sales（区分の印と 2 つの選択は料金の部分＝store_copy_settings の本体）
+ok("(7-1) 写す鍵の名簿：first_visit_in_sales は待遇（comp）", STORE_SETTING_KEYS.first_visit_in_sales?.part === "comp");
+ok("(7-2) 版 2 の本体の写し（本体があるときだけ）＝区分の first_visit・行の price_mode／time_end・鍵 first_visit_in_sales", sqlV2 === null || (sqlV2.includes("c.is_active, c.first_visit from public.pricing_categories c") && sqlV2.includes("r.vip_ext_amount, r.price_mode, r.time_end") && sqlV2.includes("'default_plan_id','first_visit_in_sales','kind_back_rate'")));
 
 if (fails.length) { console.error(fails.join("\n")); console.error(`verify:nox-first-visit NG ${fails.length}／${n}`); process.exit(1); }
 console.log(`verify:nox-first-visit OK ${n}`);

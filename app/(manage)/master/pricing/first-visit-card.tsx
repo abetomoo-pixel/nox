@@ -6,10 +6,15 @@
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Message } from "@/components/ui/toast";
-import { PRICE_MODES, PRICE_MODE_LABEL, TIME_ENDS, TIME_END_LABEL, firstVisitErrJa, priceModeOf, setLineNameOf, timeEndOf, type PriceMode, type TimeEnd } from "@/lib/nox/register/first-visit";
+import { PRICE_MODES, PRICE_MODE_LABEL, TIME_ENDS, TIME_END_LABEL, firstVisitErrJa, firstVisitShadowBlockOf, firstVisitShadowsOf, priceModeOf, setLineNameOf, timeEndOf, type PriceMode, type TimeEnd } from "@/lib/nox/register/first-visit";
+import { firstVisitReceiptR1On } from "@/lib/nox/rules-0175/flag"; // ★0210 v2（【F5】）: 税・サ込みは案 R1 の旗の後ろ（税理士の答えが出るまで選べない）
 
 type Cat = { id: string; name: string; is_active: boolean; first_visit: boolean };
-type Rule = { id: string; amount: number; duration_min: number | null; category_id: string | null; price_mode: string; time_end: string; priority: number; is_active: boolean; seat_kind: string | null };
+type Rule = { id: string; fee_kind: string; amount: number; duration_min: number | null; category_id: string | null; price_mode: string; time_end: string; priority: number; is_active: boolean; seat_kind: string | null;
+  rank_id: string | null; dow_mask: number | null; time_from_min: number | null; time_to_min: number | null /* ★0210 v2: 当たらない並びの判定（pricing_resolve_core と同じ条件） */ };
+const hmMin = (hm: unknown): number => { const m = /^([0-9]{1,2}):([0-9]{2})$/.exec(String(hm ?? "").trim()); return m ? Number(m[1]) * 60 + Number(m[2]) : 360; };
+/** ★0210 v2: 案 R1（レシートの書き方）が税理士の答えの前＝税・サ込みを選べない理由 */
+const R1_WAIT_JA = "税・サ込みの額は、レシートの書き方を税理士に確かめている間は選べません";
 
 export default function FirstVisitCard({ storeId, isOwner, version, setMin }: { storeId: string; isOwner: boolean; version: number; setMin: number }) {
   const supabase = createClient();
@@ -17,18 +22,20 @@ export default function FirstVisitCard({ storeId, isOwner, version, setMin }: { 
   const [rules, setRules] = useState<Rule[]>([]);
   const [vals, setVals] = useState<Record<string, { pm: PriceMode; te: TimeEnd }>>({});
   const [inSales, setInSales] = useState(true);
+  const [cutMin, setCutMin] = useState(360); // ★0210 v2: 営業日の切替（biz_cutoff_hm・既定 06:00）
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ text: string; bad: boolean } | null>(null);
   const load = useCallback(async () => {
     const [{ data: cs }, { data: rs }, { data: st }] = await Promise.all([
       supabase.from("pricing_categories").select("id, name, is_active, first_visit").eq("store_id", storeId).order("sort").order("name"),
-      supabase.from("pricing_rules").select("id, amount, duration_min, category_id, price_mode, time_end, priority, is_active, seat_kind").eq("store_id", storeId).eq("fee_kind", "set").order("priority").order("created_at"),
+      supabase.from("pricing_rules").select("id, fee_kind, amount, duration_min, category_id, price_mode, time_end, priority, is_active, seat_kind, rank_id, dow_mask, time_from_min, time_to_min").eq("store_id", storeId).eq("fee_kind", "set").order("priority").order("created_at"),
       supabase.from("stores").select("settings_json").eq("id", storeId).maybeSingle(),
     ]);
     const c = (cs ?? []) as Cat[]; const r = (rs ?? []) as Rule[];
     setCats(c); setRules(r);
     setVals(Object.fromEntries(r.map((x) => [x.id, { pm: priceModeOf(x.price_mode), te: timeEndOf(x.time_end) }])));
     setInSales(((st as { settings_json?: Record<string, unknown> } | null)?.settings_json?.first_visit_in_sales) !== false);
+    setCutMin(hmMin((st as { settings_json?: Record<string, unknown> } | null)?.settings_json?.biz_cutoff_hm));
   }, [supabase, storeId]);
   useEffect(() => { void load(); }, [load, version]);
 
@@ -43,6 +50,11 @@ export default function FirstVisitCard({ storeId, isOwner, version, setMin }: { 
   }
   async function saveRule(r: Rule) {
     const v = vals[r.id] ?? { pm: "base" as PriceMode, te: "extend" as TimeEnd };
+    // ★0210 v2（相談役 11/25 の便 F【F5】の決め）: 初回の区分のセットの行が当たらない並びなら、保存で止めて理由を出す（DB の set_pricing_rule_first も 'first visit shadowed' で止める）
+    const fvIds = cats.filter((c) => c.first_visit && c.is_active).map((c) => c.id);
+    const block = firstVisitShadowBlockOf(rules, rules.map((x) => (x.id === r.id ? { ...x, price_mode: v.pm, time_end: v.te } : x)), fvIds, cutMin);
+    if (block) { setMsg({ text: block, bad: true }); return; }
+    if (v.pm === "all_in" && priceModeOf(r.price_mode) !== "all_in" && !firstVisitReceiptR1On()) { setMsg({ text: R1_WAIT_JA, bad: true }); return; }
     setBusy(true);
     const { error } = await supabase.rpc("set_pricing_rule_first", { p_id: r.id, p_price_mode: v.pm, p_time_end: v.te });
     setBusy(false);
@@ -59,7 +71,7 @@ export default function FirstVisitCard({ storeId, isOwner, version, setMin }: { 
 
   const fc = cats.find((c) => c.first_visit && c.is_active) ?? null;
   const fr = fc ? rules.filter((r) => r.category_id === fc.id) : [];
-  const generalTop = rules.find((r) => r.is_active && r.category_id === null && r.seat_kind === null);
+  const shadowed = new Set(fc ? firstVisitShadowsOf(rules, [fc.id], cutMin, false).map((h) => h.ruleId) : []); // ★0210 v2: 当たらない並びの行（選択に依らず表示）
   if (cats.length === 0) return null;
   return (
     <section className="nox-cardtop" data-first-visit-card="1" style={{ marginBottom: 14, padding: 14, border: "1px solid var(--line)", borderRadius: 12 }}>
@@ -82,13 +94,13 @@ export default function FirstVisitCard({ storeId, isOwner, version, setMin }: { 
           {fr.map((r) => {
             const v = vals[r.id] ?? { pm: "base" as PriceMode, te: "extend" as TimeEnd };
             const min = r.duration_min ?? setMin;
-            const behind = generalTop && generalTop.priority <= r.priority;
+            const behind = shadowed.has(r.id);
             return (
               <div key={r.id} style={{ display: "grid", gap: 6, padding: 10, border: "1px solid var(--line)", borderRadius: 10 }}>
                 <div style={{ fontWeight: 700, fontSize: 13.5 }}>{min}分 ¥{r.amount.toLocaleString()}{r.is_active ? "" : "（停止中）"}</div>
                 <label style={{ fontSize: 13 }}>額の持ち方{" "}
                   <select value={v.pm} disabled={busy} onChange={(e) => setVals((p) => ({ ...p, [r.id]: { ...v, pm: e.target.value as PriceMode } }))}>
-                    {PRICE_MODES.map((m) => <option key={m} value={m}>{PRICE_MODE_LABEL[m]}</option>)}
+                    {PRICE_MODES.map((m) => <option key={m} value={m} disabled={m === "all_in" && !firstVisitReceiptR1On() && priceModeOf(r.price_mode) !== "all_in"}>{PRICE_MODE_LABEL[m]}{m === "all_in" && !firstVisitReceiptR1On() ? "（税理士の確認待ち）" : ""}</option>)}
                   </select>
                 </label>
                 <label style={{ fontSize: 13 }}>時間の終わり方{" "}
@@ -100,7 +112,7 @@ export default function FirstVisitCard({ storeId, isOwner, version, setMin }: { 
                   伝票の行：「{setLineNameOf(min, v.pm)}」{v.pm === "all_in" ? `・1 名 ¥${r.amount.toLocaleString()} ちょうど（サービス料・消費税・端数の丸めを足さない）` : "・サービス料と税を足して丸める（今と同じ）"}
                   {v.te === "end" ? "・時間で終わり（延長しない・10 分前に黄色・店長以上が延長に切り替えられる）" : v.te === "unlimited" ? "・時間無制限（延長しない・終わらない）" : "・時間を過ぎると延長に移る"}
                 </div>
-                {behind && <div style={{ fontSize: 12, color: "var(--warn, #e0b341)", fontWeight: 700 }}>この行は区分なしのセット料金より後ろに並んでいます。開卓で当たるのは並びが上の行です（料金の表で上に移してください）。</div>}
+                {behind && <div style={{ fontSize: 12, color: "var(--warn, #e0b341)", fontWeight: 700 }}>この行は区分なしのセット料金より下に並んでいて、開卓で当たりません。料金の表で上に移すまで、額の持ち方と時間の終わり方は保存できません。</div>}
                 <div><button type="button" disabled={busy} onClick={() => void saveRule(r)} style={{ padding: "8px 14px", borderRadius: 8, border: "1px solid var(--line)", background: "var(--surface)", fontWeight: 700 }}>保存</button></div>
               </div>
             );

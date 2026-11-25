@@ -40,6 +40,7 @@ import MasterPageHead from "../master-page-head";
 import PricingPanel from "../pricing-panel";
 import RankShiftTimeCard from "./rank-shift-time-card"; // ★0208（N6）
 import FirstVisitCard from "./first-visit-card"; // ★0210（起票140）: 初回料金（旗の後ろ）
+import { firstVisitShadowBlockOf } from "@/lib/nox/register/first-visit"; // ★0210 v2（相談役 11/25 の便 F【F5】の決め）: 初回の区分のセットの行が当たらない並びになる保存は止める
 import TimePricingPanel from "../time-pricing-panel";
 import StoreFlagToggle from "../store-flag-toggle"; // ★mig0144: ext_shimei_enabled／dohan_auto_hon のトグル（set_store_profile）
 import { mineSettingsErrJa, mineSettingsOf } from "@/lib/nox/store/mine-settings"; // ★0160（起票96・便 M4-4）: contract_ack（加盟店契約の確認の記録＝店設定 8 キー目）
@@ -437,8 +438,11 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
   // ── ★裁定116（mig0127）: 料金区分マスタ（一覧＋追加/編集モーダル）──────────
   //   書込は set_pricing_category 専任（削除ボタンは置かない＝is_active false 運用・設計書 v2 §7）。
   //   ルール編集フォームへの区分セレクタは 116-UI レーン送り＝ここではマスタ管理のみ。
-  type PricingCategory = { id: string; name: string; sort: number; is_active: boolean };
+  type PricingCategory = { id: string; name: string; sort: number; is_active: boolean; first_visit?: boolean /* ★0210 v2: 旗の後ろでだけ読む */ };
   const [cats, setCats] = useState<PricingCategory[]>([]);
+  /** ★0210 v2（相談役 11/25 の便 F【F5】の決め）: 保存の後の行で、初回の区分のセットの行（2 つの選択を決めた行）が新しく当たらない並びになるなら理由（止める）。旗 false＝null（今のまま） */
+  const shadowGuard = (after: PricingRule[]): string | null =>
+    mig0210On() ? firstVisitShadowBlockOf(rules, after, cats.filter((c) => c.first_visit && c.is_active).map((c) => c.id), cutoffMin) : null;
   const [catModalOpen, setCatModalOpen] = useState(false);
   const [catEditId, setCatEditId] = useState<string | null>(null); // null=新規
   const [cName, setCName] = useState("");
@@ -458,9 +462,9 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
   }
   const loadCats = useCallback(async () => {
     const { data } = await supabase.from("pricing_categories")
-      .select("id, name, sort, is_active").eq("store_id", storeId)
+      .select((mig0210On() ? "id, name, sort, is_active, first_visit" : "id, name, sort, is_active") as "id, name, sort, is_active").eq("store_id", storeId) // ★0210 v2: 初回の印（旗の後ろ）
       .order("sort").order("name");
-    setCats((data ?? []) as PricingCategory[]);
+    setCats((data ?? []) as unknown as PricingCategory[]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storeId]);
   useEffect(() => { void loadCats(); }, [loadCats]);
@@ -549,6 +553,16 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
     const from = mFrom === "" ? null : hmToMin(mFrom);
     const to = mTo === "" ? null : hmToMin(mTo);
     const band = editKey !== null ? bands.find((b) => b.key === editKey) : undefined;
+    { // ★0210 v2（【F5】の決め）: 保存の後に初回の区分のセットの行が当たらない並びになるなら、送る前に止めて理由を出す（セットの行だけを見る＝延長・同伴・VIP は当たりの判定に関わらない）
+      const ex = band?.cells.set;
+      const base = rules.filter((r) => !band || !band.all.some((x) => x.id === r.id));
+      const others = band ? band.all.filter((x) => x.fee_kind !== "set") : [];
+      const setRow: PricingRule[] = mSetFee === "" ? [] : [{ ...(ex ?? { id: "__new_set", created_at: "", name: null, tax_category: mTax, billing_unit: null, amount: 0, duration_min: null }), fee_kind: "set", seat_kind: mSeat === "" ? null : mSeat,
+        dow_mask: maskOfDays(mDays, closedDows), time_from_min: mFrom === "" ? null : hmToMin(mFrom), time_to_min: mTo === "" ? null : hmToMin(mTo), rank_id: null, category_id: mCat === "" ? null : mCat,
+        priority: ex?.priority ?? nextPriority("set"), is_active: mActive } as PricingRule];
+      const block = shadowGuard([...base, ...others.map((x) => ({ ...x, is_active: mActive })), ...setRow]);
+      if (block) { setMErr(block); return; }
+    }
 
     // fee_kind ごとに upsert / delete へ分解（額 空欄＝その fee_kind のルールなし）
     // ★mig0130: vip_charge を4枠目へ（額のみ・duration なし＝DB check2 と整合）。unit は fee_kind 別（""=null=店既定）
@@ -608,6 +622,8 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
 
   /** 状態トグル＝帯内の全ルールを is_active 反転で再送（他フィールドは既存値のまま＝原則7）。 */
   async function toggleBand(b: Band) {
+    const block = shadowGuard(rules.map((r) => (b.all.some((x) => x.id === r.id) ? { ...r, is_active: !b.allActive } : r))); // ★0210 v2（【F5】）
+    if (block) { setMsg(block); return; }
     setBusy(true);
     for (const r of b.all) {
       const err = await upsertRule({
@@ -630,6 +646,11 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
     const order = swapAdjacent(bands.map((b) => b.key), index, dir);
     if (!order || busy) return;
     const byKey = new Map(bands.map((b) => [b.key, b]));
+    { // ★0210 v2（【F5】）: 並べ替え（pricing_rule_reorder＝fee_kind ごとに 1..N）の後に初回の行が当たらない並びになるなら止める
+      const setIds = order.flatMap((k) => (byKey.get(k)?.all ?? []).filter((r) => r.fee_kind === "set").sort(ruleOrder).map((r) => r.id));
+      const block = shadowGuard(rules.map((r) => (r.fee_kind === "set" && setIds.includes(r.id) ? { ...r, priority: setIds.indexOf(r.id) + 1 } : r)));
+      if (block) { setMsg(block); return; }
+    }
     setBusy(true);
     for (const fk of TIMED_KINDS) {
       const ids = order.flatMap((k) =>

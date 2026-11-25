@@ -82,6 +82,8 @@ export type ReceiptInput = {
   //   現行と1バイト同値。exempt/外税/card_surcharge の挙動差は挙動段で結線（本段は tax_rounding のみ実効）。
   taxSettings?: Partial<StoreTaxSettings> | null;
   referral?: ReceiptReferral; // ★0152（裁定298-4／298-9）: 省略＝従来と 1 バイト同値
+  /** ★0210 v2（相談役 11/25 の便 F【F5】）: 込みの行がある伝票の書き方。"r1"＝案 R1（税理士の答えの後・旗 FIRST_VISIT_RECEIPT_R1 の後ろ）。省略＝今の書き方（R1 を使わない） */
+  allInLayout?: "r1" | null;
 };
 
 const WIDTH = 48; // 80mm・Font A
@@ -238,7 +240,7 @@ export function buildReceiptXml(input: ReceiptInput): string {
   // ★0210（起票140・案 R1＝税理士に聞く）: 税・サ込みの行がある伝票は、外税の店でも税込みの書き方＝通常分（小計・割引・サービス料・消費税と端数）→「税・サ込みの料金」→ 合計 →（内消費税10%）floor(合計×10/110) の 1 行。
   //   請求の額は変えない（書き方だけ）。込みの行が無い伝票はこの分岐を通らない＝1 バイト同値。
   const allIn = lines.filter((l) => l.kind !== "discount" && l.all_in).reduce((s2, l) => s2 + l.line_total, 0);
-  if (allIn > 0) {
+  if (allIn > 0 && input.allInLayout === "r1") {   // ★0210 v2（【F5】）: R1 は旗 FIRST_VISIT_RECEIPT_R1 の後ろ（呼び手が渡す）＝税理士の答えが出るまで本番に出さない
     const nl = lines.filter((l) => !(l.kind !== "discount" && l.all_in));
     const grossN = nl.filter((l) => l.kind !== "discount").reduce((s2, l) => s2 + l.line_total, 0) + refAmt;
     const netN = Math.max(0, grossN - discount);

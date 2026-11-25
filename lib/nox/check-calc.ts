@@ -144,7 +144,9 @@ export function allInSplitOf(lines: DueLine[], s: CheckDueSettings, referralCust
   const disc = nLines.filter((l) => l.kind === "discount" && l.fee_kind !== "pay_discount_total").reduce((x, l) => x + l.line_total, 0);
   const post = nLines.filter((l) => l.kind === "discount" && l.fee_kind === "pay_discount_total").reduce((x, l) => x + l.line_total, 0);
   const aEff = Math.max(0, a - Math.max(0, disc - bxN));
-  const nDue = groupDueFullBase(nLines.filter((l) => !(l.kind === "discount" && l.fee_kind === "pay_discount_total")), s, referralCustomer);
+  // ★0210 v2（相談役 11/25 の便 F【F5】の直し）: 通常分が手数料の行（pay_fee）だけなら、手数料に店の丸めを掛けない（例 1,000 円単位の店で 150 円の手数料→1,000 円にしない）＝DB check_group_due（0210 v2）の v_bx − v_pf ≤ 0 の分岐と同じ
+  const pfN = nLines.filter((l) => l.kind !== "discount" && l.fee_kind === "pay_fee").reduce((x, l) => x + l.line_total, 0);
+  const nDue = groupDueFullBase(nLines.filter((l) => !(l.kind === "discount" && l.fee_kind === "pay_discount_total")), bxN - pfN <= 0 ? { ...s, round_unit: 1 } : s, referralCustomer);
   return { a, aEff, nLines, post, nDue };
 }
 export function groupDueFull(lines: DueLine[], s: CheckDueSettings, referralCustomer = 0): number {

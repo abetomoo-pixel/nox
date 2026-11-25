@@ -50,6 +50,7 @@ export const STORE_SETTING_KEYS: Readonly<Record<string, CopyClass>> = {
   kind_back_rate: { part: "comp", why: "種別ごとのバック率" }, pt_rules_default: { part: "comp", why: "ポイントの既定" },
   trial_guarantee_days: { part: "comp", why: "体入の保証日数" }, trial_wage: { part: "comp", why: "体入の時給" }, trial_back: { part: "comp", why: "体入のバック" },
   default_plan_id: { part: "comp", why: "既定のプラン（写した後の ID に付け替える）" },
+  first_visit_in_sales: { part: "comp", why: "★0210 v2 初回料金の税・サ込みの額をホストの報酬の売上に数えるか（待遇の部分で写す＝相談役 11/25 の便 F【F5】）" },
   pay_time_basis: { part: "comp", why: "時給の時間の基準" }, pay_time_basis_next: { part: "comp", why: "時間の基準の次の値" }, pay_time_basis_next_from: { part: "comp", why: "時間の基準の切替日" },
   withholding_default_cast: { part: "comp", why: "キャストの源泉の既定" }, withholding_default_staff: { part: "comp", why: "スタッフの源泉の既定" },
   mid_pay: { part: "comp", why: "途中払い" },

@@ -106,7 +106,10 @@ check("(2) ★12:00 の ■2-c ホームの全店＝ランキングの枠に「�
   && (src("app/(manage)/dashboard/dashboard-board.tsx").match(/!allStoresView && rankLoaded/g) ?? []).length === 2);
 // ★版 2（■2-a）: SQL の名簿＝lib の名簿（写す鍵）・列の写し＝lib の列の名簿
 const sqlArr = (name: string): string[] => { const m = mig.match(new RegExp(name + String.raw`\s+text\[\]\s*:=\s*array\[([^\]]*)\]`)); return m ? [...m[1].matchAll(/'([a-z_0-9]+)'/g)].map((x) => x[1]).sort() : ["(none)"]; };
-const keyDiff = (["pricing", "comp", "settings", "hours"] as const).filter((pt) => JSON.stringify(sqlArr(`v_${pt}_keys`)) !== JSON.stringify(copyKeysOf(pt)));
+// ★0210 v2（相談役 11/25 の便 F【F5】）: 0210 が store_copy_settings を作り直す（待遇の鍵 first_visit_in_sales・区分の初回の印・セットの行の 2 つの選択）。0210 が supabase/migrations に入るまでは 0203 の名簿と比べ、その鍵を除く（当てた後の張り替え＝0210 の本体を読む）
+const has0210 = fs.existsSync("supabase/migrations/0210_first_visit_price.sql");
+const copyKeysNow = (pt: "pricing" | "comp" | "settings" | "hours") => copyKeysOf(pt).filter((k) => has0210 || k !== "first_visit_in_sales");
+const keyDiff = (["pricing", "comp", "settings", "hours"] as const).filter((pt) => JSON.stringify(sqlArr(`v_${pt}_keys`)) !== JSON.stringify(copyKeysNow(pt)));
 check("(2) ★版 2 SQL の写す鍵の名簿（料金・待遇・店舗設定・営業時間）は lib の名簿と同じ・除く鍵の名簿（v_never_keys）は無い", keyDiff.length === 0 && !mig.includes("v_never_keys"), keyDiff);
 const setCols = (part: string): string[] => { const body = part === "pricing" ? mig.slice(mig.indexOf("update public.stores d set hon_fee"), mig.indexOf("from public.stores s where s.id = p_src and d.id = p_dst;", mig.indexOf("update public.stores d set hon_fee")))
   : mig.slice(mig.indexOf("update public.stores d set settings_json = coalesce(d.settings_json, '{}'::jsonb) || v_sj,"), mig.indexOf("from public.stores s where s.id = p_src and d.id = p_dst;", mig.indexOf("update public.stores d set settings_json = coalesce(d.settings_json, '{}'::jsonb) || v_sj,")));

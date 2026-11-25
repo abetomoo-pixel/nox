@@ -1908,7 +1908,7 @@ export default function RegisterBoard({
   const exclTax = check?.price_display === "tax_excluded" && (check?.business_tax_status ?? "taxable") === "taxable";
   const taxMk = check ? taxMarkOf(exclTax) : "";
   const breakdownOfGroup = (g: string) => { const gl = lines.filter((l) => l.pay_group === g); const ref = g === "A" && referral?.burden === "customer" ? referral.amount : 0; return check ? dueBreakdownOf(gl, dueSettingsOf(check, estStore, rules0175On()), ref) : null; };
-  const sumBd = groups.map(breakdownOfGroup).reduce((a, b) => (b ? { net: a.net + b.net, service: a.service + b.service, tax: a.tax + b.tax, rounding: a.rounding + b.rounding, due: a.due + b.due, payFee: a.payFee + b.payFee } : a), { net: 0, service: 0, tax: 0, rounding: 0, due: 0, payFee: 0 });
+  const sumBd = groups.map(breakdownOfGroup).reduce((a, b) => (b ? { net: a.net + b.net, service: a.service + b.service, tax: a.tax + b.tax, rounding: a.rounding + b.rounding, due: a.due + b.due, payFee: a.payFee + b.payFee, allIn: a.allIn + (b.allIn ?? 0) } : a), { net: 0, service: 0, tax: 0, rounding: 0, due: 0, payFee: 0, allIn: 0 }); // ★0210 v2（【F5】の確かめ 2）: 税・サ込みの額（allIn）も足す＝内訳の段の和が合計に合う
   const sumBx = groupInfo.reduce((a, gi) => a + gi.bx, 0);
   const sumDisc = groupInfo.reduce((a, gi) => a + gi.disc, 0);
   const sumDue = groupInfo.reduce((a, gi) => a + gi.due, 0);
@@ -4054,6 +4054,7 @@ export default function RegisterBoard({
                 </div>
                 {exclTax && <div className="nox-sumrow" data-sum-tax="1"><span>消費税（外税 10%）</span><span className="num">{yen(sumBd.tax)}</span></div>}
                 {sumBd.rounding !== 0 && <div className="nox-sumrow"><span>端数調整</span><span className="num">{sumBd.rounding > 0 ? "" : "−"}{yen(Math.abs(sumBd.rounding))}</span></div>}
+                {sumBd.allIn > 0 && <div className="nox-sumrow" data-sum-allin="1"><span>税・サ込みの料金</span><span className="num">{yen(sumBd.allIn)}</span></div> /* ★0210 v2: 込みの額（サ料・税・丸めを足さない）＝DB check_group_due と同じ段 */}
                 <div className="nox-sumrow total" data-sum-total="1"><span>合計（税込）</span><span className="num">{yen(sumDue)}</span></div>
                 {!exclTax && sumBd.tax > 0 && (
                 <div className="nox-sumrow" style={{ borderTop: 0 }}>
