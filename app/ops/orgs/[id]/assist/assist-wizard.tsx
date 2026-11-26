@@ -72,7 +72,7 @@ export default function AssistWizard(p: AssistProps) {
     <div style={{ maxWidth: 760, margin: "0 auto" }} data-ops-assist={p.orgId}>
       <h1 style={{ fontSize: 18, margin: "0 0 4px" }}>導入を代行する</h1>
       <p style={{ ...t.sub, fontSize: 12.5, margin: "0 0 12px" }}>{p.orgName}・{p.storeName}・<Link href={`/ops/orgs/${p.orgId}`} className="nox-link">詳細に戻る</Link></p>
-      {!gate.ok && <div data-assist-gate="1" style={{ marginBottom: 12 }}><Message kind="warn">{gate.reason}</Message></div>}
+      {!gate.ok && <div data-assist-gate="1" style={{ marginBottom: 12 }}><Message kind="error">{gate.reason}</Message></div>}{/* ★相談役 11/26 の便 M2-2: 先へ進めない理由は赤 */}
       {gate.ok && p.onboardingState === "done" && p.supportUntil && <p style={{ ...t.sub, fontSize: 12.5, margin: "0 0 12px" }} data-assist-support="1">サポート許可の間（{fmtJst(p.supportUntil)} まで）</p>}
       <ol style={{ display: "flex", gap: 6, listStyle: "none", padding: 0, margin: "0 0 12px", flexWrap: "wrap" }} aria-label="代行の手順">
         {STEPS.map((n, i) => (

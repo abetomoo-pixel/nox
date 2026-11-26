@@ -20,7 +20,7 @@ export const STORE_SETTING_KEYS: Readonly<Record<string, CopyClass>> = {
   contract_ack_rev: { part: null, why: "契約の版＝店ごとに改める" },
   use_vip: { part: null, why: "VIP 席の有無＝席は写さない（2 店目の席から決める）" },
   use_counter: { part: null, why: "カウンター席の有無＝席は写さない" },
-  pay_day: { part: null, why: "支払日＝会社で 1 つ（orgs.pay_day・set_org_pay_day）" },
+  pay_day: { part: null, why: "支払日＝店ごと（裁定507・店の設定で 1 店ずつ）" },
   receipt_address: { part: null, why: "領収書の住所＝店ごと" },
   receipt_tel: { part: null, why: "領収書の電話＝店ごと" },
   // ── 端末・LINE・位置（写さない） ──
@@ -83,7 +83,7 @@ export const STORE_SETTING_KEYS: Readonly<Record<string, CopyClass>> = {
 export const STORE_COLUMNS: Readonly<Record<string, CopyClass>> = {
   id: { part: null, why: "店の ID" }, org_id: { part: null, why: "会社" }, name: { part: null, why: "店名" }, short: { part: null, why: "略称" },
   settings_json: { part: null, why: "鍵ごとに上の名簿で決める" }, created_at: { part: null, why: "作った時刻" }, updated_at: { part: null, why: "直した時刻" },
-  pay_day: { part: null, why: "会社で 1 つ（set_org_pay_day が全店にそろえる）" }, use_vip: { part: null, why: "席は写さない" }, use_counter: { part: null, why: "席は写さない" },
+  pay_day: { part: null, why: "店ごと（裁定507・写さない＝店を足すときの最初の値は店の追加が決める）" }, use_vip: { part: null, why: "席は写さない" }, use_counter: { part: null, why: "席は写さない" },
   trade_name: { part: null, why: "屋号＝店ごと（写したときは 2 店目の店名を入れる）" },
   punch_lat: { part: null, why: "位置" }, punch_lng: { part: null, why: "位置" }, punch_radius_m: { part: null, why: "位置" }, punch_allow_ip: { part: null, why: "Wi-Fi（IP）" },
   line_config: { part: null, why: "LINE" }, line_monthly_limit: { part: null, why: "LINE" },

@@ -41,7 +41,7 @@ export default function ExtShimeiCard({ storeId, isOwner, initialOn, initialAmou
       {on && (
         <div data-ext-shimei-amount="1" style={{ marginTop: 10 }}>
           {saved == null && (
-            <p data-ext-shimei-unset="1" style={{ margin: "0 0 8px", fontSize: 12.5, fontWeight: 700, color: "var(--gold2)" }}>{EXT_SHIMEI_UNSET_JA}</p>
+            <p data-ext-shimei-unset="1" style={{ margin: "0 0 8px", fontSize: 12.5, fontWeight: 700, color: "var(--bad)" }}>{EXT_SHIMEI_UNSET_JA}</p>
           )}
           <label style={{ display: "grid", gap: 4 }}>
             <span style={t.fieldLabel}>延長指名料（延長 1 回ごと・本指名 1 人につき）</span>

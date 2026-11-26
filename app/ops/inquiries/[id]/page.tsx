@@ -5,7 +5,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requireOperatorPage } from "@/lib/nox/ops/require-operator";
 import { mig0212On } from "@/lib/nox/rules-0175/flag";
 import OpsShell from "../../ops-shell";
-import OpsInquiryDetail, { type OpsInquiry, type OpsInquiryMsg, type OpsPointRow } from "./inquiry-detail";
+import OpsInquiryDetail, { type OpsInquiry, type OpsInquiryMailRow, type OpsInquiryMsg, type OpsPointRow } from "./inquiry-detail";
+import { OPS_INQUIRY_MAIL_ACTION } from "@/lib/nox/inquiry/labels"; // ★M2-5
+import { opsInquiryWaitingCountOf } from "@/lib/nox/ops/inquiry-waiting"; // ★M2-4
 
 export const dynamic = "force-dynamic";
 
@@ -18,17 +20,19 @@ export default async function OpsInquiryPage({ params }: { params: Promise<{ id:
   const { data: inq } = await admin.from("ops_inquiries").select("id, org_id, store_id, kind, subject, status, status_at, created_role, store_add, added_store_id, last_from, last_at, store_read_at, created_at").eq("id", id).maybeSingle();
   if (!inq) notFound();
   const row = inq as OpsInquiry;
-  const [{ data: msgs }, { data: pts }, { data: org }, { data: stores }, { data: ops }] = await Promise.all([
+  const [{ data: msgs }, { data: pts }, { data: org }, { data: stores }, { data: ops }, { data: mailLogs }, waiting] = await Promise.all([
     admin.from("ops_inquiry_messages").select("id, from_ops, author_ops_id, body, created_at").eq("inquiry_id", id).order("created_at", { ascending: true }),
     admin.from("ops_point_entries").select("id, inquiry_id, kind, delta, reason, ops_user_id, created_at").eq("org_id", row.org_id).order("created_at", { ascending: false }),
     admin.from("orgs").select("name, is_demo").eq("id", row.org_id).maybeSingle(),
     admin.from("stores").select("id, name, settings_json").eq("org_id", row.org_id).order("created_at"),
     admin.from("ops_operators").select("auth_user_id, name"),
+    admin.from("ops_audit_logs").select("id, at, ops_user_id, after_json").eq("action", OPS_INQUIRY_MAIL_ACTION).eq("target", `ops_inquiries:${id}`).order("at", { ascending: false }).limit(50), // ★M2-5: お知らせメールの記録
+    opsInquiryWaitingCountOf(admin), // ★M2-4
   ]);
   const opName = new Map(((ops ?? []) as { auth_user_id: string; name: string }[]).map((o) => [o.auth_user_id, o.name]));
-  const storeRows = ((stores ?? []) as { id: string; name: string; settings_json: Record<string, unknown> | null }[]).map((s) => ({ id: s.id, name: s.name, setupDone: s.settings_json?.setup_done === true }));
+  const storeRows = ((stores ?? []) as { id: string; name: string; settings_json: Record<string, unknown> | null }[]).map((s) => ({ id: s.id, name: s.name, setupDone: s.settings_json?.setup_done === true, biz: typeof s.settings_json?.biz_type === "string" ? (s.settings_json.biz_type as string) : null })); // ★M2-3: 業態
   return (
-    <OpsShell name={op.name} role={op.role}>
+    <OpsShell name={op.name} role={op.role} waiting={waiting}>
       <OpsInquiryDetail
         row={row}
         orgName={(org?.name as string | undefined) ?? "—"}
@@ -36,6 +40,7 @@ export default async function OpsInquiryPage({ params }: { params: Promise<{ id:
         stores={storeRows}
         messages={((msgs ?? []) as (OpsInquiryMsg & { author_ops_id: string | null })[]).map((m) => ({ ...m, who: m.from_ops ? opName.get(m.author_ops_id ?? "") ?? "運営" : "店" }))}
         points={((pts ?? []) as OpsPointRow[]).map((p) => ({ ...p, who: opName.get(p.ops_user_id) ?? "運営" }))}
+        mails={((mailLogs ?? []) as { id: string; at: string; ops_user_id: string; after_json: Record<string, unknown> | null }[]).map((m): OpsInquiryMailRow => ({ id: m.id, at: m.at, who: opName.get(m.ops_user_id) ?? "運営", after: m.after_json ?? {} }))}
       />
     </OpsShell>
   );

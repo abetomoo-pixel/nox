@@ -9,6 +9,8 @@ import { hmLabelOf } from "@/lib/nox/time/hhmm"; // ★便 M5b M-51 追補: 日�
 import DatePicker from "@/components/ui/date-picker"; // ★M-82（裁定452・教訓133）: 日付は共通のピッカー
 import { REGISTER_DAY_GRANT_LABEL, REGISTER_DAY_GRANT_NOTE, storeDecidesPunchOf } from "@/lib/nox/shift/punch-mode"; // ★便 E（0197 用）
 import { mig0196On, mig0197On, mig0198On, mig0201On, mig0201dOn, mig0201uOn, mig0208On } from "@/lib/nox/rules-0175/flag";
+import { mig0214On } from "@/lib/nox/rules-0175/flag"; // ★起票170（便 M の M2-8）: 今日タブの「休憩中」
+import { ON_BREAK_BADGE, onBreakCastIdsOf } from "@/lib/nox/punch/break-view"; // ★起票170
 import { punchMarksOf, type PunchMarkRow } from "@/lib/nox/punch/marks"; // ★0201（裁定474）: 勤怠の印
 import DayDedAfterPunch from "@/components/nox/day-ded-after-punch"; // ★0198（裁定461 ①・M-120）: 代行の出勤の直後の「今日の控除」 // ★便 E（0196 用）: staff の代行 ★0197: 今日だけ許可
 import TimeInput from "@/components/ui/time-input"; // ★便 M5b M-51: 時刻欄の共通部品（時計アイコン・時と分を選ぶ・翌の表示）
@@ -321,6 +323,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   const [punchRows, setPunchRows] = useState<(PunchRow & { cast_id: string })[]>([]);
   // ★AT2: cast ごとの最初の in／最後の out（punch-match S1 と同じ採用規則・表示専用）
   const [punchMarks, setPunchMarks] = useState<Map<string, string[]>>(new Map()); // ★0201（裁定474）: 勤怠の印（範囲外／予定外）
+  const [onBreakIds, setOnBreakIds] = useState<Set<string>>(new Set()); // ★起票170（便 M の M2-8）: その営業日の閉じていない休憩がある cast（退勤のある人は除く）＝「休憩中」
   const [punchIO, setPunchIO] = useState<Map<string, { inHm: string | null; outHm: string | null }>>(new Map());
   const [punchTick, setPunchTick] = useState(0);
   // ★0154 D1: 修正モーダルの対象（cast・区分・直す打刻）と、店側 warn 用の「異議あり」行（approved ∧ disputed・RLS＝自店 owner/manager）
@@ -1214,6 +1217,12 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
         else m.delete(p.cast_id); // 'out' が後なら「打刻中」ではない＝表示しない
       }
       if (alive) { setPunchIn(m); setPunchRows(rows); setPunchMarks(punchMarksOf(rows as PunchMarkRow[])); }
+      // ★起票170: 休憩中＝punch_breaks のその営業日の閉じていない行（RLS＝オーナー全店・店長は自店・他の役は 0 行＝出ない）。旗 false は読まない
+      if (mig0214On()) {
+        const { data: br } = await supabase.from("punch_breaks").select("cast_id, ended_at").eq("store_id", storeId).eq("biz_date", todayDate).is("ended_at", null).not("cast_id", "is", null);
+        const outIds = new Set([...firstInLastOut(rows).entries()].filter(([, io]) => !!io.outHm).map(([cid]) => cid));
+        if (alive) setOnBreakIds(onBreakCastIdsOf((br ?? []) as { cast_id: string | null; ended_at: string | null }[], outIds));
+      } else if (alive) setOnBreakIds(new Set());
     })();
     return () => { alive = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1784,6 +1793,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                                   return (
                                     <span className="nox-attchips" style={{ display: "inline-flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                                       <span className={`nox-stpill ${chip.late ? "warn" : "ok"}`} data-att-chip={mode}>{chip.label}</span>
+                                      {onBreakIds.has(s.cast_id) && !io?.outHm && <span className="nox-stpill warn" data-on-break={s.cast_id}>{ON_BREAK_BADGE}</span>}{/* ★起票170（便 M の M2-8）: 休憩中（端末・本人・店の代理で始めた閉じていない休憩） */}
                                       {(punchMarks.get(s.cast_id) ?? []).map((mk) => <span key={mk} className="nox-stpill warn" data-punch-mark={mk}>{mk}</span>)}{/* ★0201（裁定474）: 本人のスマホ打刻の判定（ソフトは記録して通す＝店に見せる） */}
                                       {dseats && <span className="nox-stpill" data-dohan-chip="1" title={ex.note ?? "伝票の同伴（伝票で外すと消えます）"}>{dohanMarkTextOf(dseats)}</span>}
                                       {ex.note && <span className="sub" data-dohan-exempt="1" style={{ fontSize: 11 }}>{ex.note}</span>}

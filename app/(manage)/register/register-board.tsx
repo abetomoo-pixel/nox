@@ -4067,7 +4067,7 @@ export default function RegisterBoard({
                 </div>
                 {exclTax && <div className="nox-sumrow" data-sum-tax="1"><span>消費税（外税 10%）</span><span className="num">{yen(sumBd.tax)}</span></div>}
                 {sumBd.rounding !== 0 && <div className="nox-sumrow"><span>端数調整</span><span className="num">{sumBd.rounding > 0 ? "" : "−"}{yen(Math.abs(sumBd.rounding))}</span></div>}
-                {sumBd.allIn > 0 && <div className="nox-sumrow" data-sum-allin="1"><span>税・サ込みの料金</span><span className="num">{yen(sumBd.allIn)}</span></div> /* ★0210 v2: 込みの額（サ料・税・丸めを足さない）＝DB check_group_due と同じ段 */}
+                {sumBd.allIn > 0 && <div className="nox-sumrow" data-sum-allin="1"><span>料金（税・サービス料込）</span><span className="num">{yen(sumBd.allIn)}</span></div> /* ★0210 v2: 込みの額（サ料・税・丸めを足さない）＝DB check_group_due と同じ段 */}
                 <div className="nox-sumrow total" data-sum-total="1"><span>合計（税込）</span><span className="num">{yen(sumDue)}</span></div>
                 {!exclTax && sumBd.tax > 0 && (
                 <div className="nox-sumrow" style={{ borderTop: 0 }}>

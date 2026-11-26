@@ -78,7 +78,7 @@ const unclassPatch = [...allPatchKeys].filter((k) => !(k in STORE_SETTING_KEYS))
 check(`(1) ★版 2 初期設定（業態 6）が店舗設定に書く鍵（${allPatchKeys.size}）はすべて名簿にある`, unclassPatch.length === 0 && allPatchKeys.size > 30, unclassPatch);
 check("(1) ★版 2 マイページの鍵（MINE_SETTING_KEYS）はすべて名簿にある", MINE_SETTING_KEYS.every((k) => k in STORE_SETTING_KEYS), MINE_SETTING_KEYS.filter((k) => !(k in STORE_SETTING_KEYS)));
 const s3 = stripOrgLevelKeys(steps);
-check("(1) 2 店以上の会社＝店の patch から支払日を外す（ほかの鍵と段はそのまま）", !("pay_day" in ((s3[0].args!.p_patch) as Record<string, unknown>)) && ((s3[0].args!.p_patch) as Record<string, unknown>).receipt_tel === "1" && s3.length === steps.length);
+check("(1) ★裁定507（支払日は店ごと）: 初期設定は 2 店目も支払日をその店に書く（stripOrgLevelKeys を呼ばない）・関数は残す（外す形の pin）", !src("app/(manage)/setup/setup-wizard.tsx").includes("stripOrgLevelKeys(steps0)") && !("pay_day" in ((s3[0].args!.p_patch) as Record<string, unknown>)) && ((s3[0].args!.p_patch) as Record<string, unknown>).receipt_tel === "1" && s3.length === steps.length);
 check("(1) 写す part は 5 つ・知らない値は落とす・語（二重に写さない・デモ不可）", STORE_COPY_PARTS.length === 5 && JSON.stringify(copyPartsOf(["pricing", "casts", "hours"])) === JSON.stringify(["pricing", "hours"]) && storeCopyErrJa("not empty: pricing").includes("二重に写しません") && storeAddErrJa("forbidden (demo)") === "デモの会社には足せません");
 
 // (2) 形
@@ -120,7 +120,7 @@ check("(2) ★版 2 列の写し（料金・店舗設定）は lib の列の名�
   && mig.includes("trade_name = coalesce(d.trade_name, d.name)") && !/(line_config|punch_allow_ip|punch_lat|use_vip|use_counter)\s*=\s*s\./.test(mig), { pricing: setCols("pricing"), settings: setCols("settings") });
 check("(2) ★版 2 ランク＝写し先に有れば名前で結ぶ・結べなければ not empty: ranks・slide_rank_ids は付け替えられない ID を残さない・デモの会社は会社の支払日を書かない",
   mig.includes("raise exception 'not empty: ranks';") && mig.includes("join _nox_copy_map m2 on m2.old = x), '{}'::uuid[])") && !mig.includes("coalesce((select m2.new from _nox_copy_map m2 where m2.old = x), x)")
-  && mig.includes("if exists (select 1 from public.orgs where id = v_org and is_demo) then raise exception 'forbidden (demo)'; end if;") && src("app/(manage)/master/store-profile-panel.tsx").includes("if (pe && /forbidden \\(demo\\)/.test(pe.message) && orgPay !== null) ({ error: pe } = await setStoreProfile({ pay_day: orgPay }));"));
+  && mig.includes("if exists (select 1 from public.orgs where id = v_org and is_demo) then raise exception 'forbidden (demo)'; end if;") && src("app/(manage)/master/store-profile-panel.tsx").includes("const orgPay: number | null = null;") /* ★裁定507（支払日は店ごと）: 店舗設定の支払日は今見ている店だけに書く（set_org_pay_day を呼ばない） */);
 check("(2) ★版 2 の ■3 体験入店は写したとき結ばない＝完了の画面でオーナーが選ぶ（選ばずに体入を登録すると行を作る前に止める）",
   src("app/(manage)/setup/setup-wizard.tsx").includes('data-setup-trial-pick="1"') && src("app/(manage)/setup/setup-wizard.tsx").includes("if (isTrial && trialChoices && !planIds.trial && !trialPick) {")
   && src("app/(manage)/setup/setup-wizard.tsx").indexOf("if (isTrial && trialChoices && !planIds.trial && !trialPick) {") < src("app/(manage)/setup/setup-wizard.tsx").indexOf("const steps = castPlanOf(c, store.id, { ...planIds, trial: planIds.trial ?? (trialPick || null) }"));
@@ -150,9 +150,10 @@ async function dbPart() {
       const c = await countA2(await uid(email));
       check(`(3) ${label}（A1）に A2 の行が 1 つも出ない（${T.length} 表）`, Object.values(c).every((v) => v === "0" || v.startsWith("err:permission denied")), c);
     }
-    // ★12:00 の判断 3: 2 店以上の会社は店の支払日がそろっている（set_store_profile の pay_day の道は閉じていない＝起票142・ずれたらここで赤）
-    const pdr = await tx.q<{ name: string; n: number; d: number; pds: string }>("select o.name, count(*)::int n, count(distinct coalesce(s.pay_day, -1))::int d, string_agg(coalesce(s.pay_day::text, 'null'), ',' order by s.name) pds from public.orgs o join public.stores s on s.org_id = o.id group by o.id, o.name having count(*) >= 2");
-    check(`(3) 2 店以上の会社（${pdr.length} 社）は店の支払日がそろっている`, pdr.length >= 1 && pdr.every((r) => r.d === 1), pdr);
+    // ★相談役 11/26 の便 M の差し替え（裁定507＝支払日は店ごと）: 旧「2 店以上の会社は店の支払日がそろっている」は外した（同じ会社でも店ごとに違う日でよい）。
+    //   代わりに見る物＝支払日が空（null）か 1〜31 の外の店が無い（給与の確定と明細は店の支払日を読む）。
+    const pdr = await tx.q<{ name: string; pd: number | null }>("select s.name, s.pay_day pd from public.stores s where s.pay_day is null or s.pay_day < 1 or s.pay_day > 31");
+    check(`(3) 支払日が空か 1〜31 の外の店が無い（${pdr.length} 店）`, pdr.length === 0, pdr);
     // ★版 2（■2-a）: 鍵を足したのに名簿に入れ忘れたら赤＝set_store_profile の白名単・本番の settings_json の鍵・stores の列
     const spp = (await tx.one<{ s: string }>("select prosrc s from pg_proc where pronamespace = 'public'::regnamespace and proname = 'set_store_profile'")).s.split(/\r?\n/).map((l) => l.replace(/--.*$/, "")).join("\n");
     const wlHead = "v_keys     text[] := ", wi = spp.indexOf(wlHead + "array["), wj = spp.indexOf("];", wi);

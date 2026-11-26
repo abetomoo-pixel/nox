@@ -9,6 +9,8 @@ import { mig0202bOn, mig0203On, mig0207On } from "@/lib/nox/rules-0175/flag";
 import { supportAskShownOf, type SupportAskRow } from "@/lib/nox/support/support-ask"; // ★0207
 import { assistGateOf } from "@/lib/nox/ops/assist";
 import OrgDetail, { type OpsLogRow } from "./org-detail";
+import { OPS_INQUIRY_MAIL_ACTION } from "@/lib/nox/inquiry/labels"; // ★M2-5
+import { opsInquiryWaitingCountOf } from "@/lib/nox/ops/inquiry-waiting"; // ★M2-4
 import type { OpsBilling, OpsStoreSetup } from "@/lib/nox/ops/view"; // ★起票153・154
 
 export const dynamic = "force-dynamic";
@@ -21,7 +23,7 @@ export default async function OpsOrgPage({ params }: { params: Promise<{ id: str
   const { data: rows } = await admin.rpc("ops_org_list", { p_ops: op.authUserId });
   const row = ((rows ?? []) as OpsOrgRow[]).find((r) => r.org_id === id);
   if (!row) notFound();
-  const { data: logs } = await admin.from("ops_audit_logs").select("id, at, ops_user_id, action, before_json, after_json, reason").eq("org_id", id).order("at", { ascending: false }).limit(20);
+  const { data: logs } = await admin.from("ops_audit_logs").select("id, at, ops_user_id, action, before_json, after_json, reason").eq("org_id", id).neq("action", OPS_INQUIRY_MAIL_ACTION).order("at", { ascending: false }).limit(20); // ★M2-5: 運営者あてのメールの記録は問い合わせの画面に出す（ここの 20 件を押し流さない）
   const { data: ops } = await admin.from("ops_operators").select("auth_user_id, name");
   const nameOf = new Map(((ops ?? []) as { auth_user_id: string; name: string }[]).map((o) => [o.auth_user_id, o.name]));
   const logRows: OpsLogRow[] = ((logs ?? []) as { id: string; at: string; ops_user_id: string; action: string; before_json: unknown; after_json: unknown; reason: string | null }[])
@@ -36,7 +38,7 @@ export default async function OpsOrgPage({ params }: { params: Promise<{ id: str
     assist = org?.is_demo === true ? null : assistGateOf({ onboarding_state: row.onboarding_state, is_demo: false, support_until: (grant?.expires_at as string | undefined) ?? null }, new Date());   // デモの会社には入口を出さない（代行の関数もデモを止める）
   }
   // ★0203（■2-a）: 店を追加＝会社の店の一覧（デモは出さない）
-  let stores: { id: string; name: string; setupDone: boolean }[] | null = null;
+  let stores: { id: string; name: string; setupDone: boolean; biz: string | null }[] | null = null;
   // ★起票153（2026-11-24）: 導入の状況に「どの店の話か」＝店ごとの初期設定（済み／途中 STEP n／未着手）＝下書きの STEP を読む（読むだけ）
   const [{ data: orgRow }, { data: stAll }, { data: drafts }, { data: bill }] = await Promise.all([
     admin.from("orgs").select("is_demo").eq("id", id).maybeSingle(),
@@ -45,8 +47,10 @@ export default async function OpsOrgPage({ params }: { params: Promise<{ id: str
     admin.from("org_billing").select("status, trial_ends_at, current_period_end, quantity, cancel_at_period_end, stripe_customer_id, stripe_subscription_id").eq("org_id", id).maybeSingle(),
   ]);
   const stepOf = new Map(((drafts ?? []) as { store_id: string; data: { S?: { step?: unknown } } | null }[]).map((d) => [d.store_id, typeof d.data?.S?.step === "number" ? (d.data.S.step as number) : null]));
-  const storeSetups: OpsStoreSetup[] = ((stAll ?? []) as { id: string; name: string; settings_json: Record<string, unknown> | null }[]).map((r) => ({ id: r.id, name: r.name, setupDone: r.settings_json?.setup_done === true, draftStep: stepOf.get(r.id) ?? null }));
-  if (mig0203On()) stores = orgRow?.is_demo === true ? null : storeSetups.map((s) => ({ id: s.id, name: s.name, setupDone: s.setupDone })).sort((a, b) => a.name.localeCompare(b.name, "ja"));
+  const stRows = (stAll ?? []) as { id: string; name: string; settings_json: Record<string, unknown> | null }[];
+  const storeSetups: OpsStoreSetup[] = stRows.map((r) => ({ id: r.id, name: r.name, setupDone: r.settings_json?.setup_done === true, draftStep: stepOf.get(r.id) ?? null }));
+  const bizOf = new Map(stRows.map((r) => [r.id, typeof r.settings_json?.biz_type === "string" ? (r.settings_json.biz_type as string) : null])); // ★M2-3: 店の業態（店を追加の業態の初めの値）
+  if (mig0203On()) stores = orgRow?.is_demo === true ? null : storeSetups.map((s) => ({ id: s.id, name: s.name, setupDone: s.setupDone, biz: bizOf.get(s.id) ?? null })).sort((a, b) => a.name.localeCompare(b.name, "ja"));
   // ★起票154（2026-11-24）: 契約のカード＝org_billing にある値だけ（キーの有無だけ＝Stripe の ID は画面に出さない）
   const b = bill as { status: string | null; trial_ends_at: string | null; current_period_end: string | null; quantity: number | null; cancel_at_period_end: boolean | null; stripe_customer_id: string | null; stripe_subscription_id: string | null } | null;
   const billing: OpsBilling | null = b ? { status: b.status, trial_ends_at: b.trial_ends_at, current_period_end: b.current_period_end, quantity: b.quantity, cancel_at_period_end: b.cancel_at_period_end, has_customer: !!b.stripe_customer_id, has_subscription: !!b.stripe_subscription_id } : null;
@@ -59,5 +63,5 @@ export default async function OpsOrgPage({ params }: { params: Promise<{ id: str
     ]);
     supportAsk = supportAskShownOf(req as SupportAskRow | null, (lastGrant?.granted_at as string | undefined) ?? null);
   }
-  return <OpsShell name={op.name} role={op.role}><OrgDetail supportAsk={supportAsk} row={row} logs={logRows} nowIso={new Date().toISOString()} assist={assist} stores={stores} storeSetups={storeSetups} billing={billing} /></OpsShell>;
+  return <OpsShell name={op.name} role={op.role} waiting={await opsInquiryWaitingCountOf(admin)}><OrgDetail supportAsk={supportAsk} row={row} logs={logRows} nowIso={new Date().toISOString()} assist={assist} stores={stores} storeSetups={storeSetups} billing={billing} /></OpsShell>;
 }

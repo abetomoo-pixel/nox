@@ -89,3 +89,19 @@ export function addStoreBlockedOf(f: { name: string; biz: string; from: string; 
   if (f.from && f.parts === 0) return "写すものを 1 つ以上選んでください（写さないなら「写さない」に）";
   return null;
 }
+/** ★相談役 11/26 の便 M2-3: 足りない欄ごとの文（欄の横に出す・ボタンの近くの 1 行と同じ語） */
+export function addStoreFieldErrsOf(f: { name: string; biz: string; from: string; parts: number }): { name: string | null; biz: string | null; parts: string | null } {
+  return {
+    name: f.name.trim() ? null : "店名を入れてください",
+    biz: f.biz ? null : "業態を選んでください",
+    parts: f.from && f.parts === 0 ? "写すものを 1 つ以上選んでください（写さないなら「写さない」に）" : null,
+  };
+}
+/** ★M2-3: 業態の初めの値＝依頼の中身があればそれ・無ければ設定を写す元の店の業態（知らない値は空） */
+export function addStoreInitialBizOf(o: { requested?: string | null; fromBiz?: string | null }): string {
+  const ok = (v: string | null | undefined): v is string => !!v && v in BIZ_JA;
+  return ok(o.requested) ? o.requested : ok(o.fromBiz) ? o.fromBiz : "";
+}
+/** ★相談役 11/26 の便 M2-2: 先へ進めない理由・入力の誤りと不足の文の色（赤＝文字と枠・金は見出しと飾りだけ） */
+export const OPS_ERR_TEXT_STYLE = { color: "var(--danger)", fontSize: 12, margin: 0, fontWeight: 700 } as const;
+export const OPS_ERR_BORDER = "var(--danger)";

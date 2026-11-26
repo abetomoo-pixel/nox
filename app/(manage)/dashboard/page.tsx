@@ -7,7 +7,8 @@ import { deniedNoteOf } from "@/lib/nox/nav/denied"; // ★M-169
 import PinSelfCard from "@/components/nox/pin-self-card"; // ★0201（M-133）
 import Link from "next/link";
 import { myStaffScheduleOf } from "@/lib/nox/staff/my-shift-server"; // ★M-160
-import { mig0201On } from "@/lib/nox/rules-0175/flag";
+import { mig0201On, mig0203On } from "@/lib/nox/rules-0175/flag";
+import { currentStoreIdOf } from "@/lib/nox/store/current-server"; // ★相談役 11/26 の便 M の M2-7
 import { managePageGate } from "@/lib/nox/nav/page-gate";
 
 export const dynamic = "force-dynamic";
@@ -27,7 +28,9 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
   // ★裁定192（B1・M6）: owner 閲覧切替＝limit(1) を外し RLS が返す全店（owner=org 全店／manager=自店 1 件）を渡す。
   //   切替は board 側の既存 state（storeId）で行い、F4 マルチ店舗切替（memberships 部分 unique）とは別層＝台帳に二層で記録。
   const { data: stores } = await supabase.from("stores").select("id, name, settings_json").order("name");
-  const store = stores?.[0];
+  // ★相談役 11/26 の便 M の M2-7（Agoora の写し＝左上 TEST2 CLUB・ホーム TEST CLUB）: ホームの初めの店＝左上の今見ている店（旧＝名前の順の先頭の店）
+  const curId = mig0203On() && (stores?.length ?? 0) > 1 ? await currentStoreIdOf(supabase) : null;
+  const store = (curId ? stores?.find((x) => x.id === curId) : undefined) ?? stores?.[0];
   const cutoffOf = (s: { settings_json: unknown } | undefined) => {
     const st = (s?.settings_json ?? {}) as Record<string, unknown>;
     return typeof st.biz_cutoff_hm === "string" && st.biz_cutoff_hm ? (st.biz_cutoff_hm as string) : "06:00";

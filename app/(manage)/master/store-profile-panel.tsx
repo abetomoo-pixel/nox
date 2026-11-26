@@ -178,7 +178,8 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
     { const e = opsPatchErrorOf(patch); if (e) { setMsg(e); return; } }
     setBusy(true); setMsg(null);
     // ★0203（2 号店の段 1・■2-c）: 支払日は会社で 1 つ＝set_org_pay_day（会社の全店の pay_day も同じ値にそろう）。旗 false は今のまま（店の patch）
-    const orgPay = mig0203On() && "pay_day" in patch ? Number(patch.pay_day) : null;
+    // ★相談役 11/26 の便 M の差し替え（裁定507＝支払日は店ごと）: 支払日も今見ている店（この枠の店）だけに書く＝set_org_pay_day（全店にそろえる）は呼ばない
+    const orgPay: number | null = null;
     if (orgPay !== null) delete patch.pay_day;
     const { error } = Object.keys(patch).length > 0 || orgPay === null ? await setStoreProfile(patch) : { error: null };
     let { error: pe } = !error && orgPay !== null ? await createClient().rpc("set_org_pay_day", { p_pay_day: orgPay }) : { error: null };
@@ -345,7 +346,7 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
                 <DatePicker value={form.ops.invoice_registered_on} disabled={busy} onChange={(v) => setOps({ invoice_registered_on: v })} ariaLabel="インボイス登録日" />{/* ★M-82 */}
               </label>}
               {on("opsPay") && <label style={{ display: "block", minWidth: 0 }}>
-                <span style={label}>給与の支払日<InfoTip>翌月 1〜31 日・締め日は月末固定・表示と案内に使います{mig0203On() ? "・会社で 1 つ（全店に効きます）" : ""}</InfoTip></span>
+                <span style={label}>給与の支払日<InfoTip>翌月 1〜31 日・締め日は月末固定・表示と案内に使います{mig0203On() ? "・店ごとに決められます（この店だけに効きます）" : ""}</InfoTip></span>
                 <input type="number" min={1} max={31} step={1} inputMode="numeric" value={form.ops.pay_day} disabled={busy} onChange={(e) => setOps({ pay_day: e.target.value })} style={input} aria-label="給与の支払日" />
               </label>}
               {on("opsTax") && <div style={{ minWidth: 0 }}>

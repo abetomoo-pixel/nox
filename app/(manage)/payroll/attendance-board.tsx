@@ -31,6 +31,7 @@ import { monthLastDayOf } from "@/lib/nox/month"; // ★便 M-10: この月の�
 import { createClient } from "@/lib/supabase/client";
 import { mig0192On, mig0214On } from "@/lib/nox/rules-0175/flag"; // ★0214
 import BreakEdit from "@/components/nox/break-edit"; // ★0214
+import { breakEditSpansOf, breakMonthLabelOf, breakMonthTotalOf } from "@/lib/nox/punch/break-view"; // ★起票170（便 M の M2-8）: 休憩の合計（人ごと）と直しの初期値（生の時刻）
 // // ★0192 M-38: 退勤の取消（punch_cancel_out）
 import { errJa } from "@/lib/nox/errors"; // ★裁定467（M-126）: 利用者向けの文言は辞書 1 本
 
@@ -94,6 +95,9 @@ export default function AttendanceBoard({ stores, initialStoreId, initialPeriod,
   const sel = sheet?.casts.find((c) => c.castId === castId) ?? null;
   const storeName = stores.find((s) => s.id === storeId)?.name ?? sheet?.storeName ?? "";
   const finalized = sheet?.finalized ?? false;
+  const breakLabelOf = (c: CastSheet | null | undefined): string | null => (c?.breakDays?.length ? breakMonthLabelOf(breakMonthTotalOf(c.breakDays)) : null); // ★起票170: 人ごとの休憩の合計
+  const selBreakLabel = breakLabelOf(sel);
+  const editBreakSpans = edit && edit.mode === "edit" ? breakEditSpansOf(sel?.breakDays?.find((b) => b.bizDate === edit.row.bizDate)) : undefined; // ★起票170: 直しの初期値＝生の時刻（時間から引かない店でも今の休憩を消さない）
   const canEdit = !finalized; // 店長・オーナー（このタブに入れる役割）・確定済みの月は不可
 
   function downloadCsv(c: CastSheet) {
@@ -141,7 +145,7 @@ export default function AttendanceBoard({ stores, initialStoreId, initialPeriod,
         <tbody>
           {visibleRowsOf(sel).map((r) => (
             <KintaiRow key={r.bizDate} r={r} castId={sel.castId} withBy withPay={!!sel.pay} onEdit={canEdit && rowEditableOf(r, finalized) ? (row) => setEdit({ mode: "edit", row }) : null}
-              onFix={canEdit && rowEditableOf(r, finalized) ? (row, kind) => setFix({ row, kind }) : null} onConfirmShift={canEdit && rowEditableOf(r, finalized) ? (row) => setNsConfirm(row) : null} />
+              onFix={canEdit && rowEditableOf(r, finalized) ? (row, kind) => setFix({ row, kind }) : null} onConfirmShift={canEdit && rowEditableOf(r, finalized) ? (row) => setNsConfirm(row) : null} breakDay={sel.breakDays?.find((b) => b.bizDate === r.bizDate) ?? null} />
           ))}
         </tbody>
         {sel.pay && (
@@ -208,6 +212,7 @@ export default function AttendanceBoard({ stores, initialStoreId, initialPeriod,
                       <tr className="nox-kintai-sum-detail" data-kintai-sum-more={c.castId}><td colSpan={12} style={{ ...t.td, fontSize: 12, color: "var(--sub)" }}>
                         実働 {c.payroll?.hours ?? c.summary.hours}h／遅刻 {c.payroll?.lateN ?? c.summary.lateN}・当欠 {c.payroll?.absentN ?? c.summary.absentN}・早退 {c.summary.earlyN}／送り {c.summary.okuriN}／退勤記録なし {c.payroll?.missingOutN ?? c.summary.missingOutN}
                         {c.pay && <>／時給分 {yenCellOf(c.pay.totals.wage)}・バック {yenCellOf(c.pay.totals.backs)}・罰金・減額 {yenCellOf(c.pay.totals.fine, { neg: true })}</>}
+                        {breakLabelOf(c) && <span data-kintai-sum-break={c.castId}>／{breakLabelOf(c)}</span>}{/* ★起票170 */}
                       </td></tr>
                     )}
                   </Fragment>
@@ -227,7 +232,7 @@ export default function AttendanceBoard({ stores, initialStoreId, initialPeriod,
           <section className="nox-cardtop nox-print" style={t.card} data-kintai-detail={sel.castId}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 8 }}>
               <h3 style={{ ...t.cardTitle, margin: 0 }}>{detailTitle}</h3>
-              <span className="num" style={{ fontSize: 12.5, color: "var(--sub)" }} data-kintai-sel-total="1">出勤 {sel.payroll?.days ?? sel.summary.days} 日・実働 {sel.payroll?.hours ?? sel.summary.hours}h・遅刻 {sel.payroll?.lateN ?? sel.summary.lateN}・当欠 {sel.payroll?.absentN ?? sel.summary.absentN}・早退 {sel.summary.earlyN}{sel.pay ? `・差引 ${yenCellOf(sel.pay.net)}` : ""}</span>
+              <span className="num" style={{ fontSize: 12.5, color: "var(--sub)" }} data-kintai-sel-total="1">出勤 {sel.payroll?.days ?? sel.summary.days} 日・実働 {sel.payroll?.hours ?? sel.summary.hours}h・遅刻 {sel.payroll?.lateN ?? sel.summary.lateN}・当欠 {sel.payroll?.absentN ?? sel.summary.absentN}・早退 {sel.summary.earlyN}{sel.pay ? `・差引 ${yenCellOf(sel.pay.net)}` : ""}{selBreakLabel ? <span data-kintai-sel-break="1">・{selBreakLabel}</span> : null}</span>
               <span className="nox-print-only" style={{ fontSize: 11, color: "var(--sub)" }}>出力 {jstNow()}</span>
               <span className="nox-noprint" style={{ marginLeft: "auto", display: "inline-flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>{detailActions}</span>
             </div>
@@ -238,7 +243,7 @@ export default function AttendanceBoard({ stores, initialStoreId, initialPeriod,
       {sheet && sel && narrow && (
         <BottomSheet onClose={() => setCastId(null)} title={detailTitle} actions={detailActions} testId="kintai">
           <div className="nox-printpage"><section className="nox-print" data-kintai-detail={sel.castId}>
-            <p className="num" style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 6px" }} data-kintai-sel-total="1">出勤 {sel.payroll?.days ?? sel.summary.days} 日・実働 {sel.payroll?.hours ?? sel.summary.hours}h・遅刻 {sel.payroll?.lateN ?? sel.summary.lateN}・当欠 {sel.payroll?.absentN ?? sel.summary.absentN}{sel.pay ? `・差引 ${yenCellOf(sel.pay.net)}` : ""}</p>
+            <p className="num" style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 6px" }} data-kintai-sel-total="1">出勤 {sel.payroll?.days ?? sel.summary.days} 日・実働 {sel.payroll?.hours ?? sel.summary.hours}h・遅刻 {sel.payroll?.lateN ?? sel.summary.lateN}・当欠 {sel.payroll?.absentN ?? sel.summary.absentN}{sel.pay ? `・差引 ${yenCellOf(sel.pay.net)}` : ""}{selBreakLabel ? <span data-kintai-sel-break="1">・{selBreakLabel}</span> : null}</p>
             {detailTable}
           </section></div>
         </BottomSheet>
@@ -247,7 +252,7 @@ export default function AttendanceBoard({ stores, initialStoreId, initialPeriod,
         <KintaiEdit storeId={storeId} castId={sel.castId} castName={sel.castName} row={edit.mode === "edit" ? edit.row : null}
           periodStart={sheet.periodStart} periodEnd={sheet.periodEnd} todayBiz={sheet.todayBiz} existingDates={visibleRowsOf(sel).map((r) => r.bizDate)}
           onClose={() => setEdit(null)} onSaved={onSaved}
-          extra={mig0214On() && edit.mode === "edit" && edit.row.inHm ? <BreakEdit castId={sel.castId} bizDate={edit.row.bizDate} spans={edit.row.adj?.breaks} onSaved={onSaved} /> : undefined /* ★0214（D5）: 休憩の直し（店だけ） */} />
+          extra={mig0214On() && edit.mode === "edit" && edit.row.inHm ? <BreakEdit castId={sel.castId} bizDate={edit.row.bizDate} spans={editBreakSpans ?? edit.row.adj?.breaks} onSaved={onSaved} /> : undefined /* ★0214（D5）: 休憩の直し（店だけ） */} />
       )}
       {fix && sel && (/* ★便 M-14 ①: 退勤／出勤記録なし→時刻修正（今日タブと同じ部品・保存で再読込＝実働・時給分・日計を再計算） */
         <PunchCorrectionModal castId={sel.castId} castName={sel.castName} biz={fix.row.bizDate} kind={fix.kind}

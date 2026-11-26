@@ -20,7 +20,7 @@ export function storeAddErrJa(msg: string | null | undefined): string {
   if (/dup store/.test(m)) return "同じ名前の店があります";
   if (/bad name/.test(m)) return "店名を入れてください（40 字まで）";
   if (/bad biz type/.test(m)) return "業態を選んでください";
-  if (/copy from not ready/.test(m)) return "写し元の店の初期設定が済んでいません";
+  if (/copy from not ready/.test(m)) return "設定を写す元の店の初期設定が済んでいません";
   if (/bad copy from|bad parts/.test(m)) return "写すものの選び方が違います";
   if (/not found/.test(m)) return "会社が見つかりません";
   return "店を足せませんでした。時間をおいてもう一度お試しください";
@@ -29,8 +29,8 @@ export function storeAddErrJa(msg: string | null | undefined): string {
 export function storeCopyErrJa(msg: string | null | undefined): string {
   const m = msg ?? "";
   if (/not empty: (\w+)/.test(m)) { const p = /not empty: (\w+)/.exec(m)![1] as StoreCopyPart; return `${STORE_COPY_LABEL[p]?.name ?? p}はもう入っています（二重に写しません）`; }
-  if (/src not ready/.test(m)) return "写し元の店の初期設定が済んでいません";
+  if (/src not ready/.test(m)) return "設定を写す元の店の初期設定が済んでいません";
   if (/dst done/.test(m)) return "この店の初期設定は確定済みです";
   if (/forbidden/.test(m)) return "オーナーだけが写せます";
-  return "1 店目から写せませんでした";
+  return "設定を写す元の店から写せませんでした"; // ★相談役 11/26 の便 M2-6（「1 店目から写す」→「設定を写す元の店」）
 }

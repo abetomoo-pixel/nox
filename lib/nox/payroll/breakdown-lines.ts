@@ -10,6 +10,7 @@ import { nextWageLineOf, nextWageOfPay, type NextWagePayLike } from "@/lib/nox/p
 import { periodLabelOf } from "./slide"; // ★裁定338（0168・便 P168）
 import type { FrozenAdjustment } from "./adjust";
 import { wageSpanLabelOf, wageSpansOf } from "./wage-spans"; // ★便 PR-1 R-2（裁定416）: 時給の区間行
+import { PUNCH_BREAK_NOTE_KIND, workHoursBreakLineOf } from "../punch/break-view"; // ★起票170（便 M の M2-8）: 明細の「勤務 ○ 時間（休憩 ○ 分を除く）」
 
 export type BreakdownPayLike = {
   wage?: number; wHours?: number; timePay?: number;
@@ -43,7 +44,7 @@ export type BreakdownPayLike = {
 };
 /** ★2026-11-19（相談役 ②）: 売上の基準が小計の店の明細に出す 1 行（請求額の店には出さない） */
 export const SALES_BASIS_LINE = "　売上の基準：小計（税・サ料の前）";
-export type BreakdownExtra = { kind: string; amount: number; label?: string };
+export type BreakdownExtra = { kind: string; amount: number; label?: string; /** ★起票170: punch_break_note の休憩の分 */ minutes?: number };
 export type BreakdownLine = {
   key: string; label: string; amount: number;
   /** 内訳の内訳（「うち基本」等）＝合計に足さない */
@@ -215,6 +216,8 @@ export function breakdownLinesOf(input: BreakdownInput): Breakdown {
     push("guaBase", `　うち基本（${p.guarantee.baseHours}h）`, z(p.guarantee.basePay), { keepZero: true, sub: true });
     push("guaPay", `　うち保証 ${p.guarantee.spans.map((s) => `${md(s.from)}〜${s.to ? md(s.to) : ""} ${yen(s.base)}`).join("／")}（${p.guarantee.guaHours}h）`, z(p.guarantee.guaPay), { keepZero: true, sub: true });
   }
+  // ★起票170（便 M の M2-8）: 休憩を勤務の時間から引いた人だけ、時間の行の下に「勤務 ○ 時間（休憩 ○ 分を除く）」（0 円の注記の extras＝凍結 breakdown_json に残る・額は変えない）
+  { const bn = (input.extras ?? []).find((e) => e.kind === PUNCH_BREAK_NOTE_KIND); const bm = typeof bn?.minutes === "number" ? bn.minutes : null; if (bn && bm !== null && bm > 0) earn.push({ key: "break-note", label: workHoursBreakLineOf(z(p.wHours), bm), amount: 0, info: true, amountText: "" }); }
   // ★時間帯の時給（相談役 11/25 の便 D2）: 帯を当てた日がある人だけ「うち時間帯の時給 n 日（h）」の補助行（時給の内数＝足す列に入れない）
   if (p.bands && p.bands.days > 0) push("bands", `　うち時間帯の時給 ${p.bands.days} 日（${p.bands.hours}h）`, z(p.bands.pay), { keepZero: true, sub: true });
   // ★裁定343（0170・便 W5-2b）: 判定基準（件数）と対象（ランク）の印。対象外＝1 行「対象外」・daily＋件数＝営業日ごとの行を 1 行に畳む（件数は判定値）
@@ -267,6 +270,7 @@ export function breakdownLinesOf(input: BreakdownInput): Breakdown {
   push("guaranteeAdd", "最低保証加算", z(p.guaranteeAdd));
   if (p.guaranteeDay && (p.guaranteeAdd ?? 0) > 0) push("guaranteeDay", `　日給 ${yen(p.guaranteeDay.perDay)} × 出勤 ${p.guaranteeDay.days} 日（${yen(p.guaranteeDay.floor)}）`, 0, { keepZero: true, sub: true, info: true }); // ★0202f: 補填の下に 1 行（額は上の行に入っている＝情報の行）
   for (const [i, e] of (input.extras ?? []).entries()) {
+    if (e.kind === PUNCH_BREAK_NOTE_KIND) { if (typeof e.minutes !== "number") earn.push({ key: `extra-${i}`, label: e.label ?? "勤務時間は休憩を除いています", amount: 0, info: true, amountText: "" }); continue; } // ★起票170: 時間の行の下に出した（分が無い形だけここで文の 1 行）
     if (e.kind === "punch_round_note") { earn.push({ key: `extra-${i}`, label: e.label ?? "勤務時間は丸めて数えています", amount: 0, info: true, amountText: "" }); continue; } // ★0213（相談役 11/25 の便 E2）: 丸めの注記＝金額なしの 1 行
     push(`extra-${i}`, e.label ?? (e.kind === "attendance_bonus" ? "出勤ボーナス" : e.kind), z(e.amount));
   }

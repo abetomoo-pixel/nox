@@ -17,6 +17,9 @@ import { loadDayDeductions, loadDeductionOverrides, loadDeductionRuleCasts } fro
 import { mig0195On } from "../rules-0175/flag"; // ★0195
 import { mig0213On, mig0214On } from "../rules-0175/flag"; // ★0213／0214
 import { EMPTY_DAY_ADJ, dayAdjOfSource, loadDayAdjSource } from "../punch/day-adj-load"; // ★0213／0214: 給与の collect と同じ読み方
+import { breakDayViewsOf, type BreakDayView } from "../punch/break-view"; // ★起票170（便 M の M2-8）: 休憩の時刻と合計を勤怠の表に
+import { loadCastBreakRaw } from "../punch/break-view-load"; // ★起票170
+import { dayAdjAppliesOf } from "../punch/day-window"; // ★起票170: 休憩を時間から引く店か（collect と同じ判定）
 
 export type KintaiCast = {
   castId: string; castName: string; active: boolean;
@@ -25,6 +28,8 @@ export type KintaiCast = {
   rows: AttendanceDayRow[];
   /** 日別の算定給与＝給与画面と同じ draft（確定済みは凍結値）。draft に無い cast（稼働 0）は null */
   pay: { net: number; gross: number; frozen: boolean; month: MonthSummary; totals: CastPayTotals } | null;
+  /** ★起票170: 休憩のある日だけ（日付の昇順・時刻と合計の分・閉じていない休憩の扱い）。休憩の無い人はキーなし＝今と同じ */
+  breakDays?: BreakDayView[];
 };
 export type KintaiSheet = { period: string; storeId: string; storeName: string; cutoffHm: string; basis: "punch" | "shift"; todayBiz: string; finalized: boolean; runStatus: string | null; periodStart: string; periodEnd: string; casts: KintaiCast[] };
 
@@ -91,6 +96,9 @@ export async function buildKintaiSheet(admin: SupabaseClient, managerClient: Sup
   const hm2minK = (hm: string): number => { const [h, m] = hm.split(":").map(Number); return h * 60 + m; };
   // ★0213／0214（相談役 11/25）: 丸め・休憩＝給与の collect と同じ材料と同じ当て方（確定シフトどおり・打刻しない店は当てない）。旗 false＝読まない（null＝今のまま）
   const dayAdjF = dayAdjOfSource(mig0213On() || mig0214On() ? await loadDayAdjSource(admin, storeId, win.periodStart, win.periodEnd) : EMPTY_DAY_ADJ, { payTimeBasis: basis, punchMode: punchModeOf((storeR.data?.settings_json ?? null) as Record<string, unknown> | null) });
+  // ★起票170（便 M の M2-8）: 休憩の行（キャストだけ・旗 false は空）＝表の行に時刻と合計を出す材料。合計は日の窓の分（adj.breakMin）があればそれ＝給与と同じ数
+  const breakRaw = mig0214On() ? await loadCastBreakRaw(admin, storeId, win.periodStart, win.periodEnd, opts.castId ?? null) : [];
+  const breakCounted = dayAdjAppliesOf({ payTimeBasis: basis, punchMode: punchModeOf((storeR.data?.settings_json ?? null) as Record<string, unknown> | null) });
   const casts: KintaiCast[] = ((castsR.data ?? []) as { id: string; name: string; is_active: boolean | null; employment?: string | null }[]).map((c) => {
     const rows = attendanceDayRowsOf({
       punches: ((punchR.data ?? []) as Rec[]).filter((p) => p.cast_id === c.id).map((p) => ({ id: p.id as string, punched_at: p.punched_at as string, type: p.type as "in" | "out", source: p.source as string, okuri: p.okuri as boolean | null })),
@@ -122,7 +130,9 @@ export async function buildKintaiSheet(admin: SupabaseClient, managerClient: Sup
       const month = monthSummaryOf({ gross: src.gross, net: src.net, rows: dailyRows, frozen: !!frozen });
       pay = { net: src.net, gross: src.gross, frozen: !!frozen, month, totals: castPayTotalsOf(dailyRows, src.net, !!frozen) };
     }
-    return { castId: c.id, castName: c.name, active: c.is_active !== false, payroll, summary, rows, pay };
+    const rowBy = new Map(rows.map((r) => [r.bizDate, r]));
+    const breakDays = breakRaw.length ? breakDayViewsOf(breakRaw, c.id, (bd) => { const r = rowBy.get(bd); return { outHm: r?.outHm ?? null, appliedMin: r?.adj ? r.adj.breakMin : null }; }, todayBiz, breakCounted) : []; // ★起票170
+    return { castId: c.id, castName: c.name, active: c.is_active !== false, payroll, summary, rows, pay, ...(breakDays.length ? { breakDays } : {}) };
   }).filter((c) => c.active || c.rows.some((r) => r.inHm || r.shift));
   return { period, storeId, storeName: (storeR.data?.name as string | undefined) ?? "", cutoffHm: win.cutoffHm, basis, todayBiz, finalized, runStatus: run?.status ?? null, periodStart: win.periodStart, periodEnd: win.periodEnd, casts };
 }

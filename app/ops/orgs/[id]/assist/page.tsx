@@ -7,6 +7,7 @@ import { mig0202bOn } from "@/lib/nox/rules-0175/flag";
 import type { OpsOrgRow } from "@/lib/nox/ops/labels";
 import OpsShell from "../../../ops-shell";
 import AssistWizard, { type AssistProps } from "./assist-wizard";
+import { opsInquiryWaitingCountOf } from "@/lib/nox/ops/inquiry-waiting"; // ★M2-4: 上の帯の未対応の数
 
 export const dynamic = "force-dynamic";
 
@@ -40,5 +41,5 @@ export default async function OpsAssistPage({ params }: { params: Promise<{ id: 
     provisionals: ((prov ?? []) as { id: string; name: string; created_who: string | null; created_at: string; promoted_at: string | null; discarded_at: string | null }[]),
     nowIso: new Date().toISOString(),
   };
-  return <OpsShell name={op.name} role={op.role}><AssistWizard {...props} /></OpsShell>;
+  return <OpsShell name={op.name} role={op.role} waiting={await opsInquiryWaitingCountOf(admin)}><AssistWizard {...props} /></OpsShell>;
 }

@@ -52,7 +52,12 @@ check("o4(1) 業態は 6 つ（ホストを足した＝相談役 18:12）", JSON
 check("o4(2) 欄の検査＝通る・予約の名前・業態・メール・紹介コード 41 字と前後の空白", newOrgFormErrOf(f0) === null && newOrgFormErrOf({ ...f0, orgName: "NOX-DEMO-A" }) !== null && newOrgFormErrOf({ ...f0, bizType: "club" }) !== null
   && newOrgFormErrOf({ ...f0, ownerEmail: "x" }) !== null && newOrgFormErrOf({ ...f0, agencyCode: "x".repeat(41) }) !== null && newOrgFormErrOf({ ...f0, agencyCode: " A" }) !== null && newOrgFormErrOf({ ...f0, orgName: "NOX-CHECK-1" }) === null);
 check("o4(3) 確かめの文・指定の 2 文（紹介コードの欄・経路の欄）・ログインの失敗の文", newOrgConfirmOf(f0) === "CLUB Z を作り、z@example.invalid に招待を送ります。よろしいですか"
-  && REFERRAL_FIELD_NOTE === "最初の契約の前に、Yuiba の代理店の画面のコードと同じものを入れてください" && ROUTE_FIELD_NOTE === "報酬の帰属は Yuiba で管理しています。ここを変えても報酬の行き先は変わりません" && LOGIN_FAIL_TEXT === "メールかパスワードが違います");
+  && REFERRAL_FIELD_NOTE === "最初の契約の前に、Yuiba の代理店の画面のコードと同じものを入れてください" && ROUTE_FIELD_NOTE === "報酬の帰属は Yuiba で管理しています。ここを変えても報酬の行き先は変わりません" && LOGIN_FAIL_TEXT === "ログインできません。メールアドレスかパスワードをご確認ください"); // ★相談役 11/26 の便 M2-1: 文を張り替え（パスワード違いと運営者でない人で同じ）
+{ const lf = rd("app/ops/login/login-form.tsx");
+  check("o4(3b) ★M2-1 運営者でない人＝404 にせずログインの画面に留める（/api/auth/ops-self で確かめ・違えば scope local で消して同じ文）・運営者だけ /ops/mfa",
+    lf.includes("if (error) { setBusy(false); setErr(LOGIN_FAIL_TEXT); return; }") && lf.includes("fetch(\"/api/auth/ops-self\", { cache: \"no-store\" })") && lf.includes("isOps = r.ok && j.ops === true;")
+    && lf.includes("await sb.auth.signOut({ scope: \"local\" });") && lf.indexOf("signOut({ scope: \"local\" })") < lf.indexOf("router.replace(\"/ops/mfa\")") && lf.split("setErr(LOGIN_FAIL_TEXT)").length - 1 === 2
+    && ro.includes("if (gate === \"notfound\") notFound();")); }
 check("o4(4) 例外の文の写し", opsErrJa("dup email") === "このメールはもう使われています" && opsErrJa("P0001: dup org") === "同じ名前の会社があります" && opsErrJa("cannot reopen") === "導入完了から導入中には戻せません" && opsErrJa("??").startsWith("うまくいきませんでした"));
 const nf = rd("app/ops/orgs/new/new-org-form.tsx"), cr = rd("app/api/ops/orgs/route.ts");
 check("o4(5) 追加＝確かめ 1 回 → POST・ボタンは中央（nox-actions）・テスターの印は boolean を明示", nf.includes("window.confirm(newOrgConfirmOf(f))") && nf.includes('className="nox-actions"') && cr.includes('if (typeof body.tester !== "boolean")'));

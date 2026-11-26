@@ -78,7 +78,7 @@ export type OpsLogRow ={ id: string; at: string; who: string; action: string; be
 const ACTION_LABEL: Record<string, string> = { "ops.org.create": "作成", "ops.agency_code": "経路", "ops.onboarding": "導入", "ops.org.reinvite": "招待の出し直し" };
 const brief = (v: unknown): string => (v == null ? "—" : typeof v === "object" ? Object.entries(v as Record<string, unknown>).map(([k, x]) => `${k}: ${x ?? "—"}`).join("・") : String(v));
 
-export default function OrgDetail({ row, logs, nowIso, assist, stores, storeSetups, billing, supportAsk }: { /** ★0207 */ supportAsk?: SupportAskRow | null; /** ★起票153 */ storeSetups?: OpsStoreSetup[] | null; /** ★起票154 */ billing?: OpsBilling | null; row: OpsOrgRow; logs: OpsLogRow[]; nowIso: string; /** ★0203（■2-a）: 店を追加（旗の後ろ・null＝出さない） */ stores?: { id: string; name: string; setupDone: boolean }[] | null; /** ★枝 night1121-ops-v2（0202b 版 4・旗の後ろ）: 導入を代行する（書けるかと理由） */ assist?: { ok: boolean; reason: string | null } | null }) {
+export default function OrgDetail({ row, logs, nowIso, assist, stores, storeSetups, billing, supportAsk }: { /** ★0207 */ supportAsk?: SupportAskRow | null; /** ★起票153 */ storeSetups?: OpsStoreSetup[] | null; /** ★起票154 */ billing?: OpsBilling | null; row: OpsOrgRow; logs: OpsLogRow[]; nowIso: string; /** ★0203（■2-a）: 店を追加（旗の後ろ・null＝出さない） */ stores?: { id: string; name: string; setupDone: boolean; /** ★M2-3: 店の業態 */ biz?: string | null }[] | null; /** ★枝 night1121-ops-v2（0202b 版 4・旗の後ろ）: 導入を代行する（書けるかと理由） */ assist?: { ok: boolean; reason: string | null } | null }) {
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
   const [out, setOut] = useState<{ at: string; ok: boolean; text: string } | null>(null);
@@ -154,7 +154,7 @@ export default function OrgDetail({ row, logs, nowIso, assist, stores, storeSetu
         <section style={sec} aria-label="導入を代行する" data-ops-assist-entry={assist.ok ? "1" : "0"}>
           <h2 style={h2}>導入を代行する</h2>
           <p style={{ ...t.sub, fontSize: 12.5, margin: "0 0 10px", lineHeight: 1.7 }}>初期設定の下書き・LINE 連携・キャストの仮の登録を、1 歩ずつ代わりに入れます（確定はオーナー）。</p>
-          {assist.ok ? <div className="nox-actions"><Link href={`/ops/orgs/${row.org_id}/assist`} style={{ ...t.btnGold, textDecoration: "none" }}>導入を代行する</Link></div> : <Message kind="warn">{assist.reason}</Message>}
+          {assist.ok ? <div className="nox-actions"><Link href={`/ops/orgs/${row.org_id}/assist`} style={{ ...t.btnGold, textDecoration: "none" }}>導入を代行する</Link></div> : <Message kind="error">{assist.reason}</Message>}{/* ★相談役 11/26 の便 M2-2: 先へ進めない理由は赤 */}
           {supportUrlShownOf(assist) && <SupportUrlBox />}
           {supportUrlShownOf(assist) && mig0207On() && <SupportAskBox orgId={row.org_id} ask={supportAsk ?? null} />}{/* ★0207: サポート許可を頼む・取り下げ */}
         </section>)}

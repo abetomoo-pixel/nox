@@ -5,11 +5,12 @@ import { requireOperatorPage } from "@/lib/nox/ops/require-operator";
 import { mig0209On } from "@/lib/nox/rules-0175/flag";
 import OpsShell from "../ops-shell";
 import OpsMeForm from "./me-form";
+import { opsInquiryWaitingCountOf } from "@/lib/nox/ops/inquiry-waiting"; // ★M2-4: 上の帯の未対応の数
 
 export const dynamic = "force-dynamic";
 
 export default async function OpsMePage() {
   if (!mig0209On()) notFound();
   const op = await requireOperatorPage();
-  return <OpsShell name={op.name} role={op.role}><OpsMeForm name={op.name} email={op.email} role={op.role} /></OpsShell>;
+  return <OpsShell name={op.name} role={op.role} waiting={await opsInquiryWaitingCountOf()}><OpsMeForm name={op.name} email={op.email} role={op.role} /></OpsShell>;
 }

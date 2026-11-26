@@ -1,16 +1,18 @@
 // ★0212（窓口の段 1・相談役 11/25 の決め【D7】）: 店から運営へ問い合わせを送る（POST）。旗 MIG_0212_APPLIED の後ろ（false は 404）。
-//   柵＝①セッション 401 ②入力 400 ③オーナーと店長だけ 403（真の防御は RPC inquiry_create＝店長は自店・2 店舗目はオーナー） ④デモの会社 403（RPC も 'forbidden (demo)'）。
-//   送れたら運営へメール（宛先 support@noxapp.jp・中身は入れず種類・会社名・/ops へのリンクだけ・鍵が無ければ送らずに skipped）→ 結果を inquiry_mail_note で監査に 1 行。
+//   柵＝①セッション 401 ②入力 400 ③オーナーと店長だけ 403（真の防御は RPC inquiry_create＝店長は自店・店舗の追加の依頼はオーナー） ④デモの会社 403（RPC も 'forbidden (demo)'）。
+//   送れたら運営へメール（中身は入れず会社名・種類・件名・/ops へのリンクだけ・鍵が無ければ送らずに skipped）→ 結果を inquiry_mail_note で監査に 1 行。
 //   メールが送れなくても問い合わせは送れたまま（運営は /ops の一覧で見る）。ログに宛先と本文を出さない。既読は画面から RPC を直に呼ぶ。
-//   ★F1（相談役 11/25）: 店の返事（action: "reply"）もこの route＝inquiry_reply の後に運営へメール（同じ鍵の再送は送らない）。返事のメールの結果は監査に残せない（inquiry_mail_note は 1 件に 1 回・送った本人だけ）＝失敗だけログに理由の語。
+//   ★F1（相談役 11/25）: 店の返事（action: "reply"）もこの route＝inquiry_reply の後に運営へメール（同じ鍵の再送は送らない）。
+//   ★相談役 11/26 の便 M2-5: 宛先は有効な運営者の全員（lib/nox/inquiry/ops-mail-server.ts）・運営者ごとの結果を ops_audit_logs に 1 行＝店の返事のメールの結果も残る（起票163 を閉じる）。
+//     送る・記録するの中は投げない（notifyOperatorsOfInquiry は失敗を語で返す）＋ここでも try で包む＝問い合わせの応答は必ず ok。
 //   送る部品は main の sendNoxMail（Idempotency-Key・1 回のやり直し・8 秒）。
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { demoGuardErr } from "@/lib/nox/demo/guard";
 import { mig0212On } from "@/lib/nox/rules-0175/flag";
-import { sendNoxMail, type MailResult } from "@/lib/nox/mail/send";
-import { INQUIRY_KINDS, inquiryErrJa, opsInquiryMailOf, opsInquiryReplyMailOf, opsInquiryMailSkipOf, OPS_INQUIRY_MAIL_TO } from "@/lib/nox/inquiry/labels";
+import { INQUIRY_KINDS, inquiryErrJa } from "@/lib/nox/inquiry/labels";
+import { notifyOperatorsOfInquiry, type OpsMailOutcome } from "@/lib/nox/inquiry/ops-mail-server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -43,28 +45,25 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: inquiryErrJa(m) }, { status: /forbidden/.test(m) ? 403 : /too many open/.test(m) ? 429 : 400 });
   }
 
-  // 運営へのメール（新しい問い合わせのときだけ・同じ鍵の再送で 2 通にしない＝記録が既にあれば送らない）
-  let mail: MailResult = { status: "skipped", reason: "replay" };
+  // 運営へのメール（新しい問い合わせのときだけ・同じ鍵の再送で 2 通にしない＝記録が既にあれば送らない）。ここから先の失敗は応答に響かせない。
+  let mail: Pick<OpsMailOutcome, "status"> = { status: "skipped" };
   try {
     const admin = createAdminClient();
-    const [{ data: org }, { data: noted }] = await Promise.all([
-      admin.from("orgs").select("name").eq("id", orgId as string).maybeSingle(),
-      admin.from("audit_logs").select("id").eq("action", "inquiry_mail").eq("target", `ops_inquiries:${id}`).limit(1).maybeSingle(),
-    ]);
+    const { data: noted } = await admin.from("audit_logs").select("id").eq("action", "inquiry_mail").eq("target", `ops_inquiries:${id}`).limit(1).maybeSingle();
     if (!noted) {
-      const skip = opsInquiryMailSkipOf((org?.name as string | undefined) ?? null);
-      mail = skip ? { status: "skipped", reason: skip } : await sendNoxMail({ to: OPS_INQUIRY_MAIL_TO, ...opsInquiryMailOf({ kind, orgName: String(org?.name ?? ""), inquiryId: id }), idemKey: `inquiry-${id}` });
-      const { error: ne } = await supabase.rpc("inquiry_mail_note", { p_inquiry: id, p_status: mail.status, p_reason: mail.reason ?? null });
+      const r = await notifyOperatorsOfInquiry(admin, { event: "create", inquiryId: id, orgId: orgId as string });
+      mail = r;
+      const { error: ne } = await supabase.rpc("inquiry_mail_note", { p_inquiry: id, p_status: r.status, p_reason: r.reason });
       if (ne) console.error(`inquiry mail note: ${id} ${ne.message}`);
     }
   } catch (e) {
     console.error(`inquiry mail: ${id} ${e instanceof Error ? e.name : "error"}`);
-    mail = { status: "failed", reason: "error" };
+    mail = { status: "failed" };
   }
   return NextResponse.json({ ok: true, id, mail: { status: mail.status } });
 }
 
-/** ★F1（相談役 11/25）: 店の返事＝inquiry_reply（真の防御は RPC）→ 新しい行のときだけ運営へメール */
+/** ★F1（相談役 11/25）: 店の返事＝inquiry_reply（真の防御は RPC）→ 新しい行のときだけ運営へメール（★M2-5: 有効な運営者の全員・結果は ops_audit_logs） */
 async function replyPost(supabase: Awaited<ReturnType<typeof createClient>>, b: Record<string, unknown>) {
   const inquiryId = typeof b.inquiryId === "string" && UUID_RE.test(b.inquiryId) ? b.inquiryId : "";
   const idemKey = typeof b.idemKey === "string" && UUID_RE.test(b.idemKey) ? b.idemKey : "";
@@ -80,19 +79,14 @@ async function replyPost(supabase: Awaited<ReturnType<typeof createClient>>, b: 
     const m = error?.message ?? "";
     return NextResponse.json({ error: inquiryErrJa(m) }, { status: /forbidden/.test(m) ? 403 : /not found/.test(m) ? 404 : 400 });
   }
-  let mail: MailResult = { status: "skipped", reason: "replay" };
+  let mail: Pick<OpsMailOutcome, "status"> = { status: "skipped" };
   if (!seen) {
     try {
-      const [{ data: org }, { data: inq }] = await Promise.all([
-        admin.from("orgs").select("name").eq("id", orgId as string).maybeSingle(),
-        admin.from("ops_inquiries").select("kind").eq("id", inquiryId).maybeSingle(),
-      ]);
-      const skip = opsInquiryMailSkipOf((org?.name as string | undefined) ?? null);
-      mail = skip ? { status: "skipped", reason: skip } : await sendNoxMail({ to: OPS_INQUIRY_MAIL_TO, ...opsInquiryReplyMailOf({ kind: String(inq?.kind ?? ""), orgName: String(org?.name ?? ""), inquiryId }), idemKey: `inquiry-reply-${mid}` });
+      mail = await notifyOperatorsOfInquiry(admin, { event: "reply", inquiryId, orgId: orgId as string, messageId: mid });
     } catch (e) {
-      mail = { status: "failed", reason: e instanceof Error ? e.name : "error" };
+      console.error(`inquiry reply mail: ${inquiryId} ${e instanceof Error ? e.name : "error"}`);
+      mail = { status: "failed" };
     }
-    if (mail.status === "failed") console.error(`inquiry reply mail: ${inquiryId} ${mail.reason}`);
   }
   return NextResponse.json({ ok: true, id: mid, mail: { status: mail.status } });
 }

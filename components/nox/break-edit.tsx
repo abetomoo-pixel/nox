@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Message } from "@/components/ui/toast";
 import { rpcErrJa } from "@/lib/nox/ui/rpc-err";
 import { breakEditErrOf, breakEditRowsOf, breakSetRowsOf, type BreakEditRow } from "@/lib/nox/punch/break-edit";
+import { breakSetErrJa } from "@/lib/nox/punch/break-view"; // ★起票170（便 M の M2-8）: break_set の断りは休憩の言葉で（共通の写像は overlap／reason required を別の画面の言葉にする）
 
 export default function BreakEdit({ castId, bizDate, spans, onSaved }: { castId: string; bizDate: string; spans?: [string, string | null][]; onSaved: (msg: string) => void }) {
   const [rows, setRows] = useState<BreakEditRow[]>(() => breakEditRowsOf(spans));
@@ -16,10 +17,11 @@ export default function BreakEdit({ castId, bizDate, spans, onSaved }: { castId:
   async function save() {
     const e = breakEditErrOf(rows, reason);
     if (e) { setMsg(e); return; }
+    if (rows.length === 0 && (spans?.length ?? 0) > 0 && !window.confirm(`この日の休憩（${spans!.length} 回）を全部消しますか`)) return; // ★起票170: 全部消すときだけ確かめる
     setBusy(true);
     const { error } = await createClient().rpc("break_set", { p_cast_id: castId, p_membership_id: null, p_biz_date: bizDate, p_rows: breakSetRowsOf(bizDate, rows), p_reason: reason.trim() });
     setBusy(false);
-    if (error) { setMsg(rpcErrJa(error.message)); return; }
+    if (error) { setMsg(breakSetErrJa(error.message) ?? rpcErrJa(error.message)); return; }
     onSaved(rows.length ? `休憩を ${rows.length} 回にしました` : "休憩を消しました");
   }
   return (

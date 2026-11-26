@@ -421,7 +421,7 @@ export async function loadPunch(admin: SupabaseClient, storeId: string, win: Pay
     (dohanDatesByCast.get(r.cast_id) ?? dohanDatesByCast.set(r.cast_id, new Set()).get(r.cast_id)!).add(bizDateOf(ck.started_at, win.cutoffHm));
   }
 
-  const result = new Map<string, { noShiftHours: Map<string, number>; noShiftDates: string[]; days: number; lateN: number; absentN: number; anomalyCount: number; missingOutDates: string[]; hoursByDate: Map<string, number>; shiftHoursByDate: Record<string, number>; attendanceDays: number; shortfallDays: ShortfallDay[]; /** ★時間帯の時給: 働いた区間（営業日の分 0〜47 時）＝打刻の日・シフトの区間・シフトの無い日・打刻しない店でシフトの時間にした日 */ win: { punch: Map<string, [number, number]>; shift: Map<string, [number, number]>; noShift: Map<string, [number, number]>; storeShift: Set<string>; /** ★0214: 休憩で割った区間（丸め・休憩が効いた日だけ） */ punchSegs?: Map<string, [number, number][]>; noShiftSegs?: Map<string, [number, number][]> }; /** ★0214: 閉じていない休憩のまま退勤がある日（休憩開始〜退勤を休憩にした・要対応に 1 行） */ openBreakDates: string[]; roundNote: { days: number; unit: number; mode: string } | null }>();
+  const result = new Map<string, { noShiftHours: Map<string, number>; noShiftDates: string[]; days: number; lateN: number; absentN: number; anomalyCount: number; missingOutDates: string[]; hoursByDate: Map<string, number>; shiftHoursByDate: Record<string, number>; attendanceDays: number; shortfallDays: ShortfallDay[]; /** ★時間帯の時給: 働いた区間（営業日の分 0〜47 時）＝打刻の日・シフトの区間・シフトの無い日・打刻しない店でシフトの時間にした日 */ win: { punch: Map<string, [number, number]>; shift: Map<string, [number, number]>; noShift: Map<string, [number, number]>; storeShift: Set<string>; /** ★0214: 休憩で割った区間（丸め・休憩が効いた日だけ） */ punchSegs?: Map<string, [number, number][]>; noShiftSegs?: Map<string, [number, number][]> }; /** ★0214: 閉じていない休憩のまま退勤がある日（休憩開始〜退勤を休憩にした・要対応に 1 行） */ openBreakDates: string[]; roundNote: { days: number; unit: number; mode: string } | null; /** ★起票170: 勤務の時間から引いた休憩の分の和と日数（明細の注記・0 円＝表示だけ）。引いた日が無ければキーなし */ breakNote?: { min: number; days: number } }>();
   // 受給者判定（確認1・裁定）: final∈{ok,late}（確定シフトがある日に出勤）＝raw のみ（no_shift/absent）は含めない。
   const recipientsByDate = new Map<string, string[]>();
   const todayBiz = bizDateOf(new Date().toISOString(), win.cutoffHm); // ★X-13-27: 営業日の今日（store の cutoff）
@@ -448,6 +448,8 @@ export async function loadPunch(admin: SupabaseClient, storeId: string, win: Pay
     const punchSegs = new Map<string, [number, number][]>(), noShiftSegs = new Map<string, [number, number][]>(), openBreakDates: string[] = []; // ★0214
     let roundNote: { days: number; unit: number; mode: string } | null = null; // ★0213（相談役 11/25 の便 E2）: 丸めが効いた日の数と規則（明細の注記 1 行）
     const noteRound = (adj: { rounding: { unit: number; mode: string } | null } | null) => { if (adj?.rounding && adj.rounding.unit > 1) roundNote = { days: (roundNote?.days ?? 0) + 1, unit: adj.rounding.unit, mode: adj.rounding.mode }; };
+    let breakNote: { min: number; days: number } | null = null; // ★起票170（便 M の M2-8）: 日の窓で引いた休憩の分（時間の計算は変えない＝窓の breakMin を足すだけ）
+    const noteBreak = (w: { breakMin: number } | null) => { if (w && w.breakMin > 0) breakNote = { min: (breakNote?.min ?? 0) + w.breakMin, days: (breakNote?.days ?? 0) + 1 }; };
     for (const d of m.days) {
       const adj = adjOf(cid, d.bizDate); // ★0213／0214: 丸め・休憩の無い日は null＝今の 2 行のまま
       if (!adj) {
@@ -460,6 +462,7 @@ export async function loadPunch(admin: SupabaseClient, storeId: string, win: Pay
         if (w && w.outMin > w.inMin) { punchWin.set(d.bizDate, [w.inMin, w.outMin]); punchSegs.set(d.bizDate, w.segs); }
         if (w?.openBreak) openBreakDates.push(d.bizDate);
         if (w) noteRound(adj);
+        if (w && w.workMin > 0) noteBreak(w); // ★起票170
       }
       const sh = shiftByDate.get(d.bizDate), sid = raw.shiftIds.get(d.bizDate);
       if (sh && sid) shortfallDays.push({ bizDate: d.bizDate, shiftId: sid, startHm: sh.start_hm, endHm: sh.end_hm,
@@ -482,7 +485,7 @@ export async function loadPunch(admin: SupabaseClient, storeId: string, win: Pay
       const ps = raw.punches.filter((p) => bizDateOf(p.punched_at, win.cutoffHm) === d).map((p) => ({ t: new Date(p.punched_at).getTime(), at: p.punched_at, type: p.type })).sort((a, b) => a.t - b.t);
       const fi = ps.find((p) => p.type === "in"); const lo = [...ps].reverse().find((p) => p.type === "out" && fi && p.t > fi.t);
       const adj = fi && lo ? adjOf(cid, d) : null; // ★0213／0214: 丸め・休憩のある日だけ分（秒は切り捨て）にして窓を作る
-      if (adj && fi && lo) { const w = dayWindowOf(minOfBizDay(fi.at, d), minOfBizDay(lo.at, d), adj); if (w && w.workMin > 0) { noShiftHours.set(d, w.workMin / 60); noteRound(adj); } else noShiftHours.delete(d); if (w && w.outMin > w.inMin) { noShiftWin.set(d, [w.inMin, w.outMin]); noShiftSegs.set(d, w.segs); } if (w?.openBreak) openBreakDates.push(d); }
+      if (adj && fi && lo) { const w = dayWindowOf(minOfBizDay(fi.at, d), minOfBizDay(lo.at, d), adj); if (w && w.workMin > 0) { noShiftHours.set(d, w.workMin / 60); noteRound(adj); noteBreak(w); /* ★起票170 */ } else noShiftHours.delete(d); if (w && w.outMin > w.inMin) { noShiftWin.set(d, [w.inMin, w.outMin]); noShiftSegs.set(d, w.segs); } if (w?.openBreak) openBreakDates.push(d); }
       else if (fi && lo) { const a = hm2minOf(liftPunchAt(fi.at, win.cutoffHm).hm), b = a + (lo.t - fi.t) / 60_000; if (b > a) noShiftWin.set(d, [a, b]); } // ★2026-11-25（M4 ア）: 長さは noShiftHoursOf と同じミリ秒の差（分に丸めない＝秒があっても時間と一致）
     }
     // ★便 E（0197 用＝裁定455 の 2）: 打刻しない店（punch_mode='store'）＝打刻が無い日は確定シフトの時間を実働・日数／遅刻／当欠は勤怠（attendance）で決める（今日まで）。フラグ false／'punch' は従来と 1 バイト同値
@@ -496,7 +499,7 @@ export async function loadPunch(admin: SupabaseClient, storeId: string, win: Pay
       // ★0197 フラグ便（裁定456 の 18）: 出勤インセンティブの受給者判定＝確定シフトのある日を出勤扱い（当欠／休みは除く・打刻の final ok／late で既に入っている日は重複させない）
       for (const d of attended) { const list = recipientsByDate.get(d) ?? recipientsByDate.set(d, []).get(d)!; if (!list.includes(cid)) list.push(cid); }
     }
-    result.set(cid, { noShiftHours, noShiftDates, days, lateN, absentN, anomalyCount, missingOutDates, hoursByDate, shiftHoursByDate, attendanceDays, shortfallDays, win: { punch: punchWin, shift: shiftWin, noShift: noShiftWin, storeShift, ...(punchSegs.size ? { punchSegs } : {}), ...(noShiftSegs.size ? { noShiftSegs } : {}) }, openBreakDates: openBreakDates.sort(), roundNote });
+    result.set(cid, { noShiftHours, noShiftDates, days, lateN, absentN, anomalyCount, missingOutDates, hoursByDate, shiftHoursByDate, attendanceDays, shortfallDays, win: { punch: punchWin, shift: shiftWin, noShift: noShiftWin, storeShift, ...(punchSegs.size ? { punchSegs } : {}), ...(noShiftSegs.size ? { noShiftSegs } : {}) }, openBreakDates: openBreakDates.sort(), roundNote, ...((breakNote as { min: number; days: number } | null) ? { breakNote: breakNote as unknown as { min: number; days: number } } : {}) });
   }
   // pooled 端数 +1 の順序を確定させるため cast_id 昇順にソート
   for (const [d, list] of recipientsByDate) recipientsByDate.set(d, list.sort());
@@ -967,6 +970,7 @@ export async function collectPeriod(
       anomalyCount: p?.anomalyCount ?? 0,
       missingOutDates: p?.missingOutDates ?? [], // ★N3 AV-4（表示のみ・fixture は省略可）
       ...(p && p.roundNote ? { punchRoundNote: p.roundNote } : {}), // ★0213（E2）: 丸めが効いた人だけ（明細の注記）
+      ...(p && p.breakNote ? { punchBreakNote: p.breakNote } : {}), // ★起票170（便 M の M2-8）: 休憩を引いた人だけ（明細の「勤務 ○ 時間（休憩 ○ 分を除く）」・0 円）
       ...(p && p.openBreakDates.length ? { openBreakDates: p.openBreakDates } : {}), // ★0214: 閉じていない休憩のまま退勤がある日（ある cast だけ・表示のみ）
       ...(p && p.noShiftDates.length ? { noShiftDates: p.noShiftDates } : {}), // ★便 M-10: シフト無し出勤（ある cast だけ＝凍結形・golden は不変）
       ...(p ? { shiftHoursByDate: p.shiftHoursByDate, attendanceDays: p.attendanceDays } : {}), // ★0154 D2

@@ -21,6 +21,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useLiveReload } from "@/lib/nox/ui/use-live-reload"; // ★便 GV-C C-12: focus／visibility／60 秒で再読込
 import PageHead from "@/components/ui/page-head";
 import Link from "next/link";
+import { useRouter } from "next/navigation"; // ★M2-7
 import { createClient } from "@/lib/supabase/client";
 import { bizDateOf } from "@/lib/nox/biz-date";
 import { fmtWin, hm2min } from "@/lib/nox/shift-time";
@@ -86,6 +87,12 @@ export default function DashboardBoard({ storeId, storeName, cutoff, casts, shor
   // ★裁定192（B1・M6）: owner の閲覧切替＝選択店を state で持ち、読取を store_id で絞る（RLS の範囲内・新規 RPC なし）。
   //   F4 のマルチ店舗切替（memberships 部分 unique の drop＋auth_store_id 差替）とは別層＝ここは owner の閲覧だけ。
   const [curStoreId, setCurStoreId] = useState(storeId);
+  const router = useRouter();
+  // ★相談役 11/26 の便 M の M2-7: ホームで店を選び直したら、左上の店（今見ている店）も同じ店へ切り替える（全店（合計）は見るだけ＝左上は変えない）
+  const pickStore = async (v: string) => {
+    setCurStoreId(v);
+    if (mig0203On() && v) { const r = await fetch("/api/store/current", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ storeId: v }) }).catch(() => null); if (r?.ok) router.refresh(); }
+  };
   const curStore = stores.find((s) => s.id === curStoreId);
   const curStoreName = curStore?.name ?? storeName;
   const curCutoff = curStore?.cutoff ?? cutoff;
@@ -221,7 +228,7 @@ export default function DashboardBoard({ storeId, storeName, cutoff, casts, shor
           {/* ★裁定192（B1・M6）: 店舗セレクタ＝owner かつ 2 店以上のときだけ（件数可変＝プルダウン可・教訓27）。
               manager は RLS で自店 1 件＝店名のみ表示。切替は state と読取の絞り込みだけ＝RPC・DB 不変。 */}
           {isOwner && stores.length > 1 ? (
-            <select value={curStoreId} onChange={(e) => setCurStoreId(e.target.value)} aria-label="店舗を切り替え"
+            <select value={curStoreId} onChange={(e) => void pickStore(e.target.value)} aria-label="店舗を切り替え"
               style={{ ...t.input, width: "auto", padding: "4px 8px", fontSize: 12.5, marginRight: 10 }}>
               {stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
               {mig0203On() && <option value="">全店（合計）</option>}{/* ★0203（■2-f）: 全店＝店で絞らずに読む（owner の RLS は会社の全店）＝出勤・日報の売上・シフト・お知らせの合計 */}

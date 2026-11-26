@@ -3195,7 +3195,7 @@ input[type="date"]::-webkit-date-and-time-value, input[type="time"]::-webkit-dat
 @media (max-width: 430px) { .nox-setup-main [data-setup-rule-head="1"] { flex-wrap: wrap !important; } }
 .nox-setup-main [data-setup-checks] button, .nox-setup-main [data-setup-box] button { white-space: nowrap; flex: 0 0 auto; }
 .nox-setup-foot .in:has(> .why) { flex-wrap: wrap; }
-.nox-setup-foot .in > .why { flex: 1 0 100%; margin: 0 0 4px; padding: 0 8px; text-align: center; font-size: 13px; color: var(--champ); line-height: 1.5; }
+.nox-setup-foot .in > .why { flex: 1 0 100%; margin: 0 0 4px; padding: 0 8px; text-align: center; font-size: 13px; color: var(--bad); /* ★相談役 11/26 の便 M の M2-2: 先へ進めない理由は赤（金色は見出しと飾りだけ） */ line-height: 1.5; }
 @media (max-width: 430px) { .nox-setup-main div:has(> button[data-type]) { grid-template-columns: 1fr !important; } .nox-setup-top .sub .nox-setup-sub-note { display: none; } .nox-setup-main [data-staff-row] label:has(> span + .nox-seg) { grid-column: 1 / -1; } }
 .nox-setup-foot .in { justify-content: center; }
 .nox-setup-foot button { min-height: 52px !important; font-size: 17px !important; padding: 12px 28px !important; border-radius: 12px !important; }

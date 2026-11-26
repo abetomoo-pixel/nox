@@ -55,6 +55,9 @@ import { punchHeadOf, punchStateOf, todayShiftLineOf } from "@/lib/nox/shift/pun
 import { mig0213On, mig0214On } from "@/lib/nox/rules-0175/flag"; // ★0213／0214
 import { dayAdjOfSource, loadDayAdjSource } from "@/lib/nox/punch/day-adj-load"; // ★0213／0214
 import { punchModeOf } from "@/lib/nox/shift/punch-mode"; // ★0213／0214
+import { BREAK_NOT_COUNTED_NOTE, breakDayViewsOf, breakDaySummaryOf, breakMonthLabelOf, breakMonthTotalOf, breakSpanTextOf, type BreakDayView } from "@/lib/nox/punch/break-view"; // ★起票170（便 M の M2-8）: 今月の勤怠一覧に休憩の合計と時刻
+import { loadCastBreakRaw } from "@/lib/nox/punch/break-view-load"; // ★起票170
+import { dayAdjAppliesOf } from "@/lib/nox/punch/day-window"; // ★起票170
 import { mig0201iOn } from "@/lib/nox/rules-0175/flag"; // ★0201i（裁定486）: ホームの件数（未確認・未回答）と出欠の予定
 import { noticeHomePendingTextOf, noticePendingCountOf, rsvpEventsOf, type MyResponse, type RsvpAnswer } from "@/lib/nox/notices/response";
 import { noticeVisibleToCastOf as noticeVisOf0201i } from "@/lib/nox/people/notify-text";
@@ -231,6 +234,12 @@ export default async function MinePage({ searchParams }: { searchParams?: Promis
     ? monthAttendanceRowsStoreOf({ shifts: monthConfirmedShifts.map((s) => ({ date: s.date, start_hm: s.start_hm, end_hm: s.end_hm })), attendance: ((att ?? []) as { date: string; status: string }[]), punchRows: attRowsPunch, todayBiz: bizToday })
     : attRowsPunch;
   const todayRow = attRows.find((r) => r.bizDate === bizToday) ?? null;
+  // ★起票170（便 M の M2-8・起票162 も閉じる）: 今月の勤怠一覧の休憩＝店長の勤怠の表と同じ見え方（勤怠の表の組み立てが読めた時はその breakDays・読めない時は自分の行＝RLS を読む）。旗 false は空
+  const mineBreakCounted = dayAdjAppliesOf({ payTimeBasis: payTimeBasisOf((myStore?.settings_json ?? null) as Record<string, unknown> | null, `${month}-01`), punchMode: punchModeOf((myStore?.settings_json ?? null) as Record<string, unknown> | null) });
+  const mineBreakDays: BreakDayView[] = !mig0214On() || !meCast || !myStore ? [] : kintaiBuilt ? (kintaiBuilt.casts[0]?.breakDays ?? [])
+    : breakDayViewsOf(await loadCastBreakRaw(supabase, myStore.id as string, `${month}-01`, new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)).toISOString().slice(0, 10), meCast.id as string).catch(() => []), meCast.id as string, (bd) => { const r = attRows.find((x) => x.bizDate === bd); return { outHm: r?.outHm ?? null, appliedMin: r?.breakMin ?? null }; }, bizToday, mineBreakCounted);
+  const mineBreakBy = new Map(mineBreakDays.map((b) => [b.bizDate, b]));
+  const mineBreakLabel = breakMonthLabelOf(breakMonthTotalOf(mineBreakDays.filter((b) => attRows.some((r) => r.bizDate === b.bizDate))));
   // ★便 PR-1 R-4（裁定417）: 今日の同伴＝伝票（check_nominations.is_dohan・void 除く・自分の行）→「同伴（A2）」の印＋遅刻扱いなし（今日タブと同じ読み方）
   type DohanRow = { cast_id: string; ended_at: string | null; checks: { status: string; seats: { name: string } | { name: string }[] | null } | { status: string; seats: { name: string } | { name: string }[] | null }[] | null };
   const { data: myDohan } = pDohan ? await pDohan : { data: null };
@@ -360,12 +369,17 @@ export default async function MinePage({ searchParams }: { searchParams?: Promis
                     <td className="num" style={tdL}>{mdLabelOf(r.bizDate)}</td>
                     <td className="num" style={tdR}>{r.inHm ?? "—"}{r.inRoundedHm && r.inRoundedHm !== r.inHm ? <span style={{ fontSize: 11, color: "var(--sub)" }} data-mine-rounded-in={r.inRoundedHm}>（{r.inRoundedHm}）</span> : null}</td>{/* ★0213 */}
                     <td className="num" style={tdR}>{r.outHm ?? "—"}{r.outRoundedHm && r.outRoundedHm !== r.outHm ? <span style={{ fontSize: 11, color: "var(--sub)" }} data-mine-rounded-out={r.outRoundedHm}>（{r.outRoundedHm}）</span> : null}</td>
-                    <td className="num" style={tdR}>{hoursLabelOf(r.hours)}{r.statusJa ? <span style={{ fontSize: 11, color: "var(--sub)", marginLeft: 4 }} data-mine-att-status={r.statusJa}>{r.statusJa}</span> : null}</td>{/* ★0197 フラグ便（裁定456 の 17）: 打刻しない店の状態 */}
+                    <td className="num" style={tdR}>{hoursLabelOf(r.hours)}{r.statusJa ? <span style={{ fontSize: 11, color: "var(--sub)", marginLeft: 4 }} data-mine-att-status={r.statusJa}>{r.statusJa}</span> : null}{(() => { const bv = mineBreakBy.get(r.bizDate); return bv ? (/* ★起票170: 休憩の合計（押すと 1 回ずつの時刻） */
+                      <details style={{ fontSize: 11, color: bv.open === "none" ? "var(--sub)" : bv.open === "on_break" ? "var(--gold2)" : "var(--bad)" }} data-mine-break={bv.totalMin} data-mine-break-open={bv.open}>
+                        <summary style={{ cursor: "pointer" }}>{breakDaySummaryOf(bv)}</summary>
+                        <ul style={{ margin: "2px 0 0", paddingLeft: 14, textAlign: "left", color: "var(--sub)" }}>{bv.spans.map((sp, i) => <li key={i}>{breakSpanTextOf(sp)}</li>)}</ul>
+                      </details>) : null; })()}</td>{/* ★0197 フラグ便（裁定456 の 17）: 打刻しない店の状態 */}
                   </tr>
                 ))}
               </tbody>
             </table>
           )}
+          {mineBreakLabel && <p className="num" style={{ ...noteP, marginTop: 4 }} data-mine-break-total="1">{mineBreakLabel}{mineBreakCounted ? "（実働は休憩を除いた時間）" : `（${BREAK_NOT_COUNTED_NOTE}）`}</p>}{/* ★起票170 */}
           <p style={{ ...noteP, marginTop: 4 }}>{mineStoreMode ? ATTENDANCE_MONTH_NOTE_STORE : ATTENDANCE_MONTH_NOTE}</p>
         </details>
       </section>

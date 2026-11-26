@@ -17,9 +17,18 @@ export default function OpsLoginForm({ again = false }: { /** ★0209（起票15
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true); setErr(null);
-    const { error } = await createClient().auth.signInWithPassword({ email, password });
+    const sb = createClient();
+    const { error } = await sb.auth.signInWithPassword({ email, password });
+    if (error) { setBusy(false); setErr(LOGIN_FAIL_TEXT); return; }
+    // ★相談役 11/26 の便 M2-1: 運営者でない人（店の人など）は 404 にせず、パスワード違いと同じ文でこの画面に留める。
+    //   確かめは今ある /api/auth/ops-self（本人が有効な運営者かの真偽だけ）。分からないときも通さない。作られたセッションはこの端末の分だけ消す（scope local＝ほかの端末の店の画面は切らない）。
+    let isOps = false;
+    try { const r = await fetch("/api/auth/ops-self", { cache: "no-store" }); const j = (await r.json().catch(() => ({}))) as { ops?: boolean }; isOps = r.ok && j.ops === true; } catch { isOps = false; }
+    if (!isOps) {
+      try { await sb.auth.signOut({ scope: "local" }); } catch { /* 消せなくても文は同じ */ }
+      setBusy(false); setErr(LOGIN_FAIL_TEXT); return;
+    }
     setBusy(false);
-    if (error) { setErr(LOGIN_FAIL_TEXT); return; }
     router.replace("/ops/mfa");
     router.refresh();
   }

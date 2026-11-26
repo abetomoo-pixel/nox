@@ -84,7 +84,9 @@ export const newOrgConfirmOf = (f: NewOrgForm): string => `${f.orgName.trim()} �
 export const REFERRAL_FIELD_NOTE = "最初の契約の前に、Yuiba の代理店の画面のコードと同じものを入れてください";
 export const ROUTE_FIELD_NOTE = "報酬の帰属は Yuiba で管理しています。ここを変えても報酬の行き先は変わりません";
 export const TESTER_NOTE = "契約の画面を押さないよう伝えてください。テストを終えるときは詳細の画面で戻します";
-export const LOGIN_FAIL_TEXT = "メールかパスワードが違います";   // 運営者でない人にも同じ文（運営の画面があることを教えない）
+/** 運営者でない人（店の人・運営者の行が無い人・止めた運営者）にもパスワード違いと同じ文（運営の画面があることを教えない）。
+ *  ★相談役 11/26 の便 M2-1: 運営者でない人がログインしても 404 にせず、この文でログインの画面に留める（作られたセッションは消す＝店の人としてログインしたままにしない）。 */
+export const LOGIN_FAIL_TEXT = "ログインできません。メールアドレスかパスワードをご確認ください";
 
 /** 関数の例外の文 → 画面の文 */
 const ERR: Record<string, string> = {

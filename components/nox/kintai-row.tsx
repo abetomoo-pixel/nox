@@ -10,6 +10,7 @@ import { BASIS_MARK, correctionTextOf, flagsTextOf, hm47Ja, kintaiOutCellOf, typ
 import { backsDetailTextOf, yenCellOf } from "@/lib/nox/payroll/daily-pay";
 import { roundedCellOf } from "@/lib/nox/punch/day-window"; // ★0213
 import { hoursMinutesJaOf } from "@/lib/nox/mine/attendance-month"; // ★2026-11-13（相談役【3】b）: 時間は「◯ 時間 ◯ 分」
+import { BREAK_NOT_COUNTED_NOTE, breakDayViewOfAdj, breakDaySummaryOf, breakSpanTextOf, type BreakDayView } from "@/lib/nox/punch/break-view"; // ★起票170（便 M の M2-8）: 休憩の合計と時刻（開くと 1 回ずつ）
 
 export const KINTAI_HEADS = ["日付", "確定シフト", "出", "退", "店の修正", "遅刻・当欠・早退", "実働", "送り", "備考"] as const;
 export const KINTAI_PAY_HEADS = ["時給分", "バック", "罰金・減額", "控除", "日計"] as const; // ★0195（裁定447 ③）: 「控除」列＝その日に引いた日ごとの控除
@@ -26,7 +27,9 @@ export function KintaiHead({ withPay = false, wageOnly = false }: { withPay?: bo
   );
 }
 
-export default function KintaiRow({ r, withBy, onEdit, withPay = r.pay !== undefined, onFix, onConfirmShift, wageCell }: { r: AttendanceDayRow; castId?: string; storeId?: string; withBy: boolean; link?: boolean; onEdit?: ((r: AttendanceDayRow) => void) | null; withPay?: boolean;
+export default function KintaiRow({ r, withBy, onEdit, withPay = r.pay !== undefined, onFix, onConfirmShift, wageCell, breakDay }: { r: AttendanceDayRow; castId?: string; storeId?: string; withBy: boolean; link?: boolean; onEdit?: ((r: AttendanceDayRow) => void) | null; withPay?: boolean;
+  /** ★起票170: その日の休憩（勤怠の表の breakDays）。渡されなければ行の adj.breaks から作る（休憩を時間から引く店だけ） */
+  breakDay?: BreakDayView | null;
   /** ★便 A M-68: スタッフの「時給分」＝時給 × その日の実働（時給制だけ・月給／日給と勤務中は null＝「—」）。undefined＝列を出さない */
   wageCell?: number | null;
   /** ★便 M-14 ①: 退勤／出勤記録なしを押すと時刻修正（今日タブと同じ部品）。null＝押せない（/mine・確定済みの月） */
@@ -43,6 +46,7 @@ export default function KintaiRow({ r, withBy, onEdit, withPay = r.pay !== undef
     : <span className="num" data-kintai-date={r.bizDate}>{day}</span>;
   const p = r.pay ?? null;
   const dim: React.CSSProperties = r.cancelled ? { opacity: 0.75 } : {}; // ★M-139: 取消の行も文字は AA
+  const bv = breakDay ?? breakDayViewOfAdj(r); // ★起票170
   return (
     <>
       <tr data-kintai-day={r.bizDate} data-missing-out={r.missingOut ? "1" : undefined} data-cancelled={r.cancelled ? "1" : undefined} style={{ cursor: "pointer", ...dim }} onClick={() => setOpen((v) => !v)}>
@@ -64,7 +68,14 @@ export default function KintaiRow({ r, withBy, onEdit, withPay = r.pay !== undef
             <ul style={{ margin: "4px 0 0", paddingLeft: 16, fontSize: 11.5 }}>{r.corrections.map((c, i) => <li key={i}>{correctionTextOf(c, withBy)}</li>)}</ul>
           </details>) : "—"}</td>
         <td className="opt" style={{ ...t.td, color: r.absent || r.late ? "var(--gold2)" : undefined }}>{flags || "—"}</td>
-        <td className="opt num" style={{ ...t.td, textAlign: "right", whiteSpace: "nowrap" }}>{hoursTxt}{r.adj && (r.adj.breakMin > 0 || r.adj.openBreak) && <span style={{ display: "block", fontSize: 10.5, color: r.adj.openBreak ? "var(--bad)" : "var(--sub)" }} data-kintai-break={r.adj.breakMin}>{r.adj.openBreak ? "休憩の終了なし（退勤まで休憩）" : `休憩 ${r.adj.breakMin} 分`}</span>}{/* ★0214 */}{r.hours > 0 && <span style={{ fontSize: 10.5, color: "var(--sub)", marginLeft: 4, whiteSpace: "nowrap" }} data-kintai-basis={r.basis}>{BASIS_MARK[r.basis]}</span>}</td>{/* ★便 A M-68: 「実打刻」の 3 文字はスマホ幅でも 1 行 */}
+        <td className="opt num" style={{ ...t.td, textAlign: "right", whiteSpace: "nowrap" }}>{hoursTxt}{bv && (/* ★0214 → ★起票170（便 M の M2-8）: 休憩の合計（開くと 1 回ずつの時刻）・閉じていない休憩の扱い・店長は「休憩を直す」 */
+          <details onClick={(e) => e.stopPropagation()} style={{ display: "block", fontSize: 10.5, whiteSpace: "normal", minWidth: 120, color: bv.open === "none" ? "var(--sub)" : bv.open === "on_break" ? "var(--gold2)" : "var(--bad)" }} data-kintai-break={bv.totalMin} data-kintai-break-open={bv.open}>
+            <summary style={{ cursor: "pointer" }}>{breakDaySummaryOf(bv)}</summary>
+            <ul style={{ margin: "2px 0 0", paddingLeft: 14, textAlign: "left", color: "var(--sub)" }}>{bv.spans.map((s, i) => <li key={i} data-kintai-break-span={i}>{breakSpanTextOf(s)}</li>)}</ul>
+            {!bv.counted && <span style={{ display: "block", textAlign: "left", color: "var(--sub)" }} data-kintai-break-not-counted="1">{BREAK_NOT_COUNTED_NOTE}</span>}
+            {onEdit && !r.cancelled && r.inHm && <button type="button" className="nox-link" style={{ fontSize: 10.5 }} onClick={(e) => { e.stopPropagation(); onEdit(r); }} data-kintai-break-edit={r.bizDate}>休憩を直す</button>}
+          </details>
+        )}{r.hours > 0 && <span style={{ fontSize: 10.5, color: "var(--sub)", marginLeft: 4, whiteSpace: "nowrap" }} data-kintai-basis={r.basis}>{BASIS_MARK[r.basis]}</span>}</td>{/* ★便 A M-68: 「実打刻」の 3 文字はスマホ幅でも 1 行 */}
         <td className="opt" style={t.td}>{r.okuri.n > 0 ? `${r.okuri.n}${r.okuri.modes.length ? `（${r.okuri.modes.join("・")}）` : ""}` : "—"}</td>
         <td className="opt" style={{ ...t.td, fontSize: 12 }}>{r.note || "—"}</td>
         {withPay && (<>
@@ -79,6 +90,7 @@ export default function KintaiRow({ r, withBy, onEdit, withPay = r.pay !== undef
       {open && (
         <tr className="nox-kintai-more" data-kintai-more={r.bizDate}><td colSpan={9 + (withPay ? KINTAI_PAY_HEADS.length : 0)} style={{ ...t.td, fontSize: 12, color: "var(--sub)" }}>
           確定シフト {r.shift ? `${r.shift.start}–${hm47Ja(r.shift.end)}` : "—"}／実働 {hoursTxt}{r.hours > 0 ? `（${BASIS_MARK[r.basis]}）` : ""}／{flags || "遅刻・当欠・早退なし"}／送り {r.okuri.n > 0 ? `${r.okuri.n}（${r.okuri.modes.join("・")}）` : "なし"}／{r.corrections.length > 0 ? r.corrections.map((c) => correctionTextOf(c, withBy)).join(" / ") : "店の修正なし"}{r.note ? `／${r.note}` : ""}
+          {bv && <><br /><span data-kintai-more-break={bv.totalMin}>{breakDaySummaryOf(bv)}：{bv.spans.map(breakSpanTextOf).join("・")}</span></>}{/* ★起票170: 390px は休憩の列が隠れる＝開いた行に出す */}
           {withPay && p && <><br />時給分 {yenCellOf(p.wage)}{p.hourly ? `（¥${p.hourly.toLocaleString("en-US")}/h × ${hoursMinutesJaOf(p.hours)}）` : ""}／バック {yenCellOf(p.backs.total)}{p.backs.total !== 0 ? `（${backsDetailTextOf(p.backs)}）` : ""}／罰金・減額 {yenCellOf(p.fine, { neg: true })}{p.fineNotes.length ? `（${p.fineNotes.join("・")}）` : ""}／控除 {yenCellOf(p.ded, { neg: true })}{p.dedNotes.length ? `（${p.dedNotes.join("・")}）` : ""}／日計 {yenCellOf(p.total)}</>}
         </td></tr>
       )}

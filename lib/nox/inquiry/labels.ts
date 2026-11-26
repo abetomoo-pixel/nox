@@ -1,11 +1,11 @@
 // ★0212（窓口の段 1・裁定426 の改め・相談役 11/25 の決め【D7】）: 店から運営への問い合わせの札・検査・ポイントの表示・メールの文（DB を知らない純関数）。
 //   送れるのはオーナーと店長（2 店舗目の依頼はオーナーだけ）・状態は 受付／確認中／対応済み／見送り・対応済みと見送りには店は返事できない（新しく送る）。
 //   ポイントは会社ごと・見せるのはオーナーだけ・表示は「7pt／10pt」（右は 10 ごとの次の区切り・区切りの意味の文は段 1 では出さない）。
-//   添付は作らない（写しは support@noxapp.jp へ）。運営へは新しい問い合わせのときだけメール（中身は入れない＝種類・会社名・/ops へのリンクだけ）。
+//   添付は作らない（写しは support@noxapp.jp へ）。運営へは新しい問い合わせと店の返事のときにメール（中身は入れない＝会社名・種類・件名・/ops へのリンクだけ・★M2-5 で宛先は有効な運営者の全員）。
 
 export const INQUIRY_KINDS = ["request", "bug", "question", "store_add"] as const;
 export type InquiryKind = (typeof INQUIRY_KINDS)[number];
-export const INQUIRY_KIND_LABEL: Record<InquiryKind, string> = { request: "要望", bug: "不具合", question: "質問", store_add: "2 店舗目の依頼" };
+export const INQUIRY_KIND_LABEL: Record<InquiryKind, string> = { request: "要望", bug: "不具合", question: "質問", store_add: "店舗の追加の依頼" };   // ★相談役 11/26 の便 M2-6: 「2 店舗目の依頼」→「店舗の追加の依頼」（DB の kind は store_add のまま＝札だけ）
 /** 送れる種類（店長は 2 店舗目の依頼を送れない） */
 export const inquiryKindsFor = (role: string | null | undefined): InquiryKind[] => (role === "owner" ? [...INQUIRY_KINDS] : role === "manager" ? ["request", "bug", "question"] : []);
 
@@ -53,7 +53,7 @@ export function storeAddAskErrOf(a: StoreAddAsk & { note: string; storeNames: re
   if (a.storeNames.includes(n)) return "同じ名前の店があります";
   if (!INQUIRY_BIZ_LABEL[a.biz_type]) return "業態を選んでください";
   if (a.copy_from && a.parts.length === 0) return "写すものを 1 つ以上選んでください（写さないなら「写さない」に）";
-  if (!a.copy_from && a.parts.length > 0) return "写し元の店を選んでください";
+  if (!a.copy_from && a.parts.length > 0) return "設定を写す元の店を選んでください";
   if (!(INQUIRY_START as readonly string[]).includes(a.start)) return "始めたい時期を選んでください";
   if (a.note.trim().length > INQUIRY_NOTE_MAX) return `ひとことは ${INQUIRY_NOTE_MAX} 字までです`;
   return null;
@@ -94,23 +94,51 @@ export const inquiryAtOf = (iso: string): string => {
   return `${d.getUTCMonth() + 1}/${d.getUTCDate()} ${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
 };
 
-// ── 運営へのメール（中身は入れない＝種類・会社名・/ops へのリンクだけ） ──
+// ── 運営へのメール（中身は入れない＝会社名・種類・件名・/ops へのリンクだけ） ──
+// ★相談役 11/26 の便 M2-5: 宛先は有効な運営者の全員（ops_operators の is_active）。有効な運営者が 0 人のときだけ support@noxapp.jp（OPS_INQUIRY_MAIL_TO）。
+//   新しい問い合わせと店の返事の両方。本文（やりとりの中身）は載せない・件名（60 字まで）は 1 行に畳んで載せる。結果は運営者ごとに ops_audit_logs に 1 行（OPS_INQUIRY_MAIL_ACTION）。
 export const OPS_INQUIRY_MAIL_TO = INQUIRY_SUPPORT_MAIL;
 export const OPS_INQUIRY_URL_BASE = "https://noxapp.jp/ops/inquiries";
-export function opsInquiryMailOf(a: { kind: string; orgName: string; inquiryId: string }): { subject: string; text: string } {
+/** 件名を 1 行に畳む（改行・連続の空白を 1 つの空白に・60 字まで） */
+export const inquirySubjectLineOf = (s: string | null | undefined): string => String(s ?? "").replace(/\s+/g, " ").trim().slice(0, INQUIRY_SUBJECT_MAX) || "—";
+function opsMailLinesOf(head: string, a: { kind: string; orgName: string; inquiryId: string; subject?: string | null }): string {
   const kind = INQUIRY_KIND_LABEL[a.kind as InquiryKind] ?? "問い合わせ";
-  return {
-    subject: `【NOX】新しい問い合わせ（${kind}）`,
-    text: [`新しい問い合わせが届きました。`, ``, `種類：${kind}`, `会社：${a.orgName}`, `番号：${inquiryNoOf(a.inquiryId)}`, ``, `運営コンソールで開く：${OPS_INQUIRY_URL_BASE}/${a.inquiryId}`, ``, `（内容はメールに載せていません。運営コンソールで読んでください）`, `NOX（株式会社レクソル）`].join("\n"),
-  };
+  return [head, ``, `会社：${a.orgName}`, `種類：${kind}`, `件名：${inquirySubjectLineOf(a.subject)}`, `番号：${inquiryNoOf(a.inquiryId)}`, ``, `運営コンソールで開く：${OPS_INQUIRY_URL_BASE}/${a.inquiryId}`, ``, `（内容はメールに載せていません。運営コンソールで読んでください）`, `NOX（株式会社レクソル）`].join("\n");
+}
+export function opsInquiryMailOf(a: { kind: string; orgName: string; inquiryId: string; subject?: string | null }): { subject: string; text: string } {
+  const kind = INQUIRY_KIND_LABEL[a.kind as InquiryKind] ?? "問い合わせ";
+  return { subject: `【NOX】新しい問い合わせ（${kind}）`, text: opsMailLinesOf("新しい問い合わせが届きました。", a) };
 }
 /** ★F1（相談役 11/25）: 店が返事をしたときも運営へ知らせる（中身は載せない・新しい問い合わせと同じ形） */
-export function opsInquiryReplyMailOf(a: { kind: string; orgName: string; inquiryId: string }): { subject: string; text: string } {
+export function opsInquiryReplyMailOf(a: { kind: string; orgName: string; inquiryId: string; subject?: string | null }): { subject: string; text: string } {
   const kind = INQUIRY_KIND_LABEL[a.kind as InquiryKind] ?? "問い合わせ";
-  return {
-    subject: `【NOX】問い合わせに店から返事（${kind}）`,
-    text: [`問い合わせに店から返事が届きました。`, ``, `種類：${kind}`, `会社：${a.orgName}`, `番号：${inquiryNoOf(a.inquiryId)}`, ``, `運営コンソールで開く：${OPS_INQUIRY_URL_BASE}/${a.inquiryId}`, ``, `（内容はメールに載せていません。運営コンソールで読んでください）`, `NOX（株式会社レクソル）`].join("\n"),
-  };
+  return { subject: `【NOX】問い合わせに店から返事（${kind}）`, text: opsMailLinesOf("問い合わせに店から返事が届きました。", a) };
+}
+/** ★M2-5: 運営者あてのメールの記録（ops_audit_logs.action・運営者ごとに 1 行・ops_user_id＝宛先の運営者） */
+export const OPS_INQUIRY_MAIL_ACTION = "ops.inquiry.mail";
+export type OpsMailStatus = "sent" | "skipped" | "failed";
+/** 送るかどうか（運営者あて）。送らないなら理由の語（英小文字と数字と _）。鍵は送る部品（sendNoxMail）の側でも見る＝二重 */
+export function opsMailSkipReasonOf(o: { orgName: string | null | undefined; hasKey: boolean; vercelEnv: string | undefined }): string | null {
+  const org = opsInquiryMailSkipOf(o.orgName);
+  if (org) return org;
+  if (!o.hasKey) return "no_key";
+  if (o.vercelEnv !== "production") return "not_production";
+  return null;
+}
+/** 宛先の運営者ごとの結果 → 問い合わせ 1 件の結果（1 人でも送れたら sent・送れた人がいなくて失敗があれば failed・ほかは skipped） */
+export function opsMailAggregateOf(rs: readonly { status: OpsMailStatus; reason?: string }[]): { status: OpsMailStatus; reason: string | null } {
+  if (rs.some((r) => r.status === "sent")) return { status: "sent", reason: null };
+  const f = rs.find((r) => r.status === "failed");
+  if (f) return { status: "failed", reason: mailReasonOf(f.reason) };
+  return { status: "skipped", reason: mailReasonOf(rs[0]?.reason ?? "no_operators") };
+}
+/** 理由の語を記録の形に（英小文字と数字と _ の 40 字まで・ほかは error）＝inquiry_mail_note の検査と同じ線 */
+export const mailReasonOf = (r: string | null | undefined): string | null => (r == null ? null : /^[a-z0-9_]{1,40}$/.test(r) ? r : "error");
+/** 記録の 1 行（運営の画面） */
+export function opsInquiryMailLogOf(after: Record<string, unknown>): string {
+  const ev = after.event === "reply" ? "店の返事" : "新しい問い合わせ";
+  const st = after.status === "sent" ? "送った" : after.status === "failed" ? `送れなかった（${String(after.reason ?? "—")}）` : `送っていない（${String(after.reason ?? "—")}）`;
+  return `${ev}のお知らせメール（この運営者あて）：${st}`;
 }
 /** ★F1（相談役 11/25）: 見送りの理由は運営の発言として店にも見せる（状態を見送りに変えた時だけ・やりとりに 1 行） */
 export const inquiryDeclineMessageOf = (reason: string): string => `見送りにしました。理由：${reason.trim()}`;
@@ -130,7 +158,7 @@ export function inquiryErrJa(m: string | null | undefined): string {
   if (s.includes("dup store")) return "同じ名前の店があります";
   if (s.includes("bad name")) return "店名を入れてください（40 字まで）";
   if (s.includes("bad biz type")) return "業態を選んでください";
-  if (s.includes("copy from not ready")) return "写し元の店の初期設定が済んでいません";
+  if (s.includes("copy from not ready")) return "設定を写す元の店の初期設定が済んでいません";
   if (s.includes("bad copy from") || s.includes("bad parts")) return "写すものの選び方が違います";
   if (s.includes("bad start")) return "始めたい時期を選んでください";
   if (s.includes("bad subject")) return `件名は 1〜${INQUIRY_SUBJECT_MAX} 字です`;
@@ -146,11 +174,11 @@ export function opsInquiryErrJa(m: string | null | undefined): string {
   if (s.includes("reason required")) return "理由を入れてください";
   if (s.includes("bad reason")) return `理由は ${INQUIRY_NOTE_MAX} 字までです`;
   if (s.includes("bad points")) return "その種類に付けられる数の外です（不具合 1〜3・要望 1〜5）";
-  if (s.includes("no points")) return "質問と 2 店舗目の依頼にはポイントを付けません";
+  if (s.includes("no points")) return "質問と店舗の追加の依頼にはポイントを付けません";
   if (s.includes("already granted")) return "この問い合わせにはもう付けました（付けられるのは 1 回）";
   if (s.includes("already revoked")) return "もう取り消しました";
   if (s.includes("not granted")) return "まだ付けていません";
-  if (s.includes("not store add")) return "2 店舗目の依頼ではありません";
+  if (s.includes("not store add")) return "店舗の追加の依頼ではありません";
   if (s.includes("closed")) return "見送りにした依頼です";
   if (s.includes("bad status")) return "状態の値が違います";
   if (s.includes("bad body")) return `返事は 1〜${INQUIRY_BODY_MAX} 字です`;
@@ -166,15 +194,16 @@ export function opsInquiryLogWhatOf(action: string, after: Record<string, unknow
     case "ops.inquiry.status": return `問い合わせの状態を「${INQUIRY_STATUS_LABEL[String(after.status) as InquiryStatus] ?? String(after.status ?? "—")}」に`;
     case "ops.inquiry.points": return `問い合わせにポイントを付けた（+${String(after.points ?? "—")}pt・残り ${String(after.balance ?? "—")}pt）`;
     case "ops.inquiry.points_revoke": return `問い合わせのポイントを取り消した（残り ${String(after.balance ?? "—")}pt）`;
-    case "ops.inquiry.store_add": return "2 店舗目の依頼から店を足した";
+    case "ops.inquiry.store_add": return "店舗の追加の依頼から店を足した";
+    case OPS_INQUIRY_MAIL_ACTION: return opsInquiryMailLogOf(after);
     default: return null;
   }
 }
 
 // ── 入口（マスタ › 店舗・運用のカード・起票152 のサポート許可のカードと同じ形・MASTER_NAV の入口の数は変えない） ──
 export const INQUIRY_PATH = "/master/inquiry";
-export const INQUIRY_CARD = { label: "運営への問い合わせ", href: INQUIRY_PATH, desc: "要望・不具合・質問・2 店舗目の依頼" } as const;
-export const INQUIRY_SEARCH_WORDS: readonly string[] = ["問い合わせ", "要望", "不具合", "質問", "運営", "2 店舗目", "店舗追加", "ポイント"];
+export const INQUIRY_CARD = { label: "運営への問い合わせ", href: INQUIRY_PATH, desc: "要望・不具合・質問・店舗の追加の依頼" } as const;
+export const INQUIRY_SEARCH_WORDS: readonly string[] = ["問い合わせ", "要望", "不具合", "質問", "運営", "2 店舗目", "店舗の追加", "店舗追加", "ポイント"];   // 「2 店舗目」は探す語だけ（画面には出さない・M2-6 の後も探せるように残す）
 export function inquiryCardHitOf(q: string): boolean {
   const s = q.trim().toLowerCase();
   if (!s) return true;

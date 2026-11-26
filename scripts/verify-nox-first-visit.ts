@@ -152,16 +152,16 @@ const rcpt = (lines: ReceiptLine[], due: number, s: CheckDueSettings) => buildRe
 const rl1: ReceiptLine[] = [{ name_snapshot: "初回料金(60分) 税・サ込", qty: 1, unit_price_snapshot: 1500, line_total: 1500, kind: "time", fee_kind: "set", block_no: 0, tax_category: "taxable_10", all_in: true }, { name_snapshot: "ドリンク", qty: 1, unit_price_snapshot: 2000, line_total: 2000, kind: "custom", tax_category: "taxable_10" }];
 const x1 = rcpt(rl1, 4500, V);
 const yenOf = (label: string, xml: string) => { const m = new RegExp(label + "\\s+-?¥([\\d,]+)").exec(xml); return m ? Number(m[1].replace(/,/g, "")) : null; };
-ok("(3-1) 明細に「初回料金(60分) 税・サ込」¥1,500・金額段に「税・サ込みの料金」¥1,500", x1.includes("初回料金(60分) 税・サ込") && yenOf("税・サ込みの料金", x1) === 1500);
+ok("(3-1) 明細に「初回料金(60分) 税・サ込」¥1,500・金額段に「料金（税・サービス料込）」¥1,500", x1.includes("初回料金(60分) 税・サ込") && yenOf("料金（税・サービス料込）", x1) === 1500);
 ok("(3-2) 外税の店でも税込みの書き方＝「消費税(10%)」の行なし・「（内消費税10%）」floor(4,500×10/110)＝409 の 1 行", !x1.includes("消費税(10%)") && yenOf("（内消費税10%）", x1) === 409);
 ok("(3-3) 通常分＝小計(通常分) 2,000・サービス料 600・消費税・端数調整 400（列の和が合計 4,500）", yenOf("小計\\(通常分\\)", x1) === 2000 && yenOf("サービス料\\(30%\\)", x1) === 600 && yenOf("消費税・端数調整", x1) === 400 && yenOf("合計", x1) === 4500, [yenOf("小計\\(通常分\\)", x1), yenOf("サービス料\\(30%\\)", x1), yenOf("消費税・端数調整", x1)]);
 const x2 = rcpt([rl1[0], { name_snapshot: "割引", qty: 1, unit_price_snapshot: 500, line_total: 500, kind: "discount", tax_category: "taxable_10" }], 1000, V);
 ok("(3-4) 割引 500（通常分 0）＝小計(通常分) 0・割引 -500・税・サ込み 1,500・合計 1,000（調整の行なし）", yenOf("小計\\(通常分\\)", x2) === 0 && yenOf("割引", x2) === 500 && !x2.includes("端数調整") && yenOf("合計", x2) === 1000);
 const x3 = rcpt([{ ...rl1[0], all_in: false, name_snapshot: "セット料金(60分)" }, rl1[1]], 5000, V);
-ok("(3-5) 込みの行が無い伝票は今の書き方（小計・消費税(10%)）", x3.includes("消費税(10%)") && !x3.includes("税・サ込みの料金") && !x3.includes("小計(通常分)"));
+ok("(3-5) 込みの行が無い伝票は今の書き方（小計・消費税(10%)）", x3.includes("消費税(10%)") && !x3.includes("料金（税・サービス料込）") && !x3.includes("小計(通常分)"));
 // ★0210 版 2（【F5】）: 案 R1 は税理士の答えが出るまで本番に出さない＝旗 FIRST_VISIT_RECEIPT_R1（既定 false）の後ろ。呼び手が "r1" を渡さなければ今の書き方
 const x6 = buildReceiptXml({ store: { name: "VESPER", address: "", tel: "", reg_no: "T1234567890123", footer: "" }, check: { id: "11111111-2222-3333-4444-555555555555", closed_at: "2026-11-25T14:00:00Z", nom_type: "free" }, payGroup: "A", lines: rl1, payments: [], serviceRate: 30, groupDue: 4500, isReprint: false, taxSettings: taxIn(V) } as unknown as ReceiptInput);
-ok("(3-6) 案 R1 は渡したときだけ＝渡さない（旗 false）と「税・サ込みの料金」「小計(通常分)」の段は出ない", !x6.includes("税・サ込みの料金") && !x6.includes("小計(通常分)") && x6.includes("消費税(10%)"));
+ok("(3-6) 案 R1 は渡したときだけ＝渡さない（旗 false）と「料金（税・サービス料込）」「小計(通常分)」の段は出ない", !x6.includes("料金（税・サービス料込）") && !x6.includes("小計(通常分)") && x6.includes("消費税(10%)"));
 const route0 = fs.readFileSync("app/api/print/poll/[store_token]/route.ts", "utf8");
 ok("(3-7) 旗 FIRST_VISIT_RECEIPT_R1 は true（相談役 11/25 の便 H1）・印刷は 2 つの旗がそろったときだけ \"r1\" を渡す", (FIRST_VISIT_RECEIPT_R1 as boolean) === true && firstVisitReceiptR1On() === true && route0.includes('allInLayout: mig0210On() && firstVisitReceiptR1On() ? "r1" : null'));
 

@@ -5,6 +5,7 @@ import { requireOperatorAdminPage } from "@/lib/nox/ops/require-operator";
 import type { OpsOperatorLog, OpsOperatorRow } from "@/lib/nox/ops/operators";
 import OpsShell from "../ops-shell";
 import OperatorsBoard from "./operators-board";
+import { opsInquiryWaitingCountOf } from "@/lib/nox/ops/inquiry-waiting"; // ★M2-4: 上の帯の未対応の数
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +19,7 @@ export default async function OpsOperatorsPage() {
   const logRows: OpsOperatorLog[] = ((logs ?? []) as { id: string; at: string; ops_user_id: string; action: string; target: string | null; before_json: unknown; after_json: unknown; reason: string | null }[])
     .map((l) => ({ id: l.id, at: l.at, who: nameOf.get(l.ops_user_id) ?? "運営", action: l.action, target: l.target ? (nameOf.get(l.target.replace(/^ops_operators:/, "")) ?? "（消した人）") : null, before: l.before_json, after: l.after_json, reason: l.reason }));
   return (
-    <OpsShell name={op.name} role={op.role}>
+    <OpsShell name={op.name} role={op.role} waiting={await opsInquiryWaitingCountOf(admin)}>
       {error ? <p role="alert" style={{ color: "var(--bad)" }}>運営者の一覧を読めませんでした</p> : <OperatorsBoard rows={rows} logs={logRows} />}
     </OpsShell>
   );

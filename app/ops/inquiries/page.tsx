@@ -32,10 +32,22 @@ export default async function OpsInquiriesPage({ searchParams }: { searchParams:
   const waiting = all.filter(opsInquiryWaitingOf);
   const shown = f === "all" ? all : f === "open" ? all.filter((r) => !inquiryClosedOf(r.status)) : waiting;
   return (
-    <OpsShell name={op.name} role={op.role}>
+    <OpsShell name={op.name} role={op.role} waiting={waiting.length}>
       <div style={{ maxWidth: 960, margin: "0 auto" }} data-ops-inquiries="1">
         <h1 style={{ fontSize: 18, margin: "0 0 8px" }}>問い合わせ</h1>
         <p style={{ margin: "0 0 10px", fontSize: 14 }} data-ops-inquiry-waiting={waiting.length}>未対応 <b>{waiting.length}</b> 件（最後が店の発言で、対応済み・見送りでないもの）</p>
+        {waiting.length > 0 && (/* ★相談役 11/26 の便 M2-4: 未対応のカード（会社名・種類・件名・届いた時刻・「開く」は中央）・0 件のときは出さない */
+          <section aria-label="未対応の問い合わせ" data-ops-inquiry-waiting-cards={waiting.length} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 10, marginBottom: 14 }}>
+            {waiting.map((r) => (
+              <div key={r.id} style={{ ...t.card, display: "grid", gap: 6, padding: "12px 14px", borderColor: "var(--danger)" }} data-ops-inquiry-waiting-card={r.id}>
+                <span style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", fontSize: 13 }}><span className="nox-stpill bad">未対応</span><b style={{ overflowWrap: "anywhere" }}>{orgName.get(r.org_id) ?? "—"}</b></span>
+                <span style={{ fontSize: 13 }}><span className="nox-stpill" style={{ marginRight: 6 }}>{INQUIRY_KIND_LABEL[r.kind as InquiryKind] ?? r.kind}</span><span style={{ overflowWrap: "anywhere" }}>{r.subject}</span></span>
+                <span style={{ ...t.sub, fontSize: 12 }}>届いた時刻 {inquiryAtOf(r.last_at)}</span>
+                <div className="nox-actions" style={{ justifyContent: "center", marginTop: 2 }}><Link href={`/ops/inquiries/${r.id}`} style={{ ...t.btnGold, ...t.btnSm, textDecoration: "none" }} data-ops-inquiry-open={r.id}>開く</Link></div>
+              </div>
+            ))}
+          </section>
+        )}
         {near.length > 0 && <p style={{ margin: "0 0 10px", fontSize: 14 }} data-ops-inquiry-near={near.length}><span className="nox-stpill warn">上限に近い</span> {near.map(([o, n]) => `${orgName.get(o) ?? "—"}（${inquiryOpenNearTextOf(n)}）`).join("・")}＝受付と確認中が 30 件になると、その会社は新しく送れません</p>}
         <div className="nox-seg" role="group" aria-label="絞り込み" style={{ marginBottom: 12, flexWrap: "wrap" }}>
           {FILTERS.map(([k, l]) => <Link key={k} href={`/ops/inquiries?f=${k}`} className={f === k ? "on" : ""} aria-current={f === k ? "page" : undefined} style={{ textDecoration: "none" }}>{l}</Link>)}
@@ -46,7 +58,7 @@ export default async function OpsInquiriesPage({ searchParams }: { searchParams:
               <li key={r.id} data-ops-inquiry-row={r.id}>
                 <Link href={`/ops/inquiries/${r.id}`} style={{ ...t.card, display: "grid", gap: 4, textDecoration: "none", color: "inherit", padding: "10px 12px" }}>
                   <span style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", fontSize: 13 }}>
-                    {opsInquiryWaitingOf(r) && <span className="nox-stpill warn">未対応</span>}
+                    {opsInquiryWaitingOf(r) && <span className="nox-stpill bad">未対応</span>}
                     {inquiryOpenNearOf(openBy.get(r.org_id) ?? 0) && <span className="nox-stpill warn" data-ops-inquiry-near-row="1">{inquiryOpenNearTextOf(openBy.get(r.org_id) ?? 0)}</span>}
                     <span className="nox-stpill">{INQUIRY_STATUS_LABEL[r.status as InquiryStatus] ?? r.status}</span>
                     <span className="nox-stpill">{INQUIRY_KIND_LABEL[r.kind as InquiryKind] ?? r.kind}</span>

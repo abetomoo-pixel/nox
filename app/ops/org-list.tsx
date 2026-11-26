@@ -10,7 +10,7 @@ import { opsContractOf, opsProgressSummaryOf, opsVisibleOf, OPS_HIDDEN_KINDS, ty
 
 const toneClass = (tone: string) => (tone === "ok" ? "nox-stpill ok" : tone === "warn" ? "nox-stpill warn" : tone === "bad" ? "nox-stpill bad" : "nox-stpill");
 
-export default function OrgList({ rows, billing = {}, nowIso }: { rows: OpsOrgRow[]; /** ★起票154: 会社ごとの契約（org_billing・無い会社はキーなし） */ billing?: Record<string, Pick<OpsBilling, "cancel_at_period_end" | "current_period_end">>; nowIso?: string }) {
+export default function OrgList({ rows, billing = {}, nowIso, waitingBy = {} }: { /** ★相談役 11/26 の便 M2-4: 会社ごとの問い合わせの未対応（1 以上で会社名の横に赤い印） */ waitingBy?: Record<string, number>; rows: OpsOrgRow[]; /** ★起票154: 会社ごとの契約（org_billing・無い会社はキーなし） */ billing?: Record<string, Pick<OpsBilling, "cancel_at_period_end" | "current_period_end">>; nowIso?: string }) {
   const [kind, setKind] = useState("all");
   const [route, setRoute] = useState("all");
   const [q, setQ] = useState("");
@@ -20,6 +20,7 @@ export default function OrgList({ rows, billing = {}, nowIso }: { rows: OpsOrgRo
   const hidden = rows.length - opsVisibleOf(rows, false).length;
   const sel: React.CSSProperties = { ...t.input, width: "auto", minWidth: 120 };
   const contractOf = (r: OpsOrgRow) => opsContractOf(r, billing[r.org_id] ?? null, now);
+  const waitMark = (orgId: string) => { const n = waitingBy[orgId] ?? 0; return n > 0 ? <span className="nox-stpill bad" style={{ marginLeft: 6, fontWeight: 800 }} data-ops-row-waiting={n}>問い合わせ 未対応 {n}</span> : null; };
   return (
     <section data-ops-list={String(list.length)}>
       <div className="nox-actions" style={{ marginBottom: 12 }}>
@@ -42,7 +43,7 @@ export default function OrgList({ rows, billing = {}, nowIso }: { rows: OpsOrgRo
               </tr></thead>
               <tbody>{list.map((r) => { const p = opsProgressSummaryOf(r); const c = contractOf(r); return (
                 <tr key={r.org_id} data-ops-row={r.org_id} style={{ borderTop: "1px solid var(--line)" }}>
-                  <td style={{ padding: "12px 10px" }}><Link href={`/ops/orgs/${r.org_id}`} className="nox-link" style={{ fontWeight: 700, fontSize: 15 }}>{r.org_name}</Link>{r.onboarding_state === "onboarding" && <span className="nox-stpill" style={{ marginLeft: 6 }}>導入中</span>}</td>
+                  <td style={{ padding: "12px 10px" }}><Link href={`/ops/orgs/${r.org_id}`} className="nox-link" style={{ fontWeight: 700, fontSize: 15 }}>{r.org_name}</Link>{r.onboarding_state === "onboarding" && <span className="nox-stpill" style={{ marginLeft: 6 }}>導入中</span>}{waitMark(r.org_id)}</td>
                   <td style={{ padding: "12px 10px", whiteSpace: "nowrap" }} data-ops-contract={c.tone}><span className={toneClass(c.tone)}>{c.label}</span></td>
                   <td style={{ padding: "12px 10px", minWidth: 240 }} data-ops-progress-sum={`${p.done}/${p.total}`}>
                     <span className="num" style={{ fontWeight: 800, marginRight: 8 }}>{p.done}／{p.total}</span><span style={{ color: "var(--ink)" }}>{p.next}</span>
@@ -55,7 +56,7 @@ export default function OrgList({ rows, billing = {}, nowIso }: { rows: OpsOrgRo
           <div className="nox-ops-cards" style={{ display: "none", gap: 10 }}>
             {list.map((r) => { const p = opsProgressSummaryOf(r); const c = contractOf(r); return (
               <Link key={r.org_id} href={`/ops/orgs/${r.org_id}`} style={{ ...t.card, display: "block", textDecoration: "none", color: "inherit", padding: 14 }} data-ops-card={r.org_id}>
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "baseline", flexWrap: "wrap" }}><b style={{ fontSize: 15 }}>{r.org_name}</b><span className={toneClass(c.tone)}>{c.label}</span></div>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "baseline", flexWrap: "wrap" }}><b style={{ fontSize: 15 }}>{r.org_name}{waitMark(r.org_id)}</b><span className={toneClass(c.tone)}>{c.label}</span></div>
                 <div style={{ fontSize: 13.5, marginTop: 6, lineHeight: 1.6, color: "var(--ink)" }}><span className="num" style={{ fontWeight: 800, marginRight: 6 }}>{p.done}／{p.total}</span>{p.next}</div>
                 <div style={{ ...t.sub, fontSize: 12.5, marginTop: 4 }}>{r.onboarding_state === "onboarding" ? "導入中・" : ""}{routeLabelOf(r.agency_code)}・最後 {fmtJst(r.last_used_at)}</div>
               </Link>); })}

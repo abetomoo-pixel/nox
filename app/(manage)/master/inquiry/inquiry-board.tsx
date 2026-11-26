@@ -115,7 +115,7 @@ export default function InquiryBoard({ role, isDemo, storeId, stores, rows, mess
               <div style={{ display: "grid", gap: 4 }}><span style={t.fieldLabel}>業態</span>
                 <div className="nox-seg" role="group" aria-label="業態" style={{ flexWrap: "wrap" }}>{INQUIRY_BIZ.map(([k, l]) => <button key={k} type="button" className={saBiz === k ? "on" : ""} aria-pressed={saBiz === k} onClick={() => setSaBiz(k)}>{l}</button>)}</div>
               </div>
-              <label style={{ display: "grid", gap: 4 }}><span style={t.fieldLabel}>1 店目から写す（初期設定が済んだ店）</span>
+              <label style={{ display: "grid", gap: 4 }}><span style={t.fieldLabel}>設定を写す元の店（初期設定が済んだ店）</span>
                 <select value={saFrom} onChange={(e) => setSaFrom(e.target.value)} style={t.input}><option value="">写さない</option>{ready.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
               </label>
               {saFrom && (
@@ -176,7 +176,7 @@ export default function InquiryBoard({ role, isDemo, storeId, stores, rows, mess
             <dl style={{ display: "grid", gridTemplateColumns: "max-content 1fr", gap: "4px 12px", margin: "0 0 10px", fontSize: 13 }} data-inquiry-store-add-detail="1">
               <dt style={t.sub}>店名</dt><dd style={{ margin: 0 }}>{cur.store_add.name ?? "—"}</dd>
               <dt style={t.sub}>業態</dt><dd style={{ margin: 0 }}>{INQUIRY_BIZ_LABEL[cur.store_add.biz_type ?? ""] ?? "—"}</dd>
-              <dt style={t.sub}>写し元</dt><dd style={{ margin: 0 }}>{cur.store_add.copy_from ? storeName.get(cur.store_add.copy_from) ?? "—" : "写さない"}</dd>
+              <dt style={t.sub}>設定を写す元の店</dt><dd style={{ margin: 0 }}>{cur.store_add.copy_from ? storeName.get(cur.store_add.copy_from) ?? "—" : "写さない"}</dd>
               {(cur.store_add.parts?.length ?? 0) > 0 && <><dt style={t.sub}>写すもの</dt><dd style={{ margin: 0 }}>{(cur.store_add.parts ?? []).map((p) => STORE_COPY_LABEL[p as StoreCopyPart]?.name ?? p).join("・")}</dd></>}
               <dt style={t.sub}>始めたい時期</dt><dd style={{ margin: 0 }}>{INQUIRY_START_LABEL[(cur.store_add.start ?? "") as InquiryStart] ?? "—"}</dd>
             </dl>

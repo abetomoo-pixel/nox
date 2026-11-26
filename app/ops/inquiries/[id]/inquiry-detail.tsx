@@ -11,7 +11,7 @@ import AddStorePanel from "../../orgs/[id]/add-store-panel";
 import { STORE_COPY_LABEL, type StoreCopyPart } from "@/lib/nox/ops/store-add";
 import {
   INQUIRY_BIZ_LABEL, INQUIRY_BODY_MAX, INQUIRY_KIND_LABEL, INQUIRY_NOTE_MAX, INQUIRY_START_LABEL, INQUIRY_STATUSES, INQUIRY_STATUS_LABEL,
-  inquiryAtOf, inquiryNoOf, inquiryPointMaxOf, pointsBalanceOf, pointsDisplayOf, type InquiryKind, type InquiryStart, type InquiryStatus,
+  inquiryAtOf, inquiryNoOf, inquiryPointMaxOf, opsInquiryMailLogOf, pointsBalanceOf, pointsDisplayOf, type InquiryKind, type InquiryStart, type InquiryStatus,
 } from "@/lib/nox/inquiry/labels";
 
 export type OpsInquiry = { id: string; org_id: string; store_id: string; kind: string; subject: string; status: string; status_at: string; created_role: string; store_add: { name?: string; biz_type?: string; copy_from?: string | null; parts?: string[]; start?: string } | null; added_store_id: string | null; last_from: string; last_at: string; store_read_at: string | null; created_at: string };
@@ -19,7 +19,10 @@ export type OpsInquiryMsg = { id: string; from_ops: boolean; body: string; creat
 export type OpsPointRow = { id: string; inquiry_id: string | null; kind: string; delta: number; reason: string | null; ops_user_id: string; created_at: string; who?: string };
 const uuid = (): string => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now().toString(16).padStart(8, "0").slice(-8)}-0000-4000-8000-${Math.random().toString(16).slice(2, 14).padEnd(12, "0")}`);
 
-export default function OpsInquiryDetail({ row, orgName, isDemo, stores, messages, points }: { row: OpsInquiry; orgName: string; isDemo: boolean; stores: { id: string; name: string; setupDone: boolean }[]; messages: OpsInquiryMsg[]; points: OpsPointRow[] }) {
+/** ★相談役 11/26 の便 M2-5: 運営者あてのお知らせメールの記録（ops_audit_logs の ops.inquiry.mail・宛先の運営者ごとに 1 行） */
+export type OpsInquiryMailRow = { id: string; at: string; who: string; after: Record<string, unknown> };
+
+export default function OpsInquiryDetail({ row, orgName, isDemo, stores, messages, points, mails = [] }: { row: OpsInquiry; orgName: string; isDemo: boolean; stores: { id: string; name: string; setupDone: boolean; biz?: string | null }[]; messages: OpsInquiryMsg[]; points: OpsPointRow[]; mails?: OpsInquiryMailRow[] }) {
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
   const [out, setOut] = useState<{ at: string; ok: boolean; text: string } | null>(null);
@@ -59,18 +62,18 @@ export default function OpsInquiryDetail({ row, orgName, isDemo, stores, message
       </p>
 
       {row.kind === "store_add" && sa && (
-        <section style={sec} aria-label="2 店舗目の依頼" data-ops-inquiry-store-add={row.added_store_id ? "added" : "open"}>
-          <h2 style={h2}>2 店舗目の依頼</h2>
+        <section style={sec} aria-label="店舗の追加の依頼" data-ops-inquiry-store-add={row.added_store_id ? "added" : "open"}>
+          <h2 style={h2}>店舗の追加の依頼</h2>
           <dl style={{ display: "grid", gridTemplateColumns: "max-content 1fr", gap: "4px 12px", margin: 0, fontSize: 13 }}>
             <dt style={t.sub}>店名</dt><dd style={{ margin: 0 }}>{sa.name ?? "—"}</dd>
             <dt style={t.sub}>業態</dt><dd style={{ margin: 0 }}>{INQUIRY_BIZ_LABEL[sa.biz_type ?? ""] ?? "—"}</dd>
-            <dt style={t.sub}>写し元</dt><dd style={{ margin: 0 }}>{sa.copy_from ? storeName.get(sa.copy_from) ?? "—" : "写さない"}</dd>
+            <dt style={t.sub}>設定を写す元の店</dt><dd style={{ margin: 0 }}>{sa.copy_from ? storeName.get(sa.copy_from) ?? "—" : "写さない"}</dd>
             {(sa.parts?.length ?? 0) > 0 && <><dt style={t.sub}>写すもの</dt><dd style={{ margin: 0 }}>{(sa.parts ?? []).map((p) => STORE_COPY_LABEL[p as StoreCopyPart]?.name ?? p).join("・")}</dd></>}
             <dt style={t.sub}>始めたい時期</dt><dd style={{ margin: 0 }}>{INQUIRY_START_LABEL[(sa.start ?? "") as InquiryStart] ?? "—"}</dd>
           </dl>
           {row.added_store_id ? <div style={{ marginTop: 10 }}><Message kind="success">店を足しました（{storeName.get(row.added_store_id) ?? "—"}・初期設定の前）</Message></div>
             : row.status === "declined" ? <div style={{ marginTop: 10 }}><Message kind="info">見送りにした依頼です</Message></div>
-            : isDemo ? <div style={{ marginTop: 10 }}><Message kind="warn">デモの会社には足せません</Message></div>
+            : isDemo ? <div style={{ marginTop: 10 }}><Message kind="error">デモの会社には足せません</Message></div>
             : <div style={{ marginTop: 10 }}><AddStorePanel orgId={row.org_id} stores={stores} inquiryId={row.id} initial={{ name: sa.name ?? "", biz: sa.biz_type ?? "", from: sa.copy_from ?? null, parts: sa.parts ?? [] }} /></div>}
         </section>
       )}
@@ -114,8 +117,8 @@ export default function OpsInquiryDetail({ row, orgName, isDemo, stores, message
 
       <section style={sec} aria-label="ポイント" data-ops-inquiry-points={granted ? (revoked ? "revoked" : "granted") : "none"}>
         <h2 style={h2}>ポイント（会社の残り {bal.text}）</h2>
-        {max === 0 ? <p style={{ ...t.sub, fontSize: 12.5, margin: 0 }}>質問と 2 店舗目の依頼にはポイントを付けません。</p> : !granted ? (
-          isDemo ? <Message kind="warn">デモの会社には付けられません</Message> : (
+        {max === 0 ? <p style={{ ...t.sub, fontSize: 12.5, margin: 0 }}>質問と店舗の追加の依頼にはポイントを付けません。</p> : !granted ? (
+          isDemo ? <Message kind="error">デモの会社には付けられません</Message> : (
             <>
               <div className="nox-seg" role="group" aria-label="ポイントの数" style={{ flexWrap: "wrap" }}>
                 {Array.from({ length: max }, (_, i) => i + 1).map((n) => <button key={n} type="button" className={pt === n ? "on" : ""} aria-pressed={pt === n} onClick={() => setPt(n)}>{n}pt</button>)}
@@ -150,6 +153,15 @@ export default function OpsInquiryDetail({ row, orgName, isDemo, stores, message
           </details>
         )}
       </section>
+
+      {mails.length > 0 && (/* ★M2-5: 店からの新しい問い合わせ・返事を運営者へ知らせたメールの記録 */
+        <details style={{ ...sec, marginBottom: 0 }} data-ops-inquiry-mails={mails.length}>
+          <summary style={{ cursor: "pointer", fontSize: 12.5 }}>お知らせメールの記録（{mails.length} 件）</summary>
+          <ul style={{ margin: "6px 0 0", padding: 0, listStyle: "none", display: "grid", gap: 4, fontSize: 12 }}>
+            {mails.map((m) => <li key={m.id} style={t.sub}>{inquiryAtOf(m.at)}　{m.who}　{opsInquiryMailLogOf(m.after)}</li>)}
+          </ul>
+        </details>
+      )}
     </div>
   );
 }

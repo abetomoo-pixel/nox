@@ -251,7 +251,7 @@ export function buildReceiptXml(input: ReceiptInput): string {
     if (discount > 0) line(padLine("割引", `-${yen(discount)}`));
     if (serviceRate > 0 && serviceN > 0) line(padLine(`サービス料(${serviceRate}%)`, yen(serviceN)));
     if (adjN !== 0) line(padLine(isExcluded ? "消費税・端数調整" : "端数調整", yenSigned(adjN)));
-    line(padLine("税・サ込みの料金", yen(allIn)));
+    line(padLine("料金（税・サービス料込）", yen(allIn))); // ★相談役 11/26 の便 M の M2-9（税理士の回答 T22）: サービス料が入っていることが名前で分かる表記
     if (postDiscount > 0) line(padLine("割引(合計から)", `-${yen(postDiscount)}`));
     t.push(`<text dw="true" dh="true"/>`);
     line(padLine("合計", yen(groupDue)));

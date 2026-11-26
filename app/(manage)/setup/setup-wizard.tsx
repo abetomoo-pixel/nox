@@ -255,7 +255,7 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
       }
     }
     const steps0 = copy && mig0203On() ? applyCopyToPlan(planAll.steps, copyParts, copiedReceiptRef.current) : planAll.steps;
-    const steps = mig0203On() && multiStore ? stripOrgLevelKeys(steps0) : steps0; // ★0203（■2-c）: 2 店以上の会社は支払日を店で書かない
+    const steps = steps0; void stripOrgLevelKeys; void multiStore; // ★相談役 11/26 の便 M の差し替え（裁定507＝支払日は店ごと）: 2 店目の初期設定も支払日をその店に書く（旧＝0203 ■2-c は外していた）
     setRun({ running: true, done: 0, total: steps.length, failedAt: null, error: null, completed: false, log: [] });
     const r = await runSteps(steps, { onIssued: (x) => setIssued((xs) => [...xs, x]) });
     if (!r.ok) { const st = steps[r.at ?? 0]; setRun({ running: false, done: r.at ?? 0, total: steps.length, failedAt: r.at ?? 0, error: `${st?.label ? `「${st.label}」で止まりました：` : ""}${errJa(r.error ?? null)}` /* ★2026-11-24（相談役の便【1】）: 英字の理由を日本語の 1 行に（どの段で・何をすればよいか） */, completed: false, log: r.log }); return; }
@@ -625,7 +625,7 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
           {pr.okuriMode === "fixed" && <div style={{ marginTop: 8 }} data-setup-okuri-flat="1" data-setup-field="payroll:okuriFlat">{/* ★2026-11-16（Agoora 確定 ■6-1）: 定額の店＝本人の退勤と店の端末の送りの記録額（区分を見ない経路）を聞く・最初は空・入れないと先へ進めない（聞いていない 1000 を書かない） */}
             <Field label={OKURI_FLAT_BASE_LABEL}><UnitInput value={pr.okuriFlatBase == null ? "" : String(pr.okuriFlatBase)} type="text" inputMode="numeric" pre="¥" width={124} ariaLabel={OKURI_FLAT_BASE_LABEL} invalid={okuriFlatBaseMissingOf(S)}
               onChange={(v) => { const d = String(v).replace(/[^0-9]/g, "").slice(0, 5); up((s) => { s.payroll.okuriFlatBase = d === "" ? null : Number(d); }); }} /></Field>
-            {okuriFlatBaseMissingOf(S) && <p style={{ ...note, color: "var(--champ)" }} data-setup-okuri-flat-required="1">{OKURI_FLAT_BASE_REQUIRED}（入れると「次へ」が押せます）</p>}</div>}
+            {okuriFlatBaseMissingOf(S) && <p style={{ ...note, color: "var(--bad)" }} data-setup-okuri-flat-required="1">{/* ★M2-2: 入力の不足は赤 */}{OKURI_FLAT_BASE_REQUIRED}（入れると「次へ」が押せます）</p>}</div>}
           {pr.okuriMode === "actual" && <div style={{ marginTop: 8 }}><Field label="送りの基本額（1 回）"><Money value={pr.okuri} unit="円" pre onChange={(n) => up((s) => { s.payroll.okuri = n; })} width={90} /></Field></div>}
           <div style={{ ...grid(160), marginTop: 8 }} data-setup-penalty="1">{/* ★便 D 裁定455-3（2026-11-05）: 遅刻控除／当欠控除の額＝settlement_presets late／absent（勤怠の修正で遅刻／当欠を付けると自動で精算調整に登録・空欄＝0＝登録しない） */}
             <Field label="遅刻控除（1 回・委託）"><Money value={pr.lateAmt ?? 0} unit="円" pre onChange={(n) => up((s) => { s.payroll.lateAmt = n; })} width={90} /></Field>
@@ -753,7 +753,7 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
             <div style={{ ...t.card, padding: 10, marginBottom: 10, display: "grid", gap: 6 }} data-setup-template-confirm="1">
               <label style={{ display: "inline-flex", gap: 6, alignItems: "center", fontSize: 13 }}><input type="checkbox" checked={!!tplS.tplConfirm?.pricing} onChange={(e) => up((x) => { (x as typeof tplS).tplConfirm = { ...(x as typeof tplS).tplConfirm ?? { pricing: false, backs: false }, pricing: e.target.checked }; })} />料金システム（セット・延長・指名料・VIP）を確認した</label>
               <label style={{ display: "inline-flex", gap: 6, alignItems: "center", fontSize: 13 }}><input type="checkbox" checked={!!tplS.tplConfirm?.backs} onChange={(e) => up((x) => { (x as typeof tplS).tplConfirm = { ...(x as typeof tplS).tplConfirm ?? { pricing: false, backs: false }, backs: e.target.checked }; })} />キャストのバック（メニューと待遇）を確認した</label>
-              {tplBlocked && <Message kind="warn" style={{ margin: 0 }}>{tplBlocked}</Message>}
+              {tplBlocked && <Message kind="error" style={{ margin: 0 }}>{tplBlocked}</Message>}{/* ★M2-2: 先へ進めない理由は赤 */}
             </div>
           )}
           {W.length > 0 && (<div style={{ ...t.card, padding: 10, borderColor: "var(--warn, #6b5626)" }} data-setup-checks={W.length}><h3 style={{ margin: "0 0 6px", fontSize: 13 }}>要確認 {W.length} 件<span style={{ ...note, display: "inline", marginLeft: 10 }}>このまま始められます</span></h3>

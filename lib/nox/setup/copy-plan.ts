@@ -68,4 +68,4 @@ export function copiedPlanIdsOf(res: unknown): { basic: string | null; trial: st
 }
 
 /** ★0203 版 2（■3）: 写したときの体験入店のプランの選び方の 1 行（完了の画面・選ばずに体入を登録したときの語） */
-export const TRIAL_PICK_NOTE = "体験入店のプランを選んでください（1 店目の設定からは分からないため、写したプランから選びます）";
+export const TRIAL_PICK_NOTE = "体験入店のプランを選んでください（設定を写す元の店からは分からないため、写したプランから選びます）";

@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { currentStoreRowsOf } from "@/lib/nox/store/current-server"; // ★0203
+import { currentStoreIdOf, currentStoreRowsOf } from "@/lib/nox/store/current-server"; // ★0203
 import { createClient } from "@/lib/supabase/server";
 import { getSessionRole } from "@/lib/nox/auth";
 import StoreProfilePanel from "../store-profile-panel";
@@ -13,7 +13,7 @@ import { storeProfileTabOf } from "@/lib/nox/master/nav";
 import PunchRulesPanel from "../punch-rules-panel";
 import PunchRoundPanel from "../punch-round-panel"; // ★起票159 // ★0201（裁定474）: 打刻の設定
 import BreakPunchPanel from "../break-punch-panel"; // ★0214（起票158 の 2）: 休憩の打刻を使う
-import { mig0214On } from "@/lib/nox/rules-0175/flag"; // ★0214
+import { mig0203On, mig0214On } from "@/lib/nox/rules-0175/flag"; // ★0214
 import { mig0201On, mig0201cOn } from "@/lib/nox/rules-0175/flag";
 import TrialTermsPanel from "../trial-terms-panel"; // ★0201c（裁定480）: 体験入店の条件（店の既定）
 import { managePageGate } from "@/lib/nox/nav/page-gate";
@@ -38,7 +38,12 @@ export default async function MasterStoreProfilePage({ searchParams }: { searchP
 
   const supabase = await createClient();
   const { data: allStores } = await supabase.from("stores").select("id, name").order("name");
-  const stores = (allStores ?? []) as { id: string; name: string }[];
+  const allStoreRows = (allStores ?? []) as { id: string; name: string }[];
+  // ★相談役 11/26 の便 M の M2-7（Agoora 16:35 の写し）: 店を 2 つ以上持つ会社で、左上の店（今見ている店）と枠の中の店の選択が食い違った（枠は名前の順の先頭の店から始まっていた）。
+  //   旗 0203 の後は、枠へ今見ている店の 1 店だけを渡す＝どの枠も左上の店を指す（枠の中の店の選択は出ない）。店は左上で切り替える。
+  const curId = mig0203On() && allStoreRows.length > 1 ? await currentStoreIdOf(supabase) : null;
+  const stores = curId && allStoreRows.some((s) => s.id === curId) ? allStoreRows.filter((s) => s.id === curId) : allStoreRows;
+  const targetNote = curId && stores.length === 1 ? stores[0].name : null;
 
   // ★MC2: 利用機能タブの報酬制度＝systems/page.tsx と同じ組み立て（先頭店・settings_json・使用数は純関数 systemUsageOf）
   let systems: { storeId: string; storeName: string; settings: Record<string, unknown>; usage: ReturnType<typeof systemUsageOf> } | null = null;
@@ -82,6 +87,7 @@ export default async function MasterStoreProfilePage({ searchParams }: { searchP
   return (
     <div className="nox-mv1 nox-settings">{/* ★2026-11-16（B6）: 店舗設定の文字と欄の大きさを初期設定に揃える範囲 */}
       <MasterPageHead eyebrow={head.eyebrow} title={head.title} desc={head.desc} />
+      {targetNote && <p data-target-store="1" style={{ margin: "-4px 0 12px", fontSize: 13 }}>対象の店：<b>{targetNote}</b><span style={{ color: "var(--sub)", marginLeft: 8 }}>（店は左上で切り替えます）</span></p>}
       {/* ★2026-11-16（相談役・Agoora 14:41 の確認）: タブの並びは 1 つだけ＝ページの上のマスタの共通のタブ（MASTER_NAV の店舗設定の tabs）。見出しの下に足していた同じ 7 つの並びは外した */}
       {/* ★2026-11-16（■8）: 各パネルは中身を変えていない（StoreProfilePanel は節の鍵を細かくしただけ）＝保存する値と RPC は不変。対応表＝docs/tmp/settings_map_1116.md */}
       {tab === "info" && <StoreProfilePanel stores={stores} isOwner={isOwner} sections={["profile"]} />}

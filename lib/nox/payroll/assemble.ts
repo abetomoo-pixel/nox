@@ -23,7 +23,7 @@ import type { CanonCtx } from "@/lib/nox/rules-0175/canon"; // ★便 P175-prep 
 
 // breakdown_json の器: { pay: PayResult, extras: Extra[] }。
 // #32 出勤インセンティブは extras に {kind:'attendance_bonus', amount, label, source:incentive行id} を乗せる。
-export type Extra = { kind: string; amount: number; label?: string; source?: string };
+export type Extra = { kind: string; amount: number; label?: string; source?: string; /** ★起票170: punch_break_note の休憩の分（明細の 1 行に使う・0 円） */ minutes?: number };
 
 // cast 1人分の集計済み raw（collect.ts が組む）。taxMode は core が解決して別引数で渡す。
 export type CastRaw = {
@@ -51,6 +51,7 @@ export type CastRaw = {
   anomalyCount: number; // out 欠損等 S8 anomaly のある日数（表示のみ・論点3）
   noShiftDates?: string[]; // ★便 M-10（2026-10-26）: シフト無し出勤の営業日（打刻 in あり・確定シフトなし・今日まで）＝時給なし・表示と要対応だけ
   punchRoundNote?: { days: number; unit: number; mode: string }; // ★0213（相談役 11/25 の便 E2）: 丸めが効いた日の数と規則（明細の注記 1 行・0 円）
+  punchBreakNote?: { min: number; days: number }; // ★起票170（便 M の M2-8）: 勤務の時間から引いた休憩の分と日数（明細の注記 1 行・0 円）
   openBreakDates?: string[]; // ★0214（休憩・相談役 11/25 の D5）: 閉じていない休憩のまま退勤がある日（休憩開始〜退勤を休憩にした）。ある cast だけ・表示のみ
   missingOutDates?: string[]; // ★N3 AV-4（2026-09-24）: 退勤の記録が無い勤務の営業日（in あり・out なし・final ok|late）。表示のみ・fixture は省略＝従来と同値
   plan: CompPlan | null; // cast_plan 未設定なら null（core が blocker 化）

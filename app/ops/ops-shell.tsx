@@ -10,7 +10,7 @@ import * as t from "@/lib/nox/ui/theme";
 import { mig0209On, mig0212On } from "@/lib/nox/rules-0175/flag"; // ★0209／0212
 import { isOpsAdminRole } from "@/lib/nox/ops/operators";
 
-export default function OpsShell({ name, role, children }: { name: string; /** ★0209: 運営者の役（ops_admin＝管理者のときだけ「運営者」のリンク） */ role?: string; children: React.ReactNode }) {
+export default function OpsShell({ name, role, waiting, children }: { name: string; /** ★0209: 運営者の役（ops_admin＝管理者のときだけ「運営者」のリンク） */ role?: string; /** ★相談役 11/26 の便 M2-4: 問い合わせの未対応の件数（1 以上で「問い合わせ」に赤い数・null／0 は出さない） */ waiting?: number | null; children: React.ReactNode }) {
   const router = useRouter();
   async function logout() {
     await createClient().auth.signOut();
@@ -24,7 +24,7 @@ export default function OpsShell({ name, role, children }: { name: string; /** �
         <span style={{ display: "inline-flex", gap: 10, alignItems: "center", fontSize: 12.5 }}>
           {mig0209On() && role !== undefined && isOpsAdminRole(role) && <Link href="/ops/operators" className="nox-link" data-ops-nav-operators="1">運営者</Link>}
           {mig0209On() && role !== undefined && <Link href="/ops/me" className="nox-link" data-ops-nav-me="1">自分の設定</Link>}
-          {mig0212On() && <Link href="/ops/inquiries" className="nox-link" data-ops-nav-inquiries="1">問い合わせ</Link>}{/* ★0212: 問い合わせの一覧 */}
+          {mig0212On() && <Link href="/ops/inquiries" className="nox-link" data-ops-nav-inquiries="1" aria-label={waiting ? `問い合わせ（未対応 ${waiting} 件）` : undefined}>問い合わせ{waiting ? <span className="nox-tab-badge" data-ops-nav-waiting={waiting}>{waiting}</span> : null}</Link>}{/* ★0212: 問い合わせの一覧 */}
           <span data-ops-operator="1">{name}</span>
           <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} onClick={() => void logout()}>ログアウト</button>
         </span>
