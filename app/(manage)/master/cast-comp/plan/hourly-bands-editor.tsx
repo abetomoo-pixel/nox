@@ -1,7 +1,7 @@
 "use client";
 // ★時間帯の時給（2026-11-24 夕・相談役の便【9】・枝 hourly-bands-1124・旗 HOURLY_BANDS_ON の後ろ）: 待遇プランの「時間帯の時給」の表（owner だけ・開始日は持たない）。
 //   器＝0175 v2 の plan_rate_bands（target 'hourly'）・保存＝plan_rate_band_set（今ある関数・owner・全置換・audit）。重なりは画面で止める（関数は断らない＝mig なし）。
-//   時刻は営業日の中の時刻（翌 2 時＝26:00）。額 0＝その時間は時給なし。帯の無い時間はプランの基本時給。個別の時給の上書きがある人は帯を使わない。ボタンは中央。
+//   時刻は営業日の中の時刻（翌 2 時＝26:00）。額 0＝その時間は時給なし。最初の帯より前はプランの基本時給・帯の隙間と最後の帯より後は直前の帯（★#345 案 A＝計算 hourly-bands.ts に文を合わせる）。個別の時給の上書きがある人は帯を使わない。ボタンは中央。
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
@@ -43,7 +43,7 @@ export default function HourlyBandsEditor({ planId, onSaved, onErr }: { planId: 
     <div id="hourly-bands" data-hourly-bands="1" style={{ margin: "8px 0", padding: "10px 12px", border: "1px solid var(--line2)", borderRadius: 8 }}>
       <div style={{ fontWeight: 700, fontSize: 13, color: "var(--ink)" }}>時間帯の時給</div>
       <p style={{ fontSize: 12, color: "var(--sub)", margin: "4px 0 8px", lineHeight: 1.7 }}>
-        時間帯ごとに基本時給の代わりの額を決めます（スライドの段や保証が上回る時間は段や保証）。0 円の時間帯は時給なし。帯の無い時間は基本時給。翌 2 時は 26:00 と入れます。個別に時給を上書きしている人には使いません。
+        時間帯ごとに基本時給の代わりの額を決めます（スライドの段や保証が上回る時間は段や保証）。0 円の時間帯は時給なし。最初の帯より前の時間は基本時給、帯と帯の間の時間は直前の帯の時給（最後の帯より後もその帯の時給）。基本時給にしたい時間は、基本時給の額で帯を作ってください。翌 2 時は 26:00 と入れます。個別に時給を上書きしている人には使いません。
       </p>
       {rows.length === 0 && <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 8px" }} data-hourly-empty="1">時間帯がありません＝いつも基本時給。</p>}
       {rows.map((r, i) => (

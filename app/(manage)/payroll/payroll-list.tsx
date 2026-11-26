@@ -19,7 +19,7 @@ import Modal from "@/components/ui/modal";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import {
-  buildPayrollListRows, sumListKpi, markPaidEnabled, PAYROLL_LIST_ACTIONS,
+  buildPayrollListRows, sumListKpi, markPaidEnabled, PAYROLL_LIST_ACTIONS, listGrossOf,
   type ListRow, type ListRun, type ListPayslip, type ListPayment, type ListAudit,
 } from "@/lib/nox/payroll/list";
 import { exportPayrollCsvForRun } from "./export-csv";
@@ -32,9 +32,9 @@ const yen = (n: number) => "¥" + n.toLocaleString();
 const btnLight: React.CSSProperties = { ...t.btnGhost, ...t.btnSm };
 const STATUS_LABEL: Record<string, string> = { draft: "下書き（未確定）", finalized: "確定済み", paid: "支払済" };
 const ACTION_LABEL: Record<string, string> = { payroll_finalize: "確定", payroll_reopen: "解除", payroll_mark_paid: "支払済み化" };
-// 総支給＝CSV と同じ定義（pay.gross＋Σextras.amount・欠落キーは 0）。凍結値を読むだけ＝再計算しない。
-const grossOf = (bj: BreakdownJson | null): number =>
-  (bj?.pay?.gross ?? 0) + (bj?.extras ?? []).reduce((a, e) => a + (e.amount ?? 0), 0);
+// 総支給＝CSV・明細と同じ定義（pay.gross のみ・欠落キーは 0）。凍結値を読むだけ＝再計算しない。
+//   ★#21（相談役 11/26 22:10 の段ウ）: extras（出勤ボーナス等）は payOf の gross に内在（裁定26・裁定303 追補1）＝足さない（旧＝pay.gross＋Σextras で一覧だけ二重に足していた）
+const grossOf = (bj: BreakdownJson | null): number => listGrossOf(bj); // ★#21: 式は lib/nox/payroll/list.ts の 1 本（verify:nox-payroll-totals が一覧＝明細＝CSV を係留）
 // ★相談役 11/26 夜便 N の N6 d（#24）: 支払済み化の route（app/api/payroll/mark-paid）の英字 → 日本語（残りは共通の写像＝forbidden は「権限がありません」）
 const markPaidErrJa = (code: string, status: number): string =>
   code === "no run" ? "この期間の給与はまだ確定されていません（先に明細から確定してください）"

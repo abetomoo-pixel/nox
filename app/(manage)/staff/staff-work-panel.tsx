@@ -31,7 +31,7 @@ import { mig0200On } from "@/lib/nox/rules-0175/flag"; // ★M-130（裁定471�
 import { STAFF_PAID_UNLOCK_NOTE, STAFF_PAY_METHOD_LABEL, staffPayMarkableOf, staffUnlockableOf, type StaffLaborPayment, type StaffPayMethod } from "@/lib/nox/staff/labor-payment"; // ★M-130
 import { staffLaborRowOf } from "@/lib/nox/staff/labor"; // ★0194（裁定445 ①②）: 月の確定と同時に送る確定額の行（内訳つき）
 import Withholding432Panel from "@/components/nox/withholding-432-panel";
-import { WITHHOLDING_ADVICE_NOTE, WITHHOLDING_KIND_LABEL, WITHHOLDING_KIND_SELECT_NOTE, WITHHOLDING_KIND_SHORT, PAYMENT_REPORT_NOTE, defaultWithholdingKindOf, withholdingKindChoices, withholdingKindOf, type EmployeeDeductionKind, type EmployeeDeductionRow } from "@/lib/nox/payroll/withholding-kind";
+import { WITHHOLDING_ADVICE_NOTE, WITHHOLDING_KIND_LABEL, WITHHOLDING_KIND_SELECT_NOTE, WITHHOLDING_KIND_SHORT, PAYMENT_REPORT_NOTE, defaultWithholdingKindOf, staffWithholdingKindChoicesOf, withholdingKindOf, type EmployeeDeductionKind, type EmployeeDeductionRow } from "@/lib/nox/payroll/withholding-kind";
 import { errJa } from "@/lib/nox/errors"; // ★裁定467（M-126）: 利用者向けの文言は辞書 1 本
 
 type Mem = { id: string; user_id: string; store_id: string; role: string; is_active: boolean };
@@ -212,7 +212,7 @@ export default function StaffWorkPanel({ scope, stores, daily = false, initialMe
                   {!daily && <div className="nox-actions" style={{ margin: "0 0 8px" }}><Link href={`/payroll?tab=attendance&who=staff&mem=${r.m.id}`} style={{ ...t.btnGhost, ...t.btnSm, textDecoration: "none", display: "inline-flex", alignItems: "center" }} data-staff-daily-link={r.m.id}>日ごとの勤怠を開く</Link></div>}{/* ★便 M3 M-23 ②: 正本（給与 › 勤怠（スタッフ））へ */}
                   {r.kind && r.pay && (<>{/* ★便 A M-80 ②: 源泉区分・控除は契約がある人だけ */}
                   <label style={{ ...t.fieldLabel, display: "block", marginBottom: 6 }}>源泉区分{" "}
-                    <SegSelect value={w432.kind[r.m.id] ?? ""} onChange={(v) => void setKind(r.m.id, v)} options={[["", `既定（${WITHHOLDING_KIND_SHORT[defaultWithholdingKindOf({ subject: "staff", contractKind: r.contract?.contract_kind })]}）`] as const, ...withholdingKindChoices().map((k) => [k, WITHHOLDING_KIND_LABEL[k]] as const)]} ariaLabel="源泉区分" wrap />{/* ★M-82: 源泉区分＝ボタン群 ★0188（裁定434 ①）: none／hostess／other_204／manual */}
+                    <SegSelect value={w432.kind[r.m.id] ?? ""} onChange={(v) => void setKind(r.m.id, v)} options={[["", `既定（${WITHHOLDING_KIND_SHORT[defaultWithholdingKindOf({ subject: "staff", contractKind: r.contract?.contract_kind })]}）`] as const, ...staffWithholdingKindChoicesOf(w432.kind[r.m.id]).map((k) => [k, WITHHOLDING_KIND_LABEL[k]] as const)]} ariaLabel="源泉区分" wrap />{/* ★M-82: 源泉区分＝ボタン群 ★0188（裁定434 ①）: none／hostess／other_204／manual */}
                   </label>
                   {mig0188On() && <p style={{ ...t.sub, margin: "0 0 6px" }} data-withholding-kind-note="1">{WITHHOLDING_KIND_SELECT_NOTE}{PAYMENT_REPORT_NOTE[r.kind] ? "・" + PAYMENT_REPORT_NOTE[r.kind] : ""}</p>}{/* ★0188（裁定434 ②③） */}
                   {kindMsg && <Message kind={kindMsg.includes("エラー") ? "error" : "success"} style={{ margin: "0 0 6px" }}>{kindMsg}</Message>}

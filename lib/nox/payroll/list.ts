@@ -1,6 +1,6 @@
 // B5 給与 月次一覧の行整形（純関数・DB 非依存・設計書 B5 v1 §4／裁定 B5-2・B5-8）。
 //   入力は DB 型に依存しない最小の形（呼び出し側が payroll_runs／payslips／payment_records／audit_logs の select 結果を写す）。
-//   金額は payslips の凍結値（breakdown_json.pay.gross＋Σextras＝CSV と同じ定義・net）を**足すだけ**＝再計算しない（golden 6 値不変）。
+//   金額は payslips の凍結値（breakdown_json.pay.gross＝CSV と同じ定義・extras は gross に内在＝裁定303 追補1・net）を**足すだけ**＝再計算しない（golden 6 値不変）。
 //   1 run＝1 行（store×period・裁定 B5-2）。並びは period 降順→store_id 昇順で決定的。
 
 import { mig0194On } from "../rules-0175/flag"; // ★0194（裁定444 ④）: 支払済み化は店長（自店）にも
@@ -9,7 +9,9 @@ export type ListRun = {
   id: string; store_id: string; period: string; status: string;
   finalized_at: string | null; paid_at: string | null; updated_at?: string | null;
 };
-/** payslips 1 行の写し。gross は CSV と同じ定義（pay.gross ＋ Σextras.amount）を呼び出し側で作る。 */
+/** payslips 1 行の写し。gross は CSV と同じ定義（pay.gross のみ・extras は内在＝裁定303 追補1）を呼び出し側で作る。 */
+/** ★#21（裁定513-4）: 一覧の 1 枚の総支給＝CSV・明細と同じ定義（pay.gross のみ・extras は gross に内在＝裁定303 追補1・欠落キーは 0）。凍結値を読むだけ */
+export const listGrossOf = (bj: { pay?: { gross?: number } | null } | null | undefined): number => bj?.pay?.gross ?? 0;
 export type ListPayslip = { run_id: string; cast_id: string; gross: number; net: number };
 export type ListPayment = { run_id: string; cast_id: string; paid_amount: number };
 /** audit_logs の写し（owner のみ読める・target は 'payroll_runs:<run id>'）。 */
