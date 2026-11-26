@@ -1,0 +1,55 @@
+/* ★相談役 11/26 の便 L3: /lp-next（LP の 1 回目）。.lpnx の中だけに効く。スマホ（390px）を先に・1 画面 1 つの言いたいこと・主のボタンは中央。 */
+.lpnx{--bg:#0d0e0e;--panel:#151616;--ink:#f4f0e8;--muted:#aeada6;--gold:#d3b784;--line:#ffffff1f;margin:0;min-height:100vh;background:var(--bg);color:var(--ink);font-family:"Yu Gothic","Hiragino Kaku Gothic ProN",Meiryo,sans-serif;font-size:15px;line-height:1.85;overflow-x:hidden}
+.lpnx *{box-sizing:border-box}
+.lpnx a{color:inherit}
+.lpnx a:focus-visible,.lpnx summary:focus-visible{outline:2px solid var(--gold);outline-offset:4px}
+.lpnx-skip{position:absolute;left:-9999px}
+.lpnx-skip:focus{left:16px;top:16px;background:var(--panel);padding:8px 12px;z-index:5}
+.lpnx-header{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--line)}
+.lpnx-brand{display:inline-flex;align-items:center}
+.lpnx-header-link{font-size:13px;color:var(--gold);text-decoration:none;border:1px solid #d3b78466;border-radius:999px;padding:6px 14px}
+.lpnx main>section{padding:56px 16px;border-bottom:1px solid var(--line);max-width:760px;margin:0 auto}
+.lpnx-hero{text-align:center;padding-top:72px!important;padding-bottom:72px!important}
+.lpnx-eyebrow{font-size:12px;letter-spacing:.12em;color:var(--gold);margin:0 0 14px}
+.lpnx h1{font-family:"Yu Mincho","Hiragino Mincho ProN",serif;font-weight:500;font-size:28px;line-height:1.6;letter-spacing:.04em;margin:0 0 18px}
+.lpnx h2{font-family:"Yu Mincho","Hiragino Mincho ProN",serif;font-weight:500;font-size:24px;line-height:1.6;letter-spacing:.03em;margin:0 0 14px}
+.lpnx-lead{color:#dedbd4;margin:0 0 18px}
+.lpnx-hero .lpnx-lead{max-width:30em;margin:0 auto 26px}
+.lpnx-num{font-size:12px;letter-spacing:.2em;color:var(--gold);margin:0 0 8px}
+.lpnx-cta{display:flex;justify-content:center;margin:8px 0 0}
+.lpnx-btn{display:inline-flex;align-items:center;justify-content:center;min-height:52px;min-width:260px;padding:14px 28px;border-radius:12px;background:var(--gold);color:#151410!important;font-weight:700;font-size:16px;text-decoration:none}
+.lpnx-btn:hover{background:#e9d0a4}
+.lpnx-sub-cta{text-align:center;margin:16px 0 0;font-size:13px}
+.lpnx-sub-cta a{color:var(--muted)}
+.lpnx-points{list-style:none;padding:0;margin:0 0 22px;display:grid;gap:8px}
+.lpnx-points li{position:relative;padding-left:20px;color:#e6e2da;font-size:14px}
+.lpnx-points li:before{content:"";position:absolute;left:4px;top:.75em;width:7px;height:7px;border-radius:2px;background:var(--gold)}
+.lpnx-shot{margin:0 0 22px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px}
+.lpnx-shot img{display:block;width:100%;height:auto;border-radius:6px}
+.lpnx-shot-phone{max-width:340px;margin-left:auto;margin-right:auto}
+.lpnx-shot figcaption{font-size:12.5px;color:var(--muted);margin-top:8px;text-align:center}
+.lpnx-demo{text-align:center}
+.lpnx-note{font-size:12.5px;color:var(--muted);margin:18px 0 0}
+.lpnx-details{margin:14px auto 0;max-width:34em;text-align:left;font-size:13px;color:var(--muted)}
+.lpnx-details summary{cursor:pointer;color:var(--ink);text-align:center}
+.lpnx-contact{text-align:center}
+.lpnx-price{display:inline-block;border:1px solid #d3b78455;border-radius:12px;padding:16px 22px;margin:4px 0 18px}
+.lpnx-price span{display:block;font-size:12.5px;color:var(--muted)}
+.lpnx-price p{margin:2px 0}
+.lpnx-price strong{font-size:34px;font-weight:600;letter-spacing:.02em}
+.lpnx-price b{font-size:13px;font-weight:600;margin-left:6px}
+.lpnx-price small{display:block;font-size:12px;color:var(--muted)}
+.lpnx-form{text-align:left;background:transparent!important;margin:8px 0 0}
+.lpnx-mail{font-size:13px;color:var(--muted);margin:18px 0 0}
+.lpnx-footer{padding:36px 16px 48px;text-align:center;display:grid;gap:10px;justify-items:center;color:var(--muted);font-size:12.5px}
+.lpnx-footer p{margin:0}
+.lpnx-footer nav{display:flex;flex-wrap:wrap;justify-content:center;gap:8px 18px}
+.lpnx-footer nav a{color:var(--ink);text-decoration:underline;text-underline-offset:3px}
+@media (min-width:900px){
+  .lpnx{font-size:16px}
+  .lpnx-header{padding:18px 40px}
+  .lpnx main>section{max-width:880px;padding:96px 40px}
+  .lpnx-shot-phone{max-width:380px}
+  .lpnx h1{font-size:46px}
+  .lpnx h2{font-size:34px}
+}
