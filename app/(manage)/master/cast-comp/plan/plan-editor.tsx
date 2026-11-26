@@ -22,6 +22,7 @@ import { slideErrOf, slideToSave } from "@/lib/nox/comp/slide-rows"; // ★便 P
 import PayRateTiersEditor from "./pay-rate-tiers-editor";
 import CommissionTiersEditor, { type CommissionTier } from "./commission-tiers-editor";
 import HourlyBandsEditor from "./hourly-bands-editor"; // ★時間帯の時給
+import { HOURLY_AFTER_SAVE_JA } from "@/lib/nox/payroll/hourly-bands"; // ★相談役 11/26 の便 L2
 import { hourlyBandsOn } from "@/lib/nox/rules-0175/flag"; // ★時間帯の時給 // ★0202f // ★2026-11-17 夜（相談役 Y3b）: 報酬率の段
 import type { PayRateTier } from "@/lib/nox/rules-0175/canon";
 import { rules0175On } from "@/lib/nox/rules-0175/flag"; // ★便 P175-prep P-3
@@ -450,6 +451,9 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
         )}
         {/* ★時間帯の時給（旗 HOURLY_BANDS_ON の後ろ）: owner だけ・保存済みプラン。★2026-11-25 夜（相談役 11/25 の便 G1）: 置き場を「スライド・ポイント」の節から「基本・保証」の節へ＝基本時給の代わりの額なのでここで決める（スライドの節は基本・保証のタブでは隠れ、スライドを使わない店では節ごと出ない＝本番の CLUB VESPER で表が出なかった）。役・会社の種類・基本時給の値・幅では絞らない */}
         {hourlyBandsOn() && draft.id && isOwner && <HourlyBandsEditor planId={draft.id} onErr={(m) => setSecErr((e) => ({ ...e, "基本給・保証": m }))} onSaved={async (m) => { setSecErr((e) => ({ ...e, "基本給・保証": "" })); setMsg(m); await reload(); }} />}
+        {hourlyBandsOn() && !draft.id && isOwner && (/* ★相談役 11/26 の便 L2: 新しいプランは保存の前に時間帯の枠が見えない＝作り方の一言（Agoora が本番で確かめた） */
+          <p data-hourly-after-save="1" style={{ margin: "10px 0 0", fontSize: 12, color: "var(--sub)", lineHeight: 1.6 }}>{HOURLY_AFTER_SAVE_JA}</p>
+        )}
         {/* ★GV-63（便 P173）: 準備中チップ 3 つ（日給制・保証対象時間帯・保証判定単位）は撤去（押せないものを置かない＝教訓25） */}
         <SecSave title="基本・保証" keys={["name", "base", "active"]} section="基本給・保証" />
       </section>)}

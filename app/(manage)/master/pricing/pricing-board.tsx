@@ -1,7 +1,7 @@
 "use client";
 import TimeInput from "@/components/ui/time-input"; // ★便 M5b M-51: 時刻欄の共通部品（時計アイコン・時と分を選ぶ・翌の表示）
 import { UnitBox } from "@/components/ui/unit-input"; // ★便 M5b M-50
-import { rules0175On, mig0208On, mig0210On } from "@/lib/nox/rules-0175/flag"; // ★便 SH-UI-c2 C2-16 ③
+import { rules0175On, mig0208On, mig0210On, mig0217On } from "@/lib/nox/rules-0175/flag"; // ★便 SH-UI-c2 C2-16 ③
 import { payFeeRatesOf } from "@/lib/nox/register/p173"; // ★便 X13-G W-17: お客様に請求するカード手数料＝pay_fee_rates.card
 
 // 料金設定ボード（料金UIレーン C1）。
@@ -39,6 +39,8 @@ import Modal from "@/components/ui/modal";
 import MasterPageHead from "../master-page-head";
 import PricingPanel from "../pricing-panel";
 import RankShiftTimeCard from "./rank-shift-time-card"; // ★0208（N6）
+import ExtShimeiCard from "./ext-shimei-card"; // ★0217（起票167）: 延長指名（ON／OFF・額）＝指名・同伴料金の枠の中
+import { extShimeiAmountOf } from "@/lib/nox/pricing/ext-shimei";
 import FirstVisitCard from "./first-visit-card"; // ★0210（起票140）: 初回料金（旗の後ろ）
 import { firstVisitErrJa, firstVisitShadowBlockOf } from "@/lib/nox/register/first-visit"; // ★0210 v2（相談役 11/25 の便 F【F5】の決め）: 初回の区分のセットの行が当たらない並びになる保存は止める
 import TimePricingPanel from "../time-pricing-panel";
@@ -1382,6 +1384,11 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
                 label="同伴の本指名自動付与"
                 desc="ONにすると、同伴のときフリー（指名なし）を本指名へ自動で昇格します（場内指名はそのまま）。OFF の店は手動で指名を付けます" />
             </div>
+            {mig0217On() && (/* ★0217（起票167・相談役 11/26 の便 L1）: 延長指名は「セット・延長」の枠からここへ移した・ON のときだけ額の欄 */
+              <div style={{ borderTop: "1px solid var(--line)", marginTop: 12, paddingTop: 10 }}>
+                <ExtShimeiCard storeId={storeId} isOwner={isOwner} initialOn={flags.ext_shimei_enabled} initialAmount={extShimeiAmountOf(initial.rules)} autoMode={store.time_mode === "auto"} />
+              </div>
+            )}
           </section>
 
           {/* ★M2（対応表・移設）: 指名料金（ランク別）＝実体不変・配置替えのみ */}
@@ -1686,11 +1693,11 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
             time_mode: store.time_mode, time_per: store.time_per,
           }} />
           {/* ★mig0144（N4(b)）: 延長指名（stores.ext_shimei_enabled）＝基本料金（どのルールにも当たらないとき）の隣・切替は 244 の例外 */}
-          <div style={{ borderTop: "1px solid var(--line)", marginTop: 12, paddingTop: 10 }}>
+          {!mig0217On() && <div style={{ borderTop: "1px solid var(--line)", marginTop: 12, paddingTop: 10 }}>{/* ★0217: 旗の後ろでは「指名・同伴料金」の枠へ移した */}
             <StoreFlagToggle storeId={storeId} flagKey="ext_shimei_enabled" isOwner={isOwner} initial={flags.ext_shimei_enabled}
               label="延長指名"
               desc="ONにすると、手動時間料金の店で延長のたびに本指名ごとの延長指名料（料金適用ルールの「延長指名料」）を加算します。OFF の店は延長時に指名料を加算しません" />
-          </div>
+          </div>}
         </section>
 
         {/* ② 税・サービス料（★A2: サ料の編集をここへ集約＝M1 分割の受け側・税 form 不触）

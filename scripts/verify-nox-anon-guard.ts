@@ -443,6 +443,11 @@ async function mainBody() {
     });
     check("anon set_store_pricing BLOCKED", isFnBlocked(error), error?.message ?? "実行できてしまった");
   }
+  // ── 段9-E1b: ★0217（起票167・2026-11-26 14:42 CC 適用）: set_ext_shimei_fee（延長指名料の額・店で一律の 1 つ）anon BLOCKED ──
+  {
+    const { error } = await anon.rpc("set_ext_shimei_fee", { p_store_id: null, p_amount: null });
+    check("anon set_ext_shimei_fee BLOCKED（0217）", isFnBlocked(error), error?.message ?? "実行できてしまった");
+  }
 
   // ── 段9-B4: 時間料金 新 RPC 2本（mig0052）anon BLOCKED ──
   {

@@ -403,3 +403,11 @@ export const MIG_0216_APPLIED = true; // ★相談役 11/26 の便 K1：0216 を
 let override0216: boolean | null = null;
 export function mig0216On(): boolean { return override0216 ?? MIG_0216_APPLIED; }
 export function __set0216ForTest(v: boolean | null): void { override0216 = v; }
+
+/** ★0217（起票167・相談役 11/26 の便 L1 で CC が適用 2026-11-26 14:42:01）。延長指名料の額（店で一律の 1 つ）を書く set_ext_shimei_fee。
+ *  true＝料金マスタの「指名・同伴料金」の枠に延長指名（ON／OFF・額の欄・中央の保存）＝「セット・延長」の枠の ON／OFF は外す。
+ *  false＝今のまま（ON／OFF は「セット・延長」の枠・額の欄なし）。 */
+export const MIG_0217_APPLIED = true; // ★相談役 11/26 の便 L1：0217 を CC が適用した後（2026-11-26 14:42:01）
+let override0217: boolean | null = null;
+export function mig0217On(): boolean { return override0217 ?? MIG_0217_APPLIED; }
+export function __set0217ForTest(v: boolean | null): void { override0217 = v; }

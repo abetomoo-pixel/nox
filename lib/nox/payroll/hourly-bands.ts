@@ -66,3 +66,6 @@ export function hourlyBandRowsErrOf(rows: readonly { from_min: number; to_min: n
   for (let i = 1; i < s.length; i++) if (s[i].from_min < s[i - 1].to_min) return "時間帯が重なっています（重ならないように直してください）";
   return null;
 }
+
+/** ★相談役 11/26 の便 L2: 新しいプラン（保存の前）は時間帯の時給の枠が見えない＝「基本・保証」の枠に出す一言 */
+export const HOURLY_AFTER_SAVE_JA = "保存すると、時間帯の時給を設定できます";
