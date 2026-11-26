@@ -54,12 +54,8 @@ export async function GET() {
     // ★裁定346（便 N1013b）: 合算は給与の collect と同じ純関数（sumCastSales）＝ランキングの売上軸と同じ額。本人行だけに絞る（RPC が本人限定だが念のため照合）
     const actual = sumCastSales(((salesRows ?? []) as CastSalesRow[]).filter((r) => r.cast_id === castId)).get(castId) ?? { hon: 0, jonai: 0, dohan: 0, sales: 0 };
 
-    // 目標 = cast_quotas の当月行（RLS: cast 本人の行のみ・未登録は null）
-    const { data: quotaRow, error: eQuota } = await supabase.from("cast_quotas").select("hon, jonai, dohan, sales").eq("cast_id", castId).eq("month", `${period}-01`).maybeSingle();
-    if (eQuota) return NextResponse.json({ error: `cast_quotas failed: ${eQuota.message}` }, { status: 500 });
-
-    // ★裁定347／追補1・GV-2（0171・便 P171）: 目標の解決＝個別（cast_quotas の非 null）＞プラン既定（現在の cast_plan→comp_plans.norm_*_target）＞なし。採用 OFF の軸（店設定 norm_axes）は出さない。
-    //   プラン既定と店設定は admin で読む（cast の RLS は comp_plans を読めない）。返すのは本人分の目標だけ（他人の値は触らない）。
+    // ★裁定511-9a（#262・2026-11-26 Agoora）: 目標の置き場は店の「ノルマ設定」の「キャスト別の目標」（cast_norms・当月・非 0＝個別）に 1 つ＝給与（collect.ts）と同じ解決
+    //   （resolveNormTargetsOf＝個別の非 0＞プラン既定＞なし・採用 OFF の軸は出さない）。旧 cast_quotas（0160）は読まない（キャスト詳細の入力口は 511-9a で外した）。
     const admin = createAdminClient();
     const today = bizDateOf(new Date().toISOString(), win.cutoffHm);
     const [{ data: cpRows }, { data: storeSj }] = await Promise.all([
@@ -70,10 +66,13 @@ export async function GET() {
     const { data: planRow } = planId ? await admin.from("comp_plans").select("norm_days_target, norm_dohan_target, norm_sales_target, norm_shimei_target").eq("id", planId).maybeSingle() : { data: null };
     const axes = normAxesOf(storeSj?.settings_json);
     const scope = shimeiScopeOf(storeSj?.settings_json);
-    const resolved = resolveQuotaOf(planDefaultQuotaOf(normTargetsOf(planRow ?? null), axes), (quotaRow ?? null) as Partial<Quota> | null, axes, scope);
-    // ★裁定347 追補2（便 N1014 A-4）: 出勤日数の軸＝目標は cast_norms（当月・個別＝非 0）＞プラン既定 norm_days_target・実績＝今月の in 打刻の営業日数（本人セッション＝RLS 自分の行）
-    const { data: normRow } = await admin.from("cast_norms").select("days_target").eq("cast_id", castId).eq("period", period).maybeSingle();
-    const daysT = resolveNormTargetsOf(normTargetsOf(planRow ?? null), { days: normRow?.days_target ?? 0 }, axes);
+    const { data: normRow } = await admin.from("cast_norms").select("days_target, dohan_target, sales_target, shimei_target").eq("cast_id", castId).eq("period", period).maybeSingle();
+    const nr = (normRow ?? null) as { days_target: number | null; dohan_target: number | null; sales_target: number | string | null; shimei_target: number | string | null } | null;
+    const pos = (v: number | string | null | undefined): number | null => { const n = Number(v ?? 0); return Number.isFinite(n) && n > 0 ? n : null; }; // cast_norms の 0＝個別なし（給与の resolveNormTargetsOf と同じ）
+    const castQ: Partial<Quota> | null = nr ? { hon: pos(nr.shimei_target), jonai: null, dohan: pos(nr.dohan_target), sales: pos(nr.sales_target) } : null;
+    const resolved = resolveQuotaOf(planDefaultQuotaOf(normTargetsOf(planRow ?? null), axes), castQ, axes, scope);
+    // 出勤日数の軸＝目標は cast_norms（当月・個別＝非 0）＞プラン既定 norm_days_target（★裁定347 追補2）
+    const daysT = resolveNormTargetsOf(normTargetsOf(planRow ?? null), { days: nr?.days_target ?? 0 }, axes);
     const { data: inRows } = await supabase.from("punches").select("punched_at").eq("type", "in").gte("punched_at", win.startTs).lt("punched_at", win.endTs);
     const daysActual = new Set(((inRows ?? []) as { punched_at: string }[]).map((r) => bizDateOf(r.punched_at, win.cutoffHm)).filter((d) => d >= win.periodStart && d <= win.periodEnd)).size;
     const quota = { days: axes.days ? daysT.value.days : null, ...resolved.quota };

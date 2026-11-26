@@ -1,7 +1,7 @@
 "use client";
 
 // /mine ノルマ進捗カード（mig0042→★0160 cast_quotas・裁定326-3・便 M2-1・2026-10-01）。
-//   データは /api/mine/norm-progress（cast 本人 self ガード・当月・quota＝cast_quotas の当月行・actual＝get_cast_sales の月合算）。
+//   データは /api/mine/norm-progress（cast 本人 self ガード・当月・quota＝cast_norms の当月行（★裁定511-9a・2026-11-27・旧 cast_quotas は読まない）・actual＝get_cast_sales の月合算）。
 //   cast 本人の「目標を設定」は廃止（set_cast_norm_self は 0160 で drop）＝店が /casts で設定する。未設定＝文言のみ。
 //   項目ごとに「実績／目標・達成率 %」・達成でゴールド強調（減額文言や警告色は出さない＝報酬非接続）。
 //   店の sys_norms OFF は /mine 側の isSectionOn("mineNormCard") で本カードごと非マウント（裁定269-4・据え置き）。
