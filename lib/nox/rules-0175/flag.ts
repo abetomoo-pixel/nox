@@ -394,3 +394,12 @@ export const MIG_0212_APPLIED = true; // ★相談役 11/25 の便 F1：0212 を
 let override0212: boolean | null = null;
 export function mig0212On(): boolean { return override0212 ?? MIG_0212_APPLIED; }
 export function __set0212ForTest(v: boolean | null): void { override0212 = v; }
+
+/** ★0216（起票165・相談役 11/25 の便 I【I2】で起草・11/26 の便 K1 で CC が適用 2026-11-26 12:48:07）。
+ *  初回の区分のセットの行が区分なしの行に覆われる並びを、並べ替え（pricing_rule_reorder）と行の保存（set_pricing_rule）でも DB が断る（'first visit shadowed'）。
+ *  3 本（set_pricing_rule_first を含む）が同じ判定（内部専用の pricing_first_visit_cover_of／pricing_first_visit_shadowed_ids）を読む。
+ *  画面は変えない（ruleErrJa が日本語を出すだけ）。検査（verify:nox-first-visit）が旗の後ろで DB の柵を確かめる。 */
+export const MIG_0216_APPLIED = true; // ★相談役 11/26 の便 K1：0216 を CC が適用した後（2026-11-26 12:48:07）
+let override0216: boolean | null = null;
+export function mig0216On(): boolean { return override0216 ?? MIG_0216_APPLIED; }
+export function __set0216ForTest(v: boolean | null): void { override0216 = v; }

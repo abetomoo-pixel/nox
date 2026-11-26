@@ -12,7 +12,8 @@ import { payDiscountPreviewOf } from "../lib/nox/rules-0175/pay-discount";
 import { openEstimateOf, type EstimateRule } from "../lib/nox/register/open-estimate";
 import { firstVisitBadgeOf, setLineNameOf, canExtendOf, canSwitchToExtendOf, extButtonsOf, defaultOpenCategoryOf, visitNoteOf, overdueTablesOf, firstVisitErrJa, FIRST_VISIT_WARN_MIN, firstVisitShadowsOf, firstVisitShadowBlockOf, ruleCoversOf, FIRST_VISIT_SHADOW_JA, firstVisitPartialShadowsOf, FIRST_VISIT_PARTIAL_NOTE_JA, FIRST_VISIT_ALL_IN_NOTE, type ShadowRule } from "../lib/nox/register/first-visit";
 import { FIRST_VISIT_SALES_NOTE } from "../lib/nox/payroll/sales-basis";
-import { MIG_0210_APPLIED, mig0210On, FIRST_VISIT_RECEIPT_R1, firstVisitReceiptR1On } from "../lib/nox/rules-0175/flag";
+import { MIG_0210_APPLIED, mig0210On, FIRST_VISIT_RECEIPT_R1, firstVisitReceiptR1On, MIG_0216_APPLIED, mig0216On } from "../lib/nox/rules-0175/flag";
+import { createHash } from "node:crypto";
 import { STORE_SETTING_KEYS } from "../lib/nox/ops/store-copy-keys";
 import { roundYen } from "../lib/nox/money";
 
@@ -253,6 +254,16 @@ const regSrc = fs.readFileSync("app/(manage)/register/register-board.tsx", "utf8
 ok("(10-2) レジ：延長・延長を追加・延長パターン・見積・延長のご案内（7 か所）が extBtn.extend の後ろ・会計タブの手動と自動の枠に「延長に切り替える」（extBtn.switchToExtend 2 か所）",
   regSrc.includes("const extBtn = check ? extButtonsOf(check.time_end, isManagerUp, mig0210On())") && (regSrc.match(/{extBtn.extend && /g) ?? []).length === 7
   && regSrc.includes("{!extBtn.extend ? (/* ★起票166") && regSrc.includes("{!extBtn.extend && (/* ★起票166") && (regSrc.match(/{extBtn.switchToExtend && <button/g) ?? []).length === 2);
+
+// (11) ★0216（起票165・相談役 11/26 の便 K1＝2026-11-26 12:48:07 CC 適用）: 並べ替えと行の保存も DB が断る（'first visit shadowed'）
+const mig0216 = fs.readFileSync("supabase/migrations/0216_first_visit_shadow_guard.sql");
+ok("(11-1) 収蔵＝本体と同じ指紋（02af65e7…b2f0）・begin;／commit; 1 回ずつ・3 本が同じ判定を読む",
+  createHash("sha256").update(mig0216).digest("hex") === "02af65e7226d9052fe974bb785685abfca219d600cd41e7cd88c92574ea9b2f0"
+  && (mig0216.toString("utf8").match(/^begin;/gm) ?? []).length === 1 && (mig0216.toString("utf8").match(/^commit;/gm) ?? []).length === 1
+  && ["pricing_first_visit_cover_of(p_id)", "pricing_first_visit_shadowed_ids(p_store_id)"].every((g) => mig0216.toString("utf8").includes(g)));
+ok("(11-2) 旗 MIG_0216_APPLIED は true（0216 の適用の後）", (MIG_0216_APPLIED as boolean) === true && mig0216On() === true);
+ok("(11-3) 料金のマスタ：並べ替えと行の保存の DB の例外も同じ日本語（ruleErrJa が firstVisitErrJa を引く）",
+  boardSrc.includes('if (msg.includes("first visit shadowed")) return firstVisitErrJa(msg) ?? msg;') && /function ruleErrJa[\s\S]{0,200}first visit shadowed/.test(boardSrc));
 
 if (fails.length) { console.error(fails.join("\n")); console.error(`verify:nox-first-visit NG ${fails.length}／${n}`); process.exit(1); }
 console.log(`verify:nox-first-visit OK ${n}`);

@@ -40,7 +40,7 @@ import MasterPageHead from "../master-page-head";
 import PricingPanel from "../pricing-panel";
 import RankShiftTimeCard from "./rank-shift-time-card"; // ★0208（N6）
 import FirstVisitCard from "./first-visit-card"; // ★0210（起票140）: 初回料金（旗の後ろ）
-import { firstVisitShadowBlockOf } from "@/lib/nox/register/first-visit"; // ★0210 v2（相談役 11/25 の便 F【F5】の決め）: 初回の区分のセットの行が当たらない並びになる保存は止める
+import { firstVisitErrJa, firstVisitShadowBlockOf } from "@/lib/nox/register/first-visit"; // ★0210 v2（相談役 11/25 の便 F【F5】の決め）: 初回の区分のセットの行が当たらない並びになる保存は止める
 import TimePricingPanel from "../time-pricing-panel";
 import StoreFlagToggle from "../store-flag-toggle"; // ★mig0144: ext_shimei_enabled／dohan_auto_hon のトグル（set_store_profile）
 import { mineSettingsErrJa, mineSettingsOf } from "@/lib/nox/store/mine-settings"; // ★0160（起票96・便 M4-4）: contract_ack（加盟店契約の確認の記録＝店設定 8 キー目）
@@ -100,6 +100,7 @@ const minToHm = (min: number) => `${String(Math.floor(min / 60)).padStart(2, "0"
 /** fn_set_pricing_rule / delete_pricing_rule の bad 系トークン対応表（docs/tmp の供出物が典拠）。 */
 function ruleErrJa(msg: string | undefined): string {
   if (!msg) return "不明なエラー";
+  if (msg.includes("first visit shadowed")) return firstVisitErrJa(msg) ?? msg; // ★0216（起票165・相談役 11/26 の便 K1）: 並べ替え（pricing_rule_reorder）と行の保存（set_pricing_rule）も DB が断る＝画面の柵より前に別のタブの古い画面から押したとき
   if (msg.includes("bad fee kind")) return "料金種別が不正です";
   if (msg.includes("bad seat kind")) return "席種が不正です";
   if (msg.includes("bad dow")) return "曜日の指定が不正です（1つ以上選択してください）";

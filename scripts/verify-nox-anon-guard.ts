@@ -810,6 +810,8 @@ async function mainBody() {
     ["punch_correction_apply", { p_id: null, p_reason: null }], // mig0154（裁定295-5・内部ヘルパー＝4 ロール revoke・anon／authenticated とも BLOCKED）
     ["referral_recalc", { p_check_id: null }], // mig0152（裁定286／298-1・内部ヘルパー＝4 ロール revoke・anon／authenticated とも BLOCKED）
     ["check_group_subtotal", { p_check_id: null, p_pay_group: "A" }], // ★0201s（2026-11-19 06:41 CC 適用・小計＝請求額の側と同じ数え方の内部ヘルパー＝4 ロール revoke・anon／authenticated とも BLOCKED）
+    ["pricing_first_visit_cover_of", { p_rule_id: null }], // ★0216（2026-11-26 12:48 CC 適用・起票165・覆う判定の内部ヘルパー＝4 ロール revoke・anon／authenticated とも BLOCKED）
+    ["pricing_first_visit_shadowed_ids", { p_store_id: null }], // ★0216（同・店で覆われている初回の行）
     ["punch_seq_check", { p_store_id: null, p_cast_id: null, p_type: null, p_at: null }], // mig0161（裁定327＋追補1・打刻の順序検査＝内部ヘルパー・4 ロール revoke・anon／authenticated とも BLOCKED）
   ];
   for (const [fn, args] of INTERNAL_PROBES) {
