@@ -55,7 +55,7 @@ export default function AdvanceOkuriForm({ storeId, casts, castId, castName, dat
       {only !== "transport" && !dailyStore && <IssueRow kind="advance" storeId={storeId} casts={casts} castId={castId} castName={castName} dateDefault={dateDefault} disabled={false}
         hint="貸付です（源泉は引かず、5,000 円控除も適用しません）。給与の「貸付返済」で天引きされます（手取りが足りないときは翌月へ繰越）。残高は給与の貸付残高一覧で確認できます。" onIssued={onIssued} />}
       {only !== "advance" && <IssueRow kind="transport" storeId={storeId} casts={casts} castId={castId} castName={castName} dateDefault={dateDefault} disabled={!okuriOn} defaultAmount={okuriBase}
-        hint={okuriOn ? "当月精算（繰越なし）。手取り不足で引き切れない残は再回収されません。" : "※送り方式が「実費」の店のみ発行できます（控除・送りで切替）。"} onIssued={onIssued} />}
+        hint={okuriOn ? "当月精算（繰越なし）。手取り不足で引き切れない残は再回収されません。" : "※送り方式が「なし」の店では記録できません（控除・送りで切替）。"} onIssued={onIssued} />}
     </div>
   );
 }

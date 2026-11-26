@@ -27,3 +27,17 @@ export function sanctionErrJa(msg: string): string | null {
   if (/^bad source for employment$/.test(msg)) return "懲戒減給は雇用キャストにのみ登録できます";
   return null;
 }
+
+/** ★裁定512-12（#240・#241・2026-11-26 Agoora）: 確定（/api/payroll/finalize）が減給の上限（RPC 'sanction cap'）で止まったときの画面の文。
+ *  route の文＝「ノルマ未達の減額を精算調整に入れられませんでした（名前）: sanction cap」（route と比べ方は変えない＝表示だけ）。
+ *  額は画面の提案の額（プレビューの normProposal.proposed）＝確定時の最新の額と違うことがある。route が名前を返さない形なら名前なしの文。該当しなければ null */
+export const FINALIZE_SANCTION_CAP_RE = /^ノルマ未達の減額を精算調整に入れられませんでした（(.+)）: sanction cap$/;
+export function finalizeSanctionCapMsgOf(error: string | null | undefined, rows: readonly { castName: string; normProposal?: { proposed: number } | null }[]): string | null {
+  const e = error ?? "";
+  const cap = NOTE_SANCTION_CAP.replace(/。$/, "");
+  const m = FINALIZE_SANCTION_CAP_RE.exec(e);
+  if (!m) return /sanction cap/.test(e) ? `確定を止めました: 減給の上限（${cap}）を超える人がいます。給与の画面の「ノルマ未達の提案」と懲戒減給の行を見直してから、もう一度確定してください。` : null;
+  const name = m[1];
+  const amt = rows.find((r) => r.castName === name)?.normProposal?.proposed;
+  return `確定を止めました: ${name} のノルマ未達の懲戒減給${typeof amt === "number" && amt > 0 ? `（画面の提案の額 ¥${amt.toLocaleString("ja-JP")}）` : ""}が減給の上限（${cap}）を超えます。「ノルマ未達の提案」で額を下げるか「除外」にしてから、もう一度確定してください。`;
+}

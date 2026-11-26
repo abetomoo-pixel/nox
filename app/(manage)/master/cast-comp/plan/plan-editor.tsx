@@ -19,6 +19,7 @@ import { SLIDE_APPLY_LABEL, SLIDE_BASIS_LABEL, slideBasisOf, slideBasisPillOf, s
 import { isSectionOn, isSystemOn, pointSlideOn, salesSlideOn, slidesTabOnWithPayRate, type StoreSettings } from "@/lib/nox/store-systems"; // ★裁定269: 使う制度の出し分け
 import { BONUS_TIER_MAX, bonusParamsOf, bonusTiersErrOf, bonusTiersLabel, bonusTiersOf, type BonusTier } from "@/lib/nox/bonus-tiers"; // ★便 P173 T-2（起票110）: 達成ボーナスの多段
 import { slideErrOf, slideToSave } from "@/lib/nox/comp/slide-rows"; // ★便 P174 T-1（裁定390）
+import { planCreateGuideOf, planCreateSectionOf, planSaveFirstOf } from "@/lib/nox/plan-create-section"; // ★起票65（段ア）: 「時給・最低保証」OFF の店でも新しいプランを作れる
 import PayRateTiersEditor from "./pay-rate-tiers-editor";
 import CommissionTiersEditor, { type CommissionTier } from "./commission-tiers-editor";
 import HourlyBandsEditor from "./hourly-bands-editor"; // ★時間帯の時給
@@ -259,6 +260,7 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
   const vis = show ?? { base: true, backs: true, slides: true, achieve: true };
   // ★裁定269-4: 節ごとに isSectionOn 1 条件（4 節＋自由バック表）
   const on = { base: isSectionOn(settings, "planEditorBase"), backs: isSectionOn(settings, "planEditorBacks"), slides: slidesTabOnWithPayRate(settings, plans as { reward_axis?: string | null }[], rules0175On()) /* ★便 GV-C C-5（R-5）: OR をやめ節ごと★2026-11-18: 報酬率のプランがあれば出す */, achieve: isSectionOn(settings, "planEditorAchieve"), backTab: isSectionOn(settings, "compBackTab") };
+  const createSection = planCreateSectionOf(on); // ★起票65（段ア）: 新しいプランを作る節＝描かれている最初の節（基本・保証 → 各種バック → スライド）
   useEffect(() => {
     onDirtyCounts?.({
       base: dirty(["name", "base", "active"]) ? 1 : 0,
@@ -320,7 +322,7 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
   }
 
   async function saveComp(section: string, kind: string, over: { id: string | null; amount: number; priority: number; active: boolean; unit?: "month" | "day" }) {
-    if (!draft.id) { setSecErr((e) => ({ ...e, [section]: "先にプランを保存してください（基本給・保証の保存でプランが作成されます）" })); return; }
+    if (!draft.id) { setSecErr((e) => ({ ...e, [section]: planSaveFirstOf(createSection) })); return; }
     const params = { period: "month", ...(over.unit ? { unit: over.unit } : {}) }; // ★便 P173 T-2: 達成ボーナスは saveBonus（多段）・★0202f: 保証の単位（month／day）
     const { error } = await supabase.rpc("set_comp_component", {
       p_id: over.id, p_plan_id: draft.id, p_kind: kind, p_mode: "amount",
@@ -338,7 +340,7 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
   // ★便 P173 T-2（起票110）: 達成ボーナスの多段＝params {thresholds:[{pct, amount}]}・コンポーネントの amount＝1 段目（一覧の互換）・priority 90 固定（裁定106 B2）
   async function saveBonus(over: { id: string | null; tiers: BonusTier[]; active: boolean }): Promise<boolean> {
     const section = "達成ボーナス";
-    if (!draft.id) { setSecErr((e) => ({ ...e, [section]: "先にプランを保存してください（基本給・保証の保存でプランが作成されます）" })); return false; }
+    if (!draft.id) { setSecErr((e) => ({ ...e, [section]: planSaveFirstOf(createSection) })); return false; }
     const { params, amount } = bonusParamsOf(over.tiers);
     const { error } = await supabase.rpc("set_comp_component", {
       p_id: over.id, p_plan_id: draft.id, p_kind: "achievement_bonus", p_mode: "amount",
@@ -376,14 +378,14 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
   // ★便 BTN（裁定242）: 節の保存は節の末尾の中央（旧＝見出しの右端）。SecHead と同じ props を受ける
   const SecSave = ({ keys, section }: { title?: string; keys: (keyof Draft)[]; section: string; desc?: string }) => {
     void keys;
-    const creatable = section === "基本給・保証";
+    const creatable = section === createSection; // ★起票65（段ア）: 旧＝"基本給・保証" だけ
     const disabled = !draft.name.trim() || (draft.id === null && !creatable);
     if (!isOwner) return null;
     return (
       <div className="nox-actions" style={{ marginTop: 12 }} data-plan-save={section}>
         <button type="button" style={{ ...t.btnGold, ...t.btnSm, opacity: disabled ? 0.5 : 1 }} onClick={() => void savePlan(section)}
           disabled={disabled}
-          title={draft.id === null && !creatable ? "先に「基本給・保証を保存」でプランを作成してください" : ""}>
+          title={draft.id === null && !creatable ? `先に「${createSection ?? "基本給・保証"}を保存」でプランを作成してください` : ""}>
           {section}を保存
         </button>
       </div>
@@ -391,7 +393,7 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
   };
   const SecHead = ({ title, keys, section, desc }: { title: string; keys: (keyof Draft)[]; section: string; desc?: string }) => {
     const isDirty = dirty(keys);
-    const creatable = section === "基本給・保証";
+    const creatable = section === createSection; // ★起票65（段ア）: 旧＝"基本給・保証" だけ
     const disabled = !draft.name.trim() || (draft.id === null && !creatable);
     return (
       <div style={{ marginBottom: 12 }}>
@@ -425,7 +427,7 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
         <div style={{ ...t.card, marginBottom: 14, border: "1px solid var(--gold)", fontSize: 13 }}>
           <strong style={{ color: "var(--champ)" }}>新規プランの作成</strong>
           <span style={{ marginLeft: 8, color: "var(--sub)" }}>
-            プラン名を入力して「基本給・保証を保存」を押すとプランが作成されます（他の節はその後に保存できます）。
+            {planCreateGuideOf(createSection)}
           </span>
         </div>
       )}
@@ -462,6 +464,10 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
       {on.backs && (<section id="backs" className="nox-cardtop" style={{ ...secCard, display: vis.backs ? undefined : "none" }}>{/* ★裁定269-4: planEditorBacks */}
         <SecHead title="歩合・バック" keys={["honBack", "jonaiBack", "dohanBack", "honMode", "honRate", "jonaiMode", "jonaiRate", ...PB_KEYS]} section="各種バック"
           desc="指名実績バックと商品販売バックを設定します。" />
+        {draft.id === null && createSection === "各種バック" && (/* ★起票65（段ア）: 「基本・保証」の節が描かれない店＝この節でプラン名を入れて作る */
+          <div style={{ marginBottom: 10 }} data-plan-create-name="各種バック"><label style={lbl}>プラン名
+            <input placeholder="プラン名" value={draft.name} onChange={(e) => d({ name: e.target.value })} style={{ ...t.input, width: 240, maxWidth: "100%" }} disabled={!isOwner} /></label></div>
+        )}
         {/* ★N2: 指名実績バック＝3ブロック（本指名／場内指名／同伴）。方式トグルは「固定額 円/本｜割合 %」（v3.1 逐語）・
             方式切替で単位 UI も同時に切替（規約 §4）。値の保持・送信形（rate は mode='rate' のときだけ）は不変。 */}
         <b style={{ fontSize: 14, display: "block", marginBottom: 6 }}>指名実績バック</b>
@@ -558,6 +564,10 @@ export default function PlanEditor({ storeId, isOwner, plans, backs, selId, setS
       {/* ── ④ スライド・ポイント ── */}
       {on.slides && (<section id="slides" className="nox-cardtop" style={{ ...secCard, display: vis.slides ? undefined : "none" }}>{/* ★裁定269-4: planEditorSlides */}
         <SecHead title="スライド・ポイント" keys={["salesSlide", "pointSlide", "slidePeriod", "slideApply"]} section="スライド" desc="売上・ポイント実績に応じた時給スライドを設定します。" />
+        {draft.id === null && createSection === "スライド" && (/* ★起票65（段ア）: 「基本・保証」の節が描かれない店＝この節でプラン名を入れて作る */
+          <div style={{ marginBottom: 10 }} data-plan-create-name="スライド"><label style={lbl}>プラン名
+            <input placeholder="プラン名" value={draft.name} onChange={(e) => d({ name: e.target.value })} style={{ ...t.input, width: 240, maxWidth: "100%" }} disabled={!isOwner} /></label></div>
+        )}
         {/* ★裁定338＋追補1（0168・便 P168）: 判定期間＝3 択（月次（既定）／半月／日次）・owner・保存は set_comp_plan 23 引数。青ピルと説明文は期間で切替（翌日反映の語は使わない）。判定基準・対象（C5）は準備中のまま */}
         <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 8px", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <span>判定期間:</span>

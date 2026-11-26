@@ -61,7 +61,7 @@ const rows: CastSalesRow[] = [
   const mp = src("app/mine/page.tsx");
   check("rk(4-5) /mine: off 以外は自分の順位カード", mp.includes('{castRankingModeOf(ms) !== "off" && (mySales || myRank) && (' /* ★便 X13-G W-22 ④: 売上が既定 */));
   const panel = src("app/(manage)/master/mine-settings-panel.tsx");
-  check("rk(4-6) 店舗設定の説明＝top／self・金額はどちらでも出さない", panel.includes("ランキングに上位の名前も出します。OFF は自分の順位のみ。金額はどちらでも出しません") /* ★便 X13-G W-9: 画面の文言から top／self を外した */);
+  check("rk(4-6) 店舗設定の説明＝top／self・他の人の金額はどちらでも出さない（本人の売上は出る）", panel.includes("ランキングに上位の名前も出します。OFF は自分の順位のみ。他の人の金額はどちらでも出しません（本人の売上は出ます") /* ★便 X13-G W-9: 画面の文言から top／self を外した ★2026-11-26（食い違い 309）: マイページは本人の売上の額を出す＝文を合わせた */);
 }
 
 if (fails.length) { console.error(`✗ verify:nox-ranking 失敗 ${fails.length}（成功 ${pass}）`); for (const f of fails) console.error(" - " + f); process.exit(1); }

@@ -123,7 +123,7 @@ const CANCEL_ACTIONS = [
 // ★C層③（設計書 v1 §4・相談役ブロック 2026-09-10）: 解除型 RPC（report_reopen／daily_report_reclose／cash_diff_approve）の
 //   raise 文言の写像。RPC が本体＝UI は翻訳のみ（隠さない）。先勝ち＝already_reopened／not_reopened は "reopened" より前に置く。
 const REOPEN_ERR_JA: [string, string][] = [
-  ["feature_disabled:reopen_flow", "締め解除フローが無効です（システム設定 → 機能の公開で店舗行を ON にしてください）"],
+  ["feature_disabled:reopen_flow", "締め解除フローが無効です（店舗設定 › シフトと打刻 の「機能の公開」で ON にしてください）"],
   ["already_reopened", "この日報はすでに解除中です"],
   ["not_reopened", "解除中ではないため再締めできません（先に「解除」してください）"],
   ["not_counted", "実査額が未入力のため差異を承認できません"],
@@ -683,7 +683,7 @@ export default function ReportBoard({
     // ★D45: cash＝現金へ振替（在高加算）・card／other＝在高外（日報の カード回収／その他回収 に別掲）
     const how = collectMethod === "cash" ? "現金へ振替" : collectMethod === "card" ? "カード回収・現金在高には含めません" : "その他回収・現金在高には含めません";
     setMsg(error
-      ? (error.message.includes("bad amount") ? "回収額が残額を超えています" : error.message)
+      ? (error.message.includes("bad amount") ? "回収額が残額を超えています" : rpcErrJaCommon(error.message))
       : `売掛 ${yen(amt ?? remaining)} を回収（${how}・${amt !== null && amt < remaining ? "残額 " + yen(remaining - amt) : "完済"}）。`);
     setCollectPick(null);
     await loadRecvs();

@@ -8,7 +8,8 @@
 //     画面自体は必ず開く（フェイルソフト）。
 //   ★戻り値の反映は webhook（org_billing への唯一の書込経路）＝操作後は router.refresh() で読み直す。
 import { useState } from "react";
-import { TOKUSHOHO_HREF, TOKUSHOHO_TITLE } from "@/lib/nox/legal/tokushoho"; // ★2026-11-10: お申し込みの下に特定商取引法の表示
+import { TOKUSHOHO_HREF, TOKUSHOHO_TITLE, SUPPORT_EMAIL } from "@/lib/nox/legal/tokushoho"; // ★2026-11-10: お申し込みの下に特定商取引法の表示
+import { INQUIRY_PATH } from "@/lib/nox/inquiry/labels"; // ★裁定511-1a（#316）: 解約は運営への問い合わせ（お支払い管理では解約を出さない＝裁定479 の 4）
 import PageHead from "@/components/ui/page-head";
 import { useRouter, useSearchParams } from "next/navigation";
 import * as t from "@/lib/nox/ui/theme";
@@ -118,7 +119,8 @@ export default function BillingBoard({ view }: { view: BillingView }) {
         )}
         <p style={{ fontSize: 11, color: "var(--v2-muted)", margin: "12px 0 0", lineHeight: 1.7 }}>
           ご請求は店舗数に応じた金額です（店舗を追加すると次回請求から反映されます）。
-          解約・お支払い方法の変更・領収書のダウンロードは「お支払い管理」から行えます。
+          お支払い方法の変更・請求書の履歴は「お支払い管理」から行えます。
+          解約は <a href={INQUIRY_PATH} className="nox-link" data-billing-cancel="1">運営への問い合わせ</a> またはメール（{SUPPORT_EMAIL}）でお申し出ください。
         </p>
       </section>
 

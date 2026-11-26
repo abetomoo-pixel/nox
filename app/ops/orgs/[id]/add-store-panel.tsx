@@ -44,7 +44,7 @@ export default function AddStorePanel({ orgId, stores, initial, inquiryId }: { o
   return (
     <section style={{ ...t.card, display: "grid", gap: 10 }} aria-label="店を追加" data-ops-add-store="1">
       <h2 style={{ fontSize: 15, fontWeight: 800, margin: 0 }}>店を追加</h2>
-      <p style={{ ...t.sub, fontSize: 12, margin: 0, lineHeight: 1.7 }}>同じ会社に店を足します。足した店は初期設定の前です。給与の締め日は月末です。支払日は店ごとに決められます（足した店は 1 店目と同じ日から始まり、あとで店の設定で変えられます）。</p>
+      <p style={{ ...t.sub, fontSize: 12, margin: 0, lineHeight: 1.7 }}>同じ会社に店を足します。足した店は初期設定の前です。給与の締め日は月末です。支払日は店ごとに決められます（足した店は、写す元の店があればその店の支払日から始まり、あとで店の設定で変えられます）。</p>
       <label style={{ display: "grid", gap: 4 }}><span style={t.fieldLabel}>店名</span><input value={name} maxLength={40} onChange={(e) => setName(e.target.value)} style={{ ...t.input, ...(fe.name ? { borderColor: OPS_ERR_BORDER } : {}) }} aria-invalid={!!fe.name} />
         {errLine(fe.name, "name")}</label>
       <div style={{ display: "grid", gap: 4 }}><span style={t.fieldLabel}>業態</span>

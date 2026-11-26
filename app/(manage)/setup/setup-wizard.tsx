@@ -3,7 +3,7 @@
 // 初期設定ウィザード v5（★便 OB-2・2026-10-29・裁定438 候補「初期設定 v5＝正本」＝docs/handoff/mock/setup_v5.html の 9 STEP を同じ文言・同じ順・同じ既定値で）。
 //   STEP 1 お店（業態 5・店舗情報・営業時間・定休日）／2 席・卓／3 料金（ルール・延長パターン・VIP・指名／同伴・サービス料・税・合流）／4 メニュー／5 キャスト待遇（時給・バック・スライド 3 種・pt・ノルマ・ボーナス・売上の数え方・締め支払・源泉・前払・送り・マイページ）／
 //   6 スタッフ／7 シフト・勤怠／8 会計・レジ（使う機能・店の端末・締め・手数料・現金割引・領収書）／9 確認（要確認＝v5 の checks と同じ条件）→「この内容で始める」＝lib/nox/setup/v5.ts buildV5Plan（既存 RPC・route の呼び出し列）を順に実行。
-//   完了画面＝キャスト 1 人ずつ／CSV（9 列）・PIN 一覧印刷・ホームへ。入力は自動保存（localStorage＝店ごと・途中で離れても再開＝org 単位の表は 0191 setup_drafts の後）。
+//   完了画面＝キャスト 1 人ずつ／CSV（10 列＝生年月日まで）・PIN 一覧印刷・ホームへ。入力は自動保存（localStorage＝店ごと・途中で離れても再開＝org 単位の表は 0191 setup_drafts の後）。
 //   器が無い項目（V5_SAVE_MAP has=false）は画面に出して保存は「後で（マスタから）」の注記。主ボタンは中央（.nox-actions・教訓122）・iPad 横 1,024 と 390 の両方。既存の org（初期設定済み）には page が出さない。
 //   UI 規約 238〜244・新トークン 0。書込は既存 RPC（v5.ts の計画）＋route 3 本（/api/staff/create・/api/kiosk/provision・/api/cast/invite）。
 import { applyMenuTemplate, menuTemplatesFor, tplStartBlockedOf, type TplConfirm } from "@/lib/nox/setup/menu-template"; // ★便 M6
@@ -33,6 +33,7 @@ import type { ProductRow } from "@/lib/nox/setup/template-plan";
 import { mig0203On } from "@/lib/nox/rules-0175/flag"; // ★0203（■2-b）
 import { STORE_COPY_LABEL, STORE_COPY_NEVER, STORE_COPY_PARTS, storeCopyErrJa, type StoreCopyPart } from "@/lib/nox/ops/store-add";
 import { applyCopyToPlan, copiedPlanIdsOf, copyPartsOf, stripOrgLevelKeys, TRIAL_PICK_NOTE, type CopiedReceipt } from "@/lib/nox/setup/copy-plan";
+import StoreSwitcher from "@/components/nox/store-switcher"; // ★2026-11-26（食い違い 283）
 
 const DRAFT_KEY = (storeId: string) => `nox.setup.v5.draft.${storeId}`;
 const card: React.CSSProperties = t.card;
@@ -79,7 +80,9 @@ function Opt({ title, sub, children, dimmed }: { title: string; sub?: React.Reac
 }
 const later = (why: string) => <span className="nox-stpill" style={{ marginLeft: 6, fontSize: 10.5 }} data-setup-later="1">後で（マスタから）・{why}</span>;
 
-export default function SetupWizard({ store, counts, isOwner, initialStep, initialType, lockedType = null, copy = null, multiStore = false, storePayDay = null }: {
+export default function SetupWizard({ store, counts, isOwner, initialStep, initialType, lockedType = null, copy = null, multiStore = false, storePayDay = null, switchStores = null }: {
+  /** ★2026-11-26（食い違い 283）: 2 店以上のオーナー＝初期設定の画面からほかの店へ戻る切り替え（旗 0203 の後ろ・出すかは page が storeSwitchShownOf で決める） */
+  switchStores?: { id: string; name: string; setupDone: boolean }[] | null;
   store: { id: string; name: string; setupDone: boolean; current: V5Ctx["current"] };
   counts: { seats: number; products: number; plans: number; rules: number };
   isOwner: boolean;
@@ -303,8 +306,10 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
     setCastBusy(false); return true;
   }
   async function importCsv() {
-    for (const r of S.csvRows.filter((x) => !x.err)) { const ok = await addCast({ g: r.c[0], n: r.c[1], st: r.c[2], kind: r.c[3], plan: r.c[4], tel: r.c[5], mail: r.c[6], pin: r.c[7] || genPin(), dist: ({ "近": "near", "中": "mid", "遠": "far" } as Record<string, string>)[r.c[8]] ?? "mid", inv: !!r.c[6], birthday: "" }); if (!ok) break; }
-    setS((s) => ({ ...s, csvRows: [] }));
+    // ★2026-11-26（食い違い 3）: 生年月日＝10 列目（parseCsv が YYYY-MM-DD に直した値）。止まったら登録できた行だけを表から外す（残りは表に残して直して押し直せる）
+    const done = new Set<number>();
+    for (const [i, r] of S.csvRows.entries()) { if (r.err) continue; const ok = await addCast({ g: r.c[0], n: r.c[1], st: r.c[2], kind: r.c[3], plan: r.c[4], tel: r.c[5], mail: r.c[6], pin: r.c[7] || genPin(), dist: ({ "近": "near", "中": "mid", "遠": "far" } as Record<string, string>)[r.c[8]] ?? "mid", inv: !!r.c[6], birthday: r.c[9] }); if (!ok) break; done.add(i); }
+    setS((s) => ({ ...s, csvRows: s.csvRows.filter((_, i) => !done.has(i)) }));
   }
 
   // ── 描画 ──
@@ -341,6 +346,11 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
           <div><h1>NOX 初期設定{type && <span className="nox-stpill" style={{ marginLeft: 8, verticalAlign: "middle" }}>{v5TypeName(type)}</span>}</h1><div className="sub"><span className="nox-setup-sub-store">{store.name}</span><span className="nox-setup-sub-dot">・</span><span className="nox-setup-sub-hint">あとからすべて変更できます</span>{store.setupDone && <span className="nox-setup-sub-note">{"（設定済みの店＝再実行は既存データを二重投入しません）"}</span>}</div></div>
           <div className="save" data-setup-saved="1">{saved}</div>
         </div>
+        {switchStores && switchStores.length > 1 && (/* ★2026-11-26（食い違い 283）: 初期設定の前の店を選ぶと、どの画面もこの店の初期設定へ戻る＝ここで店を選び直すと設定済みの店の画面（ホーム）へ戻れる */
+          <div className="nox-setup-switch" data-setup-store-switch="1" style={{ maxWidth: 1200, margin: "0 auto", padding: "0 24px 10px", display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
+            <StoreSwitcher stores={switchStores} currentId={store.id} leaveSetup />
+            <span style={{ color: "var(--sub)", fontSize: 12 }}>ほかの店の画面へは、ここで店を選ぶと戻れます（この店の入力は自動保存されています）。</span>
+          </div>)}
         {!isDone && (
           <ol className="nox-setup-steps" aria-label="初期設定の手順">
             {V5_STEPS.map((n, i) => { const cur = S.step === i, done = !!S.done[i] && !cur; return (
@@ -822,14 +832,14 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
               <h3 style={h3}>CSV で一括登録</h3>
               <p style={lead}>今の名簿を表計算ソフトで CSV にして取り込みます。1 行目は見出しです。</p>
               <div><span style={t.fieldLabel}>列（この順番）</span><div style={{ ...input, width: "100%", fontFamily: "ui-monospace, monospace", fontSize: 13 }}>{CSV_HEADER}</div></div>
-              <p style={note}>在籍区分＝在籍／体入、契約区分＝業務委託／雇用、待遇プラン＝基本プラン／体験入店（空なら在籍区分から自動）、PIN＝4〜6 桁（空なら自動で振る）、送り距離＝近／中／遠（空なら中）。メールがある人には、ログイン ID（メール）と初期パスワードをこの画面に出します（メールは送りません）。生年月日は登録後にキャスト画面で入れます（CSV の 9 列に無いため）。</p>
+              <p style={note}>在籍区分＝在籍／体入、契約区分＝業務委託／雇用、待遇プラン＝基本プラン／体験入店（空なら在籍区分から自動）、PIN＝4〜6 桁（空なら自動で振る）、送り距離＝近／中／遠（空なら中）、生年月日＝2000/1/1 の形（必須・18 歳の確認に使います）。メールがある人には、ログイン ID（メール）と初期パスワードをこの画面に出します（メールは送りません）。生年月日が空・18 歳未満の行は赤で示し、登録しません。</p>
               <div className="nox-actions" style={{ marginTop: 8 }}>
                 <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} onClick={() => { void navigator.clipboard?.writeText(CSV_HEADER); setCastMsg("見出し行をコピーしました"); }}>見出し行をコピー</button>
                 <label style={{ ...t.btnGhost, ...t.btnSm, display: "inline-flex", alignItems: "center", cursor: "pointer" }}>CSV ファイルを選ぶ<input type="file" accept=".csv,text/csv" style={{ display: "none" }} onChange={(e) => { const fl = e.target.files?.[0]; if (!fl) return; const rd = new FileReader(); rd.onload = () => setS((s) => ({ ...s, csvRows: parseCsv(String(rd.result)) })); rd.readAsText(fl, "UTF-8"); }} /></label>
               </div>
               {S.csvRows.length > 0 && (<>
-                <div className="nox-tablewrap plain" style={{ marginTop: 8 }}><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}><thead><tr>{["", "源氏名", "本名", "在籍区分", "契約区分", "待遇プラン", "電話", "メール", "PIN", "送り距離"].map((h) => <th key={h} style={t.th}>{h}</th>)}</tr></thead>
-                  <tbody>{S.csvRows.map((r, i) => <tr key={i}><td style={t.td}>{r.err ? <span className="nox-stpill warn">{r.err}</span> : "✓"}</td>{r.c.map((v, j) => <td key={j} style={t.td}>{v}</td>)}</tr>)}</tbody></table></div>
+                <div className="nox-tablewrap plain" style={{ marginTop: 8 }}><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}><thead><tr>{["", "源氏名", "本名", "在籍区分", "契約区分", "待遇プラン", "電話", "メール", "PIN", "送り距離", "生年月日"].map((h) => <th key={h} style={t.th}>{h}</th>)}</tr></thead>
+                  <tbody>{S.csvRows.map((r, i) => <tr key={i}><td style={t.td}>{r.err ? <span className="nox-stpill bad">{r.err}</span> : "✓"}</td>{r.c.map((v, j) => <td key={j} style={t.td}>{v}</td>)}</tr>)}</tbody></table></div>
                 <div className="nox-actions" style={{ marginTop: 8 }}><button type="button" style={t.btnGold} disabled={castBusy} data-importcsv="1" onClick={() => void importCsv()}>{S.csvRows.filter((r) => !r.err).length} 人を登録する</button></div>
               </>)}
               {castMsg && <Message kind={/失敗|止まりました/.test(castMsg) ? "error" : "success"}>{castMsg}</Message>}

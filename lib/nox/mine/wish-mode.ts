@@ -15,8 +15,8 @@ export const SHIFT_MODE_NOTE = "出たい日と時間を提出します。希望
 /** ページの文言（見出し・副題・提出節・説明） */
 export function wishPageTextOf(mode: WishMode): { title: string; sub: string; submitHeading: string; note: string; markNote: string } {
   return mode === "off_only"
-    ? { title: "シフト", sub: "休みたい日を提出・審査状況を確認", submitHeading: "休みたい日を提出", note: OFF_MODE_NOTE, markNote: "募集期間中の無印の日は出られる日として扱われます。募集期間外・定休日は選べません。提出済みの日は押すと詳細（取り下げ）が出ます。時間は入力しません（休みの日だけを選びます）" }
-    : { title: "シフト", sub: "希望を提出・審査状況を確認", submitHeading: "希望を提出", note: SHIFT_MODE_NOTE, markNote: "募集期間外・定休日は選べません。提出済みの日は押すと詳細（取り下げ）が出ます。前の月に戻ると確定した実績が見られます。" };
+    ? { title: "シフト", sub: "休みたい日を提出・審査状況を確認", submitHeading: "休みたい日を提出", note: OFF_MODE_NOTE, markNote: "募集期間中の無印の日は出られる日として扱われます。募集期間外・定休日は選べません。提出済みの日は押すと詳細が出ます（採用の前なら取り下げられます）。時間は入力しません（休みの日だけを選びます）" }
+    : { title: "シフト", sub: "希望を提出・審査状況を確認", submitHeading: "希望を提出", note: SHIFT_MODE_NOTE, markNote: "募集期間外・定休日は選べません。提出済みの日は押すと詳細が出ます（採用の前なら取り下げられます）。前の月に戻ると確定した実績が見られます。" };
 }
 
 export type WishSubmitArgs = { p_date: string; p_start_hm: string | null; p_end_hm: string | null; p_kind: "work" | "off" };

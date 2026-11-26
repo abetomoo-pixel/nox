@@ -9,7 +9,7 @@
  *  (4) 給与明細 3 モード（326-1）: PayslipSlip compact＝期ヘッダー＋手取りのみ（支給／控除／総支給の行なし）・通常＝支給の行あり・/mine は 'off' でカードごと出さず 'net_only' で compact
  *  (5) 配線（逐語 grep）: /mine page＝2 カード削除（SimulatorPanel／今月のバック／check_cast_backs／sim-data なし）・勤怠一覧（monthAttendanceRowsOf・details・mdLabelOf）・当日の出勤／退勤・
  *      月の打刻 1 本から当日分を絞る（旧 todayPunches fetch なし）・shifts は当月初から 1 本／norm-card＝「目標を設定」なし・quotaAxesOf／route＝cast_quotas を読み cast_norms・loadPunch を読まない・norm-set route は無い／
- *      layout＝未読数（notices・cast_notice_reads・noticeNavLabelOf）／notices page＝notice_mark_read＋「新着」／casts-board＝set_cast_quota（p_month＝quotaMonth・空欄 NULL）・今月／翌月・MoneyInput（売上）・Message／rpc-err 'bad quota'／'bad month'
+ *      layout＝未読数（notices・cast_notice_reads・noticeNavLabelOf）／notices page＝notice_mark_read＋「新着」／casts-board＝★裁定511-9a で見るだけ（cast_norms・入力口なし）・今月／翌月／rpc-err 'bad quota'／'bad month'
  *  逆テスト 1 本（手動・1 回）: quotaAxesOf の `target <= 0` を `target < 0` にする→mr(1-1) 赤・戻して緑。
  */
 import fs from "node:fs";
@@ -84,8 +84,8 @@ check("mr(5-3) norm-card: 「目標を設定」なし・quotaAxesOf・QUOTA_EMPT
   && route.includes('from("cast_quotas").select("hon, jonai, dohan, sales")') && routeC.includes('from("cast_norms").select("days_target")') /* ★347 追補2 修正（便 N1014 A-4）: 出勤日数の目標だけ cast_norms（admin）から読む */ && !routeC.includes("loadPunch") && !routeC.includes("set_cast_norm_self") && !fs.existsSync("app/api/mine/norm-set/route.ts"));
 check("mr(5-4) layout: notices・cast_notice_reads を読み noticeNavLabelOf／notices page: 未読分に notice_mark_read・開いた時点の未読に「新着」（★0201i: フラグ true は notice_responses・自動の既読はフラグ false の枝だけ・新着は未確認）", layout.includes('supabase.from("notices").select(mig0201iOn() ? "id, cast_ids, rsvp, rsvp_at, rsvp_due" : "id, cast_ids")') /* ★便 ON-3（0176 ★5 (e)）: 宛先つきお知らせ＝cast_ids も読む */ && layout.includes(': supabase.from("cast_notice_reads").select("notice_id")') && layout.includes('label: "お知らせ", badge: unread') /* ★2026-11-18 夜（相談役 ⑥ C-1）: 件数は赤い丸 */
   && notices.includes('supabase.rpc("notice_mark_read", { p_notice_id: id })') && notices.includes("(mig0201iOn() ? !myResp.get(n.id)?.acked_at : unreadIds.has(n.id as string)) && <span") && notices.includes("if (!mig0201iOn()) await Promise.all([...unreadIds]") && notices.includes("{NOTICE_NEW_BADGE}"));
-check("mr(5-5) casts-board: 今月のノルマ節＝set_cast_quota（p_store_id／p_cast_id／p_month＝quotaMonth・quotaArgsOf）・今月／翌月（quotaMonthOptionsOf）・売上は MoneyInput・成否は Message・和文 rpcErrJa／rpc-err 'bad quota'／'bad month'",
-  cb.includes('supabase.rpc("set_cast_quota", { p_store_id: c.store_id, p_cast_id: c.id, p_month: quotaMonth, ...a.args })') && cb.includes("quotaMonthOptionsOf(month)") && cb.includes('ariaLabel="売上の目標"') && cb.includes("<h3 style={{ ...secTitle, margin: \"0 0 6px\" }}>今月のノルマ</h3>") && cb.includes("{quotaMsg && <Message kind={quotaMsg.kind}")
+check("mr(5-5) casts-board: 今月のノルマ節＝★裁定511-9a（#262）で見るだけ（set_cast_quota の入力口なし・cast_norms を読む・ノルマ設定へのリンク）・今月／翌月（quotaMonthOptionsOf）・和文 rpcErrJa／rpc-err 'bad quota'／'bad month'（関数は残る）",
+  !cb.includes('supabase.rpc("set_cast_quota"') && cb.includes('supabase.from("cast_norms").select("days_target, dohan_target, sales_target, shimei_target").eq("cast_id", selCastId).eq("period", quotaMonth.slice(0, 7))') && cb.includes("quotaMonthOptionsOf(month)") && !cb.includes('ariaLabel="売上の目標"') && cb.includes("<h3 style={{ ...secTitle, margin: \"0 0 6px\" }}>今月のノルマ</h3>") && cb.includes("{CAST_NORM_READONLY_NOTE}") && cb.includes('data-cast-norm-link="1"')
   && rpcErrJa("bad quota") === "目標は 0 以上の整数で入力してください（空欄＝目標なし）" && rpcErrJa("bad month").startsWith("月の指定が正しくありません"));
 
 if (fails.length) {

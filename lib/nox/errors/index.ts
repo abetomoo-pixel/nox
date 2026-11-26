@@ -41,7 +41,7 @@ export const ERR_DICT: ReadonlyArray<readonly [RegExp, string]> = [
   // 会計
   [/^off duty$/, "出勤してからレジを開けます（店の端末で出勤の打刻をしてください）"],
   [/^not open$/, "この伝票は会計済みか取消済みです"],
-  [/^has payments$/, "入金後は変更できません（入金を取り消してから操作してください）"],
+  [/^has payments$/, "入金後は変更できません"],
   [/^exceeds balance$/, "入金額が残額を超えています"],
   [/^day closed$/, "この営業日は締め済みです"],
   // ★0201d（裁定478）: 臨時営業／臨時休業（/^day closed$/＝締め済みとは別の語）

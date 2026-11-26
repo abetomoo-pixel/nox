@@ -129,7 +129,7 @@ export default function KioskDevicePanel({ stores }: { stores: Store[] }) {
 
   async function deactivate(d: Device) {
     if (busy) return;
-    if (!confirm(`${storeName(d.store_id)} のキオスク端末（${PURPOSE_LABEL[d.purpose] ?? d.purpose}）を無効化しますか？（この端末では利用できなくなります）`)) return;
+    if (!confirm(`${storeName(d.store_id)} のキオスク端末${mig0192On() ? "" : `（${PURPOSE_LABEL[d.purpose] ?? d.purpose}）`}を無効化しますか？（この端末では利用できなくなります）`)) return;
     setBusy(true); setMsg("");
     try {
       const res = await fetch("/api/kiosk/provision", {

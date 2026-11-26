@@ -7,6 +7,7 @@
 // ★draft/snapshot は PlanEditor が保持し、タブは display 切替（PlanEditor は常時マウント）＝
 //   タブ移動で未保存が消えない（B1 の要件を常時マウントで満たす・set_comp_plan 16引数・c1〜c3 不変）。
 import { useEffect, useRef, useState } from "react";
+import { planCreateSectionOf } from "@/lib/nox/plan-create-section"; // ★起票65（段ア）
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -126,7 +127,7 @@ export default function PlanBoard({ storeId, isManagerUp, isOwner, sim, settings
     : k === "backs" ? isSectionOn(settings, "planTabBacks")
     : k === "slides" ? slidesTabOnWithPayRate(settings, data.plans as { reward_axis?: string | null }[], rules0175On()) /* ★便 GV-C C-5（R-5）: 売上／pt の節ごとの単独判定（両方 OFF でタブ非表示）★2026-11-18: 報酬率のプランがあれば出す */
     : k === "quota" ? isSectionOn(settings, "planTabQuota") : true;
-  useEffect(() => { if (data.plans.length === 0) return; /* ★2026-11-18: プランを読む前に ?tab=slides を落とさない */ if (!tabOn(tab)) setTab(TABS.map(([k]) => k).find(tabOn) ?? "assign"); }, [tab, settings, data.plans]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (data.plans.length === 0 && tab === "slides") return; /* ★2026-11-18: プランを読む前に ?tab=slides を落とさない ★起票65（段ア）: ほかのタブはプランが 0 件でも描かれないタブから移す（「時給・最低保証」OFF の店で「基本・保証」のまま何も出なかった） */ if (!tabOn(tab)) setTab(TABS.map(([k]) => k).find(tabOn) ?? "assign"); }, [tab, settings, data.plans]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div>
@@ -163,7 +164,7 @@ export default function PlanBoard({ storeId, isManagerUp, isOwner, sim, settings
                 )}
               </>
             ) : (
-              <span style={{ fontSize: 13, fontWeight: 800, color: "var(--champ)" }}>新しいプラン（基本・保証の保存で作成）</span>
+              <span style={{ fontSize: 13, fontWeight: 800, color: "var(--champ)" }}>{`新しいプラン（${({ "基本給・保証": "基本・保証", "各種バック": "歩合・バック", "スライド": "スライド・ポイント" } as const)[planCreateSectionOf({ base: tabOn("base"), backs: tabOn("backs"), slides: tabOn("slides") }) ?? "基本給・保証"]}の保存で作成）`/* ★起票65（段ア） */}</span>
             )}
             {isOwner && (
               <span style={{ display: "inline-flex", gap: 8, marginLeft: "auto" }}>

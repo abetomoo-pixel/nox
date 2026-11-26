@@ -35,7 +35,7 @@ export const fmtEnd30 = (hm: string) => { const m = hm2min(hm); return m >= 1440
 
 export function staffShiftErrJa(msg: string | undefined): string {
   if (!msg) return "不明なエラー";
-  if (msg.includes("feature_disabled")) return "この機能は公開されていません（システム設定の「機能の公開」でスタッフシフトを ON にしてください）";
+  if (msg.includes("feature_disabled")) return "この機能は公開されていません（店舗設定 › シフトと打刻 の「機能の公開」でスタッフシフトを ON にしてください）";
   if (msg.includes("billing locked")) return "課金が停止中のため変更できません";
   if (msg.includes("effective_from_past")) return "適用日は当日（営業日）以降にしてください";
   if (msg.includes("effective_from_not_future")) return "当日以前の行は削除できません（履歴として残ります）";

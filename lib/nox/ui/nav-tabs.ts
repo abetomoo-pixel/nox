@@ -17,7 +17,7 @@ export const NAV_DESC: Record<string, string> = {
   "/dashboard": "今日の売上・出勤・お知らせ",
   "/register": "卓と伝票・会計",
   "/report": "日報の締めと現金・売掛",
-  "/master/stock": "在庫の入出庫と棚卸",
+  "/master/stock": "在庫の一覧と棚卸",
   "/shift": "希望・配置・出勤記録",
   "/casts": "キャストの登録と報酬プラン",
   "/staff": "スタッフの登録と権限",

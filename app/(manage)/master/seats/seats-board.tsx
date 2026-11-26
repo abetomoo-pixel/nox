@@ -14,7 +14,8 @@ import { useState } from "react";
 import SegSelect from "@/components/ui/seg-select";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
-import Toast from "@/components/ui/toast";
+import Toast, { Message } from "@/components/ui/toast";
+import { seatDeactivateBlockOf } from "@/lib/nox/seat-open-guard"; // ★起票60（段ア）: 会計前の伝票がある席は「有効」を外せない（画面で止める）
 import Modal from "@/components/ui/modal"; // ★裁定253 R1: 席の追加・編集はモーダル
 import MasterPageHead from "../master-page-head";
 import { rpcErrJa as rpcErrJaCommon } from "@/lib/nox/ui/rpc-err"; // ★N2-2（2026-09-18）: 生の RPC 語の日本語化（写像に無い語は「処理できませんでした（コード: …）」）
@@ -43,6 +44,7 @@ export default function SeatsBoard({ storeId, isManagerUp, initial, hiddenKinds 
   const [sKind, setSKind] = useState("卓");
   const [sSort, setSSort] = useState(0);
   const [sActive, setSActive] = useState(true);
+  const [seatErr, setSeatErr] = useState<string | null>(null); // ★起票60（段ア）: 席の窓の中の赤い理由
   const [seatOpen, setSeatOpen] = useState(false); // ★裁定253 R1: 席モーダルの開閉（フォーム state は従来の 5 本のまま）
   // E8-5 席#5（T2）: 席一覧の検索・種別フィルタ（client のみ・取得と編集経路は不変）
   const [seatQ, setSeatQ] = useState("");
@@ -66,8 +68,21 @@ export default function SeatsBoard({ storeId, isManagerUp, initial, hiddenKinds 
     await reload();
   }
 
+  /** ★起票60（段ア）: この席の会計前の伝票の数＝主席（checks.seat_id）＋足した席（check_seats → checks が open）。読めなければ 0（止めない＝今のまま） */
+  async function openChecksOnSeat(id: string): Promise<number> {
+    const { count: home } = await supabase.from("checks").select("id", { count: "exact", head: true }).eq("seat_id", id).eq("status", "open");
+    const { data: extra } = await supabase.from("check_seats").select("check_id").eq("seat_id", id);
+    const extraIds = ((extra ?? []) as { check_id: string }[]).map((r) => r.check_id);
+    const { count: ext } = extraIds.length ? await supabase.from("checks").select("id", { count: "exact", head: true }).in("id", extraIds).eq("status", "open") : { count: 0 };
+    return (home ?? 0) + (ext ?? 0);
+  }
+
   async function saveSeat() {
-    setMsg(null);
+    setMsg(null); setSeatErr(null);
+    if (sId && !sActive) { // ★起票60（段ア）: 外す保存だけ数える（set_seat は開いている伝票を見ない＝関数の止めは別の便）
+      const block = seatDeactivateBlockOf({ seatId: sId, nextActive: sActive, openChecks: await openChecksOnSeat(sId) });
+      if (block) { setSeatErr(block); return; }
+    }
     const { error } = await supabase.rpc("set_seat", {
       p_id: sId, p_store_id: storeId, p_name: sName, p_kind: sKind, p_sort_order: sSort,
       p_is_active: sActive, // 明示 boolean（原則7）
@@ -109,7 +124,7 @@ export default function SeatsBoard({ storeId, isManagerUp, initial, hiddenKinds 
           </div>
         </div>
         {isManagerUp && (
-          <AddButton testId="seat-add" onClick={() => { setSId(null); setSName(""); setSKind("卓"); setSSort(0); setSActive(true); setSeatOpen(true); }}>＋ 席を追加</AddButton>
+          <AddButton testId="seat-add" onClick={() => { setSId(null); setSName(""); setSKind("卓"); setSSort(0); setSActive(true); setSeatErr(null); setSeatOpen(true); }}>＋ 席を追加</AddButton>
         )}
         {/* E8-5 席#5（T2）: 検索＋種別フィルタ（表示のみ） */}
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 10 }}>
@@ -128,7 +143,7 @@ export default function SeatsBoard({ storeId, isManagerUp, initial, hiddenKinds 
               (!seatQ.trim() || s.name.toLowerCase().includes(seatQ.trim().toLowerCase())) &&
               (seatKind === "" || s.kind === seatKind),
             ).map((s) => (
-              <tr key={s.id} onClick={() => isManagerUp && (setSId(s.id), setSName(s.name), setSKind(s.kind ?? "卓"), setSSort(s.sort_order), setSActive(s.is_active), setSeatOpen(true))}
+              <tr key={s.id} onClick={() => isManagerUp && (setSId(s.id), setSName(s.name), setSKind(s.kind ?? "卓"), setSSort(s.sort_order), setSActive(s.is_active), setSeatErr(null), setSeatOpen(true))}
                 style={{ cursor: isManagerUp ? "pointer" : "default" }}>
                 <td>{s.name}</td>
                 <td>{s.kind}</td>
@@ -173,8 +188,9 @@ export default function SeatsBoard({ storeId, isManagerUp, initial, hiddenKinds 
             </span>
           </div>
           <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "8px 0 0", lineHeight: 1.7 }}>
-            表示順はレジのフロア表示に使われます。「有効」を外した席は開卓できなくなります（過去の伝票は残ります）。
+            表示順はレジのフロア表示に使われます。「有効」を外した席は開卓できなくなります（過去の伝票は残ります）。会計前の伝票がある席は外せません。
           </p>
+          {seatErr && <Message kind="error" style={{ margin: "8px 0 0" }}>{seatErr}</Message>}{/* ★起票60（段ア） */}
           <div className="nox-formmodal-foot">
             <button style={btnLight} onClick={() => setSeatOpen(false)}>キャンセル</button>
             <button style={btnDark} onClick={() => void saveSeat()}>{sId ? "更新" : "登録"}</button>

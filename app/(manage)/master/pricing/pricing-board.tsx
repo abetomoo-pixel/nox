@@ -32,6 +32,7 @@ import SegSelect from "@/components/ui/seg-select";
 import { ResponsiveTable } from "@/components/ui/responsive-kit"; // ★裁定382（GV-B W-1）
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { errJa as errJaDict } from "@/lib/nox/errors";
 import * as t from "@/lib/nox/ui/theme";
 import MoneyInput from "@/components/ui/money-input"; // ★便 X-12-1（起票90）: 金額欄の共通部品（数字のみ・3 桁区切り・右に「円」）
 import Toast, { Message } from "@/components/ui/toast";
@@ -84,6 +85,10 @@ export type StoreFallback = {
 
 // ★mig0130（裁定118）: vip_charge を帯の4枠目へ（帯グルーピング・保存分解・M3 集約の対象）
 const TIMED_KINDS = ["set", "extension", "dohan", "vip_charge"] as const;
+/** ★裁定512-23（#296・2026-11-26 Agoora）: 免税事業者で外税は選べない（画面で止める＝関数 set_store_tax_config は変えない） */
+const EXEMPT_EXCLUDED_ERR = "免税事業者は外税を選べません（会計で消費税を加えないため）。価格表示を「内税」にしてください";
+/** ★裁定511-20（#333・2026-11-26 Agoora）: VIP チャージは席種「VIP」の帯だけに保存する（全席種で保存すると卓・カウンターの開卓にも加算される・画面で止める＝関数 set_pricing_rule は変えない） */
+const VIP_SEAT_REQUIRED_ERR = "VIPチャージは席種「VIP」で保存します。席種を「VIP」にするか、VIPチャージの欄を空にしてください（全席種のままだと卓・カウンターの開卓にも加算されます）";
 // ★mig0131（#55）: pricing_rule_reorder の whitelist へ vip_charge が入った＝帯∧∨は4種とも正規 RPC で回す
 //   （0130 期の priority 再送回避は撤去済み）。
 // ★mig0130: 課金単位の対象（dohan/shimei は 'bad unit kind'＝UI にも出さない）
@@ -125,7 +130,7 @@ function ruleErrJa(msg: string | undefined): string {
   if (msg.includes("bad active")) return "状態の指定が不正です";
   if (msg.includes("not found")) return "対象のルールが見つかりません（再読込してください）";
   if (msg.includes("forbidden")) return "権限がありません";
-  return msg;
+  return errJaDict(msg); // ★2026-11-26（食い違い 55）: billing locked など英字のまま出さない
 }
 
 /** 帯（グループ）＝ (席種, 曜日, 時間帯) が同じルールの束。 */
@@ -409,6 +414,8 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
     setTaxMsg(null); setRegErr(null);
     const reg = tReg.trim();
     // ★便 X13-G W-17 ②: エラーは該当の欄の直下（regErr）と保存ボタンの近く（taxMsg）の両方
+    // ★裁定512-23（#296）: 免税事業者で外税は選べない（画面で止める・set_store_tax_config は変えない）
+    if (tBts === "exempt" && tPd === "tax_excluded") { setTaxMsg(EXEMPT_EXCLUDED_ERR); return; }
     if (tInv === "registered" && tBts !== "taxable") { setTaxMsg("インボイス登録は課税事業者のみ選択できます"); return; }
     if (tInv === "registered" && reg === "") { setRegErr("インボイス登録済みの場合は登録番号が必要です"); setTaxMsg("登録番号を入力するか、インボイスを「未登録」にしてください"); return; }
     if (reg !== "" && !/^T[0-9]{13}$/.test(reg)) { setRegErr("登録番号は T＋数字13桁で入力してください"); setTaxMsg("登録番号の形を確認してください"); return; }
@@ -552,6 +559,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
     if ((mFrom === "") !== (mTo === "")) { setMErr("開始と終了は両方入力してください（終日は両方空欄）"); return; }
     if (!mDays.some((on, i) => on && !closedDows.includes(i))) { setMErr("曜日を1つ以上選択してください（定休日の曜日は選べません）"); return; }
     if (mSetFee === "" && mExtFee === "" && mDohan === "" && mVip === "") { setMErr("セット・延長・同伴・VIPチャージのいずれかの料金を入力してください"); return; }
+    if (mVip !== "" && mSeat !== "VIP") { setMErr(VIP_SEAT_REQUIRED_ERR); return; } // ★裁定511-20（#333）
     const dow = maskOfDays(mDays, closedDows); // ★M-144 ②: 営業日を全部選んだら毎日（null）・定休日は入れない
     const from = mFrom === "" ? null : hmToMin(mFrom);
     const to = mTo === "" ? null : hmToMin(mTo);
@@ -1708,7 +1716,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
               <h3 style={{ margin: 0, fontSize: 14 }}>税・サービス料</h3>
               <p style={{ fontSize: 11, color: "var(--sub)", margin: "2px 0 0" }}>伝票に加算する料率と計算順</p>
             </div>
-            <span className="nox-stpill" data-tax-mode={taxBase.pd === "tax_excluded" ? "excluded" : "included"} style={{ marginLeft: "auto" }}>{taxBase.pd === "tax_excluded" ? "この店は外税（表示価格は税抜・会計で消費税を加算）" : "この店は内税（表示価格は税込）"}</span>{/* ★便 X13-G W-15 ⑤ */}
+            <span className="nox-stpill" data-tax-mode={taxBase.pd === "tax_excluded" ? "excluded" : "included"} style={{ marginLeft: "auto" }}>{taxBase.pd === "tax_excluded" ? (taxBase.bts === "exempt" ? "この店は外税・免税事業者（消費税は加えません＝内税に直してください）" : "この店は外税（表示価格は税抜・会計で消費税を加算）") : "この店は内税（表示価格は税込）"}</span>{/* ★便 X13-G W-15 ⑤ ★裁定512-23（#296）: 免税×外税の店（今は 0 店）は会計で消費税を足さない＝札を実際に合わせる */}
           </div>
           {/* ★A2（対応表・移設）: read-only ミラー→編集区画へ置換（RPC set_store_pricing 不変・
               担当外フィールドは保存直前にサーバ現在値で埋める＝PricingPanel fields 分割の仕組み） */}
@@ -1728,14 +1736,15 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
               <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)" }}>料金を税込で持つか・税抜で持って会計時に消費税を加えるか。</span>
             </span>
             <SegSelect value={tPd} onChange={(v) => setTPd(v)}
-              options={[["tax_included", "内税"], ["tax_excluded", "外税"]] as const} />
+              options={tBts === "exempt" ? [["tax_included", "内税"]] as const : [["tax_included", "内税"], ["tax_excluded", "外税"]] as const} />{/* ★裁定512-23（#296）: 免税事業者は外税を出さない */}
+            {tBts === "exempt" && tPd === "tax_excluded" && <span style={{ display: "block", width: "100%" }} data-field-err="exempt-excluded"><Message kind="error">{EXEMPT_EXCLUDED_ERR}</Message></span>}
           </div>
           <div className="nox-listrow nox-setrow">
             <span style={{ flex: 1, minWidth: 0 }}>
               事業者区分
               <span style={{ display: "block", fontSize: 10.5, color: "var(--sub)" }}>免税事業者は消費税の区分記載を行いません（適格簡易請求書は発行不可）。</span>
             </span>
-            <SegSelect value={tBts} onChange={(v) => { setTBts(v); if (v !== "taxable") setTInv("unregistered"); }}
+            <SegSelect value={tBts} onChange={(v) => { setTBts(v); if (v !== "taxable") { setTInv("unregistered"); setTPd("tax_included"); } }}
               options={[["taxable", "課税事業者"], ["exempt", "免税事業者"]] as const} />
           </div>
           <div className="nox-listrow nox-setrow">
@@ -2035,8 +2044,9 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
               </label>
             </div>
             <span className="hint">
-              VIPチャージは席種を「VIP」にすると VIP 席の開卓でだけ自動加算されます（基本セットとは別の行）。
+              VIPチャージは席種「VIP」の帯にだけ入れられます（VIP 席の開卓でだけ自動加算・基本セットとは別の行）。
             </span>
+            {mVip !== "" && mSeat !== "VIP" && <span style={{ display: "block", width: "100%" }} data-field-err="vip-seat"><Message kind="error">{VIP_SEAT_REQUIRED_ERR}</Message></span>}{/* ★裁定511-20（#333） */}
           </div>
 
           {/* ★mig0130（裁定118-2）: 課金単位（set/extension/vip_charge のみ・同伴は対象外＝'bad unit kind' の UI 前置）。

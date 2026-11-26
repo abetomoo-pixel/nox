@@ -11,7 +11,7 @@ export function kioskErrJa(status: number, raw: string | undefined, purposeLabel
   const m = raw ?? "";
   if (/already provisioned/.test(m)) return `この店舗の「${purposeLabel}」端末は上限（${kioskDeviceLimit()} 台）に達しています。不要な端末を無効化するか、認証情報を再発行してください`;
   if (/device limit/.test(m)) return `この店舗の「${purposeLabel}」端末は上限（3 台）に達しています。使っていない端末を無効化して削除するか、既存の端末を再発行してください`; // ★0190
-  if (/device bound/.test(m)) return "この端末アカウントは別の端末に固定されています（マスタ › システム › 端末の「固定を解除」で解除）"; // ★0190
+  if (/device bound/.test(m)) return "この端末アカウントは別の端末に固定されています（マスタ › スタッフ・システム › キオスク端末 の「固定を解除」で解除）"; // ★0190
   if (/already active/.test(m)) return "この端末はすでに有効です"; // ★0190
   if (/still active/.test(m)) return "有効な端末は削除できません（先に無効化してください）"; // ★0190
   if (/already processed/.test(m)) return "同じ発行がすでに処理されています（画面を再読込してください）";

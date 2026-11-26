@@ -44,7 +44,7 @@ export function pickDefaultTabOf(i: { onCheck: number; cand: number }): PickTab 
 /** 開卓モーダルが渡す「伝票なし」の checkId（伝票が作られる前） */
 export const NIL_CHECK_ID = "00000000-0000-0000-0000-000000000000";
 
-const errJa = (m: string): string => m.includes("forbidden") ? "権限がありません（店長・顧客権限のあるスタッフから操作してください）" : m.includes("not open") ? "会計済みの伝票には付けられません" : m.includes("exists") ? "すでにこの伝票のお客様です" : m;
+const errJa = (m: string): string => m.includes("forbidden") ? "権限がありません（店長か、顧客または会計の許可のあるスタッフから操作してください）" : m.includes("not open") ? "会計済みの伝票には付けられません" : m.includes("exists") ? "すでにこの伝票のお客様です" : m;
 
 export default function CustomerPickModal({ storeId, checkId, target, mode = "line", castIds = [], casts = [], onClose, onPicked }: {
   storeId: string; checkId: string;

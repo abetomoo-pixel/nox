@@ -7,6 +7,7 @@
 // 注記2本: (a) 非遡及＝次に開く伝票から（PricingPanel と同文体）／(b) 裁定(e) 自動行は pay_group='A' 固定。
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { errJa as errJaDict } from "@/lib/nox/errors";
 import * as t from "@/lib/nox/ui/theme";
 import Toast, { useToast } from "@/components/ui/toast";
 import { FieldStack, SegmentTabs } from "@/components/ui/responsive-kit"; // ★裁定382（GV-B W-1）
@@ -34,7 +35,7 @@ function errJa(msg: string | undefined): string {
   if (!msg) return "不明なエラー";
   if (msg.includes("bad time pricing")) return "入力値が範囲外です（分は1〜1440・金額は0以上）";
   if (msg.includes("forbidden")) return "権限がありません";
-  return msg;
+  return errJaDict(msg); // ★2026-11-26（食い違い 55）: billing locked など英字のまま出さない
 }
 
 void _segBtn;

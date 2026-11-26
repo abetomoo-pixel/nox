@@ -147,7 +147,7 @@ export default function CategoriesBoard({ storeId, isManagerUp, initial }: {
 
         {categories.length === 0 ? (
           <p style={{ fontSize: 12.5, color: "var(--sub)", margin: "0 0 8px" }}>
-            カテゴリ未登録です。登録するとレジの商品タイルがカテゴリ別に並びます（未登録なら種別 drink/champ/bottle で並びます）。
+            カテゴリ未登録です。登録するとレジの商品タイルがカテゴリ別に並びます（未登録なら会計区分＝ドリンク・シャンパン・ボトル・フード・その他の順で並びます）。
           </p>
         ) : (
           // ★④c: 商品一覧と同じヘッダ付きテーブル（.nox-ptable を流用）＝2ページで表の見え方を揃える。

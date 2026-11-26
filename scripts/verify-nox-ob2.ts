@@ -2,7 +2,7 @@
  * verify:nox-ob2 — 便 OB-2（2026-10-29・裁定438 候補「初期設定 v5＝正本」）: 初期設定 9 STEP の本体。
  *  (A) 正本＝docs/handoff/mock/setup_v5.html が repo にある・lib/nox/setup/v5.ts の 9 STEP／業態 5／テンプレ値（MENU・TPL）がモックと同じ（逐語の値 pin）。
  *  (B) 業態 5 種で STEP 1→9 の計画（buildV5Plan）＝保存先の RPC と引数（店舗設定・営業時間 7＋切替・席 N・料金ルール・VIP・商品・待遇プラン 2・スタッフ・シフト・端末・完了）の行数と値を突合。
- *  (C) 要確認（v5Checks）＝モックと同じ条件・CSV（9 列・不正行）・再開（下書きの JSON 往復）・器なしの項目（V5_SAVE_MAP has=false と deferred の対応）。
+ *  (C) 要確認（v5Checks）＝モックと同じ条件・CSV（10 列・不正行）・再開（下書きの JSON 往復）・器なしの項目（V5_SAVE_MAP has=false と deferred の対応）。
  *  (D) 画面（setup-wizard.tsx／page.tsx）＝9 STEP の見出し・主ボタン中央（.nox-actions）・自動保存・?step／?type・完了画面（1 人ずつ／CSV／PIN 印刷／ホームへ）・既存 org には出さない（layout）。
  *  (E) 本番 DB（SUPABASE_DB_URL・BEGIN…ROLLBACK・残留 0）＝業態 5 種の計画を NOX-VERIFY-A1 の owner として RPC だけ順に実行（route の段は飛ばす）→ 行数と値（営業時間 7・席・pricing_rules・products・comp_plans 2・staffing_needs・shift_periods・settings）を突合。
  *  使い方: npm run verify:nox-ob2（env: SUPABASE_DB_URL＝(E)・無ければ (E) は FAIL）
@@ -102,9 +102,12 @@ async function main() {
   check("ob2(C-1) 要確認＝モックと同じ条件（端末登録済みの既定＝0 件／はみ出し・VIP 席 0・VIP ルール・体入 < 基本・割合の順・端末未登録 2・期間の逆転・名前が空）",
     w0.length === 0 && w1.some(([, m]) => /はみ出しています/.test(m)) && w1.some(([, m]) => m === "VIP 料金を使う設定ですが、VIP 席が 0 卓です") && w1.some(([, m]) => /VIP 席向けですが/.test(m)) && w1.some(([, m]) => m === "体験入店の時給が基本時給より低くなっています")
     && w1.some(([, m]) => /本指名 ≥ 場内 ≥ フリー/.test(m)) && w1.some(([, m]) => /店の端末が登録されていません$/.test(m)) && !w1.some(([, m]) => /出勤していない人はレジを使えない/.test(m)) /* ★M-143（2026-11-10）: 打刻ゲート（duty_gate）は撤去＝裁定472 で例外が廃止 */ && w1.some(([, m]) => m === "最初のシフト期間の終了日が開始日より前です") && w1.some(([, m]) => m === "キャストドリンクに名前が空の商品があります"), w1.map((x) => x[1]));
-  const csv = parseCsv(`${CSV_HEADER}\nひなの,日向 花,在籍,業務委託,,090,a@b.c,1234,近\nゆな,,体入,,,,,,\n,x,在籍,業務委託,,,,,\nみく,,在籍,派遣,,,,,\nあい,,在籍,業務委託,,,,123,\nるな,,在籍,業務委託,,,,,遠い`);
-  check("ob2(C-2) CSV 9 列＝見出しを飛ばす・空は既定（在籍／業務委託／基本プラン・体入→体験入店）・不正行（源氏名が空／契約区分が不正／PIN は 4〜6 桁の数字／送り距離は 近／中／遠）",
-    csv.length === 6 && csv[0].err === "" && csv[0].c[4] === "基本プラン" && csv[1].c[4] === "体験入店" && csv[1].err === "" && csv[2].err === "源氏名が空" && csv[3].err === "契約区分が不正" && csv[4].err === "PIN は 4〜6 桁の数字" && csv[5].err === "送り距離は 近／中／遠", csv.map((r) => r.err));
+  // ★2026-11-26（食い違い 3）: 10 列目＝生年月日（必須・YYYY-MM-DD に直す・18 歳未満は赤＝today を渡して日付に依らない）
+  const csv = parseCsv(`${CSV_HEADER}\nひなの,日向 花,在籍,業務委託,,090,a@b.c,1234,近,2000/1/2\nゆな,,体入,,,,,,,2008-11-26\n,x,在籍,業務委託,,,,,,2000/1/1\nみく,,在籍,派遣,,,,,,2000/1/1\nあい,,在籍,業務委託,,,,123,,2000/1/1\nるな,,在籍,業務委託,,,,,遠い,2000/1/1\nえま,,在籍,業務委託,,,,,\nりこ,,在籍,業務委託,,,,,,2000/2/30\nさき,,在籍,業務委託,,,,,,2008.11.27`, "2026-11-26");
+  check("ob2(C-2) CSV 10 列＝見出しを飛ばす・空は既定（在籍／業務委託／基本プラン・体入→体験入店）・不正行（源氏名が空／契約区分が不正／PIN は 4〜6 桁の数字／送り距離は 近／中／遠／生年月日が空／形が違う／18 歳未満）・生年月日は YYYY-MM-DD に直す",
+    CSV_HEADER.split(",").length === 10 && CSV_HEADER.endsWith(",生年月日")
+    && csv.length === 9 && csv[0].err === "" && csv[0].c[4] === "基本プラン" && csv[0].c[9] === "2000-01-02" && csv[1].c[4] === "体験入店" && csv[1].err === "" /* 18 歳の誕生日の当日は通る */ && csv[2].err === "源氏名が空" && csv[3].err === "契約区分が不正" && csv[4].err === "PIN は 4〜6 桁の数字" && csv[5].err === "送り距離は 近／中／遠"
+    && csv[6].err === "生年月日が空" && csv[7].err === "生年月日は 2000/1/1 の形" && csv[8].err === "18 歳未満は登録できません", csv.map((r) => r.err));
   const round = JSON.parse(J({ S: stateOf("lounge"), savedAt: "2026-10-29T00:00:00Z" })) as { S: V5State }; const again = buildV5Plan(round.S, ctxOf("11111111-1111-4111-8111-111111111111"));
   check("ob2(C-3) 再開＝下書き（JSON）を往復しても計画が同じ（ラウンジ）", J(again.steps) === J(plans.lounge.steps) && J(round.S) === J(stateOf("lounge")));
   check("ob2(C-4) 席の名前＝頭＋番号（カウンター C・テーブル A・VIP V）", J(seatNames({ counter: 2, table: 1, vip: 1, tp: "A", cp: "C", vp: "V" })) === J([["C1", ""], ["C2", ""], ["A1", ""], ["V1", "vip"]]));

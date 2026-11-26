@@ -947,7 +947,7 @@ function BulkProductModal({
         : m.includes("too many items") ? "商品が多すぎます（300件まで）。"
         : m.includes("too many categories") ? "カテゴリが多すぎます（30件まで）。"
         : m.includes("forbidden") ? "権限がありません。"
-        : m,
+        : errJa(m),
       );
       return;
     }
@@ -965,7 +965,7 @@ function BulkProductModal({
       <p style={{ margin: "0 0 12px", fontSize: 12.5, color: "var(--sub)", lineHeight: 1.7 }}>
         1行に1商品。列は「<strong>表示カテゴリ, 商品名, 会計区分, 価格, 原価</strong>」（原価は省略可）。
         カンマ区切り・表からの貼り付け（タブ区切り）どちらも使えます。
-        会計区分は「ドリンク / シャンパン / ボトル」。カテゴリ空欄は未分類になります。
+        会計区分は「ドリンク / シャンパン / ボトル / フード / その他」。カテゴリ空欄は未分類になります。
         <br />バック設定と発注点は登録後に商品ごとに設定してください（一括では既定値で入ります）。
       </p>
 

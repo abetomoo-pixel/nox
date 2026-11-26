@@ -5,6 +5,9 @@ export const TOKUSHOHO_HREF = "/legal/tokushoho";
 export const TOKUSHOHO_TITLE = "特定商取引法に基づく表示";
 export const COMPANY_NAME = "株式会社レクソル";
 export const SUPPORT_EMAIL = "support@noxapp.jp";
+/** ★裁定511-1a（#316・2026-11-26 Agoora）: 解約は運営への問い合わせで受ける（裁定479 の 4＝お支払い管理では解約を出さない）。
+ *  特定商取引法の表示と課金画面の 1 行はこの定数から（文を 2 か所で別々に書かない）。 */
+export const CANCEL_HOW_TEXT = `管理画面の「マスタ › 運営への問い合わせ」またはメール（${SUPPORT_EMAIL}）でお申し出ください`;
 
 export const TOKUSHOHO_ROWS: readonly (readonly [string, string])[] = [
   ["販売事業者", COMPANY_NAME],
@@ -19,7 +22,7 @@ export const TOKUSHOHO_ROWS: readonly (readonly [string, string])[] = [
   ["支払方法", "クレジットカード"],
   ["支払時期", "月額：お試し終了後、初回はその月の残り日数分を日割りで請求し、以後は毎月 1 日に当月分を請求します。年額：お試し終了後に 1 年分を一括で請求します。"],
   ["提供時期", "お手続きの完了後すぐにご利用いただけます。"],
-  ["解約", "いつでも管理画面から解約できます。月額はその月の末日まで、年額は契約期間の末日までご利用いただけます。"],
+  ["解約", `いつでも解約をお申し出いただけます。${CANCEL_HOW_TEXT}。月額はその月の末日まで、年額は契約期間の末日までご利用いただけます。`],
   ["返金", "お支払い後の返金はありません。期間の途中で解約された場合も日割りの返金はありません。"],
   ["動作環境", "最新版の Google Chrome・Safari が動くパソコン・タブレット・スマートフォン"],
 ];

@@ -73,9 +73,9 @@ export default async function MasterStoreProfilePage({ searchParams }: { searchP
 
   // ★2026-11-16（■8・裁定499-10）: 6 タブ＝店舗情報／レジ／シフトと打刻／給与／キャスト画面／税と請求（＋データ管理は権限・情報管理の入口・LINE 連携は従来の入口）
   const HEADS: Record<string, { eyebrow: string; title: string; desc: string }> = {
-    info: { eyebrow: "STORE PROFILE", title: "店舗設定 › 店舗情報", desc: "店舗名。営業時間と定休日は「営業時間・定休日」で。住所・電話・インボイス登録番号は「端末・印刷 › レシート・プリンタ」で編集します（二重に編集する場所を作りません）。" },
+    info: { eyebrow: "STORE PROFILE", title: "店舗設定 › 店舗情報", desc: "店舗名。営業時間と定休日は「営業時間・定休日」で。住所・電話・インボイス登録番号は「スタッフ・システム › キオスク端末 › レシート・プリンタ」で編集します（二重に編集する場所を作りません）。" },
     register: { eyebrow: "REGISTER", title: "店舗設定 › レジ", desc: "お客様の支払い方法・支払方法の調整と手数料・フロアの席種・途中合流・釣銭準備金。" },
-    shift: { eyebrow: "SHIFT & PUNCH", title: "店舗設定 › シフトと打刻", desc: "打刻の方法と判定・店長の打刻・送り返しの自動確定・店の端末で本人がログインしたとき・機能の公開。" },
+    shift: { eyebrow: "SHIFT & PUNCH", title: "店舗設定 › シフトと打刻", desc: "打刻の方法と判定・店長の打刻・送り返しの自動確定・店の端末で本人がログインしたとき・機能の公開（「打刻」のカードと「店の端末で本人がログインしたとき」はオーナーだけに出ます）。" },
     pay: { eyebrow: "PAYROLL", title: "店舗設定 › 給与", desc: "報酬制度（ノルマを使うかを含む）・精算方式・途中払い・支払日・送りの基本額・勤務時間の計算基準・指名の区分ごとの割合・体験入店の条件。金額や計算条件は各マスタで管理します。" },
     mine: { eyebrow: "CAST PAGE", title: "店舗設定 › キャスト画面", desc: "キャストのマイページ（スマホ）に出すもの。" },
     tax: { eyebrow: "TAX & BILLING", title: "店舗設定 › 税と請求", desc: "インボイス登録日・消費税の表示・源泉区分の既定・売掛。" },

@@ -51,7 +51,7 @@ export default function SettlementModal({ storeId, castId, castName, biz, shiftI
   }, [storeId, runId, biz]);
 
   const preset = presets?.find((p) => p.code === code) ?? null;
-  const runNg = run === null ? "当期の給与が未作成です（給与画面でプレビューを 1 回押すと作成されます）" : run && run.status !== "draft" ? "当期の給与は確定済みのため登録できません" : null;
+  const runNg = run === null ? "当期の給与の記録がまだありません（給与 › 明細 で調整控除を追加すると記録ができます）" : run && run.status !== "draft" ? "当期の給与は確定済みのため登録できません" : null;
 
   async function submit() {
     if (busy || !preset || !run) return;

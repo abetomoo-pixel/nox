@@ -223,7 +223,7 @@ export default function DashboardBoard({ storeId, storeName, cutoff, casts, shor
       <PendingCard storeId={curStoreId} role={isManagerUp ? "manager" : "staff"} />
       {/* 段0R 第1陣: モック .head を新シェルの nox-hero へ（ページ名＋店名＋営業日） */}
       <PageHead eyebrow="STORE OVERVIEW" title="ホーム"
-        desc="本日の売上と出勤、やることの状況をひと目で確認します。"
+        desc="本日の出勤・同伴、今月の売上（締め済み日報）、やることの状況をひと目で確認します。"
         right={<>
           {/* ★裁定192（B1・M6）: 店舗セレクタ＝owner かつ 2 店以上のときだけ（件数可変＝プルダウン可・教訓27）。
               manager は RLS で自店 1 件＝店名のみ表示。切替は state と読取の絞り込みだけ＝RPC・DB 不変。 */}

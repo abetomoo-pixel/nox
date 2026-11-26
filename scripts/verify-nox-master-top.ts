@@ -63,10 +63,10 @@ check("mt(3-1) masterSearchHit: 「カテゴリ」→商品管理（タブ名）
 
 // (4) master-board
 const mb = src("app/(manage)/master/master-board.tsx"), mbC = codeOf(mb);
-check("mt(4-1) master-board: MASTER_NAV.map で 4 パネル・検索＝masterSearchHit・在庫カード／発注推奨の警告／fetchStockTotals／lowStock は無い・件数は hubCountOf／hubStatusOf・.nox-cardtitle／.nox-cardchev／.nox-carddesc 不変・入口カードは Link・店舗設定「2タブ」・権限・情報管理「3タブ」",
+check("mt(4-1) master-board: MASTER_NAV.map で 4 パネル・検索＝masterSearchHit・在庫カード／発注推奨の警告／fetchStockTotals／lowStock は無い・件数は hubCountOf／hubStatusOf・.nox-cardtitle／.nox-cardchev／.nox-carddesc 不変・入口カードは Link・店舗設定＝nav のタブ数・権限・情報管理「3タブ」",
   mb.includes("{MASTER_NAV.map((g) => {") && mb.includes("masterSearchHit(p, hubSearch)") && !mbC.includes("/master/stock") && !mbC.includes("fetchStockTotals") && !mbC.includes("lowStock") && !mbC.includes("nox-alert")
   && mb.includes("hubCountOf(hubState, products.length)") && mb.includes("hubCountOf(hubState, seats.length)") && mb.includes("hubStatusOf(refState") && mb.includes('className="nox-cardtitle"') && mb.includes('className="nox-cardchev"') && mb.includes('className="nox-carddesc"')
-  && mb.includes('<Link key={p.href} href={p.href} className="nox-fcard">') && mb.includes('case "/master/store-profile":\n        return { count: "2タブ"') && mb.includes('case "/master/cast-comp/register":\n        return { count: "3タブ"') && !mb.includes("読込中"));
+  && mb.includes('<Link key={p.href} href={p.href} className="nox-fcard">') && mb.includes('case "/master/store-profile":\n        return { count: `${p.tabs?.length ?? 0}タブ`') /* ★2026-11-26（食い違い 92）: 店舗設定のタブ数＝nav の tabs の数 */ && mb.includes('case "/master/cast-comp/register":\n        return { count: "3タブ"') && !mb.includes("読込中"));
 
 // (5) subnav
 const sn = src("app/(manage)/master/master-subnav.tsx");

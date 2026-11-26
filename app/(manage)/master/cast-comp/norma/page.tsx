@@ -28,7 +28,7 @@ export default async function CastCompNormaPage() {
     <div data-page="norma-store">
       {/* 店共通の注記（旧＝待遇プランの「ノルマ・ボーナス」タブ下段の「店共通（全プラン）」カード） */}
       <div className="nox-cardtop" style={{ ...t.card, marginBottom: 10 }}>
-        <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 2px" }}>雇用キャスト: 懲戒減給の法定上限（労基法91条）は給与計算側で自動制約されます（罰金の自動計算はありません）。</p>
+        <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 2px" }}>雇用キャスト: 懲戒減給は労基法 91 条の上限（1 件は平均賃金の半額・当期の合計は賃金総額の 1/10）を超えて登録できません。ノルマ未達の減額を「適用」にした人が確定のときに上限を超えると、確定を止めて名前と額を出します（罰金の自動計算はありません）。</p>{/* ★裁定512-12（#240）: 「自動制約」の文を実際の動きに（比べ方は変えない） */}
         <p style={{ fontSize: 12, color: "var(--sub)", margin: 0 }}>委託キャスト: 未達処理には契約上の根拠が必要です（法定上限の自動適用はありません）。プランごとの目標と達成ボーナスは待遇プランの「ノルマ目標・ボーナス（プラン）」で設定します。</p>
       </div>
       <NormaBoard storeId={storeId} isManagerUp={isManagerUp} isOwner={role === "owner"} settings={sj}

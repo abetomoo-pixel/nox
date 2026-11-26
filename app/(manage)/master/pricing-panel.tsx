@@ -8,6 +8,7 @@ import GroupedNumberInput from "@/components/ui/grouped-number-input"; // ★便
 import { useState } from "react";
 import SegSelect from "@/components/ui/seg-select";
 import { createClient } from "@/lib/supabase/client";
+import { errJa as errJaDict } from "@/lib/nox/errors";
 import * as t from "@/lib/nox/ui/theme";
 import Toast, { useToast } from "@/components/ui/toast";
 
@@ -23,7 +24,7 @@ function errJa(msg: string | undefined): string {
   if (!msg) return "不明なエラー";
   if (msg.includes("bad pricing")) return "入力値が範囲外です（率0〜100・丸め単位1〜10000）";
   if (msg.includes("forbidden")) return "権限がありません";
-  return msg;
+  return errJaDict(msg); // ★2026-11-26（食い違い 55）
 }
 
 /** ★116-UI 段②b（M1 分割）: fields で表示・編集する区画を絞って多重マウントできる。

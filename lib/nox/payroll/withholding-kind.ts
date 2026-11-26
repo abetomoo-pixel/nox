@@ -20,6 +20,9 @@ export const WITHHOLDING_KINDS_0188: readonly WithholdingKind[] = ["none", "host
 export const WITHHOLDING_KINDS: readonly WithholdingKind[] = WITHHOLDING_KINDS_0183;
 /** 画面の選択肢＝フラグで 4 つを切替（true＝0188 の 4 つ・false＝0183 の 4 つ） */
 export const withholdingKindChoices = (): readonly WithholdingKind[] => (mig0188On() ? WITHHOLDING_KINDS_0188 : WITHHOLDING_KINDS_0183);
+/** ★裁定511-16b（#187・2026-11-26 Agoora）: スタッフには「ホステス等」を選べなくする（スタッフの計算は日数 0＝5,000 円×日数の控除がかからない）。
+ *  今その区分の人（current＝保存値）は選んだ形のまま見えるよう残す（2026-11-26 の数え＝本番・デモ・検査用とも 0 人）。関数 set_withholding_kind は変えない */
+export const staffWithholdingKindChoicesOf = (current?: string | null): readonly WithholdingKind[] => withholdingKindChoices().filter((k) => k !== "hostess" || current === "hostess");
 export const WITHHOLDING_KIND_LABEL: Record<WithholdingKind, string> = {
   hostess: "ホステス等（10.21%・5,000 円×計算期間の日数を控除）",
   other_fee: "報酬・料金（10.21% 定率）",
@@ -48,6 +51,14 @@ export const isWithholdingKind = (v: unknown): v is WithholdingKind => typeof v 
 export function defaultWithholdingKindOf(s: { subject: "cast"; taxMode: string | null | undefined } | { subject: "staff"; contractKind: string | null | undefined }): WithholdingKind {
   if (s.subject === "cast") return s.taxMode === "雇用" ? "manual" : "hostess";
   return s.contractKind === "contractor" ? (mig0188On() ? "none" : "other_fee") : "manual";
+}
+/** ★裁定511-17（#185・2026-11-26 Agoora）: 契約区分（casts.employment）と税務の雇用区分（cast_tax_profiles.mode）は別々のまま＝詳細に両方を出す。
+ *  その下の 1 行（税務の区分が無い・契約区分と違う・同じ）。給与の計算と源泉の既定は税務の区分で行う（collect.ts の taxByCast）。 */
+export function castTaxDiffNoteOf(taxMode: string | null | undefined, employment: string | null | undefined): string {
+  if (!taxMode) return "未登録のままでは給与を確定できません。「機密・税務情報」の税務設定で雇用区分を登録してください（「契約区分を変更」では入りません）";
+  const emp = employment ?? "委託";
+  if (taxMode !== emp) return `契約区分（${employment ?? "未設定"}）と違います。給与の計算と源泉の既定は税務の区分（${taxMode}）で行います。直すときは「機密・税務情報」の税務設定で`;
+  return "給与の計算と源泉の既定はこの区分で行います（「契約区分を変更」では変わりません）";
 }
 /** 保存値（null＝既定）→ 実際の区分（★0188: 旧 other_fee の保存値はフラグ true では other_204 と読む＝0188 ★3 の写しと同じ） */
 export const withholdingKindOf = (stored: string | null | undefined, fallback: WithholdingKind): WithholdingKind => (isWithholdingKind(stored) ? (stored === "other_fee" && mig0188On() ? "other_204" : stored) : fallback);

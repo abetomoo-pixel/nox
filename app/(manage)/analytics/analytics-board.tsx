@@ -26,6 +26,7 @@ import PageHead from "@/components/ui/page-head";
 import SegSelect from "@/components/ui/seg-select"; // ★裁定346: ランキングの軸切替
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { errJa as errJaDict } from "@/lib/nox/errors"; // ★2026-11-26（食い違い 308）: 読み込みの失敗を英字のまま出さない
 import * as t from "@/lib/nox/ui/theme";
 import PeriodSelect from "@/components/nox/period-select"; // ★X-13-28（便 P168）
 import MoneyInput from "@/components/ui/money-input"; // ★便 X-12-1（起票90）: 金額欄の共通部品（数字のみ・3 桁区切り・右に「円」）
@@ -211,7 +212,7 @@ export default function AnalyticsBoard({
       supabase.rpc("get_cast_ranking", { p_store_id: storeId, p_period: period }),
     ]);
     if (rS.error || rR.error) {
-      setErr(`読み込みに失敗: ${rS.error?.message ?? rR.error?.message}`);
+      setErr(`読み込みに失敗: ${errJaDict(rS.error?.message ?? rR.error?.message)}`);
       setSales([]); setRanking([]);
       return;
     }
@@ -341,7 +342,7 @@ export default function AnalyticsBoard({
     const { data, error } = await supabase.rpc("customer_list_summary", {
       p_store_id: storeId, p_include_dormant: true,
     });
-    if (error) { setCustSummaryErr(`読み込みに失敗: ${error.message}`); setCustSummary([]); return; }
+    if (error) { setCustSummaryErr(`読み込みに失敗: ${errJaDict(error.message)}`); setCustSummary([]); return; }
     setCustSummary((data ?? []) as CustSummaryRow[]);
   }, [view, storeId]);
   useEffect(() => { void loadCustSummary(); }, [loadCustSummary]);
@@ -437,7 +438,7 @@ export default function AnalyticsBoard({
       supabase.from("attendance").select("status").eq("cast_id", castSel)
         .gte("date", `${period}-01`).lte("date", lastDayOf(period)),
     ]);
-    if (error) { setCustErr(`読み込みに失敗: ${error.message}`); setCustRank([]); }
+    if (error) { setCustErr(`読み込みに失敗: ${errJaDict(error.message)}`); setCustRank([]); }
     else setCustRank((data ?? []) as CustRankRow[]);
     // ★B6-12: 出勤扱いの状態集合は cast-stats.presentDaysOf に集約（旧 PRESENT 直書きと同じ 3 値・人日＝行数）
     setAttDays(presentDaysOf(((att.data ?? []) as { status: string }[]).map((a) => ({ cast_id: castSel, status: a.status }))).days);
@@ -714,7 +715,7 @@ export default function AnalyticsBoard({
         <span>集計: 締め済み営業日のみ</span>
         <span>売上: 会計確定額</span>
         <span>比較: 同じ締め済み日数で比較</span>
-        <Link href="/report" className="nox-link" style={{ marginLeft: "auto" }}>営業中の速報値はホーム・日報で確認 ›</Link>
+        <Link href="/report" className="nox-link" style={{ marginLeft: "auto" }}>営業中の速報値は日報で確認 ›</Link>
       </div>
 
       {err && <Message kind="error">{err}</Message>}

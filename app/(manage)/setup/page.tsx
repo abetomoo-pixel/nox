@@ -6,7 +6,8 @@ import type { V5Type } from "@/lib/nox/setup/v5";
 import SetupWizard from "./setup-wizard";
 import { managePageGate } from "@/lib/nox/nav/page-gate";
 import SetupWaiting from "./setup-waiting";
-import { mig0203On } from "@/lib/nox/rules-0175/flag"; // ★0203 // ★便 SU（M-37 (3)）: manager／staff の案内
+import { mig0203On } from "@/lib/nox/rules-0175/flag"; // ★0203
+import { storeSwitchShownOf } from "@/lib/nox/store/current"; // ★2026-11-26（食い違い 283） // ★便 SU（M-37 (3)）: manager／staff の案内
 
 export const dynamic = "force-dynamic";
 
@@ -66,6 +67,7 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
       lockedType={lockedType}
       copy={copy}
       multiStore={rows.length > 1}
+      switchStores={storeSwitchShownOf({ flag: mig0203On(), role, storeCount: rows.length }) ? rows.map((r) => ({ id: r.id, name: r.name, setupDone: r.settings_json?.setup_done === true })) : null} /* ★2026-11-26（食い違い 283）: 初期設定の画面からほかの店へ戻る（上部バーと同じ切り替え・2 店以上のオーナーだけ） */
       storePayDay={((t: { pay_day?: unknown }) => (typeof t.pay_day === "number" ? t.pay_day : null))(target as { pay_day?: unknown })} /* ★N0（裁定507）: 2 店目の初期設定の支払日はこの店の値から */
     />
   );

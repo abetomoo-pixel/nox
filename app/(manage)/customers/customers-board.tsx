@@ -412,7 +412,7 @@ export default function CustomersBoard({
           onClick={() => { if (rules0175On()) setView("keeps"); }}>{/* ★連続便 3 追補 P-9: 押すとキープボトルのタブへ（フラグ false＝従来の表示だけ） */}
           <div className="lbl">ボトルキープ中</div>
           <div className="val num">{bottleTotal}<small>本</small></div>
-          <div className="sub">未開栓の合計</div>
+          <div className="sub">保管中の合計</div>
         </div>
       </div>
 
@@ -802,7 +802,7 @@ export default function CustomersBoard({
               ))}
               {dCust?.memo && (
                 <div style={{ marginTop: 10 }}>
-                  <span style={{ fontSize: 11, color: "var(--v2-muted)" }}>旧メモ（読み取り専用・移行はしません）</span>
+                  <span style={{ fontSize: 11, color: "var(--v2-muted)" }}>備考（「編集」の備考から書き換えられます）</span>
                   <div className="nox-memo">{dCust.memo}</div>
                 </div>
               )}

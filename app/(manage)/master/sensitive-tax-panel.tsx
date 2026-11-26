@@ -251,7 +251,7 @@ export default function SensitiveTaxPanel({ casts, stores, isOwner, isManager = 
     // ★裁定432 ①: 源泉区分＝変わったときだけ（set_withholding_kind＝店長以上・"" は既定に戻す）
     if (mig0183On() && whKind !== whKindCur) {
       const { error: eK } = await supabase.rpc("set_withholding_kind", { p_subject_kind: "cast", p_subject_id: castId, p_kind: whKind === "" ? null : whKind });
-      if (eK) { setMsg(`源泉区分の保存エラー: ${eK.message}`); void load(); return; }
+      if (eK) { setMsg(`源泉区分の保存エラー: ${errJa(eK.message)}`); void load(); return; }
     }
     setMsg("税務情報を保存しました");
     void load();

@@ -1,6 +1,6 @@
 // ★M-123（裁定464 付帯①・2026-11-09・0198 のフラグ便）: 貸付台帳（view cast_loans）と「同意未」の印（comp_plans.advance_loan_agreed=false）・返済済の表示。DB を知らない純関数。
 //   同意＝キャストの「現在の待遇プラン」（cast_plan の valid_from ≤ 今日 ≤ valid_to）の advance_loan_agreed。プランが無い・列が無い＝同意未。
-export type LoanRow = { id: string; cast_id: string; cast_name: string; biz_date: string; amount: number; repaid: number; remaining: number; status: string; ack_method: string | null; note?: string | null };
+export type LoanRow = { id: string; cast_id: string; cast_name: string; biz_date: string; amount: number; repaid: number; remaining: number; status: string; ack_method: string | null; note?: string | null; bulk?: boolean };
 export type CastPlanRow = { cast_id: string; plan_id: string; valid_from: string | null; valid_to: string | null };
 
 export const LOAN_STATUS_LABEL: Record<string, string> = { open: "未回収", deducted: "返済済", cancelled: "取消" };
@@ -10,7 +10,11 @@ export const LOAN_NOT_AGREED_NOTE = "待遇プランに「前借り（貸付）�
 export const LOAN_LEDGER_HEAD = "貸付台帳（直近）";
 
 export const loanStatusLabelOf = (status: string | null | undefined): string => LOAN_STATUS_LABEL[status ?? ""] ?? (status ?? "");
-export const loanAckLabelOf = (ack: string | null | undefined): string => LOAN_ACK_LABEL[ack ?? "none"] ?? (ack ?? "—");
+export const loanAckLabelOf = (ack: string | null | undefined, bulk?: boolean): string => (bulk && (ack ?? "none") === "none" ? LOAN_ACK_BULK_LABEL : LOAN_ACK_LABEL[ack ?? "none"] ?? (ack ?? "—"));
+/** ★裁定511-18a（#136・2026-11-26 Agoora）: 一括の前借りは本人確認なしのまま・台帳に「一括」と出す。
+ *  一括の印＝advances.idem_key が入っている（adv_issue_bulk だけが件ごとの idem_key を入れる・1 件ずつの adv_issue／cast_loan_grant は入れない＝0157／0198）。表示だけ */
+export const LOAN_BULK_LABEL = "一括";
+export const LOAN_ACK_BULK_LABEL = "なし（一括）";
 
 /** キャスト別の同意（現在のプラン）＝true／false。プランが無いキャストは false */
 export function loanAgreedMapOf(plans: readonly CastPlanRow[], agreedByPlan: Readonly<Record<string, boolean | null | undefined>>, today: string): Record<string, boolean> {

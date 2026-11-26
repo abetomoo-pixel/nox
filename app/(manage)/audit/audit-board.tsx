@@ -617,7 +617,7 @@ export default function AuditBoard({ users, stores }: {
             <b>できません</b>
           </div>
           <div className="nox-listrow">
-            <span style={{ flex: 1 }}>操作ログ保管期間</span><b>無期限（削除していません）</b>
+            <span style={{ flex: 1 }}>操作ログ保管期間</span><b>7 年（それより古い記録は毎日消します）</b>
           </div>
           <div className="nox-listrow">
             <span style={{ flex: 1 }}>

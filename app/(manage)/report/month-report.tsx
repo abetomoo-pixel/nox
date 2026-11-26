@@ -211,7 +211,7 @@ export default function MonthReport({ stores, defaultStoreId, isManagerUp }: {
       <h3>
         月報
         {/* ★0164（便 W5-2b・裁定334）: 締め日は月末固定・支払日は店設定 pay_day（翌月 N 日）＝見出しの注記（表示のみ） */}
-        {payDay !== null && <span style={{ fontSize: 12, fontWeight: 400, color: "var(--sub)", marginLeft: 8 }} title="締め日（月末固定）と支払日（店舗設定 › 会計と運用）">締め 月末・支払日 翌月 {payDay} 日</span>}
+        {payDay !== null && <span style={{ fontSize: 12, fontWeight: 400, color: "var(--sub)", marginLeft: 8 }} title="締め日（月末固定）と支払日（店舗設定 › 給与）">締め 月末・支払日 翌月 {payDay} 日</span>}
         {specialMarks.length > 0 && <span style={{ fontSize: 12, fontWeight: 400, color: "var(--sub)", marginLeft: 8 }} data-month-special="1">{specialMarks.join("・")}</span>}
         {stores.length > 1 && (
           <select value={storeId} onChange={(e) => setStoreId(e.target.value)} aria-label="店舗" style={{ ...t.input, width: "auto", fontSize: 13, fontWeight: 400 }}>
@@ -333,7 +333,7 @@ export default function MonthReport({ stores, defaultStoreId, isManagerUp }: {
       )}
 
       <p style={{ fontSize: 11, color: "var(--sub)", marginTop: 12, lineHeight: 1.7 }}>
-        売上・組数・来客数・同伴・drink は締め済み日報の合算。指名は本指名+場内の件数（同伴は別行）。
+        売上・組数・来客数・同伴・ドリンクは締め済み日報の合算。指名は本指名+場内の件数（同伴は別行）。
         {isManagerUp && "人件費は給与確定（源泉前 gross 合計）＝月次のため通期のみ・未確定月は「未確定」。"}
         {loading && " 集計中…"}
       </p>

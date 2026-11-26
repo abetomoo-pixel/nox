@@ -46,6 +46,8 @@ export const KIOSK_PERSON_PIN_NOTE = "店長・スタッフ（会計を任され
 export const KIOSK_PERSON_DENY_ADMIN = "管理者は通常のログインをお使いください（この端末の PIN の入口は店長・スタッフ用です）";
 export const kioskPersonBandTextOf = (name: string | null, minutes: number): string => `端末で${name ? ` ${name} さんとして` : ""}操作中・無操作 ${minutes} 分でキオスクへ戻ります`;
 export const KIOSK_PERSON_LEAVE = "キオスクへ戻る";
+/** ★起票342（段ア・2026-11-26）: 店の端末で本人として入っている間の「自分の情報」＝ログアウトの代わりの 1 行（ログアウトは端末をログインの画面で止めた） */
+export const KIOSK_PERSON_NO_LOGOUT_NOTE = `店の端末で入っている間は、ここからログアウトしません。終わるときは画面の上の帯の「${KIOSK_PERSON_LEAVE}」を押してください。`;
 // ★M-119（2026-11-06・裁定460）: 帯＝本店のレイアウトの上に固定（名前・無操作の残り・ロック／交代＝端末へ戻る）
 export const KIOSK_PERSON_LOCK = "ロック（端末へ戻る）";
 export const kioskPersonRemainTextOf = (remainMin: number): string => (remainMin <= 0 ? "まもなく端末へ戻ります" : `無操作あと ${remainMin} 分`);

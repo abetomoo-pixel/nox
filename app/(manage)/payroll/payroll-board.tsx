@@ -32,11 +32,12 @@ import { exportPayrollCsvForRun, slipCastName } from "./export-csv"; // ★B5: C
 import { missingOutSummaryOf, openBreakSummaryOf, noShiftSummaryOf, frozenRowsOf, runSummaryOf } from "@/lib/nox/payroll/view"; // ★N3（週末バックログ 4）: 表示だけの純関数（警告文・凍結行）
 import SettlementModal from "@/components/nox/settlement-modal"; // ★0154 D4: 精算調整（委託・裁定293 追補1）
 import SanctionModal from "@/components/nox/sanction-modal";
+import { finalizeSanctionCapMsgOf } from "@/lib/nox/payroll/sanction"; // ★裁定512-12（#240・#241）: 確定が減給の上限で止まったときの和文
 import NormProposals from "@/components/nox/norm-proposals"; // ★便 X13-I I-5: ノルマ未達の減額の提案
 import type { NormProposal } from "@/lib/nox/payroll/norm-proposal"; // ★0154 D5: 懲戒減給（雇用・労基法 91 条）
 import AdvanceOkuriForm from "@/components/nox/advance-okuri-form"; // ★裁定300-2: 前借り／送り実費の入口（cast・期固定・確定後は読取のみ）
 import { mig0183On, mig0198On, okuri4wayOn, rules0175On } from "@/lib/nox/rules-0175/flag"; // ★0198（M-123）
-import { LOAN_LEDGER_HEAD, LOAN_NOT_AGREED, loanAckLabelOf, loanAgreedMapOf, loanAgreedOf, loanStatusLabelOf, type CastPlanRow, type LoanRow } from "@/lib/nox/payroll/loan-ledger"; // ★M-123（裁定464 付帯①）
+import { LOAN_BULK_LABEL, LOAN_LEDGER_HEAD, LOAN_NOT_AGREED, loanAckLabelOf, loanAgreedMapOf, loanAgreedOf, loanStatusLabelOf, type CastPlanRow, type LoanRow } from "@/lib/nox/payroll/loan-ledger"; // ★M-123（裁定464 付帯①）
 import Withholding432Panel from "@/components/nox/withholding-432-panel"; // ★裁定432（0183 ★4）
 import { missingEmployeeDeductionsOf, type EmployeeDeductionKind, type WithholdingKind } from "@/lib/nox/payroll/withholding-kind"; // ★裁定432
 import { normFinalizeNoteOf, type NormIntent } from "@/lib/nox/payroll/norm-intent"; // ★便 M-7（0183） // ★便 P175-prep P-2／P-7
@@ -252,7 +253,11 @@ export default function PayrollBoard({ stores, isOwner, canReopen, initialStoreI
       const planIds = [...new Set(plans.map((p) => p.plan_id))];
       const { data: cps } = planIds.length ? await supabase.from("comp_plans").select("id, advance_loan_agreed").in("id", planIds) : { data: [] };
       const agreedByPlan: Record<string, boolean | null> = Object.fromEntries(((cps ?? []) as { id: string; advance_loan_agreed: boolean | null }[]).map((p) => [p.id, p.advance_loan_agreed]));
-      setLoanLedger((ll ?? []) as LoanRow[]);
+      // ★裁定511-18a（#136）: 一括の前借り＝advances.idem_key あり（adv_issue_bulk だけが入れる）＝台帳に「一括」（表示だけ・読むのは台帳の id だけ）
+      const llIds = ((ll ?? []) as LoanRow[]).map((l) => l.id);
+      const { data: bk } = llIds.length ? await supabase.from("advances").select("id").in("id", llIds).not("idem_key", "is", null) : { data: [] };
+      const bulkIds = new Set(((bk ?? []) as { id: string }[]).map((x) => x.id));
+      setLoanLedger(((ll ?? []) as LoanRow[]).map((l) => (bulkIds.has(l.id) ? { ...l, bulk: true } : l)));
       setLoanAgreed(loanAgreedMapOf(plans, agreedByPlan, bizToday(cutoffHmOf((stc as { settings_json?: unknown } | null)?.settings_json))));
     } else { setLoanLedger(null); setLoanAgreed({}); }
     setSum4(null);
@@ -446,7 +451,7 @@ ${md.message}（入れずに確定すると控除 0 のまま確定します）`
         } else if (res.status === 422 && Array.isArray(j.blockers)) {
           setMsg(`確定不可（税区分/プラン/雇用区分 未設定）: ${(j.blockers as Blocker[]).map((b) => b.castName).join("、")}`);
         } else {
-          setMsg(`エラー(${res.status}): ${j.error ?? ""}`);
+          setMsg(finalizeSanctionCapMsgOf(j.error, rows ?? []) ?? `エラー(${res.status}): ${j.error ?? ""}`); // ★裁定512-12（#240・#241）: 減給の上限で止まったら「sanction cap」ではなく、だれが・額を和文で（表示だけ）
         }
         return;
       }
@@ -478,14 +483,14 @@ ${md.message}（入れずに確定すると控除 0 のまま確定します）`
         const em = String(j.error ?? "");
         setReopenMsg(
           res.status === 409 && em.includes("payments exist") ? "支払記録があるため解除できません。"
-            : res.status === 409 && em.includes("feature_disabled") ? "締め解除フローが無効です（システム設定 → 機能の公開で店舗行を ON にしてください）。"
+            : res.status === 409 && em.includes("feature_disabled") ? "締め解除フローが無効です（店舗設定 › シフトと打刻 の「機能の公開」で ON にしてください）。"
             : res.status === 400 && em.includes("reason") ? "理由は 1〜200 字で入力してください。"
             : res.status === 409 ? `解除できません: ${em}`
             : `エラー(${res.status}): ${em}`,
         );
         return;
       }
-      setReopenMsg("確定を解除しました（未確定に戻しました）。もう一度プレビューから確定できます。");
+      setReopenMsg("確定を解除しました（未確定に戻しました）。内容を確かめて、もう一度確定できます。");
       setRows(null); // 旧プレビュー表を消す（再プレビューを促す）
       await loadRun(); // 1c: runInfo 再読込→CSV/印刷/支払/この解除セクションが draft 状態へ反転
     } catch (e) {
@@ -557,7 +562,7 @@ ${md.message}（入れずに確定すると控除 0 のまま確定します）`
   const adjEditable = (runInfo?.status ?? "draft") === "draft";
   // ★0156（裁定309-8・便 V-3）: 控除上書きの set／clear → 再プレビュー＋上書き一覧の再読込（RPC は draft のみ受理＝'run not draft' は写像で表示）
   async function setOverride(castId: string, deductionId: string, enabled: boolean, amountOverride: number | null) {
-    if (!runInfo) { setOvMsg("先にプレビューして run を作成してください（上書きは run 単位で保存します）"); return; }
+    if (!runInfo) { setOvMsg("この月の給与の記録がまだありません（先に調整控除を 1 件追加すると記録ができます・上書きは記録ごとに保存します）"); return; }
     setOvBusy(true); setOvMsg(null);
     const { error } = await supabase.rpc("payroll_run_deduction_override_set", { p_run_id: runInfo.id, p_cast_id: castId, p_deduction_id: deductionId, p_enabled: enabled, p_amount_override: amountOverride });
     setOvBusy(false);
@@ -646,7 +651,7 @@ ${md.message}（入れずに確定すると控除 0 のまま確定します）`
           <span style={{ display: "inline-block", marginTop: 5 }}><PeriodSelect value={period} onChange={setPeriod} finalized={finalizedPeriodsOf(runPeriods)} runPeriods={runPeriods.map((r) => r.period)} /></span>{/* ★X-13-28（便 P168） */}
         </label>
         {/* ★0164（便 W5-2b・裁定334）: 締め日は月末固定・支払日は店設定 pay_day（翌月 N 日・表示と案内用）・内税表示の店は金額表記の印（計算は不変） */}
-        <span className="nox-tag" data-payroll-headtag="1" style={{ ...t.tag, fontSize: 11, whiteSpace: "nowrap", alignSelf: "flex-end" }} title="締め日（月末固定）と支払日（店舗設定 › 会計と運用）・金額表記">締め 月末・支払日 翌月 {storeOps.pay_day} 日{storeOps.tax_inclusive_display ? "・金額表記 内税" : ""}</span>
+        <span className="nox-tag" data-payroll-headtag="1" style={{ ...t.tag, fontSize: 11, whiteSpace: "nowrap", alignSelf: "flex-end" }} title="締め日（月末固定）と支払日（店舗設定 › 給与）・金額表記">締め 月末・支払日 翌月 {storeOps.pay_day} 日{storeOps.tax_inclusive_display ? "・金額表記 内税" : ""}</span>
         {/* ★裁定324（0159・便 C-3）: 計算基準（実打刻／確定シフト）＝店設定を run の期の初日で解決（pay.ts と同じ payTimeBasisOf） */}
         {(() => { const b: PayTimeBasis = payTimeBasisOf(storeSettings, `${period}-01`); return <span className="nox-tag" data-payroll-headtag="1" style={{ ...t.tag, fontSize: 11, whiteSpace: "nowrap", alignSelf: "flex-end" }} title="勤務時間の計算基準（店舗設定）">計算基準: {PAY_TIME_BASIS_SHORT[b]}</span>; })()}
         {/* ★便 GV-C C-3（裁定388）: プレビューボタンは廃止（確定前は自動で計算）。確定前は「暫定」の帯 */}
@@ -673,9 +678,9 @@ ${md.message}（入れずに確定すると控除 0 のまま確定します）`
         const next = status === "paid" ? "この期間は支払済みです"
           : status === "finalized" ? "次: 行の「未払」を押して支払を記録"
           : rows ? "次: 要対応を確認して「この期間を確定する」"
-          : "次: プレビューで勤怠・売上を取り込む";
+          : "次: 勤怠・売上は開いたときに自動で取り込みます";
         const STEPS = [
-          ["集計", "プレビューで取込"], ["内容確認", "要対応を解消"],
+          ["集計", "自動で取込"], ["内容確認", "要対応を解消"],
           ["給与確定", "確定後は金額を固定"], ["支払・明細", "支払記録と出力"],
         ] as const;
         return (
@@ -738,7 +743,7 @@ ${md.message}（入れずに確定すると控除 0 のまま確定します）`
             <div className="nox-paycard net">
               <div className="l">差引支給額</div>
               <div className="v num">{kpi ? `¥${kpi.net.toLocaleString()}` : "—"}</div>
-              <div className="l" style={{ marginTop: 2 }}>{kpi ? `${kpi.n} 名分` : "プレビューで算出"}</div>
+              <div className="l" style={{ marginTop: 2 }}>{kpi ? `${kpi.n} 名分` : "計算中"}</div>
             </div>
             <div className="nox-paycard">
               <div className="l">未支払</div>
@@ -780,7 +785,7 @@ ${md.message}（入れずに確定すると控除 0 のまま確定します）`
               要対応{issues && issues.length > 0 ? `（${issues.length}件）` : ""}
             </strong>
             {!issues ? (
-              <span style={{ marginLeft: 10, color: "var(--sub)" }}>プレビューを押すと表示されます</span>
+              <span style={{ marginLeft: 10, color: "var(--sub)" }}>計算が終わると表示されます</span>
             ) : issues.length === 0 ? (
               <span style={{ marginLeft: 10, color: "var(--ok)" }}>要対応なし</span>
             ) : (
@@ -847,7 +852,7 @@ ${md.message}（入れずに確定すると控除 0 のまま確定します）`
               </tr>
             </thead>
             <tbody>
-              <tr><td colSpan={5} style={{ ...t.td, color: "var(--sub)", textAlign: "center", padding: "18px 0" }}>プレビューを押すと表示されます</td></tr>
+              <tr><td colSpan={5} style={{ ...t.td, color: "var(--sub)", textAlign: "center", padding: "18px 0" }}>計算が終わると表示されます</td></tr>
             </tbody>
           </table>
           </div>
@@ -1006,7 +1011,7 @@ ${md.message}（入れずに確定すると控除 0 のまま確定します）`
           {(runInfo?.status ?? "draft") === "draft" && (() => { /* ★相談役 11/26 の夜便 N の N6 a（#17）: 旧 status は 666 行の囲みの外＝ブラウザの window.status（空の文字）を読み、ボタンが一度も出なかった（2026-09-10 の 5d775032 から）。666 行と同じ式に */
             // ★裁定316（便 X-8-13）: 期間終了の翌営業日から確定できる（API も同じ判定で 400・DB は 0158）。プレビュー・内容確認は途中でも可
             const guard = finalizeGuardOf(periodEndOf(period), bizDateOf(new Date().toISOString(), cutoffHm));
-            const why = !guard.ok ? guard.message : blockers.length > 0 ? `要対応 ${blockers.length} 件を解消してください` : rows.length === 0 ? "対象キャストがいません（プレビューを実行してください）" : "";
+            const why = !guard.ok ? guard.message : blockers.length > 0 ? `要対応 ${blockers.length} 件を解消してください` : rows.length === 0 ? "対象キャストがいません" : "";
             return (
               <div className="nox-actions" style={{ gap: 10 }}>{/* ★裁定244: 節直下の実行＝中央（why 注記は隣に残す） */}
                 <button onClick={finalize} disabled={busy || !guard.ok || blockers.length > 0 || rows.length === 0}
@@ -1338,7 +1343,8 @@ ${md.message}（入れずに確定すると控除 0 のまま確定します）`
                       <span className="num">¥{l.amount.toLocaleString()}</span>
                       <span style={{ color: "var(--sub)" }}>返済 <span className="num">¥{l.repaid.toLocaleString()}</span>・残 <span className="num">¥{l.remaining.toLocaleString()}</span></span>
                       <span className={l.status === "deducted" ? "nox-stpill ok" : "nox-stpill"}>{loanStatusLabelOf(l.status)}</span>
-                      <span style={{ fontSize: 11, color: "var(--sub)" }}>本人確認 {loanAckLabelOf(l.ack_method)}</span>
+                      {l.bulk && <span className="nox-stpill" data-loan-bulk="1">{LOAN_BULK_LABEL}</span>}{/* ★裁定511-18a（#136） */}
+                      <span style={{ fontSize: 11, color: "var(--sub)" }}>本人確認 {loanAckLabelOf(l.ack_method, l.bulk)}</span>
                     </div>
                   ))}
                 </div>
@@ -1359,7 +1365,7 @@ ${md.message}（入れずに確定すると控除 0 のまま確定します）`
             <h3 style={{ ...t.cardTitle, margin: "0 0 4px" }}>給与明細CSV</h3>
             <p style={{ fontSize: 12, color: "var(--sub)", margin: 0 }}>
               確定済み（{period}）の全キャストの支給・控除・差引を CSV 出力します（BOM UTF-8）。
-              口座・マイナンバーは含みません（振込用フォーマットは別）。支払調書CSVとは別物です。
+              口座・マイナンバーは含みません。支払調書CSVとは別物です。
             </p>
           </div>
           <button

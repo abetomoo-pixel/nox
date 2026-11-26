@@ -17,7 +17,7 @@ import { mig0183On, mig0188On, mig0195On } from "@/lib/nox/rules-0175/flag";
 import { staffContractLineOf, type StaffContract } from "@/lib/nox/staff/pay";
 import AvailabilityEditor from "@/components/nox/availability-editor"; // ★M-88: スタッフの基本の働き方（availability＝membership 軸・availability_set）
 import {
-  WITHHOLDING_KIND_SELECT_NOTE, WITHHOLDING_KIND_SHORT, defaultWithholdingKindOf, withholdingKindChoices, withholdingKindOf,
+  WITHHOLDING_KIND_SELECT_NOTE, WITHHOLDING_KIND_SHORT, defaultWithholdingKindOf, staffWithholdingKindChoicesOf, withholdingKindOf,
   type EmployeeDeductionKind, type EmployeeDeductionRow,
 } from "@/lib/nox/payroll/withholding-kind";
 import { CONTRACT_KIND_OPTS, effectivePayKindOf, monthOfToday, monthShiftOf, payAmountKeyOf, payKindOptsOf } from "@/lib/nox/staff/work"; // 純関数（verify と共有）
@@ -107,7 +107,7 @@ export default function StaffWorkSection({ memId, contract, canEdit, initialOpen
 
   const kindOpts: ReadonlyArray<readonly [string, string]> = [
     ["", `既定（${WITHHOLDING_KIND_SHORT[defaultWithholdingKindOf({ subject: "staff", contractKind: contract?.contract_kind })]}）`],
-    ...withholdingKindChoices().map((k) => [k, WITHHOLDING_KIND_SHORT[k]] as const), // 短い名前（長い説明は給与側の select に）＝ボタン群が折り返さない
+    ...staffWithholdingKindChoicesOf(contract?.withholding_kind).map((k) => [k, WITHHOLDING_KIND_SHORT[k]] as const), // ★裁定511-16b: スタッフは「ホステス等」を出さない（今その区分の人だけ残す）・短い名前（長い説明は給与側の select に）＝ボタン群が折り返さない
   ];
   return (
     <div ref={ref} data-staff-edit-work={contract ? "set" : "none"} style={{ marginTop: 14, paddingTop: 10, borderTop: "1px solid var(--line2)" }}>
@@ -170,7 +170,7 @@ export default function StaffWorkSection({ memId, contract, canEdit, initialOpen
                 deductions={ded} editable={canEdit} onSaved={async (m) => { setMsg({ kind: "success", text: m }); await onSaved(); setTick((n) => n + 1); }} />
             </div>
           ) : kind ? (
-            <p style={{ ...t.sub, margin: "6px 0 0" }} data-staff-edit-ded-note={kind}>この区分（{WITHHOLDING_KIND_SHORT[kind]}）の源泉は 給与 › 勤怠（スタッフ）で自動計算します。控除の手入力は区分が「給与」のときです。</p>
+            <p style={{ ...t.sub, margin: "6px 0 0" }} data-staff-edit-ded-note={kind}>この区分（{WITHHOLDING_KIND_SHORT[kind]}）の源泉は 給与 › スタッフ で自動計算します。控除の手入力は区分が「給与」のときです。</p>
           ) : null}
         </div>
       )}

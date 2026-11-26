@@ -3,11 +3,11 @@
  *   npm run verify:nox-norm-axes。f0 108 段目。
  *  na(1) normAxesOf（欠損＝ON・false のみ OFF）・quotaKeysOfAxes（shimei OFF＝hon／jonai とも隠す・scope hon_jonai で jonai）・normTargetsOf／planDefaultQuotaOf
  *  na(2) resolveQuotaOf（個別＞既定＞なし・OFF 軸は null）・hasOverride・resolveNormTargetsOf（cast_norms の 0＝未設定＝既定を継承）
- *  na(3) 配線: plan-editor（p_norm_*＝29 引数・節「ノルマ（プラン既定の目標）」・OFF 軸は入力口なし）・norm-config-panel（set_store_norm_axes 4 キー＋set_store_norm_config 同期）・comp-sections NormTab（薄濃・採用軸の列）・casts-board（既定の継承表示・印「個別」・「プランの既定に戻す」＝set_cast_quota 4 引数 null）・norm-progress（admin で既定を解決）・/mine/ranking（get_cast_sales_rank の自分の行）
+ *  na(3) 配線: plan-editor（p_norm_*＝29 引数・節「ノルマ（プラン既定の目標）」・OFF 軸は入力口なし）・norm-config-panel（set_store_norm_axes 4 キー＋set_store_norm_config 同期）・comp-sections NormTab（薄濃・採用軸の列）・casts-board（★裁定511-9a: cast_norms を見るだけ・印「個別」／「プランの既定」）・norm-progress（admin で既定を解決）・/mine/ranking（get_cast_sales_rank の自分の行）
  *  na(4) デモ: payload 6 店の comp_plans に norm_*_target（体験入店は 4 つとも null・採用 OFF の軸は null・優遇は高め）・cast_quotas／cast_norms は代表キャストだけ
  */
 import fs from "node:fs";
-import { NORM_AXES, hasOverride, normAxesArgsOf, normAxesOf, normTargetsOf, planDefaultQuotaOf, quotaKeysOfAxes, resolveNormTargetsOf, resolveQuotaOf, shimeiScopeOf } from "../lib/nox/store/norm-axes";
+import { CAST_NORM_SETTINGS_HREF, NORM_AXES, hasOverride, normAxesArgsOf, normAxesOf, normTargetsOf, planDefaultQuotaOf, quotaKeysOfAxes, resolveNormTargetsOf, resolveQuotaOf, shimeiScopeOf } from "../lib/nox/store/norm-axes";
 import { PROFILES, TRIAL } from "../scripts/demo/profiles.mjs";
 
 let pass = 0;
@@ -48,7 +48,7 @@ const J = (v: unknown) => JSON.stringify(v);
   const nb = src("app/(manage)/master/cast-comp/norma/norma-board.tsx");
   check("na(3-4) norma-board: NormTab に plans／castPlans／settings・NormAxesPenaltyPanel に initialAxes＝normAxesOf(settings)（★便 NR-1）", nb.includes("plans={data.plans} castPlans={data.castPlans} settings={settings}") && nb.includes("initialAxes={normAxesOf(settings)}") && nb.includes("<NormAxesPenaltyPanel"));
   const cb = src("app/(manage)/casts/casts-board.tsx");
-  check("na(3-5) casts-board: comp_plans の select に norm_*_target・quotaRow（null＝継承）・解決＝quotaResolvedOf（個別＞既定）・入力口は採用軸だけ・placeholder に既定・印「個別」・「プランの既定に戻す」＝set_cast_quota 4 引数 null", cb.includes("is_active, norm_days_target, norm_dohan_target, norm_sales_target, norm_shimei_target") && cb.includes("const quotaResolvedOf = (c: CastLogin) => {") && cb.includes("{QUOTA_KEYS.filter((k) => q.keys.includes(k)).map((k) => (") && cb.includes('placeholder={q.res.source[k] === "plan" ? String(q.res.quota[k]) : "目標なし"}') && cb.includes('p_hon: null, p_jonai: null, p_dohan: null, p_sales: null') && cb.includes(">プランの既定に戻す</button>") && cb.includes('<span className="nox-stpill ok" style={{ marginLeft: 6 }}>個別</span>'));
+  check("na(3-5) casts-board（★裁定511-9a・#262）: comp_plans の select に norm_*_target・目標は cast_norms（ノルマ設定）を読むだけ・解決＝normResolvedOf（resolveNormTargetsOf＝給与と同じ・個別＞既定）・採用軸だけ・印「個別」／「プランの既定」・set_cast_quota の入力口と「プランの既定に戻す」は無い", cb.includes("is_active, norm_days_target, norm_dohan_target, norm_sales_target, norm_shimei_target") && cb.includes("const normResolvedOf = (c: CastLogin) => {") && cb.includes("return { axes, res: resolveNormTargetsOf(normTargetsOf(pl ?? null), cast, axes) };") && cb.includes("const keys = NORM_AXES.filter((k) => q.axes[k]);") && cb.includes('<span className="nox-stpill ok" style={{ marginLeft: 6 }}>個別</span>') && !cb.includes(">プランの既定に戻す</button>") && !cb.includes('supabase.rpc("set_cast_quota"') && CAST_NORM_SETTINGS_HREF === "/master/cast-comp/norma");
   const np = src("app/api/mine/norm-progress/route.ts");
   check("na(3-6) norm-progress: admin で現在の cast_plan→comp_plans.norm_*・店設定の軸とカウント→resolveQuotaOf（個別＞既定）・返却に source", np.includes("const resolved = resolveQuotaOf(planDefaultQuotaOf(normTargetsOf(planRow ?? null), axes), (quotaRow ?? null) as Partial<Quota> | null, axes, scope);") && np.includes("return NextResponse.json({ period, quota, source, actual: { days: daysActual, ...actual } });") /* ★347 追補2 修正（便 N1014 A-4）: 出勤日数の軸を含む */ && np.includes("const daysT = resolveNormTargetsOf(normTargetsOf(planRow ?? null), { days: normRow?.days_target ?? 0 }, axes);") && np.includes('admin.from("comp_plans").select("norm_days_target, norm_dohan_target, norm_sales_target, norm_shimei_target")'));
   const rp = src("app/mine/ranking/page.tsx");

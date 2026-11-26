@@ -65,6 +65,8 @@ export function unlockNextOf(r: UnlockResult, now: number = Date.now()): { phase
 }
 /** キオスクで出さない機能（裁定423 候補 (f)）＝ログアウト・店設定・給与（店設定で解禁可・既定 OFF）・顧客の個人情報 */
 export const KIOSK_HIDDEN = ["logout", "settings", "payroll", "customer_pii"] as const;
+/** ★起票175・342（裁定511-3・2026-11-26 段ア）: 店の端末の画面に端末ごとのログアウトを出さない（KIOSK_HIDDEN の logout を読む）。端末を止めるのは マスタ › キオスク端末 の「無効化」だけ */
+export const KIOSK_DEVICE_LOGOUT_ON_SCREEN: boolean = !(KIOSK_HIDDEN as readonly string[]).includes("logout");
 export const kioskPayrollAllowedOf = (settings: Record<string, unknown> | null | undefined): boolean => settings?.kiosk_payroll === true;
 
 /** ★裁定469（M-128）: 本人セッションの無操作＝3 分で端末へ戻る（店設定 kiosk_person_idle_minutes＝M-49 は DB 側のセッション有効期限に残す・帯の時計は 3 分固定） */

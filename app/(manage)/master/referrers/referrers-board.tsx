@@ -26,6 +26,9 @@ const KINDS: ReadonlyArray<readonly [string, string]> = [["external", "外部"],
 const WH: ReadonlyArray<readonly [string, string]> = [["none", "源泉なし"], ["salesperson", "外交員報酬（10.21%）"], ["employee", "給与側で源泉"]];
 const PAID_VIA: ReadonlyArray<readonly [string, string]> = [["cash_daily", "当日現金（日報へ）"], ["monthly", "月締め"]];
 const whLabel = (v: string) => WH.find(([k]) => k === v)?.[1] ?? v;
+/** ★裁定512-16a（#234・2026-11-26 Agoora）: 「給与側で源泉」は選べない（給与の計算は紹介料を読まない＝源泉を計算する所が無い）。今その区分の紹介者は表示のまま残し、保存のときに選び直してもらう（関数 set_referrer は変えない） */
+const WH_SELECTABLE = WH.filter(([k]) => k !== "employee");
+const WH_EMPLOYEE_ERR = "「給与側で源泉」は選べなくなりました（給与の計算に紹介料が入らないため）。「源泉なし」か「外交員報酬」を選んでください";
 const yen = (n: number) => "¥" + n.toLocaleString("en-US");
 const monthRange = () => {
   const d = new Date(Date.now() + 9 * 3600_000);
@@ -75,6 +78,7 @@ export default function ReferrersBoard({ storeId, isManagerUp, initial, members 
     setFMsg(null);
     if (fName.trim() === "") { setFMsg("名前を入力してください"); return; }
     if (fKind === "staff" && !fMember) { setFMsg("スタッフの所属を選んでください"); return; }
+    if (fWh === "employee") { setFMsg(WH_EMPLOYEE_ERR); return; } // ★裁定512-16a
     setBusy(true);
     const { error } = await supabase.rpc("set_referrer", {
       p_id: fId, p_store_id: storeId, p_kind: fKind, p_membership_id: fKind === "staff" ? fMember : null,
@@ -228,8 +232,9 @@ export default function ReferrersBoard({ storeId, isManagerUp, initial, members 
             <input value={fContact} onChange={(e) => setFContact(e.target.value)} placeholder="電話・LINE 等" style={input} maxLength={200} />
           </label>
           <label style={{ fontSize: 12, display: "grid", gap: 4 }}>源泉区分
-            <SegSelect value={fWh} onChange={setFWh} options={WH} ariaLabel="源泉区分" />
-            <span style={{ ...t.sub, fontSize: 11 }}>外交員報酬＝同月の支払累計 120,000 円超の部分に 10.21%（支払時に確定）。スタッフ紹介者は給与側で源泉＝ここでは 0。</span>
+            <SegSelect value={fWh} onChange={setFWh} options={WH_SELECTABLE} ariaLabel="源泉区分" />{/* ★裁定512-16a: 「給与側で源泉」は出さない */}
+            {fWh === "employee" && <Message kind="error">{WH_EMPLOYEE_ERR}</Message>}
+            <span style={{ ...t.sub, fontSize: 11 }}>外交員報酬＝同月の支払累計 120,000 円超の部分に 10.21%（支払時に確定）。源泉の要否は顧問税理士にご確認ください。</span>
           </label>
           <label style={{ fontSize: 12, display: "flex", alignItems: "center", gap: 8 }}>
             <input type="checkbox" checked={fActive} onChange={(e) => setFActive(e.target.checked)} /> 有効（無効にするとレジで選べなくなります）

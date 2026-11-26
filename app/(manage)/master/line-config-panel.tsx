@@ -89,7 +89,7 @@ export default function LineConfigPanel({ stores, isOwner }: { stores: Store[]; 
       for (const k of LINE_SECRET_KINDS) {
         if (!secrets[k].trim()) continue;
         const res = await fetch("/api/line/secret", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ storeId, kind: k, secret: secrets[k] }) });
-        if (!res.ok) { const j = (await res.json().catch(() => ({}))) as { error?: string }; setErr(`${LINE_SECRET_LABEL[k]}の保存に失敗: ${j.error ?? res.status}`); return; }
+        if (!res.ok) { const j = (await res.json().catch(() => ({}))) as { error?: string }; setErr(`${LINE_SECRET_LABEL[k]}の保存に失敗: ${rpcErrJa(j.error ?? String(res.status))}`); return; }
       }
       setSecrets({ channel_secret: "", access_token: "" });
       setMsg(patch || botChanged || secrets.channel_secret || secrets.access_token ? "LINE の設定を保存しました" : "変更がありません");

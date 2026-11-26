@@ -32,7 +32,7 @@ import { rpcErrJa } from "@/lib/nox/ui/rpc-err";
 import { resolveOrgId } from "@/lib/nox/cast-photo";
 import { photoActionLabelOf, removeUserPhoto, signUserPhotos, uploadUserPhoto } from "@/lib/nox/staff-photo";
 import { mig0183On, mig0190On, rules0175On } from "@/lib/nox/rules-0175/flag"; // ★追補 3 R-8 // ★便 M-9（0183） // ★0190（裁定436 ①c）: 在籍解除の失効（route）
-import { ownerOnlyNoteOf, roleChangeTargetsOf, roleChangeTextOf, roleLabelOf, rolePillKindOf, staffListRolesOf } from "@/lib/nox/rules-0175/roles";
+import { ownerOnlyNoteOf, roleChangeTargetsOf, roleChangeTextOf, roleLabelOf, rolePillKindOf, staffListRolesOf, staffListOwnerRowsShownOf, staffListOwnerRowKeptOf, STAFF_OWNER_ROW_NOTE } from "@/lib/nox/rules-0175/roles"; // ★起票281（段ア）: 管理者にした人を一覧に残す
 import { INVITE_STATE_LABEL, LOGIN_METHOD_DEFAULT, LOGIN_METHOD_NOTE, LOGIN_METHOD_OPTIONS, loginEmailLabelOf, inviteErrJa, inviteExpiryTextOf, inviteFormErrorOf, inviteStateOf, type LoginMethod } from "@/lib/nox/people/invite"; // ★便 ON-3（0176 ★2 I-1）: 登録→招待の 2 段
 import { liffBindUrlOf, siteOriginOf } from "@/lib/nox/line/liff-endpoint";
 import LineBindLink from "@/components/nox/line-bind-link"; // ★2026-11-16 夜（N6）: 招待リンクの QR
@@ -174,14 +174,15 @@ export default function StaffBoard({
     const { data: mm } = await supabase
       .from("memberships")
       .select("id, user_id, store_id, role, is_active, can_register, can_crm, can_shift, can_view_backs, can_close, can_reopen, tel, line_id") // ★0172: +tel／line_id
-      .in("role", staffListRolesOf(rules0175On())); // ★追補 3 R-8（裁定425 候補）: フラグ true で管理者も一覧に
-    const rows = (mm ?? []) as Mem[];
+      .in("role", staffListRolesOf(rules0175On()).concat(staffListOwnerRowsShownOf(mig0193On(), roleRaw) ? ["owner"] : [])); // ★追補 3 R-8（裁定425 候補）: フラグ true で管理者も一覧に ★起票281（段ア）: 0193 の後の管理者（role owner）もオーナーが見るときは一覧に
+    let rows = (mm ?? []) as Mem[];
     const userIds = [...new Set(rows.map((m) => m.user_id))];
     const map: Record<string, UserRow> = {};
     if (userIds.length) {
       const { data: us } = await supabase.from("users").select("id, name, email, auth_user_id, photo_updated_at").in("id", userIds); // ★0162: +photo_updated_at
       for (const u of (us ?? []) as UserRow[]) map[u.id] = u;
     }
+    rows = rows.filter((m) => staffListOwnerRowKeptOf(m, map[m.user_id]?.auth_user_id ?? null, myAuthUserId)); // ★起票281（段ア）: 管理者の行は在籍中のほかの人だけ（自分・解除済みは出さない）
     // 並び: 店 → manager 先頭 → 名前
     rows.sort((a, b) =>
       storeName(a.store_id).localeCompare(storeName(b.store_id))
@@ -468,8 +469,8 @@ export default function StaffBoard({
                     {m.is_active ? "在籍" : "解除"}
                   </span>
                   {m.is_active && pinStatus[m.id] && !pinStatus[m.id].has_pin && <span className="nox-stpill" style={{ marginLeft: 6 }} data-staff-pin-chip="none">PIN 未設定</span>}{/* ★M-133 */}
-                  <ContractChip dataKey="data-staff-contract-chip" dataSet={contracts[m.id] ? "set" : "none"} style={{ marginLeft: 6 }} title="働き方を編集"
-                    onClick={(e) => { e.stopPropagation(); openEdit(m, true); }} text={contracts[m.id] ? staffContractLineOf(contracts[m.id]) : "働き方を登録"} />{/* ★便 D M-99: 共通の契約チップ（本文色・輪郭だけ） */}{/* ★便 A M-80 追記: 契約の要約チップ＝押すと「働き方」を開いた状態で編集 */}
+                  {m.role !== "owner" && <ContractChip dataKey="data-staff-contract-chip" dataSet={contracts[m.id] ? "set" : "none"} style={{ marginLeft: 6 }} title="働き方を編集"
+                    onClick={(e) => { e.stopPropagation(); openEdit(m, true); }} text={contracts[m.id] ? staffContractLineOf(contracts[m.id]) : "働き方を登録"} />}{/* ★便 D M-99: 共通の契約チップ（本文色・輪郭だけ） */}{/* ★便 A M-80 追記: 契約の要約チップ＝押すと「働き方」を開いた状態で編集 */}
                 </div>
                 <div className="role">
                   {u?.email ?? "—"}{isOwner ? ` / ${storeName(m.store_id)}` : ""}{m.tel ? <> / <TelLink tel={m.tel} /></> : null}{/* ★0172（裁定381）: tel: リンク */}
@@ -516,6 +517,7 @@ export default function StaffBoard({
               onPick={(f) => void pickStaffPhoto(sel.user_id, f)} onRemove={() => void removeStaffPhoto(sel.user_id, users[sel.user_id]?.name ?? "")} />
           </div>
           {/* ★裁定381（GV-B W-10）: 入力は 1 行 1 項目・保存は 1 ボタン（変わった項目だけ送る＝名前 staff_update_profile／メール owner のみ update-email） */}
+          {sel.role === "owner" ? (<p data-staff-owner-row="1" style={{ ...t.sub, margin: "12px 0 0", lineHeight: 1.7 }}>{STAFF_OWNER_ROW_NOTE}</p>) : (<>{/* ★起票281（段ア）: 管理者の行＝名前・連絡先・メール・PIN・働き方・異動は扱わない（関数が受けない）＝肩書・役割・個人情報・在籍の解除だけ */}
           <div style={{ display: "grid", gap: 10, marginTop: 12 }} data-staff-edit="1">
             <FieldStack label="名前" htmlFor="staff-edit-name">
               <input id="staff-edit-name" placeholder="名前" value={eName} onChange={(e) => setEName(e.target.value)} style={{ ...t.input, width: "100%" }} />
@@ -562,10 +564,10 @@ export default function StaffBoard({
           </div>
           <div className="nox-actions" data-staff-edit-actions="1" style={{ marginTop: 10 }}>{/* ★便 A M-80 ④（教訓133）: 保存は中央 */}
             <button type="button" style={{ ...btnGold, minHeight: 48, minWidth: 180, fontSize: 15 }} disabled={busy} data-staff-save="1" onClick={() => void saveEdit()}>{busy ? "保存中…" : "保存"}</button>
-          </div>
-          <StaffWorkSection key={`${sel.id}-${eWorkOpen ? "w" : "c"}`} memId={sel.id} contract={contracts[sel.id] ?? null} initialOpen={eWorkOpen} onSaved={() => load()} storeId={sel.store_id} /* ★M-88 */
-            canEdit={isOwner || (sel.role === "staff" && sel.store_id === myStoreId)} />{/* ★便 A M-80 ①②: 働き方＝staff_contract_set／源泉区分／控除（給与 › 勤怠（スタッフ）と同じ保存先・店長は自店の staff だけ） */}
-          {isOwner && stores.length > 1 && sel.is_active && (
+          </div></>)}
+          {sel.role !== "owner" && <StaffWorkSection key={`${sel.id}-${eWorkOpen ? "w" : "c"}`} memId={sel.id} contract={contracts[sel.id] ?? null} initialOpen={eWorkOpen} onSaved={() => load()} storeId={sel.store_id} /* ★M-88 */
+            canEdit={isOwner || (sel.role === "staff" && sel.store_id === myStoreId)} />}{/* ★便 A M-80 ①②: 働き方＝staff_contract_set／源泉区分／控除（給与 › 勤怠（スタッフ）と同じ保存先・店長は自店の staff だけ） */}
+          {isOwner && stores.length > 1 && sel.is_active && sel.role !== "owner" && (
             <div style={{ display: "grid", gap: 8, marginTop: 12 }} data-staff-transfer="1">{/* ★便 A M-80 ④: 配属店（異動先）は select ではなくボタン群（教訓27）・実行は中央 */}
               <span style={t.fieldLabel}>異動先（配属店）</span>
               <SegSelect value={eStore} onChange={setEStore} options={stores.filter((s) => s.id !== sel.store_id).map((s) => [s.id, s.name] as const)} ariaLabel="異動先" wrap />

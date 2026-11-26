@@ -1702,12 +1702,12 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
             </div>
           ) : null; })()}
           {shiftsOn(todayDate).length === 0 ? (
-            <p style={{ fontSize: 13, color: "var(--sub)" }}>本日のシフトはありません</p>
+            <p style={{ fontSize: 13, color: "var(--sub)" }}>{tdLabel}のシフトはありません</p>
           ) : (
             <div className="nox-tablewrap stickyfirst nox-todaywrap">{/* ★裁定371（GV-22・便 GV-A）: <1280 は 3 段カード（globals.css .nox-todaywrap）。★AT2-3: 名前列を左固定（横スクロールしても行の見出しが残る＝M18 と同じ修飾子） */}
               <table className="nox-table cardrows">{/* ★X-13-17（便 X-13d-1）: ≤899 は 1 人 1 カード（氏名／申請・確定／出勤記録／状態／操作を縦積み・横スクロール廃止）・PC は表のまま */}
                 <thead>
-                  <tr><th>スタッフ</th><th>申請時間</th><th>確定時間</th><th>出勤記録</th><th>状態</th>{isManagerUp && <th>操作</th>}</tr>{/* ★裁定313／X-8-3: 操作列は owner／manager だけ（staff は列ごと未描画） */}
+                  <tr><th>キャスト</th><th>申請時間</th><th>確定時間</th><th>出勤記録</th><th>状態</th>{isManagerUp && <th>操作</th>}</tr>{/* ★裁定313／X-8-3: 操作列は owner／manager だけ（staff は列ごと未描画） */}
                 </thead>
                 <tbody>
                   {shiftsOn(todayDate).filter((s) => !reportsOnly || !!castReportOf(attOf(s.cast_id, todayDate))).slice().sort((a, b) => hm2min(a.start_hm) - hm2min(b.start_hm)).map((s) => {
@@ -2354,7 +2354,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                   <b className="num">{yen(monthFcTotal)}</b>
                 </div>
                 <p className="nox-moneynote">
-                  表示月の全日のシフト時間×時給の概算合計です。バック・控除は含みません。実際の給与とは異なります。
+                  表示月の全日のシフト時間×基本時給の概算合計です（時間帯の時給とスタッフの分は入りません）。バック・控除は含みません。実際の給与とは異なります。
                 </p>
               </>
             )}
@@ -2639,7 +2639,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
             {shifts.some((s) => isClosedDay(s.date)) && <p data-closed-shift-note="1" style={{ fontSize: 12, color: "var(--bad)", margin: "0 0 8px", lineHeight: 1.7 }}>定休日に入っているシフトがあります（状態に赤い「定休日」）。消す（削除）か残すかは店長が選びます＝自動では消しません。</p>}{/* ★便 NR-1 B④ */}
             <table className="nox-table cardrows">
               <thead>
-                <tr><th>スタッフ</th><th>勤務日</th><th>確定時間</th><th>確定者</th><th>状態</th><th className="nox-noprint">操作</th></tr>
+                <tr><th>キャスト</th><th>勤務日</th><th>確定時間</th><th>確定者</th><th>状態</th><th className="nox-noprint">操作</th></tr>
               </thead>
               <tbody>
                 {shifts.map((s) => {
@@ -2825,7 +2825,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
                   <b className="num">{yen(selFc.total)}</b>
                 </div>
                 <p className="nox-moneynote">
-                  シフト時間×時給の概算です。バック・控除は含みません。実際の給与とは異なります。
+                  シフト時間×基本時給の概算です（時間帯の時給とスタッフの分は入りません）。バック・控除は含みません。実際の給与とは異なります。
                 </p>
               </>
             )}

@@ -24,7 +24,7 @@ import Toast, { Message, type MessageKind } from "@/components/ui/toast";
 import { rpcErrJa, isRpcMissingError } from "@/lib/nox/ui/rpc-err";
 import SegSelect from "@/components/ui/seg-select"; // ★0154 D6: 契約区分
 import { dedAmountLabelOf, dedUnitLabelOf } from "@/lib/nox/payroll/deduction-labels"; // ★0195（裁定447 ④）: キャスト別の控除
-import { WITHHOLDING_KIND_LABEL, WITHHOLDING_KIND_SELECT_NOTE, WITHHOLDING_KIND_SHORT, defaultWithholdingKindOf, withholdingKindChoices, withholdingKindOf } from "@/lib/nox/payroll/withholding-kind"; // ★便 M3 M-21
+import { WITHHOLDING_KIND_LABEL, WITHHOLDING_KIND_SELECT_NOTE, WITHHOLDING_KIND_SHORT, castTaxDiffNoteOf, defaultWithholdingKindOf, withholdingKindChoices, withholdingKindOf } from "@/lib/nox/payroll/withholding-kind"; // ★便 M3 M-21
 import { mig0183On, mig0188On, mig0190On, mig0191On, mig0195On } from "@/lib/nox/rules-0175/flag"; // ★便 M3 M-21 // ★0190（裁定436 ①c）: 退店の失効（route）
 import { NOTE_EMPLOYMENT, NOTE_LABOR, amountKeyOf, laborNoteNeeded, nextPeriodStartOf, overridesWithRule, payRuleLabelOf, payRuleOptionsOf, ruleOfOverrides, type Employment, planSwitchOverridesOf, planSwitchFromOf } from "@/lib/nox/cast/pay-rule"; // ★0154 D2／D6
 import type { PayRule } from "@/lib/nox/pay";
@@ -57,12 +57,12 @@ import { firstInLastOut, isTodayWorking, todayStateOf, type TodayState } from "@
 import { bizDateOf } from "@/lib/nox/biz-date";
 import { NORM_STATUS_LABEL, castNormStatusOf, currentWageOf, monthElapsedOf, normRateOf, wageTiersOf, type CurrentWage, type NormStatus } from "@/lib/nox/cast/current-wage"; // ★裁定374（GV-B W-4）: 今期の時給（プレビューと同じ純関数）・達成状況
 import { sumCastSales, type CastSalesRow } from "@/lib/nox/payroll/cast-sales"; // ★裁定374: 実績＝/mine と同じ合算（get_cast_sales 月レンジ）
-import { NORM_AXIS_LABEL, hasOverride, normAxesOf, normTargetsOf, planDefaultQuotaOf, quotaKeysOfAxes, resolveQuotaOf, shimeiScopeOf, resolveNormTargetsOf } from "@/lib/nox/store/norm-axes"; // ★裁定347／GV-2（0171・便 P171）: 継承・上書き・採用軸 // ★GV-3（便 N1013b B-8）: sys_norms OFF＝今月のノルマの入力口を出さない
+import { CAST_NORM_READONLY_NOTE, CAST_NORM_SETTINGS_HREF, NORM_AXES, NORM_AXIS_LABEL, NORM_AXIS_UNIT, normAxesOf, normTargetsOf, planDefaultQuotaOf, resolveQuotaOf, shimeiScopeOf, resolveNormTargetsOf } from "@/lib/nox/store/norm-axes"; // ★裁定347／GV-2（0171・便 P171）: 継承・上書き・採用軸 // ★GV-3（便 N1013b B-8）: sys_norms OFF＝今月のノルマの入力口を出さない
 import { TRIAL_KIND, TRIAL_PLAN_NAME, isTrialCastOf, trialDaysLeftChipOf, trialGuaranteeRangeOf, trialPlanWarnOf, trialSettingsOf } from "@/lib/nox/cast/trial-flow"; // ★便 GV-C C-14f（GV-65・裁定396）: 体入の一括操作
 import { SHIFT_REQUEST_MODE_LABEL, mineSettingsOf } from "@/lib/nox/store/mine-settings"; // ★裁定337（0167）: シフト希望の方式のラベルと店の既定
 import { NOTE_PLAN_SWITCH, planSwitchErrJa, planSwitchValidate, planSwitchMinOf, dateLessLabelOf } from "@/lib/nox/cast/plan-switch";
 import { mig0205On } from "@/lib/nox/rules-0175/flag"; // ★0205 v2 // ★裁定306-13（適用開始日の既定＝pay-rule の nextPeriodStartOf）
-import { QUOTA_FORM_EMPTY, QUOTA_KEYS, QUOTA_LABEL, QUOTA_UNIT, quotaArgsOf, quotaFormEquals, quotaFormOf, quotaMonthOptionsOf, type Quota, type QuotaForm, cardAxesOf, cardFmt, type CardAxis } from "@/lib/nox/mine/quota"; // ★0160（裁定326-3・便 M2-2）: 今月のノルマ（set_cast_quota）
+import { quotaMonthOptionsOf, type Quota, cardAxesOf, cardFmt, type CardAxis } from "@/lib/nox/mine/quota"; // ★0160（裁定326-3・便 M2-2）: 今月のノルマ・★裁定511-9a: 入力口（set_cast_quota）は外した＝月の選択と一覧の達成状況だけ
 import { errJa } from "@/lib/nox/errors"; // ★裁定467（M-126）: 利用者向けの文言は辞書 1 本
 
 type Store = { id: string; name: string; settings_json?: Record<string, unknown> | null }; // ★裁定300-2: 送り方式（okuri_mode）・ベース額（okuri_base_amount）
@@ -76,7 +76,7 @@ const DOC_KEYS = [
   { key: "pledge", label: "誓約書" },
   { key: "bank", label: "振込口座" },
 ] as const;
-const TIERS = ["エース", "人気", "レギュラー", "体入"] as const;
+const TIERS = ["エース", "人気", "レギュラー"] as const; // ★裁定511-14（#324・裁定480）: 直接登録の区分から体入を外す（体入は「体入」の窓の「体入を追加」から＝開始日と体入の時給を一度に入れる）
 // 段C2: 「出勤した日」の集合＝出勤板（shift-board）/ホームと同一定義（新しい判定を作らない）。
 const PRESENT = new Set(["shukkin", "dohan", "late"]);
 
@@ -200,6 +200,10 @@ export default function CastsBoard({
   const [castWhKind, setCastWhKind] = useState<Record<string, string | null>>({}); // ★便 M3 M-21: 源泉区分（cast_tax_profiles.withholding_kind・null＝既定）
   useEffect(() => { if (!mig0183On()) return; let alive = true; void supabase.from("cast_tax_profiles").select("cast_id, withholding_kind").then(({ data }) => { if (alive) setCastWhKind(Object.fromEntries(((data ?? []) as { cast_id: string; withholding_kind: string | null }[]).map((r) => [r.cast_id, r.withholding_kind]))); }); return () => { alive = false; }; // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  // ★裁定511-17（#185）: 契約区分（casts.employment）と税務の雇用区分（cast_tax_profiles.mode＝給与の計算と源泉の既定が読む）は別々のまま＝詳細に両方を出す（読むだけ・未登録は行なし）
+  const [castTaxMode, setCastTaxMode] = useState<Record<string, string>>({});
+  useEffect(() => { let alive = true; void supabase.from("cast_tax_profiles").select("cast_id, mode").then(({ data }) => { if (alive) setCastTaxMode(Object.fromEntries(((data ?? []) as { cast_id: string; mode: string | null }[]).filter((r) => !!r.mode).map((r) => [r.cast_id, r.mode as string]))); }); return () => { alive = false; }; // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   async function saveCastKind(castId: string, v: string) {
     const { error } = await supabase.rpc("set_withholding_kind", { p_subject_kind: "cast", p_subject_id: castId, p_kind: v === "" ? null : v });
     setEmpMsg(error ? { kind: "error", text: `源泉区分の保存エラー: ${rpcErrJa(error.message)}` } : { kind: "success", text: "源泉区分を保存しました" });
@@ -227,18 +231,16 @@ export default function CastsBoard({
   const [guaMsg, setGuaMsg] = useState<{ kind: MessageKind; text: string } | null>(null);
   const today = bizToday(bizCutoff); // ★起票145 の訂正: 営業日の今日＝待遇プラン・契約区分の既定の開始日・本採用・本入店日・保証・日付の下限・プランの今の行・前借りと日払いの発行日（暦の今日は次回シフト・カレンダーなどの表示だけ）
   // ★0160（裁定326-3・便 M2-2）: 今月のノルマ＝cast_quotas（店×cast×月初 date・4 項目・NULL＝目標なし）。月は今月／翌月（month と同じ取り方）・保存は set_cast_quota（owner／manager 自店）
+  //   ★裁定511-9a（#262・2026-11-26 Agoora）: 目標の置き場は店の「ノルマ設定」の「キャスト別の目標」（cast_norms）に 1 つ＝キャスト詳細は見るだけ（set_cast_quota の入力口は外した）。
+  //     見せる値＝給与（達成ボーナスの目標・未達の提案）と同じ解決＝resolveNormTargetsOf（cast_norms の非 0＞プランの既定 norm_*_target＞なし・採用軸だけ）
   const [quotaMonth, setQuotaMonth] = useState<string>(`${month}-01`);
-  const [quotaCur, setQuotaCur] = useState<QuotaForm>(QUOTA_FORM_EMPTY);
-  const [quotaForm, setQuotaForm] = useState<QuotaForm>(QUOTA_FORM_EMPTY);
-  const [quotaRow, setQuotaRow] = useState<Partial<Quota> | null>(null); // ★裁定347: 個別（null＝継承）
+  const [normRow, setNormRow] = useState<{ days_target: number; dohan_target: number; sales_target: number; shimei_target: number } | null>(null); // ★裁定511-9a: cast_norms（null＝行なし＝プランの既定）
   // ★裁定374（GV-B W-4）: 今期の時給（給与プレビュー 1 リクエスト）とノルマ達成状況（get_cast_sales 1 本＋cast_quotas／cast_norms／in 打刻 各 1 本＝N+1 なし）。表示専用・計算は純関数
   const [w4, setW4] = useState<{ pay: Record<string, { pay: Record<string, unknown>; planName: string }>; sales: CastSalesRow[]; quotas: Record<string, Partial<Quota>>; norms: Record<string, { days_target: number }>; inDays: Record<string, number> }>({ pay: {}, sales: [], quotas: {}, norms: {}, inDays: {} });
   const [planFilter, setPlanFilter] = useState<string>("");
   const [normFilter, setNormFilter] = useState<"" | NormStatus>("");
   const [wageFilter, setWageFilter] = useState<string>("");
   const [sortKey, setSortKey] = useState<"name" | "wage" | "rate">("name");
-  const [quotaBusy, setQuotaBusy] = useState(false);
-  const [quotaMsg, setQuotaMsg] = useState<{ kind: MessageKind; text: string } | null>(null);
   const selCastId = sel?.kind === "cast" ? sel.id : null;
   // ★0195（裁定447 ④）: キャスト詳細「待遇・バック」の「控除」の節＝店のルールを一覧・使う／使わない・額の上書き（空＝店の額）＝deduction_rule_cast_set／deduction_rule_casts_get
   const [dedRules, setDedRules] = useState<{ id: string; name: string; amount: number; per: string; day_rule: string | null }[]>([]);
@@ -270,42 +272,20 @@ export default function CastsBoard({
   }
   useEffect(() => {
     let alive = true;
-    setQuotaMsg(null);
-    if (!selCastId) { setQuotaCur(QUOTA_FORM_EMPTY); setQuotaForm(QUOTA_FORM_EMPTY); return; }
-    void supabase.from("cast_quotas").select("hon, jonai, dohan, sales").eq("cast_id", selCastId).eq("month", quotaMonth).maybeSingle().then(({ data }) => {
-      if (!alive) return;
-      const f = quotaFormOf((data ?? null) as Partial<Quota> | null);
-      setQuotaRow((data ?? null) as Partial<Quota> | null); // ★裁定347
-      setQuotaCur(f); setQuotaForm(f);
+    if (!selCastId) { setNormRow(null); return; }
+    // ★裁定511-9a（#262）: 読むのは店のノルマ設定の「キャスト別の目標」（cast_norms・period＝YYYY-MM）＝給与と同じ置き場。書かない
+    void supabase.from("cast_norms").select("days_target, dohan_target, sales_target, shimei_target").eq("cast_id", selCastId).eq("period", quotaMonth.slice(0, 7)).maybeSingle().then(({ data }) => {
+      if (alive) setNormRow((data ?? null) as { days_target: number; dohan_target: number; sales_target: number; shimei_target: number } | null);
     });
     return () => { alive = false; };
   }, [supabase, selCastId, quotaMonth]);
-  async function saveQuota(c: CastLogin) {
-    const a = quotaArgsOf(quotaForm);
-    if (!a.ok) { setQuotaMsg({ kind: "error", text: a.err }); return; }
-    setQuotaBusy(true); setQuotaMsg(null);
-    const { error } = await supabase.rpc("set_cast_quota", { p_store_id: c.store_id, p_cast_id: c.id, p_month: quotaMonth, ...a.args });
-    setQuotaBusy(false);
-    if (error) { setQuotaMsg({ kind: "error", text: rpcErrJa(error.message) }); return; }
-    setQuotaCur(quotaForm);
-    setQuotaRow(Object.fromEntries(QUOTA_KEYS.map((k) => [k, quotaForm[k].trim() === "" ? null : Number(quotaForm[k].replace(/[^0-9]/g, ""))])) as Partial<Quota>); // ★裁定347: 保存後の個別値
-    setQuotaMsg({ kind: "success", text: "ノルマを保存しました" });
-  }
-  // ★裁定347（0171・便 P171）: 「プランの既定に戻す」＝個別を全部 null にして保存（set_cast_quota 4 引数 null＝目標なし＝継承）
-  async function resetQuotaToPlan(c: CastLogin) {
-    setQuotaBusy(true); setQuotaMsg(null);
-    const { error } = await supabase.rpc("set_cast_quota", { p_store_id: c.store_id, p_cast_id: c.id, p_month: quotaMonth, p_hon: null, p_jonai: null, p_dohan: null, p_sales: null });
-    setQuotaBusy(false);
-    if (error) { setQuotaMsg({ kind: "error", text: rpcErrJa(error.message) }); return; }
-    setQuotaRow(null); setQuotaCur(QUOTA_FORM_EMPTY); setQuotaForm(QUOTA_FORM_EMPTY);
-    setQuotaMsg({ kind: "success", text: "プランの既定に戻しました" });
-  }
-  /** ★裁定347: 選択キャストのプラン既定（cast_plan 現在行→comp_plans.norm_*）と採用軸・指名カウントから解決（個別＞既定＞なし） */
-  const quotaResolvedOf = (c: CastLogin) => {
+  /** ★裁定511-9a: 選択キャストの目標＝cast_norms の非 0＞プランの既定（cast_plan 現在行→comp_plans.norm_*）＞なし・採用軸だけ（給与の collect.ts と同じ resolveNormTargetsOf） */
+  const normResolvedOf = (c: CastLogin) => {
     const sj = stores.find((st) => st.id === c.store_id)?.settings_json ?? null;
-    const axes = normAxesOf(sj); const scope = shimeiScopeOf(sj);
+    const axes = normAxesOf(sj);
     const a = castPlanOf[c.id]; const pl = a ? plansById[a.planId] : null;
-    return { axes, scope, keys: quotaKeysOfAxes(axes, scope), res: resolveQuotaOf(planDefaultQuotaOf(normTargetsOf(pl ?? null), axes), quotaRow, axes, scope) };
+    const cast = normRow ? { days: normRow.days_target, dohan: normRow.dohan_target, sales: Number(normRow.sales_target ?? 0), shimei: Number(normRow.shimei_target ?? 0) } : null;
+    return { axes, res: resolveNormTargetsOf(normTargetsOf(pl ?? null), cast, axes) };
   };
 
   useEffect(() => { void resolveOrgId(supabase).then(setOrgId); }, [supabase]);
@@ -977,7 +957,7 @@ export default function CastsBoard({
             <p style={{ ...t.sub, margin: "0 0 14px", lineHeight: 1.7 }}>
               {filter === "trial"
                 ? "在籍区分「体入」で登録し、店の既定のプランと体入の開始日を一度に設定します（体入の間は体入の時給で計算します）。保証時給は自動では付けません（要るときは詳細から）。本採用・見送りは詳細から。"
-                : "体入を経ずに直接登録します（実績はゼロから）。"}
+                : "体入を経ずに直接登録します（実績はゼロから）。体入で始める人は「体入」の一覧の「体入を追加」から登録します。"}
             </p>
             {filter === "trial" && (() => { /* ★裁定490（B2-1）: 開始日（必須・既定は今日）と、既定のプランが無い店のプランの選択 */
               const sid = myStoreId || stores[0]?.id || "";
@@ -1025,8 +1005,8 @@ export default function CastsBoard({
                 登録した後に設定する項目
               </p>
               <ol style={{ margin: 0, paddingLeft: 18, fontSize: 11.5, color: "var(--sub)", lineHeight: 1.9 }}>
-                <li><b style={{ color: "var(--v2-text)" }}>プロフィール写真</b>：一覧でそのキャストを選び「写真」から設定します（任意）。</li>
-                <li><b style={{ color: "var(--v2-text)" }}>ランク</b>：一覧のランク欄から設定します（指名料に反映されます）。</li>
+                <li><b style={{ color: "var(--v2-text)" }}>プロフィール写真</b>：一覧でそのキャストを選び「写真を登録」から設定します（任意）。</li>
+                <li><b style={{ color: "var(--v2-text)" }}>指名料ランク</b>：詳細の「待遇・バック」の「指名料ランク」で設定します（指名料に反映されます）。</li>
                 {filter === "trial" ? (/* ★相談役 11/26 夜便 N の N5 b（#25）: 体入の追加は店の既定のプランを開始日から自動で付ける（addTrialCast＝裁定490）＝割り当ての案内は出さない */
                   <li><b style={{ color: "var(--v2-text)" }}>待遇プラン</b>：体入の追加で店の既定のプランを開始日から自動で割り当てます（変えるときは詳細の「待遇・バック」から）。</li>
                 ) : (
@@ -1334,41 +1314,30 @@ export default function CastsBoard({
                 <h3 style={{ ...secTitle, margin: "0 0 6px" }}>日払いの発行</h3>
                 <DailyPayForm castId={selCast.id} castName={selCast.name} storeId={selCast.store_id} dateDefault={issueDateDefaultOf(today)} />{/* ★便 L-3-2: storeId＝過徴収 warn の当期プレビュー */}
               </div>
-              {/* ★0160（裁定326-3・便 M2-2）: 今月のノルマ（本指名／場内／同伴／売上・月単位＝今月／翌月・空欄＝目標なし）＝set_cast_quota。
-                  キャストのマイページに「実績／目標・達成率」で出る（目標が無い項目は出ない）。owner／manager のみ（page.tsx が他ロールを redirect 済み）。 */}
-              {/* ★GV-3（便 N1013b B-8）: 店の制度「ノルマ」（sys_norms）が OFF の店は入力口を出さない（/mine のノルマカード・報酬設定のノルマタブと同じ鍵） */}
+              {/* ★0160（裁定326-3・便 M2-2）の「今月のノルマ」の入力口（set_cast_quota）は ★裁定511-9a（#262・2026-11-26 Agoora）で外した＝目標の置き場は店の「ノルマ設定」の「キャスト別の目標」（cast_norms）に 1 つ。
+                  ここは見るだけ（給与の達成ボーナスの目標・未達の提案と同じ値）。直すときはノルマ設定へ。owner／manager のみ（page.tsx が他ロールを redirect 済み）。 */}
+              {/* ★GV-3（便 N1013b B-8）: 店の制度「ノルマ」（sys_norms）が OFF の店は節を出さない（/mine のノルマカード・報酬設定のノルマタブと同じ鍵） */}
               <div style={{ marginTop: 12, marginBottom: 12, display: normsOnOf(selCast.store_id) ? undefined : "none" }}
-                data-norms-off={normsOnOf(selCast.store_id) ? undefined : "1"} aria-hidden={!normsOnOf(selCast.store_id)}>
+                data-norms-off={normsOnOf(selCast.store_id) ? undefined : "1"} aria-hidden={!normsOnOf(selCast.store_id)} data-cast-norm-readonly="1">
                 <h3 style={{ ...secTitle, margin: "0 0 6px" }}>今月のノルマ</h3>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 8 }}>
-                  <SegSelect value={quotaMonth} onChange={(v) => setQuotaMonth(v)} options={quotaMonthOptionsOf(month)} disabled={quotaBusy} ariaLabel="ノルマの月" />
-                  <span style={lbl}>空欄＝目標なし。キャストのマイページに「実績／目標・達成率」が出ます</span>
+                  <SegSelect value={quotaMonth} onChange={(v) => setQuotaMonth(v)} options={quotaMonthOptionsOf(month)} ariaLabel="ノルマの月" />
+                  <span style={lbl}>{CAST_NORM_READONLY_NOTE}</span>
                 </div>
-                {(() => { const q = quotaResolvedOf(selCast); return (<>
-                <p style={{ ...lbl, margin: "0 0 6px" }} data-quota-source={JSON.stringify(q.res.source)}>
-                  {hasOverride(q.res) ? <span className="nox-stpill ok" style={{ marginRight: 6 }}>個別</span> : <span className="nox-stpill" style={{ marginRight: 6 }}>プランの既定を継承</span>}
-                  空欄＝プランの既定を継承（薄い数字）。入力すると個別の目標として上書きします。採用していない軸は出ません（{Object.entries(q.axes).filter(([, v]) => !v).map(([k]) => NORM_AXIS_LABEL[k as keyof typeof NORM_AXIS_LABEL]).join("・") || "なし"}）。
-                </p>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 8 }}>
-                  {QUOTA_KEYS.filter((k) => q.keys.includes(k)).map((k) => (
-                    <label key={k} style={{ display: "block", minWidth: 0 }} data-quota-key={k} data-source={q.res.source[k] ?? "none"}>
-                      <span style={{ ...lbl, display: "block", marginBottom: 3 }}>{QUOTA_LABEL[k]}（{QUOTA_UNIT[k]}）{q.res.source[k] === "override" ? <span className="nox-stpill ok" style={{ marginLeft: 6 }}>個別</span> : q.res.source[k] === "plan" ? <span style={{ color: "var(--sub)", marginLeft: 6 }}>既定 {k === "sales" ? "¥" + (q.res.quota[k] ?? 0).toLocaleString() : q.res.quota[k]}</span> : null}</span>
-                      {k === "sales"
-                        ? <MoneyInput value={quotaForm.sales} disabled={quotaBusy} width="100%" style={{ padding: "8px 10px", fontSize: 13 }} ariaLabel="売上の目標" onChange={(v) => setQuotaForm((f) => ({ ...f, sales: v }))} />
-                        : <input inputMode="numeric" value={quotaForm[k]} disabled={quotaBusy} placeholder={q.res.source[k] === "plan" ? String(q.res.quota[k]) : "目標なし"} onChange={(e) => setQuotaForm((f) => ({ ...f, [k]: e.target.value.replace(/[^0-9]/g, "") }))} style={{ ...input, width: "100%" }} />}
-                    </label>
+                {(() => { const q = normResolvedOf(selCast); const keys = NORM_AXES.filter((k) => q.axes[k]); return keys.length === 0
+                  ? <p style={{ ...lbl, margin: 0 }}>この店はノルマの軸を採用していません（ノルマ設定の「軸と減額」で選びます）。</p>
+                  : (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 8 }} data-norm-source={JSON.stringify(q.res.source)}>
+                  {keys.map((k) => (
+                    <div key={k} style={{ minWidth: 0 }} data-norm-key={k} data-source={q.res.source[k] ?? "none"}>
+                      <span style={{ ...lbl, display: "block", marginBottom: 3 }}>{NORM_AXIS_LABEL[k]}{q.res.source[k] === "override" ? <span className="nox-stpill ok" style={{ marginLeft: 6 }}>個別</span> : q.res.source[k] === "plan" ? <span style={{ color: "var(--sub)", marginLeft: 6 }}>プランの既定</span> : null}</span>
+                      <span className="num" style={{ fontSize: 14, fontWeight: 700 }}>{q.res.value[k] == null ? <span style={{ color: "var(--sub)", fontWeight: 400 }}>目標なし</span> : k === "sales" ? `¥${(q.res.value[k] ?? 0).toLocaleString()}` : `${q.res.value[k]} ${NORM_AXIS_UNIT[k]}`}</span>
+                    </div>
                   ))}
                 </div>
-                {hasOverride(q.res) && (
-                  <div className="nox-actions" style={{ marginTop: 6 }}>
-                    <button type="button" style={btnGhost} disabled={quotaBusy} onClick={() => void resetQuotaToPlan(selCast)}>プランの既定に戻す</button>
-                  </div>
-                )}
-                </>); })()}
-                {quotaMsg && <Message kind={quotaMsg.kind} style={{ margin: "8px 0 0" }}>{quotaMsg.text}</Message>}
+                ); })()}
                 <div className="nox-actions" style={{ marginTop: 8 }}>
-                  <button type="button" style={btnGhost} disabled={quotaBusy || quotaFormEquals(quotaForm, quotaCur)} onClick={() => { setQuotaForm(quotaCur); setQuotaMsg(null); }}>元に戻す</button>
-                  <button type="button" style={btnGold} disabled={quotaBusy || quotaFormEquals(quotaForm, quotaCur)} onClick={() => void saveQuota(selCast)}>ノルマを保存</button>
+                  <Link href={CAST_NORM_SETTINGS_HREF} style={{ ...btnGhost, textDecoration: "none", display: "inline-flex", alignItems: "center" }} data-cast-norm-link="1">ノルマ設定（キャスト別の目標）を開く</Link>
                 </div>
               </div>
               {/* ★機微情報の分離を明示（モックの .lockrow 逐語）＝この画面には出さない */}
@@ -1490,10 +1459,12 @@ export default function CastsBoard({
                       {isOwner && !empForm && <button style={btnGhost} disabled={busy}
                         onClick={() => { setEmpMsg(null); setEmpForm({ employment: emp ?? "委託", from: nextPeriodStartOf(today) }); }}>契約区分を変更</button>}
                     </div>
-                    <div className="nox-frow" data-cast-withholding-kind="1"><span className="k">源泉区分</span><span className="v">{WITHHOLDING_KIND_SHORT[withholdingKindOf(castWhKind[selCast.id] ?? null, defaultWithholdingKindOf({ subject: "cast", taxMode: emp ?? "委託" }))]}{(castWhKind[selCast.id] ?? null) === null ? "（既定）" : ""}
+                    <div className="nox-frow" data-cast-withholding-kind="1"><span className="k">源泉区分</span><span className="v">{WITHHOLDING_KIND_SHORT[withholdingKindOf(castWhKind[selCast.id] ?? null, defaultWithholdingKindOf({ subject: "cast", taxMode: castTaxMode[selCast.id] ?? emp ?? "委託" }))]}{(castWhKind[selCast.id] ?? null) === null ? "（既定）" : ""}
                       {mig0183On() && <span style={{ display: "inline-block", marginLeft: 8 }}><SegSelect value={castWhKind[selCast.id] ?? ""} onChange={(v) => void saveCastKind(selCast.id, v)} disabled={busy} options={[["", "既定"] as const, ...withholdingKindChoices().map((k) => [k, WITHHOLDING_KIND_LABEL[k]] as const)]} ariaLabel="源泉区分（キャスト）" wrap /></span>}</span></div>{/* ★M-82: 源泉区分＝ボタン群 ／ ★便 M3 M-21: 働き方＝契約区分＋源泉区分（人ごと・set_withholding_kind） */}
                     {mig0188On() && <p style={{ ...t.sub, margin: "0 0 4px" }} data-cast-withholding-note="1">{WITHHOLDING_KIND_SELECT_NOTE}</p>}
                     <div className="nox-frow"><span className="k">契約区分</span><span className="v">{emp ?? "未設定（委託として計算）"}{selCast.employment_valid_from ? <span style={{ fontSize: 11, color: "var(--v2-muted)", marginLeft: 6 }}>（{selCast.employment_valid_from} から）</span> : null}</span></div>
+                    <div className="nox-frow" data-cast-tax-mode={castTaxMode[selCast.id] ?? "none"}><span className="k">税務の区分</span><span className="v">{castTaxMode[selCast.id] ?? "未登録"}
+                      <span style={{ display: "block", fontSize: 11, color: (castTaxMode[selCast.id] ?? null) === null || castTaxMode[selCast.id] !== (emp ?? "委託") ? "var(--bad)" : "var(--v2-muted)" }}>{castTaxDiffNoteOf(castTaxMode[selCast.id] ?? null, emp)}</span></span></div>{/* ★裁定511-17（#185）: 契約区分と税務の区分は別々のまま・両方を出す */}
                     <div className="nox-frow"><span className="k">報酬型</span><span className="v">{curLabel}{cur.amount !== null ? <span className="num" style={{ marginLeft: 6 }}>¥{cur.amount.toLocaleString()}{cur.rule === "per_shift" ? "／稼働" : "／期"}</span> : null}</span></div>
                     {ruleForm && (
                       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end", marginTop: 8 }}>
@@ -1638,7 +1609,7 @@ export default function CastsBoard({
                 <span className="v" style={{ display: "grid", gap: 4 }} data-cast-line-bind={lineLinked.has(selCast.id) ? "linked" : "none"}>
                   <span style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
                     <span style={{ color: lineLinked.has(selCast.id) ? "var(--ok)" : "var(--v2-muted)" }}>{lineLinked.has(selCast.id) ? "連携済み（LINE に通知が届きます）" : "未連携"}</span>
-                    {lineBlocked.has(selCast.id) && <span className="nox-stpill" style={{ color: "var(--bad)" }} data-cast-line-blocked="1">LINE ブロック中（通知は止まっています・友だち追加し直すと復帰）</span>}{/* ★0195 M-77 ② */}
+                    {lineBlocked.has(selCast.id) && <span className="nox-stpill" style={{ color: "var(--bad)" }} data-cast-line-blocked="1">LINE ブロック中（通知は止まっています・本人が連携のリンクを開き直すと復帰）</span>}{/* ★0195 M-77 ② */}
                     {mig0195On() && lineLinked.has(selCast.id) && !isDemo && <button style={btnGhost} disabled={busy} data-cast-line-unlink="1" onClick={() => void unlinkLine(selCast)}>紐付けを解除</button>}{/* ★0195 M-77 ③ */}
                     {isDemo ? <span style={{ fontSize: 11, color: "var(--v2-muted)" }}>デモでは連携できません</span>
                       : <button style={btnGhost} disabled={busy} onClick={() => void issueBind(selCast)}>{lineLinked.has(selCast.id) ? "付け替えのリンク" : "連携のリンクを発行"}</button>}
@@ -1663,8 +1634,8 @@ export default function CastsBoard({
               <div className="nox-frow">
                 <span className="k">レジの許可</span>{/* ★便 M5 M-44: 本人の許可の置き場＝マスタ › キャスト待遇 › レジ会計（店 ON＋本人・set_cast_register）＝ここは案内だけ（二重の編集口を作らない） */}
                 <span className="v" data-cast-register-pointer="1">
-                  <Link href="/master/cast-comp/register" style={{ color: "var(--champ)", fontSize: 12.5 }}>マスタ › キャスト待遇 › レジ会計 で許可</Link>
-                  <span style={{ display: "block", fontSize: 11.5, color: "var(--v2-muted)", marginTop: 4 }}>店の「キャストのレジ使用」ON ＋ 本人の許可 ＋ 出勤中 で、本人のマイページのナビに「レジ」が出ます</span>
+                  <Link href="/master/cast-comp/register" style={{ color: "var(--champ)", fontSize: 12.5 }}>スタッフ・システム › 権限・情報管理 › キャスト会計の許可 で許可</Link>
+                  <span style={{ display: "block", fontSize: 11.5, color: "var(--v2-muted)", marginTop: 4 }}>店の「キャストのレジ使用」ON ＋ 本人の許可 ＋ 出勤中 で使えます（本人のマイページのナビに「レジ」が出るのは、操作端末が「自分のスマホからも」のときだけ）</span>
                 </span>
               </div>
               {/* ★v3.1 K36（C1）: 説明文をモックの2カード語彙「本人レコード／NOXログインアカウント」へ寄せる（構造は現行の行形式のまま） */}
@@ -1924,7 +1895,7 @@ function RegisterForm({
         )}
         {!fixedKind && <div className="nox-field">
           <span className="lab">区分</span>
-          <SegSelect value={tier} onChange={setTier} options={TIERS.map((x) => [x, x] as const)} ariaLabel="ランク" wrap />{/* ★M-82: 4 択＝ボタン群 */}
+          <SegSelect value={tier} onChange={setTier} options={TIERS.map((x) => [x, x] as const)} ariaLabel="区分" wrap />{/* ★M-82: ボタン群・★裁定511-14: 3 択（体入は外した） */}
         </div>}
         {withTrialFields && (
           <div className="nox-field">

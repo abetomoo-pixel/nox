@@ -260,17 +260,34 @@ export function v5Checks(S: V5State): V5Check[] {
 }
 
 // ── CSV（モック parseCsv 逐語＝9 列・見出し・不正行） ──
-export const CSV_HEADER = "源氏名,本名,在籍区分,契約区分,待遇プラン,電話,メール,PIN,送り距離";
+// ★2026-11-26（相談役 22:10 夜便 N 改・段ア・食い違い 3）: 10 列目に「生年月日」を足して必須に（cast_create は生年月日なしを 'bad birthday' で断る＝9 列では 1 人目で止まっていた）。
+//   2000/1/1・2000-01-01・2000.1.1 を YYYY-MM-DD に直す。空・日付でない・18 歳未満は表で赤（18 歳の確認の正は DB の cast_create のまま＝関数は変えない）
+export const CSV_HEADER = "源氏名,本名,在籍区分,契約区分,待遇プラン,電話,メール,PIN,送り距離,生年月日";
+export const CSV_COLS = 10;
+/** 生年月日の欄 → YYYY-MM-DD（直せないときは null） */
+export function csvBirthdayOf(v: string): string | null {
+  const m = /^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/.exec(v.trim()); if (!m) return null;
+  const y = +m[1], mo = +m[2], d = +m[3]; const dt = new Date(Date.UTC(y, mo - 1, d));
+  if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== mo - 1 || dt.getUTCDate() !== d) return null;
+  return `${m[1]}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+}
+/** 18 歳以上か（today＝JST の YYYY-MM-DD・DB の「p_birthday + 18 years > today なら under 18」と同じ向き。2/29 生まれは平年なら 2/28 に 18 歳＝Postgres の interval と同じ） */
+export function csvAdultOf(birthday: string, today: string): boolean {
+  const y = +birthday.slice(0, 4) + 18; const md = birthday.slice(5);
+  const at = md === "02-29" && !(y % 4 === 0 && (y % 100 !== 0 || y % 400 === 0)) ? `${y}-02-28` : `${y}-${md}`;
+  return at <= today;
+}
 export const PIN_RE = /^\d{4,6}$/;
 export const genPin = (): string => String(Math.floor(1000 + Math.random() * 9000));
-export function parseCsv(text: string): V5CsvRow[] {
+export function parseCsv(text: string, today: string = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10)): V5CsvRow[] {
   const lines = text.replace(/\r/g, "").split("\n").filter((l) => l.trim()); if (!lines.length) return [];
   if (/源氏名/.test(lines[0])) lines.shift();
   return lines.map((l) => { let c: string[] = [], cur = "", q = false; for (let i = 0; i < l.length; i++) { const ch = l[i]; if (ch === '"') { q = !q; continue; } if (ch === "," && !q) { c.push(cur); cur = ""; continue; } cur += ch; } c.push(cur);
-    while (c.length < 9) c.push(""); c = c.slice(0, 9).map((v) => v.trim());
+    while (c.length < CSV_COLS) c.push(""); c = c.slice(0, CSV_COLS).map((v) => v.trim());
     if (!c[2]) c[2] = "在籍"; if (!c[3]) c[3] = "業務委託"; if (!c[4]) c[4] = c[2] === "体入" ? "体験入店" : "基本プラン";
     let err = !c[0] ? "源氏名が空" : (["在籍", "体入"].indexOf(c[2]) < 0 ? "在籍区分が不正" : (["業務委託", "雇用"].indexOf(c[3]) < 0 ? "契約区分が不正" : ""));
     if (!err && c[7] && !PIN_RE.test(c[7])) err = "PIN は 4〜6 桁の数字"; if (!err && c[8] && ["近", "中", "遠"].indexOf(c[8]) < 0) err = "送り距離は 近／中／遠";
+    if (!err) { const b = csvBirthdayOf(c[9]); if (!c[9]) err = "生年月日が空"; else if (!b) err = "生年月日は 2000/1/1 の形"; else { c[9] = b; if (!csvAdultOf(b, today)) err = "18 歳未満は登録できません"; } }
     return { c, err }; });
 }
 export const DIST_CODE: Record<string, string> = { "近": "near", "中": "mid", "遠": "far", near: "near", mid: "mid", far: "far" };
@@ -500,6 +517,6 @@ export const V5_SAVE_MAP: readonly V5SaveMap[] = [
   { step: 8, item: "釣銭準備金", dest: "なし（daily_report_close の p_cash_float＝毎回入力）", has: mig0191On() },
   { step: 8, item: "カード手数料・現金割引（0187）・丸め", dest: "set_store_pricing{card_tax_rate}／settings pay_fee_rates／pay_discount_rates・pay_discount_base／set_store_tax_config{tax_rounding}", has: true },
   { step: 8, item: "領収書（発行者・登録番号・但し書き）", dest: "set_store_invoice_profile／set_store_receipt_profile{reg_no}／set_store_tax_config{invoice_status}", has: true },
-  { step: 9, item: "完了画面＝キャスト 1 人ずつ・CSV（9 列・PIN・送り距離）・PIN 一覧印刷", dest: "cast_create（生年月日が必須＝18 歳判定）／set_cast_employment／set_cast_plan／set_cast_pin／set_cast_okuri_tier／招待＝/api/cast/invite（メール）", has: true },
+  { step: 9, item: "完了画面＝キャスト 1 人ずつ・CSV（10 列・PIN・送り距離・生年月日）・PIN 一覧印刷", dest: "cast_create（生年月日が必須＝18 歳判定）／set_cast_employment／set_cast_plan／set_cast_pin／set_cast_okuri_tier／招待＝/api/cast/invite（メール）", has: true },
   { step: 0, item: "入力の自動保存（org 単位の下書き・再開）", dest: "なし（localStorage＝店ごと・端末ごと。org 単位の表は 0191）", has: mig0191On() },
 ];

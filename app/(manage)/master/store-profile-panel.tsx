@@ -309,7 +309,7 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
                   </label>
                 ))}
               </div>
-              <span style={{ display: "block", fontSize: 11.5, color: "var(--sub)", marginTop: 4 }}>店負担のカード決済手数料（経費の見込み）は「会計ルール」の率で別に集計します。</span>
+              <span style={{ display: "block", fontSize: 11.5, color: "var(--sub)", marginTop: 4 }}>店負担のカード決済手数料（経費の見込み）は 料金・会計 › 会計設定 の「カード手数料（店の負担）」の率で別に集計します。</span>
             </div>}
             {on("payprof") && <label style={{ display: "block", minWidth: 0 }}>
               <span style={label}>途中払い<InfoTip>前払（仮払）は控除なし＝期の精算で控除</InfoTip></span>
@@ -350,8 +350,8 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
                 <input type="number" min={1} max={31} step={1} inputMode="numeric" value={form.ops.pay_day} disabled={busy} onChange={(e) => setOps({ pay_day: e.target.value })} style={input} aria-label="給与の支払日" />
               </label>}
               {on("opsTax") && <div style={{ minWidth: 0 }}>
-                <span style={label}>消費税の表示<InfoTip>ON＝内税で表示（計算は変わりません）</InfoTip></span>
-                <p style={{ fontSize: 12, color: "var(--sub)", margin: "4px 0" }} data-tax-display-source="price_display">消費税の表示（内税／外税）は、料金の設定の「税込／税抜」に従います（今は{form.ops.tax_inclusive_display ? "内税" : "外税"}表示）。変えるときは マスタ › 料金 で。</p>{/* ★0201b の前提（2026-11-11）: スイッチは撤去＝正本は price_display */}
+                <span style={label}>消費税の表示<InfoTip>料金・会計 › 会計設定 の「価格表示」を写して出します（ここでは変えられません）</InfoTip></span>
+                <p style={{ fontSize: 12, color: "var(--sub)", margin: "4px 0" }} data-tax-display-source="price_display">消費税の表示（内税／外税）は、料金・会計 › 会計設定 の「価格表示」に従います（今は{form.ops.tax_inclusive_display ? "内税" : "外税"}表示）。変えるときは 商品・料金 › 料金・会計 › 会計設定 で（内税と外税では会計の計算も変わります）。</p>{/* ★0201b の前提（2026-11-11）: スイッチは撤去＝正本は price_display */}
               </div>}
               {on("opsReg") && <div style={{ minWidth: 0 }}>
                 <span style={label}>フロア<InfoTip>OFF の席種はレジの卓席と席マスタの選択肢に出しません（登録済みの席は残ります）</InfoTip></span>

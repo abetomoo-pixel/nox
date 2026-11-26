@@ -84,3 +84,8 @@ export function resolveNormTargetsOf(plan: NormTargets, cast: Partial<Record<Nor
   }
   return { value, source };
 }
+
+// ★裁定511-9a（#262・2026-11-26 Agoora）: ノルマの目標の置き場は店の「ノルマ設定」の「キャスト別の目標」（cast_norms）に 1 つ。
+//   キャスト詳細の「今月のノルマ」は見るだけ（set_cast_quota の入力口は外した）＝給与（達成ボーナスの目標・未達の提案）と同じ解決（resolveNormTargetsOf）の値を出す。
+export const CAST_NORM_SETTINGS_HREF = "/master/cast-comp/norma";
+export const CAST_NORM_READONLY_NOTE = "目標は「ノルマ設定」の「キャスト別の目標」で決めます（ここは見るだけ）。空欄の軸はプランの既定を使います";

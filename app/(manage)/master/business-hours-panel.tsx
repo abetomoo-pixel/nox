@@ -39,7 +39,7 @@ function rpcErrJa(msg: string | undefined): string {
   if (msg.includes("bad hours")) return "閉店は開店より後にしてください（時刻の指定が不正です）";
   if (msg.includes("bad dow")) return "曜日の指定が不正です";
   if (msg.includes("forbidden")) return "営業時間を変更する権限がありません";
-  return msg;
+  return errJa(msg); // ★2026-11-26（食い違い 81）: billing locked など英字のまま出さない
 }
 
 // ★mig0106（裁定82・起票#14）: 営業日切替時刻（set_store_biz_cutoff）のエラー写像。
@@ -51,7 +51,7 @@ function cutoffErrJa(msg: string | undefined): string {
     return "この時刻では時間帯料金の帯が営業日をまたぎます。先に時間帯料金を直してください";
   }
   if (msg.includes("forbidden")) return "権限がありません（管理者のみ変更できます）";
-  return msg;
+  return errJa(msg);
 }
 
 // UI は4択（mock/pages-2026-08/nox-pricing-settings.html 準拠）。DB 側の許容は 03:00〜12:00。

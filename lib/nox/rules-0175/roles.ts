@@ -36,6 +36,14 @@ export const ownerOnlyNoteOf = (raw: string | null | undefined): string | null =
 
 /** スタッフ画面の一覧に出す役割（フラグ true で admin を含む） */
 export const staffListRolesOf = (on: boolean): string[] => (on ? ["staff", "manager", "admin"] : ["staff", "manager"]);
+/** ★起票281（相談役 11/26 22:10 夜便 N 改・段ア）: 0193 の後の「管理者にする」は role を owner にする＝一覧（staff／manager／admin）から消え、「店長に戻す」に届かなかった。
+ *  表示だけ＝オーナー（本来の役割 owner）が見るときに role owner の行も読む（役割の変更の判定・関数は変えない） */
+export const staffListOwnerRowsShownOf = (on0193: boolean, viewerRaw: string | null | undefined): boolean => on0193 && viewerRaw === "owner";
+/** ★起票281: 一覧に残す行＝管理者（owner）の行は在籍中で自分でない人だけ（自分の役割は変えられない・解除済みの再雇用は関数が owner を受けない）。ほかの役割は今のまま全部 */
+export const staffListOwnerRowKeptOf = (m: { role: string; is_active: boolean }, rowAuthUserId: string | null, myAuthUserId: string): boolean =>
+  m.role !== "owner" || (m.is_active && rowAuthUserId !== null && rowAuthUserId !== myAuthUserId);
+/** ★起票281: 管理者の行の編集の窓の 1 行（名前・連絡先・PIN・働き方・異動は扱わない） */
+export const STAFF_OWNER_ROW_NOTE = "管理者の行です。ここで変えられるのは肩書・役割（店長に戻す）・個人情報・在籍の解除です。名前・連絡先・PIN・働き方・異動は、この行では扱いません。";
 
 /** 役割変更の候補＝呼び手（本来の役割）× 相手の今の役割。owner＝staff／manager に admin を足せる・admin を解除できる。admin＝staff↔manager だけ */
 export function roleChangeTargetsOf(callerRaw: string | null | undefined, targetRole: string): string[] {

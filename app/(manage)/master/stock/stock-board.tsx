@@ -148,7 +148,7 @@ export default function StockBoard({ isManagerUp, initial, users, storeId = null
       <MasterPageHead
         eyebrow="INVENTORY LEDGER"
         title="在庫（棚卸し・履歴）"
-        desc="棚卸しは実数を入力すると差分を自動計算して記録します。入荷は商品ページの行から、売上による減算は会計から自動で入ります。"
+        desc="棚卸しは実数を入力すると差分を自動計算して記録します。入荷は商品ページの行から、売上による減算は注文した時点で自動で入ります。"
       />
       {/* ★裁定330（便 MC1）: 発注推奨の警告はマスタトップから在庫画面へ（判定＝reorder_point・0 件なら出さない・文言は旧トップと同じ） */}
       {/* ★2026-11-18 夜（相談役 ⑥ C-2）: 件数に加えて、足りない順に先頭 3 件の「商品名 現在庫／基準」・残りは「ほか n 件」 */}
@@ -170,7 +170,7 @@ export default function StockBoard({ isManagerUp, initial, users, storeId = null
             <span style={{ fontSize: 11.5, color: "var(--sub)" }}>棚の実数を入れると差分を記録します</span>
             <details className="nox-help" style={{ fontSize: 11.5, color: "var(--sub)" }} data-stocktake-help="1">
               <summary style={{ cursor: "pointer", display: "inline-block", width: 20, height: 20, lineHeight: "20px", textAlign: "center", borderRadius: 999, border: "1px solid var(--line2)", fontWeight: 800 }} aria-label="棚卸しの説明">？</summary>
-              <p style={{ margin: "6px 0 0", lineHeight: 1.7 }}>実数の既定値は現在庫（差分 0）。−／＋で 1 ずつ・長押しで連続・直接入力も可。差分のある行だけ記録します（差分 0 の行は送りません）。入荷・返品（数を足す／引く）は<Link href="/master/products" className="nox-link">商品ページ</Link>の行「入荷」から。売上による減算は会計から自動で入ります。</p>
+              <p style={{ margin: "6px 0 0", lineHeight: 1.7 }}>実数の既定値は現在庫（差分 0）。−／＋で 1 ずつ・長押しで連続・直接入力も可。差分のある行だけ記録します（差分 0 の行は送りません）。入荷・返品（数を足す／引く）は<Link href="/master/products" className="nox-link">商品ページ</Link>の行「入荷」から。売上による減算は注文した時点で自動で入ります。</p>
             </details>
           </div>
           {unmanaged > 0 && <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "0 0 8px" }} data-stocktake-unmanaged={unmanaged}>在庫を持たない商品（入荷の記録が無い商品）<span className="num">{unmanaged}</span> 件は表示していません。</p>}

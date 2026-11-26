@@ -71,7 +71,7 @@ export default function MasterBoard({ storeId = null, showSupport = false, showI
       case "/master/referrers":
         return { count: "支払", status: hubStatusOf(refState, (unpaidRef ?? 0) > 0 ? `● 未払 ${unpaidRef} 件` : "● 未払なし"), tone: refState === "ok" && (unpaidRef ?? 0) > 0 ? "warn" : refState === "error" ? "mute" : "" };
       case "/master/store-profile":
-        return { count: "2タブ", status: "● 管理者限定の項目あり", tone: "mute" };
+        return { count: `${p.tabs?.length ?? 0}タブ`, status: "● 管理者限定の項目あり", tone: "mute" };
       case "/master/seats":
         return { count: hubState === "ok" ? `${seats.length}席・卓 / 稼働${activeSeats}` : hubCountOf(hubState, 0).text, status: hubStatusOf(hubState, `● 稼働可能 ${activeSeats}卓`), tone: hubState === "error" ? "mute" : "" };
       case "/master/business-hours":
