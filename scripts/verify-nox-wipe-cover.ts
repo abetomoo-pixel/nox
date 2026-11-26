@@ -39,6 +39,9 @@ try {
   const missing = [...DEMO_PREWIPE_TABLES, ...DEMO_PREWIPE_BY_DEVICE, ...DEMO_KEEP_EXTRA].filter((t) => !tabs.includes(t));
   check("wipe(3) PREWIPE と c_wipe／c_keep の重なりなし・PREWIPE／KEEP_EXTRA の表は実在する（0198 ★5 の手貼り後は重なった 6 表を PREWIPE から外す）", overlap.length === 0 && missing.length === 0, { overlap, missing });
   check("wipe(3-1) PREWIPE の表はすべて org_id を持つ（端末経由の表は device_id を持つ）", DEMO_PREWIPE_TABLES.every((t) => orgTabs.has(t)) && (await pc.query(`select count(*)::int n from information_schema.columns where table_schema='public' and column_name='device_id' and table_name = any($1)`, [DEMO_PREWIPE_BY_DEVICE])).rows[0].n === DEMO_PREWIPE_BY_DEVICE.length);
+  // ★2026-11-26（相談役 11/25 の便 I【I3】）: route は service_role で消す＝消せない表が名簿にあると reset 全体が止まる（11/26 朝 0212 の 3 表で 7 店とも失敗）。
+  const noDel = (await pc.query(`select t from unnest($1::text[]) t where not has_table_privilege('service_role', 'public.' || t, 'DELETE')`, [[...DEMO_PREWIPE_TABLES, ...DEMO_PREWIPE_BY_DEVICE]])).rows.map((r) => r.t as string);
+  check("wipe(3-2) PREWIPE（端末経由を含む）の表はすべて service_role が DELETE できる（消せない表は reset 全体を止める）", noDel.length === 0, noDel);
   const orgs = (await pc.query(`select id, name from public.orgs where is_demo = true order by name`)).rows as { id: string; name: string }[];
   check("wipe(4-0) デモ org が 7 つ（★2026-11-18 夜（相談役 ④）: 7 社目＝NOX-DEMO-HOST を作成）", orgs.length === 7 && orgs.some((o) => o.name === "NOX-DEMO-HOST"), orgs.map((o) => o.name));
   const leftovers: string[] = [];

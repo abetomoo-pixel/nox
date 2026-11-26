@@ -5,7 +5,7 @@
 //   DB の c_wipe の直し（0198 ★5＝6 表）は手貼り待ち＝それまでも落ちないよう route（service role）が先に消す。DDL なし。
 //   表が増えたときは verify:nox-wipe-cover（pg 直結＝org_id を持つ全表が c_wipe∪c_keep∪PREWIPE∪KEEP_EXTRA に入っているか）が赤になる。
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { mig0212On, mig0213On, mig0214On } from "../rules-0175/flag"; // ★0212／0213／0214
+import { mig0213On, mig0214On } from "../rules-0175/flag"; // ★0213／0214（0212 の 3 表は消さない名簿へ＝下の DEMO_KEEP_EXTRA）
 
 /** org_id で消す表＝子から親へ（cast_rate_history → slide_decisions は set null・kiosk_qr_claims → kiosk_sessions／kiosk_devices／memberships は no action＝wipe の前に必ず消す） */
 export const DEMO_PREWIPE_TABLES: readonly string[] = [
@@ -17,14 +17,16 @@ export const DEMO_PREWIPE_TABLES: readonly string[] = [
   "staff_sensitive", "store_special_days",
   "cast_employment",   // ★0206 版 2（2026-11-24 08:05 適用）: 契約区分の履歴（casts の削除で連鎖して消えるが、store_id→stores は no action＝wipe の前に route が先に消す・DDL なし・入れ直しのデモには行が無い＝今の値で計算）
   ...(mig0213On() ? ["punch_round_rules"] : []),   // ★0213（相談役 11/25 の D4）: 丸めの履歴（stores の削除で連鎖して消えるが、名簿に載せる＝wipe-cover・旗 false の間は表が無い＝消さない）
-  ...(mig0212On() ? ["ops_point_entries", "ops_inquiry_messages", "ops_inquiries"] : []),   // ★0212（相談役 11/25 の便 F1：デモの入れ直しの名簿に）: ポイント → やりとり → 問い合わせ（子から親へ・デモの会社では関数が断る＝ふだんは 0 行）
   ...(mig0214On() ? ["punch_breaks"] : []),        // ★0214（D5）: 休憩（casts・memberships の削除で連鎖して消える・旗 false の間は表が無い）
 ];
 /** org_id が無く、端末（kiosk_devices）経由で消す表 */
 export const DEMO_PREWIPE_BY_DEVICE: readonly string[] = ["kiosk_qr_keys"];
 /** org_id を持つが消さない表（users と同じく残す＝demo_entries は /demo の入場ログ・member_profiles は users の属性） */
 //   ★0202a（2026-11-21 本番適用）: ops_audit_logs は運営の監査（会社をまたぐ・会社を消すと org_id が null で残る）＝デモの wipe では消さない（デモの会社には運営の操作を許さない＝行は出来ない）
-export const DEMO_KEEP_EXTRA: readonly string[] = ["demo_entries", "member_profiles", "ops_audit_logs", "ops_support_grants", "cast_provisionals", "ops_support_requests" /* ★0207（2026-11-25）: 運営の頼み＝デモの会社では関数が断る＝行は 0 */]; // ★0202b（2026-11-21 21:57 適用）: デモの会社では作れない（オーナーの窓口は forbidden (demo)・代行は onb_can_write がデモを止める）＝消す名簿に要らない
+export const DEMO_KEEP_EXTRA: readonly string[] = ["demo_entries", "member_profiles", "ops_audit_logs", "ops_support_grants", "cast_provisionals", "ops_support_requests" /* ★0207（2026-11-25）: 運営の頼み＝デモの会社では関数が断る＝行は 0 */,
+  // ★2026-11-26（相談役 11/25 の便 I【I3】で見つけた）: 0212 の 3 表は service_role に SELECT しか無い＝route が消すと "permission denied" で reset 全体が止まった（11/26 06:05〜06:35 のデモ 7 店すべて）。
+  //   デモの会社では関数が断る＝行は 0・FK は store_id／org_id が cascade・added_store_id／created_by／author_user_id／inquiry_id は set null＝wipe を止めない＝消さない名簿へ移す（ops_support_requests と同じ）。
+  "ops_point_entries", "ops_inquiry_messages", "ops_inquiries"]; // ★0202b（2026-11-21 21:57 適用）: デモの会社では作れない（オーナーの窓口は forbidden (demo)・代行は onb_can_write がデモを止める）＝消す名簿に要らない
 
 export type PrewipeResult = { ok: true; deleted: Record<string, number> } | { ok: false; table: string; error: string; deleted: Record<string, number> };
 

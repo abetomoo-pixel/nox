@@ -321,8 +321,12 @@ export const DEMO_HOST_HOURLY_PLAN = { name: "VESPER 新人（時間帯）", cop
 /** ランクの出勤の時刻：上のランク（種の「標準」）20:00〜25:00・新人のランク（足す・人 0＝今のキャストのランクは変えない）18:00〜25:00。作成済みのシフトは変えない（時刻はこれから作るシフトの初期値だけ） */
 export const DEMO_HOST_RANK_TIMES = { upper: { name: "標準", start: 1200, end: 1500 }, rookie: { name: "新人", sortOrder: 2, start: 1080, end: 1500 } } as const;
 export type DemoHostSamplesResult = { firstVisit: number; plans: number; bands: number; ranks: number; breakPunch: boolean; reason?: string };
+/** 検査だけ：見本を入れない入れ直し（同じ営業日の比べの「見本なし」側）を作るときに false。本番の route は触らない（null＝入れる） */
+let overrideHostSamples: boolean | null = null;
+export function setDemoHostSamplesOverride(v: boolean | null): void { overrideHostSamples = v; }
 export async function demoHostSamplesFor(admin: SupabaseClient, orgId: string): Promise<DemoHostSamplesResult> {
   const out: DemoHostSamplesResult = { firstVisit: 0, plans: 0, bands: 0, ranks: 0, breakPunch: false };
+  if (overrideHostSamples === false) return out;
   const { data: org } = await admin.from("orgs").select("name").eq("id", orgId).maybeSingle();
   if ((org as { name?: string } | null)?.name !== DEMO_HOST_ORG) return out;
   const { data: st, error: eSt } = await admin.from("stores").select("id, settings_json").eq("org_id", orgId).order("created_at").limit(1).maybeSingle();
