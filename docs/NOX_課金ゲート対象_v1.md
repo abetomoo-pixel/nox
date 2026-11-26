@@ -707,6 +707,10 @@ staff_deactivate / kiosk_deactivate / staff_invite_revoke（★0211（2026-11-25
 - 運用除外（開卓の区分を読むだけ＝開卓できる人と同じ判定・書かない）: register_open_categories
 （除外 296→**297**・全数 518→**522**（0210 ＋4＝A +3（A31）・B +1））
 
+### B(as). 0216 新設の除外（2本・2026-11-26 12:48:07 本番適用（相談役 11/26 の便 K1・検証 10 行とも期待値））
+- 構造除外（初回の行が覆われるかの判定＝2 つの選択の保存・並べ替え・料金の行の保存から呼ぶ・書かない・4 ロール revoke）: pricing_first_visit_cover_of／pricing_first_visit_shadowed_ids
+（除外 297→**299**・全数 522→**524**（0216 ＋2＝B +2・作り直し 3 本は名前不変で本数不動・ゲートは 3 本とも元から内蔵））
+
 ## C. kiosk 腕を持つ対象（実装注意・18本）
 A1 の check_open / check_add_line / check_remove_line / check_add_seat / check_remove_seat /
 check_move_seat / check_set_nominations / check_time_charge_apply / check_shimei_add / check_dohan_add /
