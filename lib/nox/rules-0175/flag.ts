@@ -411,3 +411,12 @@ export const MIG_0217_APPLIED = true; // ★相談役 11/26 の便 L1：0217 を
 let override0217: boolean | null = null;
 export function mig0217On(): boolean { return override0217 ?? MIG_0217_APPLIED; }
 export function __set0217ForTest(v: boolean | null): void { override0217 = v; }
+
+/** ★0224（裁定508（提案）・相談役 11/26 夜便 N の N3・起草と試走まで）。延長パターンの数の上限（裁定385・0173 の 1 店 3 本・'too many extension'）を撤去。
+ *  true＝料金マスタの「延長パターン」は件数だけ（上限の表記・超過の警告・4 件目を送らない先回りを外す）・初期設定 v5 は延長パターンを全部入れる・
+ *    レジの延長パターンの一覧は多くても選べる形（今の時間帯に合うものを上・時間帯の表記・高さを抑えてスクロール）。
+ *  false＝今のまま（上限 3 の表記と先回り・初期設定は 3 本まで・レジの一覧は凍結メニューの順）。0224 の適用と検証の後の便で true にする。 */
+export const MIG_0224_APPLIED = false;
+let override0224: boolean | null = null;
+export function mig0224On(): boolean { return override0224 ?? MIG_0224_APPLIED; }
+export function __set0224ForTest(v: boolean | null): void { override0224 = v; }

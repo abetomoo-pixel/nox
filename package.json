@@ -183,6 +183,7 @@
     "verify:nox-shb2": "tsx scripts/verify-nox-shb2.ts",
     "verify:nox-c2": "tsx scripts/verify-nox-c2.ts",
     "verify:nox-p175prep": "tsx scripts/verify-nox-p175prep.ts",
+    "verify:nox-ext-uncap": "tsx scripts/verify-nox-ext-uncap.ts",
     "verify:nox-nr1": "tsx scripts/verify-nox-nr1.ts",
     "verify:nox-414b": "tsx scripts/verify-nox-414b.ts",
     "verify:nox-on2": "tsx scripts/verify-nox-on2.ts",
