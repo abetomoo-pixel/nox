@@ -22,7 +22,7 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
   const supabase = await createClient();
   const { data: stores } = await supabase
     .from("stores")
-    .select("id, name, settings_json, round_unit, round_mode, time_mode, time_per, business_tax_status, price_display, invoice_status, invoice_reg_no, tax_rounding, card_surcharge_rate")
+    .select("id, name, settings_json, round_unit, round_mode, time_mode, time_per, business_tax_status, price_display, invoice_status, invoice_reg_no, tax_rounding, card_surcharge_rate, pay_day")
     .order("name");
   const rows = (stores ?? []) as Array<{ id: string; name: string; settings_json: Record<string, unknown> | null; round_unit: number; round_mode: string; time_mode: string; time_per: string; business_tax_status?: string | null; price_display?: string | null; invoice_status?: string | null; invoice_reg_no?: string | null; tax_rounding?: string | null; card_surcharge_rate?: number | null }>;
   const pick = mig0203On() && sp.store ? rows.find((r) => r.id === sp.store && r.settings_json?.setup_done !== true) : undefined; // ★0203（■2-d）: ?store＝その店（見える店で初期設定の前の店だけ）
@@ -66,6 +66,7 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
       lockedType={lockedType}
       copy={copy}
       multiStore={rows.length > 1}
+      storePayDay={((t: { pay_day?: unknown }) => (typeof t.pay_day === "number" ? t.pay_day : null))(target as { pay_day?: unknown })} /* ★N0（裁定507）: 2 店目の初期設定の支払日はこの店の値から */
     />
   );
 }

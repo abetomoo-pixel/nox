@@ -79,7 +79,7 @@ function Opt({ title, sub, children, dimmed }: { title: string; sub?: React.Reac
 }
 const later = (why: string) => <span className="nox-stpill" style={{ marginLeft: 6, fontSize: 10.5 }} data-setup-later="1">後で（マスタから）・{why}</span>;
 
-export default function SetupWizard({ store, counts, isOwner, initialStep, initialType, lockedType = null, copy = null, multiStore = false }: {
+export default function SetupWizard({ store, counts, isOwner, initialStep, initialType, lockedType = null, copy = null, multiStore = false, storePayDay = null }: {
   store: { id: string; name: string; setupDone: boolean; current: V5Ctx["current"] };
   counts: { seats: number; products: number; plans: number; rules: number };
   isOwner: boolean;
@@ -89,12 +89,14 @@ export default function SetupWizard({ store, counts, isOwner, initialStep, initi
   lockedType?: V5Type | null;
   /** ★0203（■2-b）: 1 店目から写すもの（確定の最初に store_copy_settings・写した群の段は飛ばす） */
   copy?: { from: string; fromName: string; parts: string[] } | null;
+  /** ★相談役 11/26 の夜便 N の N0（裁定507＝支払日は店ごと）: この店の今の支払日（stores.pay_day）。2 店以上の会社は初期設定の支払日をこの値から始める（ひな形の既定 10 で写した値を上書きしない） */
+  storePayDay?: number | null;
   /** ★0203（■2-c）: 会社の店が 2 つ以上 */
   multiStore?: boolean;
 }) {
   const supabase = createClient();
   const today = new Date(); const todayYmd = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
-  const [S, setS] = useState<V5State>(() => { const d = v5DefaultState(todayYmd); d.shop.name = store.name; return d; });
+  const [S, setS] = useState<V5State>(() => { const d = v5DefaultState(todayYmd); d.shop.name = store.name; if (multiStore && typeof storePayDay === "number" && storePayDay >= 1 && storePayDay <= 31) d.payroll.payday = storePayDay; return d; }); // ★N0（裁定507）: 2 店目はその店の支払日から
   const [hydrated, setHydrated] = useState(false);
   const [restoredAt, setRestoredAt] = useState<string | null>(null);
   const [saved, setSaved] = useState("入力は自動で保存されます");
