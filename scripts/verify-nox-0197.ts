@@ -53,6 +53,8 @@ async function main(): Promise<void> {
     try {
       const cntQ = async () => (await pc.query(`select (select count(*)::int from pg_proc where pronamespace='public'::regnamespace) f, (select count(*)::int from pg_tables where schemaname='public') t`)).rows[0] as { f: number; t: number };
       const before = await cntQ();
+      // ★相談役 11/26 の便 M（f0 を緑に戻す）: punch_mode='store' の店は本番に出てきた（TEST CLUB の 2 店・11/26 15:59 の初期設定）＝「0」ではなく「試走の前と後で同じ数」を見る
+      const pmBefore = (await pc.query("select count(*)::int n from public.stores s join public.orgs o on o.id = s.org_id where s.settings_json->>'punch_mode'='store' and not (o.name = any($1::text[]))", [RUN_ORG_NAMES])).rows[0].n as number;
       const r = (await pc.query(`select
         (select count(*)::int from pg_proc where pronamespace='public'::regnamespace and proname='register_day_grant_set') n1,
         (select rowsecurity from pg_tables where schemaname='public' and tablename='register_day_grants') rls,
@@ -127,7 +129,7 @@ async function main(): Promise<void> {
       } finally { await pc.query("rollback"); }
       const after = await cntQ();
       const left = (await pc.query(`select (select count(*)::int from public.casts where name like 'NOX-VERIFY-0197s-%') c, (select count(*)::int from public.register_day_grants) g, (select count(*)::int from public.stores s join public.orgs o on o.id = s.org_id where s.settings_json->>'punch_mode'='store' and not (o.name = any($1::text[]))) pm`, [RUN_ORG_NAMES])).rows[0]; // ★便 I【I4】: 通しの会社（NOX-RUN-HOST）は外す
-      check("0197(5-23) ROLLBACK＝DB 変更 0（関数 419・表 120・試走の行なし・punch_mode='store' の店は本番に 0）", after.f === before.f && after.t === before.t && left.c === 0 && left.pm === 0, J({ after, left }));
+      check("0197(5-23) ROLLBACK＝DB 変更 0（関数 419・表 120・試走の行なし・punch_mode='store' の店の数は試走の前と同じ）", after.f === before.f && after.t === before.t && left.c === 0 && left.pm === pmBefore, J({ after, left, pmBefore }));
     } finally { await pc.end(); }
   } else console.log("(4)(5) skipped: SUPABASE_DB_URL なし");
   if (fails.length) { console.error(`FAIL ${fails.length} 件 / pass ${pass}`); for (const f of fails) console.error(" - " + f); process.exit(1); }
