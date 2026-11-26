@@ -248,7 +248,7 @@ export default function StaffShiftPanel({ stores }: { stores: Store[] }) {
           <span style={t.fieldLabel}>開始</span>
           <TimeInput value={fStart} onChange={(v) => { setFStart(v); setFNext(nextOf30h(v, fEnd)); }} maxHour={23} width={112} />
           <span style={t.fieldLabel}>終了</span>
-          <TimeInput value={fEnd} onChange={(v) => { setFEnd(v); setFNext(nextOf30h(fStart, v)); }} maxHour={23} width={112} />
+          <TimeInput value={fEnd} onChange={(v) => { setFEnd(v); setFNext(nextOf30h(fStart, v)); }} maxHour={23} width={112} edge="end" />{/* ★N1-e: 空のとき営業終了から */}
           {/* ★便 X2-3（2026-09-24）: 「翌日」は終了≦開始で自動オン（18:00→23:00 と入れると外れる＝47:00＝翌23:00 の枠を誤って作らない）。手で切り替えも可 */}
           <label style={{ fontSize: 12.5, display: "flex", gap: 4, alignItems: "center", cursor: "pointer" }} title="終了が開始より前の時刻なら自動でオン">
             <input type="checkbox" checked={fNext} onChange={(e) => setFNext(e.target.checked)} />翌日

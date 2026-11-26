@@ -3233,6 +3233,7 @@ input[type="date"]::-webkit-date-and-time-value, input[type="time"]::-webkit-dat
 /* ★M-145（2026-11-10）: 下に入らなければ上に開く・375 で切れない・上部に「営業開始」「営業終了」・選んでいる時と分は列の真ん中 */
 .nox-time-pop { max-width: calc(100vw - 32px); }
 .nox-time-pop.up { top: auto; bottom: calc(100% + 4px); }
+.nox-time-pop.is-fixed { position: fixed; z-index: 1000; } /* ★N1（相談役 11/26 夜便 N）: 時刻の小窓は .nox-dark の直下へ portal＝画面に固定（カードの overflow:hidden に切られない・置き場は部品が欄の箱から計算）。z は シート（900）より上・全画面の案内（3000）より下 */
 .nox-time-quick { display: flex; gap: 6px; }
 .nox-time-quick button { flex: 1 1 0; padding: 6px 10px; border: 1px solid var(--gold); border-radius: 8px; background: transparent; color: var(--champ); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
 .nox-time-col { position: relative; scroll-behavior: smooth; }

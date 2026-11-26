@@ -313,7 +313,7 @@ export default function StaffShiftManage({ storeId, month, bizToday, patterns, d
             <span style={t.fieldLabel}>開始</span>
             <TimeInput value={ovStart} onChange={(v) => { setOvStart(v); setOvNext(nextOf30h(v, ovEnd)); }} maxHour={23} width={112} />
             <span style={t.fieldLabel}>終了</span>
-            <TimeInput value={ovEnd} onChange={(v) => { setOvEnd(v); setOvNext(nextOf30h(ovStart, v)); }} maxHour={23} width={112} />
+            <TimeInput value={ovEnd} onChange={(v) => { setOvEnd(v); setOvNext(nextOf30h(ovStart, v)); }} maxHour={23} width={112} edge="end" />{/* ★N1-e: 空のとき営業終了から */}
             <label style={{ fontSize: 12.5, display: "flex", gap: 4, alignItems: "center", cursor: "pointer" }}>
               <input type="checkbox" checked={ovNext} onChange={(e) => setOvNext(e.target.checked)} />翌日
             </label>

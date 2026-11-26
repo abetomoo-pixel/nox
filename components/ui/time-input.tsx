@@ -9,12 +9,20 @@
 //   ⑤直接入力（26:00）は残す・キーボードの上下で時・分・Enter で決定 ⑥分の列は 15 分刻み（00／15／30／45）＝全画面で同じ（step は互換のため受けるが使わない）
 //   ⑦列に無い分の値（20:20 など）は分の列を強調せず、入力欄にその値を出す。
 //   ★旧版の不具合も直す＝正規表現の \d が d に化けていた 2 か所（after より前に「翌」が付かない・空のとき営業開始の時を選べない）。
-import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { hmLabelOf, hmPickOf, normalizeHHMM } from "@/lib/nox/time/hhmm";
+// ★相談役 11/26 夜便 N の N1（2026-11-26）: 小窓が次のカードの「うしろ」に隠れた＝原因は重なり順（z-index）ではなく、カード（t.card）の overflow:hidden が
+//   absolute の小窓をカードの下の端で切っていた（モーダルの中身の overflow:auto も同じ）。小窓は画面に固定（position:fixed）で一番近い .nox-dark の直下へ portal＝
+//   どのカード・表・モーダルの中でも切れない（色の変数は .nox-dark の下なので同じ配色）。位置は欄の箱から計算し、スクロールと画面の大きさの変化で付いていく。
+//   N1-e: 空の欄の初めの位置＝開始の欄は営業開始・終了の欄は営業終了（lib/nox/time/hhmm-input.ts の timeAnchorOf・timeEdgeOf）。見せるだけ＝決定まで値は書かない。
+//   N1-f: 下の直接入力は 2610・0930・930・全角（２６１０・２６：１０）も受ける（typedTimeOf）。受けられない値は赤い文で理由を出す（黙って捨てない・丸めない）。
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { createPortal } from "react-dom";
+import { hmLabelOf, hmPickOf } from "@/lib/nox/time/hhmm";
+import { timeAnchorOf, timeEdgeOf, timePopPlaceOf, typedTimeOf } from "@/lib/nox/time/hhmm-input";
 import { TIME_PICKER_MINUTES, timePickerHoursOf, timePickerValueOf } from "@/lib/nox/time/picker";
+import { Message } from "./toast";
 import { useStoreHours } from "./store-hours-context";
 
-export default function TimeInput({ value, onChange, after, maxHour = 47, disabled, ariaLabel, placeholder = "--:--", width, nextDayMark = true, style, startAt: startAtProp, closeAt: closeAtProp, dayStart: dayStartProp }: {
+type TimeInputProps = {
   /** "HH:MM"（0〜47 時）・空＝未入力 */
   value: string; onChange: (v: string) => void;
   /** 互換のため受ける（分の列は 15 分刻みで固定＝M-145） */
@@ -34,27 +42,51 @@ export default function TimeInput({ value, onChange, after, maxHour = 47, disabl
   closeAt?: string | null;
   /** 営業日の切替時刻（時の列はここから並べる・既定 06:00） */
   dayStart?: string | null;
-}) {
+  /** ★N1-e: 開始の欄か終了の欄か（空のときの初めの位置＝開始は営業開始・終了は営業終了）。渡さなければ after を渡している欄・名前に「終了」「閉店」がある欄を終了とみなす */
+  edge?: "start" | "end";
+};
+
+export default function TimeInput(props: TimeInputProps) {
+  const { value, onChange, after, maxHour = 47, disabled, ariaLabel, placeholder = "--:--", width, nextDayMark = true, style, startAt: startAtProp, closeAt: closeAtProp, dayStart: dayStartProp } = props;
   const sh = useStoreHours(); // ★M-145: 渡されていない営業開始・営業終了・切替時刻はシェルの店の値で補う
   const startAt = startAtProp ?? sh.open, closeAt = closeAtProp ?? sh.close, dayStart = dayStartProp ?? sh.cutoff;
+  // ★N1-e: 空のとき真ん中に置く時刻（after は「渡したかどうか」で見る＝開始が空で after={undefined} の終了の欄も終了）
+  const edge = timeEdgeOf({ edge: props.edge, hasAfter: Object.prototype.hasOwnProperty.call(props, "after"), ariaLabel: ariaLabel ?? placeholder });
+  const anchor = timeAnchorOf({ edge, startAtProp, closeAtProp, shopOpen: sh.open, shopClose: sh.close });
   const w = width ?? style?.width ?? style?.maxWidth;
   const [open, setOpen] = useState(false);
   const [up, setUp] = useState(false);
   const [typed, setTyped] = useState("");
+  const [typedErr, setTypedErr] = useState<string | null>(null);
   const [hour, setHour] = useState<number | null>(null);
+  const [host, setHost] = useState<HTMLElement | null>(null);
+  const [pos, setPos] = useState<{ left: number; top?: number; bottom?: number } | null>(null);
   const box = useRef<HTMLSpanElement>(null);
+  const pop = useRef<HTMLSpanElement>(null);
   const hourCol = useRef<HTMLSpanElement>(null);
   const minCol = useRef<HTMLSpanElement>(null);
   useEffect(() => {
     if (!open) return;
-    const off = (e: MouseEvent) => { if (box.current && !box.current.contains(e.target as Node)) setOpen(false); };
+    const off = (e: MouseEvent) => { const tg = e.target as Node; if (box.current && !box.current.contains(tg) && !(pop.current && pop.current.contains(tg))) setOpen(false); };
     const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
     document.addEventListener("mousedown", off); document.addEventListener("keydown", esc);
     return () => { document.removeEventListener("mousedown", off); document.removeEventListener("keydown", esc); };
   }, [open]);
+  // ★N1: 小窓は画面に固定＝欄の箱から置き場を計算（描く前に置く・スクロールと画面の大きさの変化で付いていく・小窓の中の列のスクロールは無視）
+  useLayoutEffect(() => {
+    if (!open) { setPos(null); return; }
+    const place = () => {
+      const r = box.current?.getBoundingClientRect(); if (!r) return;
+      setPos(timePopPlaceOf(r, pop.current?.offsetWidth ?? 160, window.innerWidth, window.innerHeight, up));
+    };
+    place();
+    const onScroll = (e: Event) => { if (pop.current && e.target instanceof Node && pop.current.contains(e.target)) return; place(); };
+    window.addEventListener("scroll", onScroll, true); window.addEventListener("resize", place);
+    return () => { window.removeEventListener("scroll", onScroll, true); window.removeEventListener("resize", place); };
+  }, [open, up, host]);
   const cur = /^(\d{2}):(\d{2})$/.exec(value);
   const curH = cur ? Number(cur[1]) % 24 : null, curM = cur ? Number(cur[2]) : null;
-  const startH = startAt && /^\d{1,2}:/.test(startAt) ? Number(startAt.split(":")[0]) % 24 : null;
+  const startH = anchor && /^\d{1,2}:/.test(anchor) ? Number(anchor.split(":")[0]) % 24 : null; // ★N1-e: 空のときの初めの時（開始の欄＝営業開始・終了の欄＝営業終了）
   const selH = hour ?? curH;
   const hours = timePickerHoursOf(dayStart ?? "06:00", maxHour);
   const minutes = TIME_PICKER_MINUTES;
@@ -67,7 +99,14 @@ export default function TimeInput({ value, onChange, after, maxHour = 47, disabl
   }, [open, selH]);
   const pick = (h: number, m: number) => { onChange(timePickerValueOf(h, m, after ?? null, maxHour, dayStart ?? "06:00")); setOpen(false); setHour(null); };
   // 打った値: 24 時以上（26:00）はそのまま・24 時未満は選んだときと同じ規則（開始より前なら翌日）
-  const commitTyped = () => { const n = normalizeHHMM(typed, maxHour); if (!n) return; const [h, m] = n.split(":").map(Number); if (h >= 24) { onChange(n); setOpen(false); } else { onChange(hmPickOf(h, m, after ?? null, maxHour)); setOpen(false); setHour(null); } };
+  // ★N1-f: 2610／0930／930／全角も受ける・受けられない値は理由を赤で出す（値は書かない・小窓は開いたまま）
+  const commitTyped = () => {
+    const r = typedTimeOf(typed, maxHour);
+    if (r.kind === "empty") { setTypedErr("時刻を入れてください（例 2610・26:10）"); return; }
+    if (r.kind === "bad") { setTypedErr(r.err); return; }
+    setTypedErr(null);
+    if (r.h >= 24) { onChange(r.value); setOpen(false); } else { onChange(hmPickOf(r.h, r.m, after ?? null, maxHour)); setOpen(false); setHour(null); }
+  };
   const am = after ? /^(\d{1,2}):(\d{2})/.exec(after) : null;
   const beforeAfter = !!cur && !!am && Number(cur[1]) < 24 && Number(cur[1]) * 60 + Number(cur[2]) < (Number(am[1]) % 24) * 60 + Number(am[2]);
   const label = value ? (nextDayMark ? (beforeAfter ? `翌${value}` : hmLabelOf(value)) : value) : (startAt ? hmLabelOf(startAt) : placeholder);
@@ -75,7 +114,8 @@ export default function TimeInput({ value, onChange, after, maxHour = 47, disabl
     // ④開く向き＝下に 330px 入らず上の方が広ければ上
     const r = box.current?.getBoundingClientRect(); const below = r ? window.innerHeight - r.bottom : 999; const above = r ? r.top : 0;
     setUp(below < 330 && above > below);
-    setOpen((o) => !o); setTyped(value && !curMOnList ? value : ""); setHour(curH ?? startH);
+    setHost((box.current?.closest(".nox-dark") as HTMLElement | null) ?? document.body); // ★N1: 小窓の置き場＝一番近い .nox-dark（配色の変数を引き継ぐ）・無ければ body
+    setOpen((o) => !o); setTyped(value && !curMOnList ? value : ""); setTypedErr(null); setHour(curH ?? startH);
   };
   const onKey = (e: React.KeyboardEvent) => {
     // ⑤キーボード＝上下で時（Shift で分）・Enter で決定
@@ -93,8 +133,9 @@ export default function TimeInput({ value, onChange, after, maxHour = 47, disabl
         <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="1.8" /><path d="M12 7v5l3 2" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
         <span>{label}</span>
       </button>
-      {open && (
-        <span className={`nox-time-pop${up ? " up" : ""}`} role="dialog" aria-label={`${ariaLabel ?? "時刻"}を選ぶ`} data-time-pop="1" tabIndex={-1} onKeyDown={onKey}>
+      {open && host && createPortal(
+        <span ref={pop} className={`nox-time-pop is-fixed${up ? " up" : ""}`} role="dialog" aria-label={`${ariaLabel ?? "時刻"}を選ぶ`} data-time-pop="1" data-time-edge={edge} tabIndex={-1} onKeyDown={onKey}
+          style={pos ? { left: pos.left, top: pos.top ?? "auto", bottom: pos.bottom ?? "auto" } : { visibility: "hidden" }}>
           {(startAt || closeAt) && (
             <span className="nox-time-quick" data-time-quick="1">
               {startAt && Number(startAt.slice(0, 2)) <= maxHour && <button type="button" onClick={() => { onChange(startAt); setOpen(false); }}>営業開始</button>}
@@ -110,12 +151,15 @@ export default function TimeInput({ value, onChange, after, maxHour = 47, disabl
             ))}</span>
           </span>
           <span className="nox-time-type">
-            <input value={typed} inputMode="numeric" placeholder="例 26:00" aria-label="時刻を入力" className="num"
-              onChange={(e) => setTyped(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") commitTyped(); }} />
+            <input value={typed} inputMode="numeric" placeholder="例 26:00" aria-label="時刻を入力" className="num" aria-invalid={typedErr ? true : undefined}
+              style={typedErr ? { borderColor: "var(--bad)" } : undefined}
+              onChange={(e) => { setTyped(e.target.value); setTypedErr(null); }}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); commitTyped(); } }} />
             <button type="button" onClick={commitTyped}>決定</button>
           </span>
-        </span>
+          {typedErr && <Message kind="error" style={{ margin: 0, padding: "6px 8px", fontSize: 12, width: 0, minWidth: "100%", boxSizing: "border-box" }}>{typedErr}</Message>}
+        </span>,
+        host,
       )}
     </span>
   );
