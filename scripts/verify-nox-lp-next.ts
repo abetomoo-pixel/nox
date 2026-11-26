@@ -4,15 +4,19 @@
  *  (2) /lp-next は noindex・robots の allow に /lp-next が無い
  *  (3) 料金の文は今の /lp の文のまま（月額 29,800・FAQ の文・「年払いの割引もあります」）・事業者の表記と特商法・プライバシーポリシーのリンク
  *  (4) 入れない物（導入実績・お客様の声・順位・No.1）が文に無い・写しは public/lp/next に全部ある（1 機能 1 枚）・主のボタンは /demo
+ *  (5) ★相談役 11/26 夜便 N の N4（LP の 2 回目）: 最初の画面の写真がある（400 KB 未満・ページが読む）・よくある質問（今の /lp の問いのまま・料金の答えは今の /lp の文のまま）・
+ *      入れない物（立場の説明・開発中の機能・規約へのリンク・デモの店のカード）が無い・写しの幅と高さが実物と同じ・レジの写しはスマホの画面
  *  使い方: npm run verify:nox-lp-next
  */
 import fs from "node:fs";
 import { createHash } from "node:crypto";
-import { LPN_PILLARS, LPN_PRICE_MONTHLY, LPN_PRICE_FAQ, LPN_HERO } from "../lib/nox/lp/next-copy";
+import { LPN_PILLARS, LPN_PRICE_MONTHLY, LPN_PRICE_FAQ, LPN_HERO, LPN_HERO_IMAGE, LPN_FAQ } from "../lib/nox/lp/next-copy";
 
 let ok = 0; const fails: string[] = [];
 const expect = (label: string, cond: boolean, detail?: unknown) => { if (cond) ok++; else fails.push(`${label}${detail !== undefined ? `: ${JSON.stringify(detail).slice(0, 300)}` : ""}`); };
 const sha = (f: string) => createHash("sha256").update(fs.readFileSync(f)).digest("hex");
+/** JPEG の幅と高さ（SOF の印を読む・同期＝この検査は cjs で動く） */
+const jpegSize = (f: string): { width: number; height: number } => { const b = fs.readFileSync(f); let i = 2; while (i + 9 < b.length) { if (b[i] !== 0xff) { i++; continue; } const m = b[i + 1]; const len = b.readUInt16BE(i + 2); if (m >= 0xc0 && m <= 0xcf && m !== 0xc4 && m !== 0xc8 && m !== 0xcc) return { height: b.readUInt16BE(i + 5), width: b.readUInt16BE(i + 7) }; i += 2 + len; } return { width: 0, height: 0 }; };
 
 // (1)
 const LP_PINS: Record<string, string> = {
@@ -46,6 +50,26 @@ const shots = LPN_PILLARS.flatMap((p) => p.shots);
 expect("(4-2) 写しは public/lp/next に全部ある・1 機能 1 枚（同じ写しを 2 度使わない）・柱は 4（＋デモの入口）",
   shots.length >= 8 && shots.every((s) => fs.existsSync(`public${s.src}`)) && new Set(shots.map((s) => s.src)).size === shots.length && LPN_PILLARS.length === 4, shots.map((s) => s.src));
 expect("(4-3) 主のボタンは公開デモ（/demo）で中央（lpnx-cta）・2 か所", (page.match(/<div className="lpnx-cta"><Link className="lpnx-btn" href="\/demo"/g) ?? []).length === 2 && LPN_HERO.cta.includes("デモ"));
+
+// (5)
+const heroFile = `public${LPN_HERO_IMAGE.src}`;
+const heroMeta = fs.existsSync(heroFile) ? jpegSize(heroFile) : null;
+expect("(5-1) 最初の画面の写真がある・400 KB 未満・幅と高さが一覧と同じ・ページが読む（alt は空＝飾り）",
+  !!heroMeta && fs.statSync(heroFile).size < 400 * 1024 && heroMeta.width === LPN_HERO_IMAGE.w && heroMeta.height === LPN_HERO_IMAGE.h
+  && page.includes("src={LPN_HERO_IMAGE.src}") && page.includes('className="lpnx-hero-media" aria-hidden="true"'),
+  heroMeta ? { size: fs.statSync(heroFile).size, w: heroMeta.width, h: heroMeta.height } : "no file");
+const lpFaqQs = [...lp.matchAll(/^\s*\["([^"]+？)", \[/gm)].map((m) => m[1]);
+expect("(5-2) よくある質問＝4 問以上・問いは今の /lp の FAQ の問いのまま・料金の答えは今の /lp の文のまま（1 文字も変えない）・ページが出す",
+  LPN_FAQ.length >= 4 && LPN_FAQ.every((f) => lpFaqQs.includes(f.q) && f.a.length > 0)
+  && LPN_FAQ.some((f) => f.q === "料金はいくらですか？" && f.a.length === 1 && f.a[0] === "月額29,800円／店舗（税込）です。年払いの割引もあります。詳細はお問い合わせください。")
+  && lp.includes('["料金はいくらですか？", ["月額29,800円／店舗（税込）です。年払いの割引もあります。詳細はお問い合わせください。"]]')
+  && page.includes("LPN_FAQ.map(") && page.includes('data-lpnx-section="faq"'), { lpFaqQs, ours: LPN_FAQ.map((f) => f.q) });
+const NG2 = ["利用規約", '"/terms"', "TERMS_PATH", "開発中", "提供時期", "それぞれの立場", "ROLES", "DEMO_STORES", "この店で試す", "店長でログイン", "キャストでログイン"];
+expect("(5-3) 入れない物（立場の説明・開発中の機能・規約へのリンク・デモの店のカード）が文に無い", NG2.every((x) => !copy.includes(x)), NG2.filter((x) => copy.includes(x)));
+const dims = shots.map((s) => { const m = jpegSize(`public${s.src}`); return { src: s.src, ok: m.width === s.w && m.height === s.h, w: m.width, h: m.height }; });
+expect("(5-4) 写しの幅と高さ（一覧の w・h）が実物と同じ", dims.every((d) => d.ok), dims.filter((d) => !d.ok));
+const reg = shots.find((s) => s.src === "/lp/next/register.jpg");
+expect("(5-5) レジの写しはスマホの画面（縦長・phone）", !!reg && reg.phone === true && reg.h > reg.w, reg);
 
 if (fails.length) { console.error(fails.map((f) => `  FAIL: ${f}`).join("\n")); console.error(`verify:nox-lp-next FAIL ${fails.length} / pass ${ok}`); process.exit(1); }
 console.log(`verify:nox-lp-next ALL PASS (${ok} assertions)`);

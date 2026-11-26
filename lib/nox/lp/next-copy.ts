@@ -8,6 +8,9 @@ export const LPN_HERO = {
   cta: "公開デモで画面を見る",
 } as const;
 
+/** ★相談役 11/26 夜便 N の N4（LP の 2 回目）: 最初の画面の写真（暗い背景・金の光・シャンパン＝グラスは右）。PC は左に文とボタン・右にグラス／スマホは写真→文の縦積み */
+export const LPN_HERO_IMAGE = { src: "/lp/next/hero.jpg", w: 1800, h: 1200 } as const;
+
 export type LpnShot = { src: string; alt: string; caption: string; w: number; h: number; phone?: boolean };
 export type LpnPillar = { id: string; h2: string; lead: string; points: readonly string[]; shots: readonly LpnShot[] };
 
@@ -18,7 +21,7 @@ export const LPN_PILLARS: readonly LpnPillar[] = [
     lead: "レジで付けた指名とドリンクが、そのままバックになり、源泉を引いて給与明細になります。手で集計し直す工程がありません。",
     points: ["レジの伝票に本指名・場内・同伴を紐づけ", "バック・売上歩合・ボーナスを明細の行に", "源泉所得税を引いた手取りまで", "確定した期間は一覧で支払状況を管理"],
     shots: [
-      { src: "/lp/next/register.jpg", alt: "レジの卓の一覧（公開デモ）", caption: "レジ：卓ごとの人数・滞在・延長までの時間と金額", w: 590, h: 186 },
+      { src: "/lp/next/register.jpg", alt: "スマホで見たレジの卓の一覧（公開デモ）", caption: "レジ：卓ごとの人数・滞在・延長までの時間と金額", w: 716, h: 888, phone: true }, // ★N4: スマホ（390px）のレジの画面で撮り直し（公開デモのホストの店）
       { src: "/lp/next/payslip.jpg", alt: "キャストの確定給与明細（公開デモ）", caption: "給与明細：バック・売上歩合から源泉を引いた手取りまで", w: 740, h: 1480, phone: true },
       { src: "/lp/next/payroll.jpg", alt: "給与の月次一覧（公開デモ）", caption: "給与：期間ごとの確定と支払状況", w: 792, h: 734, phone: true },
     ],
@@ -57,3 +60,16 @@ export const LPN_PILLARS: readonly LpnPillar[] = [
 /** 料金（今の /lp の文のまま） */
 export const LPN_PRICE_MONTHLY = 29800;
 export const LPN_PRICE_FAQ = "月額29,800円／店舗（税込）です。年払いの割引もあります。詳細はお問い合わせください。";
+
+/** ★相談役 11/26 夜便 N の N4: よくある質問（今の /lp の FAQ から、今も本当の物だけ）。
+ *  直した所＝(1) 「利用規約」→「デモ利用の規約」（デモの画面の見出しどおり・店舗向けの規約と取り違えない）
+ *            (4) 「契約区分と精算方式を記録」→「契約区分を記録」（精算方式は今は店ごとの設定＝店舗設定 › 給与）。
+ *  料金の答えは今の /lp の文のまま（LPN_PRICE_FAQ）。立場の説明・開発中の機能・規約へのリンク・デモの店のカードは入れない。 */
+export type LpnFaq = { q: string; a: readonly string[] };
+export const LPN_FAQ: readonly LpnFaq[] = [
+  { q: "デモの利用に登録は必要ですか？", a: ["不要です。店舗と立場を選び、デモ利用の規約に同意するだけで体験できます。"] },
+  { q: "どの端末で使えますか？", a: ["店側はPC・iPad、キャストはスマホのブラウザで利用できます。レジはiPadでの利用を想定しています。"] },
+  { q: "導入はどのように進めますか？", a: ["招待メールからパスワードを設定し、9ステップの初期設定へ。業態に応じた席・料金・メニュー・待遇の初期値を、自店に合わせて調整します。途中からの再開も可能です。"] },
+  { q: "雇用と業務委託が混在していても使えますか？", a: ["キャストごとに契約区分を記録し、源泉のプレビュー・控除日数を明細に表示します。同じ店で両方を扱えます。", "NOXは契約区分を記録するもので、労働者性や所得区分を判定するものではありません。源泉徴収の扱いは税理士などの専門家にご確認ください。"] },
+  { q: "料金はいくらですか？", a: [LPN_PRICE_FAQ] },
+];

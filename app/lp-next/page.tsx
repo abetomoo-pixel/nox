@@ -6,7 +6,7 @@ import { COMPANY_NAME, SUPPORT_EMAIL, TOKUSHOHO_HREF, TOKUSHOHO_TITLE } from "@/
 import { DEMO_TERMS } from "@/lib/nox/demo/terms";
 import { DEMO_RESET_TIME_JA } from "@/lib/nox/demo/seed";
 import { InquiryForm } from "@/components/nox/lp-v4-client";
-import { LPN_PILLARS, LPN_PRICE_MONTHLY, LPN_PRICE_FAQ, LPN_HERO } from "@/lib/nox/lp/next-copy";
+import { LPN_PILLARS, LPN_PRICE_MONTHLY, LPN_PRICE_FAQ, LPN_HERO, LPN_HERO_IMAGE, LPN_FAQ } from "@/lib/nox/lp/next-copy";
 import "../lp/lp-v4.css"; // 問い合わせのフォーム（InquiryForm）の見た目＝.lpv4 の中だけに効く・/lp のファイルは変えない
 import "./lp-next.css";
 
@@ -14,6 +14,8 @@ import "./lp-next.css";
 //   中身＝今の本番にある機能だけ（柱 5 つ）・写しは公開デモ（架空のデータ）から切り抜いた public/lp/next/*.jpg（1 機能 1 枚）。
 //   残す物＝事業者の表記・特商法とプライバシーポリシーへのリンク・料金の文（今の /lp の文のまま＝lib/nox/lp/next-copy.ts に写した）・デモ利用の条文（DEMO_TERMS）。
 //   入れない物＝導入実績・お客様の声・順位・根拠の無い数字。スマホ（390px）を先に作る・主のボタンは中央・1 画面 1 つの言いたいこと。
+// ★相談役 11/26 夜便 N の N4（LP の 2 回目）: 最初の画面に写真（public/lp/next/hero.jpg・PC は左に文とボタン＝左寄せ・右にグラス）・よくある質問（LPN_FAQ）・レジの写しをスマホの画面で撮り直し。
+//   金は見出しと飾りだけ・注意は赤・ボタンは中央（最初の画面の PC だけ左寄せ）。
 export const metadata: Metadata = {
   title: "NOX｜伝票から給与明細まで、ひとつの流れで。",
   description: "ナイトワーク店舗の伝票・シフト・打刻・給与をひとつに。公開デモで画面を確かめられます。",
@@ -30,12 +32,19 @@ export default function LpNextPage() {
         <a className="lpnx-header-link" href="#contact">導入の相談</a>
       </header>
       <main id="main">
+        {/* ★N4（LP の 2 回目）: 最初の画面に写真。PC＝写真を背に左に文とボタン・右にグラス／スマホ＝写真→文の縦積み（文は写真に重ねない＝読める） */}
         <section className="lpnx-hero" data-lpnx-section="hero">
-          <p className="lpnx-eyebrow">ナイトワーク店舗の管理システム</p>
-          <h1>{LPN_HERO.h1.map((x, i) => <span key={x}>{i > 0 && <br />}{x}</span>)}</h1>
-          <p className="lpnx-lead">{LPN_HERO.lead}</p>
-          <div className="lpnx-cta"><Link className="lpnx-btn" href="/demo" data-lpnx-primary="hero">{LPN_HERO.cta}</Link></div>
-          <p className="lpnx-sub-cta"><a href="#contact">導入・料金の相談はこちら</a></p>
+          <div className="lpnx-hero-media" aria-hidden="true">
+            {/* eslint-disable-next-line @next/next/no-img-element -- 静的な見せ場（public/lp/next/hero.jpg） */}
+            <img src={LPN_HERO_IMAGE.src} alt="" width={LPN_HERO_IMAGE.w} height={LPN_HERO_IMAGE.h} fetchPriority="high" decoding="async" data-lpnx-hero-img="1" />
+          </div>
+          <div className="lpnx-hero-copy">
+            <p className="lpnx-eyebrow">ナイトワーク店舗の管理システム</p>
+            <h1>{LPN_HERO.h1.map((x, i) => <span key={x}>{i > 0 && <br />}{x}</span>)}</h1>
+            <p className="lpnx-lead">{LPN_HERO.lead}</p>
+            <div className="lpnx-cta"><Link className="lpnx-btn" href="/demo" data-lpnx-primary="hero">{LPN_HERO.cta}</Link></div>
+            <p className="lpnx-sub-cta"><a href="#contact">導入・料金の相談はこちら</a></p>
+          </div>
         </section>
 
         {LPN_PILLARS.map((p, i) => (
@@ -61,6 +70,17 @@ export default function LpNextPage() {
           <div className="lpnx-cta"><Link className="lpnx-btn" href="/demo" data-lpnx-primary="demo">公開デモを開く</Link></div>
           <p className="lpnx-note">デモは{DEMO_RESET_TIME_JA}に初期化。入力内容は他の閲覧者にも見えます。個人情報は入力しないでください。</p>
           <details className="lpnx-details"><summary>デモ利用について</summary><ul>{DEMO_TERMS.map((s) => <li key={s}>{s}</li>)}</ul></details>
+        </section>
+
+        {/* ★N4: よくある質問（今の /lp の FAQ から今も本当の物だけ＝lib/nox/lp/next-copy.ts の LPN_FAQ・料金の答えは今の /lp の文のまま） */}
+        <section className="lpnx-faq" id="faq" data-lpnx-section="faq">
+          <p className="lpnx-eyebrow">よくある質問</p>
+          <h2>導入の前に。</h2>
+          <div className="lpnx-faq-list">
+            {LPN_FAQ.map((f) => (
+              <details key={f.q} data-lpnx-faq="1"><summary>{f.q}</summary>{f.a.map((p) => <p key={p}>{p}</p>)}</details>
+            ))}
+          </div>
         </section>
 
         <section className="lpnx-contact" id="contact" data-lpnx-section="contact">

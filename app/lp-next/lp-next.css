@@ -1,5 +1,5 @@
 /* ★相談役 11/26 の便 L3: /lp-next（LP の 1 回目）。.lpnx の中だけに効く。スマホ（390px）を先に・1 画面 1 つの言いたいこと・主のボタンは中央。 */
-.lpnx{--bg:#0d0e0e;--panel:#151616;--ink:#f4f0e8;--muted:#aeada6;--gold:#d3b784;--line:#ffffff1f;margin:0;min-height:100vh;background:var(--bg);color:var(--ink);font-family:"Yu Gothic","Hiragino Kaku Gothic ProN",Meiryo,sans-serif;font-size:15px;line-height:1.85;overflow-x:hidden}
+.lpnx{--bg:#0d0e0e;--panel:#151616;--ink:#f4f0e8;--muted:#aeada6;--gold:#d3b784;--bad:#ff8a80;--line:#ffffff1f;margin:0;min-height:100vh;background:var(--bg);color:var(--ink);font-family:"Yu Gothic","Hiragino Kaku Gothic ProN",Meiryo,sans-serif;font-size:15px;line-height:1.85;overflow-x:hidden}
 .lpnx *{box-sizing:border-box}
 .lpnx a{color:inherit}
 .lpnx a:focus-visible,.lpnx summary:focus-visible{outline:2px solid var(--gold);outline-offset:4px}
@@ -7,9 +7,14 @@
 .lpnx-skip:focus{left:16px;top:16px;background:var(--panel);padding:8px 12px;z-index:5}
 .lpnx-header{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--line)}
 .lpnx-brand{display:inline-flex;align-items:center}
-.lpnx-header-link{font-size:13px;color:var(--gold);text-decoration:none;border:1px solid #d3b78466;border-radius:999px;padding:6px 14px}
+.lpnx-header-link{font-size:13px;color:var(--ink);text-decoration:none;border:1px solid #ffffff40;border-radius:999px;padding:6px 14px}
 .lpnx main>section{padding:56px 16px;border-bottom:1px solid var(--line);max-width:760px;margin:0 auto}
-.lpnx-hero{text-align:center;padding-top:72px!important;padding-bottom:72px!important}
+/* ★N4（LP の 2 回目）: 最初の画面の写真。スマホ＝写真（グラスに寄せて切る）→文の縦積み・文は写真に重ねない／PC（900px〜）＝写真を背に左に文とボタン（左寄せ）・右にグラス */
+.lpnx main>section.lpnx-hero{max-width:none;padding:0 0 56px;text-align:center;position:relative}
+.lpnx-hero-media{position:relative;aspect-ratio:5/4;overflow:hidden;background:#000}
+.lpnx-hero-media img{display:block;width:100%;height:100%;object-fit:cover;object-position:68% 50%}
+.lpnx-hero-media:after{content:"";position:absolute;inset:auto 0 0 0;height:38%;background:linear-gradient(180deg,#0d0e0e00,var(--bg))}
+.lpnx-hero-copy{position:relative;padding:4px 16px 0;max-width:760px;margin:0 auto}
 .lpnx-eyebrow{font-size:12px;letter-spacing:.12em;color:var(--gold);margin:0 0 14px}
 .lpnx h1{font-family:"Yu Mincho","Hiragino Mincho ProN",serif;font-weight:500;font-size:28px;line-height:1.6;letter-spacing:.04em;margin:0 0 18px}
 .lpnx h2{font-family:"Yu Mincho","Hiragino Mincho ProN",serif;font-weight:500;font-size:24px;line-height:1.6;letter-spacing:.03em;margin:0 0 14px}
@@ -29,7 +34,15 @@
 .lpnx-shot-phone{max-width:340px;margin-left:auto;margin-right:auto}
 .lpnx-shot figcaption{font-size:12.5px;color:var(--muted);margin-top:8px;text-align:center}
 .lpnx-demo{text-align:center}
-.lpnx-note{font-size:12.5px;color:var(--muted);margin:18px 0 0}
+.lpnx-note{font-size:12.5px;color:var(--bad);margin:18px 0 0} /* ★N4: 注意は赤（金は見出しと飾りだけ） */
+.lpnx-faq{text-align:center}
+.lpnx-faq-list{text-align:left;border-top:1px solid var(--line);margin:8px 0 0}
+.lpnx-faq-list details{border-bottom:1px solid var(--line)}
+.lpnx-faq-list summary{cursor:pointer;list-style:none;position:relative;padding:16px 36px 16px 2px;font-weight:700;font-size:15px;line-height:1.6}
+.lpnx-faq-list summary::-webkit-details-marker{display:none}
+.lpnx-faq-list summary:after{content:"+";position:absolute;right:6px;top:50%;transform:translateY(-50%);color:var(--gold);font-size:20px;font-weight:400}
+.lpnx-faq-list details[open] summary:after{content:"−"}
+.lpnx-faq-list details p{margin:0 0 14px;padding:0 2px;color:#dedbd4;font-size:14px}
 .lpnx-details{margin:14px auto 0;max-width:34em;text-align:left;font-size:13px;color:var(--muted)}
 .lpnx-details summary{cursor:pointer;color:var(--ink);text-align:center}
 .lpnx-contact{text-align:center}
@@ -50,6 +63,15 @@
   .lpnx-header{padding:18px 40px}
   .lpnx main>section{max-width:880px;padding:96px 40px}
   .lpnx-shot-phone{max-width:380px}
+  .lpnx main>section.lpnx-hero{display:flex;align-items:center;min-height:min(680px,82vh);padding:0;text-align:left;overflow:hidden}
+  .lpnx-hero-media{position:absolute;inset:0;aspect-ratio:auto}
+  .lpnx-hero-media img{object-position:right center}
+  .lpnx-hero-media:after{inset:0;height:auto;background:linear-gradient(90deg,#0d0e0ef2 0%,#0d0e0ed9 34%,#0d0e0e66 54%,#0d0e0e00 70%),linear-gradient(180deg,#0d0e0e00 75%,#0d0e0e99 100%)}
+  .lpnx-hero-copy{width:100%;max-width:1200px;padding:96px 40px}
+  .lpnx-hero-copy>*{max-width:540px}
+  .lpnx-hero .lpnx-lead{margin:0 0 30px}
+  .lpnx-hero .lpnx-cta{justify-content:flex-start}
+  .lpnx-hero .lpnx-sub-cta{text-align:left}
   .lpnx h1{font-size:46px}
   .lpnx h2{font-size:34px}
 }
