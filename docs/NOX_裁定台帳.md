@@ -6095,7 +6095,16 @@ CC の処置＝M-130（下の節）。
   - MUSE の 1 回目は検査の誤りで ① と ④ が NG と出た（今月の写しの行は営業日の前日まで＝日が進むと増える・罰金の「not ACE」は飛ばしの印）＝検査を直して確かめだけをやり直し OK。入れ直しはその店の監査の行も消す＝11/25 の数は入れ直しの前に読む。
 - f0 2 連緑＝72b3c041（262 段 9,778 件・11:40:05／12:25:44・golden 5931／125802・wipe-cover (3-2) で 1 件増）→ push 12:25:58（031db4c4..72b3c041）→ 本番の印 **yFKsGpKoD15jjQd6Dwrm8（12:28:33）**。
 - 本番の道が直ったことの確かめ：VESPER（12:32:12・上の I3）と MUSE（12:36:16〜12:36:20・wipe→load 4 回→10 月の給与の確定・失敗の監査 0・今日の load の和＝今日の payload・帯 3・規定 3）を画面の「初期状態に戻す」で入れ直して通った。明日 06:05 の自動の入れ直しの 7 店の結果は 11/27 朝に読む。
-- 新しい表の消す名簿と消さない名簿の表：docs/tmp/demo_host_1126/new_tables_1126.md（0207・0212・0213・0214 の 6 表＝消す名簿は punch_round_rules・punch_breaks（service_role が消せる）・消さない名簿は ops_support_requests と 0212 の 3 表）。
+- 新しい表の消す名簿と消さない名簿（2026-11-26 10:57 に本番を読んだ・名簿は 72b3c041）：
+  | 表（mig） | 名簿 | service_role が消せるか | 店・会社が消えたとき | デモの行 |
+  |---|---|---|---|---|
+  | ops_support_requests（0207） | 消さない | 消せる | org_id cascade（店の列なし） | 0 |
+  | punch_round_rules（0213） | 消す（旗 true） | 消せる | org_id・store_id cascade／changed_by set null | 0 |
+  | punch_breaks（0214） | 消す（旗 true） | 消せる | org_id・store_id・cast_id・membership_id cascade／created_by set null | 0 |
+  | ops_inquiries（0212） | 消さない（72b3c041 で移した） | 消せない（SELECT だけ） | org_id・store_id cascade／added_store_id・created_by set null | 0 |
+  | ops_inquiry_messages（0212） | 消さない（同） | 消せない | org_id・inquiry_id cascade／author_user_id set null | 0 |
+  | ops_point_entries（0212） | 消さない（同） | 消せない | org_id cascade／inquiry_id set null | 0 |
+  - 6 表とも demo_org_reset（c_wipe）の中に名前は無い＝消すのは route の prewipe か FK の連鎖だけ。消さない名簿の 4 表はデモの会社では作る関数が断る。
 
 ## 事故 2（2026-11-26 06:59:59・CC）手元から VESPER を入れ直して約 50 秒空にした
 - 比べの「見本なし」側を作るため手元の route と同じ手順で VESPER を入れ直した。手元には DEMO_USERS が無く、buildPayload の「鍵が無ければ消す前に止める」柵が効かず（env がある時だけ止める）、wipe の後の load が 'org mismatch' で落ちて店が空になった。07:00:43 に DB のデモの 5 人から対応をプロセスの中だけで組んで入れ直し、07:00:50 に 10,279 行で戻った。
