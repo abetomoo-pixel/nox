@@ -22,7 +22,7 @@ import { staffDirectDiscountOf } from "@/lib/nox/rules-0175/staff-discount"; // 
 import { castPaymentsOf } from "@/lib/nox/rules-0175/cast-register"; // ★追補 2（裁定420）
 import { roundYen } from "@/lib/nox/money";
 import * as t from "@/lib/nox/ui/theme";
-import Toast from "@/components/ui/toast";
+import Toast, { Message } from "@/components/ui/toast";
 import Modal from "@/components/ui/modal";
 import { closeBlockedLineOf, closeGuardForceConfirmOf, closeGuardReasonsOf, closeGuardTitleOf, okuriCanRecordOf, okuriNoRecordLineOf, okuriWindowModeOf, OKURI_NO_READ_LINE } from "@/lib/nox/report/close-guard"; // ★2026-11-18 夜 2（相談役 ①）: 締められない理由の窓
 import MonthReport from "./month-report";
@@ -1493,6 +1493,9 @@ export default function ReportBoard({
               : <button style={t.btnPrimary56} data-close-submit="1" onClick={() => void closeDay()} disabled={!!closedReport && reopenFlag} /* ★便 GV-C C-11（GV-54）: 375 の主ボタン規格 */
                   title={closedReport && reopenFlag ? "締め済み（表の「解除」で解除すると再締めできます）" : undefined}>締め確定</button>}
           </div>
+          {!isManagerUp && closeErr && (/* ★相談役 11/26 の夜便 N の N6 b（#28）: 締めの失敗の文は店長以上の段（見出しの下）にしか出ず、スタッフの「締め確定」では黙っていた＝ここにも出す */
+            <div data-close-err-staff={closeErr.openN ?? "x"}><Message kind="error" style={{ marginTop: 8 }}>{closeErr.text}</Message></div>
+          )}
         </section>
         </>
       )}
