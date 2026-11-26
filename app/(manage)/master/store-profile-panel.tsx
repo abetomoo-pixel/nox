@@ -429,7 +429,7 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
                     {on("opsTax") && <div><span style={label}>源泉区分の既定（委託スタッフ）</span>
                       <SegSelect value={form.wht_staff} onChange={(v) => setForm((f) => ({ ...f, wht_staff: v }))} options={[["none", "源泉なし"], ["other_204", "その他（204 条）"]] as const} /></div>}
                     {on("opsReg") && <div><span style={label}>釣銭準備金（日報の締めの既定）</span>
-                      <MoneyInput value={form.cash_float} disabled={busy} placeholder="毎回入力" onChange={(d) => setForm((f) => ({ ...f, cash_float: d.slice(0, 7) }))} ariaLabel="釣銭準備金" width="100%" /></div>}
+                      <MoneyInput value={form.cash_float} disabled={busy} placeholder="未設定＝50,000" /* ★相談役 11/26 夜便 N の N6 d（#30）: 未設定なら日報の締めは ¥50,000（report-board の初期値） */ onChange={(d) => setForm((f) => ({ ...f, cash_float: d.slice(0, 7) }))} ariaLabel="釣銭準備金" width="100%" /></div>}
                     {on("opsPay") && <div><span style={label}>締め日</span>
                       <span style={{ display: "block", padding: "8px 0", fontSize: 13.5 }} data-close-day-fixed="1">月末（固定）</span></div>}{/* ★裁定334（2026-11-12）: 選択肢を外し表示だけ */}
                   </div>

@@ -34,7 +34,8 @@ type Notice = {
 const AUD_LABEL: Record<string, string> = { all: "全員", cast: "キャスト", staff: "スタッフ", targets: NOTICE_TARGETS_LABEL };
 const AUD_OPTIONS: Array<[string, string]> = [["all", "全員"], ["cast", "キャスト"], ["staff", "スタッフ"]];
 // 掲載期限セグメント（モックの日数セグメント 0/1/3/7 に対応・0=期限なし）
-const UNTIL_SEG: Array<[number, string]> = [[0, "期限なし"], [1, "当日"], [3, "3日"], [7, "7日"]];
+// ★相談役 11/26 夜便 N の N6 d（#33）: 期限＝営業日の今日＋N 日（その日まで掲載・untilFromSeg）＝「当日」は翌日の日付になっていた＝語を実際に合わせる（値は不変）
+const UNTIL_SEG: Array<[number, string]> = [[0, "期限なし"], [1, "翌日まで"], [3, "3日後まで"], [7, "7日後まで"]];
 
 // ★DP3 P1（2026-08-21・裁定 DP3-①）: 入力欄の上限（RPC 側の 'bad title' / 'bad body' と同値）。
 //   モックの本文カウンタは 1000 だが、**NOX の実装上限 4000 を正**とする（RPC が 4000 で弾く）。
@@ -484,6 +485,7 @@ export default function NoticesBoard({ isManagerUp, audienceCounts, storeName, c
               {UNTIL_SEG.map(([v, l]) => (
                 <button key={v} style={v === fUntilSeg ? btnDark : btnLight} onClick={() => setFUntilSeg(v)}>{l}</button>
               ))}
+              <span style={{ fontSize: 10.5, color: "var(--v2-muted)", flexBasis: "100%" }}>期限を過ぎても一覧からは消えず、「期限切れ」の印が付きます。</span>{/* ★N6 d（#33） */}
             </div>
             {/* ★便 W-10 #21: 通知方法＝LINE（連携している人だけ・掲載と同時）。メール・確認回答・予約掲載・下書きは器が無い＝出さない */}
             <div>

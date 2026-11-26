@@ -56,7 +56,8 @@ export async function POST(req: Request) {
         { status: 422 },
       );
     }
-    if (draft.rows.length === 0) return NextResponse.json({ error: "no active casts in period" }, { status: 422 });
+    // ★相談役 11/26 夜便 N の N6 d（#24）: 画面は error をそのまま出す（payroll-board「エラー(422): …」）＝英字ではなく日本語の文を返す（状態 422 は不変）
+    if (draft.rows.length === 0) return NextResponse.json({ error: "この期間に対象のキャストがいません（確定する明細がありません）" }, { status: 422 });
 
     const { data: actor, error: eA } = await g.admin.from("users").select("id").eq("auth_user_id", g.authUserId).single();
     if (eA || !actor) return NextResponse.json({ error: "actor resolve failed" }, { status: 500 });

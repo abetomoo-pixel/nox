@@ -10,6 +10,8 @@
 //   意図的な差（挙動不変の対象）なので、状態を内包するフックにはせず関数に留める。
 //   D&D 化はこのヘルパーの上に後日共用部品として載せる（このレーンでは実装しない）。
 
+import { FIRST_VISIT_SHADOW_JA } from "../register/first-visit"; // ★N6 d（#40）
+
 /** 隣接入れ替え後の全件 id 配列。境界外（先頭を上へ等）は null を返す。 */
 export function swapAdjacent(ids: string[], index: number, dir: -1 | 1): string[] | null {
   const j = index + dir;
@@ -25,5 +27,6 @@ export function reorderErrJa(message: string | undefined): string {
   if (message.includes("partial ids")) return "一覧が古くなっています。再読込してください";
   if (message.includes("duplicate ids")) return "並び替えの内容が重複しています。再読込してください";
   if (message.includes("forbidden")) return "権限がありません";
+  if (message.includes("first visit shadowed")) return FIRST_VISIT_SHADOW_JA; // ★相談役 11/26 夜便 N の N6 d（#40）: 0216 の柵（pricing_rule_reorder）が断ったとき英字を出さない
   return message;
 }

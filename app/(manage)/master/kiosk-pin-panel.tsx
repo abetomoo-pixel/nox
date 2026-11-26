@@ -22,6 +22,7 @@ import * as t from "@/lib/nox/ui/theme";
 import Modal from "@/components/ui/modal";
 
 import PinOverlapNotice from "@/components/nox/pin-overlap-notice"; // ★0201t（相談役 11/19 夜 ③）: 重なりの件数だけ（旗の後ろ）
+import { rpcErrJa } from "@/lib/nox/ui/rpc-err"; // ★N5 b（#2）
 import Toast, { Message } from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 type Store = { id: string; name: string };
 type OpMember = { id: string; store_id: string; role: string; user_name: string };
@@ -147,7 +148,7 @@ export default function KioskPinPanel({ stores, isOwner }: { stores: Store[]; is
         : m.includes("bad target") ? "この担当は PIN 設定の対象外です"
         : m.includes("inactive membership") ? "無効な担当です"
         : m.includes("not found") ? "担当が見つかりません"
-        : m.includes("forbidden") ? "権限がありません（自店の担当のみ設定できます）" : m);
+        : m.includes("forbidden") ? "権限がありません（自店の担当のみ設定できます）" : rpcErrJa(m)); // ★相談役 11/26 夜便 N の N5 b（#2）: 'pin weak'／'pin taken' は和文の表（rpc-err）で
       return;
     }
     setPinTarget(null);
@@ -285,7 +286,7 @@ export default function KioskPinPanel({ stores, isOwner }: { stores: Store[]; is
         <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
           <h3 style={h3}>PINポリシー</h3>
         </div>
-        <p style={sub}>レジ端末ログインのロック規則（店単位）</p>
+        <p style={sub}>店の端末で PIN を打つときのロック規則（店単位）。レジ端末のログインとスタッフの打刻に効きます。キャストの打刻は 5 回で固定（ロック時間はこの設定）。</p>{/* ★相談役 11/26 夜便 N の N5 b（#12）: kiosk_punch は 5 回固定・staff_punch／kiosk_login は店設定（関数は変えない） */}
         <div style={{ display: "grid", gap: 8, fontSize: 12 }}>
           {stores.length > 1 && (
             <label style={{ display: "grid", gap: 3 }}><span style={t.fieldLabel}>店舗</span>

@@ -121,7 +121,7 @@ export default function MasterBoard({ storeId = null, showSupport = false, showI
                   <Link key={p.href} href={p.href} className="nox-fcard">
                     <div className="top">
                       <div className="count">{m.count}</div>
-                      {p.ownerOnly && <span className="status mute">管理者</span>}
+                      {p.ownerOnly && <span className="status mute">店長以上</span>}{/* ★相談役 11/26 夜便 N の N5 b（#15）: キオスク端末（/master/system）は店長も入れる（0194＝端末・PIN・レシート）＝印の語だけ直す（ownerOnly の名前は nav の pin のため据え置き） */}
                     </div>
                     <h3><span className="nox-cardtitle">{p.label}</span><span className="nox-cardchev" aria-hidden="true" style={{ color: "var(--primary)" }}>›</span></h3>{/* ★306-15: 「タイトル ›」1 行（nowrap） */}
                     {/* ★306-15: 説明 1 行 → ★便 GV-C C-7（GV-48）: タブのある入口はタブ一覧の 1 行だけ（説明と 2 行重複していた）・タブが 1 つ以下は説明 1 行 */}

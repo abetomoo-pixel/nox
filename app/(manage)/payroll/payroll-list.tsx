@@ -35,6 +35,12 @@ const ACTION_LABEL: Record<string, string> = { payroll_finalize: "確定", payro
 // 総支給＝CSV と同じ定義（pay.gross＋Σextras.amount・欠落キーは 0）。凍結値を読むだけ＝再計算しない。
 const grossOf = (bj: BreakdownJson | null): number =>
   (bj?.pay?.gross ?? 0) + (bj?.extras ?? []).reduce((a, e) => a + (e.amount ?? 0), 0);
+// ★相談役 11/26 夜便 N の N6 d（#24）: 支払済み化の route（app/api/payroll/mark-paid）の英字 → 日本語（残りは共通の写像＝forbidden は「権限がありません」）
+const markPaidErrJa = (code: string, status: number): string =>
+  code === "no run" ? "この期間の給与はまだ確定されていません（先に明細から確定してください）"
+    : /not finalized/.test(code) ? "確定済みの期間だけ支払済みにできます（未確定か、すでに支払済みです）"
+    : /run not found/.test(code) ? "対象の給与が見つかりません（再読込してください）"
+    : code ? rpcErrJaCommon(code) : `処理できませんでした（${status}）`;
 const fmtAt = (iso: string | null) => (iso ? new Date(iso).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "—");
 
 export default function PayrollList({ stores, isOwner }: { stores: Store[]; isOwner: boolean }) {
@@ -113,7 +119,7 @@ export default function PayrollList({ stores, isOwner }: { stores: Store[]; isOw
     try { setMsg(await exportPayrollCsvForRun(supabase, r.runId, nameOf.get(r.storeId) ?? "店舗", r.period)); }
     finally { setBusy(false); }
   }
-  // 支払済み化（§3.3・裁定 B5-6）: POST /api/payroll/mark-paid（owner 限定・idem_key は run ごと randomUUID）。成功後は再 select（楽観更新なし）。
+  // 支払済み化（§3.3・裁定 B5-6）: POST /api/payroll/mark-paid（管理者・自店の店長＝0194 裁定444 ④・idem_key は run ごと randomUUID）。成功後は再 select（楽観更新なし）。
   async function markPaid() {
     if (!payPick || busy) return;
     setBusy(true); setPayMsg("");
@@ -123,7 +129,7 @@ export default function PayrollList({ stores, isOwner }: { stores: Store[]; isOw
         body: JSON.stringify({ storeId: payPick.storeId, period: payPick.period, idemKey: crypto.randomUUID() }),
       });
       const j = await res.json();
-      if (!res.ok) { setPayMsg(String(j.error ?? `エラー(${res.status})`)); return; } // RPC／route の文言をそのまま
+      if (!res.ok) { setPayMsg(markPaidErrJa(String(j.error ?? ""), res.status)); return; } // ★相談役 11/26 夜便 N の N6 d（#24）: route の英字（no run／not finalized／forbidden）を日本語に
       setPayPick(null);
       setMsg(`${nameOf.get(payPick.storeId) ?? ""} ${payPick.period} を支払済みにしました。`);
       await load();

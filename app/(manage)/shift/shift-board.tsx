@@ -2527,8 +2527,8 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
         {pOverlapText && <Message kind="error">{pOverlapText}</Message>}{/* ★裁定281（便 U-6①）: 重なりは赤（error）＝作成ボタンは disabled */}
         {pMsg && <Message kind={pMsg.kind} onDismiss={() => setPMsg(null)}>{pMsg.text}</Message>}
         <p style={{ fontSize: 10.5, color: "var(--v2-muted)", margin: "8px 0 0", lineHeight: 1.7 }}>
-          締切は表示用の目安です（提出のブロックはしません）。公開済みの期間には自動配置できません。
-        </p>
+          締切の日を過ぎると、翌朝に募集を締めて「配置中」に移ります（その後は本人から希望を出せません）。
+        </p>{/* ★相談役 11/26 夜便 N の N5 b（#14）: 締切の翌朝に shift_periods_auto_close（cron）が open→closed・提出は open の期間だけ（period_not_open）。自動配置の画面は 0125 で撤去 */}
           </section>
         );
       })()}
@@ -2550,7 +2550,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
       {tab === "roster" && (
         <section className="nox-cardtop" style={card} data-shift-fixed-periods="1">
           <h2 style={{ ...secTitle, margin: "0 0 4px" }}>公開済みの期間</h2>
-          <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 10px" }}>期間を選ぶとカレンダーがその月に移ります。日を押すと人の追加・外し（変更は本人の確認待ち）。</p>
+          <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 10px" }}>期間を選ぶとカレンダーがその月に移ります。日を押すと人の追加・時刻の変更・外しができます（足した人はそのまま確定・本人へ通知）。</p>{/* ★相談役 11/26 夜便 N の N5 b（#13）: M-11／M-13／M-19＝日の追加は採用・確定＋通知（day-add-panel の shift_set 'confirmed'） */}
           {periodTabs(publishedPeriods, "roster", "公開済みの期間")}
         </section>
       )}

@@ -149,6 +149,7 @@ export default function CastsBoard({
   // F4a キオスク打刻 PIN（mig0043 set_cast_pin・owner/manager 自店・4桁）
   const [pinTarget, setPinTarget] = useState<CastLogin | null>(null);
   const [pinVal, setPinVal] = useState("");
+  const [pinConfirm, setPinConfirm] = useState(""); // ★N5 b（#11）: 確認の欄
   const [pinErr, setPinErr] = useState<string | null>(null);
   const [pinDone, setPinDone] = useState(false);
 
@@ -495,10 +496,11 @@ export default function CastsBoard({
   async function submitPin() {
     if (!pinTarget) return;
     if (!PIN_SHAPE_RE.test(pinVal)) { setPinErr(`PIN は数字 ${PIN_DIGITS_LABEL}で入力してください`); return; } /* ★M-179: 桁数は部品の定数（サーバは 4〜6 桁＝0191） */   // ★0191 ★3
+    if (pinVal !== pinConfirm) { setPinErr("確認用の PIN が一致しません"); return; } // ★相談役 11/26 夜便 N の N5 b（#11）: 操作担当 PIN の窓と同じく確認の欄
     setBusy(true); setPinErr(null);
     const { error } = await supabase.rpc("set_cast_pin", { p_cast_id: pinTarget.id, p_pin: pinVal });
     setBusy(false);
-    if (error) setPinErr(error.message);
+    if (error) setPinErr(/bad pin/.test(error.message) ? `PIN は数字 ${PIN_DIGITS_LABEL}で入力してください` : rpcErrJa(error.message)); // ★N5 b（#2）: 'pin weak'／'pin taken' を和文の表（rpc-err）で
     else setPinDone(true); // PIN 自体は再表示しない（DB は bcrypt のみ・audit にも非搭載）
   }
 
@@ -1025,12 +1027,17 @@ export default function CastsBoard({
               <ol style={{ margin: 0, paddingLeft: 18, fontSize: 11.5, color: "var(--sub)", lineHeight: 1.9 }}>
                 <li><b style={{ color: "var(--v2-text)" }}>プロフィール写真</b>：一覧でそのキャストを選び「写真」から設定します（任意）。</li>
                 <li><b style={{ color: "var(--v2-text)" }}>ランク</b>：一覧のランク欄から設定します（指名料に反映されます）。</li>
-                <li>
-                  <b style={{ color: "var(--v2-text)" }}>待遇プラン</b>：
-                  <Link href="/master/cast-comp/plan" className="nox-link">マスタ ▸ 待遇プラン</Link>
-                  で割り当てます。
-                </li>
-                <li><b style={{ color: "var(--v2-text)" }}>ログイン招待</b>：一覧の「招待」からアカウントを発行します（初期パスワードは一度だけ表示）。</li>
+                {filter === "trial" ? (/* ★相談役 11/26 夜便 N の N5 b（#25）: 体入の追加は店の既定のプランを開始日から自動で付ける（addTrialCast＝裁定490）＝割り当ての案内は出さない */
+                  <li><b style={{ color: "var(--v2-text)" }}>待遇プラン</b>：体入の追加で店の既定のプランを開始日から自動で割り当てます（変えるときは詳細の「待遇・バック」から）。</li>
+                ) : (
+                  <li>
+                    <b style={{ color: "var(--v2-text)" }}>待遇プラン</b>：
+                    <Link href="/master/cast-comp/plan" className="nox-link">マスタ ▸ 待遇プラン</Link>
+                    で割り当てます。
+                  </li>
+                )}
+                {/* ★N5 b（#10）: 「招待」は一覧ではなく詳細の「アカウント」タブにある */}
+                <li><b style={{ color: "var(--v2-text)" }}>ログイン招待</b>：一覧でそのキャストを選び、詳細の「アカウント」タブの「招待」からアカウントを発行します（初期パスワードは一度だけ表示）。</li>
               </ol>
             </div>
           </div>
@@ -1647,7 +1654,7 @@ export default function CastsBoard({
                 <span className="v">
                   {/* F4a: 打刻 PIN（ログイン結線と独立＝招待していない子も打刻できる） */}
                   <button style={btnGhost} disabled={busy} data-cast-kiosk-pin="set"
-                    onClick={() => { setPinTarget(selCast); setPinVal(""); setPinErr(null); setPinDone(false); }}>
+                    onClick={() => { setPinTarget(selCast); setPinVal(""); setPinConfirm(""); setPinErr(null); setPinDone(false); }}>
                     キオスク PIN を設定
                   </button>
                   <span style={{ display: "block", fontSize: 11.5, color: "var(--v2-muted)", marginTop: 4 }}>設定済み／失敗回数は マスタ › システム › PIN の一覧で見られます</span>
@@ -1794,10 +1801,20 @@ export default function CastsBoard({
                     inputMode="numeric" autoComplete="off" placeholder="0000"
                     style={{ ...t.input, width: 120, letterSpacing: 6, fontSize: 18, textAlign: "center" }} />
                 </label>
+                {/* ★相談役 11/26 夜便 N の N5 b（#11）: 確認の欄＝操作担当 PIN の窓（kiosk-pin-panel）と同じ形 */}
+                <label style={{ display: "grid", gap: 4, marginTop: 8 }}>
+                  <span style={t.fieldLabel}>確認のためもう一度</span>
+                  <input value={pinConfirm} onChange={(e) => setPinConfirm(e.target.value.replace(/[^0-9]/g, "").slice(0, PIN_MAX))}
+                    inputMode="numeric" autoComplete="off" placeholder="0000" aria-label="確認のためもう一度"
+                    style={{ ...t.input, width: 120, letterSpacing: 6, fontSize: 18, textAlign: "center" }} />
+                </label>
+                {pinVal.length >= 4 && pinConfirm.length >= 4 && pinVal !== pinConfirm && (
+                  <p style={{ fontSize: 12, color: "var(--bad)", margin: "6px 0 0" }}>確認用の PIN が一致しません</p>
+                )}
                 {pinErr && <Message kind="error" style={{ margin: "8px 0 0" }}>{pinErr}</Message>}
                 <div className="nox-actions" style={{ display: "flex", gap: 8, marginTop: 10 }}>
                   <button style={btnGhost} disabled={busy} onClick={() => setPinTarget(null)}>キャンセル</button>
-                  <button style={btnGold} disabled={busy || !(mig0191On() ? pinVal.length >= 4 && pinVal.length <= 6 : pinVal.length === 4)} onClick={() => void submitPin()}>
+                  <button style={btnGold} disabled={busy || !(mig0191On() ? pinVal.length >= 4 && pinVal.length <= 6 : pinVal.length === 4) || pinVal !== pinConfirm} onClick={() => void submitPin()}>
                     {busy ? "処理中…" : "設定する"}
                   </button>
                 </div>
