@@ -1003,7 +1003,7 @@ ${md.message}（入れずに確定すると控除 0 のまま確定します）`
           </div>
 
           {/* 段3: 確定。★#78: finalized／paid の間は非表示（draft のみ）。★#75: disabled の理由をボタン脇と title に出す（要対応 N 件） */}
-          {status === "draft" && (() => {
+          {(runInfo?.status ?? "draft") === "draft" && (() => { /* ★相談役 11/26 の夜便 N の N6 a（#17）: 旧 status は 666 行の囲みの外＝ブラウザの window.status（空の文字）を読み、ボタンが一度も出なかった（2026-09-10 の 5d775032 から）。666 行と同じ式に */
             // ★裁定316（便 X-8-13）: 期間終了の翌営業日から確定できる（API も同じ判定で 400・DB は 0158）。プレビュー・内容確認は途中でも可
             const guard = finalizeGuardOf(periodEndOf(period), bizDateOf(new Date().toISOString(), cutoffHm));
             const why = !guard.ok ? guard.message : blockers.length > 0 ? `要対応 ${blockers.length} 件を解消してください` : rows.length === 0 ? "対象キャストがいません（プレビューを実行してください）" : "";
