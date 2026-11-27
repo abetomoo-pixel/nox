@@ -4,6 +4,7 @@
 // 欠落キーは 0 円扱い（2026-07-28 既定＝payroll-board の確定期 sum4 と同一の既定・率計算も整合補正もしない）。
 
 import { totalDeductionsOf } from "./adjust"; // 裁定264-3: 控除計の式は 1 本に集約
+import { listGrossOf } from "./list"; // ★足し 8: 総支給の式は 1 本
 
 export type DraftKpiRow = {
   net: number;
@@ -19,14 +20,13 @@ export type DraftKpiRow = {
 export type Kpi4 = { gross: number; ded: number; wh: number; net: number; n: number };
 
 // 裁定99-③: draft 期の KPI 4種＝プレビュー rows から表示層で合算（確定期の sum4 と逐語同一の定義＝
-//   総支給 = gross + Σextras／控除計 = 7項目の和（源泉含む）／うち源泉 = withholding／差引 = row.net）。
+//   総支給 = pay.gross（★足し 8・2026-11-27: extras は内在＝足さない）／控除計 = 7項目の和（源泉含む）／うち源泉 = withholding／差引 = row.net）。
 export function kpiOfDraftRows(rows: DraftKpiRow[]): Kpi4 {
   const z = (v: number | undefined) => v ?? 0;
   let gross = 0, ded = 0, wh = 0, net = 0;
   for (const r of rows) {
     const pay = r.breakdown?.pay ?? {};
-    const extras = (r.breakdown?.extras ?? []).reduce((a, e) => a + (e.amount ?? 0), 0);
-    gross += z(pay.gross) + extras;
+    gross += listGrossOf(r.breakdown); // ★決めの足し 8（#21 と同じ根・裁定515 で push 可）: extras は pay.gross に内在（裁定303 追補1）＝足さない＝確定の後の合計（runSummaryOf）・一覧・CSV と同じ 1 本の式
     ded += totalDeductionsOf(pay); // 裁定264-3（旧: z(fixedDed)+z(fine)+z(withholding)+z(arDeduct)+z(advanceDeduct)+z(okuriDeduct)+z(normPenalty)）
     wh += z(pay.withholding);
     net += r.net;

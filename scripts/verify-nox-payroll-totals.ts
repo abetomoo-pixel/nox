@@ -2,6 +2,7 @@
  * verify:nox-payroll-totals — ★#21（相談役 11/26 22:50 の返事・裁定513-4）: 給与の月次一覧・明細（確定済みの合計）・CSV の総支給と控除計が同じ数になる。
  *   (1) 純関数：出勤ボーナス（extras）のある 1 枚で、一覧の総支給（listGrossOf）＝明細の合計（runSummaryOf）＝CSV の総支給の列（extras は gross に内在＝足さない）。控除計も明細＝CSV。
  *   (2) 本番の DB（読むだけ）：確定済み・支払済みの run ごとに、一覧・明細・CSV の総支給の和と、明細・CSV の控除計の和が同じ。
+ *   (1-4) ★決めの足し 8（2026-11-27）: 下書きの期の上の合計（kpiOfDraftRows）も同じ総支給・控除計。
  *   (3) 一覧の画面は自分で足さない（payroll-list.tsx は listGrossOf を使う・extras を足す式が無い）。
  *  使い方: npm run verify:nox-payroll-totals
  */
@@ -10,6 +11,7 @@ import { Client } from "pg";
 import { loadEnvOrExit } from "./fixtures-f0";
 import { listGrossOf } from "../lib/nox/payroll/list";
 import { runSummaryOf, frozenDeductionOf } from "../lib/nox/payroll/view";
+import { kpiOfDraftRows } from "../lib/nox/payroll/ui-calc"; // ★決めの足し 8（2026-11-27）: 下書きの期の上の合計
 import { payrollCsvCells, type PayrollCsvPay } from "../lib/nox/payroll/csv";
 
 let pass = 0; const fails: string[] = [];
@@ -32,6 +34,8 @@ const csvOf = (bj: Bj, net: number) => {
   const csv = csvOf(bj, net);
   check("(1-1) extras のある 1 枚で、一覧＝明細＝CSV の総支給（70,000・extras を二重に足さない）", listGrossOf(bj) === 70000 && sum.gross === 70000 && csv.gross === 70000, { list: listGrossOf(bj), detail: sum.gross, csv: csv.gross });
   check("(1-2) 控除計は明細＝CSV（12,000）", sum.ded === 12000 && csv.ded === 12000 && frozenDeductionOf({ ...Z, ...bj.pay } as PayrollCsvPay) === 12000, { detail: sum.ded, csv: csv.ded });
+  const draft = kpiOfDraftRows([{ net, breakdown: { pay: bj.pay!, extras: bj.extras } }]);
+  check("(1-4) ★足し 8：下書きの期の上の合計（kpiOfDraftRows）も総支給 70,000・控除計 12,000＝確定の後の合計と同じ（extras を足さない）", draft.gross === 70000 && draft.ded === 12000 && draft.gross === sum.gross, { draft: draft.gross, detail: sum.gross });
   check("(1-3) 欠落キー（{\"net\":0} だけの行）は 0", listGrossOf({}) === 0 && listGrossOf(null) === 0);
 }
 

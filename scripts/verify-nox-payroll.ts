@@ -1578,14 +1578,14 @@ async function main() {
   // ★U-1（裁定99-⑨）: 給与画面の表示層 純関数3本（ui-calc・DB 非依存）
   // ══════════════════════════════════════════════════════════
   {
-    // (u1) kpiOfDraftRows＝確定期 sum4 と逐語同一の定義（gross+extras／控除7項目／うち源泉／net）＋欠落キー0円
+    // (u1) kpiOfDraftRows＝確定期 sum4（runSummaryOf）と同じ定義（★足し 8: 総支給＝pay.gross／控除7項目／うち源泉／net）＋欠落キー0円
     const kpi = kpiOfDraftRows([
       { net: 90_000, breakdown: { pay: { gross: 100_000, fixedDed: 1_000, fine: 2_000, withholding: 3_000,
         arDeduct: 400, advanceDeduct: 500, okuriDeduct: 600, normPenalty: 700 }, extras: [{ amount: 1_500 }] } },
       { net: 10_000 }, // breakdown 欠落＝全キー0円扱い（2026-07-28 既定）・net だけ合算
     ]);
-    check("U1 u1 ★kpiOfDraftRows＝gross+extras 101500・控除7項目 8200・源泉 3000・net 100000・n 2",
-      kpi.gross === 101_500 && kpi.ded === 8_200 && kpi.wh === 3_000 && kpi.net === 100_000 && kpi.n === 2,
+    check("U1 u1 ★kpiOfDraftRows＝総支給は pay.gross だけ 100000（★決めの足し 8・2026-11-27: extras は gross に内在＝足さない・旧 gross+extras 101500 は二重）・控除7項目 8200・源泉 3000・net 100000・n 2",
+      kpi.gross === 100_000 && kpi.ded === 8_200 && kpi.wh === 3_000 && kpi.net === 100_000 && kpi.n === 2,
       JSON.stringify(kpi));
     // (u2) payStatusOf＝未払/一部/支払済（remaining=net−Σpaid・net0 は支払済に落ちる）
     check("U1 u2 ★payStatusOf＝0円払い:未払／半額:一部／全額・超過・net0:支払済",
