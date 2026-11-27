@@ -581,7 +581,7 @@ export default function StaffBoard({
           {mig0193On() && <Staff0193 sel={sel} isOwner={isOwner} roleRaw={roleRaw} onChanged={() => void load()} />}{/* ★0193: 肩書・役割の変更・個人情報 */}
           <div className="nox-formmodal-foot">
             {/* ★裁定244: Danger 左端（在籍を解除）・補助（役職変更）・実行 右端（再雇用）。★裁定253 R5: 閉じるは × へ集約・脚は .nox-formmodal-foot（中央） */}
-            {sel.is_active && !isSelf(sel) && (
+            {sel.is_active && !isSelf(sel) && (isOwner || sel.role === "staff") && ( /* ★0226（#113・裁定511-4）: 店長は自店のスタッフだけ（ほかの店長はオーナーと管理者だけ）＝関数と同じ幅 */
               // ★裁定146（裁定120 適用）: 在籍解除＝取り消し困難な操作＝Danger 系トークン（--bad 系は警告面用・値は同系）
               <button style={{ ...btnGhost, color: "var(--danger)", border: "1px solid var(--danger-bd)" }} disabled={busy} onClick={async () => {
                 if (!confirm(`${users[sel.user_id]?.name ?? ""} の在籍を解除しますか？（ログイン権限が即時に失効します・削除はされません）`)) return;
@@ -613,7 +613,7 @@ export default function StaffBoard({
                 setSel(null);
               }}>{sel.role === "staff" ? "店長に昇格" : "スタッフに降格"}</button>
             )}
-            {!sel.is_active && (
+            {!sel.is_active && (isOwner || sel.role === "staff") && ( /* ★0226（#113）: 再雇用も同じ幅 */
               <button style={btnGold} disabled={busy} onClick={async () => {
                 const ok = await rpc("再雇用", "staff_reactivate", { p_membership_id: sel.id });
                 if (ok) await retireAuth(sel.id, "unban"); // ★0190（裁定436 ①c）: 再雇用＝ban を解く

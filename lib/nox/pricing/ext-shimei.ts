@@ -22,7 +22,7 @@ export function extShimeiInputErrOf(digits: string): string | null {
 export const EXT_SHIMEI_EMPTY_JA = "金額を入れてください";
 export const EXT_SHIMEI_UNSET_JA = "金額が未設定です";
 export const EXT_SHIMEI_LABEL = "延長指名";
-export const EXT_SHIMEI_DESC = "ONにすると、延長のたびに本指名 1 人につき下の金額を加算します（手動で延長を足す店）。OFF の店は延長時に指名料を加算しません";
+export const EXT_SHIMEI_DESC = "ONにすると、延長のたびに本指名 1 人につき下の金額を加算します（自動で延長する店は延長の時間ごと）。OFF の店は延長時に指名料を加算しません";
 export const EXT_SHIMEI_AUTO_NOTE = "自動で延長する店では、今は加算しません";
 
 /** set_ext_shimei_fee の例外 → 日本語 */

@@ -411,3 +411,18 @@ export const MIG_0217_APPLIED = true; // ★相談役 11/26 の便 L1：0217 を
 let override0217: boolean | null = null;
 export function mig0217On(): boolean { return override0217 ?? MIG_0217_APPLIED; }
 export function __set0217ForTest(v: boolean | null): void { override0217 = v; }
+
+/** ★0218（自動で延長する店の延長指名料・相談役 11/26 の M3）。true＝自動延長の店でも延長のブロックごとに本指名 1 人あたりの延長指名料を足す（check_time_charge_apply）。
+ *  料金の画面の「自動で延長する店では、今は加算しません」を出さない（起票 355）。2026-11-27 09:49:37 CC が適用（当てる合図 1・検証 7 行 ok）。 */
+export const MIG_0218_APPLIED = true;
+let override0218: boolean | null = null;
+export function mig0218On(): boolean { return override0218 ?? MIG_0218_APPLIED; }
+export function __set0218ForTest(v: boolean | null): void { override0218 = v; }
+
+/** ★0233（裁定511-10・食い違い #174・相談役 11/26 22:10 の段イ）。set_store_profile の punch_methods に cast_kiosk（店の端末でキャストが打刻するか）。
+ *  true＝「キャストの打刻：使わない」は self と cast_kiosk を OFF にし、kiosk（店の端末の打刻＝スタッフ・店長も）は残す＝端末はキャストの名前だけ消してスタッフの段は出す。
+ *  false＝今のまま（使わない＝kiosk ごと OFF＝端末はスタッフの段も出さない・DB は cast_kiosk を 'bad punch_methods' で断る）。0233 を貼って検証が全部 ok の後に true。 */
+export const MIG_0233_APPLIED = true; // ★2026-11-27 09:49:27 CC が適用（相談役の当てる合図 1・検証 8 行 ok）
+let override0233: boolean | null = null;
+export function mig0233On(): boolean { return override0233 ?? MIG_0233_APPLIED; }
+export function __set0233ForTest(v: boolean | null): void { override0233 = v; }

@@ -79,6 +79,8 @@ export async function POST(req: Request) {
 
     // ── ④ unban（復活・再雇用の後） ──
     if (mode === "unban") {
+      // ★0226（#113 の付け足し）: unban は RPC（cast_rejoin／staff_reactivate）で在籍に戻った後だけ＝ban の 'still active' と対。在籍していない人の ban を店長が解く道を閉じる
+      if (!subjectActive) return NextResponse.json({ error: "still inactive" }, { status: 409 });
       const { error } = await admin.auth.admin.updateUserById(authUserId, { ban_duration: "none" });
       if (error) return NextResponse.json({ error: `auth update failed: ${error.message}` }, { status: 500 });
       return NextResponse.json({ ok: true, banned: false });

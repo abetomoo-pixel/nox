@@ -37,6 +37,8 @@ type Store = { id: string; name: string };
 //   invoice_registered_on（'YYYY-MM-DD'／null）・pay_day（1〜31・表示と案内用）・tax_inclusive_display（表示だけ）・use_vip／use_counter（フロアの種別表示）・
 //   payment_methods {cash,card,emoney,qr}（cash は常に true）・punch_methods {self,proxy,kiosk}（1 つ以上 true）。RPC の型検査（'bad pay_day'／'bad payment_methods'／'bad punch_methods'）が本体。
 import { OPS_DEFAULT, PAYMENT_METHOD_LABEL, PUNCH_METHOD_LABEL, opsPatchErrorOf, opsPatchOf, opsProfileOf, type OpsProfile, castPunchOffOf, castPunchMethodsOf, CAST_PUNCH_OFF_NOTE } from "@/lib/nox/store/ops-profile"; // 純関数＝lib（setup page（server）と共用）
+import { KIOSK_PUNCH_OFF_WARN } from "@/lib/nox/store/ops-profile"; // ★0233（食い違い #174）
+import { mig0233On } from "@/lib/nox/rules-0175/flag"; // ★0233
 import { MID_PAY_OPTIONS, SETTLEMENT_CYCLE_OPTIONS, midPayOf, settlementCycleOf } from "@/lib/nox/payroll/settlement-cycle"; // ★0172（裁定349・便 P172）: 店設定 2 キー
 import { SHIFT_AUTO_CONFIRM_OPTIONS, autoConfirmHoursOf } from "@/lib/nox/shift/auto-confirm"; // ★0172（裁定380・便 P172）: 自動確定時間
 import { errJa } from "@/lib/nox/errors"; // ★裁定467（M-126）: 利用者向けの文言は辞書 1 本
@@ -405,6 +407,7 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
                     </label>
                   ))}
                 </div>
+                {mig0233On() && !form.ops.punch_methods.kiosk && (<span data-kiosk-punch-off-warn="1" style={{ display: "block", fontSize: 11.5, color: "var(--danger, #c0392b)", marginTop: 4, lineHeight: 1.7 }}>{KIOSK_PUNCH_OFF_WARN}</span>)}{/* ★0233（食い違い #174） */}
               </div>}
               {/* ★M-143（2026-11-10）: 打刻ゲート（duty_gate）のスイッチは撤去＝裁定472 で例外が廃止（レジは常に出勤中だけ・DB の白名単の duty_gate は読まれない） */}
               {on("opsShift") && mig0192On() && (<details className="nox-settings-fold" style={{ gridColumn: "1 / -1" }} data-settings-fold="kiosk-idle"><summary>詳しい設定（店の端末で本人がログインしたとき）</summary>{/* ★2026-11-16（B6）: 特殊な設定は畳む */}{/* ★0192 M-49: キオスクの「本人でログイン」＝無操作 N 分で端末のセッションに戻す（店設定 kiosk_person_idle_minutes・1〜120・既定 10） */}

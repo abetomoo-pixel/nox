@@ -421,7 +421,7 @@ export default function CustomersBoard({
         <section className="nox-cardtop" style={{ ...t.card, marginBottom: 12 }}>
           <h3 style={{ ...t.cardTitle, margin: "0 0 4px" }}>保持期限到来（匿名化の候補）</h3>
           <p style={{ fontSize: 12, color: "var(--sub)", margin: "0 0 8px", lineHeight: 1.7 }}>
-            最終来店から店設定の保持年数を過ぎた顧客。匿名化は各顧客の詳細で行います（理由必須・元に戻せません）。
+            最終来店（来店が無ければ登録）から店設定の保持年数を過ぎた顧客。匿名化は各顧客の詳細で行います（理由必須・元に戻せません）。
           </p>
           {anonCands === null ? (
             <Loading />

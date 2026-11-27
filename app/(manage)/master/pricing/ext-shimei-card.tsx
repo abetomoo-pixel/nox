@@ -9,6 +9,7 @@ import * as t from "@/lib/nox/ui/theme";
 import MoneyInput from "@/components/ui/money-input";
 import Toast from "@/components/ui/toast";
 import StoreFlagToggle from "../store-flag-toggle";
+import { mig0218On } from "@/lib/nox/rules-0175/flag";
 import { EXT_SHIMEI_AUTO_NOTE, EXT_SHIMEI_DESC, EXT_SHIMEI_LABEL, EXT_SHIMEI_UNSET_JA, extShimeiErrJa, extShimeiInputErrOf } from "@/lib/nox/pricing/ext-shimei";
 
 export default function ExtShimeiCard({ storeId, isOwner, initialOn, initialAmount, autoMode }: {
@@ -50,7 +51,7 @@ export default function ExtShimeiCard({ storeId, isOwner, initialOn, initialAmou
               <span style={{ fontSize: 13 }}>円</span>
             </span>
           </label>
-          {autoMode && <p data-ext-shimei-auto="1" style={{ margin: "6px 0 0", fontSize: 11.5, color: "var(--sub)" }}>{EXT_SHIMEI_AUTO_NOTE}</p>}
+          {autoMode && !mig0218On() /* ★0218（起票 355）: 当てた後は自動延長の店でも足す＝この 1 行は出さない */ && <p data-ext-shimei-auto="1" style={{ margin: "6px 0 0", fontSize: 11.5, color: "var(--sub)" }}>{EXT_SHIMEI_AUTO_NOTE}</p>}
           <Toast msg={msg?.text ?? null} kind={msg ? (msg.bad ? "error" : "success") : undefined} style={{ margin: "8px 0 0" }} />
           <div className="nox-actions" style={{ marginTop: 12 }}>{/* ★裁定244: フォーム直下の保存＝中央 */}
             <button style={{ ...t.btnGold, ...t.btnSm }} disabled={busy} onClick={() => void save()}>延長指名料を保存</button>

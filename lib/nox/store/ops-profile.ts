@@ -2,8 +2,9 @@
 //   invoice_registered_on（'YYYY-MM-DD'／null）・pay_day（1〜31・表示と案内用・締め日は月末固定＝334）・tax_inclusive_display（表示だけ・計算不変）・
 //   use_vip／use_counter（フロアの種別表示＝lib/nox/floor-kinds）・payment_methods {cash,card,emoney,qr}（cash は常に true）・punch_methods {self,proxy,kiosk}（1 つ以上 true）。
 //   保存は set_store_profile(p_store_id, p_patch) の patch（owner 限定・型検査 'bad pay_day'／'bad payment_methods'／'bad punch_methods' は RPC が本体）。
+import { mig0233On } from "@/lib/nox/rules-0175/flag"; // ★0233（裁定511-10）
 export type PaymentMethods = { cash: boolean; card: boolean; emoney: boolean; qr: boolean };
-export type PunchMethods = { self: boolean; proxy: boolean; kiosk: boolean };
+export type PunchMethods = { self: boolean; proxy: boolean; kiosk: boolean; cast_kiosk?: boolean }; // ★0233（裁定511-10）: cast_kiosk＝店の端末でキャストが打刻するか（無い＝true・kiosk が OFF なら端末は誰も打刻しない）
 export type OpsProfile = {
   invoice_registered_on: string; // '' ＝ null（未登録／不明）
   pay_day: string;               // 入力中は文字列（保存時に Number）
@@ -18,15 +19,21 @@ export const OPS_DEFAULT: OpsProfile = {
   payment_methods: { cash: true, card: true, emoney: false, qr: false }, punch_methods: { self: true, proxy: true, kiosk: true },
 };
 export const PAYMENT_METHOD_LABEL: ReadonlyArray<readonly [keyof PaymentMethods, string]> = [["cash", "現金"], ["card", "カード"], ["emoney", "電子マネー"], ["qr", "QR 決済"]];
-export const PUNCH_METHOD_LABEL: ReadonlyArray<readonly [keyof PunchMethods, string]> = [["self", "本人のスマホ"], ["proxy", "店の代行"], ["kiosk", "打刻端末"]];
-/** ★便 X13-G W-23: キャストの打刻を使わない店＝本人のスマホも打刻端末も OFF（店が今日タブで勤怠を記録＝代行は ON） */
-export const castPunchOffOf = (pm: PunchMethods): boolean => !pm.self && !pm.kiosk;
+export const PUNCH_METHOD_LABEL: ReadonlyArray<readonly ["self" | "proxy" | "kiosk", string]> = [["self", "本人のスマホ"], ["proxy", "店の代行"], ["kiosk", "打刻端末"]]; // ★0233: cast_kiosk は「キャストの打刻」の 2 択で動かす（ここには出さない）
+/** ★0233（食い違い #174）: 「打刻端末」を外したときの注意（スタッフ・店長も端末で打刻できなくなる） */
+export const KIOSK_PUNCH_OFF_WARN = "打刻端末を外すと、スタッフ・店長も店の端末で打刻できません（スタッフはスマホで打刻できないため、勤怠は 給与 › 勤怠（スタッフ）で店長以上が入れます）";
+/** ★便 X13-G W-23: キャストの打刻を使わない店＝本人のスマホも打刻端末も OFF（店が今日タブで勤怠を記録＝代行は ON）
+ *  ★0233（裁定511-10・食い違い #174）: 端末のキャストの打刻＝kiosk ∧ cast_kiosk（cast_kiosk が無い店は kiosk のまま＝今と同じ） */
+export const castPunchOffOf = (pm: PunchMethods): boolean => !pm.self && !(pm.kiosk && pm.cast_kiosk !== false);
 /** 「キャストの打刻」の 2 択 → punch_methods（使わない＝self／kiosk OFF・proxy ON／使う＝self／kiosk ON・proxy は今のまま） */
-export const castPunchMethodsOf = (useCastPunch: boolean, cur: PunchMethods): PunchMethods => (useCastPunch ? { self: true, kiosk: true, proxy: cur.proxy } : { self: false, kiosk: false, proxy: true });
-export const CAST_PUNCH_OFF_NOTE = "使わない店は、出勤・退勤を店が今日タブで記録します（キャストのマイページと打刻端末に打刻ボタンを出しません）。勤務時間の計算基準が「実打刻」の店では、店が記録した時刻を実打刻として扱い、遅刻・当欠の判定も店の記録時刻で行います。";
+//   ★0233（裁定511-10・食い違い #174）: 旗 true は「使わない」＝self と cast_kiosk を OFF・kiosk は今のまま（店の端末のスタッフ・店長の打刻は別に残す）／「使う」＝self・kiosk・cast_kiosk を ON
+export const castPunchMethodsOf = (useCastPunch: boolean, cur: PunchMethods, split: boolean = mig0233On()): PunchMethods => (split
+  ? (useCastPunch ? { self: true, kiosk: true, cast_kiosk: true, proxy: cur.proxy } : { self: false, kiosk: cur.kiosk, cast_kiosk: false, proxy: true })
+  : (useCastPunch ? { self: true, kiosk: true, proxy: cur.proxy } : { self: false, kiosk: false, proxy: true }));
+export const CAST_PUNCH_OFF_NOTE = "使わない店は、キャストの出勤・退勤を店が今日タブで記録します（キャストのマイページと打刻端末にキャストの打刻ボタンを出しません。スタッフ・店長は今までどおり店の端末で打刻します）。勤務時間の計算基準が「実打刻」の店では、店が記録した時刻を実打刻として扱い、遅刻・当欠の判定も店の記録時刻で行います。";
 
 /** stores 行（列 7 つ）→ OpsProfile（欠損は 0164 の既定） */
-export function opsProfileOf(row: Record<string, unknown> | null | undefined): OpsProfile {
+export function opsProfileOf(row: Record<string, unknown> | null | undefined, split: boolean = mig0233On()): OpsProfile {
   const pm = (row?.payment_methods ?? {}) as Partial<PaymentMethods>;
   const pu = (row?.punch_methods ?? {}) as Partial<PunchMethods>;
   return {
@@ -36,7 +43,7 @@ export function opsProfileOf(row: Record<string, unknown> | null | undefined): O
     use_vip: row?.use_vip !== false,
     use_counter: row?.use_counter !== false,
     payment_methods: { cash: true, card: pm.card !== false, emoney: pm.emoney === true, qr: pm.qr === true },
-    punch_methods: { self: pu.self !== false, proxy: pu.proxy !== false, kiosk: pu.kiosk !== false },
+    punch_methods: { self: pu.self !== false, proxy: pu.proxy !== false, kiosk: pu.kiosk !== false, ...(split ? { cast_kiosk: pu.cast_kiosk !== false } : {}) }, // ★0233: 旗 false の間は鍵を持たない（保存の patch に入れない＝DB が断るため）
   };
 }
 

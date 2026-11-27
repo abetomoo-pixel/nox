@@ -38,6 +38,8 @@ type Mem = { id: string; user_id: string; store_id: string; role: string; is_act
 type UserRow = { id: string; name: string | null };
 const yen = (n: number) => "¥" + n.toLocaleString();
 const monthNow = () => new Date(Date.now() + 9 * 3_600_000).toISOString().slice(0, 7);
+/** ★0232（食い違い #106）: 今月（と先の月）の「この月を確定」の代わりに出す 1 行 */
+const STAFF_MONTH_OPEN_NOTE = "月が終わってから確定できます（月の最後の営業日の後）";
 const monthShift = (ym: string, n: number) => { const [y, m] = ym.split("-").map(Number); return new Date(Date.UTC(y, m - 1 + n, 1)).toISOString().slice(0, 7); }; // ★便 M3 M-22
 
 export default function StaffWorkPanel({ scope, stores, daily = false, initialMem = null }: { scope: "store" | "me"; stores: { id: string; name: string }[];
@@ -257,7 +259,7 @@ export default function StaffWorkPanel({ scope, stores, daily = false, initialMe
           const p_labor = mig0194On() && lock ? rows.filter((x) => x.m.store_id === r.m.store_id && x.contract && x.pay).map((x) => staffLaborRowOf(x.m.id, x.contract!, x.pay!)) : null;
           const { error } = await supabase.rpc("staff_attendance_confirm", { p_store_id: r.m.store_id, p_period: month, p_lock: lock === true, ...(p_labor ? { p_labor } : {}) });
           setAttBusy(false);
-          if (error) { setAttMsg({ kind: "error", text: error.message.includes("forbidden") ? (lock ? "権限がありません（自店の店長以上）" : "権限がありません（自店の店長以上）") : error.message.includes("labor mismatch") ? `確定額の再計算が合いません（画面を読み直してからもう一度）: ${error.message}` : `失敗: ${rpcErrJa(error.message)}` }); return; }
+          if (error) { setAttMsg({ kind: "error", text: error.message.includes("forbidden") ? (lock ? "権限がありません（自店の店長以上）" : "権限がありません（自店の店長以上）") : error.message.includes("period not ended") ? STAFF_MONTH_OPEN_NOTE /* ★0232 */ : error.message.includes("labor mismatch") ? `確定額の再計算が合いません（画面を読み直してからもう一度）: ${error.message}` : `失敗: ${rpcErrJa(error.message)}` }); return; }
           setAttMsg({ kind: "success", text: lock ? `${month.replace("-", "/")} のスタッフ勤怠を確定しました` : "確定を解除しました" }); await load();
         };
         // ★M-130（裁定471）: 支払い済みにする（店長以上・確定済みの月だけ）／取消（店長以上）＝staff_labor_mark_paid／unmark（冪等キーは開くたびに 1 つ）
@@ -308,7 +310,9 @@ export default function StaffWorkPanel({ scope, stores, daily = false, initialMe
                   {mig0200On() && staffPayMarkableOf({ managerUp: att, locked: monthLocked, paid: !!paid }) && <button type="button" style={{ ...t.btnGold, ...t.btnSm }} data-staff-mark-paid="1" disabled={attBusy} onClick={() => setPayForm({ storeId: r.m.store_id, paidOn: todayBiz, method: "transfer", idem: crypto.randomUUID() })}>支払い済みにする</button>}
                   {monthLocked
                     ? (staffUnlockableOf({ locked: monthLocked, paid: !!paid }) ? <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} data-staff-att-unlock="1" disabled={attBusy} onClick={() => void confirmMonth(false)}>確定を解除</button> : <span style={{ ...t.sub, fontSize: 11.5 }} data-staff-unlock-blocked="1">{STAFF_PAID_UNLOCK_NOTE}</span>)
-                    : <button type="button" style={{ ...t.btnGold, ...t.btnSm }} data-staff-att-lock="1" disabled={attBusy} onClick={() => { if (window.confirm(`${month.replace("-", "/")} のスタッフ勤怠を確定しますか（以後この月の修正・取消はできません）`)) void confirmMonth(true); }}>この月を確定</button>}
+                    : month >= todayBiz.slice(0, 7) /* ★0232（食い違い #106）: 今月と先の月は確定させない（月の途中で確定すると、店の端末のスタッフの打刻が月末まで止まる・関数も 'period not ended' で断る） */
+                      ? <span style={{ ...t.sub, fontSize: 11.5 }} data-staff-att-month-open="1">{STAFF_MONTH_OPEN_NOTE}</span>
+                      : <button type="button" style={{ ...t.btnGold, ...t.btnSm }} data-staff-att-lock="1" disabled={attBusy} onClick={() => { if (window.confirm(`${month.replace("-", "/")} のスタッフ勤怠を確定しますか（以後この月の修正・取消はできません。確定した月は、店の端末でスタッフの打刻もできません）`)) void confirmMonth(true); }}>この月を確定</button>}
                 </div>
                 {payForm && payForm.storeId === r.m.store_id && (/* ★M-130: 支払い済みにする（支払日・方法＝現金／振込）＝キャスト報酬の支払済みと同じ確認の型・額は確定額の合計（RPC が数える） */
                   <Modal onClose={() => { if (!attBusy) setPayForm(null); }} maxWidth={420}>
