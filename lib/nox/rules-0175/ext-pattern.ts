@@ -23,3 +23,31 @@ export const extLineNameOf = (label: string | null | undefined, min: number): st
 export function extCountTextOf(n: number, max = 3): { text: string; over: boolean; full: boolean } {
   return { text: `${n} 件（上限 ${max}${n > max ? "・超過" : ""}）`, over: n > max, full: n >= max };
 }
+
+// ★0224（裁定508（提案）・相談役 11/26 夜便 N の N3）: 延長パターンの数の上限（裁定385 の 1 店 3 本）を撤去。mig0224On() の間の表記と、多いときのレジの一覧。
+/** マスタ「延長パターン」の表記（0224 の後）＝件数だけ（上限・超過・満杯の印は無い） */
+export function extCountTextV2Of(n: number): { text: string; over: boolean; full: boolean } {
+  return { text: `${n} 件`, over: false, full: false };
+}
+/** 凍結メニューの 1 行（0187 の後は band＝営業日の分の [from, to)・時間帯なし＝null・0187 前の凍結は band キーなし） */
+export type ExtPickItem = ExtMenuItem & { band?: { from: number; to: number } | null };
+/** 今の時間帯に合う（now）・時間帯なし（allday）・ほかの時間帯（other） */
+export type ExtPickGroup = "now" | "allday" | "other";
+export const EXT_PICK_GROUP_LABEL: Record<ExtPickGroup, string> = { now: "今の時間帯", allday: "時間帯なし", other: "ほかの時間帯" };
+const hmOf = (biz: number): string => { const m = ((biz % 1440) + 1440) % 1440; return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`; };
+/** 時間帯の表記「20:00〜22:00」（営業日の分＝締めの後は +1440 を戻す）・時間帯なし＝null */
+export const extBandTextOf = (band: ExtPickItem["band"]): string | null => (band ? `${hmOf(band.from)}〜${hmOf(band.to)}` : null);
+/** レジの延長パターンの一覧の並び＝今の時間帯に合うもの → 時間帯なし → ほかの時間帯（各群の中は凍結メニューの順＝既定→priority→作成順）。
+ *  曜日と席種は凍結のときに絞られている（ext_menu_build＝その営業日の曜日・その席種の行だけ）＝ここで並べるのは時間帯だけ。
+ *  heading＝群が 2 つ以上あるときだけ群の頭に見出し（旧い凍結や時間帯の無い店は見出しなし＝今と同じ並び）。 */
+export function extPickerRowsOf<T extends ExtPickItem>(menu: readonly T[] | null | undefined, bm: number, curRuleId: string | null | undefined): { item: T; group: ExtPickGroup; bandText: string | null; current: boolean; heading: string | null }[] {
+  const groupOf = (m: T): ExtPickGroup => (!m.band ? "allday" : m.band.from <= bm && bm < m.band.to ? "now" : "other");
+  const order: ExtPickGroup[] = ["now", "allday", "other"];
+  const rows = (menu ?? []).map((item, ord) => ({ item, ord, group: groupOf(item) }));
+  rows.sort((a, b) => order.indexOf(a.group) - order.indexOf(b.group) || a.ord - b.ord);
+  const multi = new Set(rows.map((r) => r.group)).size >= 2;
+  return rows.map((r, i) => ({ item: r.item, group: r.group, bandText: extBandTextOf(r.item.band), current: !!curRuleId && r.item.rule_id === curRuleId,
+    heading: multi && (i === 0 || rows[i - 1].group !== r.group) ? EXT_PICK_GROUP_LABEL[r.group] : null }));
+}
+/** 一覧の箱の高さ（多いときに画面からはみ出さない＝高さを抑えてスクロール） */
+export const EXT_PICKER_BOX_STYLE = { maxHeight: "min(60vh, 420px)", overflowY: "auto" } as const;

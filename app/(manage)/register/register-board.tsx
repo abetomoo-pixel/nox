@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react"; // ★0224: Fragment＝延長パターンの一覧の見出し
 import { OFF_DUTY_TEXT_STORE, storeDecidesPunchOf } from "@/lib/nox/shift/punch-mode"; // ★便 E（0197 用）
 import MoneyInput from "@/components/ui/money-input"; // ★便 X-11-6: 金額欄の共通部品（数字のみ・3 桁区切り・右に「円」）
 import { UnitBox } from "@/components/ui/unit-input"; // ★便 M5b M-50
@@ -46,12 +46,12 @@ import { BILLING_LOCKED_MSG, isBillingLocked } from "@/lib/billing/messages";
 import { orderLines, twoClassSumsOf, payFeeRatesOf, payFeeNoteOf, payFeeKeyOf, setFrozenNoteOf, cardGrossSplitOf, cardGrossDefaultOf, type PayFeeKey } from "@/lib/nox/register/p173"; // ★便 P173（0173 の client＝裁定385／386／389／391／393）
 import { payFeeOf } from "@/lib/nox/register/p173"; // ★連続便 3 追補 P-8
 import { dueSettingsOf } from "@/lib/nox/rules-0175/rounding"; // ★便 SH-UI-c2 C2-16（裁定424 候補）: 丸めは凍結しない（フラグ true）
-import { mig0187On, rules0175On, seatMovePricingOn } from "@/lib/nox/rules-0175/flag"; // ★連続便 3 追補 P-8／P-10 // ★便 ON-4（裁定427・0182）: 席移動の料金はフラグ
+import { mig0187On, mig0224On, rules0175On, seatMovePricingOn } from "@/lib/nox/rules-0175/flag"; // ★連続便 3 追補 P-8／P-10 // ★便 ON-4（裁定427・0182）: 席移動の料金はフラグ
 import { seatKindChangeOf, seatMoveConfirmTextOf } from "@/lib/nox/register/seat-move"; // ★便 ON-4（裁定427＝C2-23）: 席種が変わる移動の確認文
 import { drinkCountBackOn } from "@/lib/nox/rules-0175/settings"; // ★便 ON-2（CANON ⑨）: ドリンクバック（本数）OFF の店
 import { PAY_FEE_MODE_LABEL, feeAmountArgOf, feeRateEffectiveOf, feeRateInputOf, feeRateStepOf, feeRateTextOf, payFeeModeButtonLabelOf, noteModeOf, payFeeModesFor, payFeeNoteWithModeOf, payFeeRowTextOf, type PayFeeMode } from "@/lib/nox/rules-0175/pay-fee"; // ★連続便 3 追補 P-8（裁定393 追補4）
 import StepBtn from "@/components/ui/step-button"; // ★便 2 M-17 追補: 率の −／＋（長押しで連続＝C2-8 と同じ部品）
-import { extCurrentOf } from "@/lib/nox/rules-0175/ext-pattern"; // ★連続便 3 追補 P-10（裁定408 系）
+import { extCurrentOf, extPickerRowsOf, EXT_PICKER_BOX_STYLE, type ExtPickItem } from "@/lib/nox/rules-0175/ext-pattern"; // ★連続便 3 追補 P-10（裁定408 系） ★0224: 多いときの一覧
 import { discountActionOf, feeModesForRoleOf, staffDiscountCapOf, staffDiscountLevelOf } from "@/lib/nox/rules-0175/staff-discount"; // ★追補 2（裁定421 候補・0175 v2 ★24）
 import { receiptDescDefaultOf } from "@/lib/nox/rules-0175/invoice-receipt"; // ★追補 2 同乗 R-6（裁定422 候補）
 
@@ -3018,7 +3018,22 @@ export default function RegisterBoard({
                   onClick={() => setExtAutoMenu((v) => !v)}>
                   延長パターン: {cur?.label ?? `${check.ext_min}分 ${yen(check.ext_fee)}`} ▾
                 </button>
-                {extAutoMenu && (
+                {extAutoMenu && mig0224On() && (/* ★0224（裁定508（提案））: 延長パターンの数の上限なし＝8〜12 本でも選べる形（今の時間帯に合うもの→時間帯なし→ほかの時間帯・見出し・時間帯の表記・高さを抑えてスクロール） */
+                  <span style={{ position: "absolute", top: "100%", right: 0, marginTop: 4, zIndex: 30, display: "flex", flexDirection: "column", gap: 2, padding: 6,
+                    background: "var(--card)", border: "1px solid var(--line2)", borderRadius: 9, boxShadow: "0 10px 30px rgba(0,0,0,.4)", minWidth: 220, ...EXT_PICKER_BOX_STYLE }} data-ext-picker="auto">
+                    {extPickerRowsOf(menu as ExtPickItem[], bizClockOf(new Date(nowMs), cutoffHm).min, cur?.rule_id ?? null).map((row) => (
+                      <Fragment key={row.item.rule_id}>
+                        {row.heading && <span style={{ fontSize: 11, color: "var(--sub)", padding: "4px 6px 0" }} data-ext-group={row.group}>{row.heading}</span>}
+                        <button type="button" style={{ ...btnLight, justifyContent: "flex-start", whiteSpace: "nowrap", fontWeight: row.current ? 900 : 600, opacity: row.group === "other" ? 0.7 : 1 }}
+                          disabled={extRuleBusy || row.current}
+                          onClick={() => { setExtAutoMenu(false); void setExtRule(row.item.rule_id); }}>
+                          {row.item.label}{row.bandText ? `（${row.bandText}）` : ""}{row.item.is_default ? "（既定）" : ""}{row.current ? " ✓" : ""}
+                        </button>
+                      </Fragment>
+                    ))}
+                  </span>
+                )}
+                {extAutoMenu && !mig0224On() && (
                   <span style={{ position: "absolute", top: "100%", right: 0, marginTop: 4, zIndex: 30, display: "flex", flexDirection: "column", gap: 2, padding: 6,
                     background: "var(--card)", border: "1px solid var(--line2)", borderRadius: 9, boxShadow: "0 10px 30px rgba(0,0,0,.4)", minWidth: 200 }}>
                     {menu.map((m) => (
@@ -3058,7 +3073,23 @@ export default function RegisterBoard({
                         borderTopLeftRadius: 0, borderBottomLeftRadius: 0, opacity: extDisabled ? 0.45 : 1 }}
                       disabled={extDisabled}
                       onClick={() => setExtBarMenu((v) => !v)}>▾</button>
-                    {extBarMenu && (
+                    {extBarMenu && mig0224On() && (/* ★0224（裁定508（提案））: 手動の店の ▾ も同じ並び（今の時間帯→時間帯なし→ほか）・見出し・時間帯・スクロール */
+                      <span style={{ position: "absolute", top: "100%", right: 0, marginTop: 4, zIndex: 30,
+                        display: "flex", flexDirection: "column", gap: 2, padding: 6,
+                        background: "var(--card)", border: "1px solid var(--line2)", borderRadius: 9,
+                        boxShadow: "0 10px 30px rgba(0,0,0,.4)", minWidth: 200, ...EXT_PICKER_BOX_STYLE }} data-ext-picker="bar">
+                        {extPickerRowsOf(menu as ExtPickItem[], bizClockOf(new Date(nowMs), cutoffHm).min, curExt?.rule_id ?? null).map((row) => (
+                          <Fragment key={row.item.rule_id}>
+                            {row.heading && <span style={{ fontSize: 11, color: "var(--sub)", padding: "4px 6px 0" }} data-ext-group={row.group}>{row.heading}</span>}
+                            <button type="button" style={{ ...btnLight, justifyContent: "flex-start", whiteSpace: "nowrap", opacity: row.group === "other" ? 0.7 : 1 }}
+                              onClick={() => { setExtBarMenu(false); void addExtension(row.item.rule_id, "bar"); }}>
+                              {row.item.label}{row.bandText ? `（${row.bandText}）` : ""}{row.item.is_default ? "（既定）" : ""}
+                            </button>
+                          </Fragment>
+                        ))}
+                      </span>
+                    )}
+                    {extBarMenu && !mig0224On() && (
                       <span style={{ position: "absolute", top: "100%", right: 0, marginTop: 4, zIndex: 30,
                         display: "flex", flexDirection: "column", gap: 2, padding: 6,
                         background: "var(--card)", border: "1px solid var(--line2)", borderRadius: 9,
@@ -3619,6 +3650,28 @@ export default function RegisterBoard({
               <div className="nox-actions" data-ext-none="manual" style={{ flexDirection: "column", alignItems: "center", gap: 6, marginTop: 8 }}>
                 <p style={{ fontSize: 12, color: "var(--sub)", margin: 0 }}>{timeEndOf(check.time_end) === "unlimited" ? "初回料金（時間無制限）の卓です＝延長はありません" : "初回料金（時間で終わり）の卓です＝延長しません"}</p>
                 {extBtn.switchToExtend && <button type="button" style={btnDark} data-first-visit-switch="manual" onClick={() => void switchToExtend()}>延長に切り替える</button>}
+              </div>
+            ) : (check.ext_menu_snap?.length ?? 0) >= 2 && mig0224On() ? (/* ★0224（裁定508（提案））: 手動の店の延長パターンのボタン群＝今の時間帯→時間帯なし→ほかの時間帯の段に分けて折り返す（8〜12 本でも並びが読める） */
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }} data-ext-picker="manual">
+                {(() => {
+                  const units = check.time_per === "person" ? (check.people ?? 1) : 1;
+                  const rows = extPickerRowsOf(check.ext_menu_snap as ExtPickItem[], bizClockOf(new Date(nowMs), cutoffHm).min, null);
+                  const groups = [...new Set(rows.map((r) => r.group))];
+                  return groups.map((g) => (
+                    <div key={g}>
+                      {rows.find((r) => r.group === g)?.heading && <p style={{ fontSize: 11, color: "var(--sub)", margin: "0 0 4px" }} data-ext-group={g}>{rows.find((r) => r.group === g)!.heading}</p>}
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                        {rows.filter((r) => r.group === g).map(({ item: m, bandText }) => (
+                          <button key={m.rule_id} onClick={() => void addExtension(m.rule_id)} style={{ ...btnDark, opacity: g === "other" ? 0.75 : 1 }}
+                            disabled={payments.length > 0}
+                            title={payments.length > 0 ? "入金後は追加できません" : ""}>
+                            {m.label}{bandText ? `（${bandText}）` : ""}{m.is_default ? "（既定）" : ""}{units > 1 ? `（×${units}名 ${yen(m.amount * units)}）` : ""}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ));
+                })()}
               </div>
             ) : (check.ext_menu_snap?.length ?? 0) >= 2 ? (
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>

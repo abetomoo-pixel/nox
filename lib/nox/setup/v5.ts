@@ -4,7 +4,7 @@
 import type { MineSettings } from "../store/mine-settings";
 import { mineSettingsPatchOf } from "../store/mine-settings";
 import { presetsWithAmountsOf } from "../payroll/settlement"; // ★便 D 裁定455-3: 既定 2 件の額は ⑦ の 2 欄から
-import { mig0190On, mig0191On, mig0197On, mig0202fOn } from "../rules-0175/flag"; // ★0190／0191 のフラグ true 便: 器なし項目を実保存に（false の間は従来＝「後で（マスタから）」）
+import { mig0190On, mig0191On, mig0197On, mig0202fOn, mig0224On } from "../rules-0175/flag"; // ★0190／0191 のフラグ true 便: 器なし項目を実保存に（false の間は従来＝「後で（マスタから）」）
 /** ★0191 ★1: 締め日の表記→settlement_close_day（15／20／25／31＝末日） */
 export const CLOSE_DAY_OF: Record<string, 15 | 20 | 25 | 31> = { "15": 15, "20": 20, "25": 25, "末日": 31 };
 const pct100 = (n: number): number => Math.max(0, Math.min(100, Math.round(n || 0)));
@@ -398,12 +398,14 @@ export function buildV5Plan(S: V5State, ctx: V5Ctx): { steps: V5Step[]; deferred
   const commonOf = (r: V5Rule, i: number) => { const allHours = r.from === S.shop.open && r.to === S.shop.close; const tf = allHours ? null : minOf(r.from), tt = allHours ? null : minOf(r.to); return { p_seat_kind: seatKind(r.seat), p_dow_mask: dowMask(r.days), p_time_from_min: tf, p_time_to_min: tt, p_priority: (i + 1) * 10 }; };
   S.rules.forEach((r, i) => ruleBase(`rule_${i}`, r.name, { ...commonOf(r, i), p_fee_kind: "set", p_amount: r.set, p_duration_min: r.min || null }));
   // 延長パターン＝店で 3 本まで（裁定385＝set_pricing_rule 'too many extension'）: パターン数の多いルールから順に詰め、既定は最初の 1 本。入り切らない分は「後で（マスタ › 料金）」
-  let extLeft = 3; let extDropped = 0; let defSet = false; const extSeen = new Set<string>();
+  //   ★0224（裁定508（提案））: mig0224On() の間は上限なし＝全部入れる。重なりを外す鍵は席種・曜日・時間帯・長さ（平日 60 と週末 60 は別のパターン＝今は「席種:長さ」で 2 本目を落としていた）
+  const uncap = mig0224On();
+  let extLeft = uncap ? Number.POSITIVE_INFINITY : 3; let extDropped = 0; let defSet = false; const extSeen = new Set<string>();
   S.rules.map((r, i) => ({ r, i })).sort((a, b) => b.r.ext.length - a.r.ext.length || a.i - b.i).forEach(({ r, i }) => {
-    r.ext.forEach((e, j) => { const key = `${seatKind(r.seat) ?? "all"}:${e[0]}`; if (extLeft <= 0 || extSeen.has(key)) { extDropped++; return; } extSeen.add(key); extLeft--; const isDef = !defSet && !!e[2]; if (isDef) defSet = true;
+    r.ext.forEach((e, j) => { const c = commonOf(r, i); const key = uncap ? `${seatKind(r.seat) ?? "all"}:${c.p_dow_mask ?? "all"}:${c.p_time_from_min ?? "-"}-${c.p_time_to_min ?? "-"}:${e[0]}` : `${seatKind(r.seat) ?? "all"}:${e[0]}`; if (extLeft <= 0 || extSeen.has(key)) { extDropped++; return; } extSeen.add(key); extLeft--; const isDef = !defSet && !!e[2]; if (isDef) defSet = true;
       ruleBase(`rule_${i}_ext_${j}`, `${r.name} 延長 ${e[0]}分`, { ...commonOf(r, i), p_fee_kind: "extension", p_amount: e[1], p_duration_min: e[0], p_is_default_ext: isDef }); });
   });
-  if (extDropped > 0) deferred.push({ item: `延長パターン ${extDropped} 本`, note: "店で 3 本まで（残りはマスタ › 料金で）" });
+  if (extDropped > 0) deferred.push({ item: `延長パターン ${extDropped} 本`, note: uncap ? "同じ席種・曜日・時間帯・長さの重なり（直すならマスタ › 料金で）" : "店で 3 本まで（残りはマスタ › 料金で）" });
   if (S.vip.on) { ruleBase("rule_vip", `VIP 料金（${S.vip.mode === "table" ? "卓ごと" : "人ごと"}）`, { p_fee_kind: "vip_charge", p_seat_kind: "VIP", p_amount: S.vip.amt, p_billing_unit: S.vip.mode === "person" ? "person" : "table" });
     push({ key: "rule_vip_timing", group: "pricing", label: `VIP 料金のタイミング（${S.vip.per === "set" ? "セットごと" : "入店時に 1 回"}）`, rpc: "set_pricing_rule_vip", useResult: { from: "rule_vip", as: "p_id" }, args: { p_vip_timing: S.vip.per === "set" ? "per_set" : "on_entry", p_vip_ext_amount: S.vip.per === "set" ? S.vip.ext : null } }); }
   // 5) 商品（既存 0 のときだけ）＋バックの上書き

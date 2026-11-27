@@ -1,7 +1,7 @@
 "use client";
 import TimeInput from "@/components/ui/time-input"; // ★便 M5b M-51: 時刻欄の共通部品（時計アイコン・時と分を選ぶ・翌の表示）
 import { UnitBox } from "@/components/ui/unit-input"; // ★便 M5b M-50
-import { rules0175On, mig0208On, mig0210On, mig0217On } from "@/lib/nox/rules-0175/flag"; // ★便 SH-UI-c2 C2-16 ③
+import { rules0175On, mig0208On, mig0210On, mig0217On, mig0224On } from "@/lib/nox/rules-0175/flag"; // ★便 SH-UI-c2 C2-16 ③ ★0224（裁定508（提案））: 延長パターンの上限の撤去
 import { payFeeRatesOf } from "@/lib/nox/register/p173"; // ★便 X13-G W-17: お客様に請求するカード手数料＝pay_fee_rates.card
 
 // 料金設定ボード（料金UIレーン C1）。
@@ -48,7 +48,7 @@ import TimePricingPanel from "../time-pricing-panel";
 import StoreFlagToggle from "../store-flag-toggle"; // ★mig0144: ext_shimei_enabled／dohan_auto_hon のトグル（set_store_profile）
 import { mineSettingsErrJa, mineSettingsOf } from "@/lib/nox/store/mine-settings"; // ★0160（起票96・便 M4-4）: contract_ack（加盟店契約の確認の記録＝店設定 8 キー目）
 import { swapAdjacent, reorderErrJa } from "@/lib/nox/ui/reorder";
-import { extCountTextOf } from "@/lib/nox/rules-0175/ext-pattern"; // ★連続便 3 追補 P-10 ④
+import { extCountTextOf, extCountTextV2Of } from "@/lib/nox/rules-0175/ext-pattern"; // ★連続便 3 追補 P-10 ④ ★0224: 件数だけ
 import DowChips from "@/components/ui/dow-chips"; // ★M-144 ②: 定休日の曜日は灰色＋「定休」で選べない
 import { maskBitOfBizDow, maskOfDays, openDaysOf } from "@/lib/nox/pricing/closed-dows";
 import { bandWarningsOf, bandShadowFixOrderOf, BAND_SHADOW_HEAD_JA, BAND_SHADOW_BTN_JA, BAND_SHADOW_DONE_JA, BAND_DEFAULT_EXT_HEAD_JA, BAND_DEFAULT_EXT_JA, BAND_DEFAULT_EXT_WHERE_JA, type BandCond, type BandShadow } from "@/lib/nox/pricing/band-shadow"; // ★裁定515-3（11/27 Agoora）: 当たらない下の行を上へ動かすボタン（並べ替えは今の pricing_rule_reorder）
@@ -123,7 +123,7 @@ function ruleErrJa(msg: string | undefined): string {
   if (msg.includes("bad category kind")) return "指名料には区分を設定できません";
   if (msg.includes("inactive category")) return "停止中の区分は新しく指定できません";
   if (msg.includes("bad category")) return "区分の指定が不正です（再読込してください）";
-  if (msg.includes("too many extension")) return "延長パターンは 1 店 3 つまでです（既存を停止するか編集してください）"; // ★0173（裁定385）
+  if (!mig0224On() && msg.includes("too many extension")) return "延長パターンは 1 店 3 つまでです（既存を停止するか編集してください）"; // ★0173（裁定385）★0224（裁定508（提案））: 上限の撤去の後は DB が断らない＝和文も出さない
   if (msg.includes("bad default_ext")) return "既定にできるのは延長パターンだけです"; // ★0173
   if (msg.includes("bad amount")) return "金額は0以上で入力してください";
   if (msg.includes("bad duration")) return "分数の指定が不正です（1以上・セット/延長のみ）";
@@ -594,7 +594,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
         }
         continue;
       }
-      if (fk === "extension" && !existing && rules.filter((r) => r.fee_kind === "extension" && r.is_active).length >= 3) { setMErr("延長パターンは 3 件までです（既存を停止するか編集してください）"); setBusy(false); return; } // ★連続便 3 追補 P-10 ④: 4 件目は送らない（RPC 'too many extension' の先回り）
+      if (!mig0224On() /* ★0224: 上限の撤去の後は先回りしない */ && fk === "extension" && !existing && rules.filter((r) => r.fee_kind === "extension" && r.is_active).length >= 3) { setMErr("延長パターンは 3 件までです（既存を停止するか編集してください）"); setBusy(false); return; } // ★連続便 3 追補 P-10 ④: 4 件目は送らない（RPC 'too many extension' の先回り）
       const err = await upsertRule({
         id: existing?.id ?? null, fee_kind: fk, seat_kind: mSeat === "" ? null : mSeat,
         dow_mask: dow, from, to, rank_id: null,
@@ -1001,6 +1001,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
           {/* ★便 P173（裁定385・0173）: 延長パターン＝有効な延長ルール（1 店 3 つまで・RPC 'too many extension'）と既定（is_default_ext＝1 本・自動延長の店は既定を自動適用・手動延長はレジで選択・自動延長後の切替は差額引き直し） */}
           {(() => {
             const exts = rules.filter((r) => r.fee_kind === "extension" && r.is_active).sort(ruleOrder);
+            const extCount = mig0224On() ? extCountTextV2Of(exts.length) : extCountTextOf(exts.length); // ★0224（裁定508（提案））: 件数だけ（上限・超過の印なし）
             const setDefault = async (r: PricingRule) => {
               setBusy(true);
               const err = await upsertRule({ id: r.id, fee_kind: r.fee_kind, seat_kind: r.seat_kind, dow_mask: r.dow_mask, from: r.time_from_min, to: r.time_to_min, rank_id: r.rank_id,
@@ -1011,10 +1012,14 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
             };
             return (
               <section className="nox-cardtop" style={{ ...card, marginBottom: 14 }} data-ext-patterns="1">
-                <h3 style={{ margin: "0 0 6px", fontSize: 14 }}>延長パターン <span className={`nox-stpill${extCountTextOf(exts.length).over ? " bad" : ""}`} style={{ marginLeft: 6 }} data-ext-count={exts.length}>{extCountTextOf(exts.length).text}</span></h3>{/* ★連続便 3 追補 P-10 ④: 「4/3」→実数＋上限 */}
-                {extCountTextOf(exts.length).over && <p style={{ fontSize: 12, color: "var(--bad)", margin: "0 0 6px" }} data-ext-over="1">延長パターンは 3 件までです。超えている分は停止するか編集してください（4 件目以降は追加できません）。</p>}
-                <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "0 0 8px", lineHeight: 1.7 }}>
-                  延長は 1 店 3 パターンまで（料金ルールの「延長料金」の行）。自動延長の店は<b>既定</b>を自動で当て、手動延長の店はレジで選びます。自動延長後の切替はレジの「延長パターン ▾」（確定済みの延長は新しい単価で引き直し）。
+                <h3 style={{ margin: "0 0 6px", fontSize: 14 }}>延長パターン <span className={`nox-stpill${extCount.over ? " bad" : ""}`} style={{ marginLeft: 6 }} data-ext-count={exts.length}>{extCount.text}</span></h3>{/* ★連続便 3 追補 P-10 ④: 「4/3」→実数＋上限 ★0224: 件数だけ */}
+                {extCount.over && <p style={{ fontSize: 12, color: "var(--bad)", margin: "0 0 6px" }} data-ext-over="1">延長パターンは 3 件までです。超えている分は停止するか編集してください（4 件目以降は追加できません）。</p>}
+                <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "0 0 8px", lineHeight: 1.7 }} data-ext-note={mig0224On() ? "uncap" : "cap3"}>
+                  {mig0224On() ? (
+                    <>延長は料金ルールの「延長料金」の行（数の上限なし・平日／週末・時間帯・30 分／60 分などを分けて並べられます）。自動延長の店は<b>既定</b>を自動で当て、手動延長の店はレジで選びます（今の時間帯に合うものが上）。自動延長後の切替はレジの「延長パターン ▾」（確定済みの延長は新しい単価で引き直し）。</>
+                  ) : (
+                    <>延長は 1 店 3 パターンまで（料金ルールの「延長料金」の行）。自動延長の店は<b>既定</b>を自動で当て、手動延長の店はレジで選びます。自動延長後の切替はレジの「延長パターン ▾」（確定済みの延長は新しい単価で引き直し）。</>
+                  )}
                 </p>
                 {exts.length === 0 ? <p style={{ fontSize: 12, color: "var(--sub)", margin: 0 }}>有効な延長パターンがありません（下の料金適用ルールで「延長料金」を入れると並びます）。</p> : (
                   <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
