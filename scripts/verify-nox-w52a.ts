@@ -11,6 +11,7 @@
  */
 import fs from "node:fs";
 import { OPS_DEFAULT, opsPatchErrorOf, opsPatchOf, opsProfileOf, opsSummaryOf } from "../lib/nox/store/ops-profile";
+import { mig0233On } from "../lib/nox/rules-0175/flag";
 import { hiddenKindsOf, seatsVisibleOf } from "../lib/nox/floor-kinds";
 import { SETUP_HIDDEN_ITEMS } from "../lib/nox/setup/template-plan";
 
@@ -24,7 +25,7 @@ const src = (p: string) => fs.readFileSync(p, "utf8");
   const o = opsProfileOf({ invoice_registered_on: "2026-10-01", pay_day: 15, price_display: "tax_included", use_vip: false, use_counter: true, payment_methods: { cash: false, card: false, qr: true }, punch_methods: { self: false } });
   check("op(1-1) opsProfileOf: 列→形（cash は常に true・欠損キーは既定・use_vip false）", o.invoice_registered_on === "2026-10-01" && o.pay_day === "15" && o.tax_inclusive_display && !o.use_vip && o.use_counter
     && o.payment_methods.cash && !o.payment_methods.card && !o.payment_methods.emoney && o.payment_methods.qr && !o.punch_methods.self && o.punch_methods.proxy && o.punch_methods.kiosk, JSON.stringify(o));
-  check("op(1-2) opsProfileOf(null)＝OPS_DEFAULT と同値（既定 25・外税・VIP／カウンター あり・現金＋カード・打刻 3 つ）", JSON.stringify(opsProfileOf(null)) === JSON.stringify(OPS_DEFAULT));
+  check("op(1-2) opsProfileOf(null)＝OPS_DEFAULT と同値（既定 25・外税・VIP／カウンター あり・現金＋カード・打刻 3 つ）", JSON.stringify(opsProfileOf(null)) === JSON.stringify(mig0233On() ? { ...OPS_DEFAULT, punch_methods: { ...OPS_DEFAULT.punch_methods, cast_kiosk: true } } : OPS_DEFAULT)); /* ★0233（2026-11-27 適用・旗 true）: 旗 true の間は opsProfileOf が cast_kiosk の鍵を持つ（既定 true）＝OPS_DEFAULT に鍵を足した形と同値 */
   const p = opsPatchOf({ ...OPS_DEFAULT, invoice_registered_on: "", pay_day: "20", payment_methods: { cash: false, card: true, emoney: true, qr: false } }, { ...OPS_DEFAULT, invoice_registered_on: "2026-01-01" });
   check("op(1-3) opsPatchOf: 差分だけ（invoice ''→null・pay_day 数値 20・payment_methods は丸ごと＋cash true）・不変のキーは送らない", JSON.stringify(p) === JSON.stringify({ invoice_registered_on: null, pay_day: 20, payment_methods: { cash: true, card: true, emoney: true, qr: false } }), JSON.stringify(p));
   check("op(1-4) opsPatchOf: 同値なら {}", JSON.stringify(opsPatchOf(OPS_DEFAULT, OPS_DEFAULT)) === "{}");
