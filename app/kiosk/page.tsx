@@ -18,10 +18,10 @@ import * as t from "@/lib/nox/ui/theme";
 import { Message } from "@/components/ui/toast"; // ★裁定281（便 U）: メッセージ表示の共通部品
 // ★裁定319／319 追補1（0158・便 AB-4）: 退勤の前に kiosk_punch_state を読み、送りの方式が実費（actual）の店だけ「送り あり／なし」を聞く。
 //   あり＝kiosk_punch(p_okuri=true)→kiosk_transport_issue(punch_id)（金額はサーバが店の基本額で決める）。基本額が未設定の店は発行せず注記のみ。一律（flat）の店は口を出さない。
-import { okuriSelfPlanOf, OKURI_PENDING_NOTE, type OkuriSelfPlan } from "@/lib/nox/shift/okuri-self";
+import { okuriSelfPlanOf, OKURI_PENDING_NOTE, OKURI_ZERO_NOTE, type OkuriSelfPlan } from "@/lib/nox/shift/okuri-self";
 import { okuriOutTextOf, okuriRecordedTextOf } from "@/lib/nox/shift/okuri-mode"; // ★裁定414（S-4）: 方式の 1 文・「記録」
 import { rpcErrJa } from "@/lib/nox/ui/rpc-err"; // ★裁定327（0161・便 M1-4）: 順序検査の拒否 3 語は端末にも同じ和文
-import { mig0190On, mig0196On, mig0198On, mig0201On, rules0175On } from "@/lib/nox/rules-0175/flag";
+import { mig0190On, mig0196On, mig0198On, mig0201On, okuriTiersOn, rules0175On } from "@/lib/nox/rules-0175/flag"; // ★0236 追補（11/27）: okuriTiersOn
 import { DAY_DED_PICK_HEAD, dayDedPickLabelOf, dayDedPickRowsOf, dayDedAppliedTextOf, type DayDedPickRule, type DayDedApplied } from "@/lib/nox/payroll/day-ded-pick"; // ★便 D M-103 ★0198（裁定461 ②） // ★追補 2 同乗 R-7 ★0190: mig0190On
 import { bindErrJa, browserDeviceFp } from "@/lib/nox/kiosk/device-fp"; // ★0190（裁定436 ①b）: 端末の束縛＝ログイン直後に kiosk_device_bind
 import { KIOSK_FEATURE_READY, KIOSK_NO_TILES_NOTE, KIOSK_PUNCH_OFF_NOTE, kioskTilesShownOf } from "@/lib/nox/rules-0175/kiosk"; // ★裁定468（M-127） // ★0190（裁定435）: 5 タイル（シフト・在庫・日報は案内画面）
@@ -182,7 +182,18 @@ export default function KioskPage() {
     setBusy(false);
     const plan = okuriSelfPlanOf(error ? null : (data as { okuri_mode?: unknown; okuri_base_amount?: unknown } | null));
     if (!plan.ask) { void punch("out"); return; }
-    setOkuriPlan(plan); setPhase("okuri");
+    // ★0236 追補（11/27・相談役 11:15）: 「送り ¥…」と「記録しました」の額＝記録する額（このキャストの送り区分の額 → ベース額・0236 の kiosk_transport_issue と同じ）。
+    //   端末は stores／casts を読めない＝/api/kiosk/okuri-amount（端末の店のキャスト 1 人だけ・読むだけ）。読めなければベース額のまま（前と同じ）。
+    let tierAmt: number | null = null;
+    if (plan.issue && okuriTiersOn()) {
+      setBusy(true);
+      try {
+        const res = await fetch(`/api/kiosk/okuri-amount?cast_id=${encodeURIComponent(target.cast_id)}`);
+        const j = res.ok ? ((await res.json()) as { amount?: unknown }) : null;
+        tierAmt = typeof j?.amount === "number" && Number.isInteger(j.amount) && j.amount >= 0 ? j.amount : null;
+      } catch { tierAmt = null; } finally { setBusy(false); }
+    }
+    setOkuriPlan(tierAmt !== null ? { ...plan, amount: tierAmt } : plan); setPhase("okuri");
   }
 
   async function punch(type: "in" | "out", okuri?: boolean, dayRows?: { deduction_id: string; enabled: boolean }[] | null) {
@@ -201,8 +212,8 @@ export default function KioskPage() {
     if (!error && pj?.ok && type === "in" && mig0198On() && Array.isArray(pj.day_applied)) note = dayDedAppliedTextOf(pj.day_applied as DayDedApplied[]); // ★0198（裁定461 ②・M-120）: 店が付けた今日の控除＝表示だけ（kiosk_punch の返り day_applied）
     if (!error && pj?.ok && type === "out" && okuri) {
       if (okuriPlan?.issue && pj.punch_id) {
-        const { error: eT } = await supabase.rpc("kiosk_transport_issue", { p_punch_id: pj.punch_id });
-        note = eT ? OKURI_PENDING_NOTE : okuriRecordedTextOf(okuriPlan.mode, okuriPlan.amount ?? 0); // ★裁定414: 方式の 1 文
+        const { data: tId, error: eT } = await supabase.rpc("kiosk_transport_issue", { p_punch_id: pj.punch_id });
+        note = eT ? OKURI_PENDING_NOTE : tId == null ? OKURI_ZERO_NOTE /* ★0236（Agoora の決め 11/26 22:50）: 区分の額 0 円＝行を作らない */ : okuriRecordedTextOf(okuriPlan.mode, okuriPlan.amount ?? 0); // ★裁定414: 方式の 1 文
       } else note = OKURI_PENDING_NOTE;
     }
     setBusy(false);
@@ -385,7 +396,7 @@ export default function KioskPage() {
             <p style={{ textAlign: "center", fontSize: 17, fontWeight: 800, margin: "0 0 4px" }}>{target.cast_name}</p>
             <p style={{ textAlign: "center", ...t.sub, margin: "0 0 14px" }}>送りを使いますか</p>
             <p style={{ textAlign: "center", fontSize: 14, margin: "0 0 14px" }} data-okuri-text={okuriPlan.mode}>
-              {okuriPlan.amount !== null ? okuriOutTextOf(okuriPlan.mode, okuriPlan.amount) : OKURI_PENDING_NOTE}{/* ★裁定414: 方式の 1 文 */}
+              {okuriPlan.amount === 0 ? OKURI_ZERO_NOTE /* ★0236 追補（11/27）: 区分の額 0 円＝記録しない */ : okuriPlan.amount !== null ? okuriOutTextOf(okuriPlan.mode, okuriPlan.amount) : OKURI_PENDING_NOTE}{/* ★裁定414: 方式の 1 文 */}
             </p>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
               <button disabled={busy} onClick={() => void punch("out", true)}

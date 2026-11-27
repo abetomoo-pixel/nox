@@ -35,7 +35,7 @@ import { termOf, type CorrectionRow } from "@/lib/nox/shift/punch-correction";
 import PhotoCard from "./photo-card";
 import ContractAckGate from "./contract-ack-gate"; // ★0162 ★4（裁定326 追補7-6・便 M5-2）: 契約確認（店 ON かつ未記録のときだけ最上部）
 import { castTermsSummaryOf, contractAckGateOf } from "@/lib/nox/mine/contract-ack"; // ★便 M5 M-33: 本文＝本人の基本条件の要約（page が既に読んだ値だけ）
-import { okuriFlatTiersOf } from "@/lib/nox/shift/okuri-mode"; // ★便 M5 M-33: 本人の距離区分の名前
+import { okuriFlatTiersOf, okuriTiersInEffectOf, okuriTierAmountOf } from "@/lib/nox/shift/okuri-mode"; // ★0236 決め d: okuriTiersInEffectOf // ★0236（#64）: okuriTierAmountOf // ★便 M5 M-33: 本人の距離区分の名前
 import { okuriTiersOn } from "@/lib/nox/rules-0175/flag"; // ★便 M5 M-33: casts.okuri_tier は 0180 後だけ読む
 import { Message } from "@/components/ui/toast"; // ★便 M5 M-40 (c): /register を通さなかった理由
 import { castRegisterDenyTextOf } from "@/lib/nox/register/p173"; // ★便 M5 M-40 (c)
@@ -346,7 +346,8 @@ export default async function MinePage({ searchParams }: { searchParams?: Promis
         {minePunchOff ? (<><p className="nox-pstate" data-cast-punch-off="1" style={{ margin: "0 0 6px" }}>出勤・退勤は店が記録します</p>{mig0198On() && mineDayDedApplied !== null && <p data-mine-day-ded-applied={String(mineDayDedApplied.length)} style={{ fontSize: 12.5, color: "var(--sub)", margin: "0 0 8px" }}>{dayDedAppliedTextOf(mineDayDedApplied)}</p>}</>) : opsProfileOf(myStore as Record<string, unknown> | undefined).punch_methods.self ? (
         <PunchActions state={ps.state} breakOn={mineBreakOn} onBreak={mineOnBreak} /* ★0214 */ okuriMode={okuriModeOf((myStore?.settings_json ?? {}) as Record<string, unknown>)} /* ★裁定414（S-4）: 4 方式＝'none' 以外で導線 */
           dayDedRules={mineDayDedRules} bizToday={bizToday} /* ★便 D M-103: 出勤時の「今日の控除」（0196 まで空） */ dayDedApplied={mineDayDedApplied} /* ★0198（裁定461 ②）: 表示だけ */
-          okuriBase={typeof ((myStore?.settings_json ?? {}) as Record<string, unknown>).okuri_base_amount === "number" ? (((myStore?.settings_json ?? {}) as Record<string, unknown>).okuri_base_amount as number) : null} />
+          okuriBase={((b: number | null) => (b !== null && b > 0 ? okuriTierAmountOf(okuriTiersInEffectOf((myStore?.settings_json ?? {}) as Record<string, unknown>).filter((x) => x.amount > 0), meCast?.okuri_tier, b) : b))(typeof ((myStore?.settings_json ?? {}) as Record<string, unknown>).okuri_base_amount === "number" ? (((myStore?.settings_json ?? {}) as Record<string, unknown>).okuri_base_amount as number) : null)} /* ★0236（#64）: 区分のある人は区分の額（ベース額が無い店は今のまま＝記録しない） */
+          okuriZero={typeof ((myStore?.settings_json ?? {}) as Record<string, unknown>).okuri_base_amount === "number" && (((myStore?.settings_json ?? {}) as Record<string, unknown>).okuri_base_amount as number) > 0 && okuriTiersInEffectOf((myStore?.settings_json ?? {}) as Record<string, unknown>).some((x) => x.code === meCast?.okuri_tier && x.amount === 0)} /* ★0236（Agoora の決め 11/26 22:50）: 区分の額が 0 円＝送りは記録しない */ />
         ) : (
           <><p className="nox-pstate" style={{ color: "var(--sub)" }}>この店はスマホからの打刻を使っていません（出退勤は店の代行か打刻端末で記録します）</p>{mig0198On() && mineDayDedApplied !== null && <p data-mine-day-ded-applied={String(mineDayDedApplied.length)} style={{ fontSize: 12.5, color: "var(--sub)", margin: "0 0 8px" }}>{dayDedAppliedTextOf(mineDayDedApplied)}</p>}</>
         )}{/* ★0156（裁定309-9）: actual 店のみ「送り あり／なし」 */}

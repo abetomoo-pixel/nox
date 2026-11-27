@@ -76,6 +76,11 @@ export function okuriFlatTiersOf(settings: Record<string, unknown> | null | unde
   return v.filter((e): e is OkuriFlatTier => !!e && typeof e === "object" && typeof (e as OkuriFlatTier).code === "string" && typeof (e as OkuriFlatTier).name === "string" && typeof (e as OkuriFlatTier).amount === "number")
     .slice(0, OKURI_FLAT_TIERS_MAX).map((e) => ({ code: e.code, name: e.name, amount: Math.max(0, Math.trunc(e.amount)) }));
 }
+/** ★0236 決め d 版（11/27・Agoora に確認中・相談役の推し）: 送りの区分の額を使うのは、送りの方式が定額（flat）の店だけ＝それ以外の店は区分なし（[]）。
+ *  区分の画面は定額の店だけに出る（deduction-panel・casts-board）＝定額で区分を付けた後に実費・店負担へ替えた店で、画面に出ない区分が額を決めない。0236d の本体と同じ。 */
+export function okuriTiersInEffectOf(settings: Record<string, unknown> | null | undefined): OkuriFlatTier[] {
+  return okuriModeOf(settings) === "flat" ? okuriFlatTiersOf(settings) : [];
+}
 /** 区分の額（code 一致）→無ければベース額（出勤日の送りの既定＝当日だけ変更可） */
 export function okuriTierAmountOf(tiers: readonly OkuriFlatTier[], code: string | null | undefined, base: number): number {
   const t = code ? tiers.find((x) => x.code === code) : undefined;

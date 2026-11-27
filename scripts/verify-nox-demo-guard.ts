@@ -63,6 +63,7 @@ const ALLOW = new Set<string>([
   "advance/issue-bulk", "transport/issue-bulk", // ★mig0157（裁定302／304・2026-09-25）: 一括発行＝単発と同じ C（RPC が二重防御・デモ org も可）
   "mine/norm-progress", "store/okuri-mode", // ★便 M2-1（裁定326-3）: mine/norm-set は削除（set_cast_norm_self は 0160 で drop＝cast の自己設定は廃止）
   "demo/enter", "demo/reset",
+  "kiosk/okuri-amount", // ★0236d の画面（2026-11-27）: 端末の送りの額を読むだけ（書込なし）
   "kiosk/punch-methods", // ★便 X13-G W-23: 端末の店の打刻設定を読むだけ（書込なし・デモ org も可）
   "attendance/sheet", // ★便 SH-UI-c C-2: 勤怠一覧（guardPayroll・読取のみ＝給与 preview と同じ・デモ org も可）
   "home/pending", // ★便 SH-UI-c2 C2-13: HOME の要承認とベル（利用者の client＝RLS・読取のみ・デモ org も可）

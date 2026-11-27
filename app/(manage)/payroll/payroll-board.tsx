@@ -1013,7 +1013,7 @@ ${md.message}（入れずに確定すると控除 0 のまま確定します）`
             const guard = finalizeGuardOf(periodEndOf(period), bizDateOf(new Date().toISOString(), cutoffHm));
             const why = !guard.ok ? guard.message : blockers.length > 0 ? `要対応 ${blockers.length} 件を解消してください` : rows.length === 0 ? "対象キャストがいません" : "";
             return (
-              <div className="nox-actions" style={{ gap: 10 }}>{/* ★裁定244: 節直下の実行＝中央（why 注記は隣に残す） */}
+              <div className="nox-actions" style={{ gap: 10, marginTop: 10 /* ★2026-11-27（相談役 14:45）: 合計の枠とのすき間（枠の上と同じ 10） */ }}>{/* ★裁定244: 節直下の実行＝中央（why 注記は隣に残す） */}
                 <button onClick={finalize} disabled={busy || !guard.ok || blockers.length > 0 || rows.length === 0}
                   title={why || undefined} style={blockers.length ? { ...t.btnGhost } : { ...t.btnGold }}>
                   この期間を確定する

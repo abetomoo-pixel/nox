@@ -10,7 +10,8 @@ import { useCallback, useEffect, useState } from "react";
 import MoneyInput from "@/components/ui/money-input"; // ★便 X-11-6: 金額欄の共通部品（数字のみ・3 桁区切り・右に「円」）
 import { createClient } from "@/lib/supabase/client";
 import SegSelect from "@/components/ui/seg-select";
-import { OKURI_MODE_LABEL, okuriModeOf } from "@/lib/nox/shift/okuri-mode"; // ★便 ON-4（0177 残り）
+import { OKURI_MODE_LABEL, okuriModeOf, okuriTiersInEffectOf, okuriTierAmountOf } from "@/lib/nox/shift/okuri-mode"; // ★便 ON-4（0177 残り）・★0236（#64）: 距離区分
+import { okuriTiersOn } from "@/lib/nox/rules-0175/flag"; // ★0236（#64）
 
 /** ★便 ON-4（0177 残り・裁定414）: 一括フォームの見出し＝店の送り方式で。なし＝前借りだけ */
 export function bulkHeadOf(mode: string | null | undefined): string {
@@ -53,6 +54,19 @@ export default function IssueBulkForm({ storeId, casts, okuriMode, okuriBase = 0
   const [cancelArm, setCancelArm] = useState<string | null>(null);
   const [cancelBusy, setCancelBusy] = useState<string | null>(null);
   const prefillOf = useCallback((k: IssueKind) => (k === "transport" ? okuriBase : 0), [okuriBase]);
+  // ★0236（#64・重大 R15）: 送りの行の既定＝キャストの送り区分の額（無ければベース額・額 0 の区分は空欄＝記録しない＝Agoora の決め 11/26 22:50）。店の区分とキャストの区分は 0180 の後だけ 2 本読む
+  const [tierAmt, setTierAmt] = useState<Record<string, number>>({});
+  useEffect(() => {
+    if (!okuriTiersOn()) return;
+    let alive = true;
+    void Promise.all([supabase.from("stores").select("settings_json").eq("id", storeId).maybeSingle(), supabase.from("casts").select("id, okuri_tier").eq("store_id", storeId).not("okuri_tier", "is", null)]).then(([st, cs]) => {
+      const tiers = okuriTiersInEffectOf(((st.data ?? null) as { settings_json?: Record<string, unknown> | null } | null)?.settings_json ?? null); /* ★0236 決め d: 定額の店だけ */
+      const m: Record<string, number> = {};
+      for (const c of (cs.data ?? []) as { id: string; okuri_tier: string | null }[]) { if (tiers.some((x) => x.code === c.okuri_tier)) m[c.id] = okuriTierAmountOf(tiers, c.okuri_tier, 0); }   // 額 0 の区分も 0 で持つ
+      if (alive) setTierAmt(m);
+    });
+    return () => { alive = false; };
+  }, [supabase, storeId]);
 
   // ★302-1: 当日（営業日）の出勤者と発行済み一覧＝1 回の取得（attendance／advances／transport の 3 クエリ並列・他に既存取得なし＝+1）
   const load = useCallback(async () => {
@@ -69,7 +83,7 @@ export default function IssueBulkForm({ storeId, casts, okuriMode, okuriBase = 0
   }, [supabase, storeId, bizToday]);
   useEffect(() => { void load(); }, [load]);
   // 候補の並び（出勤者が上）とプリフィルは attended／kind が決まるたびに組み直す（チェックと金額はリセット＝発行の取り違え防止）
-  useEffect(() => { setRows(candidatesOf(casts, attended, prefillOf(kind))); }, [casts, attended, kind, prefillOf]);
+  useEffect(() => { setRows(candidatesOf(casts, attended, prefillOf(kind)).map((r) => (kind === "transport" && okuriBase > 0 && tierAmt[r.castId] !== undefined ? { ...r, amount: tierAmt[r.castId] > 0 ? String(tierAmt[r.castId]) : "" } : r))); }, [casts, attended, kind, prefillOf, okuriBase, tierAmt]); // ★0236（#64）: 区分のあるキャストは区分の額
 
   const label = ISSUE_LABEL[kind];
   const disabled = kind === "transport" && !okuriOn;

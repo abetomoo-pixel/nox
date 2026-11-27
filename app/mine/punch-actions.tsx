@@ -10,7 +10,7 @@ import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import Toast from "@/components/ui/toast";
 import { rpcErrJa } from "@/lib/nox/ui/rpc-err";
-import { okuriSelfPlanOf, okuriResultTextOf, OKURI_PENDING_NOTE } from "@/lib/nox/shift/okuri-self";
+import { okuriSelfPlanOf, okuriResultTextOf, OKURI_PENDING_NOTE, OKURI_ZERO_NOTE } from "@/lib/nox/shift/okuri-self";
 import { okuriOutTextOf, type OkuriMode } from "@/lib/nox/shift/okuri-mode"; // ★裁定414（S-4）: 方式の 1 文
 import { PUNCH_STATE_NOTE, punchButtonsOf, punchButtonsShownOf, minePunchStateOf, mineBreakButtonsOf, BREAK_ACTION_LABEL, BREAK_DONE_LABEL, type PunchState } from "@/lib/nox/shift/punch-state";
 import { mig0214On } from "@/lib/nox/rules-0175/flag"; // ★0214（休憩）: 旗 false＝今のまま
@@ -25,7 +25,7 @@ import { PUNCH_PENDING_EVENT, punchStateAfterOf, punchStateShownOf } from "@/lib
 // ★裁定317（便 X-9-3）: cast 本人は送りの発行（transport_issue_bulk＝owner／manager のみ）を呼べない＝金額ダイアログは出さず、「あり」の打刻だけ残す（締め前モーダルに未発行として出る）。器は 0158。
 // ★0156（裁定309-9＝302-5・便 V-5）: okuri_mode='actual' の店だけ、退勤に「送り あり／なし」（既定なし）→ punch_self の p_okuri。
 //   'flat'／未設定の店は出さない（p_okuri を送らない＝RPC の既定＝null）。in 打刻は従来どおり 3 引数。
-export default function PunchActions({ okuriMode = "flat", okuriBase = null, state = "none", dayDedRules = [], bizToday = null, dayDedApplied = null, breakOn = false, onBreak = false }: { /** ★0214: 店が休憩の打刻を使う（settings_json.break_punch） */ breakOn?: boolean; /** ★0214: 今、閉じていない休憩がある（自分の punch_breaks） */ onBreak?: boolean; /** ★0198（裁定461 ②・M-120）: 店が付けた今日の控除（表示だけ・null＝出さない） */ dayDedApplied?: DayDedApplied[] | null; /** ★便 D M-103: 出勤時に聞く「その日に選ぶ」控除（0196 まで空） */ dayDedRules?: DayDedPickRule[]; bizToday?: string | null; /** ★裁定414: 店の送り方式（'none' 以外で「送り あり／なし」を出す） */ okuriMode?: OkuriMode; okuriBase?: number | null; state?: PunchState }) {
+export default function PunchActions({ okuriMode = "flat", okuriBase = null, okuriZero = false, state = "none", dayDedRules = [], bizToday = null, dayDedApplied = null, breakOn = false, onBreak = false }: { /** ★0214: 店が休憩の打刻を使う（settings_json.break_punch） */ breakOn?: boolean; /** ★0214: 今、閉じていない休憩がある（自分の punch_breaks） */ onBreak?: boolean; /** ★0198（裁定461 ②・M-120）: 店が付けた今日の控除（表示だけ・null＝出さない） */ dayDedApplied?: DayDedApplied[] | null; /** ★便 D M-103: 出勤時に聞く「その日に選ぶ」控除（0196 まで空） */ dayDedRules?: DayDedPickRule[]; bizToday?: string | null; /** ★裁定414: 店の送り方式（'none' 以外で「送り あり／なし」を出す） */ okuriMode?: OkuriMode; okuriBase?: number | null; /** ★0236（Agoora の決め 11/26 22:50）: 自分の送り区分の額が 0 円＝送りは記録しない */ okuriZero?: boolean; state?: PunchState }) {
   const router = useRouter();
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -82,10 +82,11 @@ export default function PunchActions({ okuriMode = "flat", okuriBase = null, sta
       const rows = dayDedPickRowsOf(dayDedRules, dayDedOn);
       if (rows) { const { data: cid } = await supabase.rpc("auth_cast_id"); const { error: eD } = await supabase.rpc("cast_day_deductions_set", { p_cast_id: cid, p_biz_date: bizToday, p_rows: rows }); dedNote = eD ? "（今日の控除は記録できませんでした＝店に伝えてください）" : "（今日の控除を記録しました）"; }
     }
-    let outcome: "issued" | "pending" | "none" = "none";
+    let outcome: "issued" | "pending" | "none" | "zero" = "none";
     if (!error && type === "out" && okuriActual && okuri) {
       outcome = "pending";
-      if (plan.issue && typeof punchId === "string") {
+      if (okuriZero) outcome = "zero";   // ★0236: 区分の額 0 円＝記録しない（関数も行を作らない）
+      else if (plan.issue && typeof punchId === "string") {
         const { error: eT } = await supabase.rpc("transport_issue_self", { p_punch_id: punchId });
         if (!eT) outcome = "issued";
       }
@@ -110,7 +111,7 @@ export default function PunchActions({ okuriMode = "flat", okuriBase = null, sta
       )}
       {okuriActual && okuri && btn.okuriEnabled && (
         <p style={{ fontSize: 12.5, color: "var(--sub)", margin: "0 0 8px" }}>
-          {plan.amount !== null ? <span data-okuri-text={plan.mode}>{okuriOutTextOf(plan.mode, plan.amount)}（金額は店の設定です）</span> : OKURI_PENDING_NOTE}{/* ★裁定414: 方式の 1 文 */}
+          {okuriZero ? <span data-okuri-zero="1">{OKURI_ZERO_NOTE}</span> : plan.amount !== null ? <span data-okuri-text={plan.mode}>{okuriOutTextOf(plan.mode, plan.amount)}（金額は店の設定です）</span> : OKURI_PENDING_NOTE}{/* ★裁定414: 方式の 1 文・★0236: 区分の額 0 円 */}
         </p>
       )}
       {mig0198On() && dayDedApplied !== null && (/* ★0198（裁定461 ②・M-120）: 本人は選べない＝店が付けた今日の控除の表示だけ */

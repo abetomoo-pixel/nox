@@ -32,7 +32,7 @@ async function main() {
     check("q(3-2) get_cast_sales_subtotal・set_store_line_extra＝anon なし・authenticated あり", ["get_cast_sales_subtotal", "set_store_line_extra"].every((k) => by[k] && !by[k].a && by[k].u), fx);
     check("q(3-3) 新設 3 本＝SECURITY DEFINER・search_path=public", fx.length === 3 && fx.every((x) => x.prosecdef && x.cfg.includes("search_path=public")), fx);
     const md = (await db.query("select proname, md5(replace(prosrc, E'\r', '')) m from pg_proc where pronamespace='public'::regnamespace and proname in ('cast_sales_aggregate','get_cast_sales') order by 1")).rows as { proname: string; m: string }[];
-    check("q(4) cast_sales_aggregate・get_cast_sales は 0201q の前と同じ本文", md[0]?.m === "8fb314c577c41612bc7cb82ac9afea97" && md[1]?.m === "eaec39a4b7625792d75ecb69d353f200", md);
+    check("q(4) cast_sales_aggregate（★0241g 2026-11-27 16:07 適用の本文＝8fb314c5…→3dafda96…）・get_cast_sales は 0201q の前と同じ本文", md[0]?.m === "3dafda963a13f150a16bfc4c549fd079" && md[1]?.m === "eaec39a4b7625792d75ecb69d353f200", md);
   } finally { await db.query("rollback").catch(() => undefined); await db.end(); }
   if (fails.length) { console.error(`✗ verify:nox-0201q 失敗 ${fails.length}（成功 ${pass}）`); for (const f of fails) console.error(" - " + f); process.exit(1); }
   console.log(`verify:nox-0201q OK (${pass} checks)`);

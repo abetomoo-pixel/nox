@@ -335,7 +335,7 @@ export function buildV5Plan(S: V5State, ctx: V5Ctx): { steps: V5Step[]; deferred
   const push = (st: V5Step) => steps.push(st);
   // 1) 店舗設定（settings_json の patch＝白名単のキーだけ）
   const patch: Record<string, unknown> = {
-    name: S.shop.name.trim(), biz_type: S.type, billing_mode: "table", setup_done: false,
+    name: S.shop.name.trim(), biz_type: S.type, billing_mode: "table", /* ★357（2026-11-27・相談役 14:55 案 A）: ここで setup_done を false に書かない＝やり直しの間と途中で止めた後も「済み」の印は付いたまま（新しい店は初めから false・最後の段が true を書くのは同じ） */
     sys_hourly: true, sys_backs: true, sys_sales_rate: false, sys_points: S.pay.slide === "point", sys_sales_slide: S.pay.slide === "sales", sys_point_slide: S.pay.slide === "point", sys_norms: S.pay.norma, sys_penalties: penaltiesOnOf(S) /* ★■6-2 */, sys_bonus: S.pay.bonus,
     use_vip: S.seats.vip > 0, use_counter: S.seats.counter > 0,
     join_mode: S.join === "join" ? "join_set" : "extend_only",

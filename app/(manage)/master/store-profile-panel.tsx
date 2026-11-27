@@ -349,7 +349,7 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
               </label>}
               {on("opsPay") && <label style={{ display: "block", minWidth: 0 }}>
                 <span style={label}>給与の支払日<InfoTip>翌月 1〜31 日・締め日は月末固定・表示と案内に使います{mig0203On() ? "・店ごとに決められます（この店だけに効きます）" : ""}</InfoTip></span>
-                <input type="number" min={1} max={31} step={1} inputMode="numeric" value={form.ops.pay_day} disabled={busy} onChange={(e) => setOps({ pay_day: e.target.value })} style={input} aria-label="給与の支払日" />
+                <span style={{ display: "block" }} data-pay-day-unit="1"><UnitBox pre="翌月" post="日" width={156}><input type="number" min={1} max={31} step={1} inputMode="numeric" value={form.ops.pay_day} disabled={busy} onChange={(e) => setOps({ pay_day: e.target.value })} style={input} aria-label="給与の支払日" /></UnitBox></span>{/* ★2026-11-27（相談役 15:50・Agoora 15:44）: 「翌月 [10] 日」の単位（体入の日数の欄と同じ箱・幅は 2 桁ぶん・値と決まりとエラーの文は変えない・保存のボタンの位置＝裁定504-1 には触れない） */}
               </label>}
               {on("opsTax") && <div style={{ minWidth: 0 }}>
                 <span style={label}>消費税の表示<InfoTip>料金・会計 › 会計設定 の「価格表示」を写して出します（ここでは変えられません）</InfoTip></span>

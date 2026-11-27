@@ -101,9 +101,11 @@ export const OPS_INQUIRY_MAIL_TO = INQUIRY_SUPPORT_MAIL;
 export const OPS_INQUIRY_URL_BASE = "https://noxapp.jp/ops/inquiries";
 /** 件名を 1 行に畳む（改行・連続の空白を 1 つの空白に・60 字まで） */
 export const inquirySubjectLineOf = (s: string | null | undefined): string => String(s ?? "").replace(/\s+/g, " ").trim().slice(0, INQUIRY_SUBJECT_MAX) || "—";
+/** ★2026-11-27（相談役 15:05〜15:10）: 運営の画面を指すメールに付ける 1 行（店のログインが残るブラウザでは 404＝require-operator の動きは変えない） */
+export const OPS_INQUIRY_LOGIN_NOTE = "※ 運営コンソールにログインしてから開いてください。店の画面にログインしたままのブラウザでは「ページが見つかりません」と出ます。";
 function opsMailLinesOf(head: string, a: { kind: string; orgName: string; inquiryId: string; subject?: string | null }): string {
   const kind = INQUIRY_KIND_LABEL[a.kind as InquiryKind] ?? "問い合わせ";
-  return [head, ``, `会社：${a.orgName}`, `種類：${kind}`, `件名：${inquirySubjectLineOf(a.subject)}`, `番号：${inquiryNoOf(a.inquiryId)}`, ``, `運営コンソールで開く：${OPS_INQUIRY_URL_BASE}/${a.inquiryId}`, ``, `（内容はメールに載せていません。運営コンソールで読んでください）`, `NOX（株式会社レクソル）`].join("\n");
+  return [head, ``, `会社：${a.orgName}`, `種類：${kind}`, `件名：${inquirySubjectLineOf(a.subject)}`, `番号：${inquiryNoOf(a.inquiryId)}`, ``, `運営コンソールで開く：${OPS_INQUIRY_URL_BASE}/${a.inquiryId}`, OPS_INQUIRY_LOGIN_NOTE, ``, `（内容はメールに載せていません。運営コンソールで読んでください）`, `NOX（株式会社レクソル）`].join("\n");
 }
 export function opsInquiryMailOf(a: { kind: string; orgName: string; inquiryId: string; subject?: string | null }): { subject: string; text: string } {
   const kind = INQUIRY_KIND_LABEL[a.kind as InquiryKind] ?? "問い合わせ";

@@ -570,7 +570,7 @@ export default function ReportBoard({
       if (mode === "noRead") { setOkuriNoRead(true); return; }   // ★0201v: 一覧を読めない人＝窓で「このまま締める」か「戻る」
       if (eO) { setMsg(`送りの確認に失敗: ${rpcErrJaCommon(eO.message)}`); return; }   // 通信などほかのエラーは今のまま止める
       setOkuriCanRecord(mode === "record");
-      const list = (rows ?? []) as OkuriRow[];
+      const list = ((rows ?? []) as OkuriRow[]).filter((r) => r.base_amount !== 0);   // ★0236（Agoora の決め 11/26 22:50）: 区分の額 0 円の人は送りの行を作らない＝未記録に数えない
       const { data: tr } = await supabase.from("transport").select("amount").eq("store_id", storeId).eq("biz_date", bizDate).neq("status", "cancelled");
       const issued = ((tr ?? []) as { amount: number }[]);
       setOkuriIssued({ n: issued.length, sum: issued.reduce((a, r) => a + r.amount, 0) });

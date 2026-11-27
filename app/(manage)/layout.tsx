@@ -79,7 +79,7 @@ export default async function ManageLayout({ children }: { children: React.React
 
   // 段0R その2: トップバーのサブ行に出す店名（aaa の .brand span）。既存 stores の RLS 読取1本。
   //   ★裁定269-5／270-1: 同じ読取に settings_json を足し、owner かつ setup_done !== true の店があれば /setup へ（1 条件・/setup 自身は除外）。
-  //     manager／staff／cast は対象外。既存店は 0147 の埋め戻しで setup_done=true＝不変。
+  //     ★357（2026-11-27）: 対象は便 SU (3) で広げた＝未完の店がある会社は owner／manager／staff とも /setup へ（下の needsSetupOf・cast とデモは通す）。既存店は 0147 の埋め戻しで setup_done=true＝不変。
   const { data: storeRows } = await supabase.from("stores").select("name, settings_json").order("name");
   let storeLabel = (storeRows?.[0]?.name as string | undefined) ?? "店舗";
   // ★0203（2 号店の段 2・相談役 21:40 の ■2-e）: オーナーの今見ている店（旗 false＝null＝今のまま）。店名は今見ている店の名前

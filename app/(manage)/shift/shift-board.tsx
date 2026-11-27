@@ -78,7 +78,9 @@ import { HM_FORMAT_ERR, hmRangeErrorOf, normalizeHHMM } from "@/lib/nox/time/hhm
 import OkuriOutDialog from "@/components/nox/okuri-out-dialog";
 import PenaltyDialog, { type PenaltyTarget } from "@/components/nox/penalty-dialog";
 import { ACK_BUTTON, ackLineOf, castReportOf, castReportLineOf, contactHistoryHeadOf, contactHistoryLineOf, keepReportArgsOf, reportAckStateOf, reportChipTextOf, type ContactLike } from "@/lib/nox/shift/cast-report"; // ★便 ON-3（0176 ★3 I-4）: 確認済み・履歴 // ★便 X13-H H-17: 本人の遅刻・当欠の連絡 // ★便 X13-H H-16（裁定410）: 遅刻・当欠の罰金（委託のみ） // ★裁定317（便 X-9-3）: 退勤の「送り」金額ダイアログ
-import { okuriDefaultAmountOf, type OkuriDefault } from "@/lib/nox/shift/okuri-default";
+import { okuriDefaultForCastOf, type OkuriDefault } from "@/lib/nox/shift/okuri-default"; // ★0236（#64）: 区分の額を先に
+import { okuriTiersInEffectOf, type OkuriFlatTier } from "@/lib/nox/shift/okuri-mode"; // ★0236（#64）: 送りの距離区分
+import { okuriTiersOn } from "@/lib/nox/rules-0175/flag"; // ★0236（#64）: casts.okuri_tier は 0180 後だけ読む
 import { okuriAsks, okuriModeOf, okuriOutTextOf, okuriRecordedTextOf, type OkuriMode } from "@/lib/nox/shift/okuri-mode"; // ★裁定414（S-4）: 送りの 4 方式
 import StaffShiftBoard from "./staff-shift-board"; // ★C層② 面 b/c（スタッフ）
 import CastAvatar from "@/components/ui/cast-avatar";
@@ -1273,6 +1275,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   } // ★0164（便 W5-2b）: 店設定 punch_methods.proxy（代行の退勤ボタン・出勤区分後の in 打刻の出し分け）
   // ★裁定317（便 X-9-3）: 「送り」→金額ダイアログ→確定で退勤打刻（p_okuri=true）＋transport_issue_bulk 1 件（idem＝punch id）。旧チェックボックス（okuriMark）は廃止
   const [okuriBase, setOkuriBase] = useState<unknown>(null);
+  const [okuriTiers, setOkuriTiers] = useState<OkuriFlatTier[]>([]); // ★0236（#64）: 店の距離区分（既定の額に使う）
   const [okuriDlg, setOkuriDlg] = useState<{ castId: string; def: OkuriDefault; mode: "outAndIssue" | "issueOnly"; fromOut: boolean } | null>(null); // ★裁定357: mode＝退勤＋送り／送りのみ・fromOut＝「退勤」から開いた（2 択）
   const [okuriIssued, setOkuriIssued] = useState<Set<string>>(new Set()); // ★裁定357: 当日発行済みの cast（transport・cancelled 以外）＝1 クエリ
   const [okuriBusy, setOkuriBusy] = useState(false);
@@ -1286,7 +1289,7 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
     void (async () => {
       const { data } = await supabase.from("stores").select("settings_json, punch_methods").eq("id", storeId).maybeSingle(); // ★0164（便 W5-2b）: punch_methods（代行の出し分け）
       const sj = (data?.settings_json ?? {}) as Record<string, unknown>;
-      if (alive) { const om = okuriModeOf(sj); setOkuriMode(om); setOkuriActual(okuriAsks(om)); setOkuriBase(sj.okuri_base_amount ?? null); setProxyPunchOn(opsProfileOf(data as Record<string, unknown> | null).punch_methods.proxy); setStoreDecides(sj.shift_request_mode === "store"); /* ★M-96 */ setPunchStore(storeDecidesPunchOf(sj)); /* ★便 E（0197） */ }
+      if (alive) { const om = okuriModeOf(sj); setOkuriMode(om); setOkuriActual(okuriAsks(om)); setOkuriBase(sj.okuri_base_amount ?? null); setOkuriTiers(okuriTiersOn() ? okuriTiersInEffectOf(sj) : []); /* ★0236 決め d: 定額の店だけ */ /* ★0236（#64） */ setProxyPunchOn(opsProfileOf(data as Record<string, unknown> | null).punch_methods.proxy); setStoreDecides(sj.shift_request_mode === "store"); /* ★M-96 */ setPunchStore(storeDecidesPunchOf(sj)); /* ★便 E（0197） */ }
     })();
     return () => { alive = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1321,11 +1324,14 @@ export default function ShiftBoard({ storeId, casts, isManagerUp, isOwner = fals
   async function openOkuri(castId: string, mode: "outAndIssue" | "issueOnly" = "outAndIssue", fromOut = false) {
     setOkuriErr(null);
     let last: number | null = null;
-    if (okuriDefaultAmountOf(okuriBase, null).amount === null) {
+    // ★0236（#64・重大 R15）: キャストの送り区分の額を既定に（本人の退勤・端末の記録と同じ）＝区分のある店だけ 1 行読む
+    let tier: string | null = null;
+    if (okuriTiers.length) { const { data: c } = await supabase.from("casts").select("okuri_tier").eq("id", castId).maybeSingle(); tier = ((c ?? null) as { okuri_tier?: string | null } | null)?.okuri_tier ?? null; }
+    if (okuriDefaultForCastOf(okuriBase, okuriTiers, tier, null).amount === null) {
       const { data } = await supabase.from("transport").select("amount").eq("cast_id", castId).neq("status", "cancelled").order("created_at", { ascending: false }).limit(1);
       last = ((data ?? []) as { amount: number }[])[0]?.amount ?? null;
     }
-    setOkuriDlg({ castId, def: okuriDefaultAmountOf(okuriBase, last), mode, fromOut });
+    setOkuriDlg({ castId, def: okuriDefaultForCastOf(okuriBase, okuriTiers, tier, last), mode, fromOut });
   }
   // 確定＝退勤打刻（p_okuri=true）→ 戻りの punch id を冪等キーにして transport_issue_bulk（1 件）。打刻成功・発行失敗は「送りは未発行」＝締め前モーダルに残る
   async function confirmOkuri(amount: number) {

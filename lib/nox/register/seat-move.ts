@@ -17,7 +17,8 @@ export function seatMoveConfirmTextOf(p: { change: SeatKindChange; hasExtension:
       ? `${p.toKind ?? "VIP"} 席へ移動します。入店時のセット料金はそのまま、この先の延長から VIP の延長料金になります。${rate}よろしいですか？`
       : `${p.toKind ?? "VIP"} 席へ移動します。セット料金の行を VIP のセット料金に差し替えます（追加ではなく置換）。${rate}よろしいですか？`;
   }
-  return `${p.toKind ?? "通常"} 席へ移動します。VIP 料金の行はそのまま残ります（返金はありません）。${rate}よろしいですか？`;
+  // ★0242（裁定511-19・#157）: 下へ移した後の延長は移動先の席の単価に戻る（0242 の check_move_seat が延長パターンを移動先の席種で再凍結）。自動延長で延長中なら、いま進行中の延長から移動先の額（裁定514-4・移した時に進行中の延長の行も直す）
+  return `${p.toKind ?? "通常"} 席へ移動します。VIP 料金の行はそのまま残ります（返金はありません）。この先の延長は ${p.toKind ?? "通常"} 席の延長料金に戻ります（自動延長で延長中なら、いま進行中の延長から）。${rate}よろしいですか？`;
 }
 /** 移動先の率＝stores.service_rate_by_seat（seats.kind がキー・小文字も可）→無ければ店の率 */
 export function serviceRateForSeatOf(bySeat: Record<string, unknown> | null | undefined, kind: string | null | undefined, storeRate: number | null): number | null {

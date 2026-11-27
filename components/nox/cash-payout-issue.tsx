@@ -11,8 +11,9 @@ import Picker from "@/components/nox/picker";
 import DailyPayForm from "@/components/nox/daily-pay-form";
 import AdvanceOkuriForm from "@/components/nox/advance-okuri-form";
 import OkuriOutDialog from "@/components/nox/okuri-out-dialog";
-import { okuriDefaultAmountOf, type OkuriDefault } from "@/lib/nox/shift/okuri-default";
-import { okuriRecordedTextOf, type OkuriMode } from "@/lib/nox/shift/okuri-mode"; // ★裁定414（S-4）
+import { okuriDefaultForCastOf, type OkuriDefault } from "@/lib/nox/shift/okuri-default"; // ★0236（#64）: 区分の額を先に
+import { okuriTiersInEffectOf, okuriRecordedTextOf, type OkuriMode } from "@/lib/nox/shift/okuri-mode"; // ★裁定414（S-4）・★0236（#64）: 距離区分
+import { okuriTiersOn } from "@/lib/nox/rules-0175/flag"; // ★0236（#64）
 import { rpcErrJa } from "@/lib/nox/ui/rpc-err";
 import { createClient } from "@/lib/supabase/client";
 
@@ -43,11 +44,18 @@ export default function CashPayoutIssue({ kind, storeId, bizDate, casts, okuriBa
   async function pickOkuri(castId: string) {
     setPick(castId); setErr(null);
     let last: number | null = null;
-    if (okuriDefaultAmountOf(okuriBase, null).amount === null) {
+    // ★0236（#64・重大 R15）: キャストの送り区分の額を既定に（店の区分＋本人の区分＝2 行読む・0180 の後だけ）
+    let tiers: { code: string; amount: number }[] = [], tier: string | null = null;
+    if (okuriTiersOn()) {
+      const [{ data: st }, { data: c }] = await Promise.all([supabase.from("stores").select("settings_json").eq("id", storeId).maybeSingle(), supabase.from("casts").select("okuri_tier").eq("id", castId).maybeSingle()]);
+      tiers = okuriTiersInEffectOf(((st ?? null) as { settings_json?: Record<string, unknown> | null } | null)?.settings_json ?? null); /* ★0236 決め d: 定額の店だけ */
+      tier = ((c ?? null) as { okuri_tier?: string | null } | null)?.okuri_tier ?? null;
+    }
+    if (okuriDefaultForCastOf(okuriBase, tiers, tier, null).amount === null) {
       const { data } = await supabase.from("transport").select("amount").eq("cast_id", castId).neq("status", "cancelled").order("created_at", { ascending: false }).limit(1);
       last = ((data ?? []) as { amount: number }[])[0]?.amount ?? null;
     }
-    setOkuriDef(okuriDefaultAmountOf(okuriBase, last));
+    setOkuriDef(okuriDefaultForCastOf(okuriBase, tiers, tier, last));
   }
   async function issueOkuri(amount: number) {
     if (!pick || busy) return;

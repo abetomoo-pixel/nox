@@ -514,6 +514,10 @@ export default function RegisterBoard({
   const [drinkPick, setDrinkPick] = useState<{ mode: "line"; lineId: string } | { mode: "product"; product: Product } | null>(null);
   // E8-1 ④: 入金モーダル（BANZEN register-table.tsx:360-483 写経・NOX 4値）
   const [payModal, setPayModal] = useState(false);
+  // ★#173（相談役 11/26 22:10 の段ウ・0234 と組）: 入金の二度押し止め＝送っている間はボタンを止める（ref は同じ描画の中の 2 回目も止める）・冪等キーは窓を開いたときに作り直し、成功するまで同じキーを使う（再送は前の入金を返す）
+  const [payBusy, setPayBusy] = useState(false);
+  const payBusyRef = useRef(false);
+  const payIdemRef = useRef<string | null>(null);
   // E8-1 #9: 人数±（check_set_people・mig0090）
   const [peopleBusy, setPeopleBusy] = useState(false);
   const [peopleMsg, setPeopleMsgRaw] = useState<string | null>(null);
@@ -1632,7 +1636,7 @@ export default function RegisterBoard({
     setExtRuleBusy(false);
     if (error) {
       const m = error.message ?? "";
-      setMsg({ to: MSG_DETAIL, kind: "bad", text: m.includes("bad rule") ? "この延長パターンはこの伝票では使えません（開卓時点のメニューのみ）" : m.includes("not open") ? "この伝票は締められています" : isBillingLocked(m) ? BILLING_LOCKED_MSG : rpcErrJaCommon(m) });
+      setMsg({ to: MSG_DETAIL, kind: "bad", text: m.includes("bad rule") ? "この延長パターンはこの伝票では使えません（開卓時点のメニューのみ）" : m.includes("has payments") ? "入金の後は延長パターンを変えられません（訂正は伝票の取消から）" : m.includes("not open") ? "この伝票は締められています" : isBillingLocked(m) ? BILLING_LOCKED_MSG : rpcErrJaCommon(m) });
       return;
     }
     const label = check.ext_menu_snap?.find((x) => x.rule_id === ruleId)?.label ?? "延長パターン";
@@ -1752,10 +1756,13 @@ export default function RegisterBoard({
 
   // E8-1 ④: モーダルから呼ぶため成功可否を返す（送る引数は不変・失敗時はモーダルを閉じない）
   async function pay(over?: { amount: number; tendered: number | null; balance?: number; balance0?: number }): Promise<boolean> { // ★便 GV-C C-1（裁定387）: 1 欄の入金（額は残額まで・現金はお預かり）
-    if (!check) return false;
+    if (!check || payBusyRef.current) return false; // ★#173: 送っている間の 2 回目は送らない
     if (dayBlocked()) return false; // ★C層③: 締め済み日の先回り（RPC の関所が本体）
+    payBusyRef.current = true; setPayBusy(true);
+    try {
     if (!(await tb.flush())) return false; // money 系: 保留を先に確定（失敗＝中止・入金前提）
     setMsg(null);
+    if (!payIdemRef.current) payIdemRef.current = crypto.randomUUID(); // ★#173: この窓の入金 1 回に 1 つ（成功で作り直す・失敗は同じキーで送り直す＝届いていた入金は 2 件にならない）
     // F4c: detail は card/other のときだけ送る（空/空白のみは null＝RPC 側も nullif(trim()) で二重に守る）
     // ★0164（便 W5-2b）: 電子マネー／QR は 'other'＋固定の method_detail（店設定の出し分け・記録の語彙は不変）
     const detail = payMethod === "emoney" || payMethod === "qr" ? OPS_METHOD_LABEL[payMethod] : (DETAIL_METHODS.has(payMethod) && payDetail.trim() ? payDetail.trim() : null);
@@ -1763,7 +1770,7 @@ export default function RegisterBoard({
       p_check_id: check.id, p_method: rpcMethodOf(payMethod), p_amount: over ? over.amount : payAmount,
       p_pay_group: payGroup || "A",
       p_tendered: over ? over.tendered : (payMethod === "cash" && payTendered ? Number(payTendered) : null),
-      p_idem_key: crypto.randomUUID(),
+      p_idem_key: payIdemRef.current,
       p_method_detail: detail,
       p_fee_key: payFeeKeyOf(payMethod), // ★便 P173（裁定393）: 手数料率のキー（cash／ar は null＝対象外・率 0 の店は RPC が 0）
       ...(rules0175On() ? { p_fee_amount: feeAmountArgOf(feeMode, /^\d+$/.test(feeManual) ? Number(feeManual) : null, over?.balance ?? (over ? over.amount : payAmount), { rate: feeRateEffectiveOf(feeRateInputOf(feeRateIn), payFeeRates[payFeeKeyOf(payMethod) ?? "other"]), amount: over ? over.amount : payAmount }) } : {}), // ★便 M-6: 率を指定＝額に換算・★M-17 追補 ①: 空欄＝店の率 // ★連続便 3 追補 P-8: 0175 v2 の 11 引数目（フラグ false＝従来の 8 引数のまま）
@@ -1776,9 +1783,11 @@ export default function RegisterBoard({
       ? { to: MSG_PAY, text: rpcErrJaCommon(error.message), kind: "bad" }
       : { to: MSG_PAY, text: `${yen(paidAmt)} を入金しました${feeN ? `（${payFeeLabelJa(feeN.key)} ${noteModeOf(feeN) !== "auto" ? PAY_FEE_MODE_LABEL[noteModeOf(feeN)] : `${feeN.rate}%`}＝${yen(feeN.fee)} を伝票に追加・お客様から ${yen(feeN.receive)}）` : ""}`, kind: "ok" });
     if (!error) { setPayTendered(""); setPayDetail(""); setFeeMode("auto"); setFeeManual(""); setDiscMode("auto"); setDiscManual(""); setDiscRateIn(""); }
+    if (!error) payIdemRef.current = null; // ★#173: 次の入金は新しいキー
     if (!error) setPayRefreshing(true); // ★C-2
     try { await loadCheck(check.id); } finally { setPayRefreshing(false); }
     return !error;
+    } finally { payBusyRef.current = false; setPayBusy(false); }
   }
 
   async function closeCheck() {
@@ -2567,9 +2576,9 @@ export default function RegisterBoard({
             )}{/* ★裁定281（便 AB）: routed msg も共通部品（kind は既存の ok／bad に従う） */}
             <button
               style={t.btnPrimary56} data-pay-submit="1"
-              disabled={!amtValid}
+              disabled={!amtValid || payBusy} /* ★#173: 送っている間は押せない */
               onClick={async () => { const ok = await pay({ amount: effAmount, tendered: isCash ? enteredN : null, balance, balance0 }); if (ok) setPayModal(false); }}>
-              入金する（{amtValid ? yen(grossMode ? grossN : (feeNote && noteModeOf(feeNote) !== "auto" ? feeNote.receive : effAmount)) : "—"}）{/* ★P-8: なし／指定はお客様からもらう額 */}
+              {payBusy ? "送信中…" : "入金する"}（{amtValid ? yen(grossMode ? grossN : (feeNote && noteModeOf(feeNote) !== "auto" ? feeNote.receive : effAmount)) : "—"}）{/* ★P-8: なし／指定はお客様からもらう額 */}
             </button>
           </Modal>
         );
@@ -3008,7 +3017,7 @@ export default function RegisterBoard({
             <button type="button" style={btnLight} data-ext-guide-open="1" onClick={() => { setExtGuideConfirm(null); setExtGuide(true); }}>延長のご案内</button>
           )}
           {/* ★便 P173（裁定385 追補・0173）: 自動延長の店＝既定パターンを自動適用（選択は出さない）・切替は「延長パターン ▾」（snap 2 件以上）＝check_set_ext_rule（確定ブロックの差額引き直し） */}
-          {extBtn.extend && timeMode === "auto" && check.status === "open" && (check.ext_menu_snap?.length ?? 0) >= 2 && (() => {
+          {extBtn.extend && timeMode === "auto" && check.status === "open" && payments.length === 0 /* ★#41（0234 と組）: 入金の後は出さない＝関数も 'has payments' で断る（手動の店の延長ボタン・時間料金の反映と同じ） */ && (check.ext_menu_snap?.length ?? 0) >= 2 && (() => {
             const menu = check.ext_menu_snap ?? [];
             const cur = rules0175On() ? extCurrentOf(menu, (check as { ext_rule_id?: string | null }).ext_rule_id ?? null, check.ext_min, check.ext_fee) : menu.find((m) => m.duration_min === check.ext_min && m.amount === check.ext_fee); // ★連続便 3 追補 P-10: 選択中＝checks.ext_rule_id（0175 v2 ★23）
             return (
@@ -3175,7 +3184,7 @@ export default function RegisterBoard({
                 const remaining = gi?.remaining ?? 0;
                 return (
                   <button type="button" style={t.btnPrimary56} data-pay-next="1" disabled={check.status !== "open" || remaining <= 0}
-                    onClick={() => { setPayAmount(remaining); setPayCardGross(null); setPaySplitN(null); setPayTendered(""); setPayDetail(""); setPayModal(true); }}>
+                    onClick={() => { setPayAmount(remaining); setPayCardGross(null); setPaySplitN(null); setPayTendered(""); setPayDetail(""); payIdemRef.current = null; /* ★#173: 窓を開くたびに新しいキー */ setPayModal(true); }}>
                     入金へ進む{splitOn ? `（会計${payGroup || "A"}）` : ""}
                   </button>
                 );
