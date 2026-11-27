@@ -6120,6 +6120,19 @@ CC の処置＝M-130（下の節）。
 - 512-12（#240・#241）減給の上限：上限を超えたら確定を止め、だれが超えたかと額を画面に出す（「sanction cap」の文をそのまま出さない）。上限の比べ方は変えない。
 - 数字が変わる物（511-7a・511-19・511-21a・511-8a・511-15）は、手元で直す前と後の例を 1 つずつ。ゴールデン 5931／125802 とデモ 7 店の下書き 14 件が変わるなら、どの店のどの行がなぜかを書いて止まって報告する。
 
+## 裁定516（2026-11-27 12:35・相談役→CC・この文が貼られたことが Agoora の承認）段階 1（注文のみ）の線引きと 0231 の直し
+- 516-1 段階 1（注文のみ）のキャストに残す物：check_add_line（商品を指定する形だけ。額を送る形・カスタム明細・手数料は段階 2）・check_open（料金区分とルールは既定のまま。区分とルールの指定は段階 2）・check_customer_add・check_line_set_customer・bottle_keep_out・読むだけの 5 本（check_customer_names・kiosk_check_keeps・pricing_categories_for_register・register_cast_roster・register_open_categories）・check_time_charge_apply（サーバの計算）。
+- 516-2 段階 2（会計まで）を求める物：check_remove_line・check_set_people・check_extension_add・check_set_ext_rule・check_move_seat・check_add_seat・check_remove_seat・check_line_set_group・check_set_nominations・check_dohan_add・check_shimei_add・check_customer_remove・bottle_keep_register・print_enqueue・check_referral_set・check_referral_remove。
+- 516-3 作り：0231 を作り直す（kiosk_person_claim の段階 1 以上＋段階 2 の関数に「キャストなら段階 2 以上」・check_close／check_pay／receipt_issue と同じ形の判定を 1 つの内部の関数に）。裁定513-1（日報の締めは段階 2 以上）を auth_cast_close_ok に。「自分の卓だけ」の柵（auth_cast_check_allowed）を入っていない関数に足す。画面は段階 1 の子に段階 2 のボタンを出さない・レジの「キャストに付ける」と申告の「取消」はキャストに出さない。「自分が入れた行だけ消せる」は後の mig（行に入れた人の列の案は別の 1 枚）。
+- 516-4 ボトルの注文：段階 1 の子がボトルを注文したときに自動で開くお客様の窓は、お客様を付ける関数だけを呼ぶ（中から bottle_keep_register を呼ばない）。窓に「キープの登録は、会計まで許可のある人が行います」（案内の文）。半分だけ残る道が無いことを試走で示す。
+- 516-5 開卓の区分：段階 1 の開卓では区分とルールを本人の指定から受けず、サーバの側でレジの画面が初めに選ぶ区分と同じ物を選ぶ（区分ごとのルールしか無い店でレジで普通に開いたときと同じ額）。初めに選ぶ区分の決まりが無い店があれば作り込まずに止まる。#322 の直しと食い違わないこと。
+- 516-6 当てる順：0234 → 0242 → 0231（0231 は 0234 の後の check_set_ext_rule と 0242 の後の check_move_seat の上に積み直す・先の組の最後）。直すまで当てない。直したら指紋・試走の件数・重なりの表を報告→マニュアル用 CC の 3 回目→相談役が本体を読む。
+
+## 決め d・c・g（2026-11-27 12:25・相談役→CC・Agoora の承認＝文が貼られたこと）
+- 推奨の版を使う：0236d（区分の額は送りが「定額」の店だけ）・0241g（「全員で等分」は本指名と場内だけ）・0239 は「0236d の上・c 入り」（確定した月の日付の日払いも翌月で引く）・0237・0238。使わない版は docs/tmp の _unused へ。
+- 当てる前に：d 版の締めの前の窓も定額の店だけ・g 版で同伴だけの人の同伴バック・ゴールデン・下書きの比べ（1 本ずつ）・数の数え直し（当てる順＝0236d → 0241g／0235 → 0244 → 0237 → 0238 → 0239）。
+- 次の裁定＝517。
+
 ## 当てる合図 2（2026-11-27 11:15・相談役→CC・Agoora が認めた 4 本）の適用
 - CC が本番に適用（docs/tmp/apply_1127.mjs・指紋は相談役の文の全桁と一致・ref・ロール postgres・ほかの CC の接続 0・lock_timeout 10s・事前確認は貼り先証明の 1 行だけ（会社 14）・本体 1 回・検証の全行が ok）。試走の便には APPLYING_1127 の間は試走しないよう伝えた。
   - 0226 manager_target_staff_only（staff_deactivate 6c1b487b…・staff_reactivate ebc31688…・get_staff_sensitive 4a3d7934…・set_staff_sensitive a5c72ae7…）11:58:13・検証 10 行。
