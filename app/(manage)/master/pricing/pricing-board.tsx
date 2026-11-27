@@ -51,6 +51,7 @@ import { swapAdjacent, reorderErrJa } from "@/lib/nox/ui/reorder";
 import { extCountTextOf } from "@/lib/nox/rules-0175/ext-pattern"; // ★連続便 3 追補 P-10 ④
 import DowChips from "@/components/ui/dow-chips"; // ★M-144 ②: 定休日の曜日は灰色＋「定休」で選べない
 import { maskBitOfBizDow, maskOfDays, openDaysOf } from "@/lib/nox/pricing/closed-dows";
+import { bandWarningsOf, bandShadowFixOrderOf, BAND_SHADOW_HEAD_JA, BAND_SHADOW_BTN_JA, BAND_SHADOW_DONE_JA, BAND_DEFAULT_EXT_HEAD_JA, BAND_DEFAULT_EXT_JA, BAND_DEFAULT_EXT_WHERE_JA, type BandCond, type BandShadow } from "@/lib/nox/pricing/band-shadow"; // ★裁定515-3（11/27 Agoora）: 当たらない下の行を上へ動かすボタン（並べ替えは今の pricing_rule_reorder）
 
 const card: React.CSSProperties = t.card;
 const input: React.CSSProperties = { ...t.input, width: "auto", padding: "8px 10px", fontSize: 13 };
@@ -656,13 +657,19 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
   async function moveBand(index: number, dir: -1 | 1) {
     const order = swapAdjacent(bands.map((b) => b.key), index, dir);
     if (!order || busy) return;
+    await applyBandOrder(order);
+  }
+
+  /** ★裁定515-3（11/27 Agoora）: 帯の並び（key の全件）を fee_kind ごとの pricing_rule_reorder へ分解して送る（∧∨ と「この行を上へ動かす」の共用・関数は変えない・成功で true）。 */
+  async function applyBandOrder(order: string[]): Promise<boolean | undefined> {
     const byKey = new Map(bands.map((b) => [b.key, b]));
-    { // ★0210 v2（【F5】）: 並べ替え（pricing_rule_reorder＝fee_kind ごとに 1..N）の後に初回の行が当たらない並びになるなら止める
+    { // ★0210 v2（【F5】）: 並べ替え（pricing_rule_reorder＝fee_kind ごとに 1..N）の後に初回の行が当たらない並びになるなら止める（止めたら undefined＝送らない）
       const setIds = order.flatMap((k) => (byKey.get(k)?.all ?? []).filter((r) => r.fee_kind === "set").sort(ruleOrder).map((r) => r.id));
       const block = shadowGuard(rules.map((r) => (r.fee_kind === "set" && setIds.includes(r.id) ? { ...r, priority: setIds.indexOf(r.id) + 1 } : r)));
       if (block) { setMsg(block); return; }
     }
     setBusy(true);
+    let okAll = true;
     for (const fk of TIMED_KINDS) {
       const ids = order.flatMap((k) =>
         (byKey.get(k)?.all ?? []).filter((r) => r.fee_kind === fk).sort(ruleOrder).map((r) => r.id));
@@ -670,10 +677,19 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
       const { error } = await supabase.rpc("pricing_rule_reorder", {
         p_store_id: storeId, p_fee_kind: fk, p_ids: ids,
       });
-      if (error) { setMsg(reorderErrJa(error.message)); break; }
+      if (error) { setMsg(reorderErrJa(error.message)); okAll = false; break; }
     }
     setBusy(false);
     await reload();
+    return okAll;
+  }
+
+  /** ★裁定515-3: 当たらない下の帯を、それを覆う一番上の帯のすぐ上へ（確認の窓は出さない＝∧∨ と同じ・権限は関数が決める＝∧∨ と同じ） */
+  async function fixShadow(s: BandShadow) {
+    if (busy) return;
+    const order = bandShadowFixOrderOf(bands.map((b) => b.key), s);
+    if (!order) { setMsg("一覧が古くなっています。再読込してください"); await reload(); return; }
+    if (await applyBandOrder(order)) setMsg(BAND_SHADOW_DONE_JA);
   }
 
   // ── ランク別指名料金（tab-base・修正a）─────────────────────────
@@ -933,32 +949,21 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
 
   // E8-5 pricing（当日追加分⑥）: 重複帯の検出＝表示専用の警告（挙動は現行どおり priority 解決のまま）。
   //   時間帯は 0083 の非対称営業日拡張（from < cutoff / to <= cutoff で +1440）と同じ式で比較する。
-  const bandOverlaps = (() => {
-    const adjRange = (b: Band): [number, number] => {
-      if (b.from === null) return [cutoffMin, cutoffMin + 1440]; // 終日
-      const f = (b.from as number) < cutoffMin ? (b.from as number) + 1440 : (b.from as number);
-      const tRaw = b.to === 0 ? 1440 : (b.to as number);
-      const tv = tRaw <= cutoffMin ? tRaw + 1440 : tRaw;
-      return [f, tv];
-    };
-    const mask = (b: Band) => b.dow_mask ?? 127;
-    const kinds = (b: Band) => Object.keys(b.cells);
-    const out: string[] = [];
-    for (let i = 0; i < bands.length; i++) {
-      for (let j = i + 1; j < bands.length; j++) {
-        const a = bands[i], b = bands[j];
-        if (a.seat_kind !== null && b.seat_kind !== null && a.seat_kind !== b.seat_kind) continue;
-        if ((mask(a) & mask(b)) === 0) continue;
-        // ★mig0128（D4）: 区分軸＝区分一致 ∨ どちらかが null（null=全区分は解決上すべての区分と競合しうる）
-        if (a.category_id !== null && b.category_id !== null && a.category_id !== b.category_id) continue;
-        const [af, at2] = adjRange(a); const [bf, bt] = adjRange(b);
-        if (!(af < bt && bf < at2)) continue;
-        if (!kinds(a).some((k) => kinds(b).includes(k))) continue;
-        out.push(`${bandTimeLabel(a)}（${a.seat_kind ?? "全席種"}・${bandDowLabel(a)}）と ${bandTimeLabel(b)}（${b.seat_kind ?? "全席種"}・${bandDowLabel(b)}）`);
-      }
-    }
-    return out;
-  })();
+  //   ★mig0128（D4）: 区分軸＝区分一致 ∨ どちらかが null（null=全区分は解決上すべての区分と競合しうる）。
+  // ★裁定515-3（11/27 Agoora）: 判定は lib/nox/pricing/band-shadow へ（純関数・検査 verify:nox-band-shadow）。
+  //   上の広い帯に覆われて当たらない下の帯＝bandShadows（「この行を上へ動かす」）・どちらも覆わない一部の重なり＝bandOverlaps（今の文のまま）・
+  //   狭い帯が上の重なりは「狭い条件ほど上に」のとおり＝警告に出さない（ボタンで直した後に警告が消える）。
+  const bandLabel = (b: Band) => `${bandTimeLabel(b)}（${b.seat_kind ?? "全席種"}・${bandDowLabel(b)}）`;
+  const bandWarn = bandWarningsOf(bands.map((b): BandCond => ({
+    key: b.key, seat_kind: b.seat_kind, dow_mask: b.dow_mask, from: b.from, to: b.to, category_id: b.category_id,
+    kinds: Object.keys(b.cells),
+    activeKinds: Object.entries(b.cells).filter(([, r]) => r?.is_active).map(([k]) => k),
+    defaultExt: b.all.some((r) => r.fee_kind === "extension" && r.is_active && r.is_default_ext === true), // ★既定の延長の印（0173:158＝並びより先に効く）
+  })), cutoffMin);
+  const bandShadows = bandWarn.shadows;
+  const bandDefaultBlocks = bandWarn.defaultBlocks; // ★並べ替えでは直らない＝ボタンを出さず警告を残す
+  const defaultExtNameOf = (b: Band) => b.all.find((r) => r.fee_kind === "extension" && r.is_active && r.is_default_ext === true)?.name ?? b.name ?? bandLabel(b);
+  const bandOverlaps = bandWarn.overlaps.map(([i, j]) => `${bandLabel(bands[i])}と ${bandLabel(bands[j])}`);
   const cellLabel = (r: PricingRule | undefined, withMin: boolean) => {
     if (!r) return <span style={{ color: "var(--v2-muted)" }}>—</span>;
     return (
@@ -1206,6 +1211,38 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
                   </tbody>
                 </table>
               </ResponsiveTable>
+            )}
+            {/* ★裁定515-3（コーディネーター 11/27 の直し）: 既定の延長の印で使われない延長の行＝並びを変えても当たり方が変わらない＝ボタンは出さず赤い警告を残す（警告だけ消えて開卓の額が変わらない食い違いを隠さない） */}
+            {bandDefaultBlocks.length > 0 && (
+              <div data-band-default-ext="1" style={{ marginTop: 10, padding: "8px 12px", borderRadius: 9, border: "1px solid var(--bad-bd)", background: "var(--bad-bg)" }}>
+                <p style={{ fontSize: 12, fontWeight: 800, color: "var(--bad)", margin: 0 }}>{BAND_DEFAULT_EXT_HEAD_JA(bandDefaultBlocks.length)}</p>
+                {bandDefaultBlocks.map((x) => {
+                  const lo = bands[x.lower], by = bands[x.by];
+                  return (
+                    <p key={x.lowerKey} style={{ fontSize: 11, color: "var(--sub)", margin: "5px 0 0" }}>
+                      ・{lo.name ? `「${lo.name}」` : ""}{bandLabel(lo)}の延長：{BAND_DEFAULT_EXT_JA(defaultExtNameOf(by))}
+                    </p>
+                  );
+                })}
+                <p style={{ fontSize: 11, color: "var(--sub)", margin: "5px 0 0" }}>{BAND_DEFAULT_EXT_WHERE_JA}</p>
+              </div>
+            )}
+            {/* ★裁定515-3（11/27 Agoora）: 上の広い行に覆われて当たらない下の行＝「この行を上へ動かす」（覆う一番上の行のすぐ上へ・pricing_rule_reorder・成功で読み直す＝警告が消える） */}
+            {bandShadows.length > 0 && (
+              <div style={{ marginTop: 10, padding: "8px 12px", borderRadius: 9, border: "1px solid var(--bad-bd)", background: "var(--bad-bg)" }}>
+                <p style={{ fontSize: 12, fontWeight: 800, color: "var(--bad)", margin: 0 }}>{BAND_SHADOW_HEAD_JA(bandShadows.length)}</p>
+                {bandShadows.map((s) => {
+                  const lo = bands[s.lower], up = bands[s.upper];
+                  return (
+                    <div key={s.lowerKey} style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, margin: "5px 0 0" }}>
+                      <p style={{ fontSize: 11, color: "var(--sub)", margin: 0, flex: "1 1 240px" }}>
+                        ・{lo.name ? `「${lo.name}」` : ""}{bandLabel(lo)}は、上の{up.name ? `「${up.name}」` : ""}{bandLabel(up)}が先に当たるため当たりません
+                      </p>
+                      <button type="button" style={btnLight} disabled={busy} onClick={() => void fixShadow(s)}>{BAND_SHADOW_BTN_JA}</button>
+                    </div>
+                  );
+                })}
+              </div>
             )}
             {/* E8-5 pricing⑥: 重複帯の警告（表示のみ・解決は現行どおり priority）。 */}
             {bandOverlaps.length > 0 && (
