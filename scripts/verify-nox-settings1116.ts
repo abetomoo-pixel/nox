@@ -40,7 +40,7 @@ check("st(5-3) ★B6: 保存はカードの下に固定（2 枚のカード）�
   check("st(5-4) ★C（2026-11-16）: 打刻の設定・キャスト画面・LINE 連携も同じ形＝説明は ⓘ（リンクの説明は残す）・保存の帯・LINE の URL は詳しい設定に畳む・主ボタンは金の小（大きな主ボタンは無い）",
     (pr.match(/<InfoTip>/g) ?? []).length === 5 && !pr.includes("<p style={rowDesc}>") && (ms.match(/<InfoTip>/g) ?? []).length === 3 && (ms.match(/style={rowDesc}/g) ?? []).length === 1 /* リンクの 1 つだけ */
     && lc.includes('data-settings-fold="line-urls"') && lc.includes("<InfoTip>{LINE_NOTIFY_COUNT_NOTE}</InfoTip>") && !lc.includes("t.btnPrimary56")
-    && [pr, ms].every((x) => (x.match(/className="nox-actions nox-settings-save"/g) ?? []).length === 1) && (lc.match(/className="nox-actions nox-settings-save"/g) ?? []).length === 2); }
+    && [pr, ms].every((x) => (x.match(/className="nox-actions nox-settings-save"/g) ?? []).length === 1) && (lc.match(/className="nox-actions nox-settings-save nox-settings-save--inline"/g) ?? []).length === 2 /* ★2026-11-27（相談役 18:40 ■3）: LINE 連携は保存が 2 つ＝スマホでは固定せずその場に並べる（--inline）。前＝className="nox-actions nox-settings-save" が 2 つ */); }
 check("st(4-1) RPC と保存の式は不変（set_store_profile の呼び口 1 つ・patchOf は節を見ない）", (sp.match(/rpc\("set_store_profile"/g) ?? []).length === 1 && !/const patchOf = \(\): Record<string, unknown> => \{[\s\S]*?on\("/.test(sp.slice(sp.indexOf("const patchOf"), sp.indexOf("const dirty"))));
 
 // ★2026-11-17（相談役 4・Agoora 確定）: 店舗設定のレイアウト（見せ方だけ）

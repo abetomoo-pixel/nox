@@ -3453,6 +3453,9 @@ tr.nox-rowflash, .nox-rowflash { animation: nox-rowflash 1.6s ease-out; }
   .nox-settings .nox-settings-save:not(:has(button:not(:disabled))) { position: static; margin-bottom: 0; }
   .nox-settings .nox-settings-save:has(button:not(:disabled)) { position: fixed; left: 0; right: 0; bottom: calc(var(--nox-bnav-h, 66px) + env(safe-area-inset-bottom, 0px)); z-index: 30; margin: 0; padding: 8px 16px; border-top: 1px solid var(--line2); box-shadow: 0 -6px 16px rgba(0, 0, 0, .35); }
   .nox-settings:has(.nox-settings-save button:not(:disabled)) { padding-bottom: 76px; }
+  /* ★2026-11-27（相談役 18:40 ■3）: 1 つの画面に保存が 2 つあるとき（LINE 連携）＝スマホでは固定しない（2 つとも画面の下の同じ位置に重なり、片方が隠れていた）。その場に並べて、どちらも見えて押せる */
+  .nox-settings .nox-settings-save.nox-settings-save--inline:has(button:not(:disabled)) { position: static; margin: 0 0 -4px; padding: 10px 0; border-top: 1px solid var(--line); box-shadow: none; }
+  .nox-settings:has(.nox-settings-save--inline):not(:has(.nox-settings-save:not(.nox-settings-save--inline) button:not(:disabled))) { padding-bottom: 16px; }
   .nox-settings { padding-bottom: 16px; }
   .nox-settings .nox-seg:has(> :nth-child(3)) { display: grid !important; grid-template-columns: minmax(0, 1fr) !important; width: 100%; }
   .nox-settings .nox-seg:has(> :nth-child(3)) > * { width: 100%; min-height: 44px; white-space: normal !important; text-align: left; justify-content: flex-start; }

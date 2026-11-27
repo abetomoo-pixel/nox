@@ -153,9 +153,9 @@ export default function LineConfigPanel({ stores, isOwner }: { stores: Store[]; 
           </label>
         ))}
       </div>
-      <div style={{ marginTop: 10 }}>{/* ★便 BTN: 保存はフォームの列（最大 560px）の外＝カードの中央 */}
+      <div style={{ marginTop: 10 }}>{/* ★便 BTN: 保存はフォームの列（最大 560px）の外＝カードの中央 */}{/* ★2026-11-27（相談役 18:40 ■3）: この画面は保存が 2 つ＝スマホの幅で両方が画面の下に固定されて重なっていた（見えるのは片方だけ）＝2 つとも nox-settings-save--inline（スマホは固定しないで、その場に並べる）。PC の並び（裁定504-1）は変えない */}
         {isDemo ? <p style={{ ...t.sub, margin: 0 }}>デモ環境では LINE の設定を変更できません。</p>
-          : <div className="nox-actions nox-settings-save" data-settings-save="1">{/* ★便 BTN（裁定242）: 主ボタンは行の中央 */}<button type="button" style={{ ...t.btnGold, ...t.btnSm }} disabled={busy || !storeId} onClick={() => void saveConfig()} data-line-save="1">{busy ? "保存中…" : "LINE の設定を保存"}</button></div>}
+          : <div className="nox-actions nox-settings-save nox-settings-save--inline" data-settings-save="1">{/* ★便 BTN（裁定242）: 主ボタンは行の中央 */}<button type="button" style={{ ...t.btnGold, ...t.btnSm }} disabled={busy || !storeId} onClick={() => void saveConfig()} data-line-save="1">{busy ? "保存中…" : "LINE の設定を保存"}</button></div>}
         {outAt("config")}
       </div>
       {extraOn && (/* ★2026-11-18 夜（相談役 ⑤）: リッチメニュー＝保存（LIFF ID かトークンを入れたとき）で自動に登録（友だち全員）・作り直す・外す */
@@ -181,7 +181,7 @@ export default function LineConfigPanel({ stores, isOwner }: { stores: Store[]; 
           ))}
         </div>
         {notifyEditable
-          ? <div className="nox-actions nox-settings-save" data-settings-save="1">{/* ★便 BTN（裁定242）: 主ボタンは行の中央 */}<button type="button" style={{ ...t.btnGold, ...t.btnSm }} disabled={busy || !storeId} onClick={() => void saveNotify()} data-line-notify-save="1">{busy ? "保存中…" : "通知の種類を保存"}</button>{notifyDirty && <span style={{ fontSize: 12, fontWeight: 700, color: "var(--warning)", alignSelf: "center" }} role="status" data-line-notify-unsaved="1">まだ保存していません</span>}</div>
+          ? <div className="nox-actions nox-settings-save nox-settings-save--inline" data-settings-save="1">{/* ★便 BTN（裁定242）: 主ボタンは行の中央 */}<button type="button" style={{ ...t.btnGold, ...t.btnSm }} disabled={busy || !storeId} onClick={() => void saveNotify()} data-line-notify-save="1">{busy ? "保存中…" : "通知の種類を保存"}</button>{notifyDirty && <span style={{ fontSize: 12, fontWeight: 700, color: "var(--warning)", alignSelf: "center" }} role="status" data-line-notify-unsaved="1">まだ保存していません</span>}</div>
           : <p style={{ ...t.sub, margin: 0, color: "var(--v2-muted)" }}>{isDemo ? "デモ環境では LINE の設定を変更できません。" : !mig0199On() ? LINE_NOTIFY_SAVE_PENDING_NOTE : LINE_NOTIFY_OWNER_NOTE}</p>}
         {outAt("notify")}
       </div>

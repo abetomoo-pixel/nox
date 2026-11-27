@@ -48,6 +48,7 @@ type Preview = {
   arCollectedToday: number; // #4 回収現金（当日 ar_collections・締め前のライブ値・★D45: method='cash' のみ＝理論在高加算対象）
   arCollectedCardToday: number;  // ★D45（mig0143）: カード回収（当日 ar_collections method='card'・在高外）
   arCollectedOtherToday: number; // ★D45（mig0143）: その他回収（当日 ar_collections method='other'・在高外）
+  refCashToday: number; // ★0235（#29）: 紹介料の当日現金払いの合計（渡した額＝amount−withholding）＝daily_report_referral_cash（0235 で新設・合計だけ・締めの許可のあるスタッフ・キャストも読める）＝締め／再締めの関数と同じ定義
 };
 type Report = {
   id: string; biz_date: string; cash: number; card_gross: number; card_tax: number; uri: number; other: number;
@@ -286,6 +287,15 @@ export default function ReportBoard({
       .select("amount, method").eq("store_id", storeId).eq("biz_date", d);
     const arSum = (m: string) => (arRows ?? []).filter((r) => r.method === m).reduce((a, r) => a + (r.amount as number), 0);
     const arCollectedToday = arSum("cash"), arCollectedCardToday = arSum("card"), arCollectedOtherToday = arSum("other");
+    // ★0235（#29・相談役 11/26 22:50）: 紹介料の当日現金払い＝締め／再締めの関数と同じ定義で予定額から引く。合計だけを返す関数（daily_report_referral_cash）を読む＝
+    //   締めの許可のあるスタッフ・キャストの画面も締めた後の差異と同じ（紹介料の行そのものは読ませない）。関数が無い（0235 の前）・断られたときは今までの直読み（オーナー・店長だけ読める）
+    const { data: refSum, error: refErr } = await supabase.rpc("daily_report_referral_cash", { p_store_id: storeId, p_biz_date: d });
+    let refCashToday = refErr ? 0 : Number(refSum ?? 0);
+    if (refErr) {
+      const { data: refRows } = await supabase.from("referral_payouts")
+        .select("amount, withholding").eq("store_id", storeId).eq("status", "paid").eq("paid_via", "cash_daily").gte("paid_at", startIso).lt("paid_at", endIso);
+      refCashToday = ((refRows ?? []) as { amount: number; withholding: number }[]).reduce((a, r) => a + (r.amount - r.withholding), 0);
+    }
     setPreview({
       open: (checks ?? []).filter((c) => c.status === "open").length,
       slips: closed.length,
@@ -298,7 +308,7 @@ export default function ReportBoard({
       newCust, repeatCust, avgStayMin,
       bottlesOpened: bottlesOpened ?? 0, workedCasts: workedCasts ?? 0,
       closedTotal: closed.reduce((a, c) => a + ((c.total as number) ?? 0), 0),
-      arCollectedToday, arCollectedCardToday, arCollectedOtherToday,
+      arCollectedToday, arCollectedCardToday, arCollectedOtherToday, refCashToday,
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storeId, cutoff, cardTaxRate]);
@@ -511,7 +521,7 @@ export default function ReportBoard({
   // 段L2: 表示中の営業日が締め済みか（既に取得済みの reports から引くだけ＝新規取得なし）
   const closedReport = reports.find((r) => r.biz_date === bizDate) ?? null;
   // ★#70: 再締めできる日（flag on＝解除中／flag off＝締め済み＝現行の上書き再集計）を選んだら、その日報の値を締め欄へ写す。
-  //   再締めは締め欄の値で daily_report_reclose に送る（既存値で送る行ボタンの経路は撤去＝#70）。ユーザー編集は日付切替まで保持。
+  //   再締めは締め欄の値で daily_report_reclose に送る（既存値で送る行ボタンの経路は撤去＝#70）。ユーザー編集は日付切替まで保持（切り替えたら下の effect が切り替えた先の日の値にする）。
   const recloseTarget = closedReport && (!reopenFlag || isReopened(closedReport)) ? closedReport : null;
   useEffect(() => {
     if (!recloseTarget) return;
@@ -520,6 +530,25 @@ export default function ReportBoard({
     { const o = otherPayoutFromNoteOf(recloseTarget.note); setOtherPay(o.amount); setOtherMemo(o.memo); setNote(o.rest); } // ★便 X13-G W-24: メモ先頭の「その他の現金支払」を欄へ戻す
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recloseTarget?.id, recloseTarget?.reopened_at, recloseTarget?.reclosed_at]);
+  // ★起票（2026-11-27・相談役 18:05・【重大】日報の締めの欄）: 営業日（と店）を切り替えたら、締めの欄を「切り替えた先の日」の値にする。
+  //   前は欄を戻す所が無く、別の日の日報の値・人が入れた途中の値が残った（気づかずに別の日の諸経費・実査で締める道）。
+  //   締め済みの日＝その日報の値（#70 の写しと同じ）・未締めの日＝初めに開いたときと同じ（諸経費 0・釣銭 50,000 → 店の既定があれば上の読取が入れる・実査とメモは空・その他の現金支払 0）。
+  //   初めの描画は今までどおり（何もしない）。送る RPC・引数・金額の式は変えない。
+  const formDayRef = useRef<string | null>(null);
+  useEffect(() => {
+    const key = `${storeId}:${bizDate}`;
+    if (formDayRef.current === null) { formDayRef.current = key; return; }
+    if (formDayRef.current === key) return;
+    formDayRef.current = key;
+    if (closedReport) {
+      setExpense(closedReport.expense); setPayout(closedReport.cash_payout); setCashFloat(closedReport.cash_float);
+      setCounted(closedReport.counted_cash == null ? "" : String(closedReport.counted_cash));
+      { const o = otherPayoutFromNoteOf(closedReport.note); setOtherPay(o.amount); setOtherMemo(o.memo); setNote(o.rest); }
+    } else {
+      setExpense(0); setCashFloat(50_000); setCounted(""); setNote(""); setOtherPay(0); setOtherMemo("");
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storeId, bizDate]);
   // ★裁定414（S-4 ②）: 諸経費の既定＝送迎費（店負担）の当日分（欄が 0 のときだけ・締め済みの日報と再締めは触らない）
   useEffect(() => {
     if (okuriStoreSum > 0 && expense === 0 && !closedReport && !recloseTarget) setExpense(okuriStoreSum);
@@ -1297,7 +1326,7 @@ export default function ReportBoard({
           <h3>現金照合</h3>
           <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "-4px 0 10px" }}>レジ内の現金と帳簿残高を照合（金額は下の「締め」の入力に連動します）</p>
           {(() => {
-            const expected = cashFloat + preview.cash + preview.arCollectedToday - expense - payout;
+            const expected = cashFloat + preview.cash + preview.arCollectedToday - expense - payout - preview.refCashToday; // ★0235（#29）: 締めの関数と同じ式
             const diffLive = counted === "" ? null : Number(counted) - expected;
             return (
               <>
@@ -1309,6 +1338,7 @@ export default function ReportBoard({
                 <div className="nox-listrow"><span style={{ flex: 1, color: "var(--sub)" }}>その他回収（在高外）</span><b className="num" style={{ color: "var(--sub)" }}>{yen(preview.arCollectedOtherToday)}</b></div>
                 <div className="nox-listrow"><span style={{ flex: 1 }}>諸経費</span><b className="num" style={{ color: "var(--bad)" }}>− {yen(expense)}</b></div>
                 <div className="nox-listrow"><span style={{ flex: 1 }}>現金支払（送り・日払い等）</span><b className="num" style={{ color: "var(--bad)" }}>− {yen(payout)}</b></div>
+                {preview.refCashToday > 0 && <div className="nox-listrow" data-ref-cash="1"><span style={{ flex: 1 }}>紹介料（現金払い）</span><b className="num" style={{ color: "var(--bad)" }}>− {yen(preview.refCashToday)}</b></div>}{/* ★0235（#29）: 当日現金で払った紹介料（渡した額） */}
                 <div className="nox-listrow" style={{ borderTop: "1px solid var(--line)" }}>
                   <span style={{ flex: 1, fontWeight: 800 }}>レジ内予定額</span><b className="num" style={{ fontSize: 15 }}>{yen(expected)}</b>
                 </div>
@@ -1348,7 +1378,7 @@ export default function ReportBoard({
           {preview && (() => {
             const paysSum = preview.cash + preview.card + preview.uri + preview.other;
             const payMatch = paysSum === preview.closedTotal;
-            const expected = cashFloat + preview.cash + preview.arCollectedToday - expense - payout;
+            const expected = cashFloat + preview.cash + preview.arCollectedToday - expense - payout - preview.refCashToday; // ★0235（#29）: 締めの関数と同じ式
             const diffLive = counted === "" ? null : Number(counted) - expected;
             const items: Array<[boolean | null, string]> = [
               [preview.open === 0, preview.open === 0 ? "未会計 0 件" : `未会計 ${preview.open} 件（全伝票の会計が必要${isManagerUp ? "・店長は強行も可" : ""}）`],
@@ -1396,7 +1426,7 @@ export default function ReportBoard({
           )}
           {/* E8-2 #4: 現金照合パネル＝レジ内予定額の内訳を締め前にライブ表示（式は確定側の実査差異と同じ） */}
           {preview && (() => {
-            const expected = cashFloat + preview.cash + preview.arCollectedToday - expense - payout;
+            const expected = cashFloat + preview.cash + preview.arCollectedToday - expense - payout - preview.refCashToday; // ★0235（#29）: 締めの関数と同じ式
             const diffLive = counted === "" ? null : Number(counted) - expected;
             return (
               <div className="nox-inset" data-close-expected="1" style={{ padding: "12px 16px", marginBottom: 12, fontSize: 14 }}>{/* ★便 GV-C C-11（GV-54）: 予定額は見出し級・式は 1 段大きく・差額 ¥± は予定額の横 */}
@@ -1412,7 +1442,7 @@ export default function ReportBoard({
                 <div style={{ marginTop: 4 }}>
                   <span style={{ color: "var(--sub)", fontSize: 13.5 }}>
                     ＝ 釣銭 {yen(cashFloat)} ＋ 現金売上 {yen(preview.cash)} ＋ 回収現金 {yen(preview.arCollectedToday)}
-                    − 諸経費 {yen(expense)} − 現金支払 {yen(payout)}
+                    − 諸経費 {yen(expense)} − 現金支払 {yen(payout)}{preview.refCashToday > 0 && <> − 紹介料（現金払い） {yen(preview.refCashToday)}</>}
                   </span>
                 </div>
               </div>

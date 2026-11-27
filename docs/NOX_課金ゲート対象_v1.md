@@ -714,6 +714,10 @@ staff_deactivate / kiosk_deactivate / staff_invite_revoke（★0211（2026-11-25
 - 構造除外（初回の行が覆われるかの判定＝2 つの選択の保存・並べ替え・料金の行の保存から呼ぶ・書かない・4 ロール revoke）: pricing_first_visit_cover_of／pricing_first_visit_shadowed_ids
 （除外 297→**299**・全数 522→**524**（0216 ＋2＝B +2・作り直し 3 本は名前不変で本数不動・ゲートは 3 本とも元から内蔵））
 
+### B(at). 0235 新設の除外（1本・2026-11-27 19:35:49 本番適用（相談役 11/27 18:30 の合図・検証 9 行とも期待値））
+- 運用除外（日報の予定額に足す紹介料の現金払いの合計を読むだけ＝日報を締められる人と同じ判定・書かない）: daily_report_referral_cash
+（除外 299→**300**・全数 525→**526**（0235 ＋1＝B +1・作り直し 1 本（daily_report_reclose）は名前不変で本数不動・ゲートは元から内蔵）。0244 はポリシーの作り直しだけ＝関数の数は動かない）
+
 ## C. kiosk 腕を持つ対象（実装注意・18本）
 A1 の check_open / check_add_line / check_remove_line / check_add_seat / check_remove_seat /
 check_move_seat / check_set_nominations / check_time_charge_apply / check_shimei_add / check_dohan_add /
