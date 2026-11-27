@@ -52,7 +52,7 @@ const pb = src("app/(manage)/master/pricing/pricing-board.tsx");
 const rb = src("app/(manage)/register/register-board.tsx");
 check("(4-1) 料金マスタ＝'too many extension' の和文と 4 件目の先回りは旗 false のときだけ・件数の表記は旗で分岐・説明文は旗 true で「数の上限なし」",
   pb.includes('if (!mig0224On() && msg.includes("too many extension"))') && pb.includes("if (!mig0224On() /* ★0224: 上限の撤去の後は先回りしない */ && fk === \"extension\" && !existing")
-  && pb.includes("const extCount = mig0224On() ? extCountTextV2Of(exts.length) : extCountTextOf(exts.length);") && pb.includes("{extCount.text}") && pb.includes("数の上限なし") && pb.includes('data-ext-note={mig0224On() ? "uncap" : "cap3"}'));
+  && pb.includes("const extCount = mig0224On() ? extCountTextV2Of(exts.length) : extCountTextOf(exts.length);") && pb.includes("{extCountLabel}") /* ★2026-11-27: verify-nox-messages の {x.text} を避けて名前を替えた */ && pb.includes("数の上限なし") && pb.includes('data-ext-note={mig0224On() ? "uncap" : "cap3"}'));
 check("(4-2) レジ＝自動の「延長パターン ▾」・手動の ▾・手動の時間料金カードの 3 か所が旗 true で新しい一覧（extPickerRowsOf・今の営業日の分）・旧い一覧は旗 false で残す",
   rb.includes('{extAutoMenu && mig0224On() && (') && rb.includes('{extAutoMenu && !mig0224On() && (') && rb.includes('data-ext-picker="auto"')
   && rb.includes('{extBarMenu && mig0224On() && (') && rb.includes('{extBarMenu && !mig0224On() && (') && rb.includes('data-ext-picker="bar"')

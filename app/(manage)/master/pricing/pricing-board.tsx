@@ -1001,7 +1001,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
           {/* ★便 P173（裁定385・0173）: 延長パターン＝有効な延長ルール（1 店 3 つまで・RPC 'too many extension'）と既定（is_default_ext＝1 本・自動延長の店は既定を自動適用・手動延長はレジで選択・自動延長後の切替は差額引き直し） */}
           {(() => {
             const exts = rules.filter((r) => r.fee_kind === "extension" && r.is_active).sort(ruleOrder);
-            const extCount = mig0224On() ? extCountTextV2Of(exts.length) : extCountTextOf(exts.length); // ★0224（裁定508（提案））: 件数だけ（上限・超過の印なし）
+            const extCount = mig0224On() ? extCountTextV2Of(exts.length) : extCountTextOf(exts.length); const extCountLabel = extCount.text; // ★件数の表示（メッセージではない＝verify-nox-messages の {x.text} の形を避ける） // ★0224（裁定508（提案））: 件数だけ（上限・超過の印なし）
             const setDefault = async (r: PricingRule) => {
               setBusy(true);
               const err = await upsertRule({ id: r.id, fee_kind: r.fee_kind, seat_kind: r.seat_kind, dow_mask: r.dow_mask, from: r.time_from_min, to: r.time_to_min, rank_id: r.rank_id,
@@ -1012,7 +1012,7 @@ export default function PricingBoard({ storeId, bizCutoffHm, initial, isOwner, f
             };
             return (
               <section className="nox-cardtop" style={{ ...card, marginBottom: 14 }} data-ext-patterns="1">
-                <h3 style={{ margin: "0 0 6px", fontSize: 14 }}>延長パターン <span className={`nox-stpill${extCount.over ? " bad" : ""}`} style={{ marginLeft: 6 }} data-ext-count={exts.length}>{extCount.text}</span></h3>{/* ★連続便 3 追補 P-10 ④: 「4/3」→実数＋上限 ★0224: 件数だけ */}
+                <h3 style={{ margin: "0 0 6px", fontSize: 14 }}>延長パターン <span className={`nox-stpill${extCount.over ? " bad" : ""}`} style={{ marginLeft: 6 }} data-ext-count={exts.length}>{extCountLabel}</span></h3>{/* ★連続便 3 追補 P-10 ④: 「4/3」→実数＋上限 ★0224: 件数だけ */}
                 {extCount.over && <p style={{ fontSize: 12, color: "var(--bad)", margin: "0 0 6px" }} data-ext-over="1">延長パターンは 3 件までです。超えている分は停止するか編集してください（4 件目以降は追加できません）。</p>}
                 <p style={{ fontSize: 11.5, color: "var(--sub)", margin: "0 0 8px", lineHeight: 1.7 }} data-ext-note={mig0224On() ? "uncap" : "cap3"}>
                   {mig0224On() ? (
