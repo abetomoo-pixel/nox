@@ -195,7 +195,7 @@ const reorder = (bs: BandCond[], order: string[]) => order.map((k) => bs.find((b
     src.includes("bandDefaultBlocks.length > 0 &&") && src.includes("BAND_DEFAULT_EXT_JA(defaultExtNameOf(by))") && src.includes("{BAND_DEFAULT_EXT_WHERE_JA}")
     && src.includes('defaultExt: b.all.some((r) => r.fee_kind === "extension" && r.is_active && r.is_default_ext === true)')
     && (() => { const i = src.indexOf("bandDefaultBlocks.length > 0 &&"); const blk = src.slice(i, src.indexOf("bandShadows.length > 0 &&", i)); return !blk.includes("<button") && !blk.includes("fixShadow"); })());
-  expect("(4-9) npm script はある・f0 の鎖には入れていない（CC が足す）", pkg.scripts["verify:nox-band-shadow"] === "tsx scripts/verify-nox-band-shadow.ts" && !pkg.scripts["verify:f0"].includes("verify:nox-band-shadow"));
+  expect("(4-9) npm script はある・f0 の鎖に入っている（2026-11-27 CC が足した）", pkg.scripts["verify:nox-band-shadow"] === "tsx scripts/verify-nox-band-shadow.ts" && pkg.scripts["verify:f0"].includes("npm run verify:nox-band-shadow"));
 }
 
 if (fails.length) { console.error(`FAIL ${fails.length}/${ok + fails.length}`); for (const f of fails) console.error("  ✗ " + f); process.exit(1); }
