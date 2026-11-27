@@ -158,10 +158,11 @@ async function main(): Promise<void> {
         x = await as(manager, `select public.deduction_rule_cast_set($1, $2, true, null)`, [alwId, cast.id]);
         check("0195(4-7) 既定に戻す（enabled=true・override=null）＝行が消える", x.ok && (await rcOf()).length === 0, x.err);
         const base = { membership_id: staff.id, pay_kind: "hourly", hourly: 1300, minutes: 601, time_pay: 13021, fixed: 6000, monthly: 0, daily: 0, days: 3, amount: 19021, deductions: [], calc_version: STAFF_LABOR_CALC_VERSION };
-        x = await as(manager, `select public.staff_attendance_confirm($1, '2099-07', true, $2::jsonb)`, [st.id, J([{ ...base, allowances: [{ name: "通勤手当", amount: 5000 }] }])]);
+        // ★0232（2026-11-27 適用）: 今の営業日の月以降は 'period not ended'＝確定の月は過去（2000-07）に（前は 2099-07）
+        x = await as(manager, `select public.staff_attendance_confirm($1, '2000-07', true, $2::jsonb)`, [st.id, J([{ ...base, allowances: [{ name: "通勤手当", amount: 5000 }] }])]);
         check("0195(4-8) staff_attendance_confirm＝Σ allowances 5,000≠fixed 6,000 は 'labor mismatch: fixed 6000 <> sum(allowances) 5000'（裁定450 の 6）", !x.ok && /labor mismatch: fixed 6000 <> sum\(allowances\) 5000/.test(x.err), x.err);
-        x = await as(manager, `select public.staff_attendance_confirm($1, '2099-07', true, $2::jsonb)`, [st.id, J([{ ...base, allowances: [{ name: "通勤手当", amount: 2500 }, { name: "役職手当", amount: 3500 }] }])]);
-        const fz = (await pc.query(`select fixed, allowances from public.staff_labor_confirmed where membership_id=$1 and period='2099-07'`, [staff.id])).rows[0];
+        x = await as(manager, `select public.staff_attendance_confirm($1, '2000-07', true, $2::jsonb)`, [st.id, J([{ ...base, allowances: [{ name: "通勤手当", amount: 2500 }, { name: "役職手当", amount: 3500 }] }])]);
+        const fz = (await pc.query(`select fixed, allowances from public.staff_labor_confirmed where membership_id=$1 and period='2000-07'`, [staff.id])).rows[0];
         check("0195(4-9) 2 行の合計＝fixed 6,000 は通り内訳 2 行を凍結（client の staffLaborRowOf が送る形）", x.ok && fz?.fixed === 6000 && Array.isArray(fz?.allowances) && fz.allowances.length === 2, x.ok ? fz : x.err);
       } finally { await pc.query("rollback"); }
       const after = await cntQ();
