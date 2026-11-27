@@ -6159,6 +6159,22 @@ CC の処置＝M-130（下の節）。
 - 案のファイル：docs/legal/terms_store_v1.0_draft.md（v0.9 の 43・56・64・73 行目の 4 か所だけ値を入れた・sha256 d5b17928e3bda8d4f1d1db719f27f1ccbd8ab038c63be31984dec11b680aa32b・画面には出さない）。「v0.9 が確認済みの原本」は保留のまま。
 - 次の裁定＝521。
 
+## 裁定521（2026-11-27 16:05・Agoora の決め・相談役 16:20）0242 の移動先に同じ長さの延長の行が無いとき
+- ア＝今の起草のまま：移動先に同じ長さの延長の行が無いときは、移動先の今の行の額を 1 ブロックに付ける（按分しない）。0242 は当ててよい（同じ合図で 16:07:56 に適用）。
+- 次の裁定＝522。
+
+## 裁定516 の追記（2026-11-27 16:20・相談役）キープの付いた行
+- キープの付いた行は、お客様の付け替えと外しも会計まで（段階 2）。0231（kiosk_cast_stage_1127・READY の 13:20 の 3・試走 K-1）にこの形で入っている。p_keep false を関数へ直に送るとだれでもキープが前のお客様に残る件は 0231 の外（別の件）。
+
+## 当てる合図 3（2026-11-27 16:20・相談役→CC・Agoora が認めた先の組 4 本）の適用
+- CC が本番に適用（docs/tmp/apply_1127b.mjs＝apply_1127.mjs の写しで指紋だけ差し替え・指紋 3 つは相談役の文の全桁と当てる直前に一致・ref hiqbfagmkrdpmlqhkmsu・ロール postgres・ほかの CC の接続 0・F0_RUNNING と TRIAL_RUNNING_ なし・当てる間は APPLYING_1127 を置いた・接続に lock_timeout 10s・事前確認の返りは貼り先証明の 1 行だけ（会社 14）・本体 1 回・検証の全行が ok）。ログ docs/tmp/apply_<mig>_1127.log。
+  - 0236d okuri_tier_amount_flat_only 16:07:38：be0bb0ea1a372485622469dd97d4968bcd1020ae381fbf36fc8851d62252b997／50ab736bc48956a1af380c9877fdc94c3fdeed1fa244a808c96e15bd4f6c3cc2／9dc81e8bc34e1621ec993093aebe41c497844228b2acfb49e1cd025e2c313117・検証 10 行（transport_issue_self 63a966ab…・kiosk_transport_issue 45886223…・okuri_today_summary 8f315de1…）。
+  - 0241g sales_split_equal_hon_jonai 16:07:43：fe092887651c6ad1c7bf55cfcb088e254282aa522a26562ed43308f594c84361／056550dcb7fb6431a1bb9295ccba875d2fb3fbb5e4aca2702ef9f806cf46ca95／ccbc6f4b8ff3c3387b8f12df6f9c5c796af525a1b9135f385fe1d1d7c86831bf・検証 7 行（cast_sales_aggregate 3dafda96…・cast_sales_aggregate_subtotal 85882d24…）。
+  - 0234 pay_guard 16:07:50：1d461e2e65d1dd884041b4356f20613f237f4a09f54c807f6b7f1d22a732afcc／4d294fad7e4b49c3c3b5ac7419fbb75a28849588fb6093f5cb2879117183145a／df319b2556a18f96c9672f96cb2370f8d7332ece1f15e4ba2c6d7cfe41123b60・検証 7 行（check_pay bb627cff…・check_set_ext_rule 5721b323…）。
+  - 0242 seat_move_down_ext 16:07:56：769f487af76d4d515eaa96acf71505f832584644a965e73891bd474e1535fd6c／252f4fc9d1ed193e4a6fbb5bda93d14042712729a6d8d4278deb6599c7307c2c／57dc8361b1d0a1b02523b9b0d7948d1217d31facdd660a2c88e1d1601dfd08a7・検証 7 行（check_move_seat b1b742fc…・check_time_charge_apply facc8d8c…）。
+- 4 本とも前後で関数 525・表 133・会社 14。収蔵＝supabase/migrations/0234_pay_guard.sql・0236_okuri_tier_amount_flat_only.sql・0241_sales_split_equal_hon_jonai.sql・0242_seat_move_down_ext.sql（指紋は本体と同じ・次の束で commit）。
+- ★当ててから検査の張り替えの push が済むまで f0 の門を走らせない（0158・0175-0176・0201q ほかが赤）。
+
 ## 11/27 の画面の側の push（b6445265）
 - push＝48e3328b..b6445265（15:48:35）・f0 2 連緑 270 段 9,943（1 本目 15:01:11・2 本目 15:48:32・ゴールデン 5931／125802）・本番の build pLu6ciHz3MGzyNNxLcn_Z（15:51:51・15:48:46 の byjmM2q8… は前の docs の push の分）。
 - 中身＝mig 9 本の収蔵（0218・0223・0225・0232・0233・0224・0226・0227・0230）・画面の側（0218 の旗 true と起票355・0226 の 113 とほかの店長の行で個人情報のボタンを出さない・0230 の文・0232 の patch_106・0233 の旗 true と patch_174・0223 のコメント）・0224 の画面の枝 7214c0dd の取り込み（旗 false のまま）・検査の張り替え（0158・0199・p172 の set_store_profile・0195 の確定の月・w52a・ext-uncap／p175prep の件数の表示）・足し 8（下書きの期の給与の上の合計）・VIP 席の警告のボタン（裁定515-3）・band-shadow を f0 に。
