@@ -6258,6 +6258,17 @@ CC の処置＝M-130（下の節）。
 - 539-3（途中払い）：(c)。動きは今の起草のまま（「なし」を保存した店だけ止める）。鍵の無い店の表示を「前払」にして、画面と実際を合わせる（裁定531 に足す）。
 - 539-4：決めの外で足した 4 つ（27・118・313・182）は、そのままでよい。
 
+## 当てる合図 6（2026-11-28 19:20・相談役→CC・Agoora が認めた 4 本＝0252 → 0253（v3）→ 0237 → 0238）の適用
+- 19:20 の文は、CC に届かなかった 18:50 の合図と 19:15 の足しの代わり（0239c・仮 0250・仮 0251 はこの合図に入っていない）。
+- 当てる前の確かめ：ア 本番のビルド＝束 ec7e1e98 の物（/login の共有チャンク 4386-46ac01b1fed74b97）／イ デモでも検査用でもない店で、スタッフの月の確定（staff_attendance_locks）と支払い済み（staff_labor_payments）のある店と月＝**0**（表の全部でも、確定の錠 0 行・支払い済みはデモの 1 店 × 2026-10 の 1 行だけ）／ウ 4 本の通しの試走（19:05:03・本番 BEGIN … ROLLBACK・`docs/tmp/try_seq4b_1128_results.txt`）＝事前確認 1 行ずつ・検証 14／29／10／7 行 ok・ROLLBACK の後は前と同じ・NG なし。
+- CC が本番に適用（docs/tmp/apply_1128b.mjs＝apply_1128.mjs と同じ作り・印と時刻を通ったときもログに 1 行書く形にした・指紋 12 個は相談役の文の全桁と当てる直前に一致・ref hiqbfagmkrdpmlqhkmsu・ロール postgres・ほかの CC の接続 0・F0_RUNNING と TRIAL_RUNNING_ なし・当てる間は APPLYING_1128b を置いた・接続に lock_timeout 10s・事前確認の返りは 4 本とも貼り先証明の 1 行だけ・本体をファイルのまま 1 回・検証は全行が期待どおり・やり直しなし・時刻はこの PC の時計）。指紋は 本体／事前確認／検証：
+  - 0252 closed_day_guard_punch_membership 19:05:49：d125dd0d5725d2e355721033867e0db5a6289f81e213abcfe059a3ecf3721ed1／611dd5f44e2776b1407b883d82d7bdd3abba11d94d1d8fd0bfe4b27d3fdd93af／88ad09e13f8cf799de9a499b63e28f8a569e5ae90113138c4d0205947e8b20ef・検証 14 行。
+  - 0253（v3）audit_scrub_reservation_keep 19:05:50：6b986836d92f9422b87b196ef0849bcf58d3719cacdb13ef5f4017b70d151761／1cfb89b1d518cd1abc109efa9ab12bab102cae6fc3e76ea9a17de28ad1511bbf／eb86c98ba8f8df5d476b87b3364ddb8880c020188f6c783d16e5f4bab5983494・検証 29 行。
+  - 0237 staff_pay_freeze 19:05:50：07615d2a7d2c0497510e31ddffd65465150ea1d9cb62ab81e80c0ee696e915a0／5f8dc5d4015c364ff0b825d5056ab7577996f61dcd74932afe3a0d5e449e2cdb／25978c2d4e5122b60347a8f68ab2909f10908870410dcca2abff9908a4a96863・検証 10 行。
+  - 0238 withholding_summary_all 19:05:51：527ad11034cab2647d2d413a944c21849680f8d903734a412d4bf0d0f718b5ce／609b174655342ab6528805faa73712f9d7aeaa1889b2974c206762aec2de0449／3f875a8da72f8764e8f9b18f9eb53941bfb09ed91136394a55790f055f8c6e05・検証 7 行。
+- 終わりの数：関数 528・表 133・ポリシー 152・会社 14（4 本とも数を変えない）。ログ＝docs/tmp/apply_<mig>_1128.log（4 本）。収蔵＝supabase/migrations/0252_closed_day_guard_punch_membership.sql・0253_audit_scrub_reservation_keep.sql・0237_staff_pay_freeze.sql・0238_withholding_summary_all.sql（指紋は本体と同じ・束 A で commit）。
+- ★当ててから検査の張り替えの push（束 A）が済むまで f0 の門を走らせない。束 A は 0239c の前に掛ける。
+
 ## 裁定543（2026-11-28 18:35・相談役→CC）束の写しを見た後・仮 0253 の v3・次の束の用意・キープの行を読める人の決め 4 つ
 - 543-1：相談役が `docs/tmp/walk_1128_b8/all/` の写し 11 枚とログ 2 本を見た。写しで見えた分は「使えます」と Agoora に伝えた。弱い所 3 つ（端末は本物の PIN を通していない・固定手当の確かめはログの文・会計の確定の直後のレシート印刷は未）も伝えた。次の mig の合図は、相談役が本体を読んでから別に出す。それまで本番に mig を当てない。
 - 543-2（仮 0253 の v3）：(1) 監査の「前」に値があり「後」が空の鍵も伏せる＝入れる（v2 のまま）／(2) お客様と呼び名の両方を持つ予約＝日時・卓・人数・状態だけの変更は通す（式の 1 語の直し）。ほかは v2 のまま。
