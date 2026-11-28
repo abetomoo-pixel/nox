@@ -6174,6 +6174,7 @@ CC の処置＝M-130（下の節）。
   - 0242 seat_move_down_ext 16:07:56：769f487af76d4d515eaa96acf71505f832584644a965e73891bd474e1535fd6c／252f4fc9d1ed193e4a6fbb5bda93d14042712729a6d8d4278deb6599c7307c2c／57dc8361b1d0a1b02523b9b0d7948d1217d31facdd660a2c88e1d1601dfd08a7・検証 7 行（check_move_seat b1b742fc…・check_time_charge_apply facc8d8c…）。
 - 4 本とも前後で関数 525・表 133・会社 14。収蔵＝supabase/migrations/0234_pay_guard.sql・0236_okuri_tier_amount_flat_only.sql・0241_sales_split_equal_hon_jonai.sql・0242_seat_move_down_ext.sql（指紋は本体と同じ・次の束で commit）。
 - ★当ててから検査の張り替えの push が済むまで f0 の門を走らせない（0158・0175-0176・0201q ほかが赤）。
+- 画面の確かめ（相談役・2026-11-28 11:40 の文で 4 本とも確かめ済み）：0236d・0234＝「使えます」（11/27 20:30）／0241g＝画面に違いが出ない、で受け取り（同）／0242＝移した後の額の写し（本番の画面・docs/tmp/walk_1127_p4m・移す前 ¥14,300 → 移した後 ¥12,100・「次 22:32」は同じ）を相談役が見て「使えます」（11/28 11:40）。
 
 ## 店舗設定の保存のボタン（2026-11-27 15:47・Agoora の決め・相談役 16:45）
 - 裁定504-1 のまま（PC の店舗設定の保存は右下でよい）。中央寄せは直さない（数えは docs/tmp/button_center_1127.md）。
