@@ -33,7 +33,7 @@ import { resolveOrgId } from "@/lib/nox/cast-photo";
 import { photoActionLabelOf, removeUserPhoto, signUserPhotos, uploadUserPhoto } from "@/lib/nox/staff-photo";
 import { mig0183On, mig0190On, rules0175On } from "@/lib/nox/rules-0175/flag"; // ★追補 3 R-8 // ★便 M-9（0183） // ★0190（裁定436 ①c）: 在籍解除の失効（route）
 import { ownerOnlyNoteOf, roleChangeTargetsOf, roleChangeTextOf, roleLabelOf, rolePillKindOf, staffListRolesOf, staffListOwnerRowsShownOf, staffListOwnerRowKeptOf, STAFF_OWNER_ROW_NOTE } from "@/lib/nox/rules-0175/roles"; // ★起票281（段ア）: 管理者にした人を一覧に残す
-import { INVITE_STATE_LABEL, LOGIN_METHOD_DEFAULT, LOGIN_METHOD_NOTE, LOGIN_METHOD_OPTIONS, loginEmailLabelOf, inviteErrJa, inviteExpiryTextOf, inviteFormErrorOf, inviteStateOf, type LoginMethod } from "@/lib/nox/people/invite"; // ★便 ON-3（0176 ★2 I-1）: 登録→招待の 2 段
+import { INVITE_ADD_NOTE, INVITE_STATE_LABEL, LOGIN_METHOD_DEFAULT, LOGIN_METHOD_NOTE, LOGIN_METHOD_OPTIONS, loginEmailLabelOf, inviteContractOf, inviteErrJa, inviteExpiryTextOf, inviteFormErrorOf, inviteStateOf, type LoginMethod } from "@/lib/nox/people/invite"; // ★便 ON-3（0176 ★2 I-1）: 登録→招待の 2 段
 import { liffBindUrlOf, siteOriginOf } from "@/lib/nox/line/liff-endpoint";
 import LineBindLink from "@/components/nox/line-bind-link"; // ★2026-11-16 夜（N6）: 招待リンクの QR
 import ContractChip from "@/components/nox/contract-chip"; // ★便 D M-99 // ★便 ON-3（0176 ★1 401）: LINE 連携のリンク
@@ -270,6 +270,16 @@ export default function StaffBoard({
     setBindUrl(liffBindUrlOf(siteOriginOf(window.location.origin), m.store_id, data)); // ★便 D M-102: site 固定
   }
 
+  // ★0228（#110）: 「LINE の紐付けを解除」＝line_link_remove（キャストの画面と同じ形・管理者・自店の店長・audit）。再紐付けは連携のリンク
+  async function unlinkLine(m: Mem) {
+    if (busy || !window.confirm(`${users[m.user_id]?.name ?? ""} の LINE の紐付けを解除しますか？（通知は届かなくなります。もう一度つなぐには連携のリンクを発行します）`)) return;
+    setBusy(true); setMsg(null);
+    const { error } = await supabase.rpc("line_link_remove", { p_subject_kind: "membership", p_subject_id: m.id });
+    setBusy(false);
+    if (error) { setMsg(`LINE の紐付けを解除できませんでした: ${rpcErrJa(error.message)}`); return; }
+    setBindUrl(null); setMsg("LINE の紐付けを解除しました"); await load();
+  }
+
   // ★0211（相談役 11/25 の便 D1）: 出し直し（link／mail）・取り消し
   async function reissueInvite(i: { id: string; email: string; name: string }, mode: "link" | "mail") {
     if (!window.confirm(mode === "mail" ? `${i.email} に新しいリンクをメールで送ります。前のリンクは使えなくなります。` : "新しいリンクを出します。前のリンクは使えなくなります。")) return;
@@ -319,9 +329,11 @@ export default function StaffBoard({
     // ★便 ON-3（0176 ★2 I-1）: 招待リンク＝POST /api/staff/invite（staff_invite_create・Auth は作らない・URL は 1 回だけ表示）
     if (aMethod === "invite") {
       const v = inviteFormErrorOf({ name: aName, email: aEmail, method: aMethod }); if (v) { setAErr(v); return; }
+      // ★決め 4（#27・Agoora 2026-11-28）: 働き方は招待でも送る（route は contract を受け staff_invite_create の p_contract へ・受諾の staff_invite_accept が staff_contracts に写す）。額が空なら送らない。電話・LINE ID は送らない（招待では欄を出さない）
+      const w = inviteContractOf(aWork); if (w.error) { setAErr(w.error); return; }
       setBusy(true); setAErr(null);
       try {
-        const res = await fetch("/api/staff/invite", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: aName.trim(), email: aEmail.trim(), storeId: isOwner ? aStore : myStoreId, role: isOwner ? aRole : "staff" }) });
+        const res = await fetch("/api/staff/invite", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: aName.trim(), email: aEmail.trim(), storeId: isOwner ? aStore : myStoreId, role: isOwner ? aRole : "staff", ...(w.contract ? { contract: w.contract } : {}) }) });
         const body = (await res.json()) as { url?: string; expires_at?: string | null; email?: string; error?: string };
         if (!res.ok || !body.url) setAErr(inviteErrJa(body.error ?? `招待に失敗しました（${res.status}）`));
         else { setAInvite({ url: body.url, expires_at: body.expires_at ?? null, email: body.email ?? aEmail.trim(), name: aName.trim(), mail: (body as { mail?: { status: "sent" | "skipped" | "failed"; reason?: string } | null }).mail ?? null }); await load(); }
@@ -542,6 +554,7 @@ export default function StaffBoard({
               <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }} data-staff-line-bind={lineLinked.has(sel.id) ? "linked" : "none"}>
                 <span style={{ fontSize: 12.5, color: lineLinked.has(sel.id) ? "var(--ok)" : "var(--sub)" }}>{lineLinked.has(sel.id) ? "連携済み（LINE に通知が届きます）" : "未連携"}</span>
                 {!isDemo && <button id="staff-edit-line-bind" type="button" style={btnGhost} disabled={busy} onClick={() => void issueBind(sel)}>{lineLinked.has(sel.id) ? "別の LINE に付け替えるリンク" : "連携のリンクを発行"}</button>}
+                {mig0195On() && lineLinked.has(sel.id) && !isDemo && (isOwner || (sel.role === "staff" && sel.store_id === myStoreId)) && <button type="button" style={btnGhost} disabled={busy} data-staff-line-unlink="1" onClick={() => void unlinkLine(sel)}>紐付けを解除</button>}{/* ★0228（#110）・相談役 11/28 16:35 の 0-2: 店長には自店のスタッフの行にだけ出す（ほかの店長・管理者・オーナーの行はオーナーと管理者にだけ）。関数 line_link_remove は変えない */}
               </div>
               {bindUrl && (/* ★2026-11-16 夜（N6）: リンクの横に QR（左に QR・右にリンクとコピー）・閉じたら消える */
                 <div style={{ marginTop: 6 }}>
@@ -553,7 +566,7 @@ export default function StaffBoard({
             {/* ★M-133（2026-11-10）: キオスクの PIN（LINE 連携の下）＝set_staff_pin／staff_pin_unlock（owner／自店の店長）・店長の行も対象・値は画面と記録に残さない */}
             {sel.is_active && (isOwner || sel.store_id === myStoreId) && (
               <FieldStack label="キオスクの PIN" htmlFor="staff-edit-pin">
-                <KioskPinField membershipId={sel.id} name={users[sel.user_id]?.name ?? ""} status={pinStatus[sel.id]} onChanged={() => load()} />
+                <KioskPinField membershipId={sel.id} name={users[sel.user_id]?.name ?? ""} status={pinStatus[sel.id]} onChanged={() => load()} canSet={isOwner || sel.role === "staff"} />{/* ★0246（決め a）: 店長は自店のスタッフの PIN だけ決められる（ほかの店長・管理者・自分の行はオーナーと管理者だけ）＝関数（set_staff_pin）と同じ幅 */}
               </FieldStack>
             )}
             {isOwner && !isDemo && (
@@ -584,7 +597,7 @@ export default function StaffBoard({
             {sel.is_active && !isSelf(sel) && (isOwner || sel.role === "staff") && ( /* ★0226（#113・裁定511-4）: 店長は自店のスタッフだけ（ほかの店長はオーナーと管理者だけ）＝関数と同じ幅 */
               // ★裁定146（裁定120 適用）: 在籍解除＝取り消し困難な操作＝Danger 系トークン（--bad 系は警告面用・値は同系）
               <button style={{ ...btnGhost, color: "var(--danger)", border: "1px solid var(--danger-bd)" }} disabled={busy} onClick={async () => {
-                if (!confirm(`${users[sel.user_id]?.name ?? ""} の在籍を解除しますか？（ログイン権限が即時に失効します・削除はされません）`)) return;
+                if (!confirm(`${users[sel.user_id]?.name ?? ""} の在籍を解除しますか？（ログイン権限が即時に失効します・LINE の連携も外れます・削除はされません）`)) return;
                 const ok = await rpc("在籍を解除", "staff_deactivate", { p_membership_id: sel.id });
                 if (ok) await retireAuth(sel.id, "ban"); // ★0190（裁定436 ①c）
                 setSel(null);
@@ -716,14 +729,19 @@ export default function StaffBoard({
                       placeholder={aMethod === "invite" ? "リンクの宛先（本人のメール）" : "入れたときだけログインIDに使います（空なら自動で作ります）"} type="email" />
                   </label>
                   {/* ★裁定381（GV-B W-10）→★0172（便 P172）: 電話・LINE ID は staff_create の p_tel／p_line_id で保存。契約区分は staff_contracts（器のみ＝書込 RPC は次便）＝注記 */}
-                  <label style={{ display: "grid", gap: 4 }}>
-                    <span style={t.fieldLabel}>電話番号（任意）</span>
-                    <input value={aTel} onChange={(e) => setATel(e.target.value)} style={t.input} inputMode="tel" placeholder="090-0000-0000" maxLength={30} data-staff-tel="1" />
-                  </label>
-                  <label style={{ display: "grid", gap: 4 }}>
-                    <span style={t.fieldLabel}>LINE ID（任意）</span>
-                    <input value={aLine} onChange={(e) => setALine(e.target.value)} style={t.input} placeholder="@line_id" maxLength={40} data-staff-line="1" />
-                  </label>
+                  {/* ★決め 4（#27・Agoora 2026-11-28）: 招待リンクのときは電話・LINE ID の欄を出さない（招待の表に個人情報を持たない＝本人が受け取った後にスタッフの編集で入れる） */}
+                  {aMethod === "password" && (
+                    <label style={{ display: "grid", gap: 4 }}>
+                      <span style={t.fieldLabel}>電話番号（任意）</span>
+                      <input value={aTel} onChange={(e) => setATel(e.target.value)} style={t.input} inputMode="tel" placeholder="090-0000-0000" maxLength={30} data-staff-tel="1" />
+                    </label>
+                  )}
+                  {aMethod === "password" && (
+                    <label style={{ display: "grid", gap: 4 }}>
+                      <span style={t.fieldLabel}>LINE ID（任意）</span>
+                      <input value={aLine} onChange={(e) => setALine(e.target.value)} style={t.input} placeholder="@line_id" maxLength={40} data-staff-line="1" />
+                    </label>
+                  )}
                   <label style={{ display: "grid", gap: 4 }}>
                     <span style={t.fieldLabel}>配属店</span>
                     {isOwner ? (
@@ -776,7 +794,9 @@ export default function StaffBoard({
                     </div>
                     <span style={{ ...t.sub, lineHeight: 1.6 }}>源泉区分は雇用形態から既定で入ります（業務委託＝対象外・社員／アルバイト＝給与）。</span>
                   </div>
-                  <p style={{ ...t.sub, margin: 0, lineHeight: 1.6 }}>電話番号・LINE ID は登録時に保存されます。</p>
+                  {aMethod === "invite"
+                    ? <p style={{ ...t.sub, margin: 0, lineHeight: 1.6 }} data-staff-invite-note="1">{INVITE_ADD_NOTE}</p>
+                    : <p style={{ ...t.sub, margin: 0, lineHeight: 1.6 }}>電話番号・LINE ID は登録時に保存されます。</p>}
                   <div className="nox-inset" data-staff-after="1" style={{ padding: "12px 14px" }}>{/* ★便 X13-H H-12 ①: キャストと同じ形の案内 */}
                     <p style={{ fontSize: 12, fontWeight: 800, color: "var(--champ)", margin: "0 0 8px" }}>登録した後に設定する項目</p>
                     <ol style={{ margin: 0, paddingLeft: 18, fontSize: 11.5, color: "var(--sub)", lineHeight: 1.9 }}>

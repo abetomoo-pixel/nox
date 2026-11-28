@@ -14,6 +14,7 @@ import { buildReceiptXml, type ReceiptLine, type ReceiptPayment } from "@/lib/no
 import { buildPrintEnvelope, EMPTY_POLL_RESPONSE } from "@/lib/nox/print-envelope";
 import { groupDueFull } from "@/lib/nox/check-calc"; // ★0152: 税設定＋客負担の紹介料込みの完全鏡像
 import { mig0210On, firstVisitReceiptR1On } from "@/lib/nox/rules-0175/flag"; // ★0210（起票140）: 税・サ込みの行（all_in）は列のある本番でだけ読む
+import { printedRegNoOf } from "@/lib/nox/rules-0175/invoice-receipt"; // ★裁定536（決め 11・食い違い 118）: 登録番号は料金・会計の列と「登録済み」から
 
 export const dynamic = "force-dynamic";
 
@@ -78,7 +79,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ store_token: s
     if (!chk || !lines || lines.length === 0) return emptyOk(); // 素材欠損＝この poll では刷らない（job は printing のまま→result 経路や運用で回収）
 
     const { data: store } = await admin.from("stores")
-      .select("name, settings_json").eq("id", chk.store_id).single();
+      .select("name, settings_json, invoice_status, invoice_reg_no").eq("id", chk.store_id).single(); // ★裁定536（118）: 登録番号は列（料金・会計）から
     const sj = (store?.settings_json ?? {}) as Record<string, unknown>;
     const sjs = (k: string) => (typeof sj[k] === "string" ? (sj[k] as string).trim() : "");
 
@@ -102,7 +103,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ store_token: s
         name: (store?.name as string) ?? "",
         address: sjs("receipt_address"),
         tel: sjs("receipt_tel"),
-        reg_no: sjs("invoice_reg_no"),
+        reg_no: printedRegNoOf(store), // ★裁定536（118）: 「登録済み」の店だけ列の番号・それ以外は ""（行を出さない＝裁定90）。settings_json.invoice_reg_no は読まない
         footer: sjs("receipt_footer"),
       },
       check: { id: chk.id as string, closed_at: chk.closed_at as string, nom_type: chk.nom_type as string },

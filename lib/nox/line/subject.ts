@@ -11,6 +11,7 @@ export async function authUserOfSubject(admin: SupabaseClient, kind: SubjectKind
   if (kind === "cast") {
     const { data: c } = await admin.from("casts").select("user_id, is_active").eq("id", id).maybeSingle();
     if (!c) return { error: "not_found" };
+    if (c.is_active === false) return { error: "no_login" }; // ★0228（#62）: 退店したキャストは LINE でログインさせない（membership の枝と同じ）
     if (!c.user_id) return { error: "no_login" };
     const { data: u } = await admin.from("users").select("auth_user_id, is_active").eq("id", c.user_id as string).maybeSingle();
     if (!u?.auth_user_id || u.is_active === false) return { error: "no_login" };

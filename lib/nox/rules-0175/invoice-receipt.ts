@@ -56,6 +56,10 @@ export function stampNoticeOf(method: ReceiptPaymentMethod | string | null | und
 }
 /** 適格請求書発行事業者の登録番号＝T＋13 桁 */
 export const regNoValidOf = (s: string | null | undefined): boolean => /^T[0-9]{13}$/.test((s ?? "").trim());
+/** ★裁定536（決め 11・食い違い 118・2026-11-28）: 紙の領収書・レシート・台帳の印刷に出す登録番号＝料金・会計の列（stores.invoice_reg_no）を「登録済み」（stores.invoice_status='registered'）のときだけ。
+ *  未登録・免税・番号なしは ""（行ごと出さない＝裁定90）。receipt_issue が写す reg_no と同じ式。settings_json.invoice_reg_no（レシート・プリンタの昔の欄）は読まない */
+export const printedRegNoOf = (s: { invoice_status?: unknown; invoice_reg_no?: unknown } | null | undefined): string =>
+  s?.invoice_status === "registered" && typeof s.invoice_reg_no === "string" ? s.invoice_reg_no.trim() : "";
 export const DEFAULT_RECEIPT_DESC = "ご飲食代として";
 /** 但し書きの既定＝店設定→「ご飲食代として」 */
 export const receiptDescDefaultOf = (storeDefault: string | null | undefined): string => (storeDefault ?? "").trim() || DEFAULT_RECEIPT_DESC;

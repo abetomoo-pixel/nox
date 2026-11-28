@@ -74,6 +74,8 @@ export default function DrinkClaimForm({ month }: { month: string }) {
         error.message.includes("not open") ? "この伝票は会計が済んでいます（選び直してください）"
         : error.message.includes("bad product") ? "この商品は申告できません"
         : error.message.includes("bad qty") ? "杯数を確認してください"
+        : error.message.includes("already attributed") ? "この商品はお店があなたに付けています（同じ杯を 2 回申告しないため断りました）" // ★0243（裁定511-21b）
+        : error.message.includes("drink back off") ? "このお店ではキャストドリンクは申告できません（指名の按分でバックが付きます）" // ★0243 決め e
         : `申告に失敗しました: ${error.message}`,
       );
     } else {

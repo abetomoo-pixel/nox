@@ -100,6 +100,21 @@ export function joinModeOf(settings: unknown): JoinMode {
   const v = ((settings ?? {}) as Record<string, unknown>).join_mode;
   return v === "extend_only" ? "extend_only" : "join_set";
 }
+/** ★決め 7（#166・Agoora 2026-11-28）: 人数の「＋」で合流セットの行がもう 1 行付くか（表示専用＝確かめの文を出すかどうか。動きは変えない・権威は check_set_people）。
+ *  判定は check_set_people（0210 の版）と同じ：店が合流セット（join_set）∧ 伝票に人数がある ∧ 人数単位のセット（set_unit、無ければ time_per が person）∧ セット単価 > 0 ∧
+ *  セットの時間を過ぎた（set_frozen 済み、または 時間無制限でない ∧ set_min > 0 ∧ 今 ≥ 開卓＋set_min）。joinMode が null（店の設定を読む前）は出さない */
+export function joinSetOnPlusOf(a: { joinMode: JoinMode | null; people: number | null | undefined; setFrozen?: boolean | null; timeEnd?: string | null; setMin: number; setFee: number; setUnit?: string | null; timePer: string; startedAtMs: number; nowMs: number }): boolean {
+  if (a.joinMode !== "join_set") return false;
+  if (a.people == null || a.people < 1) return false; // 人数なしの伝票の「＋」は 1 名にするだけ（関数は coalesce(人数, 1) どうしで比べる＝増えた扱いにならない）
+  if ((a.setUnit ?? a.timePer) !== "person" || !(a.setFee > 0)) return false;
+  if (a.setFrozen) return true;
+  return (a.timeEnd ?? "extend") !== "unlimited" && a.setMin > 0 && a.nowMs >= a.startedAtMs + a.setMin * 60_000;
+}
+/** ★決め 7（#166）: セットの時間を過ぎた後の「＋」の確かめの文（行の名前は check_set_people が付ける名前と同じ） */
+export function joinSetPlusConfirmOf(a: { setMin: number; setFee: number; allIn: boolean }): string {
+  const name = a.allIn ? `合流 初回料金(${a.setMin}分) 税・サ込` : `合流セット(${a.setMin}分)`;
+  return `セットの時間を過ぎています。人数を 1 名増やすと、「${name}」¥${a.setFee.toLocaleString("ja-JP")} が 1 名分、明細に足されます。よろしいですか？\n（押し間違いを戻すだけのときは、足された行を明細から外してください）`;
+}
 /** セット行の注記（checks.set_frozen＝セット終了後に人数が変わった伝票） */
 export function setFrozenNoteOf(frozen: boolean | null | undefined): string | null {
   return frozen ? "確定（セット終了後の人数変更＝セット料金は引き直しません）" : null;

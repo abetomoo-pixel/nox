@@ -78,7 +78,7 @@ export default async function MasterStoreProfilePage({ searchParams }: { searchP
     shift: { eyebrow: "SHIFT & PUNCH", title: "店舗設定 › シフトと打刻", desc: "打刻の方法と判定・店長の打刻・送り返しの自動確定・店の端末で本人がログインしたとき・機能の公開（「打刻」のカードと「店の端末で本人がログインしたとき」はオーナーだけに出ます）。" },
     pay: { eyebrow: "PAYROLL", title: "店舗設定 › 給与", desc: "報酬制度（ノルマを使うかを含む）・精算方式・途中払い・支払日・送りの基本額・勤務時間の計算基準・指名の区分ごとの割合・体験入店の条件。金額や計算条件は各マスタで管理します。" },
     mine: { eyebrow: "CAST PAGE", title: "店舗設定 › キャスト画面", desc: "キャストのマイページ（スマホ）に出すもの。" },
-    tax: { eyebrow: "TAX & BILLING", title: "店舗設定 › 税と請求", desc: "インボイス登録日・消費税の表示・源泉区分の既定・売掛。" },
+    tax: { eyebrow: "TAX & BILLING", title: "店舗設定 › 税と請求", desc: "インボイス登録日・消費税の表示・売掛。" /* ★決め 8（#182・2026-11-28）: 源泉区分の既定の欄を外した */ },
     data: { eyebrow: "DATA MANAGEMENT", title: "権限・情報管理 › データ管理", desc: "顧客情報の利用目的と保持年数、操作ログの保持。店舗情報とは別の画面にしています。" },
     line: { eyebrow: "LINE", title: "店舗設定 › LINE 連携", desc: "LINE ログイン（LIFF）・通知（Messaging API）・月の送信上限と今月の送信数。LINE Developers に貼る URL はこの画面で確認できます。" },
   };

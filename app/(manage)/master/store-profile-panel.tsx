@@ -43,15 +43,15 @@ import { MID_PAY_OPTIONS, SETTLEMENT_CYCLE_OPTIONS, midPayOf, settlementCycleOf 
 import { SHIFT_AUTO_CONFIRM_OPTIONS, autoConfirmHoursOf } from "@/lib/nox/shift/auto-confirm"; // ★0172（裁定380・便 P172）: 自動確定時間
 import { errJa } from "@/lib/nox/errors"; // ★裁定467（M-126）: 利用者向けの文言は辞書 1 本
 import InfoTip from "@/components/ui/info-tip"; // ★2026-11-16（B6）: 補足は項目の横の ⓘ
-type Profile = { kind_back: { hon: string; jonai: string; free: string }; wht_cast: string; wht_staff: string; cash_float: string; close_day: string; /* ★0191 ★1（2026-10-30）: 店設定 5 キー（指名区分ごとの割合・源泉区分の既定 2・釣銭準備金・締め日）＝文字列で持ち patch で数値に */ duty_gate: boolean; kiosk_person_idle: string; punch_mode: "punch" | "store"; reg_win_before: string; reg_win_after: string; /* ★便 E（0197 用） */ /* ★0192 M-49: キオスクの本人でログイン＝無操作で戻す分（1〜120・欠損＝10） */ /* ★0190（裁定436 ①a）: 打刻ゲート＝settings_json.duty_gate（欠損＝true＝DB の duty_gate_of と同じ既定） */ pay_disc_cash: string; pay_disc_base: PayDiscountBase; pay_disc_rates_raw: Record<PayDiscountKey, number>; /* ★0187（便 CASH） */ name: string; short: string; store_code: string; display_name: string; shift_cast_confirm: boolean; customer_purpose: string; customer_retention_years: string; mynumber_retention_years: string; /* ★0201f（裁定483）: マイナンバーの廃棄の目安の年数 1〜20・既定 7 */ ar_enabled: boolean; okuri_base_amount: string; okuri_actual: boolean; ops: OpsProfile; settlement_cycle: string; mid_pay: string; shift_auto_confirm_hours: string; join_mode: JoinMode; pay_fee: Record<PayFeeKey, string> }; // ★便 P173: join_mode（386）・pay_fee（393・％の文字列・空＝0） // ★0153（裁定305-11／293-4）: 利用目的・保持年数（1〜10・既定 5）・★0172（裁定349／380）: 精算方式・途中払い・自動確定時間
-const EMPTY: Profile = { kind_back: { hon: "100", jonai: "50", free: "30" }, wht_cast: "hostess", wht_staff: "none", cash_float: "", close_day: "31", duty_gate: true, kiosk_person_idle: "10", punch_mode: "punch", reg_win_before: "30", reg_win_after: "60", pay_disc_cash: "", pay_disc_base: "total", pay_disc_rates_raw: { cash: 0, card: 0, other: 0 }, name: "", short: "", store_code: "", display_name: "", shift_cast_confirm: false, customer_purpose: "", customer_retention_years: "5", mynumber_retention_years: "7", ar_enabled: false, okuri_base_amount: "", okuri_actual: false, settlement_cycle: "monthly", mid_pay: "none", shift_auto_confirm_hours: "0", ops: OPS_DEFAULT, join_mode: "join_set", pay_fee: { card: "", emoney: "", other: "" } };
+type Profile = { kind_back: { hon: string; jonai: string; free: string }; /* ★決め 8（#182・Agoora 2026-11-28）: 源泉区分の既定（wht_cast／wht_staff）は外した＝どこも読まない設定を置かない。今ある settings_json の値は消さない（読まないだけ） */ cash_float: string; close_day: string; /* ★0191 ★1（2026-10-30）: 店設定 5 キー（指名区分ごとの割合・源泉区分の既定 2・釣銭準備金・締め日）＝文字列で持ち patch で数値に */ duty_gate: boolean; kiosk_person_idle: string; punch_mode: "punch" | "store"; reg_win_before: string; reg_win_after: string; /* ★便 E（0197 用） */ /* ★0192 M-49: キオスクの本人でログイン＝無操作で戻す分（1〜120・欠損＝10） */ /* ★0190（裁定436 ①a）: 打刻ゲート＝settings_json.duty_gate（欠損＝true＝DB の duty_gate_of と同じ既定） */ pay_disc_cash: string; pay_disc_base: PayDiscountBase; pay_disc_rates_raw: Record<PayDiscountKey, number>; /* ★0187（便 CASH） */ name: string; short: string; store_code: string; display_name: string; shift_cast_confirm: boolean; customer_purpose: string; customer_retention_years: string; mynumber_retention_years: string; /* ★0201f（裁定483）: マイナンバーの廃棄の目安の年数 1〜20・既定 7 */ ar_enabled: boolean; okuri_base_amount: string; okuri_actual: boolean; ops: OpsProfile; settlement_cycle: string; mid_pay: string; shift_auto_confirm_hours: string; join_mode: JoinMode; pay_fee: Record<PayFeeKey, string> }; // ★便 P173: join_mode（386）・pay_fee（393・％の文字列・空＝0） // ★0153（裁定305-11／293-4）: 利用目的・保持年数（1〜10・既定 5）・★0172（裁定349／380）: 精算方式・途中払い・自動確定時間
+const EMPTY: Profile = { kind_back: { hon: "100", jonai: "50", free: "30" }, cash_float: "", close_day: "31", duty_gate: true, kiosk_person_idle: "10", punch_mode: "punch", reg_win_before: "30", reg_win_after: "60", pay_disc_cash: "", pay_disc_base: "total", pay_disc_rates_raw: { cash: 0, card: 0, other: 0 }, name: "", short: "", store_code: "", display_name: "", shift_cast_confirm: false, customer_purpose: "", customer_retention_years: "5", mynumber_retention_years: "7", ar_enabled: false, okuri_base_amount: "", okuri_actual: false, settlement_cycle: "monthly", mid_pay: "none", shift_auto_confirm_hours: "0", ops: OPS_DEFAULT, join_mode: "join_set", pay_fee: { card: "", emoney: "", other: "" } };
 
 const secTitle: React.CSSProperties = t.cardTitle;
 const input: React.CSSProperties = { ...t.input, width: "100%", padding: "8px 10px", fontSize: 13 };
 const label: React.CSSProperties = { ...t.fieldLabel, display: "block", marginBottom: 4 };
 
 // ★2026-11-16（■8・6 タブ）: 節を項目の行き先ごとに細かく＝profile（店舗名・略称・店舗コード・表示名）／payprof（送りの基本額・精算方式・途中払い）／regprof（途中合流・支払方法の調整・手数料）／
-//   opsTax（インボイス登録日・消費税の表示・源泉区分の既定）／opsPay（給与の支払日・指名の区分ごとの割合・締め日）／opsReg（フロア・支払い方法・釣銭準備金）／opsShift（打刻・キャストの打刻・出退勤の打刻・端末の本人ログインの戻る時間）。
+//   opsTax（インボイス登録日・消費税の表示。★決め 8＝#182・2026-11-28 で源泉区分の既定は外した）／opsPay（給与の支払日・指名の区分ごとの割合・締め日）／opsReg（フロア・支払い方法・釣銭準備金）／opsShift（打刻・キャストの打刻・出退勤の打刻・端末の本人ログインの戻る時間）。
 //   "ops"＝旧の会計と運用の全部（ops* の 4 つ）。patchOf・save・RPC は 1 文字も変えない（見えない欄は form と cur が同値＝差分に出ない）。
 export type StoreProfileSection = "profile" | "payprof" | "regprof" | "data" | "timeBasis" | "shift" | "ar" | "ops" | "opsTax" | "opsPay" | "opsReg" | "opsShift";
 const ALL_SECTIONS: StoreProfileSection[] = ["profile", "payprof", "regprof", "data", "timeBasis", "shift", "ar", "ops"];
@@ -108,7 +108,6 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
       duty_gate: sj.duty_gate !== false, // ★0190（裁定436 ①a）: 欠損＝ON（DB の duty_gate_of と同じ既定・false だけが OFF）
       // ★0191 ★1: 欠損＝既定（100／50／30・hostess／none・釣銭なし・末日）
       kind_back: (() => { const k = (sj.kind_back_rate && typeof sj.kind_back_rate === "object" ? sj.kind_back_rate : {}) as Record<string, unknown>; const n = (v: unknown, d: number) => (typeof v === "number" ? String(v) : String(d)); return { hon: n(k.hon, 100), jonai: n(k.jonai, 50), free: n(k.free, 30) }; })(),
-      wht_cast: sj.withholding_default_cast === "none" ? "none" : "hostess", wht_staff: sj.withholding_default_staff === "other_204" ? "other_204" : "none",
       cash_float: typeof sj.cash_float_default === "number" && sj.cash_float_default > 0 ? String(sj.cash_float_default) : "", close_day: typeof sj.settlement_close_day === "number" ? String(sj.settlement_close_day) : "31",
     };
     setCur(p); setForm(p); setLoaded(true);
@@ -157,8 +156,7 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
     // ★0191 ★1（MIG_0191_APPLIED）: 5 キー＝変更分だけ数値／文字列で（白名単・検証は RPC＝'bad kind_back_rate'／'bad withholding_default_*'／'bad cash_float_default'／'bad settlement_close_day'）。フラグ false の間は送らない
     if (mig0191On()) {
       if ((["hon", "jonai", "free"] as const).some((k) => form.kind_back[k] !== cur.kind_back[k])) out.kind_back_rate = { hon: Number(form.kind_back.hon), jonai: Number(form.kind_back.jonai), free: Number(form.kind_back.free) };
-      if (form.wht_cast !== cur.wht_cast) out.withholding_default_cast = form.wht_cast;
-      if (form.wht_staff !== cur.wht_staff) out.withholding_default_staff = form.wht_staff;
+      // ★決め 8（#182・Agoora 2026-11-28）: withholding_default_cast／withholding_default_staff は送らない（欄を外した・白名単のキーは次に set_store_profile を作り直すときに外す）
       if (form.cash_float !== cur.cash_float) out.cash_float_default = form.cash_float.trim() === "" ? 0 : Number(form.cash_float);
       // ★裁定334 に画面を合わせる（2026-11-12 相談役）: 締め日は月末固定＝settlement_close_day は送らない（白名単のキーは次に set_store_profile を作り直すときに外す）
     }
@@ -417,7 +415,7 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
                   <span style={{ ...t.sub, display: "block", fontSize: 11.5, lineHeight: 1.7 }}>店の端末から本人のアカウントで開いた画面は、この時間操作が無いと自動でログアウトして端末の画面に戻ります</span>
                 </label></details>
               )}
-              {mig0191On() && (on("opsPay") || on("opsTax") || on("opsReg")) && (/* ★■8: 割合と締め日＝給与・源泉区分＝税と請求・釣銭準備金＝レジ */ /* ★0191 ★1（便 OB-2 ⑤・2026-10-30）: 初期設定 v5 の器＝店設定 5 キーの編集口（白名単＝set_store_profile）。指名区分ごとの割合（%の商品の場内／フリーは本指名の率×この割合・商品ごとの個別率が優先）・源泉区分の既定（新規のキャスト／スタッフの初期値＝人ごとに給与の画面で変えられる）・釣銭準備金（日報の締めの既定）・締め日 */
+              {mig0191On() && (on("opsPay") || on("opsReg")) && (/* ★■8: 割合と締め日＝給与・釣銭準備金＝レジ（★決め 8＝#182・2026-11-28: 源泉区分の既定の 2 欄は外した＝税と請求にこの枠は出ない） */ /* ★0191 ★1（便 OB-2 ⑤・2026-10-30）: 初期設定 v5 の器＝店設定 5 キーの編集口（白名単＝set_store_profile）。指名区分ごとの割合（%の商品の場内／フリーは本指名の率×この割合・商品ごとの個別率が優先）・源泉区分の既定（新規のキャスト／スタッフの初期値＝人ごとに給与の画面で変えられる）・釣銭準備金（日報の締めの既定）・締め日 */
                 <div style={{ minWidth: 0, gridColumn: "1 / -1" }} data-store-0191="1">
                   {on("opsPay") && <><span style={label}>指名の区分ごとの割合（%の商品のバック＝本指名の率 × この割合）</span>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 8 }}>{/* ★起票156: 375 で 3 列だと欄が 43px＝「100」が入らない */}
@@ -427,16 +425,11 @@ export default function StoreProfilePanel({ stores, isOwner, sections = ALL_SECT
                     ))}
                   </div></>}
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 10, marginTop: 10 }}>
-                    {on("opsTax") && <div><span style={label}>源泉区分の既定（委託キャスト）</span>
-                      <SegSelect value={form.wht_cast} onChange={(v) => setForm((f) => ({ ...f, wht_cast: v }))} options={[["hostess", "ホステス報酬"], ["none", "源泉なし"]] as const} /></div>}
-                    {on("opsTax") && <div><span style={label}>源泉区分の既定（委託スタッフ）</span>
-                      <SegSelect value={form.wht_staff} onChange={(v) => setForm((f) => ({ ...f, wht_staff: v }))} options={[["none", "源泉なし"], ["other_204", "その他（204 条）"]] as const} /></div>}
                     {on("opsReg") && <div><span style={label}>釣銭準備金（日報の締めの既定）</span>
                       <MoneyInput value={form.cash_float} disabled={busy} placeholder="未設定＝50,000" /* ★相談役 11/26 夜便 N の N6 d（#30）: 未設定なら日報の締めは ¥50,000（report-board の初期値） */ onChange={(d) => setForm((f) => ({ ...f, cash_float: d.slice(0, 7) }))} ariaLabel="釣銭準備金" width="100%" /></div>}
                     {on("opsPay") && <div><span style={label}>締め日</span>
                       <span style={{ display: "block", padding: "8px 0", fontSize: 13.5 }} data-close-day-fixed="1">月末（固定）</span></div>}{/* ★裁定334（2026-11-12）: 選択肢を外し表示だけ */}
                   </div>
-                  {on("opsTax") && <span style={{ ...t.sub, display: "block", fontSize: 11.5, marginTop: 4, lineHeight: 1.7 }}>源泉区分の既定は新しく登録する人の初期値です（人ごとに給与の画面で変えられます）。</span>}
                 </div>
               )}
             </div>

@@ -26,7 +26,7 @@ const src = (p: string) => fs.readFileSync(p, "utf8");
   check("b2(1-1) 教訓142 店側エリアの全ページ（page.tsx）の先頭で await managePageGate()", pages.length >= 33 && missing.length === 0, { pages: pages.length, missing });
   const g = src("lib/nox/nav/page-gate.ts");
   check("b2(1-2) 共通の柵の中身＝レイアウトと同じ 3 つ（castRegisterEntryOf・termsGateRedirectOf・setupGateRedirectOf）・キオスクの本人セッションは /register だけ",
-    g.includes("const e = await castRegisterEntryOf(supabase);") && g.includes("redirect(`/mine?denied=register&why=${e.reason ?? \"not_allowed\"}`)") && g.includes("termsGateRedirectOf(isDemo, termsOk === true, pathname)") && g.includes("setupGateRedirectOf({ role, isDemo, needsSetup, pathname })") && g.includes('if (!onPath(pathname, "/register")) redirect("/register");'));
+    g.includes("const e = await castRegisterEntryOf(supabase);") && g.includes("redirect(`/mine?denied=register&why=${e.reason ?? \"not_allowed\"}`)") && g.includes("termsGateRedirectOf(isDemo, termsOk === true, pathname)") && g.includes("setupGateRedirectOf({ role, isDemo, needsSetup, pathname })") && g.includes('if (!kioskCastPathOkOf(pathname, onPath(pathname, "/report") ? await kioskCastCloseOkOf(supabase) : false)) redirect("/register");' /* ★食い違い #43: 締めの許可があれば /report も */));
 }
 // (2) M-172
 {

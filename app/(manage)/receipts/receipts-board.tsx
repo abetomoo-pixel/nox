@@ -17,10 +17,10 @@ import { BILLING_LOCKED_MSG, isBillingLocked } from "@/lib/billing/messages";
 import ReceiptPrintSheet, { type ReceiptPrintItem } from "@/components/nox/receipt-print"; // ★便 GV-C C-13
 import { receiptReissueErrJa } from "@/lib/nox/register/receipt-ledger";
 import { rules0175On } from "@/lib/nox/rules-0175/flag"; // ★追補 2 同乗 R-6
-import { PAYMENT_METHOD_LABEL, stampNoticeOf } from "@/lib/nox/rules-0175/invoice-receipt"; // ★追補 2 同乗 R-6（裁定422 候補）
+import { PAYMENT_METHOD_LABEL, stampNoticeOf, printedRegNoOf } from "@/lib/nox/rules-0175/invoice-receipt"; // ★追補 2 同乗 R-6（裁定422 候補）
 import { errJa } from "@/lib/nox/errors"; // ★裁定467（M-126）: 利用者向けの文言は辞書 1 本
 
-type Store = { id: string; name: string; settings_json?: Record<string, unknown> | null };
+type Store = { id: string; name: string; invoice_status?: string | null; invoice_reg_no?: string | null }; // ★裁定536（118）: 登録番号は料金・会計の列
 type Issue = {
   id: string; store_id: string; check_id: string; serial: number; amount: number;
   recipient: string | null; proviso: string | null; store_name_snap: string; biz_date: string;
@@ -50,7 +50,7 @@ export default function ReceiptsBoard({ stores }: { stores: Store[] }) {
   const [reForm, setReForm] = useState({ name: "", note: "" });
   const [printItem, setPrintItem] = useState<ReceiptPrintItem | null>(null);
   const curStore = stores.find((st) => st.id === storeId);
-  const invoiceRegNo = typeof curStore?.settings_json?.invoice_reg_no === "string" ? (curStore.settings_json.invoice_reg_no as string) : "";
+  const invoiceRegNo = printedRegNoOf(curStore); // ★裁定536（118）: 「登録済み」の店だけ列の番号・それ以外は ""（行を出さない＝裁定90）
   useEffect(() => {
     if (!printItem) return;
     const id = window.setTimeout(() => { window.print(); setPrintItem(null); }, 50); // 印字実体の描画後に印刷

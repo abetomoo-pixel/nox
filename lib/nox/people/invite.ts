@@ -2,6 +2,8 @@
 //   登録＝staff_invite_create（Auth を作らない・staff_invites 1 行・平文トークンは 1 回だけ返る）→ 招待リンク <site>/i/<token> を本人へ →
 //   受諾＝/i/[token]（公開面）で本人がパスワードを決める → POST /api/staff/invite/accept（service_role＝Auth を作って staff_invite_accept）→ そのままログイン。
 //   既存の「初期パスワードを発行（今すぐ）」（POST /api/staff/create）は残す＝モーダルの「ログインの方法」で選ぶ（招待はメール必須）。
+import { payAmountKeyOf } from "../staff/work"; // ★決め 4（#27）: 額の列名（monthly_fixed は monthly 列）
+
 export const INVITE_TOKEN_RE = /^[0-9a-f]{64}$/; // gen_random_uuid 2 本の 16 進（0176 staff_invite_create）
 export const INVITE_DAYS = 14;
 export const INVITE_PATH_PREFIX = "/i/";
@@ -43,6 +45,25 @@ export function inviteFormErrorOf(f: { name: string; email: string; method: Logi
   }
   return null;
 }
+
+/** 雇用形態と給与の形が合わないとき（staff_contract_set の 'bad pay_kind for contract' と同じ線） */
+export const INVITE_CONTRACT_PAIR_ERR = "業務委託は「日給」、アルバイト・パートと正社員は「時給」か「月給」を選んでください（額を空にすると、働き方は後から入れられます）";
+/** ★決め 4（#27・Agoora 2026-11-28）: 招待に載せる働き方（staff_invites.contract）＝追加の窓の 3 欄（雇用形態・給与の形・額）から作る。
+ *  額が空＝載せない（contract null＝今までどおり・受諾の staff_invite_accept はアルバイト・時給 0 円の行を作る）。
+ *  額があるとき＝初期パスワードの道の staff_contract_set と同じ形 { contract_kind, pay_kind, [額の列]: 額 }。
+ *  staff_invite_create／staff_invite_accept（0176）は中身を検査しないので、staff_contract_set と同じ検査（業務委託＝日給・月額固定／雇用＝時給・月給）と
+ *  額の検査（0 以上の整数・受諾の ::int に入る大きさ）をここで済ませる（受諾の時に落ちると本人が受け取れなくなるため） */
+export function inviteContractOf(w: { contract_kind: string; pay_kind: string; amount: string }): { contract: Record<string, string | number> | null; error: string | null } {
+  const raw = w.amount.trim();
+  if (raw === "") return { contract: null, error: null };
+  const n = Number(raw.replace(/[,，\s円¥]/g, ""));
+  if (!Number.isInteger(n) || n < 0 || n > 2_147_483_647) return { contract: null, error: "働き方の額は 0 以上の整数（円）で入力してください" };
+  if (!["contractor", "parttime", "employee"].includes(w.contract_kind) || !["hourly", "monthly", "daily", "monthly_fixed"].includes(w.pay_kind)) return { contract: null, error: "働き方の選び直しをお願いします" };
+  if ((w.contract_kind === "contractor") !== (w.pay_kind === "daily" || w.pay_kind === "monthly_fixed")) return { contract: null, error: INVITE_CONTRACT_PAIR_ERR };
+  return { contract: { contract_kind: w.contract_kind, pay_kind: w.pay_kind, [payAmountKeyOf(w.pay_kind)]: n }, error: null };
+}
+/** 追加の窓・招待リンクのときの注記（電話・LINE ID の欄を出さない訳と、額が空のときの契約） */
+export const INVITE_ADD_NOTE = "電話番号・LINE ID は、本人が招待を受け取った後にスタッフの編集から入れます。働き方は招待と一緒に保存されます（額が空のときは、受け取った時点でアルバイト・パートの時給 0 円になります。後から「勤怠・報酬」で入れてください）。";
 
 export const INVITE_PASSWORD_MIN = 8;
 /** 受諾面のパスワード検査（8 文字以上・2 回一致） */

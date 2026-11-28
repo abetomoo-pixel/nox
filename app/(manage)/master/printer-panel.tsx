@@ -4,6 +4,8 @@
 // - set_printer_config（enabled/serial・原則7＝両引数明示送信）・get_printer_config（token は has_token のみ）
 // - rotate_store_token: 受信 URL（poll/result）＋token は発行時モーダルで一度だけ表示（kiosk PW 同型）
 // - set_store_receipt_profile: レシートヘッダ4項目（settings_json・原則7＝4引数明示送信）
+//   ★裁定536（決め 11・食い違い 118・2026-11-28）: 登録番号の欄は読むだけの表示（printRegNo＝料金・会計の列・「登録済み」のときだけ）。
+//     ここからは変えない＝p_reg_no には読み込んだときの settings_json.invoice_reg_no をそのまま送り返す（関数は 4 つを上書きする＝送らないと今ある値が消える・印字には使わない）。
 // - 直近ジョブ表: GET /api/print/jobs（print_jobs は deny-all＝route が唯一の読み口）
 // ★printer_enabled=false 既定＝OFF ローンチ。実機検証（P4.6 同型の宿題）後に ON。
 //
@@ -13,6 +15,7 @@
 //     テスト印刷（RPC が無い）・プリンタ名（printer_config に列が無い＝serial のみ）。
 //   ★店舗名は表示のみ（storeName prop）＝編集は店舗設定側。プレビューの中央見出しにも使う。
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link"; // ★裁定536（118）: 登録番号の設定先（料金・会計）への案内
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import Modal from "@/components/ui/modal";
@@ -37,7 +40,7 @@ const STATUS_JA: Record<string, string> = {
   queued: "待機中", printing: "印刷中", printed: "印刷済", failed: "失敗", canceled: "取消",
 };
 
-export default function PrinterPanel({ storeId, storeName, initialProfile, isOwner = true }: { storeId: string; storeName: string; initialProfile: Profile; isOwner?: boolean }) { // ★追補 2 同乗 R-6: isOwner（省略＝true・RPC が owner を最終判定）
+export default function PrinterPanel({ storeId, storeName, initialProfile, printRegNo = "", isOwner = true }: { storeId: string; storeName: string; initialProfile: Profile; printRegNo?: string; isOwner?: boolean }) { // ★追補 2 同乗 R-6: isOwner（省略＝true・RPC が owner を最終判定）
   const supabase = createClient();
   const [enabled, setEnabled] = useState(false);
   const [serial, setSerial] = useState("");
@@ -96,7 +99,7 @@ export default function PrinterPanel({ storeId, storeName, initialProfile, isOwn
     // 原則7: 4項目とも常に明示送信（部分 null で黙って消さない）
     const { error } = await supabase.rpc("set_store_receipt_profile", {
       p_store_id: storeId, p_address: profile.address, p_tel: profile.tel,
-      p_reg_no: profile.regNo, p_footer: profile.footer,
+      p_reg_no: initialProfile.regNo, p_footer: profile.footer, // ★裁定536（118）: 登録番号はここから変えない＝読み込んだ値をそのまま送り返す
     });
     setMsg(error
       ? error.message.includes("bad reg_no") ? "エラー: 登録番号は T+13桁で入力してください（例 T1234567890123）" : `エラー: ${error.message}`
@@ -194,8 +197,10 @@ export default function PrinterPanel({ storeId, storeName, initialProfile, isOwn
               <input value={profile.address} onChange={(e) => setProfile({ ...profile, address: e.target.value })} style={t.input} maxLength={200} /></label>
             <label style={{ display: "grid", gap: 3 }}><span style={t.fieldLabel}>電話番号</span>
               <input value={profile.tel} onChange={(e) => setProfile({ ...profile, tel: e.target.value })} style={{ ...t.input, width: 220 }} maxLength={50} /></label>
-            <label style={{ display: "grid", gap: 3 }}><span style={t.fieldLabel}>適格請求書発行事業者 登録番号（T+13桁・未登録なら空欄）</span>
-              <input value={profile.regNo} onChange={(e) => setProfile({ ...profile, regNo: e.target.value })} placeholder="T1234567890123" style={{ ...t.input, width: 220 }} maxLength={14} /></label>
+            {/* ★裁定536（決め 11・食い違い 118）: 登録番号は読むだけの表示＝料金・会計の列（「登録済み」のときだけ）。ここからは保存しない */}
+            <div style={{ display: "grid", gap: 3 }} data-regno-readonly="1"><span style={t.fieldLabel}>適格請求書発行事業者 登録番号</span>
+              <input value={printRegNo || "未登録（登録番号は印字されません）"} readOnly disabled aria-label="適格請求書発行事業者 登録番号" style={{ ...t.input, width: 280, maxWidth: "100%", opacity: 0.7 }} />
+              <span style={{ fontSize: 10.5, color: "var(--sub)" }}>登録番号は <Link href="/master/pricing?tab=checkout" style={{ color: "var(--champ)" }}>料金・会計 › 会計設定</Link> の「インボイス」で設定します（ここでは変えられません）。「登録済み」の店だけ、レシートと領収書に印字されます。</span></div>
             <label style={{ display: "grid", gap: 3 }}><span style={t.fieldLabel}>フッタ（お礼文など）</span>
               <textarea value={profile.footer} onChange={(e) => setProfile({ ...profile, footer: e.target.value })} rows={2}
                 style={{ ...t.input, resize: "vertical", fontFamily: "inherit" }} maxLength={200} /></label>
@@ -214,7 +219,7 @@ export default function PrinterPanel({ storeId, storeName, initialProfile, isOwn
               <div style={{ textAlign: "center", fontWeight: 700, fontSize: 12 }}>{storeName || "（店舗名）"}</div>
               <div style={{ textAlign: "center" }}>{profile.address || "（住所 未設定）"}</div>
               <div style={{ textAlign: "center" }}>{profile.tel ? `TEL ${profile.tel}` : "（電話 未設定）"}</div>
-              {profile.regNo && <div style={{ textAlign: "center" }}>登録番号 {profile.regNo}</div>}
+              {printRegNo && <div style={{ textAlign: "center" }}>登録番号 {printRegNo}</div>}{/* ★裁定536（118）: 実際に印字される番号（料金・会計の列・「登録済み」のときだけ） */}
               <div style={{ borderTop: "1px dashed #000", margin: "6px 0" }} />
               <div style={{ display: "flex", justifyContent: "space-between" }}><span>小計</span><span>¥10,000</span></div>
               <div style={{ display: "flex", justifyContent: "space-between" }}><span>サービス料</span><span>¥1,000</span></div>

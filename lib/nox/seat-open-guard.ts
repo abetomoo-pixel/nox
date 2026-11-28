@@ -8,3 +8,8 @@ export function seatDeactivateBlockOf(p: { seatId: string | null; nextActive: bo
   return `この席には会計前の伝票が ${p.openChecks} 件あります。会計を済ませてから「有効」を外してください（外すとレジのフロアに出なくなります）。`;
 }
 
+
+/** ★0248（起票60 の関数の側）: set_seat が断ったとき（`seat has open checks`）の文。画面の確かめと保存の間に伝票が開いたとき・ほかの画面から保存したときに出る。null＝この断りではない */
+export function seatOpenChecksErrJa(message: string): string | null {
+  return message.includes("seat has open checks") ? "この席には会計前の伝票があります。会計を済ませてから「有効」を外してください（外すとレジのフロアに出なくなります）。" : null;
+}

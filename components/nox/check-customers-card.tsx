@@ -37,8 +37,10 @@ export function checkCustomerErrJa(msg: string | null | undefined): string {
   return errJa(m || "unknown"); // ★裁定467（M-126）
 }
 
-export default function CheckCustomersCard({ checkId, storeId, isOpen, lines: _lines, products, onChanged, castIds = [] }: {
+export default function CheckCustomersCard({ checkId, storeId, isOpen, lines: _lines, products, onChanged, castIds = [], noRemove = false }: {
   checkId: string; storeId: string; isOpen: boolean;
+  /** ★0231（相談役 11/27 12:10）: 「注文のみ」（段階 1）のキャスト＝「外す」（check_customer_remove）を出さない */
+  noRemove?: boolean;
   /** ★X-11-2b: 伝票の指名キャスト（担当キャストの顧客の候補に使う） */
   castIds?: string[];
   /** 伝票の明細（370 で未使用＝互換のため残す） */
@@ -97,7 +99,7 @@ export default function CheckCustomersCard({ checkId, storeId, isOpen, lines: _l
               <span className="num" style={{ fontSize: 11, color: "var(--sub)", width: 18 }}>{r.pos + 1}</span>
               <span style={{ fontWeight: 700 }}>{r.name}</span>
               {r.bottle_names.length > 0 && <span style={{ fontSize: 11.5, color: "var(--sub)" }}>キープ {r.bottle_names.join("・")}</span>}
-              {isOpen && <button type="button" style={{ ...t.btnGhost, ...t.btnSm, marginLeft: "auto" }} disabled={busy}
+              {isOpen && !noRemove && <button type="button" style={{ ...t.btnGhost, ...t.btnSm, marginLeft: "auto" }} disabled={busy}
                 onClick={() => void call("外す", "check_customer_remove", { p_check_id: checkId, p_customer_id: r.customer_id }, `${r.name} を外しました`)}>外す</button>}
             </div>
           ))}

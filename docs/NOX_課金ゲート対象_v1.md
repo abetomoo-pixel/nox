@@ -718,6 +718,10 @@ staff_deactivate / kiosk_deactivate / staff_invite_revoke（★0211（2026-11-25
 - 運用除外（日報の予定額に足す紹介料の現金払いの合計を読むだけ＝日報を締められる人と同じ判定・書かない）: daily_report_referral_cash
 （除外 299→**300**・全数 525→**526**（0235 ＋1＝B +1・作り直し 1 本（daily_report_reclose）は名前不変で本数不動・ゲートは元から内蔵）。0244 はポリシーの作り直しだけ＝関数の数は動かない）
 
+### B(au). 0231・0247 新設の除外（2本・2026-11-28 12:36:54〜12:36:59 本番適用（相談役 11/28 の当てる合図 5＝先の 8 本・検証は全行が期待どおり））
+- 構造除外（「段階 2（会計まで）未満のキャストか」の判定だけ＝レジの関数の本文から呼ぶ・直接は呼ばない・4 ロール revoke）: assert_cast_register_level2／auth_cast_order_only
+（除外 300→**302**・全数 526→**528**（0231 ＋1・0247 ＋1＝B +2・作り直した 44 本は名前不変で本数不動・ゲートを持つ関数は 226 のまま）。0246・0228・0229・0243・0248・0249 は作り直しだけ＝関数の数は動かない（0249 はポリシー notices_select の作り直しを含む））
+
 ## C. kiosk 腕を持つ対象（実装注意・18本）
 A1 の check_open / check_add_line / check_remove_line / check_add_seat / check_remove_seat /
 check_move_seat / check_set_nominations / check_time_charge_apply / check_shimei_add / check_dohan_add /

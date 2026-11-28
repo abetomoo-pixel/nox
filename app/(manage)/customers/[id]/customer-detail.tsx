@@ -399,7 +399,7 @@ export default function CustomerDetail({
             )}
           </div>
           <p style={{ fontSize: 12, color: "var(--sub)", margin: "6px 0 0", lineHeight: 1.7 }}>
-            名前を「削除済み顧客」に置き換え、ふりがな・電話・誕生日・好み・備考とメモ履歴を消去します。来店履歴・売掛の記録は残ります。元に戻せません。
+            名前を「削除済み顧客」に置き換え、ふりがな・電話・誕生日・好み・備考とメモ履歴を消去します。キープのタグ名・メモ、予約の呼び名・メモ、変更履歴に残った名前・電話・メモの値も伏せます。来店履歴・売掛の記録は残ります。元に戻せません。
           </p>
           {cust.anonymized_at && (
             <p style={{ fontSize: 12.5, color: "var(--sub)", margin: "8px 0 0" }}>匿名化済み <span className="num">{new Date(cust.anonymized_at).toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" })}</span></p>
@@ -411,7 +411,7 @@ export default function CustomerDetail({
                 <strong>{cust.name} を匿名化</strong>
                 <button type="button" className="nox-formmodal-x" aria-label="閉じる" onClick={() => !anonBusy && setAnonOpen(false)}>×</button>
               </div>
-              <Message kind="warn" style={{ margin: "4px 0 10px" }}>元に戻せません。名前・連絡先・メモ履歴が消え、以後この顧客は編集できなくなります。</Message>
+              <Message kind="warn" style={{ margin: "4px 0 10px" }}>元に戻せません。名前・連絡先・メモ履歴が消え（キープのタグ名・予約・変更履歴の値も伏せます）、以後この顧客は編集できなくなります。</Message>
               <label style={t.fieldLabel}>理由（必須・200 文字まで）</label>
               <input value={anonReason} onChange={(e) => setAnonReason(e.target.value)} maxLength={200} disabled={anonBusy}
                 placeholder="例: 保持期限の到来（最終来店から 5 年）" style={{ ...input, width: "100%", marginTop: 4 }} />

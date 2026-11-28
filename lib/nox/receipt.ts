@@ -34,7 +34,7 @@ export type ReceiptStore = {
   name: string;
   address: string; // 空 = 行を出さない
   tel: string; // 空 = 行を出さない
-  reg_no: string; // 空 = 登録番号行を出さない（T+13桁は set_store_receipt_profile が検証済み）
+  reg_no: string; // 空 = 登録番号行を出さない（★裁定536（118）: 呼び手が料金・会計の列と「登録済み」から渡す＝printedRegNoOf・T+13桁は列の制約と set_store_tax_config が検証済み）
   footer: string; // 空 = 行を出さない
 };
 

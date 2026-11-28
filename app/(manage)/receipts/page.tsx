@@ -15,6 +15,6 @@ export default async function ReceiptsPage() {
   if (!role) redirect("/login");
   if (role !== "owner" && role !== "manager") redirect(deniedHrefOf("receipts")) /* ★M-169: レジではなくホームへ・理由を 1 行 */;
   const supabase = await createClient();
-  const { data: stores } = await supabase.from("stores").select("id, name, settings_json").order("name"); // ★便 GV-C C-13: 印刷の登録番号（invoice_reg_no）
-  return <ReceiptsBoard stores={(stores ?? []) as { id: string; name: string; settings_json: Record<string, unknown> | null }[]} />;
+  const { data: stores } = await supabase.from("stores").select("id, name, invoice_status, invoice_reg_no").order("name"); // ★便 GV-C C-13: 印刷の登録番号 ★裁定536（118）: 料金・会計の列と「登録済み」から（settings_json は読まない）
+  return <ReceiptsBoard stores={(stores ?? []) as { id: string; name: string; invoice_status: string | null; invoice_reg_no: string | null }[]} />;
 }

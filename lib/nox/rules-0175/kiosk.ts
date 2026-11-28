@@ -71,9 +71,15 @@ export const kioskPayrollAllowedOf = (settings: Record<string, unknown> | null |
 
 /** ★裁定469（M-128）: 本人セッションの無操作＝3 分で端末へ戻る（店設定 kiosk_person_idle_minutes＝M-49 は DB 側のセッション有効期限に残す・帯の時計は 3 分固定） */
 // ★2026-11-13（相談役■2 c）: 3 分の固定（KIOSK_PERSON_IDLE_MINUTES）はやめた＝店の設定に従う（lib/nox/kiosk/person-login.ts の kioskPersonIdleMinutesOf・3〜10 分・既定 10）
+/** ★食い違い #43（相談役 11/26 22:10 の段イ）: 店の端末の本人セッションのキャストが入れる画面＝/register は常に・/report は締めの許可の判定（auth_cast_close_ok＝自店 ∧ cast_can_close ∧ レジの許可 ∧ 出勤中）が true のときだけ。
+ *  前は /register だけ（裁定466）＝「店端末のみ」の店ではキャストが日報を締める入口が無かった（関数 daily_report_close は前から本人セッションを通す）。純関数（DB を知らない）。 */
+export function kioskCastPathOkOf(pathname: string, closeOk: boolean): boolean {
+  const on = (base: string) => pathname === base || pathname.startsWith(`${base}/`);
+  return on("/register") || (closeOk && on("/report"));
+}
 /** ★裁定469（M-128）: 本人セッションの帯のナビ＝ホーム／レジ／シフト／在庫／日報だけ（権限は本店と同じ述語・cast は裁定466＝レジだけ） */
-export function kioskPersonNavOf(role: string, perms: { crm?: boolean; shift: boolean; register: boolean }): { label: string | null; items: { href: string; label: string }[] }[] {
-  if (role === "cast") return [{ label: null, items: [{ href: "/register", label: "レジ" }] }];
+export function kioskPersonNavOf(role: string, perms: { crm?: boolean; shift: boolean; register: boolean; castClose?: boolean }): { label: string | null; items: { href: string; label: string }[] }[] {
+  if (role === "cast") return [{ label: null, items: [{ href: "/register", label: "レジ" }, ...(perms.castClose ? [{ href: "/report", label: "日報" }] : [])] }]; // ★食い違い #43: 締めの許可（auth_cast_close_ok）がある本人のキャストは「日報」も
   const mgr = role === "manager";
   const items = [
     { href: "/dashboard", label: "ホーム" },

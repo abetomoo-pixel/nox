@@ -16,6 +16,7 @@ import Link from "next/link"; // ★裁定330（便 MC2）: 機能の公開は�
 import MasterPageHead from "../master-page-head";
 import SystemBoard, { type SystemTab } from "./system-board";
 import { managePageGate } from "@/lib/nox/nav/page-gate";
+import { printedRegNoOf } from "@/lib/nox/rules-0175/invoice-receipt"; // ★裁定536（決め 11・食い違い 118）: 登録番号は料金・会計の列と「登録済み」から
 
 export const dynamic = "force-dynamic";
 
@@ -49,7 +50,7 @@ export default async function MasterSystemPage({ searchParams }: { searchParams:
   const isOwner = role === "owner";
 
   const supabase = await createClient();
-  const { data: stores } = await currentStoreRowsOf(supabase, "id, org_id, settings_json") /* ★0203（■2-e）: 今見ている店（旗 false＝今のまま＝店名順の先頭） */;
+  const { data: stores } = await currentStoreRowsOf(supabase, "id, org_id, settings_json, invoice_status, invoice_reg_no") /* ★0203（■2-e）: 今見ている店（旗 false＝今のまま＝店名順の先頭） */;
   const store = stores?.[0];
   const storeId = (store?.id as string | undefined) ?? "";
   // settings_json は printer プロファイル（レシート・プリンタ タブ）で使用する。
@@ -127,9 +128,10 @@ export default async function MasterSystemPage({ searchParams }: { searchParams:
           initialProfile={{
             address: typeof sj?.receipt_address === "string" ? (sj.receipt_address as string) : "",
             tel: typeof sj?.receipt_tel === "string" ? (sj.receipt_tel as string) : "",
-            regNo: typeof sj?.invoice_reg_no === "string" ? (sj.invoice_reg_no as string) : "",
+            regNo: typeof sj?.invoice_reg_no === "string" ? (sj.invoice_reg_no as string) : "", // ★裁定536（118）: 画面にも印字にも出さない＝住所などの保存のときにそのまま送り返すだけ（今ある値を消さない）
             footer: typeof sj?.receipt_footer === "string" ? (sj.receipt_footer as string) : "",
           }}
+          printRegNo={printedRegNoOf(store)} /* ★裁定536（118）: 印字される登録番号＝料金・会計の列・「登録済み」のときだけ（読むだけの表示） */
         />
       ),
     });

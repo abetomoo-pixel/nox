@@ -37,13 +37,14 @@ import { fetchStockTotals } from "@/lib/nox/master/queries";
 import ReservationPanel from "./reservation-panel";
 import DrinkClaimQueue from "./drink-claim-queue";
 import BottleKeepPanel from "./bottle-keep-panel";
+import ClosedChecksPanel from "./closed-checks-panel"; // ★裁定514-2（#63／#39）: 会計を完了した伝票の取消（店長以上・★裁定526・527＝締めた日も画面では止めない／領収書を先に取り消してから伝票）と、領収書を後から出す入口
 import { keptLineIdsOf } from "@/lib/nox/register/kept-lines"; // ★裁定314（便 AB-7）: キープ済みの行の判定（check_line_id の一致）
 import LineKeepButton from "@/components/nox/line-keep-button";
 import CustomerPickModal, { customerChipLabelOf, customerChipLineOf, type CustomerPickTarget } from "@/components/nox/customer-pick-modal";
 import { customerChipVisibleOf, groupLines, recentProductIdsOf } from "@/lib/nox/register/line-groups"; // ★便 GV-C C-4（370 追補1） // ★裁定368／370（GV-19・21・便 GV-A）: お客様を選ぶ共通モーダル・商品行の「お客様」チップ // ★裁定314（便 X-8-10）: ボトル明細の「キープ」
 import CheckCustomersCard from "@/components/nox/check-customers-card"; // ★裁定305（mig0153・D1）: 伝票の顧客・誰の注文・キープ出し
 import { BILLING_LOCKED_MSG, isBillingLocked } from "@/lib/billing/messages";
-import { orderLines, twoClassSumsOf, payFeeRatesOf, payFeeNoteOf, payFeeKeyOf, setFrozenNoteOf, cardGrossSplitOf, cardGrossDefaultOf, type PayFeeKey } from "@/lib/nox/register/p173"; // ★便 P173（0173 の client＝裁定385／386／389／391／393）
+import { orderLines, twoClassSumsOf, payFeeRatesOf, payFeeNoteOf, payFeeKeyOf, setFrozenNoteOf, cardGrossSplitOf, cardGrossDefaultOf, joinModeOf, joinSetOnPlusOf, joinSetPlusConfirmOf, type JoinMode, type PayFeeKey } from "@/lib/nox/register/p173"; // ★便 P173（0173 の client＝裁定385／386／389／391／393）
 import { payFeeOf } from "@/lib/nox/register/p173"; // ★連続便 3 追補 P-8
 import { dueSettingsOf } from "@/lib/nox/rules-0175/rounding"; // ★便 SH-UI-c2 C2-16（裁定424 候補）: 丸めは凍結しない（フラグ true）
 import { mig0187On, mig0224On, rules0175On, seatMovePricingOn } from "@/lib/nox/rules-0175/flag"; // ★連続便 3 追補 P-8／P-10 // ★便 ON-4（裁定427・0182）: 席移動の料金はフラグ
@@ -53,7 +54,7 @@ import { PAY_FEE_MODE_LABEL, feeAmountArgOf, feeRateEffectiveOf, feeRateInputOf,
 import StepBtn from "@/components/ui/step-button"; // ★便 2 M-17 追補: 率の −／＋（長押しで連続＝C2-8 と同じ部品）
 import { extCurrentOf, extPickerRowsOf, EXT_PICKER_BOX_STYLE, type ExtPickItem } from "@/lib/nox/rules-0175/ext-pattern"; // ★連続便 3 追補 P-10（裁定408 系） ★0224: 多いときの一覧
 import { discountActionOf, feeModesForRoleOf, staffDiscountCapOf, staffDiscountLevelOf } from "@/lib/nox/rules-0175/staff-discount"; // ★追補 2（裁定421 候補・0175 v2 ★24）
-import { receiptDescDefaultOf } from "@/lib/nox/rules-0175/invoice-receipt"; // ★追補 2 同乗 R-6（裁定422 候補）
+import { receiptDescDefaultOf, printedRegNoOf } from "@/lib/nox/rules-0175/invoice-receipt"; // ★追補 2 同乗 R-6（裁定422 候補）
 
 import { rpcErrJa as rpcErrJaCommon } from "@/lib/nox/ui/rpc-err"; // ★N2-2（2026-09-18）: 生の RPC 語の日本語化（写像に無い語は「処理できませんでした（コード: …）」）
 import Toast, { Message } from "@/components/ui/toast"; // ★裁定281（便 U／AB）: メッセージ表示の共通部品
@@ -232,6 +233,7 @@ function claimErrJa(msg: string | undefined): string {
   if (!msg) return "不明なエラー";
   if (msg.includes("not exempt product")) return "この商品はキャストドリンク指定ではありません（マスタで指定してください）";
   if (msg.includes("already claimed")) return "この行にはすでにキャストが付いています";
+  if (msg.includes("already declared")) return "このキャストは同じ伝票で同じ商品をドリンク申告しています（同じ杯に 2 回付けないため断りました。申告の承認で杯数を直してください）"; // ★0243（裁定511-21b）
   if (msg.includes("not approved")) return "この付与はすでに取り消されています";
   if (msg.includes("not open")) return "この伝票は締められています";
   if (msg.includes("bad cast")) return "そのキャストは選べません（在籍・自店を確認してください）";
@@ -330,6 +332,10 @@ export default function RegisterBoard({
   kioskNoms?: Record<string, string[]>;
 }) {
   const supabase = createClient();
+  // ★0231（相談役 11/27 12:10）: 「注文のみ」（段階 1）のキャストには段階 2 の操作（人数・延長・延長パターン・席の移動・相席・削除・クリア・会計の分け・指名の名簿・外す・キープの登録）を出さない（関数も 0231 の assert_cast_register_level2 が断る）
+  const orderOnly = castLevel === 1;
+  // ★0231（相談役 11/27 12:10）: キャスト本人（段階を問わず）には「キャストに付ける」（drink_claim_submit_proxy）と申告の「取消」（drink_claim_void）を出さない＝関数にキャストの枝が無い・キャストの申告はマイページ
+  const castSelf = castLevel !== null;
   // タブ（canonical の register セグメント。顧客・ボトルタブは顧客 UI 実装時に追加）
   const [tab, setTab] = useState<"tables" | "reserve">("tables");
   const [openMap, setOpenMap] = useState<Record<string, string>>({});
@@ -534,7 +540,7 @@ export default function RegisterBoard({
   // E8-1b F5（mig0091）: 明細グループ付け替えモーダル（対象行 id）
   const [groupPick, setGroupPick] = useState<string | null>(null);
   // E8-1b F6: close 後モーダル（合計・お釣り・再印刷・簡易領収書）
-  const [closeInfo, setCloseInfo] = useState<{ checkId: string; total: number; change: number | null; groups: string[] } | null>(null);
+  const [closeInfo, setCloseInfo] = useState<{ checkId: string; total: number; change: number | null; groups: string[]; later?: boolean } | null>(null); // ★裁定514-2: later＝会計済みの伝票を後から開いた（領収書を後から出す）
   // ★DP1 P2 b#16: 伝票取消をモーダル化（モック billhead の danger ボタン→確認ダイアログ）。
   //   旧実装は window.prompt で理由を取っていた＝ブラウザ既定 UI で、取消対象・金額を確認できなかった。
   // ★DP1 P2 b#22: 商品をクリア（モック cart の clearItems）。確認モーダルを挟む。
@@ -565,7 +571,7 @@ export default function RegisterBoard({
   // ★裁定314（0158・便 AB-7）: 「キープ済み」の行＝bottle_keeps.check_line_id がその明細行を指す（厳密）。旧: 注文者×商品×開栓日時の近似（便 X-8-10）は撤去
   const [keptLineIds, setKeptLineIds] = useState<Set<string>>(new Set());
   const [storeName, setStoreName] = useState("");
-  const [invoiceRegNo, setInvoiceRegNo] = useState(""); // 適格請求書の登録番号（settings_json.invoice_reg_no・空=行を出さない）
+  const [invoiceRegNo, setInvoiceRegNo] = useState(""); // 適格請求書の登録番号（★裁定536＝料金・会計の列 stores.invoice_reg_no・「登録済み」のときだけ・空=行を出さない）
   const [payMethodsOn, setPayMethodsOn] = useState<{ card: boolean; emoney: boolean; qr: boolean }>({ card: true, emoney: false, qr: false }); // ★0164（便 W5-2b）: 入金ボタンの出し分け（現金は常に）
   const [taxInclusive, setTaxInclusive] = useState(false); // ★0164（便 W5-2b）: 内税表示の店＝金額表記の印（計算は不変）
   const [arEnabled, setArEnabled] = useState(false); // ★0155（裁定309-1・便 S-2）: settings_json.ar_enabled＝false の店は支払方法「売掛」を出さない（サーバの 'ar disabled' が本体＝二重防御）
@@ -702,6 +708,7 @@ export default function RegisterBoard({
   const [surchargeRate, setSurchargeRate] = useState<number | null>(null);
   // ★便 P173（裁定393）: 店設定 pay_fee_rates（card／emoney／other・欠損＝0）。率＞0 の方法は 0173 の check_pay が手数料行を立てる＝旧 card_surcharge_rate の導線はその方法では出さない
   const [payFeeRates, setPayFeeRates] = useState<Record<PayFeeKey, number>>({ card: 0, emoney: 0, other: 0 });
+  const [joinMode, setJoinMode] = useState<JoinMode | null>(null); // ★決め 7（#166）: 店の途中合流の方式（settings_json.join_mode・読む前は null＝確かめの文を出さない）
   // ★便 P173（裁定389）: 開卓した操作者（checks.opened_by_membership→memberships.role／users.name・RLS で読めないときは null）
   const [openedBy, setOpenedBy] = useState<{ name: string; role: string } | null>(null);
   const [extRuleBusy, setExtRuleBusy] = useState(false); // ★便 P173（裁定385 追補）: 自動延長後の切替
@@ -924,15 +931,15 @@ export default function RegisterBoard({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // E8-1b F6→R2-c: 領収書の店名＋適格請求書 登録番号（settings_json.invoice_reg_no・表示専用・1回取得）
+  // E8-1b F6→R2-c: 領収書の店名＋適格請求書 登録番号（★裁定536（118）＝列 invoice_reg_no と invoice_status・表示専用・1回取得）
   useEffect(() => {
     if (!storeId) return;
     let alive = true;
     void (async () => {
-      const { data } = await supabase.from("stores").select("name, settings_json, card_surcharge_rate, payment_methods, price_display").eq("id", storeId).single(); // ★0164（便 W5-2b）: 支払い方法・内税表示
+      const { data } = await supabase.from("stores").select("name, settings_json, card_surcharge_rate, payment_methods, price_display, invoice_status, invoice_reg_no").eq("id", storeId).single(); // ★0164（便 W5-2b）: 支払い方法・内税表示
       if (alive) {
         setStoreName((data?.name as string | undefined) ?? "");
-        setInvoiceRegNo(((data?.settings_json as Record<string, unknown> | null)?.invoice_reg_no as string | undefined) ?? "");
+        setInvoiceRegNo(printedRegNoOf(data as Record<string, unknown> | null)); // ★裁定536（118）: 「登録済み」の店だけ列の番号（settings_json.invoice_reg_no は読まない）
         // ★0155（裁定309-1）: 売掛の店設定（キー無し＝false＝新規店の既定「不可」・ar_policy_ok と同じ読み）
         const ar = (data?.settings_json as Record<string, unknown> | null)?.ar_enabled === true;
         setArEnabled(ar);
@@ -948,6 +955,7 @@ export default function RegisterBoard({
         // ★C3 §6-6（裁定90-⑤）: null=無効（既定）＝導線非表示
         setSurchargeRate((data?.card_surcharge_rate as number | null) ?? null);
         setPayFeeRates(payFeeRatesOf(data?.settings_json)); // ★便 P173（裁定393）
+        setJoinMode(joinModeOf(data?.settings_json)); // ★決め 7（#166）
         setStoreSj((data?.settings_json as Record<string, unknown> | null) ?? {}); // ★追補 2（裁定421 候補）: sys_staff_discount／staff_discount_cap（フラグ true のときだけ読む）
         if (rules0175On()) { const { data: d2 } = await supabase.from("stores").select("receipt_default_desc").eq("id", storeId).maybeSingle(); if (alive) setRcptDefaultDesc(receiptDescDefaultOf(((d2 ?? null) as unknown as { receipt_default_desc?: string | null } | null)?.receipt_default_desc)); } // ★追補 2 同乗 R-6
       }
@@ -1128,9 +1136,9 @@ export default function RegisterBoard({
     setOpenBusy(true);
     const { data, error } = await supabase.rpc("check_open", {
       p_seat_id: seat.id, p_people: n, p_nom_type: "free",
-      ...(openRuleSel ? { p_set_rule_id: openRuleSel } : {}),
+      ...(openRuleSel && !orderOnly ? { p_set_rule_id: openRuleSel } : {}), // ★0231（相談役 11/27 12:10）: 段階 1 はルールを送らない（ルールの指定は段階 2）
       // ★116-UI（D2・mig0128）: 区分。0件店は ""＝キー無送信＝現行完全同値
-      ...(openCatSel ? { p_category_id: openCatSel } : {}),
+      ...(openCatSel && !orderOnly ? { p_category_id: openCatSel } : {}), // ★0231（相談役 11/27 12:10）: 段階 1 は区分を送らない（区分の指定は段階 2）
     });
     setOpenBusy(false);
     if (error && mig0201dOn()) { // ★0201d（裁定478）: 定休日・臨時休業＝モーダルの中で問う（店長以上）／案内（キャスト・スタッフ）
@@ -1648,6 +1656,10 @@ export default function RegisterBoard({
   async function setPeopleN(next: number | null) {
     if (!check || peopleBusy) return;
     if (dayBlocked()) return; // ★C層③: 締め済み日の先回り（RPC の関所が本体）
+    // ★決め 7（#166・Agoora 2026-11-28）: 動きは今のまま。セットの時間を過ぎた後の「＋」で合流セットの行がもう 1 行付く店は、押す前に確かめる（− と、行が付かない「＋」は今までどおり確かめない）
+    if (next != null && check.people != null && next > check.people
+      && joinSetOnPlusOf({ joinMode, people: check.people, setFrozen: check.set_frozen, timeEnd: check.time_end, setMin: check.set_min, setFee: check.set_fee, setUnit: (check as { set_unit?: string | null }).set_unit, timePer: check.time_per, startedAtMs: new Date(check.started_at).getTime(), nowMs: Date.now() })
+      && !window.confirm(joinSetPlusConfirmOf({ setMin: check.set_min, setFee: check.set_fee, allIn: check.set_price_mode === "all_in" }))) return;
     if (!(await tb.flush())) return; // money 系: 保留を先に確定（失敗＝中止）
     setPeopleMsg(null);
     setPeopleBusy(true);
@@ -1838,6 +1850,22 @@ export default function RegisterBoard({
     setVoidModal(false); setVoidReason("");
     setCheck(null);
     await loadOpenMap();
+  }
+
+  // ★裁定514-2（#39）: 会計を完了した後（「会計完了」の窓を閉じた後）に領収書を出す＝同じ窓をその伝票で開き直す。
+  //   発行済み（取消していない）の領収書を読み込む＝残額は「合計 − 発行済み」（窓の式のまま）。発行は receipt_issue（会計済みの伝票ならいつでも・作り直さない）。
+  async function reopenReceipt(checkId: string, total: number) {
+    const [{ data: ls }, { data: rs }] = await Promise.all([
+      supabase.from("check_lines").select("pay_group").eq("check_id", checkId),
+      supabase.from("receipt_issues").select("id, serial, token, amount, expires_on, biz_date, store_name_snap, recipient, proviso").eq("check_id", checkId).eq("voided", false).order("serial"),
+    ]);
+    const gs = Array.from(new Set(((ls ?? []) as { pay_group: string }[]).map((l) => l.pay_group))).sort();
+    type RcptRow = { id: string; serial: number; token: string; amount: number; expires_on: string; biz_date: string; store_name_snap: string; recipient: string | null; proviso: string | null };
+    setCloseInfo({ checkId, total, change: null, groups: gs.length > 0 ? gs : ["A"], later: true });
+    setRcptIssued(((rs ?? []) as RcptRow[]).map((r) => ({ id: r.id, serial: r.serial, token: r.token, amount: r.amount, expires_on: r.expires_on, biz_date: r.biz_date, store_name: r.store_name_snap, name: r.recipient ?? "", note: r.proviso ?? "" })));
+    setRcptForm({ amount: "", name: "", note: rules0175On() ? rcptDefaultDesc : "" });
+    setRcptMsg(null);
+    setSplit({ open: false, rows: [], busy: false });
   }
 
   // 段B: 伝票詳細シート（≤900）の背景タップで閉じる＝保留を確定してから閉じる（失敗＝中止・シート維持）
@@ -2064,7 +2092,10 @@ export default function RegisterBoard({
           <p style={{ fontSize: 13, color: "var(--sub)", margin: "-12px 0 18px", textAlign: "center" }} data-people-note="1">延長は追加時点の人数で確定</p>{/* ★裁定367: 人数変更の注記はこの 1 行だけ */}
           {/* ★116-UI（D2・設計ロック §2）: 料金区分セレクタ。active 1件以上の店のみ表示・既定=sort 最小・
               「指定なし」なし。区分は開栓時に凍結（mig0128）＝あとから変更不可。 */}
-          {openCats.length >= 1 && (
+          {openCats.length >= 1 && orderOnly && (/* ★0231（相談役 11/27 12:10）（12:35 の 2）: 段階 1 は選ばせない＝サーバがレジの初めの区分（defaultOpenCategoryOf と同じ）を選ぶ・案内だけ */
+            <p data-order-only-cat="1" style={{ fontSize: 13, color: "var(--sub)", margin: "0 0 20px" }}>料金区分: {openCats.find((c) => c.id === defaultOpenCategoryOf(openCats))?.name ?? "区分なし（ふつうの料金）"}（区分の変更は、会計まで許可のある人が行います）</p>
+          )}
+          {openCats.length >= 1 && !orderOnly && (/* ★0231（相談役 11/27 12:10）: 段階 1 の子に料金区分を選ばせない */
             <label style={{ ...t.fieldLabel, fontSize: 15, display: "block", marginBottom: 20 }}>
               料金区分
               <select
@@ -2187,7 +2218,7 @@ export default function RegisterBoard({
           onPicked={(name, customerId) => { if (customerId && name) setOpenCust({ id: customerId, name }); setOpenCustPick(false); }} />
       )}
       {custPick && check && (
-        <CustomerPickModal storeId={check.store_id} checkId={check.id} target={custPick} castIds={nomSelected.map((c) => c.id)}
+        <CustomerPickModal storeId={check.store_id} checkId={check.id} target={custPick} castIds={nomSelected.map((c) => c.id)} noKeep={orderOnly} /* ★0231（相談役 11/27 12:10）（12:35 の 1）: 段階 1 はキープを作らない */
           onClose={() => setCustPick(null)}
           onPicked={async (name) => {
             const ln = custPick.lineName; setCustPick(null);
@@ -2647,7 +2678,7 @@ export default function RegisterBoard({
       {/* ── E8-1b F6: close 後モーダル（合計・お釣り・レシート再印刷・簡易領収書）── */}
       {closeInfo && (
         <Modal onClose={() => setCloseInfo(null)} scroll>
-          <h3 style={{ ...t.cardTitle, margin: "0 0 10px" }}>会計完了</h3>
+          <h3 style={{ ...t.cardTitle, margin: "0 0 10px" }}>{closeInfo.later ? "領収書（会計済みの伝票）" : "会計完了"}</h3>
           <div className="nox-inset" style={{ padding: "12px 14px", marginBottom: 12 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
               <span style={{ fontWeight: 800 }}>合計</span>
@@ -2965,7 +2996,10 @@ export default function RegisterBoard({
           {/* ★便 P173（裁定389）: 操作者（開卓した membership）＝キャストのレジ運用の記録 */}
           {openedBy && <span style={{ fontSize: 11, color: "var(--sub)" }} data-opened-by="1">開卓: {openedBy.name}{openedBy.role === "cast" ? "（キャスト）" : ""}</span>}
           {/* E8-1 #9（mig0090）: 人数±カウンタ。入金後はサーバ拒否＝ボタンも無効化して意図を明示 */}
-          {check.status === "open" && (
+          {check.status === "open" && orderOnly && (/* ★0231（相談役 11/27 12:10）: 段階 1 は人数を見せるだけ */
+            <span className="num" data-order-only-people="1" style={{ fontSize: 13, fontWeight: 700 }}>{check.people != null ? `${check.people}名` : "—名"}</span>
+          )}
+          {check.status === "open" && !orderOnly && (
             <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
               <button type="button" style={{ ...btnLight, padding: "2px 9px", fontWeight: 800 }}
                 disabled={peopleBusy || payments.length > 0 || (check.people ?? 0) <= 1}
@@ -3013,11 +3047,11 @@ export default function RegisterBoard({
           {extBtn.extend && extEstimatePatterns.length > 0 && (/* ★便 B M-70: 見積＝延長 1〜3 回後の合計（注文・指名・席タブからも同じ表をポップオーバー） */
             <button type="button" style={btnLight} data-ext-estimate-open="1" onClick={() => setExtEstimateOpen(true)}>見積</button>
           )}
-          {extBtn.extend && mig0187On() && check.status === "open" && extGuideRows.length > 0 && (/* ★0187（便 EXT）: 延長のご案内（お客様向け全画面）＝延長パターンがある店だけ */
+          {extBtn.extend && !orderOnly && mig0187On() && check.status === "open" && extGuideRows.length > 0 && (/* ★0187（便 EXT）: 延長のご案内（お客様向け全画面）＝延長パターンがある店だけ・★0231（相談役 11/27 12:10）: 段階 1 は出さない */
             <button type="button" style={btnLight} data-ext-guide-open="1" onClick={() => { setExtGuideConfirm(null); setExtGuide(true); }}>延長のご案内</button>
           )}
           {/* ★便 P173（裁定385 追補・0173）: 自動延長の店＝既定パターンを自動適用（選択は出さない）・切替は「延長パターン ▾」（snap 2 件以上）＝check_set_ext_rule（確定ブロックの差額引き直し） */}
-          {extBtn.extend && timeMode === "auto" && check.status === "open" && payments.length === 0 /* ★#41（0234 と組）: 入金の後は出さない＝関数も 'has payments' で断る（手動の店の延長ボタン・時間料金の反映と同じ） */ && (check.ext_menu_snap?.length ?? 0) >= 2 && (() => {
+          {extBtn.extend && !orderOnly && timeMode === "auto" && check.status === "open" && payments.length === 0 /* ★#41（0234 と組）: 入金の後は出さない＝関数も 'has payments' で断る（手動の店の延長ボタン・時間料金の反映と同じ） */ && (check.ext_menu_snap?.length ?? 0) >= 2 && (() => { /* ★0231（相談役 11/27 12:10）: 段階 1 は延長パターンを出さない */
             const menu = check.ext_menu_snap ?? [];
             const cur = rules0175On() ? extCurrentOf(menu, (check as { ext_rule_id?: string | null }).ext_rule_id ?? null, check.ext_min, check.ext_fee) : menu.find((m) => m.duration_min === check.ext_min && m.amount === check.ext_fee); // ★連続便 3 追補 P-10: 選択中＝checks.ext_rule_id（0175 v2 ★23）
             return (
@@ -3061,7 +3095,7 @@ export default function RegisterBoard({
               check_extension_add 呼び（会計タブと同一経路）・入金後 disabled。会計タブ側カードは残置。
               ★#48b: 分割型＝本体は既定延長（現行）・「▾」は ext_menu_snap（開栓時凍結）の一覧から選択
               →check_extension_add(p_rule_id)。snap null または1種のみは▾非表示。disabled は両方に適用。 */}
-          {extBtn.extend && timeMode === "manual" && check.status === "open" && (() => {
+          {extBtn.extend && !orderOnly && timeMode === "manual" && check.status === "open" && (() => { /* ★0231（相談役 11/27 12:10）: 段階 1 は延長を出さない */
             const extDisabled = payments.length > 0;
             const menu = check.ext_menu_snap ?? [];
             const curExt = rules0175On() ? extCurrentOf(menu, (check as { ext_rule_id?: string | null }).ext_rule_id ?? null, check.ext_min, check.ext_fee) : null; // ★連続便 3 追補 P-10: パターン名の併記
@@ -3202,7 +3236,13 @@ export default function RegisterBoard({
         <div className={dtab === "nom" ? "nox-checkcols" : "nox-checkcols split"}>
           <div>
         {dtab === "nom" && (<>
-        <div className="nox-cardtop" style={card}>
+        {orderOnly && (/* ★0231（相談役 11/27 12:10）: 段階 1 は指名の名簿・席の操作を出さない（お客様とキープ出しは残す） */
+          <div className="nox-cardtop" style={card} data-order-only-nom="1">
+            <h3 style={t.cardTitle}>指名・席</h3>
+            <p style={{ fontSize: 12, color: "var(--sub)", margin: 0, lineHeight: 1.7 }}>指名・人数・延長・席の移動・相席・明細の削除は、会計まで許可のある人が行います。</p>
+          </div>
+        )}
+        {!orderOnly && (<div className="nox-cardtop" style={card}>
           {/* ★0124（裁定111-4）: 「本指名料を付ける/場内指名料を付ける」ボタン行と対象選択（feeCast）を撤去＝
               課金は下の行の種別トグルからの派生1本。モック autocharge v1 の cardhead 文言に追随。 */}
           <h3 style={t.cardTitle}>指名</h3>
@@ -3245,7 +3285,7 @@ export default function RegisterBoard({
               {feeMsg.text}
             </p>
           )}
-        </div>
+        </div>)}
 
         {/* ★X-13-1（便 X-13a）: 並び＝指名 → 席（フリー） → 指名の分配率 → 顧客 → 紹介 → 席 */}
         {/* R-2a-2（モック nox-register-pos `assignmentView` / renderShares）: 指名の分配率カード。
@@ -3255,6 +3295,7 @@ export default function RegisterBoard({
             ★0121（裁定107）: 旧「free は weight=1 固定」は撤去＝全行に％入力。 */}
         {/* ★2026-11-17（N1・見せ方だけ）: 「席」と「指名の分配率」の 2 つの枠をやめ「この卓のキャスト」の 1 つの一覧に。本指名・場内・フリーを同じ形の行で出す。
             フリーの行＝分配率の欄なし・「分配に入りません」・着卓の時刻と「離席」をその行に。合計と「均等に分配」は一覧の下。計算・保存する値・RPC は不変（分配の対象＝nomSelected のまま）。 */}
+        {!orderOnly && (<>{/* ★0231（相談役 11/27 12:10）: 段階 1 は「この卓のキャスト」（種別・同伴・分配・×・離席）を出さない */}
         {(nomSelected.length > 0 || seatRowsNow.length > 0) && (
           <div className="nox-cardtop" style={card} data-nom-cards="1" data-table-casts="1">{/* ★裁定359（GV-7・便 GV-A）: キャスト 1 人＝1 カード（写真・名前・ランク 左／区分の切替 右）・選択中は金塗り・左帯＝区分色（本＝金／場内＝青／フリー＝灰）・常時表示は合計バーと「均等に分配」だけ・3 注記は ⓘ に畳む・自動加算は区分ボタン下に「¥3,000」のみ・341 の切替確認は行内のまま見出し「<名前> → 本指名」・同伴チップと % は右端・行の高さは従来の半分以下 */}
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
@@ -3493,9 +3534,10 @@ export default function RegisterBoard({
             </>)}
           </div>
         )}
+        </>)}
 
         {/* ★裁定305（mig0153・2026-09-25・D1）: 伝票の顧客（複数）・追加／外す・注文行の「誰の注文」・キープ出し＝共通部品（RPC が二重防御・fetch +1＝3 クエリ並列） */}
-        <CheckCustomersCard checkId={check.id} storeId={storeId} isOpen={check.status === "open"} lines={lines} products={products} onChanged={async () => { await loadCheck(check.id); await loadCustNames(check.id); /* ★便 X13-G W-3: 上部のお客様名も即反映 */ }} castIds={Object.keys(nomWeights)} />
+        <CheckCustomersCard checkId={check.id} storeId={storeId} isOpen={check.status === "open"} lines={lines} products={products} onChanged={async () => { await loadCheck(check.id); await loadCustNames(check.id); /* ★便 X13-G W-3: 上部のお客様名も即反映 */ }} castIds={Object.keys(nomWeights)} noRemove={orderOnly} />{/* ★0231（相談役 11/27 12:10）: 段階 1 は「外す」を出さない */}
 
         {/* ★0152（裁定280／298／299・2026-09-25）: 紹介の入口＝owner／manager のレジのみ。1 伝票 1 紹介（check_referrals）＝付与 check_referral_set・取消 check_referral_remove。
             紹介者はマスタ「紹介者」（referrers）から選ぶ。客負担（burden='customer'）は請求（A）に乗る＝表示 due は groupDueFull の第 3 引数で鏡像・印字は初回セット行に合算（298-4）。 */}
@@ -3554,7 +3596,7 @@ export default function RegisterBoard({
 
         {/* B1/B2: 席（相席・席移動）＝open 伝票のみ。候補は同店の空席（主open/追加占有を除外）。
             予約 soft 警告つき（裁定 d・拒否しない）。エラーは seatErrJa で日本語表示（握り潰さない）。 */}
-        {check.status === "open" && (() => {
+        {check.status === "open" && !orderOnly && (() => { /* ★0231（相談役 11/27 12:10）: 段階 1 は席の移動・相席を出さない */
           const emptySeats = seats.filter((s) => s.store_id === check.store_id && !openMap[s.id] && !addMap[s.id]);
           return (
             <div className="nox-cardtop" style={card}>
@@ -3732,7 +3774,7 @@ export default function RegisterBoard({
               </p>
             </div>
             {/* E8-1 ⑦: 英字テキスト入力 → 会計分けセグメント（A のみ時は「＋会計を分ける」だけを出す） */}
-            <span style={{ marginLeft: "auto" }}>{groupSeg(prodGroup || "A", setProdGroup)}</span>
+            {!orderOnly && <span style={{ marginLeft: "auto" }}>{groupSeg(prodGroup || "A", setProdGroup)}</span>}{/* ★0231（相談役 11/27 12:10）: 段階 1 は会計を分けない（会計 A に入る） */}
           </div>
           {/* 純増⑦: カテゴリ別タイル（sort_order 順＋末尾に未分類）。カテゴリ未登録なら type 別へフォールバック。
               タップ＝連打束ね（700ms・p_qty=N の1行）。バッジ=pre-commit。 */}
@@ -3766,7 +3808,7 @@ export default function RegisterBoard({
                     const n = tb.badgeOf(p.id);
                     return (
                       <button key={`recent-${p.id}`} type="button" className="nox-tile"
-                        onClick={() => { noteRecent(p.id); if (p.back_exempt_from_split === true && drinkCountBackOn(storeSj)) setDrinkPick({ mode: "product", product: p }); else tb.tap(p.id); }}>{/* ★便 ON-2（CANON ⑨）: ドリンクバック OFF の店は「誰のドリンクか」を聞かない */}
+                        onClick={() => { noteRecent(p.id); if (p.back_exempt_from_split === true && drinkCountBackOn(storeSj) && !castSelf) setDrinkPick({ mode: "product", product: p }); else tb.tap(p.id); }}>{/* ★便 ON-2（CANON ⑨）: ドリンクバック OFF の店は「誰のドリンクか」を聞かない */}
                         {n > 0 && <span className="nox-tile-badge">+{n}</span>}
                         <span className="nox-tile-name">{p.name}</span>
                         <span className="nox-tile-price">{yen(p.price)}{taxMk && <small className="nox-taxmark">{exclTax ? "税抜" : "税込"}</small>}</span>
@@ -3789,7 +3831,7 @@ export default function RegisterBoard({
                     return (
                       <button key={p.id} type="button" className="nox-tile"
                         onClick={() => { noteRecent(p.id); // ★B3 裁定217: 最近使ったへ記録（表示補助・送る引数は不変）
-                          if (p.back_exempt_from_split === true && drinkCountBackOn(storeSj)) // ★便 ON-2（CANON ⑨）: OFF の店は聞かない
+                          if (p.back_exempt_from_split === true && drinkCountBackOn(storeSj) && !castSelf) // ★便 ON-2（CANON ⑨）: OFF の店は聞かない・★0231（相談役 11/27 12:10）: キャスト本人は聞かない（キャストに付けるはキャストに無い）
                             // E8-1 #8: キャストドリンク対象＝タップ時にキャスト指定モーダル（指定しない追加も可）
                             setDrinkPick({ mode: "product", product: p });
                           else tb.tap(p.id); }}>
@@ -3913,7 +3955,7 @@ export default function RegisterBoard({
             </div>
             {(() => {
               const n = lines.filter((l) => CLEARABLE_KINDS.has(l.kind)).length;
-              return n > 0 && payments.length === 0 && check?.status === "open" ? (
+              return n > 0 && payments.length === 0 && check?.status === "open" && !orderOnly ? ( /* ★0231（相談役 11/27 12:10）: 段階 1 はクリアを出さない */
                 <button type="button" style={{ ...btnLight, marginLeft: "auto" }}
                   onClick={() => setClearModal(true)}>商品をクリア（{n}行）</button>
               ) : null;
@@ -3977,7 +4019,7 @@ export default function RegisterBoard({
                     {/* E8-1 ⑦ → E8-1b F5: バッジタップで付け替え（mig0091・time_auto/discount/入金後は非活性） */}
                     <td className="g" style={{ padding: 6 }}>
                       {splitOn && (
-                        l.time_auto || isDisc || payments.length > 0 || check?.status !== "open" ? (
+                        l.time_auto || isDisc || payments.length > 0 || check?.status !== "open" || orderOnly ? ( /* ★0231（相談役 11/27 12:10）: 段階 1 は付け替えない（印だけ） */
                           <span style={{ ...t.tag, fontSize: 10, color: "var(--sub)", borderColor: "var(--line2)" }}
                             title={l.time_auto ? "時間料金は会計Aから動かせません" : ""}>
                             会計{l.pay_group}
@@ -4037,14 +4079,14 @@ export default function RegisterBoard({
                     {/* キャストドリンク列＝除外指定の行だけに出す（非除外は空セル＝既存行の見え方は不変） */}
                     <td className="cd" style={{ padding: 6 }}>
                       {/* ★裁定370（GV-21・便 GV-A）: 商品行の「お客様」チップ（未指定＝灰／指定済み＝金枠）→タップで 368 と同じモーダル。料金行（セット・延長・指名料・サービス料）には出さない。保存先＝注文行の customer_id（不変） */}
-                      {check && check.status === "open" && customerChipLineOf(l) && customerChipVisibleOf(l, { checkCustomers: custNames.size, splitOn }) && ( /* ★便 GV-C C-4（370 追補1）: ボトル・複数のお客様・会計分割のときだけ */
+                      {check && check.status === "open" && !(orderOnly && keptLineIds.has(l.id)) /* ★0231（相談役 11/27 12:10）（13:20 の 3）: キープの付いた行の付け替えは段階 2 */ && customerChipLineOf(l) && customerChipVisibleOf(l, { checkCustomers: custNames.size, splitOn }) && ( /* ★便 GV-C C-4（370 追補1）: ボトル・複数のお客様・会計分割のときだけ */
                         <button type="button" className={`nox-custchip${l.customer_id ? " on" : ""}`} data-cust-chip={l.customer_id ? "1" : "0"} disabled={claimBusy}
                           onClick={() => setCustPick({ lineId: l.id, lineName: l.name_snapshot, isBottle: l.kind === "bottle", currentCustomerId: l.customer_id ?? null })}>
                           {customerChipLabelOf(l.customer_id ? custNames.get(l.customer_id) ?? "お客様" : null)}
                         </button>
                       )}
                       {/* ★裁定368（便 GV-A）: キープ登録で伝票にお客様が居ないときも顧客セクションへ飛ばず同じモーダル（onNeedCustomer）。★裁定314（便 X-8-10）: ボトル種商品の行に「キープ」→伝票の顧客から選択→bottle_keep_register→「キープ済み」。顧客未付与なら指名・席タブへ */}
-                      {l.kind === "bottle" && check && (
+                      {l.kind === "bottle" && check && (orderOnly ? null /* ★0231（相談役 11/27 12:10）: 段階 1 はキープを登録しない */ :
                         <LineKeepButton storeId={check.store_id} checkId={check.id} lineId={l.id} productId={l.product_id} lineName={l.name_snapshot}
                           lineCustomerId={l.customer_id} kept={keptLineIds.has(l.id)}
                           onDone={async (text) => { setMsg({ to: MSG_DETAIL, kind: "ok", text }); await loadCheck(check.id); }}
@@ -4057,7 +4099,7 @@ export default function RegisterBoard({
                           </span>
                           <span style={{ ...t.num, fontSize: 11, color: "var(--sub)" }}>{yen(claim.back_amount)}</span>
                           {/* 取消は open のときだけ描画＝close 後は導線ごと消す（押せるのに弾かれる形にしない） */}
-                          {check?.status === "open" && (
+                          {check?.status === "open" && !castSelf && (/* ★0231（相談役 11/27 12:10）: キャスト本人には出さない（申告の取消はマイページ） */
                             <button onClick={() => void claimVoid(claim.id)} disabled={claimBusy}
                               style={{ ...btnLight, padding: "1px 7px", fontSize: 11 }}>取消</button>
                           )}
@@ -4065,7 +4107,7 @@ export default function RegisterBoard({
                       ) : check?.status === "open" && drinkCountBackOn(storeSj) ? ( /* ★便 ON-2（CANON ⑨）: OFF の店は行の「誰のドリンクか」ボタンを出さない */
                         /* E8-1 ⑤: 行内 select → CastPicker モーダル（#8 のタップ時モーダルと共用）。
                            選択自体は制限しない＝指名外のキャストが運んだケースも実務では起きるため。 */
-                        <button onClick={() => { setClaimMsg(null); setDrinkPick({ mode: "line", lineId: l.id }); }}
+                        castSelf ? null /* ★0231（相談役 11/27 12:10）: キャスト本人には「キャストに付ける」を出さない（申告はマイページ） */ : <button onClick={() => { setClaimMsg(null); setDrinkPick({ mode: "line", lineId: l.id }); }}
                           disabled={claimBusy}
                           style={{ ...btnLight, padding: "2px 8px", fontSize: 11.5, whiteSpace: "nowrap" }}>
                           キャストに付ける
@@ -4083,7 +4125,7 @@ export default function RegisterBoard({
                           title="自動計算の時間料金行です（時間の訂正は会計タブ・伝票の訂正は取消から）">
                           削除不可
                         </span>
-                      ) : (
+                      ) : orderOnly ? null /* ★0231（相談役 11/27 12:10）: 段階 1 は行を消さない（自分が入れた行だけ消せる形は後の mig＝ADDED_BY.md） */ : (
                         <button
                           onClick={() => removeLine(l.id) /* ★便 GV-C C-4: 集約行は最後の 1 行を消す（×N→×N−1） */}
                           disabled={payments.length > 0}
@@ -4356,8 +4398,14 @@ export default function RegisterBoard({
         )}{/* ★裁定281（便 AB） */}
       </section>
       <p style={{ fontSize: 13, color: "var(--sub)", padding: 16 }}>卓を選択してください。</p>
+      {/* ★裁定514-2（#63／#39）: 今日の営業日の会計済みの伝票＝領収書を後から出す（窓を開き直す）・取消（店長以上・関数は今のまま・★裁定526＝締めた日も画面では止めず文で知らせる・★裁定527＝領収書を先に取り消してから伝票）。キャスト本人のレジには出さない */}
+      {castLevel === null && (
+        <ClosedChecksPanel storeId={storeId} seats={seats} isManagerUp={isManagerUp}
+          onReceipt={(id, total) => void reopenReceipt(id, total)}
+          onVoided={(text) => { setMsg({ to: MSG_FLOOR, text, kind: "ok" }); void loadOpenMap(); }} />
+      )}
       {/* A2（裁定8）: ボトルキープ登録＝checkout フロー内（NOX8 裁定）。会計タブ末尾の全幅カード */}
-      <BottleKeepPanel storeId={storeId} products={products} />
+      {!orderOnly && <BottleKeepPanel storeId={storeId} products={products} />}{/* ★0231（相談役 11/27 12:10）: 段階 1 はキープを登録しない */}
       </>
       )}
     </div>

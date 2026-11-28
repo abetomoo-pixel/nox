@@ -46,8 +46,10 @@ export const NIL_CHECK_ID = "00000000-0000-0000-0000-000000000000";
 
 const errJa = (m: string): string => m.includes("forbidden") ? "権限がありません（店長か、顧客または会計の許可のあるスタッフから操作してください）" : m.includes("not open") ? "会計済みの伝票には付けられません" : m.includes("exists") ? "すでにこの伝票のお客様です" : m;
 
-export default function CustomerPickModal({ storeId, checkId, target, mode = "line", castIds = [], casts = [], onClose, onPicked }: {
+export default function CustomerPickModal({ storeId, checkId, target, mode = "line", castIds = [], casts = [], onClose, onPicked, noKeep = false }: {
   storeId: string; checkId: string;
+  /** ★0231（相談役 11/27 12:10）（12:35 の 1）: 「注文のみ」（段階 1）のキャスト＝ボトルでもキープ（check_line_set_customer の p_keep）を作らない・お客様を付けるだけ */
+  noKeep?: boolean;
   /** line のときの対象行。add／select では省略可 */
   target?: CustomerPickTarget | null;
   mode?: CustomerPickMode;
@@ -109,6 +111,7 @@ export default function CustomerPickModal({ storeId, checkId, target, mode = "li
     }
     if (mode === "add") { setBusy(false); await onPicked(name, customerId); return; }
     if (!target) { setBusy(false); return; }
+    const isBottle = target.isBottle && !noKeep; // ★0231（相談役 11/27 12:10）（12:35 の 1）: 段階 1 はキープを作らない＝p_keep false（外の isBottle は題名と案内に使う）
     const r2 = await supabase.rpc("check_line_set_customer", { p_line_id: target.lineId, p_customer_id: customerId, p_keep: isBottle }) // ★便 P173（裁定392・0173）: ボトルの行＝会計前キープ（pending）を同時に作る（外すと消える・会計で確定・取消で削除）;
     setBusy(false);
     if (r2.error) { setMsg({ kind: "error", text: `お客様の設定: ${errJa(r2.error.message)}` }); return; }
@@ -146,6 +149,7 @@ export default function CustomerPickModal({ storeId, checkId, target, mode = "li
           <button type="button" className="nox-formmodal-x" aria-label="閉じる" disabled={busy} onClick={onClose}>×</button>
         </div>
         <div style={{ position: "sticky", top: 36, background: "var(--card)", zIndex: 2, paddingBottom: 6 }}>
+          {isBottle && noKeep && <p data-cust-pick-nokeep="1" style={{ fontSize: 12.5, color: "var(--sub)", margin: "0 0 6px" }}>キープの登録は、会計まで許可のある人が行います</p>}{/* ★0231（相談役 11/27 12:10）（12:35 の 1）: 赤ではなく案内 */}
           {target && <p style={{ fontSize: 12.5, margin: "0 0 6px" }}>{target.lineName}{currentName ? <span style={{ marginLeft: 8, color: "var(--sub)" }}>いま: <b style={{ color: "var(--champ)" }}>{currentName}</b></span> : null}</p>}
           <input value={q} onChange={(e) => { setQ(e.target.value); setShown(PICK_PAGE); }} placeholder="名前・ふりがな・電話で検索" aria-label="お客様を検索" /* ★便 GV-C C-14b（GV-61）: 任意の欄＝autofocus なし（スマホでキーボードが候補を隠す） */
             style={{ ...t.input, width: "100%" }} data-cust-search="1" />

@@ -23,7 +23,8 @@ import { castRegisterEntryOf } from "@/lib/nox/register/cast-entry-server"; // �
 import { isSetupPath, setupGateRedirectOf } from "@/lib/nox/setup/gate"; // ★便 SU（M-37）: /setup は専用の殻・未完の店は /setup へ
 import KioskPersonGuard from "@/components/nox/kiosk-person-guard"; // ★便 M5 M-49: キオスクからの本人ログイン＝無操作 N 分で戻す
 import { kioskPersonIdleMinutesOf } from "@/lib/nox/kiosk/person-login"; // ★便 M5 M-49
-import { kioskPersonNavOf } from "@/lib/nox/rules-0175/kiosk"; // ★裁定469（M-128）
+import { kioskCastPathOkOf, kioskPersonNavOf } from "@/lib/nox/rules-0175/kiosk"; // ★裁定469（M-128）★食い違い #43: kioskCastPathOkOf
+import { kioskCastCloseOkOf } from "@/lib/nox/nav/page-gate"; // ★食い違い #43
 import { KIOSK_PERSON_COOKIE, kioskNavOf, kioskPersonMustLeaveOf, parseKioskPersonCookie } from "@/lib/nox/kiosk/person-session"; // ★便 E（0196 用＝裁定448 B 方式）
 import { mig0196On, mig0199On } from "@/lib/nox/rules-0175/flag"; // ★便 E ★0199（裁定466・M-125）★0200（裁定472＝staff も出勤中だけ）
 import * as t from "@/lib/nox/ui/theme";
@@ -57,7 +58,9 @@ export default async function ManageLayout({ children }: { children: React.React
   // F3g: cast のエリア制御。有効 cast は /register のみ通し、他パスは /mine へ。
   // ★0199（裁定466・M-125・MIG_0199 配下）: キオスクの本人セッションの cast＝/register だけ（店端末なので cast_register_device は見ない＝F3g の device 判定を通さない・他のパスは /register へ・取消・合算・締め解除・売掛・値引きは RPC が cast 不可のまま）
   const kioskPersonCast = mig0196On() && mig0199On() && role === "cast" ? parseKioskPersonCookie((await cookies()).get(KIOSK_PERSON_COOKIE)?.value) : null;
-  if (kioskPersonCast) { const pn = (await headers()).get("x-pathname") ?? ""; if (!(pn === "/register" || pn.startsWith("/register/"))) redirect("/register"); }
+  // ★食い違い #43（相談役 11/26 22:10 の段イ）: 締めの許可（auth_cast_close_ok）がある本人のキャストは /report（日報の締め）にも入れる＝関数 daily_report_close は前から本人セッションを通す
+  const kioskCastClose = kioskPersonCast ? await kioskCastCloseOkOf(supabase) : false;
+  if (kioskPersonCast) { const pn = (await headers()).get("x-pathname") ?? ""; if (!kioskCastPathOkOf(pn, kioskCastClose)) redirect("/register"); }
   let castReg = !!kioskPersonCast;
   // ★2026-11-19 昼（相談役 ②）: レジを使えない cast に卓の一覧（「使用中 0／6卓」と空席の並び）の代わりの案内を出す＝権限の判定（auth_register_access）はそのまま・表示だけ。
   //   店の端末の本人セッション＝出勤前（off_duty）と許可なし（締めの許可だけの人が「日報」のタイルから回された）・自分のスマホ＝/register の出勤前。
@@ -157,7 +160,7 @@ export default async function ManageLayout({ children }: { children: React.React
   //   群見出しは表示のみ（クリック不可・折り畳みなし）。ホームは群外の先頭。
   //   有効 cast はレジのみ（他タブは踏んでも layout が /mine へ戻す＝混乱を避け1本に絞る）＝従来どおり。
   const groups: NavGroup[] = role === "cast"
-    ? [{ label: null, items: kioskPersonCast ? [{ href: "/register", label: "レジ" }] /* ★0199（裁定466・M-125）: 本人セッションの cast＝レジだけ */ : [{ href: "/register", label: "レジ" }, { href: "/report", label: "日報" }] }] // ★便 P173（裁定389）: 日次の締め
+    ? [{ label: null, items: kioskPersonCast ? [{ href: "/register", label: "レジ" }, ...(kioskCastClose ? [{ href: "/report", label: "日報" }] : [])] /* ★0199（裁定466・M-125）: 本人セッションの cast＝レジだけ（★食い違い #43：締めの許可があれば日報も） */ : [{ href: "/register", label: "レジ" }, { href: "/report", label: "日報" }] }] // ★便 P173（裁定389）: 日次の締め
     : [
         { label: null, items: [{ href: "/dashboard", label: "ホーム" }] },
         { label: "営業", items: [
@@ -196,7 +199,7 @@ export default async function ManageLayout({ children }: { children: React.React
   if (kioskPerson && kioskPersonMustLeaveOf(role)) redirect("/kiosk?person=deny");
   // ★M-119（2026-11-06・裁定460）: 本人セッションも通常ログインと同じページ・権限・部品。★裁定469（M-128・2026-11-09＝460 改）: 帯のナビだけ ホーム／レジ／シフト／在庫／日報 に絞る（kioskPersonNavOf・cast はレジだけ＝裁定466）＝kioskNavOf（端末セッション専用の名残）は使わない
   void kioskNavOf;
-  const navGroups: NavGroup[] = kioskPerson ? kioskPersonNavOf(role as string, { crm: staffCrm, shift: staffShift, register: staffRegister }) : groups;
+  const navGroups: NavGroup[] = kioskPerson ? kioskPersonNavOf(role as string, { crm: staffCrm, shift: staffShift, register: staffRegister, castClose: kioskCastClose }) : groups;
   const kioskPersonOn = !!kioskPerson && (role === "manager" || role === "staff" || (mig0199On() && role === "cast")); // ★0199（裁定466・M-125）
   return (
     /* ── E2（2026-08-17）: 共通シェルを mock/pages-2026-08 の骨格へ寄せた（presentation-only）──

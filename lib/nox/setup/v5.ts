@@ -356,7 +356,7 @@ export function buildV5Plan(S: V5State, ctx: V5Ctx): { steps: V5Step[]; deferred
   // ★M-143（2026-11-10）: duty_gate は送らない＝裁定472 で例外が廃止（店設定の duty_gate は読まれない）
   if (mig0191On()) {   // ★0191 ★1: 店設定 +5 キー（白名単＝set_store_profile）
     patch.kind_back_rate = { hon: pct100(S.kindRate.hon), jonai: pct100(S.kindRate.jo), free: pct100(S.kindRate.free) };
-    patch.withholding_default_cast = S.payroll.whtCast; patch.withholding_default_staff = S.payroll.whtStaff;
+    // ★決め 8（#182・Agoora 2026-11-28）: 源泉区分の既定（withholding_default_cast／staff）は送らない＝新しい店に鍵を書かない（どこも読まない設定・今ある店の値は消さない）。S.payroll.whtCast／whtStaff は古い下書きに残るだけ（読まない）
     patch.cash_float_default = cashFloatOf(S); // ★2026-11-13 夜（相談役■2 d）
     // ★裁定334（2026-11-12）: 締め日は月末固定＝settlement_close_day は送らない
   }
@@ -456,7 +456,6 @@ export function buildV5Plan(S: V5State, ctx: V5Ctx): { steps: V5Step[]; deferred
   // 11) 完了（setup_done）
   push({ key: "done", group: "done", label: "初期設定の完了", rpc: "set_store_profile", args: { p_store_id: s, p_patch: { setup_done: true, slide_apply: "next", settlement_presets: presetsWithAmountsOf(S.payroll.lateAmt, S.payroll.absentAmt) } } }); // ★便 D 裁定455-3
   // 器が無い項目（0191）
-  if (!mig0191On() && (S.payroll.whtCast !== "hostess" || S.payroll.whtStaff !== "none")) deferred.push({ item: "源泉区分の既定（委託キャスト／委託スタッフ）", note: "店の既定＝0191（人ごとの区分は給与の画面で）" });
   if (!mig0191On() && (S.kindRate.hon !== 100 || S.kindRate.jo !== 50 || S.kindRate.free !== 30)) deferred.push({ item: "指名区分ごとの割合（店）", note: "店の割合＝0191（商品ごとの場内／フリーは円のとき保存済み）" });
   if (!mig0191On() && S.menu.some((c) => c.items.some((it) => it.bt === "pct" && it.byKind))) deferred.push({ item: "商品ごとの場内／フリーの率（%）", note: "0191（円の商品は保存済み）" });
   if (!mig0191On() && S.shift.mode === "store") deferred.push({ item: "シフトの集め方「店が決める」", note: "0191（いまは休み希望のみとして保存）" });
@@ -502,7 +501,6 @@ export const V5_SAVE_MAP: readonly V5SaveMap[] = [
   { step: 5, item: "達成ボーナス（段の数え方）", dest: "settings sys_bonus／bonus_tier_mode", has: true },
   { step: 5, item: "売上の数え方", dest: "settings sales_split", has: true },
   { step: 5, item: "給与の期間・支払日", dest: "settings settlement_cycle／pay_day", has: true },
-  { step: 5, item: "源泉区分の既定（委託キャスト／委託スタッフ）", dest: "なし（人ごと＝set_withholding_kind・店の既定 2 列は無い）", has: mig0191On() },
   { step: 5, item: "前払・日次精算", dest: "settings mid_pay／settlement_cycle=daily（0188＝settlement は daily の店だけ）", has: true },
   { step: 5, item: "送り 4 方式＋距離 3 段", dest: "set_store_okuri_mode／settings okuri_flat_tiers（0180）・okuri_base_amount", has: true },
   { step: 5, item: "マイページに出すもの", dest: "set_store_mine_settings（給与明細・ランキング・ドリンク申告・修正申請・予約申請）", has: true },

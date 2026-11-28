@@ -592,7 +592,7 @@ export default function CastsBoard({
   async function castLeaveRejoin(c: CastLogin, kind: "leave" | "rejoin") {
     const label = kind === "leave" ? "退店" : "復活";
     if (!confirm(kind === "leave"
-      ? `${c.name} を退店にします。よろしいですか？（本人のログインとキオスク打刻ができなくなります）`
+      ? `${c.name} を退店にします。よろしいですか？（本人のログイン・LINE の連携・キオスク打刻ができなくなります）`
       : `${c.name} を復活（在籍に戻す）します。よろしいですか？`)) return;
     setBusy(true); setMsg(null);
     const { error } = await supabase.rpc(kind === "leave" ? "cast_leave" : "cast_rejoin",

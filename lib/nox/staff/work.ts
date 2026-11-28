@@ -29,3 +29,17 @@ export const effectivePayKindOf = (c: { pay_kind?: string | null; hourly: number
   if (c.hourly === 0 && c.fixed_allowance > 0) return "monthly";
   return "hourly";
 };
+
+/** ★決め 3（2026-11-28 Agoora）: 月給・月額固定・日給の人には固定手当を足さない（月額・日額だけ）。
+ *  その形で保存するときに外れる固定手当の額＝契約の 1 本（fixed_allowance）＋名称つきの行（staff_allowances）。時給で保存するとき・契約が無いときは 0（外さない）。
+ *  契約の 1 本が月額・日額の置き場になっている旧データ（実効が月給・日給で、その列が空）は手当に数えない＝額の欄に入って月額・日額の列へ移るだけ（staffPayOf の monthly ?? fixed_allowance と同じ読み） */
+export const staffAllowanceDropOf = (c: { pay_kind?: string | null; hourly: number; fixed_allowance: number; monthly?: number | null; daily?: number | null; allowances?: readonly { amount: number }[] | null } | null | undefined, nextPayKind: string): number => {
+  if (!c || nextPayKind === "hourly") return 0;
+  const pk = effectivePayKindOf(c);
+  const asBase = pk !== "hourly" && (pk === "daily" ? c.daily == null : c.monthly == null);
+  return (asBase ? 0 : Math.max(0, c.fixed_allowance)) + (c.allowances ?? []).reduce((a, x) => a + (x.amount > 0 ? x.amount : 0), 0);
+};
+/** 給与の形の名前（確かめの文に使う） */
+export const PAY_KIND_JA: Record<string, string> = { hourly: "時給", monthly: "月給", monthly_fixed: "月額固定", daily: "日給" };
+/** ★決め 3: 保存の前の確かめの文（額は円・桁区切り） */
+export const staffAllowanceDropNoteOf = (drop: number, nextPayKind: string): string => `固定手当 ${drop.toLocaleString("ja-JP")}円は外れます（${PAY_KIND_JA[nextPayKind] ?? "月給・日給"}には固定手当を足しません）。保存しますか`;

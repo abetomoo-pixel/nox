@@ -16,7 +16,7 @@ import { cashPayoutRowsOf, cashPayoutTotalOf, cashPayoutWithOtherOf, otherPayout
 import CashPayoutIssue, { type PayoutIssueKind } from "@/components/nox/cash-payout-issue";
 import { OKURI_ROW_LABEL, okuriAsks, okuriCashOf, okuriExpenseOf, okuriModeOf, type OkuriMode } from "@/lib/nox/shift/okuri-mode"; // ★裁定414（S-4）: 送りの 4 方式＝現金支払／諸経費の読み分け // ★便 X13-G W-24 ②: 内訳の ＋発行 // ★裁定311-②／④（便 Y-4）: 現金支払のプレフィル集計と内訳
 import { mig0191On, rules0175On } from "@/lib/nox/rules-0175/flag"; // ★便 P175-prep P-2
-import { canMarkDeductOf, castCloseOf } from "@/lib/nox/report/gates"; // ★0201h（裁定485）: 給与天引きは cast_liability_allowed の店だけ・★0201e（裁定481）: キャストの締め
+import { AR_COLLECT_ONLY_NOTE, arTabShownOf, canMarkDeductOf, castCloseOf } from "@/lib/nox/report/gates"; // ★0201h（裁定485）: 給与天引きは cast_liability_allowed の店だけ・★0201e（裁定481）: キャストの締め
 import { mig0201eOn, mig0201nOn, mig0201uOn, mig0201vOn } from "@/lib/nox/rules-0175/flag"; // ★0201n（相談役 C）
 import { staffDirectDiscountOf } from "@/lib/nox/rules-0175/staff-discount"; // ★追補 2（裁定421 候補）
 import { castPaymentsOf } from "@/lib/nox/rules-0175/cast-register"; // ★追補 2（裁定420）
@@ -154,7 +154,6 @@ export default function ReportBoard({
     return () => { alive = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storeId]);
-  useEffect(() => { if (arOff && tab === "ar") setTab("day"); }, [arOff, tab]);
   // ★M-148（2026-11-10）: 締めのエラーは操作した場所（締めるボタン）の近くに出し、タブを移ったら消す。未会計の伝票は件数入り＋レジへのリンク
   const [closeErr, setCloseErr] = useState<{ text: string; openN: number | null } | null>(null);
   useEffect(() => { setCloseErr(null); }, [tab]);
@@ -171,6 +170,9 @@ export default function ReportBoard({
   // ★2026-11-18 夜 2（相談役 ①）: 締められない理由の窓（未会計・実査の未入力）。「未会計があっても強行」のチェックは外し、窓の「未会計のまま締める」（店長・オーナー）へ
   const [closeGuard, setCloseGuard] = useState<{ openN: number; countedMissing: boolean; mode: "close" | "reclose"; reportId?: string } | null>(null);
   const [recvs, setRecvs] = useState<Recv[]>([]);                        // B6 未回収売掛（open）
+  // ★決め 5（#38・Agoora 2026-11-28）: 「売掛を使う」が OFF の店でも、未回収の売掛が 1 件でもある間は「売掛」タブを出す（回収だけ）。0 件になったらタブは出ない＝タブに居たら日報へ（★便 D M-98 の続き）
+  const arTabOn = arTabShownOf(isManagerUp, arOff, recvs.length);
+  useEffect(() => { if (!arTabOn && tab === "ar") setTab("day"); }, [arTabOn, tab]);
   const [consent, setConsent] = useState<Record<string, boolean>>({});   // B6 本人同意チェック（行単位）
   // E8-2 #5: 金種カウンタ（9金種・合計→実査へ反映。DB は counted_cash 1列のまま＝モーダルは入力補助）
   const [denomOpen, setDenomOpen] = useState(false);
@@ -849,7 +851,7 @@ export default function ReportBoard({
           ★キー・ラベル・isManagerUp の出し分け・setTab は1文字も変えていない。 */}
       <div className="nox-ctoolbar">
         <div className="nox-seg">
-          {(isManagerUp && !arOff ? (["day", "month", "ar"] as const) : (["day", "month"] as const)).map((k) => (/* ★便 D M-98: 売掛を使わない店はタブなし */
+          {(arTabOn ? (["day", "month", "ar"] as const) : (["day", "month"] as const)).map((k) => (/* ★便 D M-98: 売掛を使わない店はタブなし → ★決め 5（#38）: 未回収が残る間は出す */
             <button key={k} className={tab === k ? "on" : ""} onClick={() => setTab(k)}>
               {k === "day" ? "日報" : k === "month" ? "月報" : "売掛"}
             </button>
@@ -878,6 +880,7 @@ export default function ReportBoard({
         return (<>
         <section className="nox-panel">
           <h3>売掛（未回収）</h3>
+          {arOff && <p style={{ ...t.sub, margin: "0 0 10px", lineHeight: 1.6 }} data-ar-collect-only="1">{AR_COLLECT_ONLY_NOTE}</p>}{/* ★決め 5（#38）: OFF の店は回収だけ */}
           {/* ★B2-b（裁定204・D37）: KPI 5 枚目「今月発生」（カード枚数増は裁定196 で許容済み） */}
           <div className="nox-repsum five">
             <div className="nox-rs"><div className="l">未回収残高</div><div className="v num">{yen(balance)}</div></div>

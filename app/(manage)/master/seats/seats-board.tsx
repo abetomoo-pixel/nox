@@ -15,7 +15,7 @@ import SegSelect from "@/components/ui/seg-select";
 import { createClient } from "@/lib/supabase/client";
 import * as t from "@/lib/nox/ui/theme";
 import Toast, { Message } from "@/components/ui/toast";
-import { seatDeactivateBlockOf } from "@/lib/nox/seat-open-guard"; // ★起票60（段ア）: 会計前の伝票がある席は「有効」を外せない（画面で止める）
+import { seatDeactivateBlockOf, seatOpenChecksErrJa } from "@/lib/nox/seat-open-guard"; // ★起票60（段ア）: 会計前の伝票がある席は「有効」を外せない（画面で止める）
 import Modal from "@/components/ui/modal"; // ★裁定253 R1: 席の追加・編集はモーダル
 import MasterPageHead from "../master-page-head";
 import { rpcErrJa as rpcErrJaCommon } from "@/lib/nox/ui/rpc-err"; // ★N2-2（2026-09-18）: 生の RPC 語の日本語化（写像に無い語は「処理できませんでした（コード: …）」）
@@ -87,6 +87,7 @@ export default function SeatsBoard({ storeId, isManagerUp, initial, hiddenKinds 
       p_id: sId, p_store_id: storeId, p_name: sName, p_kind: sKind, p_sort_order: sSort,
       p_is_active: sActive, // 明示 boolean（原則7）
     });
+    if (error && seatOpenChecksErrJa(error.message)) { setSeatErr(seatOpenChecksErrJa(error.message)); return; } // ★0248（起票60 の関数の側）: 関数が断ったときも、窓の中に同じ文を出す（窓は開いたまま）
     setMsg(error ? rpcErrJaCommon(error.message) : sId ? "席を更新しました" : "席を登録しました");
     if (!error) setSeatOpen(false); // ★裁定253 R1: 保存成功で閉じる（失敗時は開いたまま）
     setSId(null); setSName("");

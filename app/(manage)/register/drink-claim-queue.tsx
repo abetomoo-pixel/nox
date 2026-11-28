@@ -88,6 +88,8 @@ export default function DrinkClaimQueue() {
         error.message.includes("check voided") ? "この伝票は取消済みのため承認できません（申告は自動で却下されています）"
         : error.message.includes("already decided") ? "この申告は既に処理済みです（他の端末で承認/却下された可能性があります）"
         : error.message.includes("bad qty") ? "杯数の指定を確認してください"
+        : error.message.includes("already attributed") ? "同じ伝票の同じ商品が「キャストに付ける」でこのキャストに付いています（同じ杯に 2 回付けないため承認できません・却下してください）" // ★0243（裁定511-21b）
+        : error.message.includes("drink back off") ? "この店はドリンクバックを本数で払わない設定のため、キャストドリンクの申告は承認できません（指名の按分で付きます・却下してください）" // ★0243 決め e
         : error.message.includes("forbidden") ? "権限がありません"
         : `処理に失敗しました: ${error.message}`,
       );

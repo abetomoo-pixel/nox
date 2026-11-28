@@ -19,8 +19,10 @@ export function staffPinStateTextOf(st: StaffPinStatus | null | undefined, nowMs
   return locked ? { label: "設定済み・ロック中（失敗が続きました）", locked: true } : { label: st.fail_count > 0 ? `設定済み（失敗 ${st.fail_count} 回）` : "設定済み", locked: false };
 }
 
-export default function KioskPinField({ membershipId, name, status, disabled = false, onChanged }: {
+export default function KioskPinField({ membershipId, name, status, disabled = false, onChanged, canSet = true }: {
   membershipId: string; name: string; status: StaffPinStatus | null | undefined; disabled?: boolean; onChanged?: () => void | Promise<void>;
+  /** ★0246（決め a）: false＝PIN を決める入口（入力とボタン）を出さない＝店長が見る、ほかの店長・管理者・自分の行（set_staff_pin が 'forbidden' で断る相手）。状態と「ロックを解除」は出す */
+  canSet?: boolean;
 }) {
   const [val, setVal] = useState("");
   const [busy, setBusy] = useState(false);
@@ -47,14 +49,14 @@ export default function KioskPinField({ membershipId, name, status, disabled = f
   return (
     <div style={{ display: "grid", gap: 6, minWidth: 0 }} data-staff-pin-field={status?.has_pin ? (st.locked ? "locked" : "set") : "none"}>
       <span style={{ fontSize: 12.5, color: status?.has_pin ? (st.locked ? "var(--bad)" : "var(--ok)") : "var(--sub)" }}>{st.label}</span>
-      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+      {canSet && <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
         <input type="password" inputMode="numeric" autoComplete="new-password" aria-label={`${name} のキオスク PIN`} placeholder="0000"
           value={val} onChange={(e) => setVal(e.target.value.replace(/[^0-9]/g, "").slice(0, 6))} disabled={disabled || busy}
           style={{ ...t.input, width: 130, letterSpacing: 6, fontSize: 18, textAlign: "center" }} data-staff-pin-input="1" />
         <span style={{ ...t.sub, fontSize: 11.5 }}>{PIN_RULE_TEXT}</span>
-      </div>
+      </div>}
       <div className="nox-actions" style={{ display: "flex", gap: 8 }}>
-        <button type="button" style={{ ...t.btnGold, ...t.btnSm }} disabled={disabled || busy || !pinValidOf(val)} onClick={() => void setPin()} data-staff-pin-set="1">{busy ? "処理中…" : status?.has_pin ? "PIN を変更（リセット）" : "PIN を設定"}</button>
+        {canSet && <button type="button" style={{ ...t.btnGold, ...t.btnSm }} disabled={disabled || busy || !pinValidOf(val)} onClick={() => void setPin()} data-staff-pin-set="1">{busy ? "処理中…" : status?.has_pin ? "PIN を変更（リセット）" : "PIN を設定"}</button>}
         {st.locked && <button type="button" style={{ ...t.btnGhost, ...t.btnSm }} disabled={disabled || busy} onClick={() => void unlock()} data-staff-pin-unlock="1">ロックを解除</button>}
       </div>
       <span style={{ ...t.sub, fontSize: 11 }}>キオスク端末の「スタッフでログイン（PIN）」で使います。設定し直すと失敗回数とロックもリセットされます。</span>

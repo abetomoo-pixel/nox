@@ -20,6 +20,10 @@ export type StaffContract = {
   tax_class: "甲" | "乙" | null;
   withholding_rate?: number; // %（委託・既定 0＝T11 待ち）★0188（裁定434）: フラグ true では読まない（列は残るが画面から消す＝源泉は区分 withholding_kind で・委託スタッフの既定 none）
   allowances?: readonly StaffAllowance[]; // ★0195（M-80 追記②）: 名称つきの固定手当（staff_allowances・is_active）＝雇用の月の支給に fixed_allowance と合わせて加える（無ければ従来と同値）
+  /** ★0237（#101・段ウ）: 給与の形（staff_contracts.pay_kind＝hourly／monthly／daily／monthly_fixed）と月額・日額。'hourly'（列の既定）・未指定は従来の式のまま */
+  pay_kind?: string | null;
+  monthly?: number | null;
+  daily?: number | null;
 };
 /** ★0195: 名称つきの固定手当の合計（行が無ければ 0＝従来と同値） */
 export const staffAllowanceSumOf = (c: { allowances?: readonly StaffAllowance[] | null }): number => (c.allowances ?? []).reduce((a, x) => a + (x.amount > 0 ? x.amount : 0), 0);
@@ -71,6 +75,8 @@ export type StaffPayResult = {
   timePay: number;      // 時給×実働（時間単位＝分／60・円未満切捨）
   fixed: number;        // 固定手当（雇用＝期の定額・委託で時給 0 なら 日額×日数）
   gross: number;
+  /** ★0237（#101）: 月給・月額固定＝月額／日給＝日額×日数（給与の形がその 3 つの契約だけキーを持つ） */
+  base?: number;
   withholding: number;  // 雇用＝税額表（器なし＝0）・委託＝gross×率（既定 0）
   net: number;
   withholdingNote: string;
@@ -93,11 +99,17 @@ export function staffContractLineOf(c: StaffContract): string {
 }
 export function staffPayOf(contract: StaffContract, days: readonly StaffDayHours[], opts?: { kind: WithholdingKind; override?: number | null; deductions?: readonly EmployeeDeductionRow[] }): StaffPayResult {
   const minutes = days.reduce((s, d) => s + d.minutes, 0);
-  const workDays = days.length;
-  const timePay = floorYen((contract.hourly * minutes) / 60);
   const employment = isStaffEmployment(contract.contract_kind);
-  const fixed = employment ? contract.fixed_allowance + staffAllowanceSumOf(contract) : contract.hourly > 0 ? 0 : contract.fixed_allowance * workDays; // ★0195: 雇用＝1 本＋名称つきの行（行が無ければ従来と 1 バイト同値）
-  const gross = timePay + fixed;
+  // ★0237（#101・段ウ）: 給与の形が月給・月額固定・日給の契約は、時給×実働と固定手当ではなく月額・日額で（月報の原価 staffLaborOf と同じ定義）。
+  //   月給・月額固定＝月額（monthly・無ければ旧データの fixed_allowance）・当欠でも減らさない（labor.ts の注と同じ・決めは decisions_payroll_1127.md）・名称つきの手当は足さない（原価と同じ）。
+  //   日給＝日額×実働のある営業日（minutes > 0＝原価と同じ数え方）。'hourly'（列の既定）・未指定の契約は下の従来の式のまま（1 バイト同値）。
+  const pk = contract.pay_kind;
+  const fixedPay = pk === "monthly" || pk === "monthly_fixed" || pk === "daily";
+  const workDays = pk === "daily" ? days.filter((d) => d.minutes > 0).length : days.length;
+  const timePay = fixedPay ? 0 : floorYen((contract.hourly * minutes) / 60);
+  const base = !fixedPay ? 0 : pk === "daily" ? (contract.daily ?? contract.fixed_allowance) * workDays : (contract.monthly ?? contract.fixed_allowance);
+  const fixed = fixedPay ? 0 : employment ? contract.fixed_allowance + staffAllowanceSumOf(contract) : contract.hourly > 0 ? 0 : contract.fixed_allowance * workDays; // ★0195: 雇用＝1 本＋名称つきの行（行が無ければ従来と 1 バイト同値）
+  const gross = timePay + fixed + base; // ★0237: base＝月額・日額×日数（時給の契約は 0）
   // ★便 X13-H H-12 ③: 委託＝源泉 10.21%（率が未設定＝0 の契約も 10.21% で見込み）・雇用＝甲欄／乙欄（見込みは源泉 0＝確定時に計算）
   const rate = employment ? 0 : (contract.withholding_rate ?? 0) > 0 ? (contract.withholding_rate ?? 0) : STAFF_CONTRACTOR_RATE;
   const withholding = employment ? 0 : rate === STAFF_CONTRACTOR_RATE ? withholding1021Of(gross) : floorYen((gross * Math.round(rate * 100)) / 10000); // ★裁定431 ②: 10.21% は整数（1021÷10000）
@@ -108,10 +120,10 @@ export function staffPayOf(contract: StaffContract, days: readonly StaffDayHours
     const lines = opts.kind === "manual" ? employeeDeductionLinesOf(opts.deductions) : [];
     const ded = lines.reduce((a, l) => a + l.amount, 0);
     const note = opts.kind === "manual" ? (lines.length ? `社員（控除 ${lines.length} 項目）` : "社員（控除 未入力）") : `${WITHHOLDING_KIND_SHORT[opts.kind]}${wh !== auto ? "・指定額" : ""}`;
-    return { kind: contract.contract_kind, days: workDays, minutes, timePay, fixed, gross, withholding: wh, net: gross - wh - ded, withholdingNote: note,
+    return { kind: contract.contract_kind, days: workDays, minutes, timePay, fixed, gross, withholding: wh, net: gross - wh - ded, withholdingNote: note, ...(fixedPay ? { base } : {}),
       withholdingKind: opts.kind, withholdingAuto: auto, ...(wh !== auto || typeof opts.override === "number" ? { withholdingOverride: wh } : {}), ...(lines.length ? { employeeDeductions: lines, employeeDeductionTotal: ded } : {}) };
   }
-  return { kind: contract.contract_kind, days: workDays, minutes, timePay, fixed, gross, withholding, net: gross - withholding, withholdingNote };
+  return { kind: contract.contract_kind, days: workDays, minutes, timePay, fixed, gross, withholding, net: gross - withholding, withholdingNote, ...(fixedPay ? { base } : {}) };
 }
 
 /** 'YYYY-MM' → 営業日の範囲（暦月・両端） */

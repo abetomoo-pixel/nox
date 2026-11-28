@@ -818,6 +818,8 @@ async function mainBody() {
     ["pricing_first_visit_cover_of", { p_rule_id: null }], // ★0216（2026-11-26 12:48 CC 適用・起票165・覆う判定の内部ヘルパー＝4 ロール revoke・anon／authenticated とも BLOCKED）
     ["pricing_first_visit_shadowed_ids", { p_store_id: null }], // ★0216（同・店で覆われている初回の行）
     ["punch_seq_check", { p_store_id: null, p_cast_id: null, p_type: null, p_at: null }], // mig0161（裁定327＋追補1・打刻の順序検査＝内部ヘルパー・4 ロール revoke・anon／authenticated とも BLOCKED）
+    ["assert_cast_register_level2", {}], // ★0231（2026-11-28 12:36 CC 適用・先の 8 本・段階 2 の判定の内部の関数＝4 ロール revoke・anon／authenticated とも BLOCKED）
+    ["auth_cast_order_only", {}], // ★0247（同・「いま操作しているのは段階 2 未満のキャストか」＝内部専用・4 ロール revoke）
   ];
   for (const [fn, args] of INTERNAL_PROBES) {
     const { error } = await anon.rpc(fn, args);
@@ -3581,11 +3583,11 @@ async function mainBody() {
           m3.set.has(id1) && m3.set.has(id2) && m3.set.has(id3) && m3.set.has(id4)
           && !m3.set.has(id5) && !m3.set.has(id6), `size=${m3.set.size}`);
 
-        // 27-4 owner: 自店の全 audience 可視（owner も auth_store_id() スコープ＝A2 不可視）
+        // 27-4 owner: 自店の全 audience 可視・★0249（2026-11-28 12:36 CC 適用・先の 8 本・起票317）＝会社のほかの店（A2）も可視・他 org は不可視
         const o4 = await idset(owner27);
-        check("段27-4 owner SELECT = 自店の全 audience 可視（A2 不可視＝owner も自店スコープ）",
+        check("段27-4 owner SELECT = 自店の全 audience 可視・会社のほかの店（A2）も可視（★0249）・他 org は不可視",
           o4.set.has(id1) && o4.set.has(id2) && o4.set.has(id3) && o4.set.has(id4)
-          && !o4.set.has(id5) && !o4.set.has(id6), `size=${o4.set.size}`);
+          && o4.set.has(id5) && !o4.set.has(id6), `size=${o4.set.size}`);
 
         // 27-5 anon: SELECT 拒否 or 0行
         const a5 = await idset(anon);
@@ -4684,8 +4686,6 @@ async function mainBody() {
         const { data: openId, error: eOpen } = await castTmp.rpc("check_open", { p_seat_id: seatId, p_people: 1, p_nom_type: "hon" });
         check("段31-c check_open 成功（uuid 返却・cast 実 INSERT）", !eOpen && typeof openId === "string", eOpen?.message);
         accCheckId = openId as string;
-        const { error: eNom } = await castTmp.rpc("check_set_nominations", { p_check_id: accCheckId, p_nominations: [{ cast_id: cTmp.id, weight: 1, nom_kind: "hon", is_dohan: false }] });
-        check("段31-c check_set_nominations 成功（自己指名）", !eNom, eNom?.message);
         const { data: lineId, error: eLine } = await castTmp.rpc("check_add_line", { p_check_id: accCheckId, p_product_id: drinkP.id, p_qty: 2, p_kind: null, p_pay_group: "A", p_name: null, p_unit_price: null });
         check("段31-c check_add_line 成功（uuid 返却・NOT NULL 充填）", !eLine && typeof lineId === "string", eLine?.message);
         const { data: chkRow } = await admin.from("checks").select("total").eq("id", accCheckId).single();
@@ -4695,7 +4695,12 @@ async function mainBody() {
         check("段31-c ★25 注文のみ（sys_cast_register 1）の cast は check_pay forbidden", forbidden(ePayLv1), ePayLv1?.message ?? "通ってしまった");
         const { error: eLv2 } = await owner.rpc("set_store_profile", { p_store_id: s31Store.id, p_patch: { sys_cast_register: 2 } });
         check("段31-c ★25 owner が sys_cast_register=2（会計まで）に上げる（set_store_profile 白名単）", !eLv2, eLv2?.message);
-        const { data: payId, error: ePay } = await castTmp.rpc("check_pay", { p_check_id: accCheckId, p_method: "cash", p_amount: due, p_pay_group: "A", p_tendered: due, p_idem_key: randomUUID() });
+        // ★0231（2026-11-28 12:36 CC 適用・先の 8 本）: 自己指名（check_set_nominations）は段階 2 の操作＝店を「会計まで」に上げた後に呼ぶ（前は段階 1 のまま開卓の直後に呼んでいた）。指名で派生の行が付きうるので請求額は読み直す
+        const { error: eNom } = await castTmp.rpc("check_set_nominations", { p_check_id: accCheckId, p_nominations: [{ cast_id: cTmp.id, weight: 1, nom_kind: "hon", is_dohan: false }] });
+        check("段31-c check_set_nominations 成功（自己指名・★0231＝段階 2 に上げた後）", !eNom, eNom?.message);
+        const { data: chkRow2 } = await admin.from("checks").select("total").eq("id", accCheckId).single();
+        const due2 = (chkRow2?.total as number) ?? 0;
+        const { data: payId, error: ePay } = await castTmp.rpc("check_pay", { p_check_id: accCheckId, p_method: "cash", p_amount: due2, p_pay_group: "A", p_tendered: due2, p_idem_key: randomUUID() });
         check("段31-c check_pay 成功（uuid 返却・会計まで＝2）", !ePay && typeof payId === "string", ePay?.message);
         const { data: closeId, error: eClose } = await castTmp.rpc("check_close", { p_check_id: accCheckId, p_idem_key: randomUUID() });
         check("段31-c check_close 成功（cast 会計フロー完走）", !eClose && closeId === accCheckId, eClose?.message);

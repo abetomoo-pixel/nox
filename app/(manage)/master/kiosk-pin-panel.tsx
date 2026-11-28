@@ -243,7 +243,7 @@ export default function KioskPinPanel({ stores, isOwner }: { stores: Store[]; is
                       )}
                     </td>
                     <td style={{ padding: 6 }}>
-                      <button style={btn} disabled={busy} onClick={() => openPinModal(m)}>再設定</button>
+                      {(isOwner || m.role === "staff" || m.role === "cast") && <button style={btn} disabled={busy} onClick={() => openPinModal(m)}>再設定</button>}{/* ★0246（決め a）: 店長が PIN を決められるのは自店のスタッフとレジを許したキャストだけ＝関数（set_staff_pin）と同じ幅。管理者・店長の行の「再設定」はオーナーと管理者にだけ出す（「解除」は今までどおり） */}
                       {mig0192On() && locked && <button style={{ ...btn, marginLeft: 6 }} data-pin-unlock={m.id} disabled={busy} onClick={() => void unlockPin("staff", m.id)}>解除</button>}{/* ★0192 M-39 */}
                     </td>
                   </tr>

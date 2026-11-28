@@ -32,7 +32,13 @@ export async function POST(req: Request) {
   if (isDemo) { const { count } = await admin.from("line_links").select("id", { count: "exact", head: true }).eq("store_id", n.store_id as string); return NextResponse.json({ ok: true, recipients: count ?? 0, sent: 0, failed: 0, skipped: 0, demo: true }); }
   const kinds = noticeLineSubjectKindsOf(String(n.audience ?? "all"));
   const { data: links0 } = await admin.from("line_links").select("line_user_id, subject_kind, subject_id").eq("store_id", n.store_id as string).in("subject_kind", kinds).is("blocked_at", null);
-  const links = noticeLineLinksOf((links0 ?? []) as { line_user_id: string; subject_kind: string; subject_id: string }[], n, kinds); // ★M-129: 宛先だけ
+  // ★0228（#110・#295）: 在籍の人だけに送る（退店・在籍の解除の後に連携が残っていても送らない＝0228 が消す前の行・消し損ねの守り）
+  const subj = (links0 ?? []) as { line_user_id: string; subject_kind: string; subject_id: string }[];
+  const castIds = subj.filter((l) => l.subject_kind === "cast").map((l) => l.subject_id), memIds = subj.filter((l) => l.subject_kind === "membership").map((l) => l.subject_id);
+  const { data: ac } = castIds.length ? await admin.from("casts").select("id").in("id", castIds).eq("is_active", true) : { data: [] as { id: string }[] };
+  const { data: am } = memIds.length ? await admin.from("memberships").select("id").in("id", memIds).eq("is_active", true) : { data: [] as { id: string }[] };
+  const activeIds = new Set([...((ac ?? []) as { id: string }[]), ...((am ?? []) as { id: string }[])].map((r) => r.id));
+  const links = noticeLineLinksOf(subj.filter((l) => activeIds.has(l.subject_id)), n, kinds); // ★M-129: 宛先だけ
   const text = noticeLineTextOf({ storeName: (st as { name?: string } | null)?.name ?? "", title: String(n.title ?? ""), body: String(n.body ?? ""), rsvpLines: rsvpLinesOf(n as unknown as NoticeRsvpCols) }); // ★C-1: 出欠つきは日時・場所を本文の前に（出欠なしは今までと同じ）
   let sent = 0, failed = 0, skipped = 0;
   for (const l of (links ?? []) as { line_user_id: string }[]) {
